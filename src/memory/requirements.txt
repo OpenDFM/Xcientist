@@ -1,0 +1,10 @@
+faiss==1.7.2
+numpy==2.3.4
+pydantic==2.12.3
+rank_bm25==0.2.2
+sentence_transformers==5.1.1
+torch==2.9.0
+torch_xla==2.8.1
+tqdm==4.67.1
+transformers==4.57.1
+openai==1.52.0
