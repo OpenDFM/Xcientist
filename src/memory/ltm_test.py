@@ -55,20 +55,13 @@ def main() -> None:
     print('''--------------------Memory add test--------------------''')
     print(f"SemanticRecord adding test: {semantic_memory_store.add([sem_rec])}")
     print(f"EpisodicRecord adding test: {episodic_memory_store.add([epi_rec])}")
+    print(f"ProceduralRecord adding test: {procedural_memory_store.add([proc_rec])}")
 
     print('''--------------------Memory update test--------------------''')
     sem_rec.update(
         detail="Updated detail: prioritize fog and rain injection.",
     )
     print(f"SemanticRecord updating test: {semantic_memory_store.update([sem_rec])}")
-
-    print('''--------------------Memory batch-processing test--------------------''')
-    new_sem_rec = semantic_memory_store.instantiate_sem_record(
-        summary="Rain augmentations also improve robustness in low-light conditions.",
-        detail="Incorporate rain effects when training data is captured at night or in dim environments.",
-        tags=("augmentation", "robustness"),
-    )
-    print(f"SemanticRecord batch-processing test: {semantic_memory_store.batch_memory_process([sem_rec, new_sem_rec])}")
 
     print('''--------------------Memory query(embedding) test--------------------''')
     results = semantic_memory_store.query("augmentations robustness weather", method="embedding", limit=2)
@@ -83,8 +76,8 @@ def main() -> None:
     print(f"SemanticRecord query test results: {[{'score': r[0], 'record': r[1].to_dict()} for r in results]}")
 
     print('''--------------------Memory size test--------------------''')
-    print(f"SemanticRecord size test: {semantic_memory_store.size()}")
-    print(f"EpisodicRecord size test: {episodic_memory_store.size()}")
+    print(f"SemanticRecord size test: {semantic_memory_store.size}")
+    print(f"EpisodicRecord size test: {episodic_memory_store.size}")
 
     print('''--------------------Memory save test--------------------''')
     print(f"SemanticMemoryStore save test: {semantic_memory_store.save('sem_test')}")
@@ -93,15 +86,15 @@ def main() -> None:
     print('''--------------------Memory load test--------------------''')
     another_semantic_memory_store = FAISSMemorySystem(memory_type="semantic")
     print(f"SemanticMemoryStore load test: {another_semantic_memory_store.load('sem_test')}")
-    print(f"New SemanticMemoryStore record nums: {another_semantic_memory_store.size()}")
+    print(f"New SemanticMemoryStore record nums: {another_semantic_memory_store.size}")
     another_episodic_memory_store = FAISSMemorySystem(memory_type="episodic")
     print(f"EpisodicMemoryStore load test: {another_episodic_memory_store.load('epi_test')}")
-    print(f"New EpisodicMemoryStore record nums: {another_episodic_memory_store.size()}")
+    print(f"New EpisodicMemoryStore record nums: {another_episodic_memory_store.size}")
 
     print('''--------------------Memory delete test--------------------''')
     delete_ids = [r[1].id for r in results]
     print(f"SemanticRecord delete test: {another_semantic_memory_store.delete(delete_ids)}")
-    print(f"After delete SemanticRecord size: {another_semantic_memory_store.size()}")
+    print(f"After delete SemanticRecord size: {another_semantic_memory_store.size}")
 
     print("--------------------Memory fetch(by ids) test--------------------")
     fetch_ids = [r[1].id for r in results]
@@ -113,6 +106,14 @@ def main() -> None:
     print(semantic_memory_store.get_last_k_records(100))
     print(episodic_memory_store.get_last_k_records(1))
     print(episodic_memory_store.get_last_k_records(100))
+
+    print("--------------------Get the nearest K record test--------------------")
+    nearest_sem_records = semantic_memory_store.get_nearest_k_records(sem_rec, k=2)
+    nearest_epi_records = episodic_memory_store.get_nearest_k_records(epi_rec, k=2)
+    nearest_proc_records = procedural_memory_store.get_nearest_k_records(proc_rec, k=2)
+    print(f"Nearest SemanticRecords: {[r[1].to_dict() for r in nearest_sem_records]}")
+    print(f"Nearest EpisodicRecords: {[r[1].to_dict() for r in nearest_epi_records]}")
+    print(f"Nearest ProceduralRecords: {[r[1].to_dict() for r in nearest_proc_records]}")
 
     log_file.close()
 

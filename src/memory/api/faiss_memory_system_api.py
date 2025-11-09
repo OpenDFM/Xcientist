@@ -15,7 +15,7 @@ from memory_system import (
 )
 from memory_system.utils import now_iso, new_id, _transfer_dict_to_semantic_text
 from memory_system.denstream import DenStream
-from .base_memory_system_api import MemorySystem, MemorySystemConfig, MemoryRecordPayload
+from .base_memory_system_api import MemorySystem, MemorySystemConfig, SemanticRecordPayload, EpisodicRecordPayload, ProceduralRecordPayload
 from collections import defaultdict
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
@@ -29,7 +29,7 @@ class FAISSMemorySystem(MemorySystem):
         self.llm = OpenAIClient(model=cfg.llm_name)
 
     def instantiate_sem_record(self, **kwargs) -> SemanticRecord:
-        cfg = MemoryRecordPayload(**kwargs)
+        cfg = SemanticRecordPayload(**kwargs)
         record = SemanticRecord(
             id=new_id("sem"),
             summary=cfg.summary,
@@ -41,7 +41,7 @@ class FAISSMemorySystem(MemorySystem):
         return record
     
     def instantiate_epi_record(self, eps: float = 0.6, beta: float = 0.5, mu: float = 4, **kwargs) -> EpisodicRecord:
-        cfg = MemoryRecordPayload(**kwargs)
+        cfg = EpisodicRecordPayload(**kwargs)
         record = EpisodicRecord(
             id=new_id("epi"),
             stage=cfg.stage,
@@ -55,7 +55,7 @@ class FAISSMemorySystem(MemorySystem):
         return record
 
     def instantiate_proc_record(self, **kwargs) -> ProceduralRecord:
-        cfg = MemoryRecordPayload(**kwargs)
+        cfg = ProceduralRecordPayload(**kwargs)
         record = ProceduralRecord(
             id=new_id("proc"),
             name=cfg.name,
@@ -68,6 +68,7 @@ class FAISSMemorySystem(MemorySystem):
         )
         return record
 
+    @property
     def size(self) -> int:
         return self.vector_store._get_record_nums()
 
@@ -85,8 +86,8 @@ class FAISSMemorySystem(MemorySystem):
         return records
     
     def get_last_k_records(self, k: int) -> Tuple[Union[List[SemanticRecord], List[EpisodicRecord], List[ProceduralRecord]], int]:
-        if k >= self.size():
-            return [record for record in self.vector_store.meta.values()], self.size()
+        if k >= self.size:
+            return [record for record in self.vector_store.meta.values()], self.size
         
         else:
             sorted_fids = sorted(self.vector_store.fidmap2mid.keys(), reverse=True)
@@ -118,15 +119,6 @@ class FAISSMemorySystem(MemorySystem):
         except Exception as e:
             print(f"Error updating memories: {e}")
             return False
-
-    def batch_memory_process(self, memories: List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]] = None) -> bool:
-        '''If you can not distinguish memories need to be add or update, use this method.'''
-        try:
-            self.vector_store.batch_memory_process(memories)
-            return True
-        except Exception as e:
-            print(f"Error processing memories: {e}")
-            return False
     
     def delete(self, mids: List[str]) -> bool:
         try:
@@ -138,7 +130,12 @@ class FAISSMemorySystem(MemorySystem):
             print(f"Error deleting memories: {e}")
             return False
     
-    def query(self, query_text: str, method: str = "embedding", limit: int = 5, filters: Dict | None = None) -> List[Tuple[float, Dict]]:
+    def query(self, 
+        query_text: str, 
+        method: str = "embedding", 
+        limit: int = 5, 
+        filters: Dict | None = None) ->List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
+        limit = min(limit, self.size)
         try:
             results = self.vector_store.query(query_text, method=method, limit=limit, filters=filters)
         except Exception as e:
@@ -150,6 +147,7 @@ class FAISSMemorySystem(MemorySystem):
             self, 
             epi_records: List[EpisodicRecord], 
             consistency_threshold: float = 0.8) -> Tuple[List[SemanticRecord], Dict[int, SemanticRecord]]:
+        # TODO: Debug
         assert self.memory_type == "episodic", "Clustering is only supported for episodic memory type."
 
         cidmap2mid: Dict[int, List] = defaultdict(list) # {cluster_id: episodic_record_id}
@@ -160,7 +158,7 @@ class FAISSMemorySystem(MemorySystem):
         updated_cluster_id: List[int] = []
 
         for epi in epi_records:
-            mid2record[epi.id] = epi
+            midmap2record[epi.id] = epi
             info = denstream.process(point=epi.embedding, now=epi.created_at)
             cidmap2mid[info['cluster_id']].append(epi.id)
             updated_cluster_id.append(info['cluster_id'])

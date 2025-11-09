@@ -26,7 +26,7 @@
 | delete    | ✅ Debugged |
 | query | ✅ Debugged |
 | abstract_episodic_records | ❌ Not yet debugged |
-| get_nearest_k_records    | ❌ Not yet debugged |
+| get_nearest_k_records    | ✅ Debugged |
 | save   | ✅ Debugged |
 | load  | ✅ Debugged |
 
