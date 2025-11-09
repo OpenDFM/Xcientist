@@ -87,17 +87,30 @@ class FaissVectorStore(VectorStore):
             self.meta[int(i)] = r
         return ids.tolist()
 
-    def update(self, raws: Union[SemanticRecord, ProceduralRecord]) -> List[int]:
+    def update(self, raws: List[Union[SemanticRecord, ProceduralRecord]]) -> List[int]:
         if len(raws) == 0:
             return []
 
-        ids = [fid for fid, mid in self.fidmap2mid.items()]
-        assert len(ids) == len(raws), "The number of records to update must match the number of existing records."
+        mids = [raw.id for raw in raws]
+        midmap2fid = {mid: fid for fid, mid in self.fidmap2mid.items()}
+        print(midmap2fid)
+        fids = [midmap2fid[mid] for mid in mids]
 
-        for i, r in zip(ids, raws):
+        self.delete(mids)
+        if isinstance(raws[0], SemanticRecord):
+            updated_texts = [raw.detail for raw in raws]
+        elif isinstance(raws[0], ProceduralRecord):
+            updated_texts = [raw.description for raw in raws]
+        # Get new embeddings
+        updated_vec = self._embed(updated_texts)  # [N, dim]
+        self._ensure_index(updated_vec.shape[1])
+        self.index.add_with_ids(updated_vec, np.array(fids, dtype="int64"))
+
+        for i, r in zip(fids, raws):
             # bind data for every id
             self.meta[int(i)] = r
-        return ids
+
+        return fids
 
     def query(self, 
             query_text: str, 
@@ -179,7 +192,6 @@ class FaissVectorStore(VectorStore):
             return
 
         ids = [fid for fid, mid in self.fidmap2mid.items() if mid in mids]
-        print("Deleting ids:", ids)
         indices = np.ascontiguousarray(ids, dtype="int64")
         try:
             sel = faiss.IDSelectorBatch(indices)

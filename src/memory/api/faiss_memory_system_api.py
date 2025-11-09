@@ -113,12 +113,14 @@ class FAISSMemorySystem(MemorySystem):
             return False
     
     def update(self, memories: List[Union[SemanticRecord, ProceduralRecord]] = None) -> bool:
-        try:
+        '''try:
             self.vector_store.update(memories) # Update new memory to FAISS vectorstore.
             return True
         except Exception as e:
             print(f"Error updating memories: {e}")
-            return False
+            return False'''
+        self.vector_store.update(memories) # Update new memory to FAISS vectorstore.
+        return True
     
     def delete(self, mids: List[str]) -> bool:
         try:
@@ -212,6 +214,8 @@ class FAISSMemorySystem(MemorySystem):
                 cidmap2semrec[cl.id] = sem_record
         
         return abstract_result, cidmap2semrec
+
+    
 
     def get_nearest_k_records(self, 
             record: Union[SemanticRecord, EpisodicRecord, ProceduralRecord], 
