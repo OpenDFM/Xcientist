@@ -22,7 +22,6 @@
 | is_exists    | ✅ Debugged |
 | add    | ✅ Debugged |
 | update   | ✅ Debugged |
-| batch_memory_process  | ✅ Debugged |
 | delete    | ✅ Debugged |
 | query | ✅ Debugged |
 | abstract_episodic_records | ❌ Not yet debugged |
@@ -197,19 +196,6 @@ The remaining snippets reuse `sem_record`, `epi_record`, and `proc_record` defin
   ```python
   sem_record.detail = "Retrained with fog + rain augmentations; accuracy is now 0.75."
   semantic_store.update([sem_record])
-  ```
-
-- **`batch_memory_process` (custom helper)** – the repository does not expose a dedicated method, but you can batch records by composing `instantiate_*` + `add`.
-  ```python
-  def batch_memory_process(payloads, store):
-      records = [store.instantiate_sem_record(**payload) for payload in payloads]
-      store.add(records)
-      return [record.id for record in records]
-
-  batch_memory_process(
-      [{"summary": "Baseline run", "detail": "...", "tags": ("baseline",)}],
-      semantic_store,
-  )
   ```
 
 - **`delete(mids)`** – remove records (and reset episodic clustering state when needed).

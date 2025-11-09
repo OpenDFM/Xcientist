@@ -75,20 +75,16 @@ class SemanticRecord(object):
         self,
         summary: Optional[str] = None,
         detail: Optional[str] = None,
-        confidence: Optional[float] = None,
         tags: Optional[Iterable[str]] = None,
     ) -> None:
         if summary is not None:
             self.summary = summary
         if detail is not None:
             self.detail = detail
-        if confidence is not None:
-            self.confidence = confidence
         if tags is not None:
             self.tags = list(tags)
         self.updated_at = now_iso()
         
-
     @classmethod
     def from_dict(cls, payload: Dict[str, Any]) -> SemanticRecord:
         return cls(
@@ -149,3 +145,22 @@ class ProceduralRecord(object):
             updated_at=payload.get("updated_at", ""),
         )
     
+    def update(
+        self,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        steps: Optional[Iterable[str]] = None,
+        code: Optional[str] = None,
+        tags: Optional[Iterable[str]] = None,
+    ) -> None:
+        if name is not None:
+            self.name = name
+        if description is not None:
+            self.description = description
+        if steps is not None:
+            self.steps = list(steps)
+        if code is not None:
+            self.code = code
+        if tags is not None:
+            self.tags = list(tags)
+        self.updated_at = now_iso()
