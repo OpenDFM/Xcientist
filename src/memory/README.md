@@ -30,6 +30,239 @@
 | save   | ✅ Debugged |
 | load  | ✅ Debugged |
 
+## Slot (Short-term) API Examples
+
+The snippets below assume your OpenAI credentials are exported so that `SlotProcess` can call the LLM-backed helpers.
+
+### Shared setup
+```python
+from api.slot_process_api import SlotProcess
+from memory_system import WorkingSlot
+
+slot_process = SlotProcess()
+research_slot = WorkingSlot(
+    stage="analysis",
+    topic="weather_robustness",
+    summary="Benchmarked fog augmentation on coastal driving data.",
+    attachments={
+        "metrics": {"accuracy": 0.73, "baseline": 0.70},
+        "notes": {"insight": "Fog helps when the baseline is sunny-only."}
+    },
+    tags=["research", "vision"]
+)
+```
+
+- **`add_slot(slot)`** – enqueue a `WorkingSlot` for later filtering/routing.
+  ```python
+  slot_process.add_slot(research_slot)
+  ```
+
+- **`clear_container()`** – drop every slot from the short-term queue.
+  ```python
+  slot_process.clear_container()
+  ```
+
+- **`get_container_size()`** – inspect how many slots are currently buffered.
+  ```python
+  print(f"{slot_process.get_container_size()} slots queued for review")
+  ```
+
+- **`filter_and_route_slots()`** – asynchronously discard low-quality slots and route the rest to a memory type.
+  ```python
+  import asyncio
+
+  async def demo_filter_and_route():
+      slot_process.clear_container()
+      slot_process.add_slot(research_slot)
+      routed = await slot_process.filter_and_route_slots()
+      for bundle in routed:
+          print(bundle["memory_type"], bundle["slot"].summary)
+
+  asyncio.run(demo_filter_and_route())
+  ```
+
+- **`compress_slots(sids=None)`** – compress every slot (or a subset by ID) into a single distilled `WorkingSlot`.
+  ```python
+  import asyncio
+
+  async def demo_compress():
+      slot_process.clear_container()
+      slot_process.add_slot(research_slot)
+      slot_process.add_slot(WorkingSlot(
+          stage="execution",
+          topic="rl_pipeline",
+          summary="Ran policy distillation with episodic recall and saw +2% stability.",
+          attachments={"metrics": {"stability_index": 0.91}},
+          tags=["rl", "execution"]
+      ))
+      compressed = await slot_process.compress_slots()
+      print(compressed.to_dict())
+
+  asyncio.run(demo_compress())
+  ```
+
+- **`transfer_slot_to_text(slot)`** – convert a slot JSON dump into a concise paragraph via the LLM.
+  ```python
+  import asyncio
+
+  async def demo_transfer():
+      text_summary = await slot_process.transfer_slot_to_text(research_slot)
+      print(text_summary.strip())
+
+  asyncio.run(demo_transfer())
+  ```
+
+## Long-term Memory API Examples
+
+All examples assume FAISS can write to disk (for save/load) and that the OpenAI client configured in `FAISSMemorySystem` can run when episodic abstraction is invoked.
+
+### Shared setup
+```python
+from api.faiss_memory_system_api import FAISSMemorySystem
+
+semantic_store = FAISSMemorySystem(memory_type="semantic")
+episodic_store = FAISSMemorySystem(memory_type="episodic")
+procedural_store = FAISSMemorySystem(memory_type="procedural")
+```
+
+- **`instantiate_sem_record(**kwargs)`** – create a `SemanticRecord` before persisting it.
+  ```python
+  sem_record = semantic_store.instantiate_sem_record(
+      summary="Fog augmentations raise coastal accuracy by ~3%.",
+      detail="Baseline accuracy 0.70; fog mix training run reached 0.73.",
+      tags=("augmentation", "experiment")
+  )
+  ```
+
+- **`instantiate_epi_record(**kwargs)`** – construct an `EpisodicRecord` with an embedding ready for clustering.
+  ```python
+  epi_record = episodic_store.instantiate_epi_record(
+      stage="execution",
+      summary="Ran fog training job with seed 7.",
+      detail={"metrics": {"accuracy": 0.73}, "notes": "Used 3 fog levels."},
+      tags=("execution", "fog")
+  )
+  ```
+
+- **`instantiate_proc_record(**kwargs)`** – define a reusable `ProceduralRecord`.
+  ```python
+  proc_record = procedural_store.instantiate_proc_record(
+      name="augmentation_pipeline",
+      description="Steps for injecting fog noise into the loader.",
+      steps=[
+          "Profile deployment weather distribution.",
+          "Map weather modes to augmentation operators.",
+          "Blend augmentations during training."
+      ],
+      code="def apply_fog(batch):\n    return fogger(batch)",
+      tags=("procedure", "training")
+  )
+  ```
+
+The remaining snippets reuse `sem_record`, `epi_record`, and `proc_record` defined above.
+
+- **`size`** – read-only property showing the number of records already indexed.
+  ```python
+  print(f"{semantic_store.size} semantic memories stored so far")
+  ```
+
+- **`get_records_by_ids(mids)`** – fetch specific records (assuming they were previously added).
+  ```python
+  semantic_store.add([sem_record])
+  fetched = semantic_store.get_records_by_ids([sem_record.id])
+  print(fetched[0].summary)
+  ```
+
+- **`get_last_k_records(k)`** – inspect the most recently inserted memories.
+  ```python
+  recent_records, total_seen = semantic_store.get_last_k_records(k=3)
+  for record in recent_records:
+      print(record.id, record.summary)
+  ```
+
+- **`is_exists(mids)`** – check whether particular IDs are present without fetching them.
+  ```python
+  flags = semantic_store.is_exists([sem_record.id, "sem-missing"])
+  print(flags)  # -> [True, False]
+  ```
+
+- **`add(memories)`** – persist new semantic/episodic/procedural memories in FAISS.
+  ```python
+  semantic_store.add([sem_record])
+  episodic_store.add([epi_record])
+  procedural_store.add([proc_record])
+  ```
+
+- **`update(memories)`** – push field edits back into FAISS.
+  ```python
+  sem_record.detail = "Retrained with fog + rain augmentations; accuracy is now 0.75."
+  semantic_store.update([sem_record])
+  ```
+
+- **`batch_memory_process` (custom helper)** – the repository does not expose a dedicated method, but you can batch records by composing `instantiate_*` + `add`.
+  ```python
+  def batch_memory_process(payloads, store):
+      records = [store.instantiate_sem_record(**payload) for payload in payloads]
+      store.add(records)
+      return [record.id for record in records]
+
+  batch_memory_process(
+      [{"summary": "Baseline run", "detail": "...", "tags": ("baseline",)}],
+      semantic_store,
+  )
+  ```
+
+- **`delete(mids)`** – remove records (and reset episodic clustering state when needed).
+  ```python
+  semantic_store.delete([sem_record.id])
+  episodic_store.delete([epi_record.id])
+  ```
+
+- **`query(query_text, method='embedding', limit=5, filters=None)`** – retrieve the most relevant memories via the configured similarity strategy.
+  ```python
+  hits = semantic_store.query(
+      query_text="fog augmentation robustness",
+      method="embedding",
+      limit=2,
+  )
+  for score, record in hits:
+      print(f"{score:.3f} :: {record.summary}")
+  ```
+
+- **`abstract_episodic_records(epi_records, consistency_threshold)`** – asynchronously cluster episodic traces into semantic summaries (feature marked as not fully debugged).
+  ```python
+  import asyncio
+
+  async def demo_abstraction():
+      episodic_store.add([epi_record])
+      semantic_summaries, cluster_map = await episodic_store.abstract_episodic_records(
+          [epi_record],
+          consistency_threshold=0.8,
+      )
+      print(cluster_map, [record.summary for record in semantic_summaries])
+
+  asyncio.run(demo_abstraction())
+  ```
+
+- **`get_nearest_k_records(record, method='embedding', k=5, filters=None)`** – find neighbors for an existing memory.
+  ```python
+  neighbors = semantic_store.get_nearest_k_records(sem_record, k=2)
+  for score, record in neighbors:
+      print(f"{record.id} is similar with score {score:.3f}")
+  ```
+
+- **`save(path)`** – serialize embeddings, metadata, and mappings to disk.
+  ```python
+  semantic_store.save("sem_cache")
+  episodic_store.save("epi_cache")
+  ```
+
+- **`load(path)`** – hydrate a new `FAISSMemorySystem` from a saved directory.
+  ```python
+  restored_semantic = FAISSMemorySystem(memory_type="semantic")
+  restored_semantic.load("sem_cache")
+  print(restored_semantic.size)
+  ```
 
 # Test for STM and LTM
 ```
