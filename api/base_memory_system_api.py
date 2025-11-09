@@ -15,15 +15,28 @@ class MemorySystemConfig(BaseModel):
     model_path: str = Field("./.cache/all-MiniLM-L6-v2", description="Path to the model used for vector embeddings.")
     llm_name: str = Field("gpt-4.1-mini", description="Name of the LLM model to be used.")
 
-class MemoryRecordPayload(BaseModel):
+
+class SemanticRecordPayload(BaseModel):
+    summary: str = Field("", description="A brief summary of the SemanticRecord/EpisodicRecord.")
+    detail: Union[str, dict] = Field("", description="Detailed information about the SemanticRecord.")
+    tags: Optional[Iterable[str]] = Field(None, description="Tags associated with the SemanticRecord.")
+
+
+class EpisodicRecordPayload(BaseModel):
+    summary: str = Field("", description="A brief summary of the SemanticRecord/EpisodicRecord.")
+    detail: Union[str, dict] = Field("", description="Detailed information about the EpisodicRecord.")
+    stage: str = Field("", description="Stage of the EpisodicRecord.")
+    tags: Optional[Iterable[str]] = Field(None, description="Tags associated with the EpisodicRecord.")
+
+
+class ProceduralRecordPayload(BaseModel):
     name: str = Field("", description="Name of the ProceduralRecord.")
     description: str = Field("", description="Description of the ProceduralRecord.")
-    summary: str = Field("", description="A brief summary of the SemanticRecord/EpisodicRecord.")
-    detail: Union[str, dict] = Field("", description="Detailed information about the SemanticRecord/EpisodicRecord.")
+    detail: Union[str, dict] = Field("", description="Detailed information about the ProceduralRecord.")
     steps: Optional[List[str]] = Field(None, description="Steps for the ProceduralRecord.")
     code: Optional[str] = Field(None, description="Code snippet for the ProceduralRecord.")
-    stage: str = Field("", description="Stage of the memory.")
-    tags: Optional[Iterable[str]] = Field(None, description="Tags associated with the memory.")
+    tags: Optional[Iterable[str]] = Field(None, description="Tags associated with the ProceduralRecord.")
+
 
 class MemorySystem(ABC):
     @abstractmethod
@@ -60,10 +73,6 @@ class MemorySystem(ABC):
     
     @abstractmethod
     def update(self, memories: List[Union[SemanticRecord, ProceduralRecord]]) -> bool:
-        ...
-    
-    @abstractmethod
-    def batch_memory_process(self, memories: List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]) -> bool:
         ...
     
     @abstractmethod

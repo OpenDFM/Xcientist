@@ -43,7 +43,7 @@ class FaissVectorStore(VectorStore):
         self.memory_type = memory_type
         self.index = None
         self.dim = None
-        self.meta: Dict[int, Dict] = {} # {id: SemanticRecord | EpisodicRecord | ProceduralRecord}
+        self.meta: Dict[int, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]] = {} # {id: SemanticRecord | EpisodicRecord | ProceduralRecord}
         self.fidmap2mid: Dict[int, str] = {} #{faiss_id: memory_id}
         self._next_id = 0
     
@@ -57,16 +57,6 @@ class FaissVectorStore(VectorStore):
             base = faiss.IndexFlatIP(dim)
             self.index = faiss.IndexIDMap2(base)
             self.dim = dim
-    
-    def _separate_add_and_update(self, raws: List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]) -> Tuple[List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]], List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
-        reverse_map = {mid : fid for fid, mid in self.fidmap2mid.items()}
-        adds, updates = [], []
-        for raw in raws:
-            if raw.id in reverse_map:
-                updates.append(raw)
-            else:
-                adds.append(raw)
-        return adds, updates
     
     def _get_record_nums(self) -> int:
         return len(self.meta)
@@ -108,11 +98,6 @@ class FaissVectorStore(VectorStore):
             # bind data for every id
             self.meta[int(i)] = r
         return ids
-
-    def batch_memory_process(self, raws: Union[SemanticRecord, EpisodicRecord, ProceduralRecord]) -> None:
-        adds, updates = self._separate_add_and_update(raws)
-        self.add(adds)
-        self.update(updates)
 
     def query(self, 
             query_text: str, 
