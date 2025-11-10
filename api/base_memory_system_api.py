@@ -14,12 +14,16 @@ class MemorySystemConfig(BaseModel):
     memory_type: Literal["semantic", "episodic", "procedural", "working"] = "semantic"
     model_path: str = Field("./.cache/all-MiniLM-L6-v2", description="Path to the model used for vector embeddings.")
     llm_name: str = Field("gpt-4.1-mini", description="Name of the LLM model to be used.")
+    eps: Optional[float] = Field(0.6, description="Mu parameter for Denstream.")
+    beta: Optional[float] = Field(0.5, description="Beta parameter for Denstream.")
+    mu: Optional[float] = Field(4, description="Eps parameter for Denstream.")
 
 
 class SemanticRecordPayload(BaseModel):
     summary: str = Field("", description="A brief summary of the SemanticRecord/EpisodicRecord.")
     detail: Union[str, dict] = Field("", description="Detailed information about the SemanticRecord.")
     tags: Optional[Iterable[str]] = Field(None, description="Tags associated with the SemanticRecord.")
+    is_abstracted: bool = Field(False, description="Indicates if the SemanticRecord is abstracted.")
 
 
 class EpisodicRecordPayload(BaseModel):

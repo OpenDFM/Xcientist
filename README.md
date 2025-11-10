@@ -25,6 +25,7 @@
 | delete    | ✅ Debugged |
 | query | ✅ Debugged |
 | abstract_episodic_records | ❌ Not yet debugged |
+| upsert_abstract_semantic_records | ❌ Not yet debugged |
 | get_nearest_k_records    | ✅ Debugged |
 | save   | ✅ Debugged |
 | load  | ✅ Debugged |
@@ -228,6 +229,25 @@ The remaining snippets reuse `sem_record`, `epi_record`, and `proc_record` defin
       print(cluster_map, [record.summary for record in semantic_summaries])
 
   asyncio.run(demo_abstraction())
+  ```
+
+- **`upsert_abstract_semantic_records(sem_records, cidmap2semrec)`** – merge new semantic abstractions into the semantic FAISS index while keeping one record per cluster ID.
+  ```python
+  import asyncio
+
+  async def demo_upsert_semantic():
+      episodic_store.add([epi_record])
+      sem_summaries, cidmap2semrec = await episodic_store.abstract_episodic_records(
+          [epi_record],
+          consistency_threshold=0.8,
+      )
+
+      # New clusters are added, previously seen cluster_ids trigger an in-place update.
+      semantic_store.upsert_abstract_semantic_records(sem_summaries, cidmap2semrec)
+      latest_records, _ = semantic_store.get_last_k_records(k=len(sem_summaries))
+      print([(record.cluster_id, record.summary) for record in latest_records])
+
+  asyncio.run(demo_upsert_semantic())
   ```
 
 - **`get_nearest_k_records(record, method='embedding', k=5, filters=None)`** – find neighbors for an existing memory.

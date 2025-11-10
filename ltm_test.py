@@ -21,6 +21,7 @@ def main() -> None:
         summary="Fog augmentations most beneficial when baseline lacks weather variability.",
         detail="Prioritize fog injection when training data is captured in controlled conditions.",
         tags=("augmentation", "robustness"),
+        is_abstracted=False,
     )
     print(f"SemanticRecord instantiation result: {sem_rec.to_dict()}")
 
