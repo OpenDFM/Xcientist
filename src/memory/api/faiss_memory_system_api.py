@@ -28,6 +28,12 @@ class FAISSMemorySystem(MemorySystem):
         self.vector_store = FaissVectorStore(cfg.model_path, self.memory_type)
         self.llm = OpenAIClient(model=cfg.llm_name)
 
+        if self.memory_type == "semantic":
+            self.global_cidmap2semrec: Dict[int, SemanticRecord] = {} # {cluster_id: SemanticRecord}, Only updated when abstracted semantic records are processed
+
+        if self.memory_type == "episodic":
+            self.cluster_machine = DenStream(eps=cfg.eps, beta=cfg.beta, mu=cfg.mu)
+
     def instantiate_sem_record(self, **kwargs) -> SemanticRecord:
         cfg = SemanticRecordPayload(**kwargs)
         record = SemanticRecord(
@@ -40,7 +46,7 @@ class FAISSMemorySystem(MemorySystem):
         )
         return record
     
-    def instantiate_epi_record(self, eps: float = 0.6, beta: float = 0.5, mu: float = 4, **kwargs) -> EpisodicRecord:
+    def instantiate_epi_record(self, **kwargs) -> EpisodicRecord:
         cfg = EpisodicRecordPayload(**kwargs)
         record = EpisodicRecord(
             id=new_id("epi"),
@@ -50,8 +56,7 @@ class FAISSMemorySystem(MemorySystem):
             tags=cfg.tags,
             created_at=now_iso(),
         )
-        record.embedding = self.vector_store._embed(_transfer_dict_to_semantic_text(record.detail))
-        self.cluster_machine = DenStream(eps=eps, beta=beta, mu=mu)        
+        record.embedding = self.vector_store._embed(_transfer_dict_to_semantic_text(record.detail))        
         return record
 
     def instantiate_proc_record(self, **kwargs) -> ProceduralRecord:
@@ -113,12 +118,12 @@ class FAISSMemorySystem(MemorySystem):
             return False
     
     def update(self, memories: List[Union[SemanticRecord, ProceduralRecord]] = None) -> bool:
-        '''try:
+        try:
             self.vector_store.update(memories) # Update new memory to FAISS vectorstore.
             return True
         except Exception as e:
             print(f"Error updating memories: {e}")
-            return False'''
+            return False
         self.vector_store.update(memories) # Update new memory to FAISS vectorstore.
         return True
     
@@ -153,35 +158,31 @@ class FAISSMemorySystem(MemorySystem):
         assert self.memory_type == "episodic", "Clustering is only supported for episodic memory type."
 
         cidmap2mid: Dict[int, List] = defaultdict(list) # {cluster_id: episodic_record_id}
-        midmap2record: Dict[str, EpisodicRecord] = {} # {episodic_record_id: EpisodicRecord}
+        midmap2epirec: Dict[str, EpisodicRecord] = {} # {episodic_record_id: EpisodicRecord}
         cidmap2semrec: Dict[int, SemanticRecord] = {} # {cluster_id: SemanticRecord}
 
         abstract_result: List[SemanticRecord] = []
-        updated_cluster_id: List[int] = []
+        updated_cluster_id: Set[int] = set()
 
         for epi in epi_records:
-            midmap2record[epi.id] = epi
-            info = denstream.process(point=epi.embedding, now=epi.created_at)
-            cidmap2mid[info['cluster_id']].append(epi.id)
-            updated_cluster_id.append(info['cluster_id'])
-            result.update({epi: info})
+            midmap2epirec[epi.id] = epi
+            info = self.cluster_machine.process(point=epi.embedding, now=epi.created_at)
+            cidmap2mid[info['absorbed_into']['cluster_id']].append(epi.id)
+            updated_cluster_id.add(info['absorbed_into']['cluster_id'])
         
-        score = dict(sorted(
-            self.cluster_machine.cidmap2cluster.items(),
-            key=lambda item: item[1].avg_pairwise_cos(), 
-            reverse=True
-        ))
-
-        for cl in score.values():
+        clusters_sorted = sorted(self.cluster_machine.cidmap2cluster.values(),
+                         key=lambda c: c.avg_pairwise_cos(),
+                         reverse=True)
+        for cl in clusters_sorted:
             # Only abstract clusters that meet the PMC and consistency thresholds, and have been updated in this batch
-            if cl.kind.value == "PMC" and cl.avg_pairwise_cos() >= consistency_threshold and cl.id in set(updated_cluster_id):
+            if cl.kind.value == "PMC" and cl.avg_pairwise_cos() >= consistency_threshold and cl.id in updated_cluster_id:
                 member_ids = cidmap2mid.get(cl.id, [])
                 if not member_ids:
                     continue
 
                 episodic_notes = []
                 for mid in member_ids:
-                    record = midmap2record.get(mid)
+                    record = midmap2epirec.get(mid)
                     if not record:
                         continue
                     if isinstance(record.detail, dict):
@@ -207,15 +208,39 @@ class FAISSMemorySystem(MemorySystem):
                     episodic_notes="\n\n".join(episodic_notes)
                 )
                 response = await self.llm.complete(system_prompt=system_prompt, user_prompt=user_prompt)
+
+                # 1. Create new SemanticRecord, 2. Mark is_abstracted = True, 3. Set cluster_id, 4. Add to result list
                 sem_record_dict = json.loads(response)
                 sem_record_dict['id'] = new_id("sem")
                 sem_record = SemanticRecord.from_dict(sem_record_dict)
+                sem_record.is_abstracted = True
+                sem_record.cluster_id = cl.id
                 abstract_result.append(sem_record)
                 cidmap2semrec[cl.id] = sem_record
         
         return abstract_result, cidmap2semrec
 
-    
+    def upsert_abstract_semantic_records(self, sem_records: List[SemanticRecord], cidmap2semrec: Dict[int, SemanticRecord]) -> None:
+        add_list = []
+        update_list = []
+
+        for sem_rec in sem_records:
+            last_sem_rec = self.global_cidmap2semrec.get(sem_rec.cluster_id, None)
+            if last_sem_rec is None:
+                add_list.append(sem_rec)
+                self.global_cidmap2semrec[sem_rec.cluster_id] = sem_rec
+            else:
+                last_sem_rec.update(
+                    summary=sem_rec.summary,
+                    detail=sem_rec.detail,
+                    tags=sem_rec.tags,
+                    updated_at=now_iso(),
+                )
+                update_list.append(last_sem_rec)
+                self.global_cidmap2semrec[sem_rec.cluster_id] = last_sem_rec
+
+        self.add(add_list)
+        self.update(update_list)
 
     def get_nearest_k_records(self, 
             record: Union[SemanticRecord, EpisodicRecord, ProceduralRecord], 

@@ -93,7 +93,6 @@ class FaissVectorStore(VectorStore):
 
         mids = [raw.id for raw in raws]
         midmap2fid = {mid: fid for fid, mid in self.fidmap2mid.items()}
-        print(midmap2fid)
         fids = [midmap2fid[mid] for mid in mids]
 
         self.delete(mids)

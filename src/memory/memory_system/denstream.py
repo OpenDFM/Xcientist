@@ -172,7 +172,7 @@ class DenStream:
             r_ema=0.0, 
         )
         self.outlier_clusters.append(cluster)
-        self.idmap2cluster[cluster.id] = cluster
+        self.cidmap2cluster[cluster.id] = cluster
         return cluster
 
     def _promote(self, cluster: MicroCluster) -> None:

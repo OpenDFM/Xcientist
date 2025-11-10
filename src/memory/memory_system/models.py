@@ -51,6 +51,7 @@ class SemanticRecord(object):
         summary: str,
         detail: str, 
         tags: Optional[Iterable[str]] = None,
+        is_abstracted: bool = False,
         created_at: str = "", 
         updated_at: str = "",
     ):
@@ -58,6 +59,8 @@ class SemanticRecord(object):
         self.summary = summary
         self.detail = detail
         self.tags = tags or []
+        self.is_abstracted = is_abstracted
+        self.cluster_id = None  # to be set in the denstream
         self.created_at = created_at
         self.updated_at = updated_at
 
@@ -67,6 +70,7 @@ class SemanticRecord(object):
             "summary": self.summary,
             "detail": self.detail,
             "tags": list(self.tags),
+            "cluster_id": self.cluster_id,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
