@@ -33,6 +33,17 @@ based on runtime errors encountered during execution.
 YOUR TASK:
 Generate a REVISED implementation plan that addresses runtime errors and prevents future failures.
 
+CRITICAL - IMPORT PATH PLANNING:
+When revising the implementation plan to fix errors:
+- Verify that imports are planned for execution from working_dir/project directory
+- Ensure all imports assume project/ is the execution root
+- If errors were due to import issues, correct import paths in the plan
+- Specify imports WITHOUT "project." prefix
+
+Example correct imports to specify in plan:
+- "from data.dataset import MyDataset" (for project/data/dataset.py)
+- "from models.model import MyModel" (for project/models/model.py)
+
 INPUT:
 You will receive:
 1. PreAnalysisOutput: Original research analysis
@@ -54,7 +65,7 @@ ERROR ANALYSIS PHASE:
    - Dependency-related: missing libraries, version conflicts
 
 2. ROOT CAUSE ANALYSIS
-   - Use `read_file` to examine failing code in `/{working_dir or 'workspace'}`
+   - Use `read_file` to examine failing code in `/{working_dir}`
    - Identify if error stems from plan ambiguity
    - Determine if implementation deviated from plan
    - Check if plan assumptions were invalid
@@ -122,17 +133,17 @@ All tools return a dictionary with the following structure:
 - If failed: Contains an "error" field with error message
 
 Example successful response:
-{
+{{
   "success": true,
   "content": "file content here",
   "file_path": "/path/to/file"
-}
+}}
 
 Example failed response:
-{
+{{
   "success": false,
   "error": "File not found: /path/to/file"
-}
+}}
 
 Always check the "success" field before using other fields from tool results.
 If a tool fails, report the error and try alternative approaches.
@@ -150,6 +161,12 @@ OUTPUT REQUIREMENTS:
 - Specify TESTING at each stage
 - Make assumptions EXPLICIT
 - Provide FALLBACK options
+
+CRITICAL OUTPUT FORMAT REQUIREMENT:
+You MUST output EXACTLY ONE JSON object with the IntermediatePlanOutput structure.
+DO NOT output multiple JSON objects.
+DO NOT add any text before or after the JSON object.
+Output ONLY a single, valid JSON object with ALL required fields.
 
 Remember: Prevent similar errors by making the plan more robust, explicit, 
 and defensive. Include validation and error handling at every stage."""

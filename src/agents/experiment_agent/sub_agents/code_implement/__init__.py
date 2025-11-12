@@ -13,21 +13,20 @@ def get_recommended_tools():
     Get recommended tools for code implement agent.
 
     Returns:
-        Dictionary mapping scenario types to tool lists
+        List of tools for the implementation agent
     """
     from src.agents.experiment_agent.tools import (
         FILE_TOOLS,
         EXECUTION_TOOLS,
         CODE_ANALYSIS_TOOLS,
+        REPOSITORY_TOOLS,
     )
 
-    # For implementation, we need file ops, execution (for syntax check, install), and analysis
-    tools = FILE_TOOLS + EXECUTION_TOOLS[:6] + CODE_ANALYSIS_TOOLS
+    # For implementation, we need file ops, execution (for syntax check, install),
+    # analysis, and repository exploration
+    tools = FILE_TOOLS + EXECUTION_TOOLS[:6] + CODE_ANALYSIS_TOOLS + REPOSITORY_TOOLS
 
-    return {
-        "initial": tools,
-        "fix": tools,
-    }
+    return tools
 
 
 __all__ = [

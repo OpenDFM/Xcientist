@@ -24,7 +24,7 @@ import requests
 # =============================================================================
 
 
-def search_arxiv(query: str, max_results: int = 10) -> List[Dict]:
+def search_arxiv(query: str, max_results: int = 50) -> List[Dict]:
     """
     Search arxiv papers by query.
 
@@ -244,11 +244,38 @@ def download_arxiv_pdf(arxiv_url: str, output_dir: str, title: str) -> Dict[str,
         Dictionary with status, message, and path
     """
     try:
-        # Extract paper ID from URL
-        paper_id = re.search(r"abs/([^/]+)", arxiv_url).group(1)
+        # Extract paper ID from URL - try multiple patterns
+        paper_id = None
+
+        # Pattern 1: http://arxiv.org/abs/2006.11239v2 or https://arxiv.org/abs/2006.11239v2
+        match = re.search(r"abs/([^/?#]+)", arxiv_url)
+        if match:
+            paper_id = match.group(1)
+
+        # Pattern 2: http://arxiv.org/pdf/2006.11239v2.pdf
+        if not paper_id:
+            match = re.search(r"pdf/([^/?#]+)\.pdf", arxiv_url)
+            if match:
+                paper_id = match.group(1)
+
+        # Pattern 3: Direct arxiv ID format (e.g., 2006.11239v2)
+        if not paper_id:
+            match = re.search(r"(\d{4}\.\d{4,5}(?:v\d+)?)", arxiv_url)
+            if match:
+                paper_id = match.group(1)
+
+        if not paper_id:
+            return {
+                "status": -1,
+                "message": f"Could not extract paper ID from URL: {arxiv_url}",
+                "path": None,
+            }
+
+        # Remove version suffix if present for PDF URL (use latest version)
+        paper_id_base = paper_id.split("v")[0] if "v" in paper_id else paper_id
 
         # Build PDF URL
-        pdf_url = f"http://arxiv.org/pdf/{paper_id}.pdf"
+        pdf_url = f"http://arxiv.org/pdf/{paper_id_base}.pdf"
 
         # Download PDF
         print(f"Downloading PDF from: {pdf_url}")
@@ -568,6 +595,37 @@ def clone_github_repo(clone_url: str, output_dir: str, repo_name: str) -> Dict:
             "message": f"Failed to clone repository '{repo_name}': {str(e)}",
             "path": None,
         }
+
+
+def extract_github_links_from_text(text: str) -> List[str]:
+    """
+    Extract GitHub repository URLs from text content.
+
+    Args:
+        text: Text content to search (e.g., paper content)
+
+    Returns:
+        List of GitHub repository URLs found in the text
+    """
+    github_patterns = [
+        r"https?://github\.com/[\w\-\.]+/[\w\-\.]+",
+        r"github\.com/[\w\-\.]+/[\w\-\.]+",
+        r"https?://www\.github\.com/[\w\-\.]+/[\w\-\.]+",
+    ]
+
+    found_links = set()
+
+    for pattern in github_patterns:
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        for match in matches:
+            # Normalize the URL
+            if not match.startswith("http"):
+                match = "https://" + match
+            # Remove trailing slashes and fragments
+            match = match.rstrip("/").split("#")[0].split("?")[0]
+            found_links.add(match)
+
+    return list(found_links)
 
 
 def search_and_clone_repos_for_papers(

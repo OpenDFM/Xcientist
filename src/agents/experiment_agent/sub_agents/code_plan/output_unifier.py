@@ -34,6 +34,7 @@ You will receive IntermediatePlanOutput containing:
 - research_summary: Summary of the research
 - key_innovations: Key innovations to implement
 - file_structure_description: Textual description of file structure
+- project_structure_tree: ASCII tree representation of complete project structure
 - dataset_plan, model_plan, training_plan, testing_plan: Implementation plans
 - implementation_steps: Textual description of implementation steps
 - implementation_notes: Important notes
@@ -57,6 +58,11 @@ You must produce a CodePlanOutput with these components:
    - Each item has: path, type ('file' or 'directory'), description
    - Organize hierarchically
    - Ensure completeness
+   
+   ALSO preserve the project_structure_tree as-is:
+   - This is the ASCII tree representation that will be shown to implementation agents
+   - Do NOT modify the tree structure
+   - Simply copy it to the project_structure_tree field in output
 
 4. IMPLEMENTATION PLANS
    - dataset_plan: Preserve all details
@@ -71,7 +77,28 @@ You must produce a CodePlanOutput with these components:
    - Make dependencies explicit
    - Be specific about files involved
 
-6. ADDITIONAL GUIDANCE
+6. IMPLEMENTATION CHECKLIST
+   CRITICAL: Parse implementation_checklist text and create structured ChecklistItem objects.
+   
+   Each ChecklistItem must have:
+   - step_id: Unique integer identifier
+   - title: Brief title of the step
+   - description: Detailed description of what to implement
+   - files_to_create: List of files to create in this step
+   - files_to_modify: List of files to modify (may be empty for early steps)
+   - acceptance_criteria: List of criteria to verify completion
+   - dependencies: List of step_ids that must be completed first
+   - estimated_complexity: 'low', 'medium', or 'high'
+   
+   Requirements:
+   - Extract all checklist items from the text
+   - Ensure step_ids are sequential and unique
+   - Parse file lists accurately
+   - Extract all acceptance criteria (typically 3-5 per step)
+   - Identify dependencies between steps
+   - Assign appropriate complexity levels
+   
+7. ADDITIONAL GUIDANCE
    - implementation_notes: Format clearly with sections if needed
    - potential_challenges: Organize by category if possible
    - addressed_issues: Clearly state what was fixed/improved

@@ -32,12 +32,12 @@ def create_idea_algorithm_analyzer(
 
         workspace_dir = LOCAL_WORKSPACE_DIR
 
-    instructions = f"""You are an expert technical analyst specializing in transforming research 
-ideas into detailed algorithmic specifications and mathematical formulations.
+    instructions = f"""You are an expert technical analyst specializing in extracting and elaborating 
+detailed algorithmic specifications and mathematical formulations from research proposals.
 
 YOUR TASK:
-Analyze the provided research idea (in JSON format) and GENERATE detailed algorithms, 
-mathematical formulations, and technical specifications needed for implementation.
+Analyze the provided research idea (in JSON format) and EXTRACT/ELABORATE on ALL algorithms, 
+mathematical formulations, and technical specifications with MAXIMUM DETAIL and PRECISION.
 
 WORKFLOW:
 1. List repositories in {workspace_dir}/repos using `list_directory`
@@ -50,53 +50,80 @@ WORKFLOW:
 4. Generate algorithmic specifications based on the idea and code examples
 
 INPUT FORMAT:
-The idea will contain:
-- Methodology description
+The idea JSON may contain:
+- **proposal**: A comprehensive research proposal with detailed methodology, pseudocode,
+  algorithms, mathematical formulations, and implementation specifications (PRIMARY SOURCE)
+- methodology: Method overview  
 - Mathematical formulation (if provided)
 - Technical approach
 - Implementation considerations
 
-IMPORTANT NOTE:
-Unlike paper analysis where you EXTRACT existing algorithms, here you must GENERATE and 
-ELABORATE algorithms based on the idea description. The idea may only provide high-level 
-concepts - you must work out the detailed algorithmic steps.
+CRITICAL INSTRUCTION FOR PROPOSAL FIELD:
+If the input contains a "proposal" field with algorithmic content, YOU MUST:
+1. Extract EVERY algorithm, pseudocode block, and algorithmic step mentioned
+2. Transcribe ALL mathematical equations EXACTLY as written (preserve LaTeX)
+3. Document EVERY variable, parameter, and symbol with its meaning
+4. Capture ALL algorithmic specifications: inputs, outputs, complexity, constraints
+5. Extract complete pseudocode blocks verbatim - do not summarize
+6. Reference specific sections when discussing algorithms (e.g., "Section 3.1", "Algorithm 1")
+7. Identify all computational procedures, training loops, and inference pipelines
+8. Be exhaustive - downstream implementation depends on complete algorithmic details
 
-ANALYSIS AND GENERATION FOCUS:
+IMPORTANT NOTE:
+Unlike paper analysis where you EXTRACT existing algorithms, here you must EXTRACT from
+the proposal AND ELABORATE where needed. The proposal may contain detailed algorithms -
+extract them completely. Where high-level, work out detailed algorithmic steps.
+
+ANALYSIS AND EXTRACTION FOCUS:
 
 1. ALGORITHMS
-   - DESIGN complete algorithms based on the idea
-   - Write detailed pseudocode for core procedures
-   - Specify algorithm steps and control flow
-   - Define input/output specifications
-   - Consider edge cases and special handling
+   - EXTRACT ALL pseudocode blocks VERBATIM from the proposal
+   - Transcribe EVERY algorithmic step, loop, and conditional exactly
+   - List ALL algorithm components: initialization, main loop, termination
+   - Document input/output specifications precisely as stated
+   - Extract algorithmic complexity if mentioned with exact notation
+   - Identify all mentioned procedures/functions by name
+   - Note specific algorithmic choices and techniques mentioned
+   - Extract edge cases and special handling if specified
 
 2. MATHEMATICAL FORMULATIONS
-   - FORMALIZE the mathematical models described
-   - Write out complete equations and formulas
-   - Define loss functions and objectives
-   - Specify gradient computations if relevant
-   - Elaborate on probability models or statistical formulations
+   - TRANSCRIBE ALL equations EXACTLY as written in LaTeX format
+   - Extract EVERY mathematical symbol and define its meaning
+   - Document all loss functions with complete formulation
+   - List ALL variables, parameters, and hyperparameters with their notations
+   - Extract gradient computation specifications if provided
+   - Capture mathematical constraints and properties explicitly stated
+   - Document all probability distributions, statistical models if mentioned
+   - Preserve exact notation for vectors, matrices, tensors
 
 3. TECHNICAL DETAILS
-   - SPECIFY network architectures if applicable
-   - Recommend hyperparameters and configurations
-   - Detail data preprocessing requirements
-   - Suggest activation functions and regularization
-   - Propose implementation strategies
+   - LIST ALL network architectures mentioned by name
+   - EXTRACT ALL hyperparameters with their specified values/ranges
+   - Document data preprocessing steps explicitly stated
+   - List activation functions specified by name
+   - Extract regularization techniques mentioned with notation
+   - Identify required libraries/frameworks explicitly named
+   - Note implementation strategies and design patterns specified
+   - Extract batching, vectorization, and optimization requirements
 
 4. COMPUTATIONAL METHODS
-   - DESIGN efficient computation strategies
-   - Suggest optimization algorithms
-   - Propose sampling or approximation methods
-   - Identify parallelization opportunities
-   - Consider numerical stability
+   - EXTRACT specific optimization algorithms mentioned by name
+   - Document computational complexity if stated with exact notation
+   - List sampling/approximation methods if proposed
+   - Identify parallelization strategies specified
+   - Extract numerical stability considerations
+   - Note auto-differentiation requirements
+   - Document caching and pre-computation strategies mentioned
 
 5. ALGORITHM FLOW
-   - DESIGN complete training pipeline
-   - Specify inference/testing procedure
-   - Map out data flow through system
-   - Define component dependencies
-   - Establish execution order
+   - EXTRACT complete training pipeline as described (step-by-step)
+   - Transcribe inference/testing procedure exactly
+   - Document data flow diagrams or descriptions
+   - Map out component dependencies as specified
+   - Extract initialization, forward pass, backward pass, update steps
+   - List all phases/stages mentioned with their names
+   - Note control flow: loops, iterations, epochs, batches
+   - Extract stopping criteria and convergence conditions
 
 TOOL USAGE GUIDELINES:
 
@@ -137,16 +164,39 @@ IMPORTANT:
 - Use code examples to inform algorithm design
 
 OUTPUT REQUIREMENTS:
-- GENERATE complete, implementable specifications
-- Write mathematical formulas in LaTeX format
-- Be DETAILED and PRECISE
-- Fill in gaps left by the high-level idea
-- Make reasonable technical assumptions when needed
-- Provide CONCRETE algorithmic steps
+- EXTRACT ALL algorithmic content from the proposal - be exhaustive, not selective
+- TRANSCRIBE mathematical formulas EXACTLY as written (preserve LaTeX notation)
+- PRESERVE all variable names, symbols, and notation precisely
+- DOCUMENT every algorithm step, equation, and technical specification
+- REFERENCE specific sections when quoting (e.g., "from Section 2.5", "as per Algorithm 1")
+- LIST hyperparameters with their specified values/ranges
+- CAPTURE all pseudocode blocks verbatim - do not paraphrase or summarize
+- BE CONCRETE - avoid vague descriptions like "various optimization methods"
+- QUANTIFY everything that has numbers (sizes, ranges, thresholds, complexities)
+- ORGANIZE by logical flow: algorithms → math formulations → technical specs → computational methods
 
-Remember: You are CREATING the detailed technical plan from a high-level idea. 
-Be creative but rigorous. Think through the full implementation and provide 
-complete specifications that a developer can follow."""
+EXAMPLES OF GOOD vs. BAD OUTPUT:
+
+BAD (vague): "The model uses a loss function with some regularization."
+GOOD (specific): "The loss function (Section X.Y) is defined as:
+$$\\mathcal{{L}} = \\mathcal{{L}}_{{\\text{{primary}}}}([args]) + \\lambda_1 \\mathcal{{R}}_1([args]) + \\lambda_2 \\mathcal{{R}}_2([args])$$
+where $\\mathcal{{L}}_{{\\text{{primary}}}}$ is [exact description from proposal], and $\\lambda_1$, $\\lambda_2$ 
+are hyperparameters [specify tuning method if mentioned]."
+
+BAD (incomplete): "The algorithm has several steps for computing features."
+GOOD (complete): "The algorithm (Section X.Y, Pseudocode) follows these steps:
+```
+[Transcribe exact pseudocode from proposal]
+Step 1: [exact description]
+  [nested operations as specified]
+Step 2: [exact description]
+  [nested operations as specified]
+...
+```"
+
+Remember: Your output is the PRIMARY algorithmic specification for implementation. 
+Developers will code directly from your analysis. Extract every technical detail 
+from the proposal - be exhaustive, precise, and complete."""
 
     agent = Agent(
         name="Idea Algorithm Analyzer",

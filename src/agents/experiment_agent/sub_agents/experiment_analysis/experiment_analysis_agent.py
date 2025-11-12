@@ -135,18 +135,18 @@ All tools return a dictionary with the following structure:
 - If failed: Contains an "error" field with error message
 
 Example successful response:
-{
+{{
   "success": true,
   "content": "Epoch 1: loss=0.5, acc=0.85\\nEpoch 2: loss=0.3, acc=0.92...",
   "file_path": "/logs/experiment.log",
   "size_bytes": 45678
-}
+}}
 
 Example failed response:
-{
+{{
   "success": false,
   "error": "File not found: /logs/experiment.log"
-}
+}}
 
 Always check the "success" field before using other fields from tool results.
 If a tool fails, report the error and try alternative approaches.
@@ -397,7 +397,7 @@ Use the available tools to read the log and perform thorough analysis.
 """
 
         # Run analysis agent
-        result = await Runner.run(self.analysis_agent, analysis_input)
+        result = await Runner.run(self.analysis_agent, analysis_input, max_turns=100)
 
         return result.final_output
 

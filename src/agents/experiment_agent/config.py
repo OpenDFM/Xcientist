@@ -55,10 +55,19 @@ DOCKER_CONTAINER_NAME: str = os.getenv(
 # Working directory in Docker container
 DOCKER_WORKING_DIR: str = os.getenv("DOCKER_WORKING_DIR", "/workspace")
 
+# Project directory in Docker container (corresponding to PROJECT_DIR)
+DOCKER_PROJECT_DIR: str = os.getenv("DOCKER_PROJECT_DIR", "/workspace/project")
+
 # Local workspace directory (shared with Docker)
 LOCAL_WORKSPACE_DIR: str = os.getenv(
     "LOCAL_WORKSPACE_DIR",
     "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/experiment_agent/workspace",
+)
+
+# Project implementation directory (where all code implementation and experiments happen)
+PROJECT_DIR: str = os.getenv(
+    "PROJECT_DIR",
+    os.path.join(LOCAL_WORKSPACE_DIR, "project"),
 )
 
 # Input paths
@@ -70,6 +79,17 @@ IDEA_INPUT_PATH: str = os.getenv(
 PAPER_INPUT_PATH: str = os.getenv(
     "PAPER_INPUT_PATH",
     os.path.join(LOCAL_WORKSPACE_DIR, "paper.tex"),
+)
+
+# Dataset paths
+DATASET_CANDIDATE_DIR: str = os.getenv(
+    "DATASET_CANDIDATE_DIR",
+    "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/AI-Researcher/benchmark/process/dataset_candidate",
+)
+
+# Docker dataset path (mounted in container)
+DOCKER_DATASET_DIR: str = os.getenv(
+    "DOCKER_DATASET_DIR", "/workspace/dataset_candidate"
 )
 
 # Output paths
@@ -160,6 +180,7 @@ def get_docker_config() -> dict:
         "timeout": DOCKER_TIMEOUT,
         "container_name": DOCKER_CONTAINER_NAME,
         "working_dir": DOCKER_WORKING_DIR,
+        "project_dir": DOCKER_PROJECT_DIR,
     }
 
 
@@ -172,7 +193,11 @@ def get_path_config() -> dict:
     """
     return {
         "local_workspace": LOCAL_WORKSPACE_DIR,
+        "project_dir": PROJECT_DIR,
         "docker_workspace": DOCKER_WORKING_DIR,
+        "docker_project_dir": DOCKER_PROJECT_DIR,
+        "dataset_candidate_dir": DATASET_CANDIDATE_DIR,
+        "docker_dataset_dir": DOCKER_DATASET_DIR,
         "idea_input": IDEA_INPUT_PATH,
         "paper_input": PAPER_INPUT_PATH,
         "logs_dir": EXPERIMENT_LOGS_DIR,
@@ -208,6 +233,7 @@ def validate_config() -> tuple[bool, list[str]]:
 
     # Check paths exist (create if needed)
     os.makedirs(LOCAL_WORKSPACE_DIR, exist_ok=True)
+    os.makedirs(PROJECT_DIR, exist_ok=True)
     os.makedirs(EXPERIMENT_LOGS_DIR, exist_ok=True)
     os.makedirs(RESULTS_OUTPUT_DIR, exist_ok=True)
 
@@ -238,6 +264,7 @@ def print_config():
 
     print(f"\n[Path Configuration]")
     print(f"  Local Workspace: {LOCAL_WORKSPACE_DIR}")
+    print(f"  Project Dir: {PROJECT_DIR}")
     print(f"  Idea Input: {IDEA_INPUT_PATH}")
     print(f"  Paper Input: {PAPER_INPUT_PATH}")
     print(f"  Logs Dir: {EXPERIMENT_LOGS_DIR}")

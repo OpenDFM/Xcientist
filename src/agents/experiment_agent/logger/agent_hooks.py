@@ -64,61 +64,119 @@ class VerboseRunHooks(RunHooks):
         super().__init__()
         self.show_llm_responses = show_llm_responses
         self.show_tools = show_tools
+        self.current_agent_name = None
+        self.turn_count = 0
+        self.current_step = None  # For displaying step number in agent header
 
     async def on_agent_start(self, *args, **kwargs):
         """Called when an agent starts running."""
-        # Extract agent name from context wrapper or args
-        agent = kwargs.get("agent_name", args[0] if args else None)
+        # Reset turn counter for new agent
+        self.turn_count = 0
 
-        # Try to get actual agent name
-        if hasattr(agent, "name"):
-            agent_name = agent.name
-        elif isinstance(agent, str):
-            agent_name = agent
-        else:
+        # Extract agent name - try multiple approaches
+        agent_name = None
+
+        # Try kwargs first
+        if "agent" in kwargs:
+            agent = kwargs["agent"]
+            if hasattr(agent, "name"):
+                agent_name = agent.name
+
+        # Try args
+        if agent_name is None and args:
+            for arg in args:
+                if hasattr(arg, "name"):
+                    agent_name = arg.name
+                    break
+                elif isinstance(arg, str) and len(arg) < 100:  # Avoid long strings
+                    agent_name = arg
+                    break
+
+        # Fallback
+        if agent_name is None:
             agent_name = "Agent"
 
-        print(f"\n{Colors.OKCYAN}🏃 START: {agent_name}{Colors.ENDC}")
+        # Store for later use
+        self.current_agent_name = agent_name
+
+        # Print separator and start message with step number if available
+        print(f"\n{Colors.BOLD}{Colors.OKCYAN}{'┌' + '─' * 78 + '┐'}{Colors.ENDC}")
+        if self.current_step is not None:
+            # Include step number in header
+            header = f"🏃 AGENT START (Step {self.current_step}): {agent_name}"
+            padding = 78 - len(header) - 4  # 4 for "│ " and " │"
+            print(
+                f"{Colors.BOLD}{Colors.OKCYAN}│ {header}{' ' * padding} │{Colors.ENDC}"
+            )
+        else:
+            print(
+                f"{Colors.BOLD}{Colors.OKCYAN}│ 🏃 AGENT START: {agent_name:<62} │{Colors.ENDC}"
+            )
+        print(f"{Colors.BOLD}{Colors.OKCYAN}{'└' + '─' * 78 + '┘'}{Colors.ENDC}")
 
     async def on_agent_end(self, *args, **kwargs):
         """Called when an agent finishes running."""
-        # Extract agent name
-        agent = kwargs.get("agent_name", args[0] if args else None)
+        # Use stored agent name or try to extract
+        agent_name = self.current_agent_name
 
-        if hasattr(agent, "name"):
-            agent_name = agent.name
-        elif isinstance(agent, str):
-            agent_name = agent
-        else:
-            agent_name = "Agent"
+        if agent_name is None:
+            agent = kwargs.get("agent_name", args[0] if args else None)
+            if hasattr(agent, "name"):
+                agent_name = agent.name
+            elif isinstance(agent, str):
+                agent_name = agent
+            else:
+                agent_name = "Agent"
 
-        print(f"{Colors.OKGREEN}✅ END: {agent_name}{Colors.ENDC}\n")
+        # Print end separator
+        print(f"\n{Colors.BOLD}{Colors.OKGREEN}{'┌' + '─' * 78 + '┐'}{Colors.ENDC}")
+        print(
+            f"{Colors.BOLD}{Colors.OKGREEN}│ ✅ AGENT END: {agent_name:<64} │{Colors.ENDC}"
+        )
+        print(f"{Colors.BOLD}{Colors.OKGREEN}{'└' + '─' * 78 + '┘'}{Colors.ENDC}\n")
 
     async def on_llm_start(self, *args, **kwargs):
         """Called when LLM request starts."""
         if not self.show_llm_responses:
             return
 
+        self.turn_count += 1
+
         print(f"{Colors.WARNING}📤 LLM Request{Colors.ENDC}")
 
-        # Debug: print what we received
-        # print(f"DEBUG: args={len(args)}, kwargs keys={list(kwargs.keys())}")
+        # Only show input on the first turn
+        if self.turn_count > 1:
+            return
+
+        # Debug: print what we received (uncomment for debugging)
+        # print(f"DEBUG: args count={len(args)}, kwargs keys={list(kwargs.keys())}")
+        # for i, arg in enumerate(args):
+        #     print(f"DEBUG: args[{i}] type={type(arg).__name__}")
 
         # Try to extract and display input messages (first 500 tokens)
         try:
             # Try to get messages from various sources
             messages = None
-            if "messages" in kwargs:
-                messages = kwargs["messages"]
-            elif len(args) > 1:
-                messages = args[1]
-            elif len(args) > 0:
-                # Sometimes the whole context is in args[0]
-                ctx = args[0]
-                if hasattr(ctx, "messages"):
-                    messages = ctx.messages
 
-            # print(f"DEBUG: messages type={type(messages)}, is None={messages is None}")
+            # Check each arg for messages
+            for i, arg in enumerate(args):
+                if isinstance(arg, list):
+                    messages = arg
+                    # print(f"DEBUG: Found list at args[{i}]")
+                    break
+                elif hasattr(arg, "messages"):
+                    messages = arg.messages
+                    # print(f"DEBUG: Found messages attribute at args[{i}]")
+                    break
+
+            # Also check kwargs
+            if messages is None and "messages" in kwargs:
+                messages = kwargs["messages"]
+                # print(f"DEBUG: Found messages in kwargs")
+
+            # print(f"DEBUG: Final messages type={type(messages)}, is None={messages is None}")
+            # if messages and hasattr(messages, "__len__"):
+            #     print(f"DEBUG: messages length={len(messages)}")
 
             if messages:
                 # Try to extract text from messages
@@ -155,11 +213,12 @@ class VerboseRunHooks(RunHooks):
                         pass
 
                 # Display truncated input
+                # print(f"DEBUG: input_text length={len(input_text.strip())}")
                 if input_text.strip():
                     truncated_input = _truncate_to_tokens(
                         input_text.strip(), max_tokens=500
                     )
-                    print(f"{Colors.OKCYAN}📥 Input (first 500 tokens):{Colors.ENDC}")
+                    print(f"{Colors.OKCYAN}📥 Input:{Colors.ENDC}")
                     print(f"{Colors.OKBLUE}{truncated_input}{Colors.ENDC}\n")
                 # else:
                 #     print(f"  {Colors.WARNING}(Empty input){Colors.ENDC}\n")
@@ -209,7 +268,7 @@ class VerboseRunHooks(RunHooks):
             # Display content if available (first 500 tokens)
             if content:
                 truncated_output = _truncate_to_tokens(content, max_tokens=500)
-                print(f"{Colors.OKCYAN}📤 Output (first 500 tokens):{Colors.ENDC}")
+                print(f"{Colors.OKCYAN}📤 Output:{Colors.ENDC}")
                 print(f"{Colors.OKGREEN}{truncated_output}{Colors.ENDC}\n")
 
             # Display tool calls if available
@@ -247,22 +306,19 @@ class VerboseRunHooks(RunHooks):
             except:
                 arguments = tool_ctx.tool_arguments
 
-        print(f"{Colors.OKGREEN}🔧 {tool_name}{Colors.ENDC}", end="")
+        print(f"{Colors.OKGREEN}🔧 {tool_name}{Colors.ENDC}")
 
-        # Show key arguments only
+        # Show all arguments for debugging
         if arguments and isinstance(arguments, dict):
-            key_args = []
-            for key in ["file_path", "directory", "tool_name", "pattern"]:
-                if key in arguments and arguments[key]:
-                    val = str(arguments[key])
-                    if len(val) > 50:
-                        val = val[:47] + "..."
-                    key_args.append(f"{key}={val}")
+            print(f"{Colors.OKCYAN}   Arguments:{Colors.ENDC}")
+            for key, value in arguments.items():
+                # Truncate long values
+                val_str = str(value)
+                if len(val_str) > 200:
+                    val_str = val_str[:197] + "..."
+                print(f"{Colors.OKCYAN}     {key}:{Colors.ENDC} {val_str}")
 
-            if key_args:
-                print(f" ({', '.join(key_args)})", end="")
-
-        print(f" {Colors.WARNING}...{Colors.ENDC}", end=" ")
+        print(f"   {Colors.WARNING}Processing...{Colors.ENDC}", end=" ", flush=True)
 
     async def on_tool_end(self, *args, **kwargs):
         """Called when a tool execution ends."""
@@ -274,24 +330,120 @@ class VerboseRunHooks(RunHooks):
 
         print(f"{Colors.OKGREEN}✓{Colors.ENDC}")
 
-        # Try to show useful result info
-        if result is not None and isinstance(result, dict):
-            # For dict results, show success status and key fields
-            if result.get("success"):
-                key_info = []
-                if "total_count" in result:
-                    key_info.append(f"{result['total_count']} items")
-                if "file_path" in result:
-                    key_info.append(f"→ {result['file_path']}")
+        if result is None:
+            return
 
+        # Display tool output
+        try:
+            # Convert result to string for display
+            result_str = None
+
+            if isinstance(result, dict):
+                # Show success status
+                success = result.get("success")
+                if success is False:
+                    # Show error info
+                    error_msg = result.get("error", "Unknown error")
+                    print(f"   {Colors.FAIL}❌ Error: {error_msg}{Colors.ENDC}")
+                    return
+                elif success is True:
+                    print(f"   {Colors.OKGREEN}✓ Success{Colors.ENDC}", end="")
+
+                # Try to show key information
+                key_info = []
+
+                # Common fields to show (with truncation for long values)
+                if "message" in result:
+                    msg = str(result["message"])
+                    if len(msg) > 60:
+                        msg = msg[:57] + "..."
+                    key_info.append(f"Message: {msg}")
+                if "total_count" in result:
+                    key_info.append(f"Count: {result['total_count']}")
+                if "file_path" in result:
+                    path = str(result["file_path"])
+                    if len(path) > 50:
+                        path = "..." + path[-47:]
+                    key_info.append(f"Path: {path}")
+                if "path" in result:
+                    path = str(result["path"])
+                    if len(path) > 50:
+                        path = "..." + path[-47:]
+                    key_info.append(f"Path: {path}")
+                if "files" in result and isinstance(result["files"], list):
+                    key_info.append(f"Files: {len(result['files'])} items")
+                if "directories" in result and isinstance(result["directories"], list):
+                    key_info.append(f"Dirs: {len(result['directories'])} items")
+                if "imports" in result and isinstance(result["imports"], list):
+                    key_info.append(f"Imports: {len(result['imports'])} items")
+                if "classes" in result and isinstance(result["classes"], list):
+                    key_info.append(f"Classes: {len(result['classes'])} items")
+                if "functions" in result and isinstance(result["functions"], list):
+                    key_info.append(f"Functions: {len(result['functions'])} items")
+
+                # If we have compact info, show it
                 if key_info:
-                    print(f"  {Colors.OKCYAN}{', '.join(key_info)}{Colors.ENDC}")
+                    print(f" | {Colors.OKCYAN}{' | '.join(key_info)}{Colors.ENDC}")
+                else:
+                    print()  # newline after success
+
+                # Try to extract main content for display
+                for content_key in ["content", "output", "result", "data", "text"]:
+                    if content_key in result:
+                        result_str = str(result[content_key])
+                        break
+
+                # If no specific content key, show the whole dict (truncated)
+                if result_str is None:
+                    result_str = json.dumps(result, indent=2, ensure_ascii=False)
+
+            elif isinstance(result, str):
+                result_str = result
+            else:
+                result_str = str(result)
+
+            # Display truncated output if we have content
+            if result_str and len(result_str.strip()) > 0:
+                # Avoid displaying Agent objects
+                if "Agent(name=" in result_str or "FunctionTool(name=" in result_str:
+                    # Skip displaying full agent/tool objects
+                    pass
+                else:
+                    # Truncate to 1000 tokens (about 4000 chars)
+                    truncated_result = _truncate_to_tokens(result_str, max_tokens=1000)
+                    print(f"   {Colors.OKCYAN}📋 Result:{Colors.ENDC}")
+                    # Show first 20 lines
+                    lines = truncated_result.split("\n")
+                    max_display_lines = 20
+                    for line in lines[:max_display_lines]:
+                        # Truncate very long lines
+                        if len(line) > 150:
+                            line = line[:147] + "..."
+                        if line.strip():
+                            print(f"     {Colors.OKBLUE}{line}{Colors.ENDC}")
+                    if len(lines) > max_display_lines:
+                        print(
+                            f"     {Colors.WARNING}... ({len(lines) - max_display_lines} more lines){Colors.ENDC}"
+                        )
+
+        except Exception as e:
+            # Silently fail - don't break tool execution
+            pass
 
     async def on_handoff(self, *args, **kwargs):
         """Called when control is handed off between agents."""
         from_agent = kwargs.get("from_agent", args[0] if args else "Unknown")
         to_agent = kwargs.get("to_agent", args[1] if len(args) > 1 else "Unknown")
-        print(f"\n{Colors.WARNING}🔄 {from_agent} → {to_agent}{Colors.ENDC}")
+
+        # Extract agent names
+        from_agent_name = (
+            from_agent.name if hasattr(from_agent, "name") else str(from_agent)
+        )
+        to_agent_name = to_agent.name if hasattr(to_agent, "name") else str(to_agent)
+
+        print(
+            f"\n{Colors.WARNING}🔄 Handoff: {from_agent_name} → {to_agent_name}{Colors.ENDC}"
+        )
 
 
 def create_verbose_hooks(

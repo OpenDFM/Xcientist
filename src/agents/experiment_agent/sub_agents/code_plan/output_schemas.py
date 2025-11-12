@@ -28,6 +28,33 @@ class ImplementationStep(BaseModel):
     )
 
 
+class ChecklistItem(BaseModel):
+    """Single item in the implementation checklist."""
+
+    step_id: int = Field(description="Unique identifier for this step")
+    title: str = Field(description="Brief title of the implementation step")
+    description: str = Field(
+        description="Clear description of what needs to be implemented in this step"
+    )
+    files_to_create: List[str] = Field(
+        description="Files that should be created in this step", default_factory=list
+    )
+    files_to_modify: List[str] = Field(
+        description="Existing files that should be modified in this step",
+        default_factory=list,
+    )
+    acceptance_criteria: List[str] = Field(
+        description="Criteria to verify this step is correctly implemented"
+    )
+    dependencies: List[int] = Field(
+        description="Step IDs that must be completed before this step",
+        default_factory=list,
+    )
+    estimated_complexity: str = Field(
+        description="Complexity level: 'low', 'medium', 'high'"
+    )
+
+
 class CodePlanOutput(BaseModel):
     """
     Unified code plan output in YAML-compatible format.
@@ -51,6 +78,10 @@ class CodePlanOutput(BaseModel):
         description="Complete file and directory structure"
     )
 
+    project_structure_tree: str = Field(
+        description="Visual tree representation of the complete project structure (ASCII art style)"
+    )
+
     # Implementation plans
     dataset_plan: str = Field(description="Dataset preparation and loading plan")
     model_plan: str = Field(description="Model implementation plan")
@@ -60,6 +91,11 @@ class CodePlanOutput(BaseModel):
     # Roadmap
     implementation_roadmap: List[ImplementationStep] = Field(
         description="Step-by-step implementation roadmap"
+    )
+
+    # Checklist for iterative implementation
+    implementation_checklist: List[ChecklistItem] = Field(
+        description="Detailed checklist for step-by-step iterative implementation"
     )
 
     # Additional guidance
@@ -83,11 +119,17 @@ class IntermediatePlanOutput(BaseModel):
     research_summary: str
     key_innovations: str
     file_structure_description: str
+    project_structure_tree: str = Field(
+        description="Visual ASCII tree of complete project structure"
+    )
     dataset_plan: str
     model_plan: str
     training_plan: str
     testing_plan: str
     implementation_steps: str
+    implementation_checklist: str = Field(
+        description="Detailed checklist in text format for iterative implementation"
+    )
     implementation_notes: str
     potential_challenges: str
     addressed_issues: str = ""

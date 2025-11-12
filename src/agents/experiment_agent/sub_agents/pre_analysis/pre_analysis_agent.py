@@ -73,30 +73,21 @@ def print_info(message: str, indent: int = 0):
 
 
 def print_result_box(title: str, content: str, max_length: int = 500):
-    """Print a boxed result."""
-    print(f"\n{Colors.BOLD}┌{'─' * 78}┐{Colors.ENDC}")
-    print(f"{Colors.BOLD}│ {title:<76} │{Colors.ENDC}")
-    print(f"{Colors.BOLD}├{'─' * 78}┤{Colors.ENDC}")
+    """Print a boxed result with simple header."""
+    # Print header
+    print(f"\n{Colors.BOLD}{Colors.OKCYAN}{'═' * 80}{Colors.ENDC}")
+    print(f"{Colors.BOLD}{Colors.OKCYAN}  {title}{Colors.ENDC}")
+    print(f"{Colors.BOLD}{Colors.OKCYAN}{'═' * 80}{Colors.ENDC}\n")
 
     # Truncate content if too long
     if len(content) > max_length:
-        display_content = content[:max_length] + "..."
+        display_content = content[:max_length] + "\n... (truncated for display)"
     else:
         display_content = content
 
-    # Wrap text to fit in box
-    lines = display_content.split("\n")
-    for line in lines[:10]:  # Show first 10 lines
-        if len(line) > 76:
-            line = line[:73] + "..."
-        print(f"{Colors.BOLD}│{Colors.ENDC} {line:<76} {Colors.BOLD}│{Colors.ENDC}")
-
-    if len(lines) > 10:
-        print(
-            f"{Colors.BOLD}│{Colors.ENDC} {'... (truncated for display)':<76} {Colors.BOLD}│{Colors.ENDC}"
-        )
-
-    print(f"{Colors.BOLD}└{'─' * 78}┘{Colors.ENDC}\n")
+    # Print content without line truncation
+    print(f"{Colors.OKGREEN}{display_content}{Colors.ENDC}\n")
+    print(f"{Colors.BOLD}{Colors.OKCYAN}{'═' * 80}{Colors.ENDC}\n")
 
 
 from src.agents.experiment_agent.sub_agents.pre_analysis.output_schemas import (
@@ -362,7 +353,10 @@ Extract and ADD new conceptual insights from this paper. Build upon previous con
             try:
                 print_info("Analyzing conceptual framework...", indent=1)
                 concept_result = await Runner.run(
-                    self.paper_concept_analyzer, concept_prompt, hooks=self.hooks
+                    self.paper_concept_analyzer,
+                    concept_prompt,
+                    hooks=self.hooks,
+                    max_turns=100,
                 )
                 concept_analysis = concept_result.final_output
 
@@ -486,7 +480,10 @@ Extract algorithm patterns and implementations. Build upon previous analysis."""
             try:
                 print_info("Analyzing algorithm implementations...", indent=1)
                 algo_result = await Runner.run(
-                    self.paper_algorithm_analyzer, algo_prompt, hooks=self.hooks
+                    self.paper_algorithm_analyzer,
+                    algo_prompt,
+                    hooks=self.hooks,
+                    max_turns=100,
                 )
                 algorithm_analysis = algo_result.final_output
 
@@ -557,12 +554,13 @@ Extract algorithm patterns and implementations. Build upon previous analysis."""
             ),
             concept_prompt,
             hooks=self.hooks,
+            max_turns=100,
         )
         concept_analysis = concept_result.final_output
 
         print_success(f"Concept analysis completed")
         print_result_box(
-            "System Architecture", concept_analysis.system_architecture, max_length=400
+            "System Architecture", concept_analysis.system_architecture, max_length=2000
         )
 
         # Rate limiting: wait before next major analysis
@@ -588,12 +586,13 @@ Extract algorithm patterns and implementations. Build upon previous analysis."""
             ),
             algo_prompt,
             hooks=self.hooks,
+            max_turns=100,
         )
         algorithm_analysis = algorithm_result.final_output
 
         print_success(f"Algorithm analysis completed")
         print_result_box(
-            "Core Algorithms", algorithm_analysis.algorithms, max_length=400
+            "Core Algorithms", algorithm_analysis.algorithms, max_length=2000
         )
 
         # Rate limiting: wait before output unification
@@ -631,7 +630,15 @@ Algorithm Flow: {algorithm_analysis.algorithm_flow}
         print_info("Synthesizing concept and algorithm analysis...")
 
         unified_result = await Runner.run(
-            self.output_unifier, unified_input, hooks=self.hooks
+            self.output_unifier, unified_input, hooks=self.hooks, max_turns=100
+        )
+
+        print_success("Output unification completed")
+
+        # Display unified result
+        unified_output = unified_result.final_output
+        print_result_box(
+            "Unified Analysis Summary", unified_output.summary, max_length=3000
         )
 
         print_success("Pre-analysis completed successfully!")

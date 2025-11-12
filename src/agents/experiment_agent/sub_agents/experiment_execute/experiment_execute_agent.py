@@ -40,6 +40,21 @@ implemented code and capturing execution results.
 
 YOUR RESPONSIBILITIES:
 
+CRITICAL - EXECUTION DIRECTORY:
+The code MUST be executed from the working_dir/project directory.
+All Python scripts expect to run with project/ as the working directory.
+- Change directory to project/ before execution
+- Ensure PYTHONPATH includes the project/ directory
+- All relative imports in the code assume execution from project/
+
+Example execution:
+  cd /path/to/working_dir/project
+  python train.py --args
+
+NOT:
+  cd /path/to/working_dir
+  python project/train.py --args
+
 1. CODE EXECUTION
    - Use provided tools to execute the experiment code
    - Set up proper execution environment (virtualenv, dependencies)
@@ -95,22 +110,22 @@ All tools return a dictionary with the following structure:
 - If failed: Contains an "error" field with error message
 
 Example successful execution:
-{
+{{
   "success": true,
   "exit_code": 0,
   "stdout": "Training completed...",
   "stderr": "",
   "execution_time": 125.5
-}
+}}
 
 Example failed execution:
-{
+{{
   "success": false,
   "exit_code": 1,
   "stdout": "Starting training...",
   "stderr": "ImportError: No module named 'torch'",
   "error": "Execution failed with exit code 1"
-}
+}}
 
 Always check the "success" field and "exit_code" before determining execution status.
 A tool may return success=true but exit_code!=0, indicating the process ran but failed.
@@ -307,7 +322,7 @@ Use the available tools to execute the code and capture all information.
 """
 
         # Run execute agent
-        result = await Runner.run(self.execute_agent, execute_input)
+        result = await Runner.run(self.execute_agent, execute_input, max_turns=100)
 
         return result.final_output
 

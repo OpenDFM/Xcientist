@@ -73,6 +73,17 @@ class WorkflowContext:
     experiment_execute_output: Optional[Any] = None
     experiment_analysis_output: Optional[Any] = None
 
+    # Checklist tracking for iterative implementation
+    current_checklist_step: int = 0  # Index of current step being implemented
+    completed_checklist_steps: List[int] = None  # List of completed step IDs
+    checklist_step_retry_count: int = 0  # Retry count for current step
+    max_step_retries: int = 999  # Maximum retries per step (effectively unlimited)
+
+    # Global execution tracking (for cache management)
+    execution_step_counter: int = (
+        0  # Global counter for all agent executions (increments with each agent call)
+    )
+
     # Error tracking
     last_error: Optional[str] = None
     retry_count: int = 0
@@ -84,6 +95,8 @@ class WorkflowContext:
     def __post_init__(self):
         if self.state_history is None:
             self.state_history = []
+        if self.completed_checklist_steps is None:
+            self.completed_checklist_steps = []
 
 
 class WorkflowStateMachine:
@@ -111,6 +124,36 @@ class WorkflowStateMachine:
             WorkflowState.EXPERIMENT_EXECUTE: self._from_experiment_execute,
             WorkflowState.EXPERIMENT_ANALYSIS: self._from_experiment_analysis,
         }
+
+    def _get_checklist(self, code_plan_output: Any) -> list:
+        """
+        Get implementation checklist from code plan output.
+        Supports both object and dict formats (for cached data).
+        Converts dict items to objects for consistent attribute access.
+
+        Args:
+            code_plan_output: Code plan output (object or dict)
+
+        Returns:
+            List of checklist items (as objects with attribute access)
+        """
+        checklist = []
+        if isinstance(code_plan_output, dict):
+            checklist = code_plan_output.get("implementation_checklist", [])
+        elif hasattr(code_plan_output, "implementation_checklist"):
+            checklist = code_plan_output.implementation_checklist
+
+        # Convert dict items to objects for consistent attribute access
+        if checklist and isinstance(checklist[0], dict):
+            # Create simple objects from dicts
+            class ChecklistStep:
+                def __init__(self, data):
+                    for key, value in data.items():
+                        setattr(self, key, value)
+
+            checklist = [ChecklistStep(item) for item in checklist]
+
+        return checklist
 
     def get_next_state(
         self, context: WorkflowContext
@@ -208,125 +251,174 @@ class WorkflowStateMachine:
                         None,
                     )
 
-        # Successful planning -> move to implementation
+        # Initialize checklist-based implementation
         context.retry_count = 0  # Reset retry count
+        context.current_checklist_step = 0  # Start from first step
+        context.completed_checklist_steps = []
+        context.checklist_step_retry_count = 0
+
+        # Get checklist from plan (support both object and dict formats)
+        checklist = self._get_checklist(context.code_plan_output)
+
+        if not checklist:
+            return (
+                WorkflowState.FAILED,
+                "Code plan does not contain implementation checklist",
+                None,
+            )
+
+        # Start implementation with first checklist step
+        current_step = checklist[0]
         return (
             WorkflowState.CODE_IMPLEMENT,
-            "Code planning completed, moving to implementation",
+            f"Code planning completed, starting step 1/{len(checklist)}: {current_step.title}",
             {
                 "analysis": context.pre_analysis_output,
                 "plan": context.code_plan_output,
+                "current_step": current_step,
+                "checklist_progress": f"Step 1/{len(checklist)}",
             },
         )
 
     def _from_code_implement(
         self, context: WorkflowContext
     ) -> Tuple[WorkflowState, str, Optional[Dict]]:
-        """Transition from CODE_IMPLEMENT state."""
+        """
+        Transition from CODE_IMPLEMENT state.
+
+        After each step implementation, always go to CODE_JUDGE for evaluation.
+        """
         if context.code_implement_output is None:
             return WorkflowState.FAILED, "Code implementation produced no output", None
 
         # Check if implementation was successful
         if hasattr(context.code_implement_output, "status"):
             if context.code_implement_output.status == "failed":
-                if context.retry_count < context.max_retries:
-                    context.retry_count += 1
+                # Implementation failed at system level (not review failure)
+                if context.checklist_step_retry_count < context.max_step_retries:
+                    context.checklist_step_retry_count += 1
+
+                    checklist = self._get_checklist(context.code_plan_output)
+                    current_step = checklist[context.current_checklist_step]
+
                     return (
                         WorkflowState.CODE_IMPLEMENT,
-                        f"Code implementation failed, retrying (attempt {context.retry_count}/{context.max_retries})",
+                        f"Step implementation failed, retrying (attempt {context.checklist_step_retry_count}/{context.max_step_retries})",
                         {
                             "plan": context.code_plan_output,
+                            "current_step": current_step,
                             "feedback": str(context.code_implement_output.message),
+                            "checklist_progress": f"Step {context.current_checklist_step + 1}/{len(checklist)}",
                         },
                     )
                 else:
                     return (
                         WorkflowState.FAILED,
-                        "Code implementation failed after max retries",
+                        f"Step {context.current_checklist_step + 1} failed after max retries",
                         None,
                     )
 
-        # Successful implementation -> move to code review
-        context.retry_count = 0
+        # Step implementation completed -> move to code judge for evaluation
+        checklist = self._get_checklist(context.code_plan_output)
+        current_step = checklist[context.current_checklist_step]
+
         return (
             WorkflowState.CODE_JUDGE,
-            "Code implementation completed, moving to review",
+            f"Step {context.current_checklist_step + 1}/{len(checklist)} implemented, moving to review",
             {
                 "analysis": context.pre_analysis_output,
                 "plan": context.code_plan_output,
                 "implementation": context.code_implement_output,
+                "current_step": current_step,
+                "checklist_progress": f"Step {context.current_checklist_step + 1}/{len(checklist)}",
             },
         )
 
     def _from_code_judge(
         self, context: WorkflowContext
     ) -> Tuple[WorkflowState, str, Optional[Dict]]:
-        """Transition from CODE_JUDGE state."""
+        """
+        Transition from CODE_JUDGE state.
+
+        Judge evaluates current step. If accepted, move to next step or complete.
+        If rejected and retries available, return to CODE_IMPLEMENT with feedback.
+        """
         if context.code_judge_output is None:
             return WorkflowState.FAILED, "Code review produced no output", None
 
         judge_output = context.code_judge_output
+        checklist = self._get_checklist(context.code_plan_output)
+        current_step_index = context.current_checklist_step
+        current_step = checklist[current_step_index]
 
-        # Check consistency scores
-        if hasattr(judge_output, "overall_score"):
-            score = judge_output.overall_score
+        # Check if current step is accepted
+        step_accepted = False
+        if hasattr(judge_output, "is_consistent"):
+            step_accepted = judge_output.is_consistent
+        elif hasattr(judge_output, "overall_score"):
+            # Fallback to score-based evaluation
+            step_accepted = judge_output.overall_score >= 0.7
 
-            # High score (>= 0.8) -> proceed to execution
-            if score >= 0.8:
+        if step_accepted:
+            # Current step passed review
+            context.completed_checklist_steps.append(current_step.step_id)
+            context.checklist_step_retry_count = 0  # Reset retry count for this step
+
+            # Check if all steps are completed
+            if current_step_index + 1 >= len(checklist):
+                # All steps completed -> proceed to execution
                 context.retry_count = 0
                 return (
                     WorkflowState.EXPERIMENT_EXECUTE,
-                    f"Code review passed (score: {score:.2f}), proceeding to execution",
+                    f"All {len(checklist)} implementation steps completed and reviewed, proceeding to execution",
                     {"code": context.code_implement_output},
                 )
 
-            # Medium score (0.6-0.8) -> check if we can retry implementation
-            elif score >= 0.6:
-                if context.retry_count < context.max_retries:
-                    context.retry_count += 1
-                    return (
-                        WorkflowState.CODE_IMPLEMENT,
-                        f"Code review found minor issues (score: {score:.2f}), retrying implementation",
-                        {
-                            "plan": context.code_plan_output,
-                            "feedback": getattr(judge_output, "recommendations", ""),
-                        },
-                    )
-                else:
-                    # Proceed anyway if max retries reached
-                    context.retry_count = 0
-                    return (
-                        WorkflowState.EXPERIMENT_EXECUTE,
-                        f"Code has minor issues but proceeding after max retries (score: {score:.2f})",
-                        {"code": context.code_implement_output},
-                    )
-
-            # Low score (< 0.6) -> need to revise plan
+            # Move to next step
             else:
-                if context.retry_count < context.max_retries:
-                    context.retry_count += 1
-                    return (
-                        WorkflowState.CODE_PLAN,
-                        f"Code review found major issues (score: {score:.2f}), revising plan",
-                        {
-                            "analysis": context.pre_analysis_output,
-                            "feedback": getattr(judge_output, "recommendations", ""),
-                        },
-                    )
-                else:
-                    return (
-                        WorkflowState.FAILED,
-                        f"Code review consistently shows major issues (score: {score:.2f})",
-                        None,
-                    )
+                context.current_checklist_step += 1
+                next_step = checklist[context.current_checklist_step]
+                return (
+                    WorkflowState.CODE_IMPLEMENT,
+                    f"Step {current_step_index + 1} approved, moving to step {context.current_checklist_step + 1}/{len(checklist)}: {next_step.title}",
+                    {
+                        "plan": context.code_plan_output,
+                        "current_step": next_step,
+                        "completed_steps": context.completed_checklist_steps,
+                        "checklist_progress": f"Step {context.current_checklist_step + 1}/{len(checklist)}",
+                    },
+                )
 
-        # No score available, assume success
-        context.retry_count = 0
-        return (
-            WorkflowState.EXPERIMENT_EXECUTE,
-            "Code review completed, proceeding to execution",
-            {"code": context.code_implement_output},
-        )
+        else:
+            # Current step rejected
+            if context.checklist_step_retry_count < context.max_step_retries:
+                # Retry current step with feedback
+                context.checklist_step_retry_count += 1
+
+                feedback = ""
+                if hasattr(judge_output, "next_steps"):
+                    feedback = judge_output.next_steps
+                elif hasattr(judge_output, "overall_assessment"):
+                    feedback = judge_output.overall_assessment
+
+                return (
+                    WorkflowState.CODE_IMPLEMENT,
+                    f"Step {current_step_index + 1} needs improvement (attempt {context.checklist_step_retry_count}/{context.max_step_retries})",
+                    {
+                        "plan": context.code_plan_output,
+                        "current_step": current_step,
+                        "feedback": feedback,
+                        "judge_output": judge_output,
+                        "checklist_progress": f"Step {context.current_checklist_step + 1}/{len(checklist)}",
+                    },
+                )
+            else:
+                # Max retries exceeded for this step
+                return (
+                    WorkflowState.FAILED,
+                    f"Step {current_step_index + 1} failed review after {context.max_step_retries} attempts",
+                    None,
+                )
 
     def _from_experiment_execute(
         self, context: WorkflowContext

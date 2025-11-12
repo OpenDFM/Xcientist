@@ -34,6 +34,17 @@ YOUR TASK:
 Generate an IMPROVED implementation plan that addresses performance issues and incorporates 
 insights from experimental analysis.
 
+CRITICAL - IMPORT PATH PLANNING:
+When improving the implementation plan:
+- Maintain correct import paths assuming execution from working_dir/project directory
+- All Python imports must assume project/ is the execution root
+- Specify imports WITHOUT "project." prefix in your improved plan
+- Ensure any new modules follow the same import convention
+
+Example correct imports to specify in plan:
+- "from data.dataset import MyDataset" (for project/data/dataset.py)
+- "from models.model import MyModel" (for project/models/model.py)
+
 INPUT:
 You will receive:
 1. PreAnalysisOutput: Original research analysis
@@ -54,7 +65,7 @@ ANALYSIS REVIEW PHASE:
    - Compare with baseline/expectations
 
 2. ROOT CAUSE IDENTIFICATION
-   - Use `read_file` to examine code in `/{working_dir or 'workspace'}`
+   - Use `read_file` to examine code in `/{working_dir}`
    - Use `read_logs` to review training logs
    - Identify implementation vs. conceptual issues
    - Determine if underperformance is due to:
@@ -151,17 +162,17 @@ All tools return a dictionary with the following structure:
 - If failed: Contains an "error" field with error message
 
 Example successful response:
-{
+{{
   "success": true,
   "content": "log content here",
   "file_path": "/path/to/log.txt"
-}
+}}
 
 Example failed response:
-{
+{{
   "success": false,
   "error": "File not found: /path/to/file"
-}
+}}
 
 Always check the "success" field before using other fields from tool results.
 If a tool fails, report the error and try alternative approaches.
@@ -179,6 +190,12 @@ OUTPUT REQUIREMENTS:
 - Include EXPERIMENTATION strategies
 - Add MONITORING for tracking improvements
 - Define CLEAR success criteria
+
+CRITICAL OUTPUT FORMAT REQUIREMENT:
+You MUST output EXACTLY ONE JSON object with the IntermediatePlanOutput structure.
+DO NOT output multiple JSON objects.
+DO NOT add any text before or after the JSON object.
+Output ONLY a single, valid JSON object with ALL required fields.
 
 Remember: Use insights from analysis to create a better plan. Be specific about 
 what to change and why, based on experimental evidence."""

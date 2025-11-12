@@ -113,6 +113,7 @@ class ExperimentMasterAgent:
         # Initialize cache manager
         if cache_dir is None:
             cache_dir = "./cached"
+        self.cache_dir = cache_dir  # Save as instance attribute
         self.cache_manager = CacheManager(cache_dir=cache_dir)
         print(f"[CACHE] Cache directory: {cache_dir}")
 
@@ -125,16 +126,18 @@ class ExperimentMasterAgent:
             model=model,
             working_dir=working_dir,
             tools=self.tools.get("code_plan"),
+            verbose=verbose,
         )
 
         self.code_implement_agent = create_code_implement_agent(
             model=model,
             working_dir=working_dir,
             tools=self.tools.get("code_implement"),
+            verbose=verbose,
         )
 
         self.code_judge_agent = create_code_judge_agent(
-            model=model, tools=self.tools.get("code_judge")
+            model=model, tools=self.tools.get("code_judge"), verbose=verbose
         )
 
         self.experiment_execute_agent = create_experiment_execute_agent(
@@ -158,7 +161,10 @@ class ExperimentMasterAgent:
         }
 
     async def run_workflow(
-        self, research_input: str, input_type: str = "paper"
+        self,
+        research_input: str,
+        input_type: str = "paper",
+        experiment_id: Optional[str] = None,
     ) -> ExperimentMasterOutput:
         """
         Run the complete experiment workflow using state machine.
@@ -166,13 +172,103 @@ class ExperimentMasterAgent:
         Args:
             research_input: Research paper content or idea description
             input_type: Type of input ('paper' or 'idea')
+            experiment_id: Unique identifier for this experiment (if None, generates timestamp-based ID)
 
         Returns:
             ExperimentMasterOutput with complete workflow results
         """
+        # Generate experiment ID if not provided
+        if experiment_id is None:
+            experiment_id = f"exp_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        # Set domain for this workflow (use experiment_id as domain)
+        self.domain = experiment_id
+
+        # Start experiment in cache manager
+        is_new_experiment = self.cache_manager.start_experiment(experiment_id)
+
         print(f"\n{'='*80}")
-        print("Starting workflow with state machine...")
+        print(f"Experiment ID: {experiment_id}")
+        print(
+            f"Status: {'New experiment' if is_new_experiment else 'Resuming experiment'}"
+        )
         print(f"{'='*80}\n")
+
+        # Prepare workspace information (scan codebases, papers, datasets)
+        # Check if prepare info already exists, regardless of new/resumed status
+        try:
+            from src.agents.experiment_agent.sub_agents.experiment_master.prepare_helpers import (
+                prepare_workspace_info,
+                save_prepare_info_to_cache,
+                load_prepare_info_from_cache,
+            )
+
+            # Check if step0_prepare.json exists
+            existing_prepare = load_prepare_info_from_cache(self.cache_dir, self.domain)
+
+            if existing_prepare is None:
+                # Prepare info doesn't exist, create it
+                print("\n[PREPARING WORKSPACE]")
+                print("Scanning reference codebases, papers, and datasets...")
+
+                # Get workspace directory (parent of project dir)
+                import os
+
+                workspace_dir = os.path.dirname(self.working_dir)
+
+                # Prepare workspace information
+                prepare_info = prepare_workspace_info(workspace_dir)
+
+                # Save to cache
+                save_result = save_prepare_info_to_cache(
+                    self.cache_dir, self.domain, prepare_info
+                )
+
+                if save_result:
+                    print(f"✓ Workspace prepared:")
+                    if prepare_info["reference_codebases"]["scan_result"].get(
+                        "success"
+                    ):
+                        cb_count = prepare_info["reference_codebases"]["scan_result"][
+                            "total_count"
+                        ]
+                        print(f"  - {cb_count} reference codebases found")
+                    print(
+                        f"  - {prepare_info['reference_papers']['count']} papers available"
+                    )
+                    print(f"  - {prepare_info['datasets']['count']} datasets available")
+                else:
+                    print(
+                        "⚠ Warning: Could not save workspace preparation info to cache"
+                    )
+                print()
+            else:
+                # Prepare info already exists
+                print("\n[WORKSPACE ALREADY PREPARED]")
+                if (
+                    existing_prepare.get("reference_codebases", {})
+                    .get("scan_result", {})
+                    .get("success")
+                ):
+                    cb_count = existing_prepare["reference_codebases"]["scan_result"][
+                        "total_count"
+                    ]
+                    print(f"✓ {cb_count} reference codebases available")
+                print()
+
+        except Exception as e:
+            print(f"⚠ Warning: Could not prepare workspace info: {e}")
+            import traceback
+
+            traceback.print_exc()
+            print()
+
+        if not is_new_experiment:
+            # Show progress for resumed experiment
+            progress = self.cache_manager.get_experiment_progress()
+            print(f"Progress: {len(progress['completed_stages'])} stages completed")
+            print(f"Last stage: {progress['current_stage']}")
+            print()
 
         # Initialize workflow context
         context = WorkflowContext(
@@ -194,6 +290,9 @@ class ExperimentMasterAgent:
         print(f"To: {transition.to_state.value}")
         print(f"Reason: {transition.reason}")
 
+        # Initialize transition data for the first agent execution
+        transition_data = transition.data or {}
+
         while not self.state_machine.is_terminal_state(context.current_state):
             step_count += 1
 
@@ -208,8 +307,22 @@ class ExperimentMasterAgent:
             if agent_name:
                 print(f"\n[EXECUTING] {agent_name} agent (step {step_count})...")
 
+                # Debug: Show transition data being passed
+                if transition_data:
+                    print(
+                        f"[DEBUG] Transition data keys: {list(transition_data.keys())}"
+                    )
+                    if "feedback" in transition_data:
+                        print(f"[DEBUG] Has feedback from previous step")
+                    if "judge_output" in transition_data:
+                        print(f"[DEBUG] Has judge_output from previous step")
+
                 try:
-                    result = await self._execute_agent(agent_name, context, {})
+                    # ✅ FIX: Pass transition_data from previous state transition
+                    # This includes feedback, judge_output, and other important data
+                    result = await self._execute_agent(
+                        agent_name, context, transition_data
+                    )
 
                     # Debug output
                     print(f"[DEBUG] Agent result type: {type(result)}")
@@ -237,6 +350,10 @@ class ExperimentMasterAgent:
             print(f"From: {transition.from_state.value}")
             print(f"To: {transition.to_state.value}")
             print(f"Reason: {transition.reason}")
+
+            # ✅ FIX: Save transition data for next agent execution
+            # This ensures feedback, judge_output, etc. are passed to the next agent
+            transition_data = transition.data or {}
 
         # Build final output
         print(f"\n{'='*80}")
@@ -269,11 +386,32 @@ class ExperimentMasterAgent:
         print(f"[DEBUG] Agent input length: {len(agent_input)} characters")
         print(f"[DEBUG] Agent input preview:\n{agent_input[:300]}...")
 
-        # Check cache first
-        cached_result = self.cache_manager.load_cache(agent_name, agent_input)
-        if cached_result is not None:
-            print(f"[CACHE] Using cached result for {agent_name}")
-            return cached_result
+        # Increment execution step counter for cache management
+        context.execution_step_counter += 1
+        step_id = context.execution_step_counter
+
+        # Set step number in agent's hooks (if it has verbose hooks)
+        if hasattr(agent, "hooks") and agent.hooks is not None:
+            agent.hooks.current_step = step_id
+
+        # Check if this is a retry with feedback (should not use cache)
+        is_retry = (
+            "feedback" in data
+            or "judge_output" in data
+            or context.checklist_step_retry_count > 0
+        )
+
+        # Check cache first (skip cache if retrying)
+        cache_key = f"step{step_id}_{agent_name}"
+        if not is_retry:
+            cached_result = self.cache_manager.load_cache(agent_name, step_id)
+            if cached_result is not None:
+                print(f"[CACHE] Using cached result for {cache_key}")
+                return cached_result
+        else:
+            print(
+                f"[CACHE] Skipping cache for {cache_key} (retry attempt {context.checklist_step_retry_count})"
+            )
 
         # Execute agent based on its interface
         try:
@@ -294,9 +432,58 @@ class ExperimentMasterAgent:
                 print(f"[DEBUG] Calling agent.judge()")
                 result = await agent.judge(agent_input)
             elif hasattr(agent, "execute"):
-                # Experiment execute agent
+                # Experiment execute agent - needs special parameters
                 print(f"[DEBUG] Calling agent.execute()")
-                result = await agent.execute(agent_input)
+
+                # Extract entry script from code plan if available
+                entry_script = None
+                if context.code_plan_output:
+                    file_structure = (
+                        context.code_plan_output.file_structure
+                        if hasattr(context.code_plan_output, "file_structure")
+                        else []
+                    )
+                    # Look for main entry point files
+                    for item in file_structure:
+                        if hasattr(item, "path"):
+                            path = item.path
+                        elif isinstance(item, dict):
+                            path = item.get("path", "")
+                        else:
+                            continue
+
+                        if "main.py" in path or "train.py" in path or "run.py" in path:
+                            # Extract just the filename from the path
+                            entry_script = path.split("/")[-1] if "/" in path else path
+                            break
+
+                # If no entry script found, try to create one or skip execution
+                if not entry_script:
+                    print(
+                        f"[WARNING] No entry script (main.py/train.py) found in file structure"
+                    )
+                    print(
+                        f"[INFO] Skipping experiment execution - implementation appears to be a library"
+                    )
+                    # Create a dummy successful execution output
+                    from src.agents.experiment_agent.sub_agents.experiment_execute.output_schemas import (
+                        ExperimentExecuteOutput,
+                    )
+
+                    result = ExperimentExecuteOutput(
+                        status="skipped",
+                        log_path="",
+                        execution_time=0.0,
+                        success=True,
+                        summary="Execution skipped - no entry script found. Implementation is a library/module.",
+                        output_preview="N/A - Library implementation without executable entry point",
+                    )
+                else:
+                    result = await agent.execute(
+                        code_path=self.working_dir,
+                        entry_script=entry_script,
+                        execution_args=None,
+                    )
             elif hasattr(agent, "run"):
                 # Generic run method
                 print(f"[DEBUG] Calling agent.run()")
@@ -317,6 +504,7 @@ class ExperimentMasterAgent:
                     "timestamp": datetime.now().isoformat(),
                     "model": self.model,
                 },
+                step_id=step_id,
             )
 
             return result
@@ -414,38 +602,271 @@ Provide a comprehensive analysis covering system architecture, algorithms, innov
 Provide a detailed implementation plan including file structure, model architecture, and training configuration."""
 
         elif agent_name == "code_implement":
-            error = data.get("error", "")
+            # Extract step information and feedback
+            current_step = data.get("current_step", None)
+            checklist_progress = data.get("checklist_progress", "")
+            completed_steps = data.get("completed_steps", [])
             feedback = data.get("feedback", "")
+            judge_output = data.get("judge_output", None)
 
-            error_section = f"\nError to fix:\n{error}\n" if error else ""
-            feedback_section = f"\nFeedback:\n{feedback}\n" if feedback else ""
+            # Build current step section
+            step_section = ""
+            if current_step:
+                step_section = f"""
+=== CURRENT STEP TO IMPLEMENT ===
 
-            return f"""Implement the code based on the following plan:
+Step ID: {current_step.step_id}
+Title: {current_step.title}
+Progress: {checklist_progress}
+
+Description:
+{current_step.description}
+
+Files to Create in This Step:
+{chr(10).join(f'  - {f}' for f in current_step.files_to_create) if current_step.files_to_create else '  (none)'}
+
+Files to Modify in This Step:
+{chr(10).join(f'  - {f}' for f in current_step.files_to_modify) if current_step.files_to_modify else '  (none)'}
+
+Acceptance Criteria (verify these are met):
+{chr(10).join(f'  - {criterion}' for criterion in current_step.acceptance_criteria)}
+
+Dependencies (already completed):
+{', '.join(map(str, current_step.dependencies)) if current_step.dependencies else 'None - this is the first step'}
+
+Completed Steps: {', '.join(map(str, completed_steps)) if completed_steps else 'None'}
+
+IMPORTANT: Implement ONLY this step. Do not implement future steps.
+"""
+
+            # Build feedback section if code was rejected
+            feedback_section = ""
+            if feedback or judge_output:
+                # Extract overall assessment
+                overall_assessment = (
+                    feedback
+                    if feedback
+                    else (
+                        judge_output.overall_assessment
+                        if hasattr(judge_output, "overall_assessment")
+                        else ""
+                    )
+                )
+
+                # Extract issues if available
+                issues_text = ""
+                if (
+                    judge_output
+                    and hasattr(judge_output, "issues")
+                    and judge_output.issues
+                ):
+                    issues_text = "\n=== SPECIFIC ISSUES FOUND ===\n\n"
+                    for idx, issue in enumerate(judge_output.issues, 1):
+                        issues_text += f"Issue {idx}: [{issue.severity.upper()}] {issue.issue_type}\n"
+                        issues_text += f"  File: {issue.file_path}\n"
+                        if issue.line_numbers:
+                            issues_text += f"  Lines: {issue.line_numbers}\n"
+                        issues_text += f"  Description: {issue.description}\n"
+                        issues_text += f"  Expected: {issue.expected}\n"
+                        issues_text += f"  Actual: {issue.actual}\n"
+                        issues_text += f"  Suggestion: {issue.suggestion}\n\n"
+
+                # Extract priority fixes
+                priority_fixes_text = ""
+                if (
+                    judge_output
+                    and hasattr(judge_output, "priority_fixes")
+                    and judge_output.priority_fixes
+                ):
+                    priority_fixes_text = (
+                        "\n=== PRIORITY FIXES (Address these first) ===\n\n"
+                    )
+                    for idx, fix in enumerate(judge_output.priority_fixes, 1):
+                        priority_fixes_text += f"{idx}. {fix}\n"
+
+                # Extract missing components
+                missing_components_text = ""
+                if (
+                    judge_output
+                    and hasattr(judge_output, "missing_components")
+                    and judge_output.missing_components
+                ):
+                    missing_components_text = "\n=== MISSING COMPONENTS ===\n\n"
+                    for component in judge_output.missing_components:
+                        missing_components_text += f"  - {component}\n"
+
+                # Extract unit test information
+                unit_tests_text = ""
+                if (
+                    judge_output
+                    and hasattr(judge_output, "unit_tests")
+                    and judge_output.unit_tests
+                ):
+                    unit_tests_text = f"\n=== UNIT TESTS GENERATED ===\n\n"
+                    unit_tests_text += f"The code judge generated {len(judge_output.unit_tests)} unit test(s) for validation.\n"
+                    unit_tests_text += (
+                        "These tests should already be written to the file system.\n"
+                    )
+                    for idx, test in enumerate(judge_output.unit_tests, 1):
+                        unit_tests_text += f"\nTest {idx}: {test.test_file_path}\n"
+                        unit_tests_text += f"  Description: {test.test_description}\n"
+                        unit_tests_text += (
+                            f"  Target files: {', '.join(test.target_files)}\n"
+                        )
+
+                feedback_section = f"""
+=== FEEDBACK FROM CODE REVIEW ===
+
+The previous implementation of this step was reviewed and needs improvement.
+
+=== OVERALL ASSESSMENT ===
+
+{overall_assessment}
+{issues_text}{priority_fixes_text}{missing_components_text}{unit_tests_text}
+
+IMPORTANT: Please address ALL the issues above, especially the priority fixes, and re-implement this step correctly.
+"""
+
+            # Get reference codebases information from cache
+            reference_codebases_info = ""
+            try:
+                from src.agents.experiment_agent.sub_agents.experiment_master.prepare_helpers import (
+                    load_prepare_info_from_cache,
+                )
+
+                prepare_info = load_prepare_info_from_cache(self.cache_dir, self.domain)
+                if prepare_info and "reference_codebases" in prepare_info:
+                    reference_codebases_info = prepare_info["reference_codebases"].get(
+                        "formatted_list", ""
+                    )
+            except Exception as e:
+                print(f"Warning: Could not load reference codebases info: {e}")
+                reference_codebases_info = "(Codebase information not available)"
+
+            # Extract project structure tree from plan
+            project_tree = ""
+            if hasattr(context.code_plan_output, "project_structure_tree"):
+                project_tree = f"""
+=== PROJECT STRUCTURE TREE (MUST FOLLOW EXACTLY) ===
+
+{context.code_plan_output.project_structure_tree}
+
+CRITICAL: This is the DEFINITIVE project structure. You MUST:
+- Follow this structure EXACTLY
+- Do NOT create files outside this structure
+- Do NOT create additional directories
+- File paths MUST match this tree exactly
+
+"""
+
+            return f"""Implement code for the CURRENT STEP ONLY (step-by-step iterative implementation):
+{step_section}
+{project_tree}
+=== REFERENCE CODEBASES (EXPLORE BEFORE IMPLEMENTING) ===
+
+{reference_codebases_info}
+
+IMPORTANT: Before implementing, explore relevant reference codebases using:
+- `list_directory("../repos/[repo_name]")` to see structure
+- `generate_code_tree("../repos/[repo_name]")` for overview
+- `read_file("../repos/[repo_name]/path/to/file.py")` to read implementations
+- `analyze_python_file("../repos/[repo_name]/path/to/file.py")` to understand structure
+
+=== COMPLETE PLAN (for context) ===
 
 {context.code_plan_output}
-{error_section}{feedback_section}
-Write the complete implementation code."""
+{feedback_section}
+
+Remember: Focus ONLY on the current step. Follow the PROJECT STRUCTURE TREE exactly. Use tools to check what files already exist from previous steps."""
 
         elif agent_name == "code_judge":
-            return f"""Review the following code implementation:
+            # Extract current step info from data
+            current_step = data.get("current_step", None)
+            checklist_progress = data.get("checklist_progress", "")
 
-Analysis:
-{context.pre_analysis_output}
+            step_info = ""
+            if current_step:
+                step_info = f"""
+=== CURRENT STEP TO EVALUATE ===
 
-Plan:
+Step ID: {current_step.step_id}
+Title: {current_step.title}
+Description: {current_step.description}
+
+Files to Create: {', '.join(current_step.files_to_create) if current_step.files_to_create else 'None'}
+Files to Modify: {', '.join(current_step.files_to_modify) if current_step.files_to_modify else 'None'}
+
+Acceptance Criteria:
+{chr(10).join(f'  - {criterion}' for criterion in current_step.acceptance_criteria)}
+
+Dependencies: {', '.join(map(str, current_step.dependencies)) if current_step.dependencies else 'None'}
+Complexity: {current_step.estimated_complexity}
+
+Progress: {checklist_progress}
+"""
+
+            return f"""Review the following code implementation (STEP-BY-STEP MODE):
+{step_info}
+
+=== COMPLETE PLAN (for context) ===
+
 {context.code_plan_output}
 
-Implementation:
+=== ANALYSIS (for context) ===
+
+{context.pre_analysis_output}
+
+=== IMPLEMENTATION OUTPUT ===
+
 {context.code_implement_output}
 
-Evaluate consistency and provide recommendations."""
+=== CODEBASE PATH ===
+
+Project directory (check files here): {self.working_dir or '/workspace/project'}
+
+IMPORTANT: Use the tools to check if files exist in the project directory above.
+The project directory is where all implementation code should be located.
+
+Evaluate if the CURRENT STEP (shown above) is correctly implemented according to its acceptance criteria."""
 
         elif agent_name == "experiment_execute":
-            return f"""Execute the following code:
+            # Build implementation context
+            impl_context = ""
+            if context.code_implement_output:
+                impl_context = f"""
+=== IMPLEMENTATION CONTEXT ===
 
-{context.code_implement_output}
+Recent Implementation Output:
+{str(context.code_implement_output)[:1000]}...
 
-Run the experiment and capture results."""
+"""
+
+            # Build expected behavior from plan
+            expected_behavior = ""
+            if context.code_plan_output:
+                expected_behavior = f"""
+=== EXPECTED BEHAVIOR (from Code Plan) ===
+
+Research Summary:
+{context.code_plan_output.research_summary}
+
+Expected Outcomes:
+{context.code_plan_output.expected_outcomes if hasattr(context.code_plan_output, 'expected_outcomes') else 'Not specified'}
+
+Performance Targets:
+{context.code_plan_output.performance_targets if hasattr(context.code_plan_output, 'performance_targets') else 'Not specified'}
+
+"""
+
+            return f"""Execute experiment code with full context:
+{impl_context}{expected_behavior}
+=== EXECUTION TASK ===
+
+Your task is to execute the implemented code and monitor its behavior.
+You should understand what the code is supposed to do (from context above),
+execute it properly, and compare actual behavior with expected behavior.
+
+Run the experiment and capture all results, metrics, and any deviations from expectations."""
 
         elif agent_name == "experiment_analysis":
             return f"""Analyze the experiment results:
@@ -527,7 +948,10 @@ Provide analysis and recommendations."""
         )
 
     def run_workflow_sync(
-        self, research_input: str, input_type: str = "paper"
+        self,
+        research_input: str,
+        input_type: str = "paper",
+        experiment_id: Optional[str] = None,
     ) -> ExperimentMasterOutput:
         """
         Synchronous version of run_workflow.
@@ -535,13 +959,14 @@ Provide analysis and recommendations."""
         Args:
             research_input: Research paper content or idea description
             input_type: Type of input ('paper' or 'idea')
+            experiment_id: Unique identifier for this experiment
 
         Returns:
             ExperimentMasterOutput with complete workflow results
         """
         import asyncio
 
-        return asyncio.run(self.run_workflow(research_input, input_type))
+        return asyncio.run(self.run_workflow(research_input, input_type, experiment_id))
 
 
 def create_experiment_master_agent(

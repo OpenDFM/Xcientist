@@ -305,7 +305,7 @@ def run_prepare_workflow(input_path: str) -> bool:
         )
 
         def download_single_paper(title):
-            """Download a single paper with thread-safe printing"""
+            """Download a single paper with thread-safe printing. Only downloads if exact match found."""
             from src.agents.experiment_agent.tools.research_tools import (
                 search_arxiv,
                 download_arxiv_source,
@@ -316,27 +316,79 @@ def run_prepare_workflow(input_path: str) -> bool:
                 print(f"[Thread] Searching for: {title}")
                 print("=" * 60)
 
-            # Search for paper
-            papers = search_arxiv(title, max_results=20)
+            # Search for paper with more results to increase chance of finding exact match
+            papers = search_arxiv(title, max_results=50)
 
             if len(papers) == 0:
-                msg = f"❌ Cannot find the paper '{title}' in arxiv"
+                msg = f"Cannot find the paper '{title}' in arxiv"
                 with print_lock:
-                    print(msg)
+                    print(f"❌ {msg}")
                 return {"status": -1, "message": msg, "path": None, "title": title}
 
             # Display search results
             with print_lock:
                 print(f"[Thread] Found {len(papers)} results for '{title}'")
-                if len(papers) > 1:
-                    print("  Top 3 results:")
-                    for i, paper in enumerate(papers[:3]):
+                if len(papers) > 0:
+                    print("  Top 5 results:")
+                    for i, paper in enumerate(papers[:5]):
                         print(f"    {i+1}. {paper['title']}")
 
-            # Use first result
-            best_paper = papers[0]
+            # Check for exact match - only accept completely identical titles
+            title_lower = title.lower().strip()
+            title_normalized = " ".join(title_lower.split())
+
+            exact_match = None
+            for paper in papers:
+                paper_title_lower = paper["title"].lower().strip()
+                paper_title_normalized = " ".join(paper_title_lower.split())
+
+                # Strategy 1: Check exact match (normalized whitespace only)
+                if paper_title_normalized == title_normalized:
+                    exact_match = paper
+                    with print_lock:
+                        print(f"  ✓ Found exact match (normalized): {paper['title']}")
+                    break
+
+            # Strategy 2: If no exact match, try ignoring punctuation (still strict)
+            if not exact_match:
+                import string
+
+                title_no_punct = title_normalized.translate(
+                    str.maketrans("", "", string.punctuation)
+                ).strip()
+                title_no_punct = " ".join(title_no_punct.split())
+
+                for paper in papers:
+                    paper_title_lower = paper["title"].lower().strip()
+                    paper_title_normalized = " ".join(paper_title_lower.split())
+                    paper_title_no_punct = paper_title_normalized.translate(
+                        str.maketrans("", "", string.punctuation)
+                    ).strip()
+                    paper_title_no_punct = " ".join(paper_title_no_punct.split())
+
+                    # Only accept if words match exactly (ignoring punctuation)
+                    if title_no_punct == paper_title_no_punct:
+                        exact_match = paper
+                        with print_lock:
+                            print(
+                                f"  ✓ Found exact match (ignoring punctuation): {paper['title']}"
+                            )
+                        break
+
+            if not exact_match:
+                msg = f"No exact match found for '{title}'. Skipping download."
+                with print_lock:
+                    print(f"⚠ {msg}")
+                    if len(papers) > 0:
+                        print(f"  Best match was: {papers[0]['title']}")
+                        print(f"  Searched through {len(papers)} results")
+                return {"status": -1, "message": msg, "path": None, "title": title}
+
+            # Use exact match
+            best_paper = exact_match
             with print_lock:
-                print(f"  ✓ Selected: {best_paper['title']}")
+                print(f"  ✓ Found exact match: {best_paper['title']}")
+                print(f"  ArXiv URL: {best_paper.get('url', 'N/A')}")
 
             # Download paper
             download_info = download_arxiv_source(
@@ -351,7 +403,7 @@ def run_prepare_workflow(input_path: str) -> bool:
             return {**download_info, "title": title}
 
         paper_results = []
-        max_workers = min(len(reference_papers), 3)  # 最多使用3个线程
+        max_workers = min(len(reference_papers), 3)  # Use at most 3 threads
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_paper = {
@@ -388,78 +440,184 @@ def run_prepare_workflow(input_path: str) -> bool:
             f"Searching and cloning GitHub repositories (using {min(len(reference_papers), 3)} threads)..."
         )
 
-        def search_and_clone_single_paper(title, max_repos_per_paper=1):
-            """Search and clone repos for a single paper with thread-safe printing"""
+        def search_and_clone_single_paper(
+            title, paper_results_ref, max_repos_per_paper=1
+        ):
+            """Search and clone repos for a single paper. First searches in paper content for GitHub links, then falls back to GitHub search."""
             from src.agents.experiment_agent.tools.research_tools import (
                 search_github_repos,
                 clone_github_repo,
+                extract_github_links_from_text,
             )
             import time
 
             with print_lock:
                 print(f"\n{'='*60}")
-                print(f"[Thread] Searching GitHub repositories for: {title}")
+                print(f"[Thread] Searching for code repositories for: {title}")
                 print("=" * 60)
 
             results = []
 
             try:
-                # Search GitHub with paper title
-                query = f"{title} -user:lucidrains"
-                repos = search_github_repos(query, limit=max_repos_per_paper * 2)
+                # Step 1: Try to find GitHub links in downloaded paper content
+                github_links = []
+                paper_path = None
 
-                if len(repos) == 0:
-                    msg = f"❌ No GitHub repositories found for '{title}'"
-                    with print_lock:
-                        print(msg)
-                    return [
-                        {
-                            "status": -1,
-                            "message": msg,
-                            "path": None,
-                            "paper_title": title,
-                        }
-                    ]
-
-                # Display found repositories
-                with print_lock:
-                    print(f"[Thread] Found {len(repos)} repositories for '{title}'")
-                    for i, repo in enumerate(repos[:max_repos_per_paper]):
-                        print(f"  {i+1}. {repo['name']} - {repo['stars']} stars")
-
-                # Clone top repositories
-                cloned_count = 0
-                for repo in repos[:max_repos_per_paper]:
-                    if cloned_count >= max_repos_per_paper:
+                # Find the downloaded paper file
+                for result in paper_results_ref:
+                    if result.get("title") == title and result.get("status") == 0:
+                        paper_path = result.get("path")
                         break
 
+                if paper_path and os.path.exists(paper_path):
                     with print_lock:
-                        print(f"  Cloning {repo['name']}...")
+                        print(
+                            f"[Thread] Searching for GitHub links in paper content..."
+                        )
 
-                    clone_result = clone_github_repo(
-                        repo["clone_url"],
-                        repos_dir,
-                        repo["name"].replace("/", "_"),
-                    )
+                    try:
+                        with open(paper_path, "r", encoding="utf-8") as f:
+                            paper_content = f.read()
 
-                    results.append(
-                        {
-                            **clone_result,
-                            "paper_title": title,
-                            "repo_name": repo["name"],
-                            "repo_url": repo["link"],
-                        }
-                    )
+                        github_links = extract_github_links_from_text(paper_content)
 
-                    if clone_result["status"] == 0:
+                        if github_links:
+                            with print_lock:
+                                print(
+                                    f"  ✓ Found {len(github_links)} GitHub link(s) in paper:"
+                                )
+                                for link in github_links[:max_repos_per_paper]:
+                                    print(f"    - {link}")
+                        else:
+                            with print_lock:
+                                print(f"  ⚠ No GitHub links found in paper content")
+                    except Exception as e:
                         with print_lock:
-                            print(f"    ✓ {clone_result['message']}")
-                        cloned_count += 1
+                            print(f"  ⚠ Failed to read paper content: {str(e)}")
+                else:
+                    with print_lock:
+                        print(f"  ⚠ Paper not downloaded, skipping content search")
+
+                # Step 2: Clone repositories from paper links if found
+                cloned_count = 0
+                if github_links:
+                    for link in github_links[:max_repos_per_paper]:
+                        if cloned_count >= max_repos_per_paper:
+                            break
+
+                        # Convert GitHub URL to clone URL
+                        if "github.com" in link:
+                            # Extract owner/repo from URL
+                            parts = (
+                                link.replace("https://", "")
+                                .replace("http://", "")
+                                .split("/")
+                            )
+                            if len(parts) >= 3 and parts[0] == "github.com":
+                                owner = parts[1]
+                                repo = parts[2].split(".")[0]  # Remove .git if present
+                                clone_url = f"https://github.com/{owner}/{repo}.git"
+                                repo_name = f"{owner}_{repo}"
+
+                                with print_lock:
+                                    print(
+                                        f"  Cloning {owner}/{repo} from paper link..."
+                                    )
+
+                                clone_result = clone_github_repo(
+                                    clone_url,
+                                    repos_dir,
+                                    repo_name,
+                                )
+
+                                results.append(
+                                    {
+                                        **clone_result,
+                                        "paper_title": title,
+                                        "repo_name": f"{owner}/{repo}",
+                                        "repo_url": link,
+                                        "source": "paper_content",
+                                    }
+                                )
+
+                                if clone_result["status"] == 0:
+                                    with print_lock:
+                                        print(f"    ✓ {clone_result['message']}")
+                                    cloned_count += 1
+                                else:
+                                    with print_lock:
+                                        print(f"    ✗ {clone_result['message']}")
+
+                                time.sleep(1)  # Rate limiting
+
+                # Step 3: If not enough repos from paper, search GitHub
+                if cloned_count < max_repos_per_paper:
+                    with print_lock:
+                        print(
+                            f"[Thread] Searching GitHub for additional repositories..."
+                        )
+
+                    query = f"{title} -user:lucidrains"
+                    repos = search_github_repos(
+                        query, limit=(max_repos_per_paper - cloned_count) * 2
+                    )
+
+                    if len(repos) > 0:
+                        with print_lock:
+                            print(f"  Found {len(repos)} repositories on GitHub")
+                            for i, repo in enumerate(
+                                repos[: max_repos_per_paper - cloned_count]
+                            ):
+                                print(
+                                    f"    {i+1}. {repo['name']} - {repo['stars']} stars"
+                                )
+
+                        # Clone additional repositories
+                        for repo in repos[: max_repos_per_paper - cloned_count]:
+                            if cloned_count >= max_repos_per_paper:
+                                break
+
+                            with print_lock:
+                                print(f"  Cloning {repo['name']}...")
+
+                            clone_result = clone_github_repo(
+                                repo["clone_url"],
+                                repos_dir,
+                                repo["name"].replace("/", "_"),
+                            )
+
+                            results.append(
+                                {
+                                    **clone_result,
+                                    "paper_title": title,
+                                    "repo_name": repo["name"],
+                                    "repo_url": repo["link"],
+                                    "source": "github_search",
+                                }
+                            )
+
+                            if clone_result["status"] == 0:
+                                with print_lock:
+                                    print(f"    ✓ {clone_result['message']}")
+                                cloned_count += 1
+                            else:
+                                with print_lock:
+                                    print(f"    ✗ {clone_result['message']}")
+
+                            time.sleep(1)  # Rate limiting
                     else:
-                        with print_lock:
-                            print(f"    ✗ {clone_result['message']}")
-
-                    time.sleep(1)  # Rate limiting
+                        if cloned_count == 0:
+                            msg = f"No GitHub repositories found for '{title}'"
+                            with print_lock:
+                                print(f"  ⚠ {msg}")
+                            results.append(
+                                {
+                                    "status": -1,
+                                    "message": msg,
+                                    "path": None,
+                                    "paper_title": title,
+                                }
+                            )
 
             except Exception as e:
                 msg = f"Failed to search/clone repositories for '{title}': {str(e)}"
@@ -472,11 +630,13 @@ def run_prepare_workflow(input_path: str) -> bool:
             return results
 
         repo_results = []
-        max_workers = min(len(reference_papers), 3)  # 最多使用3个线程
+        max_workers = min(len(reference_papers), 3)  # Use at most 3 threads
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_paper = {
-                executor.submit(search_and_clone_single_paper, title, 1): title
+                executor.submit(
+                    search_and_clone_single_paper, title, paper_results, 1
+                ): title
                 for title in reference_papers
             }
 
@@ -542,6 +702,7 @@ async def run_experiment_workflow(
     input_path: str,
     max_iterations: int = 5,
     verbose: bool = False,
+    experiment_id: Optional[str] = None,
 ) -> bool:
     """
     Run the complete experiment workflow.
@@ -550,7 +711,8 @@ async def run_experiment_workflow(
         input_type: Type of input ('paper' or 'idea')
         input_path: Path to input file
         max_iterations: Maximum workflow iterations
-        verbose: If True, enable verbose hooks to show full LLM responses and tool calls
+        verbose: Enable verbose logging
+        experiment_id: Experiment ID for caching
 
     Returns:
         True if workflow completed successfully, False otherwise
@@ -599,7 +761,7 @@ async def run_experiment_workflow(
         master_agent = create_experiment_master_agent(
             model=MODEL_NAME,
             max_iterations=max_iterations,
-            working_dir=path_config["docker_workspace"],
+            working_dir=path_config["project_dir"],
             log_dir=path_config["logs_dir"],
             cache_dir=path_config["cache_dir"],
             verbose=verbose,
@@ -607,7 +769,7 @@ async def run_experiment_workflow(
 
         print_success("Experiment Master Agent initialized")
         print_info(f"Max iterations: {max_iterations}")
-        print_info(f"Working directory: {path_config['docker_workspace']}")
+        print_info(f"Working directory: {path_config['project_dir']}")
         print_info(f"Log directory: {path_config['logs_dir']}")
         print_info(f"Cache directory: {path_config['cache_dir']}")
 
@@ -621,6 +783,7 @@ async def run_experiment_workflow(
         result = await master_agent.run_workflow(
             research_input=research_input,
             input_type=actual_input_type,
+            experiment_id=experiment_id,
         )
 
         end_time = datetime.now()
@@ -767,6 +930,13 @@ def get_args():
         help="Enable verbose agent logging (DEBUG level)",
     )
 
+    parser.add_argument(
+        "--experiment-id",
+        type=str,
+        default=None,
+        help="Experiment ID for caching (if not provided, auto-generates timestamp-based ID)",
+    )
+
     return parser.parse_args()
 
 
@@ -849,6 +1019,7 @@ async def main():
         input_path=input_path,
         max_iterations=args.max_iterations,
         verbose=args.verbose,
+        experiment_id=args.experiment_id,
     )
 
     # Final status

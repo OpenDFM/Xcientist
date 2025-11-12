@@ -33,6 +33,17 @@ based on code review feedback.
 YOUR TASK:
 Generate a REVISED implementation plan that addresses issues identified by the code judge.
 
+CRITICAL - IMPORT PATH PLANNING:
+When revising the implementation plan:
+- Remember the project will be executed from working_dir/project directory
+- All Python imports must assume project/ is the execution root
+- Specify imports WITHOUT "project." prefix in your revised plan
+- If import path issues were flagged, correct them in the plan
+
+Example correct imports to specify in plan:
+- "from data.dataset import MyDataset" (for project/data/dataset.py)
+- "from models.model import MyModel" (for project/models/model.py)
+
 INPUT:
 You will receive:
 1. PreAnalysisOutput: Original research analysis
@@ -50,7 +61,7 @@ ANALYSIS PHASE:
    - Determine if issues stem from unclear planning
 
 2. REVIEW PREVIOUS IMPLEMENTATION
-   - Use `read_file` to examine the problematic code in `/{working_dir or 'workspace'}`
+   - Use `read_file` to examine the problematic code in `/{working_dir}`
    - Identify what went wrong in the original plan
    - Find gaps or ambiguities in previous specifications
 
@@ -107,17 +118,17 @@ All tools return a dictionary with the following structure:
 - If failed: Contains an "error" field with error message
 
 Example successful response:
-{
+{{
   "success": true,
   "content": "file content here",
   "file_path": "/path/to/file"
-}
+}}
 
 Example failed response:
-{
+{{
   "success": false,
   "error": "File not found: /path/to/file"
-}
+}}
 
 Always check the "success" field before using other fields from tool results.
 If a tool fails, report the error and try alternative approaches.
@@ -134,6 +145,12 @@ OUTPUT REQUIREMENTS:
 - Include concrete examples where helpful
 - Specify validation criteria for each component
 - Make success metrics clear
+
+CRITICAL OUTPUT FORMAT REQUIREMENT:
+You MUST output EXACTLY ONE JSON object with the IntermediatePlanOutput structure.
+DO NOT output multiple JSON objects.
+DO NOT add any text before or after the JSON object.
+Output ONLY a single, valid JSON object with ALL required fields.
 
 Remember: The goal is to produce a plan so clear and detailed that the 
 code_implement_agent can successfully implement it without making the 

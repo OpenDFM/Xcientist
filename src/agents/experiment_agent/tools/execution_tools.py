@@ -852,3 +852,303 @@ def test_docker_connection() -> Dict[str, Any]:
             "message": f"Connection test failed: {str(e)}",
             "error": str(e),
         }
+
+
+# =============================================================================
+# Local Execution Tools (No Docker Required)
+# =============================================================================
+
+import subprocess
+import signal
+
+
+@function_tool
+def run_pytest_local(
+    test_path: str,
+    working_dir: Optional[str] = None,
+    timeout: int = 300,
+    extra_args: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Run pytest tests locally (no Docker required).
+
+    Args:
+        test_path: Path to test file or directory
+        working_dir: Working directory for execution (default: directory containing test_path)
+        timeout: Maximum execution time in seconds (default: 300)
+        extra_args: Additional pytest arguments (e.g., "-v -s")
+
+    Returns:
+        Dictionary with execution results:
+        - success: True if all tests passed
+        - exit_code: pytest exit code (0=passed, 1=failed, 2=interrupted, 3=error, 4=usage error, 5=no tests)
+        - stdout: Test output
+        - stderr: Error output
+        - execution_time: Time taken in seconds
+
+    Example:
+        result = run_pytest_local(
+            "tests/test_module.py",
+            timeout=60,
+            extra_args="-v --tb=short"
+        )
+    """
+    import time
+
+    start_time = time.time()
+
+    try:
+        # Build pytest command
+        cmd = ["pytest", test_path]
+        if extra_args:
+            cmd.extend(extra_args.split())
+
+        # Set working directory
+        cwd = working_dir
+        if cwd is None and os.path.isfile(test_path):
+            cwd = os.path.dirname(os.path.abspath(test_path))
+        elif cwd is None:
+            cwd = os.path.abspath(test_path)
+
+        # Run pytest with timeout
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=cwd,
+            text=True,
+            encoding="utf-8",
+        )
+
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+            exit_code = process.returncode
+        except subprocess.TimeoutExpired:
+            # Kill the process if timeout
+            process.kill()
+            stdout, stderr = process.communicate()
+            execution_time = time.time() - start_time
+            return {
+                "success": False,
+                "exit_code": -1,
+                "stdout": stdout,
+                "stderr": f"Test execution timeout after {timeout}s\n{stderr}",
+                "execution_time": execution_time,
+                "error": f"Timeout after {timeout}s",
+            }
+
+        execution_time = time.time() - start_time
+
+        return {
+            "success": exit_code == 0,
+            "exit_code": exit_code,
+            "stdout": stdout,
+            "stderr": stderr,
+            "execution_time": execution_time,
+            "command": " ".join(cmd),
+            "working_dir": cwd,
+        }
+
+    except FileNotFoundError:
+        return {
+            "success": False,
+            "exit_code": -1,
+            "stdout": "",
+            "stderr": "pytest not found. Please install pytest: pip install pytest",
+            "execution_time": time.time() - start_time,
+            "error": "pytest not installed",
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "exit_code": -1,
+            "stdout": "",
+            "stderr": str(e),
+            "execution_time": time.time() - start_time,
+            "error": f"Execution error: {str(e)}",
+        }
+
+
+@function_tool
+def run_python_script_local(
+    script_path: str,
+    args: Optional[str] = None,
+    working_dir: Optional[str] = None,
+    timeout: int = 300,
+) -> Dict[str, Any]:
+    """
+    Run a Python script locally (no Docker required).
+
+    Args:
+        script_path: Path to the Python script
+        args: Command line arguments as a string
+        working_dir: Working directory for execution
+        timeout: Maximum execution time in seconds (default: 300)
+
+    Returns:
+        Dictionary with execution results:
+        - success: True if exit code is 0
+        - exit_code: Process exit code
+        - stdout: Standard output
+        - stderr: Standard error
+        - execution_time: Time taken in seconds
+
+    Example:
+        result = run_python_script_local(
+            "train.py",
+            args="--epochs 5 --lr 0.001",
+            working_dir="/path/to/project",
+            timeout=60
+        )
+    """
+    import time
+
+    start_time = time.time()
+
+    try:
+        # Build command
+        cmd = ["python", script_path]
+        if args:
+            cmd.extend(args.split())
+
+        # Set working directory
+        cwd = (
+            working_dir
+            if working_dir
+            else os.path.dirname(os.path.abspath(script_path))
+        )
+
+        # Run script with timeout
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=cwd,
+            text=True,
+            encoding="utf-8",
+        )
+
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+            exit_code = process.returncode
+        except subprocess.TimeoutExpired:
+            # Kill the process if timeout
+            process.kill()
+            stdout, stderr = process.communicate()
+            execution_time = time.time() - start_time
+            return {
+                "success": False,
+                "exit_code": -1,
+                "stdout": stdout,
+                "stderr": f"Script execution timeout after {timeout}s\n{stderr}",
+                "execution_time": execution_time,
+                "error": f"Timeout after {timeout}s",
+            }
+
+        execution_time = time.time() - start_time
+
+        return {
+            "success": exit_code == 0,
+            "exit_code": exit_code,
+            "stdout": stdout,
+            "stderr": stderr,
+            "execution_time": execution_time,
+            "command": " ".join(cmd),
+            "working_dir": cwd,
+        }
+
+    except FileNotFoundError as e:
+        return {
+            "success": False,
+            "exit_code": -1,
+            "stdout": "",
+            "stderr": f"File not found: {str(e)}",
+            "execution_time": time.time() - start_time,
+            "error": f"File not found: {str(e)}",
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "exit_code": -1,
+            "stdout": "",
+            "stderr": str(e),
+            "execution_time": time.time() - start_time,
+            "error": f"Execution error: {str(e)}",
+        }
+
+
+@function_tool
+def run_python_code_local(
+    code: str,
+    timeout: int = 60,
+) -> Dict[str, Any]:
+    """
+    Run Python code snippet locally (no Docker required).
+
+    Args:
+        code: Python code to execute
+        timeout: Maximum execution time in seconds (default: 60)
+
+    Returns:
+        Dictionary with execution results:
+        - success: True if exit code is 0
+        - exit_code: Process exit code
+        - stdout: Standard output
+        - stderr: Standard error
+        - execution_time: Time taken in seconds
+
+    Example:
+        result = run_python_code_local(
+            "import sys; print(sys.version)"
+        )
+    """
+    import time
+
+    start_time = time.time()
+
+    try:
+        # Run code using python -c
+        process = subprocess.Popen(
+            ["python", "-c", code],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+        )
+
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+            exit_code = process.returncode
+        except subprocess.TimeoutExpired:
+            # Kill the process if timeout
+            process.kill()
+            stdout, stderr = process.communicate()
+            execution_time = time.time() - start_time
+            return {
+                "success": False,
+                "exit_code": -1,
+                "stdout": stdout,
+                "stderr": f"Code execution timeout after {timeout}s\n{stderr}",
+                "execution_time": execution_time,
+                "error": f"Timeout after {timeout}s",
+            }
+
+        execution_time = time.time() - start_time
+
+        return {
+            "success": exit_code == 0,
+            "exit_code": exit_code,
+            "stdout": stdout,
+            "stderr": stderr,
+            "execution_time": execution_time,
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "exit_code": -1,
+            "stdout": "",
+            "stderr": str(e),
+            "execution_time": time.time() - start_time,
+            "error": f"Execution error: {str(e)}",
+        }

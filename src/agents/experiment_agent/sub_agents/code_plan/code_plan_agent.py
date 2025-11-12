@@ -15,6 +15,79 @@ from datetime import datetime
 
 from agents import Agent, Runner, handoff
 
+# Import hooks
+from src.agents.experiment_agent.logger import create_verbose_hooks
+
+
+# =============================================================================
+# Pretty Print Utilities
+# =============================================================================
+
+
+class Colors:
+    """ANSI color codes for terminal output."""
+
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKCYAN = "\033[96m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+
+
+def print_section(title: str, char: str = "="):
+    """Print a section header."""
+    print(f"\n{Colors.OKCYAN}{Colors.BOLD}{char * 80}{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}{Colors.BOLD}{title.center(80)}{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}{Colors.BOLD}{char * 80}{Colors.ENDC}\n")
+
+
+def print_subsection(title: str):
+    """Print a subsection header."""
+    print(f"\n{Colors.OKBLUE}{Colors.BOLD}{'─' * 80}{Colors.ENDC}")
+    print(f"{Colors.OKBLUE}{Colors.BOLD}📋 {title}{Colors.ENDC}")
+    print(f"{Colors.OKBLUE}{Colors.BOLD}{'─' * 80}{Colors.ENDC}\n")
+
+
+def print_success(message: str, indent: int = 0):
+    """Print a success message."""
+    prefix = "  " * indent
+    print(f"{prefix}{Colors.OKGREEN}✓{Colors.ENDC} {message}")
+
+
+def print_error(message: str, indent: int = 0):
+    """Print an error message."""
+    prefix = "  " * indent
+    print(f"{prefix}{Colors.FAIL}✗{Colors.ENDC} {message}")
+
+
+def print_info(message: str, indent: int = 0):
+    """Print an info message."""
+    prefix = "  " * indent
+    print(f"{prefix}{Colors.OKBLUE}ℹ{Colors.ENDC} {message}")
+
+
+def print_result_box(title: str, content: str, max_length: int = 500):
+    """Print a boxed result with simple header."""
+    # Print header
+    print(f"\n{Colors.BOLD}{Colors.OKCYAN}{'═' * 80}{Colors.ENDC}")
+    print(f"{Colors.BOLD}{Colors.OKCYAN}  {title}{Colors.ENDC}")
+    print(f"{Colors.BOLD}{Colors.OKCYAN}{'═' * 80}{Colors.ENDC}\n")
+
+    # Truncate content if too long
+    if len(content) > max_length:
+        display_content = content[:max_length] + "\n... (truncated for display)"
+    else:
+        display_content = content
+
+    # Print content without line truncation
+    print(f"{Colors.OKGREEN}{display_content}{Colors.ENDC}\n")
+    print(f"{Colors.BOLD}{Colors.OKCYAN}{'═' * 80}{Colors.ENDC}\n")
+
+
 from src.agents.experiment_agent.sub_agents.code_plan.output_schemas import (
     CodePlanOutput,
     IntermediatePlanOutput,
@@ -57,6 +130,17 @@ def create_triage_agent(
 
     instructions = """You are a planning triage agent responsible for determining which planning 
 scenario applies and handing off to the appropriate specialized planner.
+
+CRITICAL - IMPORT PATH REQUIREMENTS FOR CODE PLANNING:
+When planning code structure and imports, remember:
+- The final project will be executed from working_dir/project directory
+- All Python imports must assume project/ is the execution root
+- Imports should NOT include "project." prefix
+- Plan file structure with this execution context in mind
+
+Example: For project/models/model.py importing from project/data/dataset.py
+Correct import: "from data.dataset import MyDataset"
+Wrong import: "from project.data.dataset import MyDataset"
 
 ANALYZE the input to determine which scenario it represents:
 
@@ -128,6 +212,7 @@ class CodePlanAgent:
         model: str = "gpt-4o",
         working_dir: str = None,
         tools: Optional[Dict[str, list]] = None,
+        verbose: bool = False,
     ):
         """
         Initialize the code planning agent system.
@@ -138,9 +223,21 @@ class CodePlanAgent:
             tools: Optional dictionary mapping scenario types to their tools.
                    If None, automatically loads recommended tools.
                    e.g., {"initial": [...], "judge_feedback": [...], ...}
+            verbose: If True, enable verbose hooks to show full LLM responses and tool calls
         """
         self.model = model
         self.working_dir = working_dir
+        self.verbose = verbose
+
+        # Create hooks for verbose output
+        self.hooks = (
+            create_verbose_hooks(
+                show_llm_responses=verbose,
+                show_tools=verbose,
+            )
+            if verbose
+            else None
+        )
 
         # Auto-load recommended tools if not provided
         if tools is None:
@@ -199,14 +296,30 @@ class CodePlanAgent:
         Returns:
             CodePlanOutput with complete implementation plan
         """
+        print_section("CODE PLANNING WORKFLOW", "=")
+        print_info(f"Input length: {len(input_data)} characters")
+
         # Step 1: Run triage agent (will automatically handoff to appropriate planner)
-        planning_result = await Runner.run(self.triage_agent, input_data)
+        print_subsection("Planning Triage & Execution")
+        print_info(
+            "Determining planning scenario and routing to appropriate planner..."
+        )
+
+        planning_result = await Runner.run(
+            self.triage_agent, input_data, hooks=self.hooks, max_turns=100
+        )
 
         # The final_output will be from the planner that was handed off to
         intermediate_plan: IntermediatePlanOutput = planning_result.final_output
 
-        # Determine scenario based on which agent produced the output
-        active_agent_name = planning_result.agent.name
+        # Get the agent that actually did the planning from RunResult
+        active_agent_name = (
+            planning_result.last_agent.name
+            if planning_result.last_agent
+            else "Unknown Agent"
+        )
+
+        # Determine scenario based on agent name
         if "Initial" in active_agent_name:
             scenario = "initial"
         elif "Judge" in active_agent_name:
@@ -218,7 +331,18 @@ class CodePlanAgent:
         else:
             scenario = "initial"  # default
 
-        print(f"Planned using: {active_agent_name} (scenario: {scenario})")
+        print_success(f"Planning completed using: {active_agent_name}")
+        print_info(f"Scenario: {scenario}")
+
+        # Display intermediate plan results
+        print_result_box(
+            "Research Summary", intermediate_plan.research_summary, max_length=1000
+        )
+        print_result_box(
+            "Implementation Steps",
+            intermediate_plan.implementation_steps,
+            max_length=2000,
+        )
 
         # Step 2: Format output
         unifier_input = f"""
@@ -235,6 +359,9 @@ Key Innovations:
 
 File Structure:
 {intermediate_plan.file_structure_description}
+
+Project Structure Tree:
+{intermediate_plan.project_structure_tree}
 
 Dataset Plan:
 {intermediate_plan.dataset_plan}
@@ -261,7 +388,21 @@ Addressed Issues:
 {intermediate_plan.addressed_issues}
 """
 
-        unifier_result = await Runner.run(self.output_unifier, unifier_input)
+        print_subsection("Formatting Code Plan Output")
+        print_info("Converting intermediate plan to YAML-compatible format...")
+
+        unifier_result = await Runner.run(
+            self.output_unifier, unifier_input, hooks=self.hooks, max_turns=100
+        )
+
+        print_success("Output formatting completed")
+        print_info(f"Generated {len(unifier_result.final_output.file_structure)} files")
+        print_info(
+            f"Implementation roadmap: {len(unifier_result.final_output.implementation_roadmap)} steps"
+        )
+
+        print_success("Code planning completed successfully!")
+        print_section("CODE PLANNING COMPLETE", "=")
 
         return unifier_result.final_output
 
@@ -284,6 +425,7 @@ def create_code_plan_agent(
     model: str = "gpt-4o",
     working_dir: str = None,
     tools: Optional[Dict[str, list]] = None,
+    verbose: bool = False,
 ) -> CodePlanAgent:
     """
     Factory function to create a code planning agent system.
@@ -292,11 +434,14 @@ def create_code_plan_agent(
         model: Model to use for all agents
         working_dir: Working directory with reference codebases
         tools: Dictionary mapping scenario types to their tools
+        verbose: If True, enable verbose hooks to show full LLM responses and tool calls
 
     Returns:
         CodePlanAgent instance
     """
-    return CodePlanAgent(model=model, working_dir=working_dir, tools=tools)
+    return CodePlanAgent(
+        model=model, working_dir=working_dir, tools=tools, verbose=verbose
+    )
 
 
 # Example usage:

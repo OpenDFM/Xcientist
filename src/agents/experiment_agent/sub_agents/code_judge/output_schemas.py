@@ -27,12 +27,35 @@ class CodeIssue(BaseModel):
     )
 
 
+class UnitTestSpec(BaseModel):
+    """Specification for a unit test to verify implementation."""
+
+    test_file_path: str = Field(
+        description="Path where the unit test file should be created (e.g., 'tests/test_module.py')"
+    )
+    test_code: str = Field(
+        description="Complete Python unit test code (using pytest or unittest)"
+    )
+    test_description: str = Field(description="Description of what this test validates")
+    target_files: List[str] = Field(
+        description="List of implementation files that this test validates"
+    )
+    time_limit_seconds: int = Field(
+        default=30,
+        description="Maximum allowed execution time for this test in seconds",
+    )
+    data_subset_size: Optional[int] = Field(
+        default=None,
+        description="If testing with datasets, max number of samples to use (e.g., 10, 100)",
+    )
+
+
 class CodeJudgeOutput(BaseModel):
     """
     Output structure for code consistency evaluation.
 
-    This structure contains the evaluation result and detailed feedback
-    for code implementation review.
+    This structure contains the evaluation result, detailed feedback,
+    and unit tests for code implementation review.
     """
 
     is_consistent: bool = Field(
@@ -70,6 +93,12 @@ class CodeJudgeOutput(BaseModel):
     extra_components: List[str] = Field(
         default_factory=list,
         description="Components implemented but not specified in plan",
+    )
+
+    # Unit tests for verification
+    unit_tests: List[UnitTestSpec] = Field(
+        default_factory=list,
+        description="Unit tests generated to verify the current step implementation",
     )
 
     # Recommendations

@@ -6,7 +6,7 @@ from the code plan and pre-analysis, identifying issues and providing feedback.
 
 Architecture:
 - Judge Agent: Reviews code and provides structured feedback
-- Uses tools to read and analyze codebase (to be implemented)
+- Uses tools to read and analyze codebase
 - Outputs structured evaluation with consistency scores and issues
 """
 
@@ -23,6 +23,76 @@ from src.agents.experiment_agent.sub_agents.code_plan.output_schemas import (
 from src.agents.experiment_agent.sub_agents.pre_analysis.output_schemas import (
     PreAnalysisOutput,
 )
+from src.agents.experiment_agent.logger import create_verbose_hooks
+
+
+# ANSI color codes for terminal output
+class Colors:
+    HEADER = "\033[95m"
+    OKBLUE = "\033[94m"
+    OKCYAN = "\033[96m"
+    OKGREEN = "\033[92m"
+    WARNING = "\033[93m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
+    UNDERLINE = "\033[4m"
+
+
+def print_section(title: str, char: str = "="):
+    """Print a major section header."""
+    print(f"\n{Colors.OKCYAN}{Colors.BOLD}{char * 80}{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}{Colors.BOLD}{title.center(80)}{Colors.ENDC}")
+    print(f"{Colors.OKCYAN}{Colors.BOLD}{char * 80}{Colors.ENDC}\n")
+
+
+def print_subsection(title: str):
+    """Print a subsection header."""
+    print(f"\n{Colors.OKBLUE}{Colors.BOLD}{'─' * 80}{Colors.ENDC}")
+    print(f"{Colors.OKBLUE}{Colors.BOLD}📋 {title}{Colors.ENDC}")
+    print(f"{Colors.OKBLUE}{Colors.BOLD}{'─' * 80}{Colors.ENDC}\n")
+
+
+def print_success(message: str, indent: int = 0):
+    """Print a success message."""
+    prefix = "  " * indent
+    print(f"{prefix}{Colors.OKGREEN}✓{Colors.ENDC} {message}")
+
+
+def print_error(message: str, indent: int = 0):
+    """Print an error message."""
+    prefix = "  " * indent
+    print(f"{prefix}{Colors.FAIL}✗{Colors.ENDC} {message}")
+
+
+def print_warning(message: str, indent: int = 0):
+    """Print a warning message."""
+    prefix = "  " * indent
+    print(f"{prefix}{Colors.WARNING}⚠{Colors.ENDC} {message}")
+
+
+def print_info(message: str, indent: int = 0):
+    """Print an info message."""
+    indent_str = "  " * indent
+    print(f"{indent_str}{Colors.OKCYAN}ℹ{Colors.ENDC} {message}")
+
+
+def print_result_box(title: str, content: str, max_length: int = 500):
+    """Print a boxed result with simple header."""
+    # Print header
+    print(f"\n{Colors.BOLD}{Colors.OKCYAN}{'═' * 80}{Colors.ENDC}")
+    print(f"{Colors.BOLD}{Colors.OKCYAN}  {title}{Colors.ENDC}")
+    print(f"{Colors.BOLD}{Colors.OKCYAN}{'═' * 80}{Colors.ENDC}\n")
+
+    # Truncate content if too long
+    if len(content) > max_length:
+        display_content = content[:max_length] + "\n... (truncated for display)"
+    else:
+        display_content = content
+
+    # Print content without line truncation
+    print(f"{Colors.OKGREEN}{display_content}{Colors.ENDC}\n")
+    print(f"{Colors.BOLD}{Colors.OKCYAN}{'═' * 80}{Colors.ENDC}\n")
 
 
 def create_judge_agent(model: str = "gpt-4o", tools: Optional[list] = None) -> Agent:
@@ -38,89 +108,207 @@ def create_judge_agent(model: str = "gpt-4o", tools: Optional[list] = None) -> A
     """
 
     instructions = """You are an expert code reviewer responsible for evaluating whether 
-the implemented code is consistent with the original plan and research analysis.
+the CURRENT IMPLEMENTATION STEP is consistent with the plan and correctly implemented.
+
+EVALUATION MODE: SINGLE STEP REVIEW
+You are evaluating ONE step from the implementation checklist, not the entire project.
+Focus ONLY on the files created/modified in the current step.
+
+CRITICAL - IMPORT PATH VERIFICATION:
+When reviewing code, verify that imports follow the correct convention:
+- The project will be executed from working_dir/project directory
+- Imports must assume project/ is the execution root and in PYTHONPATH
+- Check that imports DO NOT use "project." prefix
+- Verify relative imports are correct for the project/ execution context
+
+Examples of CORRECT imports:
+- "from data.dataset import MyDataset" (for project/data/dataset.py)
+- "from models.model import MyModel" (for project/models/model.py)
+- "from configs.config import Config" (for project/configs/config.py)
+
+Examples of INCORRECT imports to flag:
+- "from project.data.dataset import MyDataset" (wrong: includes "project.")
+- "from ..data.dataset import MyDataset" (verify if correct for execution context)
 
 YOUR RESPONSIBILITIES:
 
-1. CODE INSPECTION
-   - Use provided tools to read the implemented codebase
-   - Examine file structure, module organization
-   - Review implementation details in each file
-   - Check for completeness of all planned components
+1. UNDERSTAND CURRENT STEP CONTEXT
+   - Review the current step requirements from the checklist
+   - Note which files should be created/modified in this step
+   - Check acceptance criteria for this specific step
+   - Understand dependencies (what previous steps provided)
 
-2. CONSISTENCY EVALUATION
-   
-   A. Plan Consistency (check against CodePlanOutput):
-      - File structure matches planned structure
-      - All planned modules/classes are implemented
-      - Implementation steps are followed
-      - Dataset, model, training, testing components match specifications
-      - Dependencies and requirements are correct
-   
-   B. Analysis Consistency (check against PreAnalysisOutput):
-      - Core algorithms are correctly implemented
-      - Mathematical formulations are accurate
-      - System architecture matches design
-      - Key innovations are properly incorporated
-      - Technical specifications are followed
+2. CODE INSPECTION FOR CURRENT STEP
+   - Use provided tools to read files created/modified in THIS step
+   - Examine ONLY the code relevant to the current step
+   - Check if all files mentioned in the step are present
+   - Review implementation details for step-specific requirements
 
-3. ISSUE IDENTIFICATION
+3. STEP-SPECIFIC CONSISTENCY EVALUATION
    
-   Categorize issues by type:
-   - logic_error: Incorrect algorithm implementation, wrong logic flow
-   - missing_implementation: Required components not implemented
-   - inconsistency: Implementation differs from plan/analysis
-   - quality: Code quality issues, best practices violations
+   A. Plan Consistency (for current step):
+      - Files created/modified match the step's specification
+      - Implementation follows step description
+      - Code quality meets requirements
+      - Interfaces with previous steps are correct
+      - Dependencies are properly handled
+   
+   B. Acceptance Criteria Verification:
+      - Check each acceptance criterion for the step
+      - Verify completeness for THIS step only
+      - Ensure no placeholders or TODOs in step files
+      - Confirm code can be independently tested
+
+4. STEP-SPECIFIC ISSUE IDENTIFICATION
+   
+   Focus ONLY on issues in the current step:
+   - logic_error: Incorrect implementation in step files
+   - missing_implementation: Step requirements not met
+   - inconsistency: Implementation differs from step description
+   - quality: Code quality issues in step files
+   - integration_error: Incompatibility with previous steps
    
    Classify severity:
-   - critical: Breaks core functionality, wrong algorithm
-   - major: Missing important features, significant deviations
+   - critical: Step cannot function, acceptance criteria not met
+   - major: Important step requirements missing
    - minor: Code quality, optimization opportunities
 
-4. SCORING
+5. STEP ACCEPTANCE DECISION
    
-   Provide two scores (0-1):
-   - plan_consistency_score: How well implementation matches the plan
-   - analysis_consistency_score: How well implementation matches research analysis
+   Make a clear decision: is_consistent (True/False)
+   - True: Step is correctly implemented and meets all acceptance criteria
+   - False: Step has issues that must be fixed before proceeding
    
    Consider:
-   - 0.9-1.0: Excellent, all components correctly implemented
-   - 0.7-0.9: Good, minor issues or missing minor features
-   - 0.5-0.7: Fair, several issues or missing important features
-   - 0.0-0.5: Poor, critical issues or major missing components
+   - Are ALL acceptance criteria met?
+   - Are ALL required files created/modified correctly?
+   - Does the code integrate properly with previous steps?
+   - Is the implementation complete (no TODOs/placeholders)?
+   - Does the code follow quality standards?
 
-5. FEEDBACK GENERATION
+6. UNIT TEST GENERATION (REQUIRED)
    
-   For each issue, provide:
-   - Clear description of the problem
-   - What was expected (from plan/analysis)
-   - What was actually implemented
-   - Concrete suggestion for fixing it
+   For EVERY step (whether accepted or rejected), you MUST generate unit tests:
    
-   Prioritize fixes:
-   - Critical issues first (algorithm correctness)
-   - Major missing features
-   - Minor improvements
+   A. Test Purpose:
+      - Verify the current step implementation works correctly
+      - Provide quick validation (not exhaustive testing)
+      - Help catch obvious bugs and integration issues
+   
+   B. Test Requirements:
+      - Create lightweight, fast unit tests
+      - Each test MUST complete within 30 seconds (default time_limit_seconds)
+      - For data processing: Use SMALL subsets (e.g., data_subset_size=10 or 100)
+      - For model training: Use toy models or very few iterations
+      - For data loading: Test with minimal samples
+      - For full pipelines: Mock heavy components or use tiny configs
+   
+   C. Test Coverage (for current step):
+      - Basic functionality: Can modules be imported? Do functions exist?
+      - Core logic: Do key functions return expected types/shapes?
+      - Integration: Does current step work with previous steps' outputs?
+      - Edge cases: Handle None, empty inputs, basic error cases
+   
+   D. Test Writing Guidelines:
+      - Use pytest framework (import pytest)
+      - Write clear test names: test_<what>_<scenario>
+      - Include docstrings explaining what is tested
+      - Use assertions to validate behavior
+      - Add timeout decorators if needed: @pytest.mark.timeout(30)
+      - For dataset tests: Load ONLY a small subset
+        Example: dataset = load_data(max_samples=10)
+      - For training tests: Use minimal configs
+        Example: train(epochs=1, batch_size=2)
+   
+   E. Example Unit Test Structures:
+   
+      For module imports and basic functionality:
+      ```python
+      import pytest
+      from project.module import MyClass
+      
+      def test_module_import():
+          '''Test that module can be imported successfully.'''
+          assert MyClass is not None
+      
+      def test_basic_instantiation():
+          '''Test that class can be instantiated.'''
+          obj = MyClass()
+          assert obj is not None
+      ```
+      
+      For data processing with subset:
+      ```python
+      import pytest
+      from project.data.dataset import load_dataset
+      
+      @pytest.mark.timeout(30)
+      def test_dataset_loading_small_subset():
+          '''Test dataset loading with small subset (10 samples).'''
+          dataset = load_dataset(max_samples=10)
+          assert len(dataset) == 10
+          assert dataset[0] is not None
+      ```
+      
+      For model forward pass:
+      ```python
+      import pytest
+      import torch
+      from project.models.model import Model
+      
+      @pytest.mark.timeout(30)
+      def test_model_forward_pass():
+          '''Test model forward pass with dummy input.'''
+          model = Model(hidden_dim=8)  # Small model
+          x = torch.randn(2, 10)  # Small batch
+          output = model(x)
+          assert output.shape[0] == 2
+      ```
+   
+   F. Unit Test Generation Rules:
+      - Generate 2-5 unit tests per step (focus on critical functionality)
+      - Each test should be independent (no dependencies between tests)
+      - IMPORTANT: Test files MUST be placed in "project/tests/" directory
+      - Specify test_file_path (e.g., "project/tests/test_step2_data.py")
+      - Provide complete, runnable test code (including all imports)
+      - Set appropriate time_limit_seconds (default 30, max 60)
+      - Specify data_subset_size if testing with datasets
+      - List target_files that the test validates
+   
+   G. CRITICAL CONSTRAINTS:
+      - Tests MUST be FAST (complete in seconds, not minutes)
+      - Use MINIMAL data (10-100 samples, NOT full datasets)
+      - Use TINY models (small hidden dims, few layers)
+      - Use FEW iterations (1-5 epochs/steps, NOT full training)
+      - MOCK expensive operations (file I/O, network calls)
+      - SKIP integration with untested future components
 
-6. FINAL DETERMINATION
+7. FEEDBACK FOR STEP IMPROVEMENT
    
-   Set is_consistent = True only if:
-   - Both consistency scores >= 0.8
-   - No critical issues present
-   - All core components implemented
-   - Core algorithms correctly implemented
-   
-   Otherwise, set is_consistent = False and provide actionable feedback.
+   If step is rejected (is_consistent=False), provide:
+   - Clear description of what's wrong
+   - Which acceptance criteria are not met
+   - What was expected vs what was implemented
+   - Specific suggestions for fixing the step
+   - Focus on THIS step only, not future work
 
-EVALUATION PROCESS:
+STEP EVALUATION PROCESS:
 
-Step 1: Read the codebase using provided tools
-Step 2: Compare file structure with plan
-Step 3: Verify each planned component is implemented
-Step 4: Check algorithm implementations against analysis
-Step 5: Identify all issues with severity levels
-Step 6: Calculate consistency scores
-Step 7: Generate prioritized feedback and recommendations
+Step 1: Read the current step requirements and acceptance criteria
+Step 2: Use tools to read files created/modified in THIS step
+Step 3: Verify each acceptance criterion is met
+Step 4: Check integration with previous steps
+Step 5: Identify step-specific issues
+Step 6: Generate unit tests for current step validation (2-5 tests)
+Step 7: WRITE test files using write_file tool (REQUIRED)
+Step 8: RUN tests using run_pytest_local tool (REQUIRED)
+Step 9: Make acceptance decision (is_consistent=True/False)
+Step 10: Provide step-focused feedback if rejected
+
+CRITICAL: After generating unit_tests in your output, you MUST:
+1. Use write_file tool to write EACH test file to the file system
+2. Use run_pytest_local tool to execute the tests
+3. Include test execution results in your evaluation
 
 TOOL USAGE GUIDELINES:
 
@@ -130,29 +318,33 @@ All tools return a dictionary with the following structure:
 - If failed: Contains an "error" field with error message
 
 Example successful response:
-{
+{{
   "success": true,
   "content": "file content here",
   "file_path": "/path/to/file",
   "line_count": 150
-}
+}}
 
 Example failed response:
-{
+{{
   "success": false,
   "error": "File not found: /path/to/file"
-}
+}}
 
 Always check the "success" field before using other fields from tool results.
 If a tool fails, report the error and try alternative approaches.
 
 AVAILABLE TOOLS:
 - read_file: Read file content (returns dict with "success", "content", "file_path")
+- write_file: Write content to file (returns dict with "success", "file_path", "bytes_written")
 - analyze_python_file: Analyze Python code structure (returns dict with "success", "imports", "classes", "functions")
 - list_directory: List files in directory (returns dict with "success", "files", "directories")
 - search_in_codebase: Search for patterns (returns dict with "success", "results", "total_matches")
 - extract_function_code: Extract specific function (returns dict with "success", "code", "args", "docstring")
 - list_python_files: List all Python files (returns dict with "success", "files", "total_count")
+- run_pytest_local: Run pytest tests locally (returns dict with "success", "exit_code", "stdout", "stderr", "execution_time")
+- run_python_script_local: Run Python script locally (returns dict with "success", "exit_code", "stdout", "stderr")
+- run_python_code_local: Run Python code snippet locally (returns dict with "success", "exit_code", "stdout", "stderr")
 
 OUTPUT FORMAT:
 
@@ -165,11 +357,69 @@ You must output a structured CodeJudgeOutput with:
 - strengths: list of positive aspects
 - missing_components: list of missing features
 - extra_components: list of unplanned additions
+- unit_tests: list of UnitTestSpec objects (REQUIRED - generate 2-5 tests)
+  Each UnitTestSpec must have:
+  * test_file_path: where to save the test file
+  * test_code: complete Python test code
+  * test_description: what the test validates
+  * target_files: which implementation files are tested
+  * time_limit_seconds: max execution time (default 30)
+  * data_subset_size: if using datasets, max samples to load
 - priority_fixes: ordered list of high-priority actions
 - implementation_suggestions: list of improvement suggestions
 - next_steps: recommended actions
 
-Be thorough, specific, and constructive in your feedback."""
+STEP EVALUATION GUIDELINES:
+
+1. SCOPE: CURRENT STEP ONLY
+   - ONLY evaluate files in current step's scope
+   - DO NOT evaluate files from previous steps (assume they are correct)
+   - DO NOT expect features from future steps
+   - Focus on step-specific requirements
+
+2. BE THOROUGH FOR THE STEP
+   - Check all files mentioned in the step
+   - Verify all acceptance criteria
+   - Test integration with previous steps
+   - Don't miss step-specific requirements
+
+3. BE SPECIFIC IN FEEDBACK
+   - Point to exact files and functions in the step
+   - Reference specific acceptance criteria
+   - Give actionable suggestions for THIS step
+   - Explain how to meet unmet criteria
+
+4. MAKE CLEAR DECISION
+   - is_consistent=True: Step is complete and correct, ready for next step
+   - is_consistent=False: Step needs revision, provide clear feedback
+   - Don't approve incomplete or broken step implementation
+   - Don't reject for issues outside step scope
+
+5. BE CONSTRUCTIVE
+   - Help the implementer fix THIS step
+   - Don't ask for future features
+   - Focus on what's needed NOW
+   - Prioritize critical issues for the step
+
+Remember: You are evaluating ONE step in an iterative process. The implementation 
+will proceed to the next step ONLY if you approve this one. Be thorough but focused 
+on the current step's requirements.
+
+MANDATORY TEST EXECUTION WORKFLOW:
+1. Generate unit tests (in unit_tests field of output)
+2. For EACH test in unit_tests:
+   a. Call write_file(test.test_file_path, test.test_code)
+   b. Verify file was written successfully
+3. After writing ALL test files:
+   a. Call run_pytest_local("project/tests/", timeout=300)
+   b. Check if tests pass or fail
+   c. Include test results in your overall_assessment
+4. If tests fail:
+   - Document failures in issues list
+   - Set is_consistent=False if failures are critical
+   - Provide specific suggestions for fixing
+
+YOU MUST COMPLETE ALL THESE STEPS BEFORE RETURNING YOUR FINAL OUTPUT."""
 
     agent = Agent(
         name="Code Judge Agent",
@@ -197,6 +447,7 @@ class CodeJudgeAgent:
         self,
         model: str = "gpt-4o",
         tools: Optional[list] = None,
+        verbose: bool = False,
     ):
         """
         Initialize the code judge agent.
@@ -205,8 +456,20 @@ class CodeJudgeAgent:
             model: Model to use for evaluation
             tools: Optional list of tools for code reading and analysis.
                    If None, automatically loads recommended tools.
+            verbose: If True, enable verbose hooks to show full LLM responses and tool calls
         """
         self.model = model
+        self.verbose = verbose
+
+        # Create hooks for verbose output
+        self.hooks = (
+            create_verbose_hooks(
+                show_llm_responses=verbose,
+                show_tools=verbose,
+            )
+            if verbose
+            else None
+        )
 
         # Auto-load recommended tools if not provided
         if tools is None:
@@ -226,118 +489,188 @@ class CodeJudgeAgent:
 
     async def judge(
         self,
-        code_plan: CodePlanOutput,
-        pre_analysis: PreAnalysisOutput,
-        codebase_path: str,
+        input_data: str,
     ) -> CodeJudgeOutput:
         """
-        Evaluate code implementation for consistency.
+        Evaluate code implementation for consistency with current step.
 
         Args:
-            code_plan: The code plan that should be implemented
-            pre_analysis: The original research analysis
-            codebase_path: Path to the implemented codebase
+            input_data: String containing plan, analysis, current step info, and codebase path
 
         Returns:
             CodeJudgeOutput with evaluation results and feedback
         """
-        # Prepare input for judge agent
+        print_section("CODE REVIEW WORKFLOW", "=")
+        print_info(f"Input length: {len(input_data)} characters")
+
+        # The input_data already contains all necessary information formatted
+        # by the experiment master agent
         judge_input = f"""
-EVALUATE THE CODE IMPLEMENTATION AT: {codebase_path}
+{input_data}
 
-=== CODE PLAN (Expected Implementation) ===
+=== EVALUATION INSTRUCTIONS ===
 
-Plan Type: {code_plan.plan_type}
+You are evaluating a SINGLE STEP in an iterative implementation process.
 
-File Structure:
-{self._format_file_structure(code_plan.file_structure)}
+CRITICAL: The input above contains a "CODEBASE PATH" section that shows the project directory.
+You MUST use the tools (list_directory, read_file, etc.) to check the files in that directory.
+All file paths should be relative to that project directory or absolute paths starting from it.
 
-Implementation Roadmap:
-{self._format_roadmap(code_plan.implementation_roadmap)}
+The above input contains:
+- The complete code plan for context
+- The current step you need to evaluate (with step_id, files, acceptance criteria)
+- The implementation output summary
+- The path to the codebase (in "CODEBASE PATH" section)
 
-Dataset Requirements:
-{code_plan.dataset_requirements}
+YOUR TASK:
+1. Extract the project directory path from the "CODEBASE PATH" section above
+2. Use list_directory tool to check what files exist in the project directory
+3. Use read_file tool to examine files that were created/modified in THIS step
+4. Verify each acceptance criterion for the step is met
+5. Generate 2-5 unit tests to validate the current step (define in unit_tests output field)
+6. WRITE each test file using write_file tool
+7. RUN all tests using run_pytest_local tool
+8. Analyze test results and incorporate into your evaluation
+9. Make a clear decision: is_consistent (True/False)
+10. If False, provide specific feedback with exact file paths
 
-Model Architecture:
-{code_plan.model_architecture}
+IMPORTANT FILE PATH HANDLING:
+- When checking files, use paths relative to the project directory shown above
+- If step says to create "project/", check if that directory exists
+- If step says to create "project/data/file.py", check that specific file
+- Use list_directory to verify directory structure
+- Use read_file to verify file contents
 
-Training Configuration:
-{code_plan.training_configuration}
+TEST EXECUTION IS MANDATORY:
+- You MUST write test files to the file system (use write_file)
+- You MUST run the tests (use run_pytest_local)
+- You MUST include test results in your overall_assessment
+- Test failures should influence your is_consistent decision
 
-Testing Strategy:
-{code_plan.testing_strategy}
-
-Dependencies:
-{code_plan.dependencies}
-
-Environment Setup:
-{code_plan.environment_setup}
-
-=== PRE-ANALYSIS (Research Foundation) ===
-
-Input Type: {pre_analysis.input_type}
-
-System Architecture:
-{pre_analysis.system_architecture}
-
-Conceptual Framework:
-{pre_analysis.conceptual_framework}
-
-Design Philosophy:
-{pre_analysis.design_philosophy}
-
-Key Innovations:
-{pre_analysis.key_innovations}
-
-Core Algorithms:
-{pre_analysis.algorithms}
-
-Mathematical Formulations:
-{pre_analysis.mathematical_formulations}
-
-Technical Specifications:
-{pre_analysis.technical_specifications}
-
-Computational Methods:
-{pre_analysis.computational_methods}
-
-Implementation Guidance:
-{pre_analysis.implementation_guidance}
-
-=== YOUR TASK ===
-
-1. Use available tools to read the codebase at: {codebase_path}
-2. Compare the implementation with the plan and analysis above
-3. Identify all inconsistencies, issues, and missing components
-4. Calculate consistency scores
-5. Provide structured feedback with prioritized fixes
+DO NOT evaluate files from previous steps.
+DO NOT expect features from future steps.
+ONLY evaluate what should be done in the CURRENT step.
 """
 
         # Run judge agent
-        result = await Runner.run(self.judge_agent, judge_input)
+        print_subsection("Evaluating Current Step Implementation")
+        print_info("Reviewing code against acceptance criteria...")
 
-        return result.final_output
+        result = await Runner.run(
+            self.judge_agent, judge_input, hooks=self.hooks, max_turns=100
+        )
+
+        evaluation: CodeJudgeOutput = result.final_output
+
+        # Display evaluation results
+        print_subsection("Evaluation Results")
+
+        if evaluation.is_consistent:
+            print_success(
+                f"Code review passed! (Consistency: {evaluation.is_consistent})"
+            )
+            print_info(
+                f"Plan consistency score: {evaluation.plan_consistency_score:.2f}"
+            )
+            print_info(
+                f"Analysis consistency score: {evaluation.analysis_consistency_score:.2f}"
+            )
+        else:
+            print_error(
+                f"Code review failed! (Consistency: {evaluation.is_consistent})"
+            )
+            print_warning(
+                f"Plan consistency score: {evaluation.plan_consistency_score:.2f}"
+            )
+            print_warning(
+                f"Analysis consistency score: {evaluation.analysis_consistency_score:.2f}"
+            )
+            print_warning(f"Issues found: {len(evaluation.issues)}")
+
+        # Display overall assessment
+        print_result_box(
+            "Overall Assessment",
+            evaluation.overall_assessment,
+            max_length=1000,
+        )
+
+        # Display issues if any
+        if evaluation.issues:
+            print_subsection("Issues Identified")
+            for i, issue in enumerate(evaluation.issues, 1):
+                severity_color = (
+                    Colors.FAIL
+                    if issue.severity == "critical"
+                    else Colors.WARNING if issue.severity == "major" else Colors.OKBLUE
+                )
+                print(
+                    f"{severity_color}Issue {i}: [{issue.severity.upper()}] {issue.issue_type}{Colors.ENDC}"
+                )
+                print(f"  File: {issue.file_path}")
+                if hasattr(issue, "line_numbers") and issue.line_numbers:
+                    print(f"  Lines: {issue.line_numbers}")
+                print(f"  Description: {issue.description}")
+                if hasattr(issue, "suggestion") and issue.suggestion:
+                    print(f"  Suggestion: {issue.suggestion}")
+                print()
+
+        # Display strengths
+        if evaluation.strengths:
+            print_subsection("Strengths")
+            for strength in evaluation.strengths:
+                print_success(strength, indent=1)
+
+        # Display unit tests
+        if evaluation.unit_tests:
+            print_subsection("Unit Tests Generated")
+            print_info(
+                f"Generated {len(evaluation.unit_tests)} unit test(s) for validation"
+            )
+            for i, test in enumerate(evaluation.unit_tests, 1):
+                print(f"\n{Colors.OKCYAN}Test {i}: {test.test_file_path}{Colors.ENDC}")
+                print(f"  Description: {test.test_description}")
+                print(f"  Target files: {', '.join(test.target_files)}")
+                print(f"  Time limit: {test.time_limit_seconds}s")
+                if test.data_subset_size:
+                    print(f"  Data subset size: {test.data_subset_size}")
+                # Show first few lines of test code
+                code_lines = test.test_code.split("\n")
+                preview_lines = min(10, len(code_lines))
+                print(f"  Code preview (first {preview_lines} lines):")
+                for line in code_lines[:preview_lines]:
+                    print(f"    {Colors.OKBLUE}{line}{Colors.ENDC}")
+                if len(code_lines) > preview_lines:
+                    print(
+                        f"    {Colors.OKBLUE}... ({len(code_lines) - preview_lines} more lines){Colors.ENDC}"
+                    )
+
+        # Display priority fixes if any
+        if evaluation.priority_fixes:
+            print_subsection("Priority Fixes Required")
+            for i, fix in enumerate(evaluation.priority_fixes, 1):
+                print_warning(f"{i}. {fix}", indent=1)
+
+        print_success("Code review completed!")
+        print_section("CODE REVIEW COMPLETE", "=")
+
+        return evaluation
 
     def judge_sync(
         self,
-        code_plan: CodePlanOutput,
-        pre_analysis: PreAnalysisOutput,
-        codebase_path: str,
+        input_data: str,
     ) -> CodeJudgeOutput:
         """
         Synchronous version of judge method.
 
         Args:
-            code_plan: The code plan that should be implemented
-            pre_analysis: The original research analysis
-            codebase_path: Path to the implemented codebase
+            input_data: String containing plan, analysis, current step info, and codebase path
 
         Returns:
             CodeJudgeOutput with evaluation results and feedback
         """
         import asyncio
 
-        return asyncio.run(self.judge(code_plan, pre_analysis, codebase_path))
+        return asyncio.run(self.judge(input_data))
 
     def _format_file_structure(self, file_structure: dict) -> str:
         """Format file structure dict to readable string."""
@@ -359,6 +692,7 @@ Implementation Guidance:
 def create_code_judge_agent(
     model: str = "gpt-4o",
     tools: Optional[list] = None,
+    verbose: bool = False,
 ) -> CodeJudgeAgent:
     """
     Factory function to create a code judge agent.
@@ -366,11 +700,12 @@ def create_code_judge_agent(
     Args:
         model: Model to use for evaluation
         tools: List of tools for code reading and analysis
+        verbose: If True, enable verbose hooks to show full LLM responses and tool calls
 
     Returns:
         CodeJudgeAgent instance
     """
-    return CodeJudgeAgent(model=model, tools=tools)
+    return CodeJudgeAgent(model=model, tools=tools, verbose=verbose)
 
 
 # Example usage:

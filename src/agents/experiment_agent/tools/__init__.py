@@ -35,6 +35,10 @@ from src.agents.experiment_agent.tools.execution_tools import (
     test_docker_connection,
     set_docker_client,
     get_docker_client,
+    # Local execution tools (no Docker required)
+    run_pytest_local,
+    run_python_script_local,
+    run_python_code_local,
 )
 
 from src.agents.experiment_agent.tools.document_tools import (
@@ -79,6 +83,14 @@ FILE_TOOLS = [
     get_file_info,
 ]
 
+# Read-only file tools for planning/analysis phases
+FILE_TOOLS_READONLY = [
+    read_file,
+    list_directory,
+    file_exists,
+    get_file_info,
+]
+
 EXECUTION_TOOLS = [
     run_python_script,
     run_shell_command,
@@ -96,6 +108,13 @@ DOCKER_TOOLS = [
     run_in_docker,
     run_python_in_docker,
     test_docker_connection,
+]
+
+# Local execution tools (no Docker required)
+LOCAL_EXECUTION_TOOLS = [
+    run_pytest_local,
+    run_python_script_local,
+    run_python_code_local,
 ]
 
 DOCUMENT_TOOLS = [
@@ -155,16 +174,19 @@ def get_tools_for_agent(agent_type: str) -> List:
             "idea": DOCUMENT_TOOLS + FILE_TOOLS[:3] + REPOSITORY_TOOLS,
         },
         "code_plan": {
-            "initial": FILE_TOOLS + CODE_ANALYSIS_TOOLS + REPOSITORY_TOOLS,
-            "judge_feedback": FILE_TOOLS + CODE_ANALYSIS_TOOLS + REPOSITORY_TOOLS,
-            "error_feedback": FILE_TOOLS + CODE_ANALYSIS_TOOLS + REPOSITORY_TOOLS,
-            "analysis_feedback": FILE_TOOLS + CODE_ANALYSIS_TOOLS + REPOSITORY_TOOLS,
+            "initial": FILE_TOOLS_READONLY + CODE_ANALYSIS_TOOLS + REPOSITORY_TOOLS,
+            "judge_feedback": FILE_TOOLS_READONLY
+            + CODE_ANALYSIS_TOOLS
+            + REPOSITORY_TOOLS,
+            "error_feedback": FILE_TOOLS_READONLY
+            + CODE_ANALYSIS_TOOLS
+            + REPOSITORY_TOOLS,
+            "analysis_feedback": FILE_TOOLS_READONLY
+            + CODE_ANALYSIS_TOOLS
+            + REPOSITORY_TOOLS,
         },
-        "code_implement": {
-            "initial": FILE_TOOLS + EXECUTION_TOOLS[:6] + CODE_ANALYSIS_TOOLS,
-            "fix": FILE_TOOLS + EXECUTION_TOOLS[:6] + CODE_ANALYSIS_TOOLS,
-        },
-        "code_judge": FILE_TOOLS + CODE_ANALYSIS_TOOLS,
+        "code_implement": FILE_TOOLS + EXECUTION_TOOLS[:6] + CODE_ANALYSIS_TOOLS,
+        "code_judge": FILE_TOOLS + CODE_ANALYSIS_TOOLS + LOCAL_EXECUTION_TOOLS,
         "experiment_execute": FILE_TOOLS[:3] + EXECUTION_TOOLS,
         "experiment_analysis": FILE_TOOLS + DOCUMENT_TOOLS + CODE_ANALYSIS_TOOLS[:3],
     }
@@ -224,6 +246,10 @@ __all__ = [
     "test_docker_connection",
     "set_docker_client",
     "get_docker_client",
+    # Local execution tools
+    "run_pytest_local",
+    "run_python_script_local",
+    "run_python_code_local",
     # Document tools
     "parse_latex_sections",
     "extract_latex_equations",
@@ -249,8 +275,10 @@ __all__ = [
     "read_pdf_paper",
     # Tool collections
     "FILE_TOOLS",
+    "FILE_TOOLS_READONLY",
     "EXECUTION_TOOLS",
     "DOCKER_TOOLS",
+    "LOCAL_EXECUTION_TOOLS",
     "DOCUMENT_TOOLS",
     "CODE_ANALYSIS_TOOLS",
     "REPOSITORY_TOOLS",
