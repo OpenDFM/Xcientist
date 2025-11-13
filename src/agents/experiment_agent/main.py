@@ -29,6 +29,7 @@ from src.agents.experiment_agent.config import (
     get_openai_config,
     get_docker_config,
     get_path_config,
+    get_model_config,
     validate_config,
     print_config,
     ENABLE_TRACING,
@@ -123,20 +124,45 @@ def setup_openai_api() -> bool:
 
         if config["use_azure"]:
             # Azure OpenAI setup
+            from httpx import Timeout
+
             client = AsyncAzureOpenAI(
                 api_version=config["api_version"],
                 azure_endpoint=config["endpoint"],
                 api_key=config["api_key"],
+                timeout=Timeout(
+                    connect=10.0,  # 连接超时10秒
+                    read=300.0,  # 读取超时300秒（5分钟）
+                    write=30.0,  # 写入超时30秒
+                    pool=10.0,  # 连接池超时10秒
+                ),
+                max_retries=3,  # 最多重试3次
             )
             print_success(
-                f"Azure OpenAI client initialized (endpoint: {config['endpoint']})"
+                f"Azure OpenAI client initialized (endpoint: {config['endpoint']}, timeout: 300s)"
             )
         else:
             # OpenAI setup
-            client = AsyncOpenAI(
-                api_key=config["api_key"],
-            )
-            print_success("OpenAI client initialized")
+            from httpx import Timeout
+
+            client_kwargs = {
+                "api_key": config["api_key"],
+                "timeout": Timeout(
+                    connect=10.0,  # 连接超时10秒
+                    read=300.0,  # 读取超时300秒（5分钟）
+                    write=30.0,  # 写入超时30秒
+                    pool=10.0,  # 连接池超时10秒
+                ),
+                "max_retries": 3,  # 最多重试3次
+            }
+            if "base_url" in config and config["base_url"]:
+                client_kwargs["base_url"] = config["base_url"]
+                print_info(f"Using custom API base: {config['base_url']}")
+            else:
+                print_info("Using default OpenAI API base: https://api.openai.com/v1")
+
+            client = AsyncOpenAI(**client_kwargs)
+            print_success("OpenAI client initialized (timeout: 300s, retries: 3)")
 
         # Set as default client
         set_default_openai_client(client)
@@ -249,8 +275,8 @@ def run_prepare_workflow(input_path: str) -> bool:
 
     This workflow:
     1. Loads reference papers from idea.json
-    2. Downloads papers from arXiv (using multithreading)
-    3. Searches and clones related GitHub repositories (using multithreading)
+    2. Downloads papers from arXiv (sequential)
+    3. Searches and clones related GitHub repositories (sequential)
 
     Args:
         input_path: Path to idea.json file
@@ -263,8 +289,6 @@ def run_prepare_workflow(input_path: str) -> bool:
     try:
         # Load idea.json to get reference papers
         import json
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        import threading
 
         print_info(f"Loading reference papers from: {input_path}")
 
@@ -296,42 +320,37 @@ def run_prepare_workflow(input_path: str) -> bool:
         print_info(f"Papers will be saved to: {papers_dir}")
         print_info(f"Repositories will be cloned to: {repos_dir}")
 
-        # Thread lock for printing
-        print_lock = threading.Lock()
+        # Download papers from arXiv sequentially (single-threaded)
+        print_step(f"Downloading papers from arXiv (sequential)...")
 
-        # Download papers from arXiv using multithreading
-        print_step(
-            f"Downloading papers from arXiv (using {min(len(reference_papers), 3)} threads)..."
-        )
+        paper_results = []
+        for title in reference_papers:
+            print(f"\n{'='*60}")
+            print(f"Searching for: {title}")
+            print("=" * 60)
 
-        def download_single_paper(title):
-            """Download a single paper with thread-safe printing. Only downloads if exact match found."""
             from src.agents.experiment_agent.tools.research_tools import (
                 search_arxiv,
                 download_arxiv_source,
             )
-
-            with print_lock:
-                print(f"\n{'='*60}")
-                print(f"[Thread] Searching for: {title}")
-                print("=" * 60)
 
             # Search for paper with more results to increase chance of finding exact match
             papers = search_arxiv(title, max_results=50)
 
             if len(papers) == 0:
                 msg = f"Cannot find the paper '{title}' in arxiv"
-                with print_lock:
-                    print(f"❌ {msg}")
-                return {"status": -1, "message": msg, "path": None, "title": title}
+                print(f"❌ {msg}")
+                paper_results.append(
+                    {"status": -1, "message": msg, "path": None, "title": title}
+                )
+                continue
 
             # Display search results
-            with print_lock:
-                print(f"[Thread] Found {len(papers)} results for '{title}'")
-                if len(papers) > 0:
-                    print("  Top 5 results:")
-                    for i, paper in enumerate(papers[:5]):
-                        print(f"    {i+1}. {paper['title']}")
+            print(f"Found {len(papers)} results for '{title}'")
+            if len(papers) > 0:
+                print("  Top 5 results:")
+                for i, paper in enumerate(papers[:5]):
+                    print(f"    {i+1}. {paper['title']}")
 
             # Check for exact match - only accept completely identical titles
             title_lower = title.lower().strip()
@@ -345,8 +364,7 @@ def run_prepare_workflow(input_path: str) -> bool:
                 # Strategy 1: Check exact match (normalized whitespace only)
                 if paper_title_normalized == title_normalized:
                     exact_match = paper
-                    with print_lock:
-                        print(f"  ✓ Found exact match (normalized): {paper['title']}")
+                    print(f"  ✓ Found exact match (normalized): {paper['title']}")
                     break
 
             # Strategy 2: If no exact match, try ignoring punctuation (still strict)
@@ -369,59 +387,43 @@ def run_prepare_workflow(input_path: str) -> bool:
                     # Only accept if words match exactly (ignoring punctuation)
                     if title_no_punct == paper_title_no_punct:
                         exact_match = paper
-                        with print_lock:
-                            print(
-                                f"  ✓ Found exact match (ignoring punctuation): {paper['title']}"
-                            )
+                        print(
+                            f"  ✓ Found exact match (ignoring punctuation): {paper['title']}"
+                        )
                         break
 
             if not exact_match:
                 msg = f"No exact match found for '{title}'. Skipping download."
-                with print_lock:
-                    print(f"⚠ {msg}")
-                    if len(papers) > 0:
-                        print(f"  Best match was: {papers[0]['title']}")
-                        print(f"  Searched through {len(papers)} results")
-                return {"status": -1, "message": msg, "path": None, "title": title}
+                print(f"⚠ {msg}")
+                if len(papers) > 0:
+                    print(f"  Best match was: {papers[0]['title']}")
+                    print(f"  Searched through {len(papers)} results")
+                paper_results.append(
+                    {"status": -1, "message": msg, "path": None, "title": title}
+                )
+                continue
 
             # Use exact match
             best_paper = exact_match
-            with print_lock:
-                print(f"  ✓ Found exact match: {best_paper['title']}")
-                print(f"  ArXiv URL: {best_paper.get('url', 'N/A')}")
+            print(f"  ✓ Found exact match: {best_paper['title']}")
+            print(f"  ArXiv URL: {best_paper.get('url', 'N/A')}")
 
             # Download paper
-            download_info = download_arxiv_source(
-                best_paper["url"], workspace_dir, title
-            )
+            try:
+                download_info = download_arxiv_source(
+                    best_paper["url"], workspace_dir, title
+                )
 
-            if download_info["status"] == 0:
-                with print_lock:
+                if download_info["status"] == 0:
                     print(f"  ✓ Successfully downloaded: {title}")
                     print(f"    Path: {download_info['path']}")
 
-            return {**download_info, "title": title}
-
-        paper_results = []
-        max_workers = min(len(reference_papers), 3)  # Use at most 3 threads
-
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_paper = {
-                executor.submit(download_single_paper, title): title
-                for title in reference_papers
-            }
-
-            for future in as_completed(future_to_paper):
-                try:
-                    result = future.result()
-                    paper_results.append(result)
-                except Exception as e:
-                    title = future_to_paper[future]
-                    with print_lock:
-                        print(f"❌ Error downloading '{title}': {str(e)}")
-                    paper_results.append(
-                        {"status": -1, "message": str(e), "path": None, "title": title}
-                    )
+                paper_results.append({**download_info, "title": title})
+            except Exception as e:
+                print(f"❌ Error downloading '{title}': {str(e)}")
+                paper_results.append(
+                    {"status": -1, "message": str(e), "path": None, "title": title}
+                )
 
         # Print paper download results
         successful_papers = sum(1 for r in paper_results if r["status"] == 0)
@@ -435,15 +437,15 @@ def run_prepare_workflow(input_path: str) -> bool:
             else:
                 print_warning(f"  ✗ {result['title']}: {result['message']}")
 
-        # Search and clone GitHub repositories using multithreading
-        print_step(
-            f"Searching and cloning GitHub repositories (using {min(len(reference_papers), 3)} threads)..."
-        )
+        # Search and clone GitHub repositories sequentially (single-threaded)
+        print_step(f"Searching and cloning GitHub repositories (sequential)...")
 
-        def search_and_clone_single_paper(
-            title, paper_results_ref, max_repos_per_paper=1
-        ):
-            """Search and clone repos for a single paper. First searches in paper content for GitHub links, then falls back to GitHub search."""
+        repo_results = []
+        for title in reference_papers:
+            print(f"\n{'='*60}")
+            print(f"Searching for code repositories for: {title}")
+            print("=" * 60)
+
             from src.agents.experiment_agent.tools.research_tools import (
                 search_github_repos,
                 clone_github_repo,
@@ -451,11 +453,7 @@ def run_prepare_workflow(input_path: str) -> bool:
             )
             import time
 
-            with print_lock:
-                print(f"\n{'='*60}")
-                print(f"[Thread] Searching for code repositories for: {title}")
-                print("=" * 60)
-
+            max_repos_per_paper = 1
             results = []
 
             try:
@@ -464,16 +462,13 @@ def run_prepare_workflow(input_path: str) -> bool:
                 paper_path = None
 
                 # Find the downloaded paper file
-                for result in paper_results_ref:
+                for result in paper_results:
                     if result.get("title") == title and result.get("status") == 0:
                         paper_path = result.get("path")
                         break
 
                 if paper_path and os.path.exists(paper_path):
-                    with print_lock:
-                        print(
-                            f"[Thread] Searching for GitHub links in paper content..."
-                        )
+                    print("Searching for GitHub links in paper content...")
 
                     try:
                         with open(paper_path, "r", encoding="utf-8") as f:
@@ -482,21 +477,17 @@ def run_prepare_workflow(input_path: str) -> bool:
                         github_links = extract_github_links_from_text(paper_content)
 
                         if github_links:
-                            with print_lock:
-                                print(
-                                    f"  ✓ Found {len(github_links)} GitHub link(s) in paper:"
-                                )
-                                for link in github_links[:max_repos_per_paper]:
-                                    print(f"    - {link}")
+                            print(
+                                f"  ✓ Found {len(github_links)} GitHub link(s) in paper:"
+                            )
+                            for link in github_links[:max_repos_per_paper]:
+                                print(f"    - {link}")
                         else:
-                            with print_lock:
-                                print(f"  ⚠ No GitHub links found in paper content")
+                            print(f"  ⚠ No GitHub links found in paper content")
                     except Exception as e:
-                        with print_lock:
-                            print(f"  ⚠ Failed to read paper content: {str(e)}")
+                        print(f"  ⚠ Failed to read paper content: {str(e)}")
                 else:
-                    with print_lock:
-                        print(f"  ⚠ Paper not downloaded, skipping content search")
+                    print(f"  ⚠ Paper not downloaded, skipping content search")
 
                 # Step 2: Clone repositories from paper links if found
                 cloned_count = 0
@@ -519,10 +510,7 @@ def run_prepare_workflow(input_path: str) -> bool:
                                 clone_url = f"https://github.com/{owner}/{repo}.git"
                                 repo_name = f"{owner}_{repo}"
 
-                                with print_lock:
-                                    print(
-                                        f"  Cloning {owner}/{repo} from paper link..."
-                                    )
+                                print(f"  Cloning {owner}/{repo} from paper link...")
 
                                 clone_result = clone_github_repo(
                                     clone_url,
@@ -541,21 +529,16 @@ def run_prepare_workflow(input_path: str) -> bool:
                                 )
 
                                 if clone_result["status"] == 0:
-                                    with print_lock:
-                                        print(f"    ✓ {clone_result['message']}")
+                                    print(f"    ✓ {clone_result['message']}")
                                     cloned_count += 1
                                 else:
-                                    with print_lock:
-                                        print(f"    ✗ {clone_result['message']}")
+                                    print(f"    ✗ {clone_result['message']}")
 
                                 time.sleep(1)  # Rate limiting
 
                 # Step 3: If not enough repos from paper, search GitHub
                 if cloned_count < max_repos_per_paper:
-                    with print_lock:
-                        print(
-                            f"[Thread] Searching GitHub for additional repositories..."
-                        )
+                    print("Searching GitHub for additional repositories...")
 
                     query = f"{title} -user:lucidrains"
                     repos = search_github_repos(
@@ -563,22 +546,18 @@ def run_prepare_workflow(input_path: str) -> bool:
                     )
 
                     if len(repos) > 0:
-                        with print_lock:
-                            print(f"  Found {len(repos)} repositories on GitHub")
-                            for i, repo in enumerate(
-                                repos[: max_repos_per_paper - cloned_count]
-                            ):
-                                print(
-                                    f"    {i+1}. {repo['name']} - {repo['stars']} stars"
-                                )
+                        print(f"  Found {len(repos)} repositories on GitHub")
+                        for i, repo in enumerate(
+                            repos[: max_repos_per_paper - cloned_count]
+                        ):
+                            print(f"    {i+1}. {repo['name']} - {repo['stars']} stars")
 
                         # Clone additional repositories
                         for repo in repos[: max_repos_per_paper - cloned_count]:
                             if cloned_count >= max_repos_per_paper:
                                 break
 
-                            with print_lock:
-                                print(f"  Cloning {repo['name']}...")
+                            print(f"  Cloning {repo['name']}...")
 
                             clone_result = clone_github_repo(
                                 repo["clone_url"],
@@ -597,19 +576,16 @@ def run_prepare_workflow(input_path: str) -> bool:
                             )
 
                             if clone_result["status"] == 0:
-                                with print_lock:
-                                    print(f"    ✓ {clone_result['message']}")
+                                print(f"    ✓ {clone_result['message']}")
                                 cloned_count += 1
                             else:
-                                with print_lock:
-                                    print(f"    ✗ {clone_result['message']}")
+                                print(f"    ✗ {clone_result['message']}")
 
                             time.sleep(1)  # Rate limiting
                     else:
                         if cloned_count == 0:
                             msg = f"No GitHub repositories found for '{title}'"
-                            with print_lock:
-                                print(f"  ⚠ {msg}")
+                            print(f"  ⚠ {msg}")
                             results.append(
                                 {
                                     "status": -1,
@@ -621,41 +597,12 @@ def run_prepare_workflow(input_path: str) -> bool:
 
             except Exception as e:
                 msg = f"Failed to search/clone repositories for '{title}': {str(e)}"
-                with print_lock:
-                    print(f"❌ {msg}")
+                print(f"❌ {msg}")
                 results.append(
                     {"status": -1, "message": msg, "path": None, "paper_title": title}
                 )
 
-            return results
-
-        repo_results = []
-        max_workers = min(len(reference_papers), 3)  # Use at most 3 threads
-
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_paper = {
-                executor.submit(
-                    search_and_clone_single_paper, title, paper_results, 1
-                ): title
-                for title in reference_papers
-            }
-
-            for future in as_completed(future_to_paper):
-                try:
-                    results = future.result()
-                    repo_results.extend(results)
-                except Exception as e:
-                    title = future_to_paper[future]
-                    with print_lock:
-                        print(f"❌ Error processing repos for '{title}': {str(e)}")
-                    repo_results.append(
-                        {
-                            "status": -1,
-                            "message": str(e),
-                            "path": None,
-                            "paper_title": title,
-                        }
-                    )
+            repo_results.extend(results)
 
         # Print repository clone results
         successful_repos = sum(1 for r in repo_results if r["status"] == 0)
@@ -757,9 +704,12 @@ async def run_experiment_workflow(
         print_step("Initializing Experiment Master Agent...")
 
         path_config = get_path_config()
+        model_config = get_model_config()
 
         master_agent = create_experiment_master_agent(
             model=MODEL_NAME,
+            expensive_model=model_config["expensive_model"],
+            cheap_model=model_config["cheap_model"],
             max_iterations=max_iterations,
             working_dir=path_config["project_dir"],
             log_dir=path_config["logs_dir"],
@@ -769,6 +719,12 @@ async def run_experiment_workflow(
 
         print_success("Experiment Master Agent initialized")
         print_info(f"Max iterations: {max_iterations}")
+        print_info(
+            f"Expensive model (code plan/implement/judge): {model_config['expensive_model']}"
+        )
+        print_info(
+            f"Cheap model (pre-analysis/execute/analysis): {model_config['cheap_model']}"
+        )
         print_info(f"Working directory: {path_config['project_dir']}")
         print_info(f"Log directory: {path_config['logs_dir']}")
         print_info(f"Cache directory: {path_config['cache_dir']}")

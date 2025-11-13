@@ -116,19 +116,38 @@ Focus ONLY on the files created/modified in the current step.
 
 CRITICAL - IMPORT PATH VERIFICATION:
 When reviewing code, verify that imports follow the correct convention:
-- The project will be executed from working_dir/project directory
-- Imports must assume project/ is the execution root and in PYTHONPATH
+- working_dir IS the project root directory (not a parent of it)
+- The project will be executed from working_dir (which is the project root)
+- Imports must assume working_dir is in PYTHONPATH
 - Check that imports DO NOT use "project." prefix
-- Verify relative imports are correct for the project/ execution context
 
-Examples of CORRECT imports:
-- "from data.dataset import MyDataset" (for project/data/dataset.py)
-- "from models.model import MyModel" (for project/models/model.py)
-- "from configs.config import Config" (for project/configs/config.py)
+Examples of CORRECT imports (paths relative to working_dir which IS the project root):
+- "from data.dataset import MyDataset" (for data/dataset.py)
+- "from models.model import MyModel" (for models/model.py)
+- "from configs.config import Config" (for configs/config.py)
 
 Examples of INCORRECT imports to flag:
 - "from project.data.dataset import MyDataset" (wrong: includes "project.")
 - "from ..data.dataset import MyDataset" (verify if correct for execution context)
+
+WORKSPACE STRUCTURE:
+working_dir IS the project root directory where all implementation code resides.
+The parent directory (workspace) contains additional resources:
+- `../dataset_candidate/` - Available datasets for training/testing (read-only)
+- `../repos/` - Reference code repositories (read-only)
+- `../papers/` - Research papers (read-only)
+
+Path relationship:
+- working_dir = /path/to/workspace/project  (project root, passed as parameter)
+- ../dataset_candidate = /path/to/workspace/dataset_candidate
+
+When reviewing data loading code, verify that paths to datasets are constructed dynamically:
+```python
+# Correct example for accessing datasets
+import os
+dataset_dir = os.path.join(os.path.dirname(__file__), "..", "dataset_candidate")
+data_path = os.path.join(dataset_dir, "specific_dataset/subset")
+```
 
 YOUR RESPONSIBILITIES:
 
@@ -268,8 +287,8 @@ YOUR RESPONSIBILITIES:
    F. Unit Test Generation Rules:
       - Generate 2-5 unit tests per step (focus on critical functionality)
       - Each test should be independent (no dependencies between tests)
-      - IMPORTANT: Test files MUST be placed in "project/tests/" directory
-      - Specify test_file_path (e.g., "project/tests/test_step2_data.py")
+      - IMPORTANT: Test files MUST be placed in "tests/" directory (relative to working_dir)
+      - Specify test_file_path (e.g., "tests/test_step2_data.py" NOT "project/tests/...")
       - Provide complete, runnable test code (including all imports)
       - Set appropriate time_limit_seconds (default 30, max 60)
       - Specify data_subset_size if testing with datasets
@@ -334,17 +353,31 @@ Example failed response:
 Always check the "success" field before using other fields from tool results.
 If a tool fails, report the error and try alternative approaches.
 
-AVAILABLE TOOLS:
-- read_file: Read file content (returns dict with "success", "content", "file_path")
-- write_file: Write content to file (returns dict with "success", "file_path", "bytes_written")
-- analyze_python_file: Analyze Python code structure (returns dict with "success", "imports", "classes", "functions")
-- list_directory: List files in directory (returns dict with "success", "files", "directories")
-- search_in_codebase: Search for patterns (returns dict with "success", "results", "total_matches")
-- extract_function_code: Extract specific function (returns dict with "success", "code", "args", "docstring")
-- list_python_files: List all Python files (returns dict with "success", "files", "total_count")
-- run_pytest_local: Run pytest tests locally (returns dict with "success", "exit_code", "stdout", "stderr", "execution_time")
-- run_python_script_local: Run Python script locally (returns dict with "success", "exit_code", "stdout", "stderr")
-- run_python_code_local: Run Python code snippet locally (returns dict with "success", "exit_code", "stdout", "stderr")
+AVAILABLE TOOLS - CRITICAL PATH REQUIREMENT:
+ALL tools require ABSOLUTE paths! Relative paths will be resolved from script directory, NOT working_dir.
+
+- read_file(file_path): Read file content.
+  MUST use: read_file("<working_dir>/data/dataset.py")
+  NEVER use: read_file("data/dataset.py") - reads from wrong location!
+  Returns: dict with "success", "content", "file_path", "size_bytes", "line_count"
+
+- write_file(file_path, content): Write content to file (e.g., test files).
+  MUST use: write_file("<working_dir>/tests/test_file.py", test_code)
+  NEVER use: write_file("tests/test_file.py", test_code) - creates in wrong location!
+  Returns: dict with "success", "message", "file_path", "size_bytes"
+
+- list_directory(directory_path, pattern, recursive): List files in directory.
+  Use: list_directory("<working_dir>") or list_directory("<working_dir>/data")
+  Returns: dict with "success", "directory", "files" (list), "directories" (list), "total_files", "total_directories"
+
+- analyze_python_file(file_path): Analyze Python code structure.
+  Use: analyze_python_file("<working_dir>/data/dataset.py")
+  Returns: dict with "success", "imports", "classes", "functions", "file_path"
+- run_pytest_local(test_path, working_dir, timeout): Run pytest tests.
+  CRITICAL: test_path relative to working_dir (e.g., "tests/"), working_dir should be project root absolute path.
+  Returns: dict with "success", "exit_code", "stdout", "stderr", "execution_time"
+- run_python_script_local(script_path, working_dir): Run Python script.
+  Returns: dict with "success", "exit_code", "stdout", "stderr", "execution_time"
 
 OUTPUT FORMAT:
 
@@ -411,7 +444,7 @@ MANDATORY TEST EXECUTION WORKFLOW:
    a. Call write_file(test.test_file_path, test.test_code)
    b. Verify file was written successfully
 3. After writing ALL test files:
-   a. Call run_pytest_local("project/tests/", timeout=300)
+   a. Call run_pytest_local("tests/", working_dir=<project_root>, timeout=300)
    b. Check if tests pass or fail
    c. Include test results in your overall_assessment
 4. If tests fail:
@@ -524,22 +557,34 @@ The above input contains:
 
 YOUR TASK:
 1. Extract the project directory path from the "CODEBASE PATH" section above
+   Example: If it shows "/hpc_stor03/.../workspace/project", that's your working_dir
 2. Use list_directory tool to check what files exist in the project directory
 3. Use read_file tool to examine files that were created/modified in THIS step
 4. Verify each acceptance criterion for the step is met
 5. Generate 2-5 unit tests to validate the current step (define in unit_tests output field)
+   IMPORTANT: Test paths should be relative (e.g., "tests/test_file.py", NOT "project/tests/test_file.py")
 6. WRITE each test file using write_file tool
-7. RUN all tests using run_pytest_local tool
+   Example: write_file("<working_dir>/tests/test_file.py", <test_code>)
+   Or use absolute path: write_file("/full/path/to/project/tests/test_file.py", <test_code>)
+7. RUN all tests using run_pytest_local tool WITH working_dir parameter
+   CRITICAL: run_pytest_local("tests/", working_dir="<extracted_project_dir>", timeout=300)
+   NOT: run_pytest_local("project/tests/", ...)
 8. Analyze test results and incorporate into your evaluation
 9. Make a clear decision: is_consistent (True/False)
 10. If False, provide specific feedback with exact file paths
 
 IMPORTANT FILE PATH HANDLING:
-- When checking files, use paths relative to the project directory shown above
-- If step says to create "project/", check if that directory exists
-- If step says to create "project/data/file.py", check that specific file
+- The project directory shown above IS the working directory
+- All file paths should be relative to that directory (NOT prefixed with "project/")
+- Example: To check "data/file.py", NOT "project/data/file.py"
+- When calling run_pytest_local, ALWAYS pass working_dir parameter
 - Use list_directory to verify directory structure
 - Use read_file to verify file contents
+  
+PATH EXAMPLES:
+- Correct: read_file("data/dataset.py") - relative to project root
+- Correct: run_pytest_local("tests/", working_dir="/abs/path/to/project")
+- Wrong: read_file("project/data/dataset.py") - "project/" prefix not needed
 
 TEST EXECUTION IS MANDATORY:
 - You MUST write test files to the file system (use write_file)
@@ -556,9 +601,22 @@ ONLY evaluate what should be done in the CURRENT step.
         print_subsection("Evaluating Current Step Implementation")
         print_info("Reviewing code against acceptance criteria...")
 
-        result = await Runner.run(
+        # Use streamed version for real-time output
+        result_stream = Runner.run_streamed(
             self.judge_agent, judge_input, hooks=self.hooks, max_turns=100
         )
+        async for event in result_stream.stream_events():
+            if hasattr(event, "data"):
+                event_type = type(event.data).__name__
+                if "FunctionCallArguments" not in event_type and hasattr(
+                    event.data, "delta"
+                ):
+                    delta = event.data.delta
+                    if hasattr(delta, "content") and delta.content:
+                        print(delta.content, end="", flush=True)
+                    elif hasattr(delta, "text") and delta.text:
+                        print(delta.text, end="", flush=True)
+        result = result_stream  # The stream object is the result
 
         evaluation: CodeJudgeOutput = result.final_output
 

@@ -60,9 +60,18 @@ class CacheManager:
                 "experiment_id": experiment_id,
                 "created_at": datetime.now().isoformat(),
                 "last_updated": datetime.now().isoformat(),
+                "status": "initialized",
+                "workflow_state": {
+                    "current_state": "initial",
+                    "current_checklist_step": 0,
+                    "completed_checklist_steps": [],
+                    "checklist_step_retry_count": 0,
+                    "execution_step_counter": 0,
+                    "iteration_count": 0,
+                },
+                "cached_outputs": {},
                 "workflow_progress": [],
                 "current_stage": None,
-                "status": "initialized",
             }
             self._save_manifest(manifest)
             print(f"[CACHE] Created new experiment: {experiment_id}")
@@ -409,3 +418,148 @@ class CacheManager:
             print(f"[CACHE] Cleared experiment: {experiment_id}")
         else:
             print(f"[CACHE] Experiment not found: {experiment_id}")
+
+    def save_workflow_snapshot(
+        self,
+        context: "WorkflowContext",
+        agent_name: Optional[str] = None,
+        agent_output: Any = None,
+    ) -> None:
+        """
+        Save complete workflow snapshot to manifest.
+
+        This should be called after each agent execution to ensure
+        the workflow state is always recoverable.
+
+        Args:
+            context: Current workflow context
+            agent_name: Name of the agent that just executed (optional)
+            agent_output: Output from the agent (optional)
+        """
+        if not self.current_experiment_id:
+            raise ValueError("No experiment started. Call start_experiment() first.")
+
+        # Load current manifest
+        manifest = self._load_manifest()
+
+        # Update workflow state from context
+        manifest["workflow_state"] = {
+            "current_state": context.current_state.value,
+            "current_checklist_step": context.current_checklist_step,
+            "completed_checklist_steps": context.completed_checklist_steps or [],
+            "checklist_step_retry_count": context.checklist_step_retry_count,
+            "execution_step_counter": context.execution_step_counter,
+            "iteration_count": context.iteration_count,
+        }
+
+        # Update cached outputs references
+        if "cached_outputs" not in manifest:
+            manifest["cached_outputs"] = {}
+
+        if agent_name and agent_output is not None:
+            # Save reference to the latest output file for each agent type
+            step_id = context.execution_step_counter
+            cache_filename = f"step{step_id}_{agent_name}.json"
+            manifest["cached_outputs"][agent_name] = cache_filename
+
+            # Keep special references for important outputs
+            if agent_name == "pre_analysis":
+                manifest["cached_outputs"]["last_pre_analysis"] = cache_filename
+            elif agent_name == "code_plan":
+                manifest["cached_outputs"]["last_code_plan"] = cache_filename
+            elif agent_name == "code_implement":
+                manifest["cached_outputs"]["last_code_implement"] = cache_filename
+            elif agent_name == "code_judge":
+                manifest["cached_outputs"]["last_code_judge"] = cache_filename
+
+        # Update metadata
+        manifest["last_updated"] = datetime.now().isoformat()
+        manifest["status"] = "in_progress"
+
+        # Save manifest
+        self._save_manifest(manifest)
+
+    def resume_workflow_context(self, context: "WorkflowContext") -> bool:
+        """
+        Resume workflow context from cache.
+
+        This restores the complete workflow state including:
+        - Current workflow state
+        - Checklist progress
+        - Execution counter
+        - Previously generated outputs (plan, analysis)
+
+        Args:
+            context: WorkflowContext object to restore (will be modified in-place)
+
+        Returns:
+            True if successfully restored, False if manifest is invalid
+        """
+        if not self.current_experiment_id:
+            raise ValueError("No experiment started. Call start_experiment() first.")
+
+        try:
+            manifest = self._load_manifest()
+
+            # Restore workflow state (required)
+            from .workflow_state_machine import WorkflowState
+
+            workflow_state = manifest["workflow_state"]
+            context.current_state = WorkflowState(workflow_state["current_state"])
+            context.current_checklist_step = workflow_state["current_checklist_step"]
+            context.completed_checklist_steps = workflow_state[
+                "completed_checklist_steps"
+            ]
+            context.checklist_step_retry_count = workflow_state[
+                "checklist_step_retry_count"
+            ]
+            context.execution_step_counter = workflow_state["execution_step_counter"]
+            context.iteration_count = workflow_state["iteration_count"]
+
+            # Restore cached outputs
+            import re
+
+            cached_outputs = manifest.get("cached_outputs", {})
+
+            # Load pre_analysis output if exists
+            if "last_pre_analysis" in cached_outputs:
+                analysis_file = cached_outputs["last_pre_analysis"]
+                match = re.search(r"step(\d+)_", analysis_file)
+                if match:
+                    step_id = int(match.group(1))
+                    context.pre_analysis_output = self.load_cache(
+                        "pre_analysis", step_id
+                    )
+
+            # Load code_plan output if exists
+            if "last_code_plan" in cached_outputs:
+                plan_file = cached_outputs["last_code_plan"]
+                match = re.search(r"step(\d+)_", plan_file)
+                if match:
+                    step_id = int(match.group(1))
+                    context.code_plan_output = self.load_cache("code_plan", step_id)
+
+            print(f"[CACHE] Restored workflow state:")
+            print(f"  State: {context.current_state.value}")
+            print(f"  Checklist step: {context.current_checklist_step}")
+            print(f"  Completed steps: {context.completed_checklist_steps}")
+            print(f"  Retry count: {context.checklist_step_retry_count}")
+            print(f"  Execution counter: {context.execution_step_counter}")
+            print(f"  Has pre_analysis: {context.pre_analysis_output is not None}")
+            print(f"  Has code_plan: {context.code_plan_output is not None}")
+
+            return True
+
+        except KeyError as e:
+            print(f"[CACHE] Invalid manifest format: missing {e}")
+            print(
+                "[CACHE] This experiment was created with an old format and cannot be resumed"
+            )
+            print("[CACHE] Please clear the cache directory and start a new experiment")
+            return False
+        except Exception as e:
+            print(f"[CACHE] Error restoring workflow state: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return False

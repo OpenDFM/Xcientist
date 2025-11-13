@@ -305,9 +305,25 @@ class CodePlanAgent:
             "Determining planning scenario and routing to appropriate planner..."
         )
 
-        planning_result = await Runner.run(
+        # Use streamed version for real-time output
+        planning_stream = Runner.run_streamed(
             self.triage_agent, input_data, hooks=self.hooks, max_turns=100
         )
+        async for event in planning_stream.stream_events():
+            # Only print text content, not tool call arguments
+            if hasattr(event, "data"):
+                event_type = type(event.data).__name__
+                # Skip function call argument deltas (too noisy)
+                if "FunctionCallArguments" not in event_type:
+                    # Look for text/message content
+                    if hasattr(event.data, "delta"):
+                        delta = event.data.delta
+                        # Check if delta has text content
+                        if hasattr(delta, "content") and delta.content:
+                            print(delta.content, end="", flush=True)
+                        elif hasattr(delta, "text") and delta.text:
+                            print(delta.text, end="", flush=True)
+        planning_result = planning_stream  # The stream object is the result
 
         # The final_output will be from the planner that was handed off to
         intermediate_plan: IntermediatePlanOutput = planning_result.final_output
@@ -391,9 +407,22 @@ Addressed Issues:
         print_subsection("Formatting Code Plan Output")
         print_info("Converting intermediate plan to YAML-compatible format...")
 
-        unifier_result = await Runner.run(
+        # Use streamed version for real-time output
+        unifier_stream = Runner.run_streamed(
             self.output_unifier, unifier_input, hooks=self.hooks, max_turns=100
         )
+        async for event in unifier_stream.stream_events():
+            if hasattr(event, "data"):
+                event_type = type(event.data).__name__
+                if "FunctionCallArguments" not in event_type and hasattr(
+                    event.data, "delta"
+                ):
+                    delta = event.data.delta
+                    if hasattr(delta, "content") and delta.content:
+                        print(delta.content, end="", flush=True)
+                    elif hasattr(delta, "text") and delta.text:
+                        print(delta.text, end="", flush=True)
+        unifier_result = unifier_stream  # The stream object is the result
 
         print_success("Output formatting completed")
         print_info(f"Generated {len(unifier_result.final_output.file_structure)} files")

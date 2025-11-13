@@ -45,21 +45,28 @@ DO NOT write actual code files. DO NOT create files in the workspace.
 Focus ONLY on planning - generate the text descriptions of what should be implemented.
 
 WORKSPACE STRUCTURE:
-The workspace directory (`{working_dir}`) contains:
-- `{working_dir}/repos/` - Reference code repositories with example implementations
-- `{working_dir}/dataset_candidate/` - Available datasets for training/testing
+working_dir IS the project root directory: `{working_dir}`
+The parent directory (workspace) contains:
+- `../repos/` - Reference code repositories with example implementations
+- `../dataset_candidate/` - Available datasets for training/testing
+
+Path relationship:
+- {working_dir} = /path/to/workspace/project (this IS the project root)
+- ../dataset_candidate = /path/to/workspace/dataset_candidate
+- ../repos = /path/to/workspace/repos
 
 CRITICAL - IMPORT PATH PLANNING:
 When planning the project structure and file organization:
-- The final project will be executed from working_dir/project directory
-- All Python imports must assume project/ is the execution root
+- working_dir IS the project root directory (not a parent of it)
+- The project will be executed from working_dir
+- All Python imports must assume working_dir is the execution root and in PYTHONPATH
 - Plan imports WITHOUT "project." prefix
-- Structure modules so imports work with project/ in PYTHONPATH
+- Structure modules so imports work with working_dir in PYTHONPATH
 
 Example import planning:
-- File: project/models/model.py importing from project/data/dataset.py
+- File: models/model.py importing from data/dataset.py
 - Planned import: "from data.dataset import MyDataset"
-- NOT: "from project.data.dataset import MyDataset"
+- NOT: "from project.data.dataset import MyDataset" (no "project." prefix)
 
 When describing implementation in your plan, specify imports using this convention.
 
@@ -129,8 +136,8 @@ WORKFLOW:
 
    b. DATASET PLAN
       - Dataset description and location
-        * Available datasets are in `{working_dir}/dataset_candidate/` directory
-        * Specify which dataset(s) to use and their paths
+        * Available datasets are in `../dataset_candidate/` directory (relative to working_dir)
+        * Specify which dataset(s) to use and their relative paths
       - Data loading strategy
       - Preprocessing pipeline (step-by-step)
       - Dataloader configuration
@@ -215,7 +222,7 @@ WORKFLOW:
         "title": "Implement Dataset Loading",
         "description": "Implement data loading functionality in the data module",
         "files_to_create": [],
-        "files_to_modify": ["project/data/dataset.py", "project/data/preprocessing.py"],
+        "files_to_modify": ["data/dataset.py", "data/preprocessing.py"],
         "acceptance_criteria": [
           "Dataset can be loaded successfully",
           "Preprocessing functions work correctly",

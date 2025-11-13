@@ -873,8 +873,11 @@ def run_pytest_local(
     Run pytest tests locally (no Docker required).
 
     Args:
-        test_path: Path to test file or directory
-        working_dir: Working directory for execution (default: directory containing test_path)
+        test_path: Path to test file or directory (can be relative or absolute).
+                   If relative, will be resolved relative to working_dir.
+        working_dir: Working directory for pytest execution. This should be the project root
+                    (where Python modules are importable). If None, automatically determines
+                    the project root from test_path.
         timeout: Maximum execution time in seconds (default: 300)
         extra_args: Additional pytest arguments (e.g., "-v -s")
 
@@ -889,6 +892,7 @@ def run_pytest_local(
     Example:
         result = run_pytest_local(
             "tests/test_module.py",
+            working_dir="/path/to/project",  # Project root for imports
             timeout=60,
             extra_args="-v --tb=short"
         )
@@ -898,17 +902,49 @@ def run_pytest_local(
     start_time = time.time()
 
     try:
+        # Resolve working directory (project root)
+        if working_dir:
+            # Use provided working_dir (should be absolute path to project root)
+            cwd = os.path.abspath(working_dir)
+        else:
+            # Auto-detect project root from test_path
+            abs_test_path = os.path.abspath(test_path)
+
+            if os.path.isfile(abs_test_path):
+                # Test file - use its directory as starting point
+                search_dir = os.path.dirname(abs_test_path)
+            else:
+                # Test directory
+                search_dir = abs_test_path
+
+            # If test_path is or contains "tests/", go up to find project root
+            if search_dir.endswith("/tests") or search_dir.endswith("\\tests"):
+                # tests/ directory itself - parent is project root
+                cwd = os.path.dirname(search_dir)
+            elif "/tests/" in search_dir or "\\tests\\" in search_dir:
+                # Inside tests/ subdirectory - find project root
+                parts = search_dir.replace("\\", "/").split("/tests/")
+                cwd = parts[0]
+            else:
+                # Not in tests/ - assume current dir is project root
+                cwd = search_dir
+
+        # Convert test_path to be relative to cwd if it's relative
+        if not os.path.isabs(test_path):
+            # test_path is relative - make it relative to cwd
+            test_path_for_pytest = test_path
+        else:
+            # test_path is absolute - try to make it relative to cwd for prettier output
+            try:
+                test_path_for_pytest = os.path.relpath(test_path, cwd)
+            except ValueError:
+                # Can't make relative (different drives on Windows) - use absolute
+                test_path_for_pytest = test_path
+
         # Build pytest command
-        cmd = ["pytest", test_path]
+        cmd = ["pytest", test_path_for_pytest]
         if extra_args:
             cmd.extend(extra_args.split())
-
-        # Set working directory
-        cwd = working_dir
-        if cwd is None and os.path.isfile(test_path):
-            cwd = os.path.dirname(os.path.abspath(test_path))
-        elif cwd is None:
-            cwd = os.path.abspath(test_path)
 
         # Run pytest with timeout
         process = subprocess.Popen(

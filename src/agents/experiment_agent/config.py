@@ -1,7 +1,5 @@
 """
 Configuration file for Experiment Agent System.
-
-Contains all necessary configuration variables for running experiments.
 """
 
 import os
@@ -9,28 +7,44 @@ from typing import Optional
 
 
 # =============================================================================
-# OpenAI API Configuration
+# API Provider Configuration
 # =============================================================================
 
-# Azure OpenAI Configuration (if using Azure)
-AZURE_ENDPOINT: Optional[str] = os.getenv(
-    "AZURE_ENDPOINT", "https://yikai-m870y3k5-eastus2.cognitiveservices.azure.com/"
+# API提供商选择: "azure" 或 "openai"
+API_PROVIDER: str = "openai"
+
+# -----------------------------------------------------------------------------
+# Azure OpenAI 配置（当 API_PROVIDER=azure 时使用）
+# -----------------------------------------------------------------------------
+AZURE_ENDPOINT: Optional[str] = (
+    "https://yikai-m870y3k5-eastus2.cognitiveservices.azure.com/"
 )
-AZURE_API_KEY: Optional[str] = os.getenv(
-    "AZURE_API_KEY",
-    "PYPBhHVSnCL9J2i4whVg3X36uTArslFQWvYp5ENh7fFmR17gyiS1JQQJ99BCACHYHv6XJ3w3AAAAACOGruFq",
+AZURE_API_KEY: Optional[str] = (
+    "PYPBhHVSnCL9J2i4whVg3X36uTArslFQWvYp5ENh7fFmR17gyiS1JQQJ99BCACHYHv6XJ3w3AAAAACOGruFq"
 )
-AZURE_API_VERSION: str = os.getenv("AZURE_API_VERSION", "2024-12-01-preview")
-AZURE_DEPLOYMENT: str = os.getenv("AZURE_DEPLOYMENT", "gpt-4o-2")
+AZURE_API_VERSION: str = "2024-12-01-preview"
+AZURE_DEPLOYMENT: str = "gpt-4o-2"
 
-# OpenAI Configuration (if using OpenAI directly)
-OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
+# -----------------------------------------------------------------------------
+# OpenAI 配置（当 API_PROVIDER=openai 时使用）
+# 支持OpenAI官方API或其他兼容API（如 https://www.dmxapi.cn/v1）
+# -----------------------------------------------------------------------------
+OPENAI_API_KEY: Optional[str] = "sk-Q1Aah6ovHJyPhlmi0yZtNazWo29XiMyBIMtaKZGtG6RzFp2W"
+OPENAI_API_BASE: Optional[str] = "https://www.dmxapi.cn/v1"
 
-# Model Configuration
-MODEL_NAME: str = os.getenv("MODEL_NAME", "gpt-4o-2")
+# =============================================================================
+# Model Configuration - 模型配置
+# =============================================================================
 
-# Use Azure or OpenAI
-USE_AZURE: bool = os.getenv("USE_AZURE", "true").lower() == "true"
+EXPENSIVE_MODEL: str = "gpt-5"
+
+CHEAP_MODEL: str = "gpt-5-mini"
+
+# 默认模型名称（向后兼容）
+MODEL_NAME: str = EXPENSIVE_MODEL
+
+# 使用Azure标志（向后兼容）
+USE_AZURE: bool = API_PROVIDER == "azure"
 
 
 # =============================================================================
@@ -38,14 +52,12 @@ USE_AZURE: bool = os.getenv("USE_AZURE", "true").lower() == "true"
 # =============================================================================
 
 # Docker container configuration
-DOCKER_HOST: str = os.getenv("DOCKER_HOST", "localhost")
-DOCKER_PORT: int = int(os.getenv("DOCKER_PORT", "18379"))
-DOCKER_TIMEOUT: int = int(os.getenv("DOCKER_TIMEOUT", "3600"))
+DOCKER_HOST: str = "localhost"
+DOCKER_PORT: int = 18379
+DOCKER_TIMEOUT: int = 3600
 
 # Container name (for reference)
-DOCKER_CONTAINER_NAME: str = os.getenv(
-    "DOCKER_CONTAINER_NAME", "research-agent-container"
-)
+DOCKER_CONTAINER_NAME: str = "research-agent-container"
 
 
 # =============================================================================
@@ -53,60 +65,36 @@ DOCKER_CONTAINER_NAME: str = os.getenv(
 # =============================================================================
 
 # Working directory in Docker container
-DOCKER_WORKING_DIR: str = os.getenv("DOCKER_WORKING_DIR", "/workspace")
+DOCKER_WORKING_DIR: str = "/workspace"
 
 # Project directory in Docker container (corresponding to PROJECT_DIR)
-DOCKER_PROJECT_DIR: str = os.getenv("DOCKER_PROJECT_DIR", "/workspace/project")
+DOCKER_PROJECT_DIR: str = "/workspace/project"
 
 # Local workspace directory (shared with Docker)
-LOCAL_WORKSPACE_DIR: str = os.getenv(
-    "LOCAL_WORKSPACE_DIR",
-    "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/experiment_agent/workspace",
+LOCAL_WORKSPACE_DIR: str = (
+    "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/experiment_agent/workspace"
 )
 
 # Project implementation directory (where all code implementation and experiments happen)
-PROJECT_DIR: str = os.getenv(
-    "PROJECT_DIR",
-    os.path.join(LOCAL_WORKSPACE_DIR, "project"),
-)
+PROJECT_DIR: str = os.path.join(LOCAL_WORKSPACE_DIR, "project")
 
 # Input paths
-IDEA_INPUT_PATH: str = os.getenv(
-    "IDEA_INPUT_PATH",
-    os.path.join(LOCAL_WORKSPACE_DIR, "idea.json"),
-)
+IDEA_INPUT_PATH: str = os.path.join(LOCAL_WORKSPACE_DIR, "idea.json")
 
-PAPER_INPUT_PATH: str = os.getenv(
-    "PAPER_INPUT_PATH",
-    os.path.join(LOCAL_WORKSPACE_DIR, "paper.tex"),
-)
+PAPER_INPUT_PATH: str = os.path.join(LOCAL_WORKSPACE_DIR, "paper.tex")
 
 # Dataset paths
-DATASET_CANDIDATE_DIR: str = os.getenv(
-    "DATASET_CANDIDATE_DIR",
-    "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/AI-Researcher/benchmark/process/dataset_candidate",
-)
+DATASET_CANDIDATE_DIR: str = os.path.join(LOCAL_WORKSPACE_DIR, "dataset_candidate")
 
 # Docker dataset path (mounted in container)
-DOCKER_DATASET_DIR: str = os.getenv(
-    "DOCKER_DATASET_DIR", "/workspace/dataset_candidate"
-)
+DOCKER_DATASET_DIR: str = "/workspace/dataset_candidate"
 
 # Output paths
-EXPERIMENT_LOGS_DIR: str = os.getenv(
-    "EXPERIMENT_LOGS_DIR",
-    os.path.join(LOCAL_WORKSPACE_DIR, "logs"),
-)
+EXPERIMENT_LOGS_DIR: str = os.path.join(LOCAL_WORKSPACE_DIR, "logs")
 
-RESULTS_OUTPUT_DIR: str = os.getenv(
-    "RESULTS_OUTPUT_DIR",
-    os.path.join(LOCAL_WORKSPACE_DIR, "results"),
-)
+RESULTS_OUTPUT_DIR: str = os.path.join(LOCAL_WORKSPACE_DIR, "results")
 
-CACHE_DIR: str = os.getenv(
-    "CACHE_DIR",
-    os.path.join(LOCAL_WORKSPACE_DIR, "cached"),
-)
+CACHE_DIR: str = os.path.join(LOCAL_WORKSPACE_DIR, "cached")
 
 
 # =============================================================================
@@ -114,17 +102,18 @@ CACHE_DIR: str = os.getenv(
 # =============================================================================
 
 # Maximum iterations for the experiment workflow
-MAX_WORKFLOW_ITERATIONS: int = int(os.getenv("MAX_WORKFLOW_ITERATIONS", "5"))
+MAX_WORKFLOW_ITERATIONS: int = 5
 
 # Enable/disable tracing
-ENABLE_TRACING: bool = os.getenv("ENABLE_TRACING", "false").lower() == "true"
+ENABLE_TRACING: bool = False
 
-# Note: Streaming is always enabled for API calls (using Runner.run_stream)
-# This provides real-time output from the AI agents
+# Enable/disable streaming for API calls
+# Streaming provides real-time output but may be unstable with some API providers
+ENABLE_STREAMING: bool = True
 
 # Timeout settings (in seconds)
-CODE_EXECUTION_TIMEOUT: int = int(os.getenv("CODE_EXECUTION_TIMEOUT", "3600"))
-AGENT_CALL_TIMEOUT: int = int(os.getenv("AGENT_CALL_TIMEOUT", "600"))
+CODE_EXECUTION_TIMEOUT: int = 3600
+AGENT_CALL_TIMEOUT: int = 600
 
 
 # =============================================================================
@@ -132,10 +121,10 @@ AGENT_CALL_TIMEOUT: int = int(os.getenv("AGENT_CALL_TIMEOUT", "600"))
 # =============================================================================
 
 # Log level
-LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+LOG_LEVEL: str = "INFO"
 
 # Enable colored output
-COLORED_LOGS: bool = os.getenv("COLORED_LOGS", "true").lower() == "true"
+COLORED_LOGS: bool = True
 
 
 # =============================================================================
@@ -143,28 +132,50 @@ COLORED_LOGS: bool = os.getenv("COLORED_LOGS", "true").lower() == "true"
 # =============================================================================
 
 
-def get_openai_config() -> dict:
+def get_openai_config(model: Optional[str] = None) -> dict:
     """
     Get OpenAI configuration dictionary.
+
+    Args:
+        model: Optional model name to use. If not provided, uses MODEL_NAME.
 
     Returns:
         Dictionary with OpenAI configuration
     """
-    if USE_AZURE:
+    model_to_use = model or MODEL_NAME
+
+    if API_PROVIDER == "azure":
         return {
             "use_azure": True,
             "endpoint": AZURE_ENDPOINT,
             "api_key": AZURE_API_KEY,
             "api_version": AZURE_API_VERSION,
             "deployment": AZURE_DEPLOYMENT,
-            "model_name": MODEL_NAME,
+            "model_name": model_to_use,
         }
-    else:
-        return {
+    else:  # openai
+        config = {
             "use_azure": False,
             "api_key": OPENAI_API_KEY,
-            "model_name": MODEL_NAME,
+            "model_name": model_to_use,
         }
+        if OPENAI_API_BASE:
+            config["base_url"] = OPENAI_API_BASE
+        return config
+
+
+def get_model_config() -> dict:
+    """
+    Get model configuration dictionary.
+
+    Returns:
+        Dictionary with model configuration including expensive and cheap models
+    """
+    return {
+        "expensive_model": EXPENSIVE_MODEL,
+        "cheap_model": CHEAP_MODEL,
+        "default_model": MODEL_NAME,
+    }
 
 
 def get_docker_config() -> dict:
@@ -188,12 +199,16 @@ def get_path_config() -> dict:
     """
     Get path configuration dictionary.
 
+    Note: working_dir refers to LOCAL_WORKSPACE_DIR (parent directory)
+          project_dir is the actual project root where code is implemented
+
     Returns:
         Dictionary with path configuration
     """
     return {
-        "local_workspace": LOCAL_WORKSPACE_DIR,
-        "project_dir": PROJECT_DIR,
+        "working_dir": LOCAL_WORKSPACE_DIR,  # Workspace directory (parent)
+        "local_workspace": LOCAL_WORKSPACE_DIR,  # Backward compatibility
+        "project_dir": PROJECT_DIR,  # Project root directory (for code operations)
         "docker_workspace": DOCKER_WORKING_DIR,
         "docker_project_dir": DOCKER_PROJECT_DIR,
         "dataset_candidate_dir": DATASET_CANDIDATE_DIR,
@@ -215,15 +230,27 @@ def validate_config() -> tuple[bool, list[str]]:
     """
     errors = []
 
-    # Check OpenAI configuration
-    if USE_AZURE:
+    # Check API Provider
+    if API_PROVIDER not in ["azure", "openai"]:
+        errors.append(
+            f"Invalid API_PROVIDER: {API_PROVIDER}. Must be 'azure' or 'openai'"
+        )
+
+    # Check OpenAI configuration based on provider
+    if API_PROVIDER == "azure":
         if not AZURE_ENDPOINT:
             errors.append("AZURE_ENDPOINT is not set")
         if not AZURE_API_KEY:
             errors.append("AZURE_API_KEY is not set")
-    else:
+    else:  # openai
         if not OPENAI_API_KEY:
             errors.append("OPENAI_API_KEY is not set")
+
+    # Check model configuration
+    if not EXPENSIVE_MODEL:
+        errors.append("EXPENSIVE_MODEL is not set")
+    if not CHEAP_MODEL:
+        errors.append("CHEAP_MODEL is not set")
 
     # Check Docker configuration
     if not DOCKER_HOST:
@@ -245,15 +272,21 @@ def print_config():
     print("=" * 80)
     print("Experiment Agent Configuration")
     print("=" * 80)
-    print(f"\n[OpenAI Configuration]")
-    print(f"  Use Azure: {USE_AZURE}")
-    print(f"  Model: {MODEL_NAME}")
-    if USE_AZURE:
+    print(f"\n[API Configuration]")
+    print(f"  API Provider: {API_PROVIDER}")
+    if API_PROVIDER == "azure":
         print(f"  Azure Endpoint: {AZURE_ENDPOINT}")
         print(f"  Azure Deployment: {AZURE_DEPLOYMENT}")
         print(f"  Azure API Key: {'*' * 20}...")
     else:
         print(f"  OpenAI API Key: {'*' * 20}...")
+        if OPENAI_API_BASE:
+            print(f"  OpenAI API Base: {OPENAI_API_BASE}")
+
+    print(f"\n[Model Configuration]")
+    print(f"  Expensive Model (code plan, implement, judge): {EXPENSIVE_MODEL}")
+    print(f"  Cheap Model (pre-analysis, execute, analysis): {CHEAP_MODEL}")
+    print(f"  Default Model: {MODEL_NAME}")
 
     print(f"\n[Docker Configuration]")
     print(f"  Host: {DOCKER_HOST}")

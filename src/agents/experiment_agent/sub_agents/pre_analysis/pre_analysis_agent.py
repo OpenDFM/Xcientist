@@ -352,12 +352,27 @@ Extract and ADD new conceptual insights from this paper. Build upon previous con
 
             try:
                 print_info("Analyzing conceptual framework...", indent=1)
-                concept_result = await Runner.run(
+                # Use streamed version for real-time output
+                concept_stream = Runner.run_streamed(
                     self.paper_concept_analyzer,
                     concept_prompt,
                     hooks=self.hooks,
                     max_turns=100,
                 )
+                # Process stream and print events for debugging
+                async for event in concept_stream.stream_events():
+                    # Only print text content
+                    if hasattr(event, "data"):
+                        event_type = type(event.data).__name__
+                        if "FunctionCallArguments" not in event_type and hasattr(
+                            event.data, "delta"
+                        ):
+                            delta = event.data.delta
+                            if hasattr(delta, "content") and delta.content:
+                                print(delta.content, end="", flush=True)
+                            elif hasattr(delta, "text") and delta.text:
+                                print(delta.text, end="", flush=True)
+                concept_result = concept_stream  # The stream object is the result
                 concept_analysis = concept_result.final_output
 
                 # Add to accumulated concepts
@@ -479,12 +494,25 @@ Extract algorithm patterns and implementations. Build upon previous analysis."""
 
             try:
                 print_info("Analyzing algorithm implementations...", indent=1)
-                algo_result = await Runner.run(
+                # Use streamed version for real-time output
+                algo_stream = Runner.run_streamed(
                     self.paper_algorithm_analyzer,
                     algo_prompt,
                     hooks=self.hooks,
                     max_turns=100,
                 )
+                async for event in algo_stream.stream_events():
+                    if hasattr(event, "data"):
+                        event_type = type(event.data).__name__
+                        if "FunctionCallArguments" not in event_type and hasattr(
+                            event.data, "delta"
+                        ):
+                            delta = event.data.delta
+                            if hasattr(delta, "content") and delta.content:
+                                print(delta.content, end="", flush=True)
+                            elif hasattr(delta, "text") and delta.text:
+                                print(delta.text, end="", flush=True)
+                algo_result = algo_stream  # The stream object is the result
                 algorithm_analysis = algo_result.final_output
 
                 # Add to accumulated algorithms
@@ -546,7 +574,8 @@ Extract algorithm patterns and implementations. Build upon previous analysis."""
         print_subsection("Main Concept Analysis")
         print_info("Running concept analysis...")
 
-        concept_result = await Runner.run(
+        # Use streamed version for real-time output
+        concept_stream = Runner.run_streamed(
             (
                 self.idea_concept_analyzer
                 if input_type == "idea"
@@ -556,6 +585,18 @@ Extract algorithm patterns and implementations. Build upon previous analysis."""
             hooks=self.hooks,
             max_turns=100,
         )
+        async for event in concept_stream.stream_events():
+            # Only print text content, skip tool call arguments
+            if hasattr(event, "data"):
+                event_type = type(event.data).__name__
+                if "FunctionCallArguments" not in event_type:
+                    if hasattr(event.data, "delta"):
+                        delta = event.data.delta
+                        if hasattr(delta, "content") and delta.content:
+                            print(delta.content, end="", flush=True)
+                        elif hasattr(delta, "text") and delta.text:
+                            print(delta.text, end="", flush=True)
+        concept_result = concept_stream  # The stream object is the result
         concept_analysis = concept_result.final_output
 
         print_success(f"Concept analysis completed")
@@ -578,7 +619,8 @@ Extract algorithm patterns and implementations. Build upon previous analysis."""
         print_subsection("Main Algorithm Analysis")
         print_info("Running algorithm analysis...")
 
-        algorithm_result = await Runner.run(
+        # Use streamed version for real-time output
+        algorithm_stream = Runner.run_streamed(
             (
                 self.idea_algorithm_analyzer
                 if input_type == "idea"
@@ -588,6 +630,18 @@ Extract algorithm patterns and implementations. Build upon previous analysis."""
             hooks=self.hooks,
             max_turns=100,
         )
+        async for event in algorithm_stream.stream_events():
+            if hasattr(event, "data"):
+                event_type = type(event.data).__name__
+                if "FunctionCallArguments" not in event_type and hasattr(
+                    event.data, "delta"
+                ):
+                    delta = event.data.delta
+                    if hasattr(delta, "content") and delta.content:
+                        print(delta.content, end="", flush=True)
+                    elif hasattr(delta, "text") and delta.text:
+                        print(delta.text, end="", flush=True)
+        algorithm_result = algorithm_stream  # The stream object is the result
         algorithm_analysis = algorithm_result.final_output
 
         print_success(f"Algorithm analysis completed")
@@ -629,9 +683,22 @@ Algorithm Flow: {algorithm_analysis.algorithm_flow}
         print_subsection("Unifying Analysis Results")
         print_info("Synthesizing concept and algorithm analysis...")
 
-        unified_result = await Runner.run(
+        # Use streamed version for real-time output
+        unified_stream = Runner.run_streamed(
             self.output_unifier, unified_input, hooks=self.hooks, max_turns=100
         )
+        async for event in unified_stream.stream_events():
+            if hasattr(event, "data"):
+                event_type = type(event.data).__name__
+                if "FunctionCallArguments" not in event_type and hasattr(
+                    event.data, "delta"
+                ):
+                    delta = event.data.delta
+                    if hasattr(delta, "content") and delta.content:
+                        print(delta.content, end="", flush=True)
+                    elif hasattr(delta, "text") and delta.text:
+                        print(delta.text, end="", flush=True)
+        unified_result = unified_stream  # The stream object is the result
 
         print_success("Output unification completed")
 

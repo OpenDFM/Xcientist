@@ -57,38 +57,44 @@ You MUST follow this structure EXACTLY:
 - Do NOT create files outside the specified structure
 - Do NOT create additional directories not shown in the tree
 - File paths MUST match the tree exactly
-- If the tree shows project/data/dataset.py, create EXACTLY that path
+- If the tree shows data/dataset.py, create EXACTLY that path relative to working_dir
 - If you think you need to deviate, you are probably misunderstanding the requirement
 
 WORKSPACE STRUCTURE:
-Your working directory (project root) is: `{working_dir}`
+working_dir IS the project root directory: `{working_dir}`
 
-This is the PROJECT DIRECTORY where ALL your implementation code should be created.
-The parent workspace also contains reference materials and datasets:
+This is where ALL your implementation code should be created (working_dir IS the project directory).
+The parent directory (workspace) contains reference materials and datasets:
 - `../repos/` - Reference code repositories (read-only, do not modify)
 - `../papers/` - Research papers (read-only)
 - `../dataset_candidate/` - Available datasets (read-only)
 
+Path relationship:
+- {working_dir} = /path/to/workspace/project (this IS the project root)
+- ../dataset_candidate = /path/to/workspace/dataset_candidate
+
 CRITICAL - IMPORT PATH REQUIREMENTS:
-The project will be executed from the working_dir/project directory.
-All Python imports must be written considering that execution starts from project/.
+The project will be executed from working_dir (which IS the project root).
+All Python imports must be written for execution from working_dir.
 
 Import Path Rules:
-1. Python will run from project/ directory (project/ is the execution root)
-2. Write imports as if project/ is in PYTHONPATH
+1. Python will run from working_dir (working_dir is in PYTHONPATH)
+2. Write imports relative to working_dir (the project root)
 3. For files in subdirectories, use direct imports from the subdirectory
 4. DO NOT use "project." prefix in imports
 5. DO NOT use absolute system paths in imports
 
-Examples of CORRECT imports:
-- File: project/models/model.py importing from project/data/dataset.py
-- Correct: "from data.dataset import MyDataset"
-- In train.py (at project/train.py): "from models.model import MyModel"
-- For configs: "from configs.config import Config"
+Examples of CORRECT imports (all relative to project root which is working_dir):
+- File: models/model.py importing from data/dataset.py
+  Correct: "from data.dataset import MyDataset"
+- File: train.py importing from models/model.py
+  Correct: "from models.model import MyModel"
+- File: any file importing from configs/config.py
+  Correct: "from configs.config import Config"
 
 Examples of INCORRECT imports (DO NOT USE):
-- "from project.data.dataset import MyDataset" (wrong: includes "project.")
-- Verify any relative imports work correctly for execution from project/
+- "from project.data.dataset import MyDataset" (wrong: includes "project." prefix)
+- Absolute system paths or relative imports like "../data/dataset"
 
 REFERENCE CODEBASES (STRONGLY RECOMMENDED TO EXPLORE):
 Available reference codebases in `../repos/`:
@@ -124,8 +130,8 @@ analyze_python_file("../repos/[repo_name]/path/to/relevant_file.py")
 ```
 
 Remember: The reference code is READ-ONLY. Learn from it, adapt patterns, but implement 
-everything in your project directory ({working_dir}). Do not copy blindly - understand 
-and adapt to your specific requirements.
+everything in working_dir ({working_dir}), which IS your project root directory. 
+Do not copy blindly - understand and adapt to your specific requirements.
 
 DATASET LOCATION:
 Available datasets are located at: `{working_dir}/../dataset_candidate/`
@@ -245,11 +251,26 @@ Example failed response:
 Always check the "success" field before using other fields from tool results.
 If a tool fails, report the error and try alternative approaches.
 
-AVAILABLE TOOLS:
-- create_directory: Create directories (returns dict with "success", "path", "message")
-- write_file: Write complete file content (returns dict with "success", "file_path", "size_bytes")
-- read_file: Read existing files for reference (returns dict with "success", "content", "file_path")
-- list_directory: Check directory contents (returns dict with "success", "files", "directories")
+AVAILABLE TOOLS - CRITICAL PATH REQUIREMENT:
+ALL tools require ABSOLUTE paths! Relative paths will be resolved from script directory, NOT working_dir.
+
+- write_file(file_path, content): Create/update files.
+  MUST use: write_file("{working_dir}/data/dataset.py", code)
+  NEVER use: write_file("data/dataset.py", code) - creates file in wrong location!
+  Returns: dict with "success", "message", "file_path", "size_bytes"
+
+- read_file(file_path): Read file content.
+  Use: read_file("{working_dir}/data/dataset.py")
+  Returns: dict with "success", "content", "file_path", "size_bytes", "line_count"
+
+- list_directory(directory_path, pattern, recursive): List directory contents.
+  Use: list_directory("{working_dir}") or list_directory("{working_dir}/data")
+  For parent workspace: list_directory("{working_dir}/../repos")
+  Returns: dict with "success", "directory", "files" (list), "directories" (list), "total_files", "total_directories"
+
+- create_directory(directory_path): Create directories.
+  Use: create_directory("{working_dir}/data")
+  Returns: dict with "success", "path", "message"
 
 OUTPUT REQUIREMENTS:
 - Implement ONLY the files specified in the CURRENT STEP

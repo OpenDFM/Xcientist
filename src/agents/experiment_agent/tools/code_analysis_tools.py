@@ -3,6 +3,9 @@ Code analysis tools for experiment agents.
 
 Provides tools for analyzing code structure, extracting information, and searching code.
 Compatible with openai-agents SDK.
+
+Security: All file/directory operations are restricted to the working directory (project root)
+and its subdirectories to prevent unauthorized file access.
 """
 
 import ast
@@ -12,6 +15,69 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 from agents import function_tool
+
+
+def _validate_path_security(
+    file_path: str, working_dir: Optional[str] = None
+) -> tuple[bool, str, str]:
+    """
+    Validate that the file path is within the allowed working directory.
+
+    Args:
+        file_path: The path to validate
+        working_dir: The allowed working directory (project root). If None, loads from config.
+
+    Returns:
+        Tuple of (is_valid, absolute_path, error_message)
+        - is_valid: True if path is safe, False otherwise
+        - absolute_path: Resolved absolute path
+        - error_message: Error message if not valid, empty string otherwise
+    """
+    try:
+        # Load working_dir from config if not provided
+        if working_dir is None:
+            from src.agents.experiment_agent.config import get_path_config
+
+            path_config = get_path_config()
+            working_dir = path_config.get("working_dir")
+
+        # If still no working_dir, allow operation (backward compatibility)
+        if not working_dir:
+            abs_path = os.path.abspath(os.path.expanduser(file_path))
+            return True, abs_path, ""
+
+        # Resolve both paths to absolute
+        abs_working_dir = os.path.abspath(os.path.expanduser(working_dir))
+        abs_file_path = os.path.abspath(os.path.expanduser(file_path))
+
+        # Check if file_path is within working_dir or its subdirectories
+        # Use os.path.commonpath to check if they share a common root
+        try:
+            common_path = os.path.commonpath([abs_working_dir, abs_file_path])
+            # File is safe if common path is the working directory
+            if common_path == abs_working_dir or abs_file_path.startswith(
+                abs_working_dir + os.sep
+            ):
+                return True, abs_file_path, ""
+            else:
+                error_msg = (
+                    f"Security Error: Path '{file_path}' is outside the allowed working directory.\n"
+                    f"Allowed: {abs_working_dir} and its subdirectories\n"
+                    f"Attempted: {abs_file_path}\n"
+                    f"All file operations must be within the project directory."
+                )
+                return False, abs_file_path, error_msg
+        except ValueError:
+            # Paths are on different drives (Windows)
+            error_msg = (
+                f"Security Error: Path '{file_path}' is on a different drive than working directory.\n"
+                f"Allowed: {abs_working_dir}\n"
+                f"Attempted: {abs_file_path}"
+            )
+            return False, abs_file_path, error_msg
+
+    except Exception as e:
+        return False, "", f"Path validation error: {str(e)}"
 
 
 @function_tool

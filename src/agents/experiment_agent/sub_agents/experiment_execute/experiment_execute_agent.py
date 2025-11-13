@@ -322,7 +322,22 @@ Use the available tools to execute the code and capture all information.
 """
 
         # Run execute agent
-        result = await Runner.run(self.execute_agent, execute_input, max_turns=100)
+        # Use streamed version for real-time output
+        result_stream = Runner.run_streamed(
+            self.execute_agent, execute_input, max_turns=100
+        )
+        async for event in result_stream.stream_events():
+            if hasattr(event, "data"):
+                event_type = type(event.data).__name__
+                if "FunctionCallArguments" not in event_type and hasattr(
+                    event.data, "delta"
+                ):
+                    delta = event.data.delta
+                    if hasattr(delta, "content") and delta.content:
+                        print(delta.content, end="", flush=True)
+                    elif hasattr(delta, "text") and delta.text:
+                        print(delta.text, end="", flush=True)
+        result = result_stream  # The stream object is the result
 
         return result.final_output
 

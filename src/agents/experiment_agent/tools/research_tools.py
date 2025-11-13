@@ -57,38 +57,88 @@ def search_arxiv(query: str, max_results: int = 50) -> List[Dict]:
         # Build complete query URL
         query_url = base_url + urllib.parse.urlencode(params)
 
+        # Use requests with timeout instead of feedparser.parse directly
+        print(f"  Querying arXiv API (timeout: 30s)...")
+        response = None
+
         # Add retry mechanism for API rate limiting
         max_retries = 3
         for retry in range(max_retries):
-            # Send request and parse results
-            response = feedparser.parse(query_url)
+            try:
+                # Use requests to fetch with timeout
+                http_response = requests.get(query_url, timeout=30)
+                http_response.raise_for_status()
 
-            # If got results, break retry loop
-            if len(response.entries) > 0:
-                break
+                # Parse the response with feedparser
+                response = feedparser.parse(http_response.content)
 
-            # If no results and not last attempt, wait and retry
-            if retry < max_retries - 1:
-                # Incremental wait time: 5s, 10s, 15s
-                wait_time = (retry + 1) * 5
-                time.sleep(wait_time)
+                # If got results, break retry loop
+                if len(response.entries) > 0:
+                    print(f"  ✓ Received {len(response.entries)} results from arXiv")
+                    break
+                else:
+                    print(f"  ⚠ No results found (attempt {retry + 1}/{max_retries})")
+
+                # If no results and not last attempt, wait and retry
+                if retry < max_retries - 1:
+                    # Incremental wait time: 5s, 10s, 15s
+                    wait_time = (retry + 1) * 5
+                    print(f"  Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+            except requests.exceptions.Timeout:
+                print(f"  ⚠ Request timeout (attempt {retry + 1}/{max_retries})")
+                if retry < max_retries - 1:
+                    wait_time = (retry + 1) * 5
+                    print(f"  Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+                else:
+                    print(f"  ❌ All retry attempts failed due to timeout")
+                    return []
+            except requests.exceptions.RequestException as e:
+                print(
+                    f"  ⚠ Request error: {str(e)} (attempt {retry + 1}/{max_retries})"
+                )
+                if retry < max_retries - 1:
+                    wait_time = (retry + 1) * 5
+                    print(f"  Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
+                else:
+                    print(f"  ❌ All retry attempts failed")
+                    return []
 
         # If title search has no results, try full-text search
-        if len(response.entries) == 0:
+        if response is None or len(response.entries) == 0:
+            print(f"  ⚠ No results from title search, trying simplified query...")
             # Try simplified title (remove subtitle)
             simplified_query = query.split(":")[0].strip()
             params["search_query"] = f"ti:{simplified_query}"
             query_url = base_url + urllib.parse.urlencode(params)
 
-            response = feedparser.parse(query_url)
-            time.sleep(1)
+            try:
+                print(f"  Trying simplified query: {simplified_query[:50]}...")
+                http_response = requests.get(query_url, timeout=30)
+                http_response.raise_for_status()
+                response = feedparser.parse(http_response.content)
+                time.sleep(1)
+            except Exception as e:
+                print(f"  ⚠ Error with simplified query: {str(e)}")
+                response = feedparser.FeedParserDict()
+                response.entries = []
 
             # If simplified title still has no results, try full-text search
             if len(response.entries) == 0:
                 params["search_query"] = query  # Full-text search without ti: prefix
                 query_url = base_url + urllib.parse.urlencode(params)
-                response = feedparser.parse(query_url)
-                time.sleep(1)
+                try:
+                    print(f"  Trying full-text search...")
+                    http_response = requests.get(query_url, timeout=30)
+                    http_response.raise_for_status()
+                    response = feedparser.parse(http_response.content)
+                    time.sleep(1)
+                except Exception as e:
+                    print(f"  ⚠ Error with full-text search: {str(e)}")
+                    response = feedparser.FeedParserDict()
+                    response.entries = []
 
         # Extract paper information
         papers = []

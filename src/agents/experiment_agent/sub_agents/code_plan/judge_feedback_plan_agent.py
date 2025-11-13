@@ -35,14 +35,15 @@ Generate a REVISED implementation plan that addresses issues identified by the c
 
 CRITICAL - IMPORT PATH PLANNING:
 When revising the implementation plan:
-- Remember the project will be executed from working_dir/project directory
-- All Python imports must assume project/ is the execution root
+- working_dir IS the project root directory (not a parent of it)
+- The project will be executed from working_dir
+- All Python imports must assume working_dir is the execution root and in PYTHONPATH
 - Specify imports WITHOUT "project." prefix in your revised plan
 - If import path issues were flagged, correct them in the plan
 
-Example correct imports to specify in plan:
-- "from data.dataset import MyDataset" (for project/data/dataset.py)
-- "from models.model import MyModel" (for project/models/model.py)
+Example correct imports to specify in plan (paths relative to working_dir):
+- "from data.dataset import MyDataset" (for data/dataset.py)
+- "from models.model import MyModel" (for models/model.py)
 
 INPUT:
 You will receive:

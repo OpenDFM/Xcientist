@@ -72,6 +72,8 @@ class ExperimentMasterAgent:
     def __init__(
         self,
         model: str = "gpt-4o",
+        expensive_model: Optional[str] = None,
+        cheap_model: Optional[str] = None,
         max_iterations: int = 5,
         tools: Optional[Dict[str, list]] = None,
         working_dir: Optional[str] = None,
@@ -83,7 +85,9 @@ class ExperimentMasterAgent:
         Initialize the experiment master agent.
 
         Args:
-            model: Model to use for all agents
+            model: Default model to use for all agents (for backward compatibility)
+            expensive_model: Model for critical tasks (code plan, judge, execute). If None, uses model.
+            cheap_model: Model for non-critical tasks (implement, analysis, etc.). If None, uses model.
             max_iterations: Maximum number of complete workflow iterations
             tools: Optional dictionary mapping agent types to their tools.
                    If None, automatically loads recommended tools for all agents.
@@ -93,6 +97,8 @@ class ExperimentMasterAgent:
             verbose: If True, enable verbose hooks to show full LLM responses and tool calls
         """
         self.model = model
+        self.expensive_model = expensive_model or model
+        self.cheap_model = cheap_model or model
         self.max_iterations = max_iterations
         self.working_dir = working_dir
         self.log_dir = log_dir
@@ -117,37 +123,47 @@ class ExperimentMasterAgent:
         self.cache_manager = CacheManager(cache_dir=cache_dir)
         print(f"[CACHE] Cache directory: {cache_dir}")
 
-        # Initialize all sub-agents
+        # Initialize all sub-agents with appropriate models
+        # Use cheap model for pre-analysis
         self.pre_analysis_agent = create_pre_analysis_agent(
-            model=model, tools=self.tools.get("pre_analysis"), verbose=verbose
+            model=self.cheap_model,
+            tools=self.tools.get("pre_analysis"),
+            verbose=verbose,
         )
 
+        # Use expensive model for code plan (critical task)
         self.code_plan_agent = create_code_plan_agent(
-            model=model,
+            model=self.expensive_model,
             working_dir=working_dir,
             tools=self.tools.get("code_plan"),
             verbose=verbose,
         )
 
+        # Use expensive model for code implementation (critical task)
         self.code_implement_agent = create_code_implement_agent(
-            model=model,
+            model=self.expensive_model,
             working_dir=working_dir,
             tools=self.tools.get("code_implement"),
             verbose=verbose,
         )
 
+        # Use expensive model for code judge (critical task)
         self.code_judge_agent = create_code_judge_agent(
-            model=model, tools=self.tools.get("code_judge"), verbose=verbose
+            model=self.expensive_model,
+            tools=self.tools.get("code_judge"),
+            verbose=verbose,
         )
 
+        # Use cheap model for experiment execute
         self.experiment_execute_agent = create_experiment_execute_agent(
-            model=model,
+            model=self.cheap_model,
             log_dir=log_dir,
             tools=self.tools.get("experiment_execute"),
         )
 
+        # Use cheap model for experiment analysis
         self.experiment_analysis_agent = create_experiment_analysis_agent(
-            model=model, tools=self.tools.get("experiment_analysis")
+            model=self.cheap_model, tools=self.tools.get("experiment_analysis")
         )
 
         # Agent mapping for easy access
@@ -263,13 +279,6 @@ class ExperimentMasterAgent:
             traceback.print_exc()
             print()
 
-        if not is_new_experiment:
-            # Show progress for resumed experiment
-            progress = self.cache_manager.get_experiment_progress()
-            print(f"Progress: {len(progress['completed_stages'])} stages completed")
-            print(f"Last stage: {progress['current_stage']}")
-            print()
-
         # Initialize workflow context
         context = WorkflowContext(
             research_input=research_input,
@@ -279,19 +288,58 @@ class ExperimentMasterAgent:
             max_iterations=self.max_iterations,
         )
 
+        # Resume workflow context if this is a resumed experiment
+        if not is_new_experiment:
+            print("\n[RESUMING] Restoring workflow state from cache...")
+            resume_success = self.cache_manager.resume_workflow_context(context)
+            if not resume_success:
+                print("⚠ Could not restore workflow state, starting fresh")
+            print()
+
         # Workflow loop
         step_count = 0
         max_steps = self.max_iterations * 10  # Safety limit to prevent infinite loops
 
-        # Initial transition from INITIAL to first real state
-        transition = self.state_machine.transition(context)
-        print(f"\n[STATE TRANSITION]")
-        print(f"From: {transition.from_state.value}")
-        print(f"To: {transition.to_state.value}")
-        print(f"Reason: {transition.reason}")
-
-        # Initialize transition data for the first agent execution
-        transition_data = transition.data or {}
+        # Initial transition (only for new experiments)
+        if context.current_state == WorkflowState.INITIAL:
+            # New experiment - do initial transition to pre_analysis
+            transition = self.state_machine.transition(context)
+            print(f"\n[STATE TRANSITION]")
+            print(f"From: {transition.from_state.value}")
+            print(f"To: {transition.to_state.value}")
+            print(f"Reason: {transition.reason}")
+            transition_data = transition.data or {}
+        else:
+            # Resumed experiment - check if current state already has output
+            print(f"\n[RESUMED] Continuing from: {context.current_state.value}")
+            
+            # Check if the current state's output already exists
+            state_output_exists = False
+            if context.current_state == WorkflowState.PRE_ANALYSIS and context.pre_analysis_output:
+                state_output_exists = True
+            elif context.current_state == WorkflowState.CODE_PLAN and context.code_plan_output:
+                state_output_exists = True
+            elif context.current_state == WorkflowState.CODE_IMPLEMENT and context.code_implement_output:
+                state_output_exists = True
+            elif context.current_state == WorkflowState.CODE_JUDGE and context.code_judge_output:
+                state_output_exists = True
+            elif context.current_state == WorkflowState.EXPERIMENT_EXECUTE and context.experiment_execute_output:
+                state_output_exists = True
+            elif context.current_state == WorkflowState.EXPERIMENT_ANALYSIS and context.experiment_analysis_output:
+                state_output_exists = True
+            
+            if state_output_exists:
+                print(f"[SKIP] Current state output already exists, transitioning to next state...")
+                # Perform state transition immediately
+                transition = self.state_machine.transition(context)
+                print(f"\n[STATE TRANSITION]")
+                print(f"From: {transition.from_state.value}")
+                print(f"To: {transition.to_state.value}")
+                print(f"Reason: {transition.reason}")
+                transition_data = transition.data or {}
+            else:
+                print(f"[CONTINUE] Current state output not found, will execute agent...")
+                transition_data = {}
 
         while not self.state_machine.is_terminal_state(context.current_state):
             step_count += 1
@@ -336,6 +384,11 @@ class ExperimentMasterAgent:
                     )
 
                     print(f"[COMPLETED] {agent_name} agent finished")
+
+                    # Save workflow snapshot after each agent execution
+                    self.cache_manager.save_workflow_snapshot(
+                        context, agent_name=agent_name, agent_output=result
+                    )
 
                 except Exception as e:
                     print(f"[ERROR] Agent execution failed: {str(e)}")
@@ -971,6 +1024,8 @@ Provide analysis and recommendations."""
 
 def create_experiment_master_agent(
     model: str = "gpt-4o",
+    expensive_model: Optional[str] = None,
+    cheap_model: Optional[str] = None,
     max_iterations: int = 5,
     tools: Optional[Dict[str, list]] = None,
     working_dir: Optional[str] = None,
@@ -982,7 +1037,9 @@ def create_experiment_master_agent(
     Factory function to create an experiment master agent.
 
     Args:
-        model: Model to use for all agents
+        model: Default model to use for all agents (for backward compatibility)
+        expensive_model: Model for critical tasks (code plan, judge, execute). If None, uses model.
+        cheap_model: Model for non-critical tasks (implement, analysis, etc.). If None, uses model.
         max_iterations: Maximum number of workflow iterations
         tools: Dictionary mapping agent types to their tools
         working_dir: Working directory for code operations
@@ -995,6 +1052,8 @@ def create_experiment_master_agent(
     """
     return ExperimentMasterAgent(
         model=model,
+        expensive_model=expensive_model,
+        cheap_model=cheap_model,
         max_iterations=max_iterations,
         tools=tools,
         working_dir=working_dir,

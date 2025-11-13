@@ -140,14 +140,17 @@ project/
 
 Output FileStructureItem list:
 [
-  {path: "project/", type: "directory", description: "Project root"},
-  {path: "project/data/", type: "directory", description: "Data handling module"},
-  {path: "project/data/__init__.py", type: "file", description: "Data module init"},
-  {path: "project/data/dataset.py", type: "file", description: "Dataset implementation"},
-  {path: "project/models/", type: "directory", description: "Model definitions"},
-  {path: "project/models/model.py", type: "file", description: "Main model class"},
-  {path: "project/train.py", type: "file", description: "Training script"}
+  {path: "./", type: "directory", description: "Project root"},
+  {path: "data/", type: "directory", description: "Data handling module"},
+  {path: "data/__init__.py", type: "file", description: "Data module init"},
+  {path: "data/dataset.py", type: "file", description: "Dataset implementation"},
+  {path: "models/", type: "directory", description: "Model definitions"},
+  {path: "models/model.py", type: "file", description: "Main model class"},
+  {path: "train.py", type: "file", description: "Training script"}
 ]
+
+CRITICAL: All paths must be relative to the project root (working_dir).
+DO NOT use "project/" prefix since working_dir IS already the project directory.
 
 EXAMPLE IMPLEMENTATION STEP PARSING:
 
@@ -168,14 +171,14 @@ Output ImplementationStep list:
     step_number: 1,
     title: "Implement dataset class",
     description: "Create Dataset class in data/dataset.py with data loading and preprocessing",
-    files_involved: ["project/data/dataset.py"],
+    files_involved: ["data/dataset.py"],
     dependencies: []
   },
   {
     step_number: 2,
     title: "Implement model",
     description: "Create Model class in models/model.py implementing the architecture",
-    files_involved: ["project/models/model.py"],
+    files_involved: ["models/model.py"],
     dependencies: [1]
   }
 ]

@@ -79,11 +79,12 @@ PARSING GUIDELINES:
 
 For File Descriptions:
 ```
-File: project/data/dataset.py
+File: data/dataset.py
 Description: Dataset loader implementation
 Dependencies: None
 Content:
 ```python
+import os
 import torch
 ...
 ```
@@ -92,12 +93,15 @@ import torch
 Parse to:
 ```
 {
-  file_path: "project/data/dataset.py",
-  content: "import torch\n...",
+  file_path: "data/dataset.py",
+  content: "import os\nimport torch\n...",
   description: "Dataset loader implementation",
   dependencies: []
 }
 ```
+
+IMPORTANT: All file paths are relative to working_dir (project root).
+DO NOT include "project/" prefix in file_path.
 
 For Implementation Summary:
 ```

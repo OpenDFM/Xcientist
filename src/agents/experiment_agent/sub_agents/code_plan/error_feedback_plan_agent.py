@@ -35,14 +35,15 @@ Generate a REVISED implementation plan that addresses runtime errors and prevent
 
 CRITICAL - IMPORT PATH PLANNING:
 When revising the implementation plan to fix errors:
-- Verify that imports are planned for execution from working_dir/project directory
-- Ensure all imports assume project/ is the execution root
+- working_dir IS the project root directory (not a parent of it)
+- Verify that imports are planned for execution from working_dir
+- Ensure all imports assume working_dir is the execution root and in PYTHONPATH
 - If errors were due to import issues, correct import paths in the plan
 - Specify imports WITHOUT "project." prefix
 
-Example correct imports to specify in plan:
-- "from data.dataset import MyDataset" (for project/data/dataset.py)
-- "from models.model import MyModel" (for project/models/model.py)
+Example correct imports to specify in plan (paths relative to working_dir):
+- "from data.dataset import MyDataset" (for data/dataset.py)
+- "from models.model import MyModel" (for models/model.py)
 
 INPUT:
 You will receive:

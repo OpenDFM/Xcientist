@@ -148,37 +148,44 @@ INPUT YOU RECEIVE:
    - Specific issues that need to be addressed
 
 WORKSPACE STRUCTURE:
-Your working directory (project root): `{working_dir}`
+working_dir IS the project root directory: `{working_dir}`
 
-This is where ALL implementation code should be created.
-Parent workspace contains reference materials:
+This is where ALL implementation code should be created (working_dir IS the project directory).
+The parent directory (workspace) contains reference materials:
 - `../repos/` - Reference code repositories (read-only, for reference)
 - `../dataset_candidate/` - Available datasets (read-only, reference in code)
 - `../papers/` - Research papers (read-only)
 
+Path relationship:
+- {working_dir} = /path/to/workspace/project (this IS the project root)
+- ../dataset_candidate = /path/to/workspace/dataset_candidate
+
 IMPORTANT:
-- Create ALL implementation files in `{working_dir}` (project root)
+- Create ALL implementation files in `{working_dir}` (which IS the project root)
 - Organize with subdirectories: data/, models/, training/, etc.
 - Reference datasets using: `../dataset_candidate/[dataset_name]`
 - DO NOT modify files in ../repos/, ../dataset_candidate/, or ../papers/
 
 CRITICAL - IMPORT PATH REQUIREMENTS:
-The final project will be executed from the working_dir/project directory.
-All Python imports must be written considering that execution starts from project/.
+The project will be executed from working_dir (which IS the project root).
+All Python imports must be written for execution from working_dir.
 
 Import Path Rules:
-1. Python will run from project/ directory (project/ is the execution root)
-2. Write imports as if project/ is in PYTHONPATH
+1. Python will run from working_dir (working_dir is in PYTHONPATH)
+2. Write imports relative to working_dir (the project root)
 3. For files in subdirectories, use direct imports from the subdirectory
 4. DO NOT use "project." prefix in imports
 5. DO NOT use absolute system paths in imports
 
-Examples:
-- File structure: project/models/model.py and project/data/dataset.py
-- In model.py, import dataset: "from data.dataset import MyDataset"
-- NOT: "from project.data.dataset import MyDataset"
-- In train.py (at project/train.py), import model: "from models.model import MyModel"
-- For configs: project/configs/config.py -> import as "from configs.config import Config"
+Examples (all paths relative to working_dir which IS the project root):
+- File structure: models/model.py and data/dataset.py
+- In models/model.py, import dataset: "from data.dataset import MyDataset"
+- In train.py (at working_dir root), import model: "from models.model import MyModel"
+- For configs: configs/config.py -> import as "from configs.config import Config"
+
+WRONG Examples:
+- "from project.data.dataset import MyDataset" (wrong: "project." prefix not needed)
+- "from ..data.dataset import MyDataset" (wrong: avoid relative imports)
 
 When writing any Python file, ensure all imports follow this convention.
 
@@ -240,11 +247,24 @@ All tools return {{"success": true/false, ...fields or "error"}}
 Always check "success" field before using other fields.
 
 Available tools:
-- create_directory: Create directories
-- write_file: Write/update files
-- read_file: Read existing files
-- list_directory: Check directory contents
-- analyze_python_file: Analyze Python code structure
+- write_file(file_path, content): Create/update files. 
+  CRITICAL: Use ABSOLUTE paths by joining with working_dir.
+  Example: write_file("{working_dir}/data/dataset.py", code) 
+  NOT: write_file("data/dataset.py", code) - will create in wrong directory!
+  Returns: dict with "success", "message", "file_path", "size_bytes"
+- read_file(file_path): Read existing file content.
+  Use ABSOLUTE paths: read_file("{working_dir}/data/dataset.py")
+  Returns: dict with "success", "content", "file_path", "size_bytes", "line_count"
+- list_directory(directory_path, pattern, recursive): Check directory structure.
+  Use ABSOLUTE paths: list_directory("{working_dir}") or list_directory("{working_dir}/data")
+  For parent workspace: list_directory("{working_dir}/../repos")
+  Returns: dict with "success", "directory", "files" (list), "directories" (list), "total_files", "total_directories"
+- create_directory(directory_path): Create directories.
+  Use ABSOLUTE paths: create_directory("{working_dir}/data")
+  Returns: dict with "success", "path", "message"
+- analyze_python_file(file_path): Analyze Python code structure.
+  Use ABSOLUTE paths: analyze_python_file("{working_dir}/data/dataset.py")
+  Returns: dict with "success", "imports", "classes", "functions", "file_path"
 
 OUTPUT:
 Provide a structured summary of:
@@ -353,9 +373,22 @@ class CodeImplementAgent:
         print_subsection("Implementing Current Step")
         print_info("Executing implementation according to code plan...")
 
-        implementation_result = await Runner.run(
+        # Use streamed version for real-time output
+        implementation_stream = Runner.run_streamed(
             self.implementation_agent, input_data, hooks=self.hooks, max_turns=100
         )
+        async for event in implementation_stream.stream_events():
+            if hasattr(event, "data"):
+                event_type = type(event.data).__name__
+                if "FunctionCallArguments" not in event_type and hasattr(
+                    event.data, "delta"
+                ):
+                    delta = event.data.delta
+                    if hasattr(delta, "content") and delta.content:
+                        print(delta.content, end="", flush=True)
+                    elif hasattr(delta, "text") and delta.text:
+                        print(delta.text, end="", flush=True)
+        implementation_result = implementation_stream  # The stream object is the result
 
         # Get the intermediate output from the implementation agent
         intermediate_output: IntermediateImplementOutput = (
@@ -412,9 +445,22 @@ Issues Addressed:
 {intermediate_output.issues_addressed}
 """
 
-        unifier_result = await Runner.run(
+        # Use streamed version for real-time output
+        unifier_stream = Runner.run_streamed(
             self.output_unifier, unifier_input, hooks=self.hooks, max_turns=100
         )
+        async for event in unifier_stream.stream_events():
+            if hasattr(event, "data"):
+                event_type = type(event.data).__name__
+                if "FunctionCallArguments" not in event_type and hasattr(
+                    event.data, "delta"
+                ):
+                    delta = event.data.delta
+                    if hasattr(delta, "content") and delta.content:
+                        print(delta.content, end="", flush=True)
+                    elif hasattr(delta, "text") and delta.text:
+                        print(delta.text, end="", flush=True)
+        unifier_result = unifier_stream  # The stream object is the result
 
         print_success("Output formatting completed")
         print_info(

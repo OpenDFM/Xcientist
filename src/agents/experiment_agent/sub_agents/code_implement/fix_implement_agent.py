@@ -47,30 +47,34 @@ When fixing code, you MUST follow this structure EXACTLY:
 - When fixing code, ensure all files remain in their specified locations
 
 WORKSPACE STRUCTURE:
-Your working directory (project root) is: `{working_dir}`
+working_dir IS the project root directory: `{working_dir}`
 
-This is the PROJECT DIRECTORY where your implementation code exists.
-The parent workspace also contains reference materials and datasets:
+This is where your implementation code exists (working_dir IS the project directory itself).
+The parent directory (workspace) contains reference materials and datasets:
 - `../repos/` - Reference code repositories (read-only, do not modify)
 - `../dataset_candidate/` - Available datasets (read-only)
 - `../papers/` - Research papers (read-only)
 
+Path relationship:
+- {working_dir} = /path/to/workspace/project (this IS the project root)
+- ../dataset_candidate = /path/to/workspace/dataset_candidate
+
 CRITICAL - IMPORT PATH REQUIREMENTS:
-The project will be executed from the working_dir/project directory.
+The project will be executed from working_dir (which IS the project root).
 When fixing code, ensure all imports follow this convention:
-- Python will run from project/ directory (project/ is the execution root)
-- Write imports as if project/ is in PYTHONPATH
+- Python will run from working_dir (working_dir is in PYTHONPATH)
 - DO NOT use "project." prefix in imports
 - For subdirectories, use direct imports: "from data.dataset import MyDataset"
 
-Examples of CORRECT imports:
-- "from data.dataset import MyDataset" (for project/data/dataset.py)
-- "from models.model import MyModel" (for project/models/model.py)
-- "from configs.config import Config" (for project/configs/config.py)
+Examples of CORRECT imports (paths relative to working_dir which IS the project root):
+- "from data.dataset import MyDataset" (for data/dataset.py)
+- "from models.model import MyModel" (for models/model.py)
+- "from configs.config import Config" (for configs/config.py)
 
 Examples of INCORRECT imports to FIX:
-- "from project.data.dataset import MyDataset" (remove "project." prefix)
-- Verify relative imports work correctly for execution from project/
+- "from project.data.dataset import MyDataset" (remove "project." prefix - NOT needed)
+- "from ..data.dataset import MyDataset" (avoid relative imports, use direct imports from root)
+- Verify all imports work correctly when executed from working_dir
 
 REFERENCE CODEBASES (CAN HELP WITH FIXES):
 Available reference codebases in `../repos/`:
@@ -202,12 +206,29 @@ Example failed response:
 Always check the "success" field before using other fields from tool results.
 If a tool fails, report the error and try alternative approaches.
 
-AVAILABLE TOOLS:
-- read_file: Read existing code files (returns dict with "success", "content", "file_path")
-- write_file: Write updated file content (returns dict with "success", "file_path", "size_bytes")
-- list_directory: Check directory structure (returns dict with "success", "files", "directories")
-- create_directory: Create new directories if needed (returns dict with "success", "path", "message")
-- analyze_python_file: Analyze Python code structure (returns dict with "success", "imports", "classes", "functions")
+AVAILABLE TOOLS - CRITICAL PATH REQUIREMENT:
+ALL tools require ABSOLUTE paths! Relative paths will be resolved from script directory, NOT working_dir.
+
+- read_file(file_path): Read existing code files.
+  MUST use: read_file("{working_dir}/data/dataset.py")
+  NEVER use: read_file("data/dataset.py") - reads from wrong location!
+  Returns: dict with "success", "content", "file_path", "size_bytes", "line_count"
+
+- write_file(file_path, content): Write updated/fixed file content.
+  MUST use: write_file("{working_dir}/data/dataset.py", code)
+  Returns: dict with "success", "message", "file_path", "size_bytes"
+
+- list_directory(directory_path, pattern, recursive): Check directory structure.
+  Use: list_directory("{working_dir}") or list_directory("{working_dir}/data")
+  Returns: dict with "success", "directory", "files" (list), "directories" (list), "total_files", "total_directories"
+
+- create_directory(directory_path): Create directories if needed.
+  Use: create_directory("{working_dir}/data")
+  Returns: dict with "success", "path", "message"
+
+- analyze_python_file(file_path): Analyze Python code structure.
+  Use: analyze_python_file("{working_dir}/data/dataset.py")
+  Returns: dict with "success", "imports", "classes", "functions", "file_path"
 
 FIX STRATEGIES:
 
