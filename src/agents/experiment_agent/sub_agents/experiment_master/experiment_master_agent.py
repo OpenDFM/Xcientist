@@ -52,6 +52,15 @@ from src.agents.experiment_agent.sub_agents.experiment_execute import (
 from src.agents.experiment_agent.sub_agents.experiment_analysis import (
     create_experiment_analysis_agent,
 )
+from src.memory.api.slot_process_api import (
+    SlotProcess,
+)
+from src.memory.memory_system.decorator import (
+    short_term_slot_trace,
+)
+from src.memory.api.faiss_memory_system_api import (
+    FAISSMemorySystem,
+)
 
 
 # Orchestrator removed - using rule-based state machine instead
@@ -97,6 +106,10 @@ class ExperimentMasterAgent:
         self.working_dir = working_dir
         self.log_dir = log_dir
         self.verbose = verbose
+        self.slot_process = SlotProcess()
+        self.semantic_memory_store = FAISSMemorySystem(memory_type="semantic")
+        self.episodic_memory_store = FAISSMemorySystem(memory_type="episodic")
+        self.procedural_memory_store = FAISSMemorySystem(memory_type="procedural")
 
         if tools is None:
             from src.agents.experiment_agent.sub_agents.experiment_master import (
@@ -211,19 +224,6 @@ class ExperimentMasterAgent:
                 try:
                     result = await self._execute_agent(agent_name, context, {})
 
-                    # Debug output
-                    print(f"[DEBUG] Agent result type: {type(result)}")
-                    print(
-                        f"[DEBUG] Agent result: {str(result)[:200] if result else 'None'}"
-                    )
-
-                    # Store result in context
-                    self._update_context_with_result(
-                        context, context.current_state, result
-                    )
-
-                    print(f"[COMPLETED] {agent_name} agent finished")
-
                 except Exception as e:
                     print(f"[ERROR] Agent execution failed: {str(e)}")
                     context.last_error = str(e)
@@ -245,6 +245,7 @@ class ExperimentMasterAgent:
 
         return self._build_final_output(context)
 
+    @short_term_slot_trace(context=context)
     async def _execute_agent(
         self, agent_name: str, context: WorkflowContext, data: Dict[str, Any]
     ) -> Any:

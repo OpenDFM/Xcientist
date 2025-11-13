@@ -3,11 +3,14 @@ import os
 import shutil
 import sys
 
-from api.slot_process_api import SlotProcess
-from memory_system import WorkingSlot
-from textwrap import dedent
+CURRENT_DIR = os.path.dirname(__file__)
+SRC_DIR = os.path.dirname(CURRENT_DIR)
+if SRC_DIR not in sys.path:
+    sys.path.append(SRC_DIR)
 
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from src.memory.api.slot_process_api import SlotProcess
+from src.memory.memory_system import WorkingSlot
+from textwrap import dedent
 
 async def main() -> None:
     log_file = open("stm_test_output.log", "w")
@@ -81,7 +84,14 @@ async def main() -> None:
 
                 {text}
             """))
-        
+
+        print('''--------------------SlotProcess test: generate long term memory--------------------''')
+        ltm_records = await slot_process.generate_long_term_memory(result)
+        for rec in ltm_records:
+            print(dedent(f"""
+                Generated LTM ({rec.__class__.__name__}):
+                {rec.to_dict()}
+            """))
         print('''--------------------SlotProcess test: compress--------------------''')
         compressed_slot = await slot_process.compress_slots()
         print(f"Compressed slot: {compressed_slot.to_dict()}")
