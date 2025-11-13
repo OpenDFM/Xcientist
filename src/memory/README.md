@@ -9,6 +9,11 @@
 | filter_and_route_slots  | ✅ Debugged |
 | compress_slots      | ✅ Debugged |
 | transfer_slot_to_text | ✅ Debugged |
+| transfer_experiment_agent_context_to_working_slots | ❌ Not yet debugged |
+| generate_long_term_memory | ✅ Debugged |
+| transfer_slot_to_semantic_record | ✅ Debugged |
+| transfer_slot_to_episodic_record | ✅ Debugged |
+| transfer_slot_to_procedural_record | ✅ Debugged |
 
 # Long-term Memory API
 | Module / Test Item | Status |
@@ -110,6 +115,120 @@ research_slot = WorkingSlot(
       print(text_summary.strip())
 
   asyncio.run(demo_transfer())
+  ```
+
+- **`transfer_experiment_agent_context_to_working_slots(context, max_slots=50)`** – expand a `WorkflowContext` snapshot into fresh `WorkingSlot` objects.
+  ```python
+  import asyncio
+  from src.agents.experiment_agent.sub_agents.experiment_master.workflow_state_machine import (
+      WorkflowContext,
+      WorkflowState,
+  )
+
+  context = WorkflowContext(
+      research_input="Stress-test fog augmentations on coastal autopilot logs.",
+      input_type="idea",
+      current_state=WorkflowState.EXPERIMENT_ANALYSIS,
+      iteration_count=3,
+      max_iterations=6,
+      pre_analysis_output={"insights": ["Fog data scarcity limits generalization."]},
+      code_plan_output={"implementation_checklist": [
+          {"title": "mine fog samples"},
+          {"title": "rerun autopilot evaluation"},
+      ]},
+      experiment_execute_output={"metrics": {"accuracy": 0.73, "baseline": 0.70}},
+      experiment_analysis_output={"insight": "Fog mix gains 3 points over baseline."},
+  )
+
+  async def context_to_slots():
+      slots = await slot_process.transfer_experiment_agent_context_to_working_slots(
+          context,
+          max_slots=2,
+      )
+      for slot in slots:
+          print(slot.stage, slot.topic, slot.summary)
+
+  asyncio.run(context_to_slots())
+  ```
+
+- **`generate_long_term_memory(routed_slots)`** – convert routed slots into FAISS-ready payloads grouped by memory type.
+  ```python
+  import asyncio
+
+  async def demo_generate_long_term_memory():
+      slot_process.clear_container()
+      slot_process.add_slot(research_slot)
+      slot_process.add_slot(WorkingSlot(
+          stage="execution",
+          topic="fog_eval_run",
+          summary="Executed autopilot across 120 fog frames; latency +5ms vs. clear.",
+          attachments={"metrics": {"latency_delta_ms": 5}},
+          tags=["execution", "fog"],
+      ))
+
+      routed_slots = await slot_process.filter_and_route_slots()
+      long_term_inputs = await slot_process.generate_long_term_memory(routed_slots)
+      for payload in long_term_inputs:
+          print(payload["memory_type"], payload["input"])
+
+  asyncio.run(demo_generate_long_term_memory())
+  ```
+
+- **`transfer_slot_to_semantic_record(slot)`** – ask the LLM to lift a slot into a durable semantic memory.
+  ```python
+  import asyncio
+
+  async def demo_semantic_conversion():
+      semantic_payload = await slot_process.transfer_slot_to_semantic_record(research_slot)
+      print(semantic_payload)
+
+  asyncio.run(demo_semantic_conversion())
+  ```
+
+- **`transfer_slot_to_episodic_record(slot)`** – capture Situation→Action→Result traces with structured `detail` metadata.
+  ```python
+  import asyncio
+
+  execution_slot = WorkingSlot(
+      stage="execution",
+      topic="fog_eval_run",
+      summary="Executed autopilot on the fog benchmark and logged safety violations.",
+      attachments={
+          "metrics": {"failure_rate": 0.11, "baseline_failure_rate": 0.15},
+          "notes": {"insight": "Violations drop after fog-specific fine-tuning."},
+      },
+      tags=["execution", "fog"],
+  )
+
+  async def demo_episodic_conversion():
+      episodic_payload = await slot_process.transfer_slot_to_episodic_record(execution_slot)
+      print(episodic_payload)
+
+  asyncio.run(demo_episodic_conversion())
+  ```
+
+- **`transfer_slot_to_procedural_record(slot)`** – document reproducible steps (and optional helper code) derived from a slot.
+  ```python
+  import asyncio
+
+  procedural_slot = WorkingSlot(
+      stage="execution",
+      topic="fog_augmentation_pipeline",
+      summary="Outlined the exact steps for blending fog augmentations into training.",
+      attachments={
+          "notes": {
+              "preprocess": "Normalize visibilities before mixing fog levels.",
+              "commands": "python train.py --weather=fog_mix",
+          }
+      },
+      tags=["procedure", "training"],
+  )
+
+  async def demo_procedural_conversion():
+      procedural_payload = await slot_process.transfer_slot_to_procedural_record(procedural_slot)
+      print(procedural_payload)
+
+  asyncio.run(demo_procedural_conversion())
   ```
 
 ## Long-term Memory API Examples
