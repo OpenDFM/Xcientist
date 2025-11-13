@@ -368,23 +368,9 @@ class ExperimentMasterAgent:
             if agent_name:
                 print(f"\n[EXECUTING] {agent_name} agent (step {step_count})...")
 
-                # Debug: Show transition data being passed
-                if transition_data:
-                    print(
-                        f"[DEBUG] Transition data keys: {list(transition_data.keys())}"
-                    )
-                    if "feedback" in transition_data:
-                        print(f"[DEBUG] Has feedback from previous step")
-                    if "judge_output" in transition_data:
-                        print(f"[DEBUG] Has judge_output from previous step")
-
                 try:
-                    # ✅ FIX: Pass transition_data from previous state transition
-                    # This includes feedback, judge_output, and other important data
-                    result = await self._execute_agent(
-                        agent_name, context, transition_data
-                    )
-                    
+                    result = await self._execute_agent(agent_name, context, {})
+
                 except Exception as e:
                     print(f"[ERROR] Agent execution failed: {str(e)}")
                     context.last_error = str(e)
