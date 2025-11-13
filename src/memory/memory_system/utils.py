@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 from typing import Iterable, Optional, Tuple, Any, Dict
+from agents.experiment_agent.sub_agents.experiment_master.workflow_state_machine import WorkflowContext
+
 
 import json, re
 import numpy as np
@@ -51,6 +53,7 @@ def _jsonable_meta(meta: dict) -> dict:
         output[k] = v.to_dict()
     return output
 
+
 def dump_slot_json(slot) -> str:
     payload = {
         "id": slot.id,
@@ -62,6 +65,7 @@ def dump_slot_json(slot) -> str:
     }
     return json.dumps(payload, ensure_ascii=False)
 
+
 def _extract_json_between(text: str, open_tag: str, close_tag: str) -> Dict[str, Any]:
     m = re.search(rf"<{re.escape(open_tag)}>\s*(\{{.*\}})\s*</{re.escape(close_tag)}>", text, flags=re.S)
     if not m:
@@ -71,10 +75,12 @@ def _extract_json_between(text: str, open_tag: str, close_tag: str) -> Dict[str,
     except Exception as e:
         raise ValueError(f"Failed to parse JSON: {e}")
 
+
 def _hard_validate_slot_keys(payload: Dict[str, Any], allowed_keys: Iterable[str]) -> None:
     extra = set(payload.keys()) - allowed_keys
     if extra:
         raise ValueError(f"Unexpected keys in slot payload: {extra}")
+
 
 def _transfer_dict_to_semantic_text(d: Dict[str, Any], prefix: str = "") -> str:
     lines = []
@@ -88,4 +94,66 @@ def _transfer_dict_to_semantic_text(d: Dict[str, Any], prefix: str = "") -> str:
         else:
             lines.append(f"{prefix}{k}: {v}")
     return "\n".join(lines)
-    
+
+
+def _build_context_snapshot(self, context: WorkflowContext, char_limit: int = 4000) -> str:
+    snapshot = {
+        "input": {
+            "type": context.input_type,
+            "research_excerpt": self._truncate_text(context.research_input),
+        },
+        "state": {
+            "current_state": context.current_state.value,
+            "iteration": context.iteration_count,
+            "max_iterations": context.max_iterations,
+            "retry_count": context.retry_count,
+            "last_error": context.last_error,
+        },
+        "outputs": {
+            "pre_analysis": self._safe_dump(context.pre_analysis_output),
+            "code_plan": self._safe_dump(context.code_plan_output),
+            "code_implement": self._safe_dump(context.code_implement_output),
+            "code_judge": self._safe_dump(context.code_judge_output),
+            "experiment_execute": self._safe_dump(context.experiment_execute_output),
+            "experiment_analysis": self._safe_dump(context.experiment_analysis_output),
+        },
+        "history": [
+            {
+                "from": transition.from_state.value,
+                "to": transition.to_state.value,
+                "reason": transition.reason,
+            }
+            for transition in (context.state_history or [])
+        ],
+    }
+
+    serialized = json.dumps(snapshot, ensure_ascii=False, indent=2, default=str)
+    return self._truncate_text(serialized, limit=char_limit)
+
+
+def _safe_dump(self, value):
+    if value is None:
+        return None
+    if hasattr(value, "model_dump"):
+        try:
+            return value.model_dump()
+        except Exception:
+            pass
+    if hasattr(value, "dict"):
+        try:
+            return value.dict()
+        except Exception:
+            pass
+    if isinstance(value, list):
+        return [self._safe_dump(v) for v in value]
+    if isinstance(value, dict):
+        return {k: self._safe_dump(v) for k, v in value.items()}
+    return self._truncate_text(str(value))
+
+
+def _truncate_text(self, text: Optional[str], limit: int = 1500) -> Optional[str]:
+    if text is None:
+        return None
+    if len(text) <= limit:
+        return text
+    return text[: limit - 12] + "... <truncated>"
