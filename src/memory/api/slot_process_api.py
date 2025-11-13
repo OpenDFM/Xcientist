@@ -1,9 +1,33 @@
-from memory_system import WorkingSlot, OpenAIClient, LLMClient
+import json
+
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union
 from collections import deque
-from memory_system.utils import dump_slot_json, _extract_json_between, _hard_validate_slot_keys
-from memory_system.user_prompt import WORKING_SLOT_COMPRESS_USER_PROMPT
+from src.memory.memory_system.utils import (
+    dump_slot_json, 
+    _extract_json_between, 
+    _hard_validate_slot_keys,
+    _build_context_snapshot,
+    _safe_dump,
+    _truncate_text,
+)
+from src.memory.memory_system.user_prompt import (
+    WORKING_SLOT_COMPRESS_USER_PROMPT,
+    TRANSFER_EXPERIMENT_AGENT_CONTEXT_TO_WORKING_SLOTS_PROMPT,
+    TRANSFER_SLOT_TO_TEXT_PROMPT,
+    TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT,
+    TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT,
+    TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT,
+)
 from textwrap import dedent
+from src.agents.experiment_agent.sub_agents.experiment_master.workflow_state_machine import (
+    WorkflowContext,
+)
+from src.memory.memory_system import WorkingSlot, OpenAIClient, LLMClient
+from src.memory.memory_system.models import (
+    EpisodicRecord,
+    SemanticRecord,
+    ProceduralRecord,
+)
 
 class SlotProcess:
     def __init__(self):
@@ -21,7 +45,7 @@ class SlotProcess:
     def get_container_size(self) -> int:
         return len(self.slot_container)
     
-    async def filter_and_route_slots(self) -> deque[Dict[str, WorkingSlot]]:
+    async def filter_and_route_slots(self) -> List[Dict[str, WorkingSlot]]:
         for slot in self.slot_container.values():
             check_result = await slot.slot_filter(self.llm_model)
             print(check_result)
@@ -89,25 +113,173 @@ class SlotProcess:
             "Focus on key insights, important metrics, and actionable items. Output only the requested text inside the tags."
         )
 
-        user_prompt = dedent(f"""
-                        Convert the following WorkingSlot JSON into a concise text summary.
-
-                        Input WorkingSlot (JSON):
-
-                        {dump_slot_json(slot)}
-
-                        Output format: A plain text, WITHOUT ANY WRAPTAG.
-                        [Your concise text summary here]
-
-                        SUMMARY GUIDELINES:
-                        - Highlight key insights and important metrics.
-                        - Include actionable items or next steps if present.
-                        - Keep it clear, concise, and focused on utility.
-                        - Avoid unnecessary details or jargon.
-
-                        STRICT CONTRACT:
-                        - Output ONLY the text summary wrapped in the specified tags.
-                        """)
+        user_prompt = TRANSFER_SLOT_TO_TEXT_PROMPT.format(slot_json=dump_slot_json(slot))
 
         text = await self.llm_model.complete(system_prompt=system_prompt, user_prompt=user_prompt)
         return text
+
+    async def transfer_experiment_agent_context_to_working_slots(self, context: WorkflowContext, max_slots: int = 50) -> List[WorkingSlot]:
+        
+        if not isinstance(context, WorkflowContext):
+            raise TypeError("context must be an instance of WorkflowContext")
+
+        snapshot = self._build_context_snapshot(context)
+
+        system_prompt = (
+            "You are an expert workflow archivist. "
+            "Transform the provided Experiment Agent context into WorkingSlot JSON objects. "
+            "Each slot must capture the stage, topic, summary (≤120 words), attachments, and tags. "
+            "Summaries must follow a Situation→Action→Result narrative whenever possible."
+        )
+
+        user_prompt = TRANSFER_EXPERIMENT_AGENT_CONTEXT_TO_WORKING_SLOTS_PROMPT.format(
+            max_slots=max_slots,
+            snapshot=snapshot,
+        )
+
+        response = await self.llm_model.complete(system_prompt=system_prompt, user_prompt=user_prompt)
+        payload = _extract_json_between(response, "working-slots", "working-slots")
+        if not payload:
+            return []
+
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Failed to parse WorkingSlot JSON: {exc}") from exc
+
+        slots_data = data.get("slots", [])
+        if not isinstance(slots_data, list):
+            raise ValueError("`slots` must be a list.")
+
+        working_slots: List[WorkingSlot] = []
+        allowed_keys = {"stage", "topic", "summary", "attachments", "tags"}
+
+        for slot_dict in slots_data[:max_slots]:
+            if not isinstance(slot_dict, dict):
+                continue
+            _hard_validate_slot_keys(slot_dict, allowed_keys=allowed_keys)
+
+            stage = str(slot_dict.get("stage", "")).strip()
+            topic = str(slot_dict.get("topic", "")).strip()
+            summary = str(slot_dict.get("summary", "")).strip()
+            attachments = slot_dict.get("attachments") or {}
+            tags = slot_dict.get("tags") or []
+
+            slot = WorkingSlot(
+                stage=stage,
+                topic=topic,
+                summary=summary,
+                attachments=attachments,
+                tags=list(tags),
+            )
+
+            working_slots.append(slot)
+
+        return working_slots
+
+    async def generate_long_term_memory(self, routed_slots: List[Dict[str, WorkingSlot]]) -> List[Dict[str, Any]]:
+        allowed_types = {"semantic", "episodic", "procedural"}
+        inputs: List[Dict[str, Any]] = []
+
+        for pair in routed_slots:
+            memory_type = pair.get("memory_type")
+            slot = pair.get("slot")
+
+            if memory_type not in allowed_types or not isinstance(slot, WorkingSlot):
+                continue
+
+            try:
+                if memory_type == "semantic":
+                    input_dict = await self._slot_to_semantic_record(slot)
+                elif memory_type == "episodic":
+                    input_dict = await self._slot_to_episodic_record(slot)
+                else:
+                    input_dict = await self._slot_to_procedural_record(slot)
+            except Exception as exc:
+                print(
+                    f"[MEMORY] Failed to convert slot {getattr(slot, 'id', 'unknown')} "
+                    f"({memory_type}): {exc}"
+                )
+                continue
+
+            if inputs is not None:
+                inputs.append({"memory_type": memory_type, "input": input_dict})
+
+        return inputs
+
+    async def transfer_slot_to_semantic_record(self, slot: WorkingSlot) -> Dict[str, Any]:
+        system_prompt = (
+            "You are a senior research archivist. Convert the WorkingSlot into a reusable "
+            "semantic memory entry that captures enduring, generalizable insights."
+        )
+
+        user_prompt = TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT.format(slot_json=dump_slot_json(slot))
+
+        response = await self.llm_model.complete(system_prompt=system_prompt, user_prompt=user_prompt)
+        payload = _extract_json_between(response, "semantic-record", "semantic-record")
+
+        summary = payload.get("summary") or slot.summary
+        detail = payload.get("detail") or slot.summary
+        tags = payload.get("tags") or slot.tags
+
+        return {
+            "summary": summary.strip(),
+            "detail": detail.strip(),
+            "tags": list(tags),
+        }
+
+    async def transfer_slot_to_episodic_record(self, slot: WorkingSlot) -> Dict[str, Any]:
+        system_prompt = (
+            "You are a scientific lab journal assistant. Convert the WorkingSlot into an episodic "
+            "memory capturing Situation → Action → Result, including measurable outcomes."
+        )
+
+        user_prompt = TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT.format(slot_json=dump_slot_json(slot), stage=slot.stage)
+
+        response = await self.llm_model.complete(system_prompt=system_prompt, user_prompt=user_prompt)
+        payload = _extract_json_between(response, "episodic-record", "episodic-record")
+
+        stage = payload.get("stage") or slot.stage
+        summary = payload.get("summary") or slot.summary
+        detail = payload.get("detail") or {}
+        tags = payload.get("tags") or slot.tags
+
+        if not isinstance(detail, dict):
+            detail = {"notes": detail}
+
+        return {
+            "stage": stage.strip(),
+            "summary": summary.strip(),
+            "detail": detail,
+            "tags": list(tags),
+        }
+
+    async def transfer_slot_to_procedural_record(self, slot: WorkingSlot) -> Dict[str, Any]:
+        system_prompt = (
+            "You are an expert operations documenter. Convert the WorkingSlot into a procedural "
+            "memory entry describing reproducible steps/commands."
+        )
+
+        user_prompt = TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT.format(slot_json=dump_slot_json(slot))
+
+        response = await self.llm_model.complete(system_prompt=system_prompt, user_prompt=user_prompt)
+        payload = _extract_json_between(response, "procedural-record", "procedural-record")
+
+        name = payload.get("name") or slot.topic or "skill"
+        description = payload.get("description") or slot.summary
+        steps = payload.get("steps") or []
+        code = payload.get("code")
+        tags = payload.get("tags") or slot.tags
+
+        if isinstance(steps, str):
+            steps = [steps]
+
+        clean_steps = [step.strip() for step in steps if isinstance(step, str) and step.strip()]
+
+        return {
+            "name": name.strip(),
+            "description": description.strip(),
+            "steps": clean_steps,
+            "code": code.strip() if isinstance(code, str) else None,
+            "tags": list(tags),
+        }
