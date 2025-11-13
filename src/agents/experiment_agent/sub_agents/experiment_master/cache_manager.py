@@ -539,6 +539,32 @@ class CacheManager:
                     step_id = int(match.group(1))
                     context.code_plan_output = self.load_cache("code_plan", step_id)
 
+            # Load code_implement output if exists
+            if "last_code_implement" in cached_outputs:
+                implement_file = cached_outputs["last_code_implement"]
+                match = re.search(r"step(\d+)_", implement_file)
+                if match:
+                    step_id = int(match.group(1))
+                    context.code_implement_output = self.load_cache(
+                        "code_implement", step_id
+                    )
+                    if context.code_implement_output:
+                        print(
+                            f"[CACHE] Loaded step{step_id}_code_implement output (saved: {cached_outputs.get('last_code_implement_timestamp', 'unknown')})"
+                        )
+
+            # Load code_judge output if exists
+            if "last_code_judge" in cached_outputs:
+                judge_file = cached_outputs["last_code_judge"]
+                match = re.search(r"step(\d+)_", judge_file)
+                if match:
+                    step_id = int(match.group(1))
+                    context.code_judge_output = self.load_cache("code_judge", step_id)
+                    if context.code_judge_output:
+                        print(
+                            f"[CACHE] Loaded step{step_id}_code_judge output (saved: {cached_outputs.get('last_code_judge_timestamp', 'unknown')})"
+                        )
+
             print(f"[CACHE] Restored workflow state:")
             print(f"  State: {context.current_state.value}")
             print(f"  Checklist step: {context.current_checklist_step}")
@@ -547,6 +573,8 @@ class CacheManager:
             print(f"  Execution counter: {context.execution_step_counter}")
             print(f"  Has pre_analysis: {context.pre_analysis_output is not None}")
             print(f"  Has code_plan: {context.code_plan_output is not None}")
+            print(f"  Has code_implement: {context.code_implement_output is not None}")
+            print(f"  Has code_judge: {context.code_judge_output is not None}")
 
             return True
 

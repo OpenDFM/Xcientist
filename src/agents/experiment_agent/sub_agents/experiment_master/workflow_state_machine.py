@@ -353,11 +353,17 @@ class WorkflowStateMachine:
 
         # Check if current step is accepted
         step_accepted = False
-        if hasattr(judge_output, "is_consistent"):
-            step_accepted = judge_output.is_consistent
-        elif hasattr(judge_output, "overall_score"):
-            # Fallback to score-based evaluation
-            step_accepted = judge_output.overall_score >= 0.7
+        # Handle both dict and object formats (for cached vs fresh outputs)
+        if isinstance(judge_output, dict):
+            step_accepted = judge_output.get("is_consistent", False)
+            if not step_accepted and "overall_score" in judge_output:
+                step_accepted = judge_output.get("overall_score", 0) >= 0.7
+        else:
+            if hasattr(judge_output, "is_consistent"):
+                step_accepted = judge_output.is_consistent
+            elif hasattr(judge_output, "overall_score"):
+                # Fallback to score-based evaluation
+                step_accepted = judge_output.overall_score >= 0.7
 
         if step_accepted:
             # Current step passed review
@@ -396,10 +402,16 @@ class WorkflowStateMachine:
                 context.checklist_step_retry_count += 1
 
                 feedback = ""
-                if hasattr(judge_output, "next_steps"):
-                    feedback = judge_output.next_steps
-                elif hasattr(judge_output, "overall_assessment"):
-                    feedback = judge_output.overall_assessment
+                # Handle both dict and object formats
+                if isinstance(judge_output, dict):
+                    feedback = judge_output.get("next_steps") or judge_output.get(
+                        "overall_assessment", ""
+                    )
+                else:
+                    if hasattr(judge_output, "next_steps"):
+                        feedback = judge_output.next_steps
+                    elif hasattr(judge_output, "overall_assessment"):
+                        feedback = judge_output.overall_assessment
 
                 return (
                     WorkflowState.CODE_IMPLEMENT,

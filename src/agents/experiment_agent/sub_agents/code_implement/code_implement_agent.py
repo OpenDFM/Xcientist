@@ -395,6 +395,14 @@ class CodeImplementAgent:
             implementation_result.final_output
         )
 
+        # Handle case where implementation was interrupted or failed
+        if intermediate_output is None:
+            print_error("Implementation did not produce output (possibly interrupted)")
+            raise RuntimeError(
+                "Implementation agent did not produce output. "
+                "This may be due to interruption or internal error."
+            )
+
         print_success("Implementation completed")
 
         # Display intermediate implementation results
