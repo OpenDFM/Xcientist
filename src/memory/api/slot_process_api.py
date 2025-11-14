@@ -118,7 +118,7 @@ class SlotProcess:
         text = await self.llm_model.complete(system_prompt=system_prompt, user_prompt=user_prompt)
         return text
 
-    '''async def transfer_experiment_agent_context_to_working_slots(self, context: WorkflowContext, max_slots: int = 50) -> List[WorkingSlot]:
+    async def transfer_experiment_agent_context_to_working_slots(self, context: WorkflowContext, max_slots: int = 50) -> List[WorkingSlot]:
         
         if not isinstance(context, WorkflowContext):
             raise TypeError("context must be an instance of WorkflowContext")
@@ -175,7 +175,7 @@ class SlotProcess:
 
             working_slots.append(slot)
 
-        return working_slots'''
+        return working_slots
 
     async def generate_long_term_memory(self, routed_slots: List[Dict[str, WorkingSlot]]) -> List[Dict[str, Any]]:
         allowed_types = {"semantic", "episodic", "procedural"}
