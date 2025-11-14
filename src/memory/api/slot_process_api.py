@@ -1,6 +1,6 @@
 import json
 
-from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union, Any
 from collections import deque
 from src.memory.memory_system.utils import (
     dump_slot_json, 
@@ -113,12 +113,12 @@ class SlotProcess:
             "Focus on key insights, important metrics, and actionable items. Output only the requested text inside the tags."
         )
 
-        user_prompt = TRANSFER_SLOT_TO_TEXT_PROMPT.format(slot_json=dump_slot_json(slot))
+        user_prompt = TRANSFER_SLOT_TO_TEXT_PROMPT.format(dump_slot_json=dump_slot_json(slot))
 
         text = await self.llm_model.complete(system_prompt=system_prompt, user_prompt=user_prompt)
         return text
 
-    async def transfer_experiment_agent_context_to_working_slots(self, context: WorkflowContext, max_slots: int = 50) -> List[WorkingSlot]:
+    '''async def transfer_experiment_agent_context_to_working_slots(self, context: WorkflowContext, max_slots: int = 50) -> List[WorkingSlot]:
         
         if not isinstance(context, WorkflowContext):
             raise TypeError("context must be an instance of WorkflowContext")
@@ -175,7 +175,7 @@ class SlotProcess:
 
             working_slots.append(slot)
 
-        return working_slots
+        return working_slots'''
 
     async def generate_long_term_memory(self, routed_slots: List[Dict[str, WorkingSlot]]) -> List[Dict[str, Any]]:
         allowed_types = {"semantic", "episodic", "procedural"}
@@ -190,11 +190,11 @@ class SlotProcess:
 
             try:
                 if memory_type == "semantic":
-                    input_dict = await self._slot_to_semantic_record(slot)
+                    input_dict = await self.transfer_slot_to_semantic_record(slot)
                 elif memory_type == "episodic":
-                    input_dict = await self._slot_to_episodic_record(slot)
+                    input_dict = await self.transfer_slot_to_episodic_record(slot)
                 else:
-                    input_dict = await self._slot_to_procedural_record(slot)
+                    input_dict = await self.transfer_slot_to_procedural_record(slot)
             except Exception as exc:
                 print(
                     f"[MEMORY] Failed to convert slot {getattr(slot, 'id', 'unknown')} "
@@ -213,7 +213,7 @@ class SlotProcess:
             "semantic memory entry that captures enduring, generalizable insights."
         )
 
-        user_prompt = TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT.format(slot_json=dump_slot_json(slot))
+        user_prompt = TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT.format(dump_slot_json=dump_slot_json(slot))
 
         response = await self.llm_model.complete(system_prompt=system_prompt, user_prompt=user_prompt)
         payload = _extract_json_between(response, "semantic-record", "semantic-record")
@@ -234,7 +234,7 @@ class SlotProcess:
             "memory capturing Situation → Action → Result, including measurable outcomes."
         )
 
-        user_prompt = TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT.format(slot_json=dump_slot_json(slot), stage=slot.stage)
+        user_prompt = TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT.format(dump_slot_json=dump_slot_json(slot), stage=slot.stage)
 
         response = await self.llm_model.complete(system_prompt=system_prompt, user_prompt=user_prompt)
         payload = _extract_json_between(response, "episodic-record", "episodic-record")
@@ -260,7 +260,7 @@ class SlotProcess:
             "memory entry describing reproducible steps/commands."
         )
 
-        user_prompt = TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT.format(slot_json=dump_slot_json(slot))
+        user_prompt = TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT.format(dump_slot_json=dump_slot_json(slot))
 
         response = await self.llm_model.complete(system_prompt=system_prompt, user_prompt=user_prompt)
         payload = _extract_json_between(response, "procedural-record", "procedural-record")

@@ -84,14 +84,7 @@ async def main() -> None:
 
                 {text}
             """))
-
-        print('''--------------------SlotProcess test: generate long term memory--------------------''')
-        ltm_records = await slot_process.generate_long_term_memory(result)
-        for rec in ltm_records:
-            print(dedent(f"""
-                Generated LTM ({rec.__class__.__name__}):
-                {rec.to_dict()}
-            """))
+        
         print('''--------------------SlotProcess test: compress--------------------''')
         compressed_slot = await slot_process.compress_slots()
         print(f"Compressed slot: {compressed_slot.to_dict()}")
