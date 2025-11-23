@@ -30,7 +30,7 @@ def short_term_slot_trace(context: WorkflowContext):
             )
 
             if context.iteration_count >= context.max_iterations or context.current_state == WorkflowState.COMPLETED:
-                working_slots = await self.slot_process.transfer_experiment_agent_context_to_working_slots(context=context)
+                working_slots = await self.slot_process.transfer_experiment_agent_context_to_working_slots(context=context, state=context.current_state)
 
                 for slot in working_slots:
                     self.slot_process.add(slot)

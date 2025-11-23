@@ -118,12 +118,15 @@ class SlotProcess:
         text = await self.llm_model.complete(system_prompt=system_prompt, user_prompt=user_prompt)
         return text
 
-    async def transfer_experiment_agent_context_to_working_slots(self, context: WorkflowContext, max_slots: int = 50) -> List[WorkingSlot]:
+    async def transfer_experiment_agent_context_to_working_slots(self, context: WorkflowContext, state: str, max_slots: int = 50) -> List[WorkingSlot]:
         
         if not isinstance(context, WorkflowContext):
             raise TypeError("context must be an instance of WorkflowContext")
 
-        snapshot = self._build_context_snapshot(context)
+        if stage not in {"pre_analysis", "code_plan", "code_implement", "code_judge", "experiment_execute", "experiment_analysis"}:
+            return []
+
+        snapshot = _build_context_snapshot(context, stage)
 
         system_prompt = (
             "You are an expert workflow archivist. "

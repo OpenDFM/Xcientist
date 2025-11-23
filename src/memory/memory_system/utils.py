@@ -96,7 +96,9 @@ def _transfer_dict_to_semantic_text(d: Dict[str, Any], prefix: str = "") -> str:
     return "\n".join(lines)
 
 
-def _build_context_snapshot(self, context: WorkflowContext, char_limit: int = 4000) -> str:
+def _build_context_snapshot(self, context: WorkflowContext, stage: str, char_limit: int = 4000) -> str:
+    attr = stage + "_output"
+
     snapshot = {
         "input": {
             "type": context.input_type,
@@ -109,14 +111,7 @@ def _build_context_snapshot(self, context: WorkflowContext, char_limit: int = 40
             "retry_count": context.retry_count,
             "last_error": context.last_error,
         },
-        "outputs": {
-            "pre_analysis": self._safe_dump(context.pre_analysis_output),
-            "code_plan": self._safe_dump(context.code_plan_output),
-            "code_implement": self._safe_dump(context.code_implement_output),
-            "code_judge": self._safe_dump(context.code_judge_output),
-            "experiment_execute": self._safe_dump(context.experiment_execute_output),
-            "experiment_analysis": self._safe_dump(context.experiment_analysis_output),
-        },
+        "outputs": self._safe_dump(getattr(context, attr)),
         "history": [
             {
                 "from": transition.from_state.value,
