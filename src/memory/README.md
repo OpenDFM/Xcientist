@@ -8,6 +8,7 @@
 | get_container_size   | ✅ Debugged |
 | filter_and_route_slots  | ✅ Debugged |
 | compress_slots      | ✅ Debugged |
+| query      | ✅ Debugged |
 | transfer_slot_to_text | ✅ Debugged |
 | transfer_experiment_agent_context_to_working_slots | ❌ Not yet debugged |
 | generate_long_term_memory | ✅ Debugged |
@@ -70,6 +71,26 @@ research_slot = WorkingSlot(
 - **`get_container_size()`** – inspect how many slots are currently buffered.
   ```python
   print(f"{slot_process.get_container_size()} slots queued for review")
+  ```
+
+- **`query(query_text, limit=5, key_words=None)`** – rank the in-memory slots (no LLM call) by overlap with your query.
+  ```python
+  slot_process.clear_container()
+  slot_process.add_slot(research_slot)
+  slot_process.add_slot(WorkingSlot(
+      stage="execution",
+      topic="rl_pipeline",
+      summary="Policy distillation cut variance by 2% using episodic recall buffers.",
+      tags=["rl", "execution"],
+  ))
+
+  hits = slot_process.query(
+      query_text="episodic recall variance",
+      limit=2,
+      key_words=["episodic", "variance"],
+  )
+  for score, slot in hits:
+      print(f"{score:.2f} :: {slot.topic}")
   ```
 
 - **`filter_and_route_slots()`** – asynchronously discard low-quality slots and route the rest to a memory type.

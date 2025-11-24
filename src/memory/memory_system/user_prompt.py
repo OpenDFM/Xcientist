@@ -1,9 +1,17 @@
 from textwrap import dedent
 
 WORKING_SLOT_FILTER_USER_PROMPT = dedent("""
-Determine whether this slot should be converted to long-term memory (LTM).
+You guard ResearchAgent's long-term memory entrance. Decide if this WorkingSlot deserves promotion into FAISS storage.
 
-Evaluation dimensions: novelty (new information), utility (reusable value), stability (whether it is not easily outdated).
+Assess four dimensions:
+1. Novelty – is this meaningfully new compared to typical research agent discoveries?
+2. Utility – can future tasks reuse the insight, metric, procedure, or decision?
+3. Stability – will the information stay valid for multiple iterations (i.e., not a transient log)?
+4. Evidence – do attachments, metrics, or tags provide concrete support?
+
+Return `yes` only when at least two dimensions are clearly satisfied or the slot closes a critical loop (e.g., root-causing a failure, finishing a checklist item). Otherwise return `no`.
+
+STRICT OUTPUT: respond with a single lowercase word: `yes` or `no`. Do not explain.
 
 <slot-dump>
 {slot_dump}
@@ -11,15 +19,18 @@ Evaluation dimensions: novelty (new information), utility (reusable value), stab
 """)
 
 WORKING_SLOT_ROUTE_USER_PROMPT = dedent("""
-Classify this slot into one of the following categories:
+Map this WorkingSlot to the correct ResearchAgent long-term memory family. Choose EXACTLY one label:
 
--semantic: General conclusions/rules that can be reused across tasks
+- semantic → enduring insights, generalized conclusions, reusable heuristics.
+- episodic → Situation → Action → Result traces with metrics, timestamps, or narrative context.
+- procedural → MUST provide "when to use", and OPTIONAL reproducible steps, commands, pipelines, or interface contracts that express "how to".
 
--episodic: A certain process (S→A→R), including indicators/results
+Tie-breaking rules:
+- Prefer episodic if a chronological action/result trail exists, even if insights appear.
+- Prefer procedural when explicit steps/tools/commands are primary.
+- Otherwise output semantic.
 
--procedural: Practices/steps/commands/function calls that can be reused as skills
-
-Only output a string, either "semantic", "procedural", or "episodic".
+Return only one of: "semantic", "episodic", "procedural".
 
 <slot-dump>
 {slot_dump}
@@ -27,11 +38,14 @@ Only output a string, either "semantic", "procedural", or "episodic".
 """)
 
 WORKING_SLOT_COMPRESS_USER_PROMPT = dedent("""
-Read the following WorkingSlots and compress them into ONE consolidated WorkingSlot.
+Merge the provided WorkingSlots into ONE distilled WorkingSlot suitable for the short-term queue.
 
-Your goals:
-- Deduplicate overlapping content while keeping key facts.
-- Prefer information that is novel, useful across tasks, and stable (unlikely to expire soon).
+Requirements:
+- Remove duplicate facts while keeping supporting metrics or attachments that future agents might need.
+- Surface causal links (Situation → Action → Result) whenever present.
+- Normalize tags to 1–4 lowercase tokens.
+- Keep summary ≤150 words; emphasize reusable, stable insights spanning research, execution, and follow-up actions.
+- If attachments include command snippets, metrics, or notes, fold only the most representative subset into the compressed slot.
 
 Input WorkingSlots (JSON):
 
@@ -43,13 +57,13 @@ Output format (STRICTLY JSON):
 <compressed-slot>
 {{
     "stage": "compressed",
-    "topic": "a short topic slug",
-    "summary": "≤150-word compact synthesis",
+    "topic": "concise topic slug",
+    "summary": "≤150 words describing the merged knowledge",
     "attachments": {{
-        "notes": {{"items": ["bullet1","bullet2"]}},
-        "metrics": {{"acc": 0.91}},
+        "notes": {{"items": ["bullet 1","bullet 2"]}},
+        "metrics": {{"name": value}},
         "procedures": {{"steps": ["step1","step2"]}},
-        "sources": {{"ids": ["src1","src2"]}}
+        "artifacts": {{"paths": ["..."]}}
     }},
     "tags": ["tag1","tag2"]
 }}
@@ -57,120 +71,124 @@ Output format (STRICTLY JSON):
 """)
 
 ABSTRACT_EPISODIC_TO_SEMANTIC_PROMPT = dedent("""
-Summarize the episodic records below into a single semantic memory entry.
-Highlight enduring insights, causal links, and measurable outcomes.
-Respond with JSON containing `summary`, `detail`, `tags`.
+You aggregate episodic traces into a single semantic memory entry. Capture the durable lesson that explains why the cluster exists.
 
+Instructions:
+- Highlight causal mechanisms, success/failure thresholds, and metrics that repeatedly appeared.
+- Mention representative stages (e.g., experiment_execute) only if they add meaning.
+- Provide tags that cover both domain concepts and process cues (e.g., ["vision","fog","stability"]).
+- Return STRICT JSON containing `summary`, `detail`, `tags`.
+
+Episodic cluster notes:
 {episodic_notes}
 """)
 
 TRANSFER_SLOT_TO_TEXT_PROMPT = dedent("""
-Convert the following WorkingSlot JSON into a concise text summary.
+Convert the WorkingSlot JSON into a concise human-readable paragraph (no tags, no JSON). This summary feeds chat surfaces, not FAISS.
+
+Guidance:
+- Mention stage, topic, and the core outcome or decision.
+- Cite standout metrics or attachments inline (e.g., "accuracy climbed to 0.73").
+- Describe actionable next steps only if explicitly recorded.
+- Limit to 2–4 sentences; avoid bulleting or markdown.
 
 Input WorkingSlot (JSON):
 
 {dump_slot_json}
-
-Output format: A plain text, WITHOUT ANY WRAPTAG.
-[Your concise text summary here]
-
-SUMMARY GUIDELINES:
-- Highlight key insights and important metrics.
-- Include actionable items or next steps if present.
-- Keep it clear, concise, and focused on utility.
-- Avoid unnecessary details or jargon.
-
-STRICT CONTRACT:
-- Output ONLY the text summary wrapped in the specified tags.
 """)
 
 TRANSFER_EXPERIMENT_AGENT_CONTEXT_TO_WORKING_SLOTS_PROMPT = dedent("""
-    Convert the following Experiment Agent workflow context into at most {max_slots} WorkingSlot entries.
+Convert the Experiment Agent workflow context into at most {max_slots} WorkingSlot entries ready for filtering/routing.
 
-    Context Snapshot:
-    <workflow-context>
-    {snapshot}
-    </workflow-context>
+Context Snapshot:
+<workflow-context>
+{snapshot}
+</workflow-context>
 
-    Guidelines:
-    1. Identify distinct, reusable takeaways (e.g., agent decisions, execution outcomes, major findings).
-    2. stage must be one of: pre_analysis, code_plan, code_implement, code_judge,
-        experiment_execute, experiment_analysis, meta.
-    3. topic is a 3-6 word slug describing the slot focus.
-    4. attachments is a dict (you may include keys such as notes ({{"items": []}}),
-        metrics ({{}}), issues ({{"list": []}}), actions ({{"list": []}}), artifacts ({{"paths": []}})).
-        Omit keys that aren't applicable.
-    5. tags is a short list of lowercase keywords.
-    6. If there is insufficient information, return an empty slots list but still follow the specified JSON format.
+Authoring rules:
+1. Each slot MUST capture a single reusable takeaway (decision, discovery, bottleneck, or command).
+2. `stage` MUST be one of: pre_analysis, code_plan, code_implement, code_judge, experiment_execute, experiment_analysis, meta.
+3. `summary` follows Situation → Action → Result whenever data exists; keep ≤130 words.
+4. `topic` is a 3–6 word slug referencing the problem space.
+5. `attachments` is optional but, when present, group similar info under keys such as
+   - "notes": {{"items": []}}
+   - "metrics": {{}}
+   - "issues": {{"list": []}}
+   - "actions": {{"list": []}}
+6. `tags` is a list of lowercase keywords (≤5 items) mixing domain + workflow hints.
+7. If the context lacks meaningful content, return `"slots": []` but keep the envelope.
 
-    Output STRICTLY as JSON within the tags below:
-    <working-slots>
+Output STRICTLY as JSON within the tags below:
+<working-slots>
+{{
+    "slots": [
     {{
-        "slots": [
-        {{
-            "stage": "code_plan",
-            "topic": "plan coverage",
-            "summary": "Describe situation, action, result.",
-            "attachments": {{
+        "stage": "code_plan",
+        "topic": "coverage planning",
+        "summary": "Situation/Action/Result narrative...",
+        "attachments": {{
             "notes": {{"items": ["detail 1", "detail 2"]}},
             "metrics": {{"acc": 0.92}},
             "issues": {{"list": []}},
             "actions": {{"list": ["follow-up 1"]}}
-            }},
-            "tags": ["plan","coverage"]
-        }}
-        ]
+        }},
+        "tags": ["plan","coverage"]
     }}
-    </working-slots>
-    """
-)
+    ]
+}}
+</working-slots>
+""")
 
 TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT = dedent("""
-    Convert the WorkingSlot below into a semantic memory record.
+Transform the WorkingSlot into a semantic memory entry suitable for FAISS retrieval.
 
-    <working-slot>
-    {dump_slot_json}
-    </working-slot>
+Expectations:
+- `summary` (≤80 words) expresses the enduring conclusion or heuristic.
+- `detail` should elaborate supporting evidence, metrics, or caveats. Use "\\n" to separate logically distinct statements.
+- `tags` mixes domain terms and method/process hints.
 
-    Output STRICTLY as JSON inside the tags:
-    <semantic-record>
-    {{
-        "summary": "≤80 word overview of the key insight",
-        "detail": "Detailed explanation (you may use '\\n' to separate points)",
-        "tags": ["keyword1","keyword2"]
-    }}
-    </semantic-record>
-    """
+<working-slot>
+{dump_slot_json}
+</working-slot>
+
+Output STRICTLY as JSON inside the tags:
+<semantic-record>
+{{
+    "summary": "semantic insight summary",
+    "detail": "expanded reasoning and context",
+    "tags": ["keyword1","keyword2"]
+}}
+</semantic-record>
+"""
 )
 
 TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT = dedent("""
-    Convert the WorkingSlot below into an episodic memory record.
+Convert the WorkingSlot into an episodic memory record emphasizing Situation → Action → Result.
 
-    <working-slot>
-    {dump_slot_json}
-    </working-slot>
+<working-slot>
+{dump_slot_json}
+</working-slot>
 
-    Output STRICTLY as JSON inside the tags:
-    <episodic-record>
-    {{
-        "stage": "{stage}",
-        "summary": "≤80 word SAR-style overview",
-        "detail": {{
+Output STRICTLY as JSON inside the tags:
+<episodic-record>
+{{
+    "stage": "{stage}",
+    "summary": "≤80 word SAR overview",
+    "detail": {{
         "situation": "Context and constraints",
         "actions": ["action 1","action 2"],
         "results": ["result 1","result 2"],
         "metrics": {{}},
         "artifacts": []
-        }},
-        "tags": ["keyword1","keyword2"]
-    }}
-    </episodic-record>
-    """
-)
+    }},
+    "tags": ["keyword1","keyword2"]
+}}
+</episodic-record>
+""")
 
 
 TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT = dedent("""
-Convert the WorkingSlot below into a procedural memory record.
+Convert the WorkingSlot into a procedural memory entry that captures a reusable skill or checklist.
 
 <working-slot>
 {dump_slot_json}
@@ -180,11 +198,10 @@ Output STRICTLY as JSON inside the tags:
 <procedural-record>
 {{
     "name": "short skill name",
-    "description": "≤60 word explanation of when/why to use it",
+    "description": "≤60 words explaining when/why to apply it",
     "steps": ["step 1","step 2","step 3"],
     "code": "optional snippet or empty string",
     "tags": ["keyword1","keyword2"]
 }}
 </procedural-record>
-"""
-)
+""")

@@ -9,6 +9,7 @@ from src.memory.memory_system.utils import (
     _build_context_snapshot,
     _safe_dump,
     _truncate_text,
+    compute_overlap_score,
 )
 from src.memory.memory_system.user_prompt import (
     WORKING_SLOT_COMPRESS_USER_PROMPT,
@@ -44,7 +45,18 @@ class SlotProcess:
 
     def get_container_size(self) -> int:
         return len(self.slot_container)
-    
+
+    def query(self, query_text: str, limit: int = 5, key_words: Optional[List[str]] = None) -> List[Tuple[float, WorkingSlot]]:
+        k = min(limit, len(self.slot_container))
+
+        scored_slots: List[Tuple[float, WorkingSlot]] = []
+        for slot in self.slot_container.values():
+            score = compute_overlap_score(query_text, slot.summary, key_words)
+            scored_slots.append((score, slot))
+        scored_slots.sort(key=lambda x: x[0], reverse=True)
+        
+        return scored_slots[:k]
+        
     async def filter_and_route_slots(self) -> List[Dict[str, WorkingSlot]]:
         for slot in self.slot_container.values():
             check_result = await slot.slot_filter(self.llm_model)
@@ -78,7 +90,7 @@ class SlotProcess:
         system_prompt = (
             "You are an expert research assistant and memory compressor. "
             "Given multiple WorkingSlot JSON dumps, produce a single, compact summary "
-            "that preserves non-redundant, reusable knowledge while discarding noise. "
+            "that preserves non-redundant, reusable knowledge while discarding noise."
             "Be precise, consistent, and avoid hallucinations. Output only the requested JSON inside the tags."
         )
         user_prompt = WORKING_SLOT_COMPRESS_USER_PROMPT.format(slots_block=slots_block)
@@ -118,7 +130,7 @@ class SlotProcess:
         text = await self.llm_model.complete(system_prompt=system_prompt, user_prompt=user_prompt)
         return text
 
-    async def transfer_experiment_agent_context_to_working_slots(self, context: WorkflowContext, stage: str, max_slots: int = 50) -> List[WorkingSlot]:
+    async def transfer_experiment_agent_context_to_working_slots(self, context: WorkflowContext, state: str, max_slots: int = 50) -> List[WorkingSlot]:
         
         if not isinstance(context, WorkflowContext):
             raise TypeError("context must be an instance of WorkflowContext")
@@ -126,7 +138,7 @@ class SlotProcess:
         if stage not in {"pre_analysis", "code_plan", "code_implement", "code_judge", "experiment_execute", "experiment_analysis"}:
             return []
 
-        snapshot = _build_context_snapshot(context, stage)
+        snapshot = _build_context_snapshot(context, state)
 
         system_prompt = (
             "You are an expert workflow archivist. "

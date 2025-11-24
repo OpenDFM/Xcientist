@@ -96,8 +96,8 @@ def _transfer_dict_to_semantic_text(d: Dict[str, Any], prefix: str = "") -> str:
     return "\n".join(lines)
 
 
-def _build_context_snapshot(self, context: WorkflowContext, stage: str, char_limit: int = 4000) -> str:
-    attr = stage + "_output"
+def _build_context_snapshot(self, context: WorkflowContext, state: str, char_limit: int = 4000) -> str:
+    attr = state + "_output"
 
     snapshot = {
         "input": {
