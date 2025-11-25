@@ -52,13 +52,13 @@ from src.agents.experiment_agent.sub_agents.experiment_execute import (
 from src.agents.experiment_agent.sub_agents.experiment_analysis import (
     create_experiment_analysis_agent,
 )
-from src.memory.api.slot_process_api import (
+from memory.api.slot_process_api import (
     SlotProcess,
 )
-from src.memory.memory_system.decorator import (
+from memory.decorator import (
     short_term_slot_trace,
 )
-from src.memory.api.faiss_memory_system_api import (
+from memory.api.faiss_memory_system_api import (
     FAISSMemorySystem,
 )
 

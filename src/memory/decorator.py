@@ -1,5 +1,5 @@
 from functools import wraps
-from src.memory.api.slot_process_api import SlotProcess
+from memory.api.slot_process_api import SlotProcess
 from src.agents.experiment_agent.sub_agents.experiment_master.workflow_state_machine import (
     WorkflowContext,
     WorkflowState,

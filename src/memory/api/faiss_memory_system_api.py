@@ -5,7 +5,7 @@ import sys
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, Field, field_validator, validate_call
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union
-from memory_system import (
+from memory.memory_system import (
     FaissVectorStore,
     SemanticRecord,
     EpisodicRecord,
@@ -13,9 +13,9 @@ from memory_system import (
     OpenAIClient,
     ABSTRACT_EPISODIC_TO_SEMANTIC_PROMPT,
 )
-from memory_system.utils import now_iso, new_id, _transfer_dict_to_semantic_text
-from memory_system.denstream import DenStream
-from .base_memory_system_api import MemorySystem, MemorySystemConfig, SemanticRecordPayload, EpisodicRecordPayload, ProceduralRecordPayload
+from memory.memory_system.utils import now_iso, new_id, _transfer_dict_to_semantic_text
+from memory.memory_system.denstream import DenStream
+from memory.api.base_memory_system_api import MemorySystem, MemorySystemConfig, SemanticRecordPayload, EpisodicRecordPayload, ProceduralRecordPayload
 from collections import defaultdict
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))

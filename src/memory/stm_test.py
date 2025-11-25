@@ -8,8 +8,8 @@ SRC_DIR = os.path.dirname(CURRENT_DIR)
 if SRC_DIR not in sys.path:
     sys.path.append(SRC_DIR)
 
-from src.memory.api.slot_process_api import SlotProcess
-from src.memory.memory_system import WorkingSlot
+from memory.api.slot_process_api import SlotProcess
+from memory.memory_system import WorkingSlot
 from textwrap import dedent
 
 async def main() -> None:

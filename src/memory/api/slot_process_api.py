@@ -2,7 +2,7 @@ import json
 
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union, Any
 from collections import deque
-from src.memory.memory_system.utils import (
+from memory.memory_system.utils import (
     dump_slot_json, 
     _extract_json_between, 
     _hard_validate_slot_keys,
@@ -11,7 +11,7 @@ from src.memory.memory_system.utils import (
     _truncate_text,
     compute_overlap_score,
 )
-from src.memory.memory_system.user_prompt import (
+from memory.memory_system.user_prompt import (
     WORKING_SLOT_COMPRESS_USER_PROMPT,
     TRANSFER_EXPERIMENT_AGENT_CONTEXT_TO_WORKING_SLOTS_PROMPT,
     TRANSFER_SLOT_TO_TEXT_PROMPT,
@@ -20,11 +20,11 @@ from src.memory.memory_system.user_prompt import (
     TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT,
 )
 from textwrap import dedent
-from src.agents.experiment_agent.sub_agents.experiment_master.workflow_state_machine import (
+from agents.experiment_agent.sub_agents.experiment_master.workflow_state_machine import (
     WorkflowContext,
 )
-from src.memory.memory_system import WorkingSlot, OpenAIClient, LLMClient
-from src.memory.memory_system.models import (
+from memory.memory_system import WorkingSlot, OpenAIClient, LLMClient
+from memory.memory_system.models import (
     EpisodicRecord,
     SemanticRecord,
     ProceduralRecord,

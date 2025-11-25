@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Tuple, Union
-from .models import SemanticRecord, EpisodicRecord, ProceduralRecord
-from .utils import _nomralize_embedding, _jsonable_meta, compute_overlap_score
+from memory.memory_system.models import SemanticRecord, EpisodicRecord, ProceduralRecord
+from memory.memory_system.utils import _nomralize_embedding, _jsonable_meta, compute_overlap_score
 from sentence_transformers import SentenceTransformer
 from rank_bm25 import BM25Okapi
 

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import uuid4
 from typing import Iterable, Optional, Tuple, Any, Dict
-from agents.experiment_agent.sub_agents.experiment_master.workflow_state_machine import WorkflowContext
+#from src.agents.experiment_agent.sub_agents.experiment_master.workflow_state_machine import WorkflowContext
 
 
 import json, re
@@ -96,7 +96,7 @@ def _transfer_dict_to_semantic_text(d: Dict[str, Any], prefix: str = "") -> str:
     return "\n".join(lines)
 
 
-def _build_context_snapshot(self, context: WorkflowContext, state: str, char_limit: int = 4000) -> str:
+def _build_context_snapshot(self, context, state: str, char_limit: int = 4000) -> str:
     attr = state + "_output"
 
     snapshot = {
