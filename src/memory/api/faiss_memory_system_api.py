@@ -11,8 +11,8 @@ from memory.memory_system import (
     EpisodicRecord,
     ProceduralRecord,
     OpenAIClient,
-    ABSTRACT_EPISODIC_TO_SEMANTIC_PROMPT,
 )
+from memory.memory_system.user_prompt import ABSTRACT_EPISODIC_TO_SEMANTIC_PROMPT
 from memory.memory_system.utils import now_iso, new_id, _transfer_dict_to_semantic_text
 from memory.memory_system.denstream import DenStream
 from memory.api.base_memory_system_api import MemorySystem, MemorySystemConfig, SemanticRecordPayload, EpisodicRecordPayload, ProceduralRecordPayload
@@ -92,11 +92,11 @@ class FAISSMemorySystem(MemorySystem):
     
     def get_last_k_records(self, k: int) -> Tuple[Union[List[SemanticRecord], List[EpisodicRecord], List[ProceduralRecord]], int]:
         if k >= self.size:
-            return [record for record in self.vector_store.meta.values()], self.size
+            return ([record.to_dict() for record in self.vector_store.meta.values()], self.size)
         
         else:
             sorted_fids = sorted(self.vector_store.fidmap2mid.keys(), reverse=True)
-            return [self.vector_store.meta[fid] for fid in sorted_fids[:real_k]], k
+            return ([self.vector_store.meta[fid].to_dict() for fid in sorted_fids[:k]], k)
         
     def is_exists(self, mids: List[str]) -> List[bool]:
         reverse_map = {mid: fid for fid, mid in self.vector_store.fidmap2mid.items()}
@@ -130,8 +130,8 @@ class FAISSMemorySystem(MemorySystem):
     def delete(self, mids: List[str]) -> bool:
         try:
             self.vector_store.delete(mids)
-            if self.memory_type == "episodic":
-                self.cluster_machine = DenStream() # Reset clustering machine
+            '''if self.memory_type == "episodic":
+                self.cluster_machine = DenStream() # Reset clustering machine'''
             return True
         except Exception as e:
             print(f"Error deleting memories: {e}")
@@ -141,7 +141,7 @@ class FAISSMemorySystem(MemorySystem):
         query_text: str, 
         method: str = "embedding", 
         limit: int = 5, 
-        filters: Dict | None = None) ->List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
+        filters: Optional[Dict] = None) ->List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
         limit = min(limit, self.size)
         try:
             results = self.vector_store.query(query_text, method=method, limit=limit, filters=filters)
@@ -177,12 +177,12 @@ class FAISSMemorySystem(MemorySystem):
             # Only abstract clusters that meet the PMC and consistency thresholds, and have been updated in this batch
             if cl.kind.value == "PMC" and cl.avg_pairwise_cos() >= consistency_threshold and cl.id in updated_cluster_id:
                 member_ids = cidmap2mid.get(cl.id, [])
-                if not member_ids:
+                if len(member_ids) == 0:
                     continue
 
                 episodic_notes = []
                 for mid in member_ids:
-                    record = midmap2epirec.get(mid)
+                    record = midmap2epirec.get(mid, None)
                     if not record:
                         continue
                     if isinstance(record.detail, dict):
@@ -246,7 +246,7 @@ class FAISSMemorySystem(MemorySystem):
             record: Union[SemanticRecord, EpisodicRecord, ProceduralRecord], 
             method: str = "embedding", 
             k: int = 5,
-            filters: Dict | None = None) -> List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
+            filters: Optional[Dict] = None) -> List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
         if isinstance(record, SemanticRecord):
             query_text = record.detail
         elif isinstance(record, EpisodicRecord):

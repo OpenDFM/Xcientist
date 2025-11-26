@@ -67,9 +67,13 @@ async def main() -> None:
     slot_process.clear_container()
     print(f"Slot container size after clear: {slot_process.get_container_size()}")
 
-    print('''--------------------SlotProcess test: fliter and route--------------------''')
+    print('''--------------------SlotProcess test: query--------------------''')
     slot_process.add_slot(trivial_working_slot)
     slot_process.add_slot(valuable_working_slot)
+    result = slot_process.query(query_text="RL agent", limit=2)
+    print(result)
+
+    print('''--------------------SlotProcess test: fliter and route--------------------''')
     result = await slot_process.filter_and_route_slots()
     print(f"Filtered and routed slots: {len(result)}")
     if len(result) > 0:

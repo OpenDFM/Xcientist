@@ -65,7 +65,6 @@ class FaissVectorStore(VectorStore):
         if len(raws) == 0:
             return []
         
-        # check existing ids
         if isinstance(raws[0], SemanticRecord):
             texts = [raw.detail for raw in raws]
         elif isinstance(raws[0], EpisodicRecord):
