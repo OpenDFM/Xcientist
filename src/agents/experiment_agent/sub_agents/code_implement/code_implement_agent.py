@@ -4,97 +4,20 @@ Code Implementation Agent - Unified implementation agent.
 This agent implements code strictly following the code plan's instructions.
 It handles both initial implementation and iterative fixes based on feedback,
 all guided by the code plan from the code_plan agent.
-
-Architecture:
-- Single Unified Implementation Agent: Follows code plan instructions step-by-step
-- Output Unifier: Formats results into structured output
-
-The agent receives:
-1. Code plan from code_plan_agent (always present)
-2. Current step information (for step-by-step implementation)
-3. Optional feedback (from code_judge or experiment execution)
-
-The agent executes the current step according to the plan, whether it's:
-- Initial implementation of a new step
-- Re-implementation of a step after receiving feedback
 """
 
-from typing import Dict, Optional
-from datetime import datetime
+import os
+from typing import Dict, Optional, Any
 
 from agents import Agent, Runner
-
 from src.agents.experiment_agent.sub_agents.code_implement.output_schemas import (
     CodeImplementOutput,
-    IntermediateImplementOutput,
 )
-from src.agents.experiment_agent.sub_agents.code_implement.output_unifier import (
-    create_output_unifier,
-)
+from src.agents.experiment_agent.utils.common_utils import extract_core_plan_context
 from src.agents.experiment_agent.logger import create_verbose_hooks
+from src.agents.experiment_agent.config import OUTPUT_UNIFIER_MODEL
 
-
-# ANSI color codes for terminal output
-class Colors:
-    HEADER = "\033[95m"
-    OKBLUE = "\033[94m"
-    OKCYAN = "\033[96m"
-    OKGREEN = "\033[92m"
-    WARNING = "\033[93m"
-    FAIL = "\033[91m"
-    ENDC = "\033[0m"
-    BOLD = "\033[1m"
-    UNDERLINE = "\033[4m"
-
-
-def print_section(title: str, char: str = "="):
-    """Print a major section header."""
-    print(f"\n{Colors.OKCYAN}{Colors.BOLD}{char * 80}{Colors.ENDC}")
-    print(f"{Colors.OKCYAN}{Colors.BOLD}{title.center(80)}{Colors.ENDC}")
-    print(f"{Colors.OKCYAN}{Colors.BOLD}{char * 80}{Colors.ENDC}\n")
-
-
-def print_subsection(title: str):
-    """Print a subsection header."""
-    print(f"\n{Colors.OKBLUE}{Colors.BOLD}{'─' * 80}{Colors.ENDC}")
-    print(f"{Colors.OKBLUE}{Colors.BOLD}📋 {title}{Colors.ENDC}")
-    print(f"{Colors.OKBLUE}{Colors.BOLD}{'─' * 80}{Colors.ENDC}\n")
-
-
-def print_success(message: str, indent: int = 0):
-    """Print a success message."""
-    prefix = "  " * indent
-    print(f"{prefix}{Colors.OKGREEN}✓{Colors.ENDC} {message}")
-
-
-def print_error(message: str, indent: int = 0):
-    """Print an error message."""
-    prefix = "  " * indent
-    print(f"{prefix}{Colors.FAIL}✗{Colors.ENDC} {message}")
-
-
-def print_info(message: str, indent: int = 0):
-    """Print an info message."""
-    indent_str = "  " * indent
-    print(f"{indent_str}{Colors.OKCYAN}ℹ{Colors.ENDC} {message}")
-
-
-def print_result_box(title: str, content: str, max_length: int = 500):
-    """Print a boxed result with simple header."""
-    # Print header
-    print(f"\n{Colors.BOLD}{Colors.OKCYAN}{'═' * 80}{Colors.ENDC}")
-    print(f"{Colors.BOLD}{Colors.OKCYAN}  {title}{Colors.ENDC}")
-    print(f"{Colors.BOLD}{Colors.OKCYAN}{'═' * 80}{Colors.ENDC}\n")
-
-    # Truncate content if too long
-    if len(content) > max_length:
-        display_content = content[:max_length] + "\n... (truncated for display)"
-    else:
-        display_content = content
-
-    # Print content without line truncation
-    print(f"{Colors.OKGREEN}{display_content}{Colors.ENDC}\n")
-    print(f"{Colors.BOLD}{Colors.OKCYAN}{'═' * 80}{Colors.ENDC}\n")
+from src.agents.experiment_agent.utils.print_utils import *
 
 
 def create_unified_implement_agent(
@@ -104,183 +27,72 @@ def create_unified_implement_agent(
 ) -> Agent:
     """
     Create unified implementation agent that follows code plan instructions.
-
-    This agent handles all implementation scenarios:
-    - Initial implementation of a step
-    - Re-implementation after receiving feedback
-
-    Args:
-        model: The model to use for the agent
-        working_dir: Working directory for code generation
-        tools: List of tool functions
-
-    Returns:
-        Agent instance configured for step-by-step implementation
     """
 
-    instructions = f"""You are an expert Machine Learning Engineer implementing research code 
-strictly following a comprehensive implementation plan from the code_plan_agent.
+    instructions = f"""You are the Lead Developer executing ONE step of the Implementation Plan.
 
-YOUR ROLE:
-You implement code step-by-step according to the code plan. Each invocation focuses on 
-implementing ONE SPECIFIC STEP from the implementation checklist.
+### CRITICAL: TWO-PHASE EXECUTION MODEL
 
-INPUT YOU RECEIVE:
-1. Complete Code Plan (CodePlanOutput) containing:
-   - File structure specification
-   - Dataset/Model/Training/Testing plans
-   - Implementation roadmap
-   - Implementation checklist with detailed steps
+⚠️ **PHASE 1: PHYSICAL EXECUTION** (Tools Required)
+You MUST complete ALL actions using tools BEFORE returning any output:
 
-2. Current Step Information:
-   - step_id: The specific step to implement
-   - title: What this step accomplishes
-   - description: Detailed requirements
-   - files_to_create: Files to create in THIS step
-   - files_to_modify: Files to modify in THIS step
-   - acceptance_criteria: How to verify completion
-   - dependencies: Previous steps (already completed)
-   - Progress information: Which steps are done
+**1.1 Analysis Phase:**
+   - Use `list_directory` to check current project state
+   - Identify what needs to be created, modified, or fixed
+   - Check `files_to_create` and `files_to_modify` in the task
 
-3. Optional Feedback (if re-implementing):
-   - Code review comments from code_judge_agent
-   - Runtime errors from experiment execution
-   - Specific issues that need to be addressed
+**1.2 Directory Setup:**
+   - Use `run_shell_command` with `mkdir -p` to create required directories
+   - Ensure all parent directories exist before creating files
 
-WORKSPACE STRUCTURE:
-working_dir IS the project root directory: `{working_dir}`
+**1.3 File Operations:**
+   - For NEW files: Use `write_file` to create each file
+   - For EXISTING files: Use `read_file` first, then `write_file` to update
+   - For FIXES: Read error context, modify code, write back
+   - Write complete, functional code (not placeholders or comments)
+   - Use absolute imports: `from data.loader import X` (not relative imports)
 
-This is where ALL implementation code should be created (working_dir IS the project directory).
-The parent directory (workspace) contains reference materials:
-- `../repos/` - Reference code repositories (read-only, for reference)
-- `../dataset_candidate/` - Available datasets (read-only, reference in code)
-- `../papers/` - Research papers (read-only)
+**1.4 Verification:**
+   - Use `list_directory` to confirm all required files exist
+   - Use `read_file` to spot-check critical files if needed
+   - Verify acceptance criteria are met
 
-Path relationship:
-- {working_dir} = /path/to/workspace/project (this IS the project root)
-- ../dataset_candidate = /path/to/workspace/dataset_candidate
+🚫 **DO NOT PROCEED TO PHASE 2 UNTIL ALL FILES ARE PHYSICALLY CREATED/MODIFIED!**
 
-IMPORTANT:
-- Create ALL implementation files in `{working_dir}` (which IS the project root)
-- Organize with subdirectories: data/, models/, training/, etc.
-- Reference datasets using: `../dataset_candidate/[dataset_name]`
-- DO NOT modify files in ../repos/, ../dataset_candidate/, or ../papers/
+---
 
-CRITICAL - IMPORT PATH REQUIREMENTS:
-The project will be executed from working_dir (which IS the project root).
-All Python imports must be written for execution from working_dir.
+✅ **PHASE 2: STRUCTURED REPORTING** (After Phase 1 Complete)
+ONLY after successfully executing Phase 1, return a detailed textual report with:
+   - **Execution Summary**: What was implemented in this step.
+   - **Files Created/Modified**: List of file paths.
+   - **Key Components**: List of classes/functions implemented.
+   - **Notes**: Implementation details.
+   - **Issues Addressed**: Any feedback or bugs you fixed.
 
-Import Path Rules:
-1. Python will run from working_dir (working_dir is in PYTHONPATH)
-2. Write imports relative to working_dir (the project root)
-3. For files in subdirectories, use direct imports from the subdirectory
-4. DO NOT use "project." prefix in imports
-5. DO NOT use absolute system paths in imports
+### CONTEXT
+- **Project Root**: `{working_dir}/project`.
+- **Workspace**: `{working_dir}`.
+- **Reference Code**: `{working_dir}/repos` (Read-only).
 
-Examples (all paths relative to working_dir which IS the project root):
-- File structure: models/model.py and data/dataset.py
-- In models/model.py, import dataset: "from data.dataset import MyDataset"
-- In train.py (at working_dir root), import model: "from models.model import MyModel"
-- For configs: configs/config.py -> import as "from configs.config import Config"
+### CRITICAL CONSTRAINTS
+1. **Tool Usage is Mandatory**: Returning text without calling tools = FAILURE
+2. **Scope Control**: Implement ONLY the current step, not future steps
+3. **Content Quality**: Write functional code, not TODOs or placeholders
+4. **Import Style**: Always use absolute imports from project root
+5. **Verification**: Must verify your work before reporting
 
-WRONG Examples:
-- "from project.data.dataset import MyDataset" (wrong: "project." prefix not needed)
-- "from ..data.dataset import MyDataset" (wrong: avoid relative imports)
-
-When writing any Python file, ensure all imports follow this convention.
-
-IMPLEMENTATION WORKFLOW:
-
-1. UNDERSTAND YOUR TASK
-   - Read the current step's requirements from the plan
-   - Review acceptance criteria
-   - Check dependencies (what's already done)
-   - If feedback is provided: understand what needs fixing
-
-2. CHECK EXISTING STATE
-   - Use `list_directory` to see existing files
-   - Use `read_file` to examine files you need to work with
-   - Understand how previous steps have set up the project
-   - Identify what needs to be created vs modified
-
-3. IMPLEMENT THE CURRENT STEP
-   
-   A. For files_to_create:
-      - Use `create_directory` for any needed subdirectories
-      - Use `write_file` to create each file
-      - Write complete, working code
-      - Include proper imports, docstrings, comments
-   
-   B. For files_to_modify:
-      - Use `read_file` to get current content
-      - Make necessary modifications
-      - Use `write_file` to save updated version
-   
-   C. If feedback provided:
-      - Address ALL issues mentioned in feedback
-      - Fix root causes, not just symptoms
-      - Ensure fixes don't break existing functionality
-      - Verify all review comments are resolved
-
-4. CODE QUALITY REQUIREMENTS
-   
-   - Completeness: No TODO comments, all functions implemented
-   - Correctness: Follow plan specifications exactly
-   - Best Practices: Type hints, docstrings, error handling, PEP 8
-   - Integration: Compatible with existing code from previous steps
-   - Testing: Code should be independently testable
-
-5. VERIFY ACCEPTANCE CRITERIA
-   - Ensure all acceptance criteria for current step are met
-   - Add comments explaining key decisions
-   - Verify compatibility with completed steps
-
-IMPORTANT CONSTRAINTS:
-- ONLY implement the current step - do not implement future steps
-- ONLY create/modify files listed in current step
-- FOLLOW the code plan exactly
-- If feedback provided: address ALL issues before proceeding
-- Ensure code is complete and functional (no placeholders)
-
-TOOL USAGE:
-All tools return {{"success": true/false, ...fields or "error"}}
-Always check "success" field before using other fields.
-
-Available tools:
-- write_file(file_path, content): Create/update files. 
-  CRITICAL: Use ABSOLUTE paths by joining with working_dir.
-  Example: write_file("{working_dir}/data/dataset.py", code) 
-  NOT: write_file("data/dataset.py", code) - will create in wrong directory!
-  Returns: dict with "success", "message", "file_path", "size_bytes"
-- read_file(file_path): Read existing file content.
-  Use ABSOLUTE paths: read_file("{working_dir}/data/dataset.py")
-  Returns: dict with "success", "content", "file_path", "size_bytes", "line_count"
-- list_directory(directory_path, pattern, recursive): Check directory structure.
-  Use ABSOLUTE paths: list_directory("{working_dir}") or list_directory("{working_dir}/data")
-  For parent workspace: list_directory("{working_dir}/../repos")
-  Returns: dict with "success", "directory", "files" (list), "directories" (list), "total_files", "total_directories"
-- create_directory(directory_path): Create directories.
-  Use ABSOLUTE paths: create_directory("{working_dir}/data")
-  Returns: dict with "success", "path", "message"
-- analyze_python_file(file_path): Analyze Python code structure.
-  Use ABSOLUTE paths: analyze_python_file("{working_dir}/data/dataset.py")
-  Returns: dict with "success", "imports", "classes", "functions", "file_path"
-
-OUTPUT:
-Provide a structured summary of:
-- What was implemented
-- Which files were created/modified
-- How acceptance criteria were met
-- Any important implementation decisions
-- If feedback was addressed: how each issue was resolved
-
-Remember: You are executing ONE step of the plan at a time. Be thorough, 
-follow the plan exactly, and ensure your implementation is complete and correct."""
+### SELF-CHECK BEFORE RETURNING OUTPUT
+Ask yourself:
+- ✓ Did I call `write_file` for every required file?
+- ✓ Can I list the actual file content I wrote?
+- ✓ Did I verify files exist using `list_directory`?
+If you answer "No" to any question above, you have NOT completed Phase 1.
+"""
 
     agent = Agent(
         name="Code Implementation Agent",
         instructions=instructions,
-        output_type=IntermediateImplementOutput,
+        # output_type=CodeImplementOutput, # Removed for duplex mode
         model=model,
         tools=tools or [],
     )
@@ -288,15 +100,38 @@ follow the plan exactly, and ensure your implementation is complete and correct.
     return agent
 
 
+def create_code_implement_unifier_agent(model: str = "gpt-4o") -> Agent:
+    return Agent(
+        name="Code Implement Unifier",
+        instructions="""You are an expert data structuring assistant.
+Your task is to convert the implementation report into a structured `CodeImplementOutput` object.
+
+Input text will contain:
+- Execution Summary
+- Files Created/Modified
+- Key Components
+- Notes
+- Issues Addressed
+
+Map these to the schema.
+For `generated_files`:
+- Extract `file_path` and `description`.
+- Set `content` to an empty string "" (it will be filled by the system).
+- Set `dependencies` based on imports if mentioned, or empty list.
+
+For `implementation_summary`:
+- Extract `files_created`, `files_modified` counts.
+- `key_components` list.
+- `implementation_notes`.
+""",
+        output_type=CodeImplementOutput,
+        model=OUTPUT_UNIFIER_MODEL,
+    )
+
+
 class CodeImplementAgent:
     """
     Main code implementation agent that follows code plan instructions.
-
-    This agent:
-    1. Receives code plan and current step information
-    2. Implements the current step according to plan
-    3. Handles feedback if provided (for re-implementation)
-    4. Formats output into structured format
     """
 
     def __init__(
@@ -306,21 +141,9 @@ class CodeImplementAgent:
         tools: Optional[list] = None,
         verbose: bool = False,
     ):
-        """
-        Initialize the code implementation agent system.
-
-        Args:
-            model: Model to use for the agent
-            working_dir: Working directory for code generation
-            tools: Optional list of tools for the agent.
-                   If None, automatically loads recommended tools.
-            verbose: If True, enable verbose hooks to show full LLM responses and tool calls
-        """
         self.model = model
         self.working_dir = working_dir
         self.verbose = verbose
-
-        # Create hooks for verbose output
         self.hooks = (
             create_verbose_hooks(
                 show_llm_responses=verbose,
@@ -348,148 +171,188 @@ class CodeImplementAgent:
         )
 
         # Initialize output unifier
-        self.output_unifier = create_output_unifier(model=model)
+        self.output_unifier = create_code_implement_unifier_agent(model=model)
 
         # Expose implementation agent as main agent for compatibility
         self.agent = self.implementation_agent
 
+    async def process(self, context: Any, **kwargs) -> CodeImplementOutput:
+        """
+        Process the current step using context data.
+        """
+        data = kwargs
+        current_step = data.get("current_step", None)
+        checklist_progress = data.get("checklist_progress", "")
+        completed_steps = data.get("completed_steps", [])
+        feedback = data.get("feedback", "")
+        judge_output = data.get("judge_output", None)
+
+        # Build current step section
+        step_section = ""
+        if current_step:
+            step_section = f"""
+=== CURRENT STEP ===
+ID: {current_step.step_id}
+Title: {current_step.title}
+Description: {current_step.description}
+Files to Create: {', '.join(current_step.files_to_create) if current_step.files_to_create else 'None'}
+Files to Modify: {', '.join(current_step.files_to_modify) if current_step.files_to_modify else 'None'}
+Acceptance Criteria:
+{chr(10).join(f'  - {c}' for c in current_step.acceptance_criteria)}
+Dependencies: {', '.join(map(str, current_step.dependencies)) if current_step.dependencies else 'None'}
+"""
+
+        # Build feedback section if code was rejected
+        feedback_section = ""
+        if feedback or judge_output:
+            feedback_section = f"\n=== FEEDBACK ===\n{feedback}\n"
+            if judge_output and hasattr(judge_output, "issues"):
+                feedback_section += (
+                    f"\nJudge Issues: {len(judge_output.issues)} found.\n"
+                )
+
+        # Get reference codebases information
+        reference_codebases_info = data.get(
+            "reference_codebases_info", "(Codebase information not available)"
+        )
+
+        # Extract file structure from plan
+        file_structure_info = ""
+        if hasattr(context.code_plan_output, "file_structure"):
+            structure_lines = ["=== FILE STRUCTURE ===\n"]
+            for item in context.code_plan_output.file_structure:
+                if hasattr(item, "path"):
+                    structure_lines.append(f"- {item.path}")
+            file_structure_info = "\n".join(structure_lines)
+
+        core_plan_context = extract_core_plan_context(context.code_plan_output)
+
+        input_prompt = f"""
+IMPLEMENTATION TASK
+
+{step_section}
+
+{file_structure_info}
+
+{feedback_section}
+
+Reference Info:
+{reference_codebases_info}
+
+Global Context:
+{core_plan_context}
+"""
+
+        return await self.implement(input_prompt)
+
     async def implement(self, input_data: str) -> CodeImplementOutput:
         """
         Generate code implementation based on code plan and current step.
-
-        Args:
-            input_data: Input string containing:
-                - Code plan from code_plan_agent
-                - Current step information
-                - Optional feedback (for re-implementation)
-
-        Returns:
-            CodeImplementOutput with complete implementation
         """
         print_section("CODE IMPLEMENTATION WORKFLOW", "=")
-        print_info(f"Input length: {len(input_data)} characters")
 
-        # Step 1: Execute implementation following code plan
         print_subsection("Implementing Current Step")
-        print_info("Executing implementation according to code plan...")
 
         # Use streamed version for real-time output
         implementation_stream = Runner.run_streamed(
             self.implementation_agent, input_data, hooks=self.hooks, max_turns=100
         )
+        final_text = ""
         async for event in implementation_stream.stream_events():
             if hasattr(event, "data"):
                 event_type = type(event.data).__name__
-                if "FunctionCallArguments" not in event_type and hasattr(
-                    event.data, "delta"
-                ):
+                if hasattr(event.data, "delta"):
                     delta = event.data.delta
                     if hasattr(delta, "content") and delta.content:
                         print(delta.content, end="", flush=True)
+                        final_text += delta.content
                     elif hasattr(delta, "text") and delta.text:
                         print(delta.text, end="", flush=True)
-        implementation_result = implementation_stream  # The stream object is the result
+                        final_text += delta.text
 
-        # Get the intermediate output from the implementation agent
-        intermediate_output: IntermediateImplementOutput = (
-            implementation_result.final_output
+        implementation_result = implementation_stream
+        # Handle case where text is in chat history or final_output
+        if hasattr(implementation_result, "final_output") and isinstance(
+            implementation_result.final_output, str
+        ):
+            final_text = implementation_result.final_output
+        elif (
+            not final_text
+            and hasattr(implementation_result, "chat_history")
+            and implementation_result.chat_history
+        ):
+            final_text = implementation_result.chat_history[-1].content
+
+        if not final_text:
+            print_error("Implementation did not produce output")
+            raise RuntimeError("Implementation agent failed to produce output.")
+
+        print_success("Implementation text report generated")
+        print_subsection("Unifying Output Format")
+
+        # Unify
+        unifier_input = f"""
+Please convert the following implementation report into the structured `CodeImplementOutput` format.
+
+=== IMPLEMENTATION REPORT ===
+{final_text}
+"""
+        unifier_stream = Runner.run_streamed(
+            self.output_unifier, unifier_input, hooks=None
         )
 
-        # Handle case where implementation was interrupted or failed
-        if intermediate_output is None:
-            print_error("Implementation did not produce output (possibly interrupted)")
-            raise RuntimeError(
-                "Implementation agent did not produce output. "
-                "This may be due to interruption or internal error."
-            )
+        async for _ in unifier_stream.stream_events():
+            pass
+
+        final_output = unifier_stream.final_output
+
+        project_root = os.path.join(self.working_dir, "project")
+
+        print_info("Reading generated files from disk...")
+        for gen_file in final_output.generated_files:
+            # Handle absolute paths that might be returned by LLM
+            raw_path = gen_file.file_path.strip()
+
+            # If it's an absolute path and starts with project_root, use it directly
+            # Also handle potential double-slash issues or symlinks by resolving
+            try:
+                # Normalize paths for comparison
+                norm_project_root = os.path.normpath(project_root)
+                norm_raw_path = os.path.normpath(raw_path)
+
+                if os.path.isabs(norm_raw_path) and norm_raw_path.startswith(
+                    norm_project_root
+                ):
+                    full_path = norm_raw_path
+                    # Update relative path for display/storage consistency
+                    rel_path = os.path.relpath(full_path, start=project_root)
+                else:
+                    # Treat as relative path
+                    rel_path = raw_path.lstrip("/").lstrip("\\")
+                    full_path = os.path.join(project_root, rel_path)
+            except Exception:
+                # Fallback to original behavior if path manipulation fails
+                rel_path = raw_path.lstrip("/").lstrip("\\")
+                full_path = os.path.join(project_root, rel_path)
+
+            if os.path.exists(full_path) and os.path.isfile(full_path):
+                try:
+                    with open(full_path, "r", encoding="utf-8", errors="replace") as f:
+                        gen_file.content = f.read()
+                except Exception as e:
+                    gen_file.content = f"[Error reading file: {str(e)}]"
+                    print_error(f"Failed to read {rel_path}: {e}")
+            else:
+                gen_file.content = "[File not found on disk]"
+                print_error(f"File not found: {full_path}")
 
         print_success("Implementation completed")
-
-        # Display intermediate implementation results
-        print_result_box(
-            "Implementation Summary",
-            intermediate_output.implementation_summary_text,
-            max_length=1000,
-        )
-        print_result_box(
-            "Files Description", intermediate_output.files_description, max_length=800
-        )
-
-        # Step 2: Format output
-        print_subsection("Formatting Implementation Output")
-        print_info("Converting intermediate implementation to structured format...")
-
-        # Determine if this was a feedback-based implementation
-        is_feedback_based = (
-            "feedback" in input_data.lower() or "fix" in input_data.lower()
-        )
-        implementation_type = "iterative" if is_feedback_based else "step-by-step"
-
-        unifier_input = f"""
-Implementation Type: {implementation_type}
-Timestamp: {datetime.now().isoformat()}
-
-=== INTERMEDIATE IMPLEMENTATION OUTPUT ===
-
-Files Description:
-{intermediate_output.files_description}
-
-Implementation Summary:
-{intermediate_output.implementation_summary_text}
-
-Setup Instructions:
-{intermediate_output.setup_instructions}
-
-Usage Examples:
-{intermediate_output.usage_examples}
-
-Known Limitations:
-{intermediate_output.known_limitations}
-
-Next Steps:
-{intermediate_output.next_steps}
-
-Issues Addressed:
-{intermediate_output.issues_addressed}
-"""
-
-        # Use streamed version for real-time output
-        unifier_stream = Runner.run_streamed(
-            self.output_unifier, unifier_input, hooks=self.hooks, max_turns=100
-        )
-        async for event in unifier_stream.stream_events():
-            if hasattr(event, "data"):
-                event_type = type(event.data).__name__
-                if "FunctionCallArguments" not in event_type and hasattr(
-                    event.data, "delta"
-                ):
-                    delta = event.data.delta
-                    if hasattr(delta, "content") and delta.content:
-                        print(delta.content, end="", flush=True)
-                    elif hasattr(delta, "text") and delta.text:
-                        print(delta.text, end="", flush=True)
-        unifier_result = unifier_stream  # The stream object is the result
-
-        print_success("Output formatting completed")
-        print_info(
-            f"Generated {len(unifier_result.final_output.generated_files)} files"
-        )
-
-        print_success("Code implementation completed successfully!")
+        print_info(f"Generated {len(final_output.generated_files)} files")
         print_section("CODE IMPLEMENTATION COMPLETE", "=")
 
-        return unifier_result.final_output
+        return final_output
 
     def implement_sync(self, input_data: str) -> CodeImplementOutput:
-        """
-        Synchronous version of implement method.
-
-        Args:
-            input_data: Input string containing plan and optional feedback
-
-        Returns:
-            CodeImplementOutput with complete implementation
-        """
         import asyncio
 
         return asyncio.run(self.implement(input_data))
@@ -503,42 +366,17 @@ def create_code_implement_agent(
 ) -> CodeImplementAgent:
     """
     Factory function to create a code implementation agent.
-
-    Args:
-        model: Model to use for the agent
-        working_dir: Working directory for code generation
-        tools: List of tools for the agent
-        verbose: If True, enable verbose hooks to show full LLM responses and tool calls
-
-    Returns:
-        CodeImplementAgent instance
     """
     return CodeImplementAgent(
         model=model, working_dir=working_dir, tools=tools, verbose=verbose
     )
 
 
-# Example usage:
 if __name__ == "__main__":
     import asyncio
 
     async def main():
-        # Create the code implementation agent
         agent = create_code_implement_agent(model="gpt-4o", working_dir="/workspace")
-
-        # Example with initial implementation
-        input_data = """
-        CodePlanOutput:
-        - File Structure: ...
-        - Dataset Plan: ...
-        - Model Plan: ...
-        """
-
-        result = await agent.implement(input_data)
-
-        print("Code Implementation Complete:")
-        print(f"Type: {result.implementation_type}")
-        print(f"Files Generated: {len(result.generated_files)}")
-        print(f"Summary: {result.implementation_summary}")
+        print("Agent created.")
 
     asyncio.run(main())

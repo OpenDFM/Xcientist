@@ -75,27 +75,3 @@ class CodeImplementOutput(BaseModel):
     issues_addressed: str = Field(
         default="", description="Issues that were addressed (for fix implementations)"
     )
-
-
-class IntermediateImplementOutput(BaseModel):
-    """Intermediate output from scenario-specific agents before formatting."""
-
-    files_description: str = Field(
-        description="Textual description of all files and their purposes"
-    )
-
-    implementation_summary_text: str = Field(
-        description="Summary of implementation work"
-    )
-
-    setup_instructions: str = Field(description="Setup and running instructions")
-
-    usage_examples: str = Field(description="Usage examples")
-
-    known_limitations: str = Field(default="", description="Known limitations")
-
-    next_steps: str = Field(default="", description="Suggested next steps")
-
-    issues_addressed: str = Field(
-        default="", description="Issues addressed (for fixes)"
-    )

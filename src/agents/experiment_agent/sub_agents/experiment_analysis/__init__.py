@@ -12,7 +12,7 @@ from src.agents.experiment_agent.sub_agents.experiment_analysis.output_schemas i
 def get_recommended_tools():
     """
     Get recommended tools for experiment analysis agent.
-    
+
     Returns:
         List of tools for log analysis
     """
@@ -21,7 +21,7 @@ def get_recommended_tools():
         DOCUMENT_TOOLS,
         CODE_ANALYSIS_TOOLS,
     )
-    
+
     return FILE_TOOLS + DOCUMENT_TOOLS + CODE_ANALYSIS_TOOLS[:3]
 
 
@@ -31,4 +31,3 @@ __all__ = [
     "MetricAnalysis",
     "get_recommended_tools",
 ]
-

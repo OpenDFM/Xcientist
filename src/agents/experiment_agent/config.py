@@ -29,22 +29,33 @@ AZURE_DEPLOYMENT: str = "gpt-4o-2"
 # OpenAI 配置（当 API_PROVIDER=openai 时使用）
 # 支持OpenAI官方API或其他兼容API（如 https://www.dmxapi.cn/v1）
 # -----------------------------------------------------------------------------
+# OPENAI_API_KEY: Optional[str] = "sk-BWZ0Kqbk3PvdF0zRFf69B63901B84e85A5B4D8B1AfE27e2e"
+# OPENAI_API_BASE: Optional[str] = "https://api.xi-ai.cn/v1"
+
 OPENAI_API_KEY: Optional[str] = "sk-Q1Aah6ovHJyPhlmi0yZtNazWo29XiMyBIMtaKZGtG6RzFp2W"
 OPENAI_API_BASE: Optional[str] = "https://www.dmxapi.cn/v1"
 
 # =============================================================================
-# Model Configuration - 模型配置
+# Model Configuration - 每个Agent的模型配置
 # =============================================================================
 
-EXPENSIVE_MODEL: str = "gpt-5"
+EXPERIMENT_MASTER_MODEL: str = "MiniMax-M2"
 
-CHEAP_MODEL: str = "gpt-5-mini"
+PRE_ANALYSIS_MODEL: str = "MiniMax-M2"
 
-# 默认模型名称（向后兼容）
-MODEL_NAME: str = EXPENSIVE_MODEL
+CODE_PLAN_MODEL: str = "MiniMax-M2"
 
-# 使用Azure标志（向后兼容）
-USE_AZURE: bool = API_PROVIDER == "azure"
+CODE_IMPLEMENT_MODEL: str = "MiniMax-M2"
+
+CODE_JUDGE_MODEL: str = "MiniMax-M2"
+
+EXECUTE_EXPERIMENT_MODEL: str = "MiniMax-M2"
+
+RESULT_ANALYSIS_MODEL: str = "MiniMax-M2"
+
+DEFAULT_MODEL: str = "MiniMax-M2"
+
+OUTPUT_UNIFIER_MODEL: str = "gpt-5-mini"
 
 
 # =============================================================================
@@ -70,31 +81,128 @@ DOCKER_WORKING_DIR: str = "/workspace"
 # Project directory in Docker container (corresponding to PROJECT_DIR)
 DOCKER_PROJECT_DIR: str = "/workspace/project"
 
-# Local workspace directory (shared with Docker)
-LOCAL_WORKSPACE_DIR: str = (
-    "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/experiment_agent/workspace"
+# Base directory for all experiment workspaces
+BASE_WORKSPACES_DIR: str = (
+    "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/experiment_agent/workspaces"
 )
-
-# Project implementation directory (where all code implementation and experiments happen)
-PROJECT_DIR: str = os.path.join(LOCAL_WORKSPACE_DIR, "project")
-
-# Input paths
-IDEA_INPUT_PATH: str = os.path.join(LOCAL_WORKSPACE_DIR, "idea.json")
-
-PAPER_INPUT_PATH: str = os.path.join(LOCAL_WORKSPACE_DIR, "paper.tex")
-
-# Dataset paths
-DATASET_CANDIDATE_DIR: str = os.path.join(LOCAL_WORKSPACE_DIR, "dataset_candidate")
 
 # Docker dataset path (mounted in container)
 DOCKER_DATASET_DIR: str = "/workspace/dataset_candidate"
 
-# Output paths
-EXPERIMENT_LOGS_DIR: str = os.path.join(LOCAL_WORKSPACE_DIR, "logs")
 
-RESULTS_OUTPUT_DIR: str = os.path.join(LOCAL_WORKSPACE_DIR, "results")
+def get_workspace_dir(experiment_id: str) -> str:
+    """
+    Get the workspace directory for a specific experiment.
 
-CACHE_DIR: str = os.path.join(LOCAL_WORKSPACE_DIR, "cached")
+    Args:
+        experiment_id: The unique identifier for the experiment
+
+    Returns:
+        Path to the experiment workspace directory
+    """
+    return os.path.join(BASE_WORKSPACES_DIR, experiment_id)
+
+
+def get_project_dir(experiment_id: str) -> str:
+    """Get the project directory for a specific experiment."""
+    return os.path.join(get_workspace_dir(experiment_id), "project")
+
+
+def get_idea_input_path(experiment_id: str) -> str:
+    """Get the idea input path for a specific experiment."""
+    return os.path.join(get_workspace_dir(experiment_id), "idea.json")
+
+
+def get_paper_input_path(experiment_id: str) -> str:
+    """Get the paper input path for a specific experiment."""
+    return os.path.join(get_workspace_dir(experiment_id), "paper.tex")
+
+
+def get_dataset_candidate_dir(experiment_id: str) -> str:
+    """Get the dataset candidate directory for a specific experiment."""
+    return os.path.join(get_workspace_dir(experiment_id), "dataset_candidate")
+
+
+def get_logs_dir(experiment_id: str) -> str:
+    """Get the logs directory for a specific experiment."""
+    return os.path.join(get_workspace_dir(experiment_id), "logs")
+
+
+def get_results_dir(experiment_id: str) -> str:
+    """Get the results directory for a specific experiment."""
+    return os.path.join(get_workspace_dir(experiment_id), "results")
+
+
+def get_cache_dir(experiment_id: str) -> str:
+    """Get the cache directory for a specific experiment."""
+    return os.path.join(get_workspace_dir(experiment_id), "cached")
+
+
+# Path Globals
+# These are now managed via the ExperimentContext, but kept here for module-level access.
+# They will be updated by ExperimentContext.initialize()
+WORKSPACE_ROOT: str = ""
+PROJECT_ROOT: str = ""
+
+
+class ExperimentContext:
+    _instance = None
+
+    def __init__(self):
+        self.workspace_root = ""
+        self.project_root = ""
+        self.experiment_id = ""
+        self.initialized = False
+
+    @classmethod
+    def get_instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    @classmethod
+    def initialize(
+        cls, workspace_root: str, project_root: str, experiment_id: str = None
+    ):
+        instance = cls.get_instance()
+        instance.workspace_root = workspace_root
+        instance.project_root = project_root
+        instance.experiment_id = experiment_id
+        instance.initialized = True
+
+        # Update module-level globals for backward compatibility and direct access
+        global WORKSPACE_ROOT, PROJECT_ROOT
+        WORKSPACE_ROOT = workspace_root
+        PROJECT_ROOT = project_root
+
+        # Also update legacy global aliases if they exist in module scope
+        global LOCAL_WORKSPACE_DIR, PROJECT_DIR
+        LOCAL_WORKSPACE_DIR = workspace_root
+        PROJECT_DIR = project_root
+
+
+# Legacy support for direct imports (e.g., from config import LOCAL_WORKSPACE_DIR)
+# This requires Python 3.7+
+def __getattr__(name):
+    if name == "LOCAL_WORKSPACE_DIR":
+        return WORKSPACE_ROOT
+    if name == "PROJECT_DIR":
+        return PROJECT_ROOT
+    if name in [
+        "IDEA_INPUT_PATH",
+        "PAPER_INPUT_PATH",
+        "DATASET_CANDIDATE_DIR",
+        "EXPERIMENT_LOGS_DIR",
+        "RESULTS_OUTPUT_DIR",
+        "CACHE_DIR",
+    ]:
+        # Return empty string or calculated path if experiment_id is known
+        return ""
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
+
+
+# Initialize global instance
+_context = ExperimentContext.get_instance()
 
 
 # =============================================================================
@@ -137,12 +245,12 @@ def get_openai_config(model: Optional[str] = None) -> dict:
     Get OpenAI configuration dictionary.
 
     Args:
-        model: Optional model name to use. If not provided, uses MODEL_NAME.
+        model: Optional model name to use. If not provided, uses DEFAULT_MODEL.
 
     Returns:
         Dictionary with OpenAI configuration
     """
-    model_to_use = model or MODEL_NAME
+    model_to_use = model or DEFAULT_MODEL
 
     if API_PROVIDER == "azure":
         return {
@@ -166,15 +274,21 @@ def get_openai_config(model: Optional[str] = None) -> dict:
 
 def get_model_config() -> dict:
     """
-    Get model configuration dictionary.
+    Get model configuration dictionary for all agents.
 
     Returns:
-        Dictionary with model configuration including expensive and cheap models
+        Dictionary with model configuration for each agent
     """
     return {
-        "expensive_model": EXPENSIVE_MODEL,
-        "cheap_model": CHEAP_MODEL,
-        "default_model": MODEL_NAME,
+        "experiment_master": EXPERIMENT_MASTER_MODEL,
+        "pre_analysis": PRE_ANALYSIS_MODEL,
+        "code_plan": CODE_PLAN_MODEL,
+        "code_implement": CODE_IMPLEMENT_MODEL,
+        "code_judge": CODE_JUDGE_MODEL,
+        "execute_experiment": EXECUTE_EXPERIMENT_MODEL,
+        "result_analysis": RESULT_ANALYSIS_MODEL,
+        "output_unifier": OUTPUT_UNIFIER_MODEL,
+        "default": DEFAULT_MODEL,
     }
 
 
@@ -195,35 +309,42 @@ def get_docker_config() -> dict:
     }
 
 
-def get_path_config() -> dict:
+def get_path_config(experiment_id: str) -> dict:
     """
-    Get path configuration dictionary.
+    Get path configuration dictionary for a specific experiment.
 
-    Note: working_dir refers to LOCAL_WORKSPACE_DIR (parent directory)
-          project_dir is the actual project root where code is implemented
+    Args:
+        experiment_id: The unique identifier for the experiment
 
     Returns:
-        Dictionary with path configuration
+        Dictionary with path configuration for the experiment
     """
+    workspace_dir = get_workspace_dir(experiment_id)
+    project_dir = get_project_dir(experiment_id)
+
     return {
-        "working_dir": LOCAL_WORKSPACE_DIR,  # Workspace directory (parent)
-        "local_workspace": LOCAL_WORKSPACE_DIR,  # Backward compatibility
-        "project_dir": PROJECT_DIR,  # Project root directory (for code operations)
+        "working_dir": workspace_dir,  # Workspace directory for this experiment
+        "local_workspace": workspace_dir,  # Backward compatibility
+        "project_dir": project_dir,  # Project root directory
         "docker_workspace": DOCKER_WORKING_DIR,
         "docker_project_dir": DOCKER_PROJECT_DIR,
-        "dataset_candidate_dir": DATASET_CANDIDATE_DIR,
+        "dataset_candidate_dir": get_dataset_candidate_dir(experiment_id),
         "docker_dataset_dir": DOCKER_DATASET_DIR,
-        "idea_input": IDEA_INPUT_PATH,
-        "paper_input": PAPER_INPUT_PATH,
-        "logs_dir": EXPERIMENT_LOGS_DIR,
-        "results_dir": RESULTS_OUTPUT_DIR,
-        "cache_dir": CACHE_DIR,
+        "idea_input": get_idea_input_path(experiment_id),
+        "paper_input": get_paper_input_path(experiment_id),
+        "logs_dir": get_logs_dir(experiment_id),
+        "results_dir": get_results_dir(experiment_id),
+        "cache_dir": get_cache_dir(experiment_id),
     }
 
 
-def validate_config() -> tuple[bool, list[str]]:
+def validate_config(experiment_id: Optional[str] = None) -> tuple[bool, list[str]]:
     """
     Validate configuration settings.
+
+    Args:
+        experiment_id: Optional experiment ID. If provided, also validates and creates
+                      experiment-specific directories.
 
     Returns:
         Tuple of (is_valid, error_messages)
@@ -247,10 +368,23 @@ def validate_config() -> tuple[bool, list[str]]:
             errors.append("OPENAI_API_KEY is not set")
 
     # Check model configuration
-    if not EXPENSIVE_MODEL:
-        errors.append("EXPENSIVE_MODEL is not set")
-    if not CHEAP_MODEL:
-        errors.append("CHEAP_MODEL is not set")
+    if not DEFAULT_MODEL:
+        errors.append("DEFAULT_MODEL is not set")
+
+    # Check each agent's model is configured
+    agent_models = {
+        "EXPERIMENT_MASTER_MODEL": EXPERIMENT_MASTER_MODEL,
+        "PRE_ANALYSIS_MODEL": PRE_ANALYSIS_MODEL,
+        "CODE_PLAN_MODEL": CODE_PLAN_MODEL,
+        "CODE_IMPLEMENT_MODEL": CODE_IMPLEMENT_MODEL,
+        "CODE_JUDGE_MODEL": CODE_JUDGE_MODEL,
+        "EXECUTE_EXPERIMENT_MODEL": EXECUTE_EXPERIMENT_MODEL,
+        "RESULT_ANALYSIS_MODEL": RESULT_ANALYSIS_MODEL,
+    }
+
+    for model_name, model_value in agent_models.items():
+        if not model_value:
+            errors.append(f"{model_name} is not set")
 
     # Check Docker configuration
     if not DOCKER_HOST:
@@ -258,17 +392,29 @@ def validate_config() -> tuple[bool, list[str]]:
     if DOCKER_PORT <= 0 or DOCKER_PORT > 65535:
         errors.append(f"Invalid DOCKER_PORT: {DOCKER_PORT}")
 
-    # Check paths exist (create if needed)
-    os.makedirs(LOCAL_WORKSPACE_DIR, exist_ok=True)
-    os.makedirs(PROJECT_DIR, exist_ok=True)
-    os.makedirs(EXPERIMENT_LOGS_DIR, exist_ok=True)
-    os.makedirs(RESULTS_OUTPUT_DIR, exist_ok=True)
+    # Check and create base workspaces directory
+    os.makedirs(BASE_WORKSPACES_DIR, exist_ok=True)
+
+    # If experiment_id is provided, create experiment-specific directories
+    if experiment_id:
+        workspace_dir = get_workspace_dir(experiment_id)
+        os.makedirs(workspace_dir, exist_ok=True)
+        os.makedirs(get_project_dir(experiment_id), exist_ok=True)
+        os.makedirs(get_logs_dir(experiment_id), exist_ok=True)
+        os.makedirs(get_results_dir(experiment_id), exist_ok=True)
+        os.makedirs(get_cache_dir(experiment_id), exist_ok=True)
+        os.makedirs(get_dataset_candidate_dir(experiment_id), exist_ok=True)
 
     return len(errors) == 0, errors
 
 
-def print_config():
-    """Print current configuration (masking sensitive information)."""
+def print_config(experiment_id: Optional[str] = None):
+    """
+    Print current configuration (masking sensitive information).
+
+    Args:
+        experiment_id: Optional experiment ID. If provided, also prints experiment-specific paths.
+    """
     print("=" * 80)
     print("Experiment Agent Configuration")
     print("=" * 80)
@@ -284,9 +430,14 @@ def print_config():
             print(f"  OpenAI API Base: {OPENAI_API_BASE}")
 
     print(f"\n[Model Configuration]")
-    print(f"  Expensive Model (code plan, implement, judge): {EXPENSIVE_MODEL}")
-    print(f"  Cheap Model (pre-analysis, execute, analysis): {CHEAP_MODEL}")
-    print(f"  Default Model: {MODEL_NAME}")
+    print(f"  Experiment Master: {EXPERIMENT_MASTER_MODEL}")
+    print(f"  Pre-Analysis: {PRE_ANALYSIS_MODEL}")
+    print(f"  Code Plan: {CODE_PLAN_MODEL}")
+    print(f"  Code Implement: {CODE_IMPLEMENT_MODEL}")
+    print(f"  Code Judge: {CODE_JUDGE_MODEL}")
+    print(f"  Execute Experiment: {EXECUTE_EXPERIMENT_MODEL}")
+    print(f"  Result Analysis: {RESULT_ANALYSIS_MODEL}")
+    print(f"  Default: {DEFAULT_MODEL}")
 
     print(f"\n[Docker Configuration]")
     print(f"  Host: {DOCKER_HOST}")
@@ -296,12 +447,18 @@ def print_config():
     print(f"  Working Dir: {DOCKER_WORKING_DIR}")
 
     print(f"\n[Path Configuration]")
-    print(f"  Local Workspace: {LOCAL_WORKSPACE_DIR}")
-    print(f"  Project Dir: {PROJECT_DIR}")
-    print(f"  Idea Input: {IDEA_INPUT_PATH}")
-    print(f"  Paper Input: {PAPER_INPUT_PATH}")
-    print(f"  Logs Dir: {EXPERIMENT_LOGS_DIR}")
-    print(f"  Results Dir: {RESULTS_OUTPUT_DIR}")
+    print(f"  Base Workspaces Dir: {BASE_WORKSPACES_DIR}")
+
+    if experiment_id:
+        print(f"\n  [Experiment-Specific Paths for '{experiment_id}']")
+        print(f"  Workspace Dir: {get_workspace_dir(experiment_id)}")
+        print(f"  Project Dir: {get_project_dir(experiment_id)}")
+        print(f"  Idea Input: {get_idea_input_path(experiment_id)}")
+        print(f"  Paper Input: {get_paper_input_path(experiment_id)}")
+        print(f"  Dataset Dir: {get_dataset_candidate_dir(experiment_id)}")
+        print(f"  Logs Dir: {get_logs_dir(experiment_id)}")
+        print(f"  Results Dir: {get_results_dir(experiment_id)}")
+        print(f"  Cache Dir: {get_cache_dir(experiment_id)}")
 
     print(f"\n[Experiment Configuration]")
     print(f"  Max Iterations: {MAX_WORKFLOW_ITERATIONS}")

@@ -1,130 +1,159 @@
 """
 File operation tools for experiment agents.
 
-Provides tools for reading, writing, and managing files and directories.
-Compatible with openai-agents SDK.
+Provides tools for reading, writing, and managing files.
+Optimized for minimal toolset strategy:
+- read_file: Core perception
+- write_file: Core creation
+- edit_file: Core modification
+- list_directory: Core perception (structured)
 
-Security: All file operations are restricted to the working directory (project root)
-and its subdirectories to prevent unauthorized file access.
+Other operations (rm, mkdir, cp, etc.) should be performed via run_shell_command.
 """
 
 import os
-import shutil
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 
 from agents import function_tool
 
 
 def _validate_path_security(
-    file_path: str, working_dir: Optional[str] = None
+    file_path: str,
+    allowed_root: Optional[str] = None,
+    allow_read_only: bool = False,
 ) -> tuple[bool, str, str]:
     """
-    Validate that the file path is within the allowed working directory.
+    Validate path security with read/write scope separation.
+
+    Strategy:
+    - Write operations: Must be within PROJECT_ROOT
+    - Read operations: Can be within WORKSPACE_ROOT (if allow_read_only=True)
 
     Args:
         file_path: The path to validate
-        working_dir: The allowed working directory (project root). If None, loads from config.
-
-    Returns:
-        Tuple of (is_valid, absolute_path, error_message)
-        - is_valid: True if path is safe, False otherwise
-        - absolute_path: Resolved absolute path
-        - error_message: Error message if not valid, empty string otherwise
+        allowed_root: The root directory to enforce. If None, loads from config based on mode.
+        allow_read_only: If True, allows access to WORKSPACE_ROOT (for reading papers/repos).
     """
     try:
-        # Load working_dir from config if not provided
-        if working_dir is None:
-            from src.agents.experiment_agent.config import get_path_config
+        # Load config
+        from src.agents.experiment_agent.config import PROJECT_ROOT, WORKSPACE_ROOT
 
-            path_config = get_path_config()
-            working_dir = path_config.get("working_dir")
+        # Determine effective root
+        # If allowed_root explicitly provided, use it.
+        # Else if allow_read_only, use WORKSPACE_ROOT (broader scope).
+        # Else (default write mode), use PROJECT_ROOT (narrow scope).
+        if allowed_root:
+            root_dir = allowed_root
+        elif allow_read_only:
+            root_dir = WORKSPACE_ROOT if WORKSPACE_ROOT else PROJECT_ROOT
+        else:
+            root_dir = PROJECT_ROOT
 
-        # If still no working_dir, allow operation (backward compatibility)
-        if not working_dir:
+        # If config not initialized (fallback), allow absolute paths temporarily (legacy behavior)
+        if not root_dir:
             abs_path = os.path.abspath(os.path.expanduser(file_path))
             return True, abs_path, ""
 
-        # Resolve both paths to absolute
-        abs_working_dir = os.path.abspath(os.path.expanduser(working_dir))
-        abs_file_path = os.path.abspath(os.path.expanduser(file_path))
+        # Resolution Strategy for Relative Paths:
+        # 1. If allow_read_only=True (read mode):
+        #    a. Try checking if it exists in PROJECT_ROOT (primary implementation context)
+        #    b. Try checking if it exists in WORKSPACE_ROOT (secondary reference context)
+        #    c. Default to WORKSPACE_ROOT for validation (broadest scope)
+        # 2. If allow_read_only=False (write mode):
+        #    a. Always resolve against PROJECT_ROOT
 
-        # Check if file_path is within working_dir or its subdirectories
-        # Use os.path.commonpath to check if they share a common root
-        try:
-            common_path = os.path.commonpath([abs_working_dir, abs_file_path])
-            # File is safe if common path is the working directory
-            if common_path == abs_working_dir or abs_file_path.startswith(
-                abs_working_dir + os.sep
-            ):
-                return True, abs_file_path, ""
-            else:
-                error_msg = (
-                    f"Security Error: Path '{file_path}' is outside the allowed working directory.\n"
-                    f"Allowed: {abs_working_dir} and its subdirectories\n"
-                    f"Attempted: {abs_file_path}\n"
-                    f"All file operations must be within the project directory."
+        abs_file_path_raw = os.path.abspath(os.path.expanduser(file_path))
+
+        # Check if it's already an absolute path
+        if os.path.isabs(os.path.expanduser(file_path)):
+            # If absolute, validation logic below will handle it against root_dir
+            abs_path = abs_file_path_raw
+            abs_root = os.path.abspath(os.path.expanduser(root_dir))
+        else:
+            # Relative path resolution
+            from src.agents.experiment_agent.config import PROJECT_ROOT, WORKSPACE_ROOT
+
+            if allow_read_only:
+                # READ MODE: Try PROJECT_ROOT first, then WORKSPACE_ROOT
+                project_abs = os.path.abspath(
+                    os.path.join(
+                        os.path.abspath(os.path.expanduser(PROJECT_ROOT)), file_path
+                    )
                 )
-                return False, abs_file_path, error_msg
-        except ValueError:
-            # Paths are on different drives (Windows)
+                workspace_abs = os.path.abspath(
+                    os.path.join(
+                        os.path.abspath(os.path.expanduser(WORKSPACE_ROOT)), file_path
+                    )
+                )
+
+                if os.path.exists(project_abs):
+                    abs_path = project_abs
+                    abs_root = os.path.abspath(
+                        os.path.expanduser(PROJECT_ROOT)
+                    )  # Validate against project root
+                elif os.path.exists(workspace_abs):
+                    abs_path = workspace_abs
+                    abs_root = os.path.abspath(
+                        os.path.expanduser(WORKSPACE_ROOT)
+                    )  # Validate against workspace root
+                else:
+                    # Default to checking against the provided root_dir (which is usually WORKSPACE_ROOT in read mode)
+                    # to allow listing directories that don't fully resolve yet
+                    abs_root = os.path.abspath(os.path.expanduser(root_dir))
+                    abs_path = os.path.abspath(os.path.join(abs_root, file_path))
+            else:
+                # WRITE MODE: Always PROJECT_ROOT
+                abs_root = os.path.abspath(os.path.expanduser(PROJECT_ROOT))
+                abs_path = os.path.abspath(os.path.join(abs_root, file_path))
+
+        # Check common path
+        try:
+            common = os.path.commonpath([abs_root, abs_path])
+            if common == abs_root or abs_path.startswith(abs_root + os.sep):
+                return True, abs_path, ""
+
             error_msg = (
-                f"Security Error: Path '{file_path}' is on a different drive than working directory.\n"
-                f"Allowed: {abs_working_dir}\n"
-                f"Attempted: {abs_file_path}"
+                f"Security Error: Path '{file_path}' is outside the allowed scope.\n"
+                f"Scope Root: {abs_root}\n"
+                f"Attempted: {abs_path}\n"
             )
-            return False, abs_file_path, error_msg
+            return False, abs_path, error_msg
+
+        except ValueError:
+            return False, abs_path, "Path validation failed (drive mismatch)."
 
     except Exception as e:
-        return False, "", f"Path validation error: {str(e)}"
+        return False, "", f"Validation error: {str(e)}"
 
 
 @function_tool
 def read_file(file_path: str, encoding: str = "utf-8") -> Dict[str, Any]:
     """
     Read content from a file.
-
-    Security: Only files within the project directory (working_dir) can be read.
-
-    Args:
-        file_path: Path to the file to read (must be within working directory)
-        encoding: File encoding (default: utf-8)
-
-    Returns:
-        Dictionary with success status, content, and metadata
+    Scope: WORKSPACE_ROOT (Can read project/, repos/, papers/, datasets/)
     """
-    # Validate path security
-    is_valid, abs_path, error_msg = _validate_path_security(file_path)
+    # Allow reading from entire workspace
+    is_valid, abs_path, error_msg = _validate_path_security(
+        file_path, allow_read_only=True
+    )
+
     if not is_valid:
-        return {
-            "success": False,
-            "error": error_msg,
-        }
+        return {"success": False, "error": error_msg}
 
     try:
         with open(abs_path, "r", encoding=encoding) as f:
             content = f.read()
 
-        file_size = os.path.getsize(abs_path)
-        line_count = content.count("\n") + 1
-
         return {
             "success": True,
             "content": content,
             "file_path": abs_path,
-            "size_bytes": file_size,
-            "line_count": line_count,
-        }
-    except FileNotFoundError:
-        return {
-            "success": False,
-            "error": f"File not found: {abs_path}",
+            "size_bytes": os.path.getsize(abs_path),
+            "line_count": content.count("\n") + 1,
         }
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"Error reading file: {str(e)}",
-        }
+        return {"success": False, "error": f"Read error: {str(e)}"}
 
 
 @function_tool
@@ -133,25 +162,15 @@ def write_file(
 ) -> Dict[str, Any]:
     """
     Write content to a file.
-
-    Security: Only files within the project directory (working_dir) can be written.
-
-    Args:
-        file_path: Path to the file to write (must be within working directory)
-        content: Content to write
-        encoding: File encoding (default: utf-8)
-        create_dirs: Create parent directories if they don't exist
-
-    Returns:
-        Dictionary with success status and message
+    Scope: PROJECT_ROOT (Strictly limited to project directory)
     """
-    # Validate path security
-    is_valid, abs_path, error_msg = _validate_path_security(file_path)
+    # Strict write scope
+    is_valid, abs_path, error_msg = _validate_path_security(
+        file_path, allow_read_only=False
+    )
+
     if not is_valid:
-        return {
-            "success": False,
-            "error": error_msg,
-        }
+        return {"success": False, "error": error_msg}
 
     try:
         if create_dirs:
@@ -160,19 +179,60 @@ def write_file(
         with open(abs_path, "w", encoding=encoding) as f:
             f.write(content)
 
-        file_size = os.path.getsize(abs_path)
-
         return {
             "success": True,
-            "message": f"Successfully wrote {file_size} bytes to {abs_path}",
+            "message": f"Written to {abs_path}",
             "file_path": abs_path,
-            "size_bytes": file_size,
+            "size_bytes": len(content.encode(encoding)),
         }
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"Error writing file: {str(e)}",
-        }
+        return {"success": False, "error": f"Write error: {str(e)}"}
+
+
+@function_tool
+def edit_file(
+    file_path: str,
+    old_string: str,
+    new_string: str,
+    replace_all: bool = False,
+    encoding: str = "utf-8",
+) -> Dict[str, Any]:
+    """
+    Edit a file.
+    Scope: PROJECT_ROOT
+    """
+    is_valid, abs_path, error_msg = _validate_path_security(
+        file_path, allow_read_only=False
+    )
+    if not is_valid:
+        return {"success": False, "error": error_msg}
+
+    # ... (rest of logic remains same, just wrapping security check)
+    try:
+        if not os.path.exists(abs_path):
+            return {"success": False, "error": f"File not found: {abs_path}"}
+
+        with open(abs_path, "r", encoding=encoding) as f:
+            content = f.read()
+
+        if old_string not in content:
+            return {"success": False, "error": "String not found"}
+
+        count = content.count(old_string)
+        if replace_all:
+            new_content = content.replace(old_string, new_string)
+            replaced = count
+        else:
+            new_content = content.replace(old_string, new_string, 1)
+            replaced = 1
+
+        with open(abs_path, "w", encoding=encoding) as f:
+            f.write(new_content)
+
+        return {"success": True, "replaced_count": replaced, "file_path": abs_path}
+
+    except Exception as e:
+        return {"success": False, "error": f"Edit error: {str(e)}"}
 
 
 @function_tool
@@ -180,41 +240,23 @@ def list_directory(
     directory_path: str, pattern: Optional[str] = None, recursive: bool = False
 ) -> Dict[str, Any]:
     """
-    List files and directories in a directory.
-
-    Security: Only directories within the project directory (working_dir) can be listed.
-
-    Args:
-        directory_path: Path to the directory (must be within working directory)
-        pattern: Optional glob pattern to filter files (e.g., "*.py")
-        recursive: List files recursively
-
-    Returns:
-        Dictionary with success status and list of files/directories
+    List files.
+    Scope: WORKSPACE_ROOT (Can explore repos/ papers/ etc.)
     """
-    # Validate path security
-    is_valid, abs_path, error_msg = _validate_path_security(directory_path)
+    # Allow listing entire workspace
+    is_valid, abs_path, error_msg = _validate_path_security(
+        directory_path, allow_read_only=True
+    )
+
     if not is_valid:
-        return {
-            "success": False,
-            "error": error_msg,
-        }
+        return {"success": False, "error": error_msg}
 
     try:
         path = Path(abs_path)
-
         if not path.exists():
-            return {
-                "success": False,
-                "error": f"Directory not found: {abs_path}",
-            }
+            return {"success": False, "error": "Directory not found"}
 
-        if not path.is_dir():
-            return {
-                "success": False,
-                "error": f"Path is not a directory: {abs_path}",
-            }
-
+        # ... (rest of logic same)
         if recursive and pattern:
             files = [str(p) for p in path.rglob(pattern)]
         elif recursive:
@@ -224,267 +266,22 @@ def list_directory(
         else:
             files = [str(p) for p in path.iterdir()]
 
-        # Separate files and directories
         file_list = []
         dir_list = []
         for item in files:
-            item_path = Path(item)
-            if item_path.is_file():
+            p = Path(item)
+            if p.is_file():
                 file_list.append(
-                    {
-                        "path": str(item),
-                        "name": item_path.name,
-                        "size": item_path.stat().st_size,
-                    }
+                    {"path": str(p), "name": p.name, "size": p.stat().st_size}
                 )
-            elif item_path.is_dir():
-                dir_list.append(
-                    {
-                        "path": str(item),
-                        "name": item_path.name,
-                    }
-                )
+            elif p.is_dir():
+                dir_list.append({"path": str(p), "name": p.name})
 
         return {
             "success": True,
             "directory": abs_path,
             "files": file_list,
             "directories": dir_list,
-            "total_files": len(file_list),
-            "total_directories": len(dir_list),
         }
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"Error listing directory: {str(e)}",
-        }
-
-
-@function_tool
-def create_directory(directory_path: str) -> Dict[str, Any]:
-    """
-    Create a directory (and parent directories if needed).
-
-    Security: Only directories within the project directory (working_dir) can be created.
-
-    Args:
-        directory_path: Path to the directory to create (must be within working directory)
-
-    Returns:
-        Dictionary with success status and message
-    """
-    # Validate path security
-    is_valid, abs_path, error_msg = _validate_path_security(directory_path)
-    if not is_valid:
-        return {
-            "success": False,
-            "error": error_msg,
-        }
-
-    try:
-        os.makedirs(abs_path, exist_ok=True)
-
-        return {
-            "success": True,
-            "message": f"Directory created: {abs_path}",
-            "path": abs_path,
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"Error creating directory: {str(e)}",
-        }
-
-
-@function_tool
-def delete_file(file_path: str) -> Dict[str, Any]:
-    """
-    Delete a file.
-
-    Security: Only files within the project directory (working_dir) can be deleted.
-
-    Args:
-        file_path: Path to the file to delete (must be within working directory)
-
-    Returns:
-        Dictionary with success status and message
-    """
-    # Validate path security
-    is_valid, abs_path, error_msg = _validate_path_security(file_path)
-    if not is_valid:
-        return {
-            "success": False,
-            "error": error_msg,
-        }
-
-    try:
-        if not os.path.exists(abs_path):
-            return {
-                "success": False,
-                "error": f"File not found: {abs_path}",
-            }
-
-        if os.path.isdir(abs_path):
-            return {
-                "success": False,
-                "error": f"Path is a directory, use delete_directory instead: {abs_path}",
-            }
-
-        os.remove(abs_path)
-
-        return {
-            "success": True,
-            "message": f"File deleted: {abs_path}",
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"Error deleting file: {str(e)}",
-        }
-
-
-@function_tool
-def copy_file(source_path: str, destination_path: str) -> Dict[str, Any]:
-    """
-    Copy a file from source to destination.
-
-    Security: Both paths must be within the project directory (working_dir).
-
-    Args:
-        source_path: Path to the source file (must be within working directory)
-        destination_path: Path to the destination (must be within working directory)
-
-    Returns:
-        Dictionary with success status and message
-    """
-    # Validate source path security
-    is_valid_src, abs_src, error_msg_src = _validate_path_security(source_path)
-    if not is_valid_src:
-        return {
-            "success": False,
-            "error": f"Source path: {error_msg_src}",
-        }
-
-    # Validate destination path security
-    is_valid_dst, abs_dst, error_msg_dst = _validate_path_security(destination_path)
-    if not is_valid_dst:
-        return {
-            "success": False,
-            "error": f"Destination path: {error_msg_dst}",
-        }
-
-    try:
-        # Create destination directory if needed
-        os.makedirs(os.path.dirname(abs_dst), exist_ok=True)
-
-        shutil.copy2(abs_src, abs_dst)
-
-        return {
-            "success": True,
-            "message": f"File copied from {abs_src} to {abs_dst}",
-            "source": abs_src,
-            "destination": abs_dst,
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"Error copying file: {str(e)}",
-        }
-
-
-@function_tool
-def file_exists(file_path: str) -> Dict[str, Any]:
-    """
-    Check if a file or directory exists.
-
-    Security: Only paths within the project directory (working_dir) can be checked.
-
-    Args:
-        file_path: Path to check (must be within working directory)
-
-    Returns:
-        Dictionary with existence status and type
-    """
-    # Validate path security
-    is_valid, abs_path, error_msg = _validate_path_security(file_path)
-    if not is_valid:
-        return {
-            "success": False,
-            "error": error_msg,
-        }
-
-    try:
-        exists = os.path.exists(abs_path)
-
-        if exists:
-            is_file = os.path.isfile(abs_path)
-            is_dir = os.path.isdir(abs_path)
-
-            return {
-                "success": True,
-                "exists": True,
-                "path": abs_path,
-                "is_file": is_file,
-                "is_directory": is_dir,
-            }
-        else:
-            return {
-                "success": True,
-                "exists": False,
-                "path": abs_path,
-            }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"Error checking file: {str(e)}",
-        }
-
-
-@function_tool
-def get_file_info(file_path: str) -> Dict[str, Any]:
-    """
-    Get detailed information about a file.
-
-    Security: Only paths within the project directory (working_dir) can be accessed.
-
-    Args:
-        file_path: Path to the file (must be within working directory)
-
-    Returns:
-        Dictionary with file information
-    """
-    # Validate path security
-    is_valid, abs_path, error_msg = _validate_path_security(file_path)
-    if not is_valid:
-        return {
-            "success": False,
-            "error": error_msg,
-        }
-
-    try:
-        path = Path(abs_path)
-
-        if not path.exists():
-            return {
-                "success": False,
-                "error": f"File not found: {abs_path}",
-            }
-
-        stat = path.stat()
-
-        return {
-            "success": True,
-            "path": str(path),
-            "name": path.name,
-            "extension": path.suffix,
-            "size_bytes": stat.st_size,
-            "is_file": path.is_file(),
-            "is_directory": path.is_dir(),
-            "modified_time": stat.st_mtime,
-            "created_time": stat.st_ctime,
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"Error getting file info: {str(e)}",
-        }
+        return {"success": False, "error": f"List error: {str(e)}"}

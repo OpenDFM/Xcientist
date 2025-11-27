@@ -36,10 +36,8 @@ def _validate_path_security(
     try:
         # Load working_dir from config if not provided
         if working_dir is None:
-            from src.agents.experiment_agent.config import get_path_config
-
-            path_config = get_path_config()
-            working_dir = path_config.get("working_dir")
+            from src.agents.experiment_agent.config import PROJECT_DIR
+            working_dir = PROJECT_DIR
 
         # If still no working_dir, allow operation (backward compatibility)
         if not working_dir:
