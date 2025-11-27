@@ -25,7 +25,7 @@ class ExperimentExecuteOutput(BaseModel):
     has_error: bool = Field(description="Whether any error occurred during execution")
 
     execution_status: str = Field(
-        description="Overall execution status: 'success', 'error', 'timeout', 'interrupted'"
+        description="Overall execution status: 'success', 'error', 'timeout', 'interrupted', 'skipped'"
     )
 
     exit_code: Optional[int] = Field(
@@ -53,9 +53,9 @@ class ExperimentExecuteOutput(BaseModel):
         default="", description="Preview of stderr if any errors occurred"
     )
 
-    experiment_metrics: Optional[dict] = Field(
-        default=None,
-        description="Extracted metrics from execution if available (e.g., accuracy, loss)",
+    experiment_metrics: str = Field(
+        default="",
+        description='Extracted metrics from execution as JSON string if available (e.g., \'{"accuracy": 0.95, "loss": 0.23}\')',
     )
 
     execution_summary: str = Field(

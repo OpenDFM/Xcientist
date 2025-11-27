@@ -1,232 +1,121 @@
 """
-Experiment Execute Agent - Executes experiment code and captures logs.
+Experiment Execute Agent - Autonomous Researcher.
 
-This agent executes the implemented code in the runtime environment,
-captures execution logs, and reports whether any errors occurred.
-
-Architecture:
-- Execute Agent: Runs code and monitors execution
-- Uses tools to execute code in controlled environment
-- Captures stdout/stderr to log files
-- Reports execution status and error information
+This agent acts as an autonomous researcher who can execute code, monitor results,
+and iteratively tune hyperparameters to achieve research goals.
 """
 
 import os
-import time
+import json
+import asyncio
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any, Dict, List
 
 from agents import Agent, Runner
 
 from src.agents.experiment_agent.sub_agents.experiment_execute.output_schemas import (
     ExperimentExecuteOutput,
 )
+from src.agents.experiment_agent.config import OUTPUT_UNIFIER_MODEL
+from src.agents.experiment_agent.utils.print_utils import *
 
 
-def create_execute_agent(model: str = "gpt-4o", tools: Optional[list] = None) -> Agent:
+# --- AGENT FACTORIES ---
+
+
+def create_execute_agent(
+    model: str = "gpt-4o",
+    working_dir: str = None,
+    log_dir: str = "./experiment_logs",
+    tools: Optional[list] = None,
+) -> Agent:
     """
-    Create the experiment execution agent.
-
-    Args:
-        model: Model to use for the agent
-        tools: List of tools for code execution (to be implemented)
-
-    Returns:
-        Agent configured for experiment execution
+    Create the autonomous experiment researcher agent.
     """
 
-    instructions = """You are an experiment execution agent responsible for running 
-implemented code and capturing execution results.
+    instructions = f"""You are an Expert AI Researcher.
+Your goal is to successfully execute the provided Code Implementation to verify the Research Idea.
 
-YOUR RESPONSIBILITIES:
+### YOUR CAPABILITIES
+1. **Run Experiments**: You can execute the code using `run_shell_command`.
+2. **Analyze Logs**: You can read the output logs using `read_file` to see loss, accuracy, and errors.
+3. **Iterate**: You are expected to NOT just run once. You should:
+   - Run with initial/default parameters.
+   - Check the results (Is it converging? Is there an OOM error? Is performance satisfying?).
+   - **Adjust parameters** (LR, Batch Size, Epochs, Model Config) and RUN AGAIN.
+   - Repeat until you achieve a satisfactory result or determine the idea fails.
 
-CRITICAL - EXECUTION DIRECTORY:
-The code MUST be executed from the working_dir/project directory.
-All Python scripts expect to run with project/ as the working directory.
-- Change directory to project/ before execution
-- Ensure PYTHONPATH includes the project/ directory
-- All relative imports in the code assume execution from project/
+### ENVIRONMENT
+- **Workspace**: `{working_dir}`
+- **Project Root**: `{working_dir}/project`
+- **Log Dir**: `{log_dir}` (You MUST save logs here).
 
-Example execution:
-  cd /path/to/working_dir/project
-  python train.py --args
+### PROTOCOL
+1. **Understand**: Read the `entry_script` content first to see what `argparse` arguments are available!
+2. **Execute**: 
+   - Construct a command like: `python train.py --epochs 10 --lr 0.01 > {log_dir}/run_1.log 2>&1`
+   - **CRITICAL**: Always use redirection (`> log_file 2>&1`) to capture output.
+   - Run it using `run_shell_command` from the Project Root.
+3. **Observe**: Read the log file immediately after running.
+4. **Reflect**: 
+   - *Error?* Fix args (e.g., reduce batch size if OOM).
+   - *Poor Performance?* Tune args (e.g., increase epochs, change LR).
+   - *Success?* Great, you are done.
+5. **Report**: When you are satisfied, provide a final summary.
 
-NOT:
-  cd /path/to/working_dir
-  python project/train.py --args
-
-1. CODE EXECUTION
-   - Use provided tools to execute the experiment code
-   - Set up proper execution environment (virtualenv, dependencies)
-   - Handle different execution scenarios:
-     * Training scripts
-     * Testing/evaluation scripts
-     * Data preprocessing scripts
-     * Complete pipelines
-
-2. LOG MANAGEMENT
-   - Create timestamped log file for each execution
-   - Capture stdout and stderr separately
-   - Write comprehensive execution logs including:
-     * Timestamp and execution command
-     * Environment information
-     * Complete stdout output
-     * Error messages and stack traces
-     * Execution time and resource usage
-   - Store logs in organized directory structure
-
-3. ERROR DETECTION
-   - Monitor execution process for errors
-   - Detect different error types:
-     * Syntax errors (failed import, parse errors)
-     * Runtime errors (exceptions during execution)
-     * Import errors (missing dependencies)
-     * Timeout (execution exceeds time limit)
-     * Resource errors (out of memory, GPU errors)
-   - Capture error messages and stack traces
-   - Set has_error flag appropriately
-
-4. EXECUTION MONITORING
-   - Track execution time
-   - Monitor process exit codes
-   - Detect execution interruptions
-   - Extract performance metrics if available:
-     * Training/validation accuracy
-     * Loss values
-     * Evaluation metrics (F1, precision, recall, etc.)
-     * Training time per epoch
-
-5. RESULT SUMMARIZATION
-   - Provide clear execution summary
-   - Highlight key results and metrics
-   - Explain any errors that occurred
-   - Suggest next steps if execution failed
-
-TOOL USAGE GUIDELINES:
-
-All tools return a dictionary with the following structure:
-- success (bool): Indicates if the operation succeeded
-- If successful: Contains relevant data fields (stdout, stderr, exit_code, status, etc.)
-- If failed: Contains an "error" field with error message
-
-Example successful execution:
-{{
-  "success": true,
-  "exit_code": 0,
-  "stdout": "Training completed...",
-  "stderr": "",
-  "execution_time": 125.5
-}}
-
-Example failed execution:
-{{
-  "success": false,
-  "exit_code": 1,
-  "stdout": "Starting training...",
-  "stderr": "ImportError: No module named 'torch'",
-  "error": "Execution failed with exit code 1"
-}}
-
-Always check the "success" field and "exit_code" before determining execution status.
-A tool may return success=true but exit_code!=0, indicating the process ran but failed.
-
-AVAILABLE TOOLS:
-- run_python_script: Execute Python script (returns dict with "success", "exit_code", "stdout", "stderr")
-- run_shell_command: Execute shell command (returns dict with "success", "exit_code", "stdout", "stderr")
-- run_python_code: Execute Python code snippet (returns dict with "success", "exit_code", "stdout", "stderr")
-- create_log_file: Create timestamped log file (returns dict with "success", "log_path", "filename")
-- append_to_log: Append content to log (returns dict with "success", "log_path", "bytes_written")
-- get_environment_info: Get Python environment info (returns dict with "success", "python_version", "platform")
-- check_python_syntax: Check Python syntax (returns dict with "success", "valid_syntax", "syntax_error")
-
-EXECUTION PROCESS:
-
-Step 1: Prepare execution environment
-   - Create log directory if not exists
-   - Generate unique log file name with timestamp
-   - Verify code path and dependencies
-
-Step 2: Execute code
-   - Run code using provided tools
-   - Capture stdout/stderr in real-time
-   - Monitor for errors and timeouts
-
-Step 3: Write logs
-   - Write all output to log file
-   - Include execution metadata (time, command, environment)
-   - Preserve formatting and stack traces
-
-Step 4: Analyze results
-   - Check exit code and error status
-   - Extract metrics from output
-   - Classify error type if applicable
-   - Generate preview of output
-
-Step 5: Generate output
-   - Return structured ExperimentExecuteOutput
-   - Include log path and error status
-   - Provide execution summary
-
-OUTPUT FORMAT:
-
-You must output a structured ExperimentExecuteOutput with:
-- log_path: Path to the complete log file
-- has_error: Boolean indicating if errors occurred
-- execution_status: 'success', 'error', 'timeout', or 'interrupted'
-- exit_code: Process exit code (0 for success)
-- error_message: Detailed error message if applicable
-- error_type: Classification of error
-- execution_time: Total execution time in seconds
-- stdout_preview: Preview of stdout (first/last lines)
-- stderr_preview: Preview of stderr if errors occurred
-- experiment_metrics: Extracted metrics dictionary
-- execution_summary: Human-readable summary
-
-Be thorough in capturing all execution information and accurate in error detection."""
+**IMPORTANT**: You are autonomous. Do not ask the user for permission to run again. Just do it.
+"""
 
     agent = Agent(
-        name="Experiment Execute Agent",
+        name="Experiment Researcher",
         instructions=instructions,
         tools=tools or [],
-        output_type=ExperimentExecuteOutput,
         model=model,
     )
 
     return agent
 
 
+def create_execute_unifier_agent(model: str = "gpt-4o") -> Agent:
+    return Agent(
+        name="Execute Output Unifier",
+        instructions="""You are an expert data structuring assistant.
+Your task is to convert the researcher's final report into a structured `ExperimentExecuteOutput` object.
+
+Input text will contain the conversation history of the researcher.
+Identify the **BEST/FINAL** run from the history.
+
+Extract:
+- Log Path (of the best run)
+- Status (Success/Fail)
+- Metrics (JSON string of the best metrics found)
+- Summary (What was achieved, what parameters worked best)
+""",
+        output_type=ExperimentExecuteOutput,
+        model=OUTPUT_UNIFIER_MODEL,
+    )
+
+
 class ExperimentExecuteAgent:
     """
-    Main experiment execution agent that runs code and captures logs.
-
-    This agent:
-    1. Receives code path and execution parameters
-    2. Executes code in controlled environment
-    3. Captures all output to log files
-    4. Detects and reports errors
-    5. Extracts metrics if available
+    Main experiment execution agent.
+    Wrapper around the autonomous researcher agent.
     """
 
     def __init__(
         self,
         model: str = "gpt-4o",
+        working_dir: str = None,
         tools: Optional[list] = None,
         log_dir: str = "./experiment_logs",
         timeout: int = 3600,
+        max_iterations: int = 10,  # Passed to Runner as max_turns
     ):
-        """
-        Initialize the experiment execute agent.
-
-        Args:
-            model: Model to use for execution monitoring
-            tools: Optional list of tools for code execution.
-                   If None, automatically loads recommended tools.
-            log_dir: Directory to store execution logs
-            timeout: Maximum execution time in seconds (default: 1 hour)
-        """
         self.model = model
+        self.working_dir = working_dir
         self.log_dir = log_dir
         self.timeout = timeout
+        self.max_iterations = max_iterations
 
         # Auto-load recommended tools if not provided
         if tools is None:
@@ -238,140 +127,143 @@ class ExperimentExecuteAgent:
         else:
             self.tools = tools
 
-        # Create log directory if not exists
-        os.makedirs(self.log_dir, exist_ok=True)
+        # Initialize the autonomous researcher
+        self.researcher_agent = create_execute_agent(
+            model=model, working_dir=working_dir, log_dir=log_dir, tools=self.tools
+        )
 
-        # Initialize execute agent
-        self.execute_agent = create_execute_agent(model=model, tools=self.tools)
+        # Initialize output unifier
+        self.output_unifier = create_execute_unifier_agent(model=model)
 
-        # Expose execute agent as main agent for handoff compatibility
-        self.agent = self.execute_agent
+        # Expose agent
+        self.agent = self.researcher_agent
 
-    async def execute(
-        self,
-        code_path: str,
-        entry_script: str,
-        execution_args: Optional[dict] = None,
-    ) -> ExperimentExecuteOutput:
+    async def process(self, context: Any, **kwargs) -> ExperimentExecuteOutput:
         """
-        Execute experiment code and capture results.
-
-        Args:
-            code_path: Path to the implemented codebase
-            entry_script: Main script to execute (e.g., "train.py")
-            execution_args: Optional execution arguments (e.g., {"epochs": 10})
-
-        Returns:
-            ExperimentExecuteOutput with execution results and log path
+        Process the execution step.
         """
-        # Generate log file name with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_filename = f"execution_{timestamp}.log"
-        log_path = os.path.join(self.log_dir, log_filename)
 
-        # Prepare execution arguments
-        args_str = ""
-        if execution_args:
-            args_str = " ".join(
-                [f"--{key} {value}" for key, value in execution_args.items()]
-            )
+        # 1. Identify Entry Script
+        entry_script = self._find_entry_script(context)
+        if not entry_script:
+            return self._create_skipped_output()
 
-        # Prepare input for execute agent
-        execute_input = f"""
-EXECUTE EXPERIMENT CODE
+        # 2. Prepare Context
+        summary = None
+        if hasattr(context.pre_analysis_output, "summary"):
+            summary = context.pre_analysis_output.summary
 
-Code Path: {code_path}
-Entry Script: {entry_script}
-Execution Arguments: {args_str if args_str else "None"}
-Log File: {log_path}
-Timeout: {self.timeout} seconds
+        print_section("STARTING AUTONOMOUS EXPERIMENT RESEARCH", "=")
+        print_info(f"Entry Script: {entry_script}")
+        print_info(f"Max Turns: {self.max_iterations}")
 
-=== EXECUTION INSTRUCTIONS ===
+        # 3. Construct the initial prompt
+        # We give the agent the context and tell it to GO.
+        task_prompt = f"""
+START RESEARCH TASK
 
-1. Navigate to the code directory: {code_path}
+**Target Script**: `{entry_script}`
+**Research Goal**: {summary}
+**Log Directory**: `{self.log_dir}`
 
-2. Execute the entry script:
-   Command: python {entry_script} {args_str}
-
-3. Capture all output (stdout and stderr) and write to: {log_path}
-
-4. Monitor execution for:
-   - Exit code (0 = success, non-zero = error)
-   - Error messages and stack traces
-   - Execution time
-   - Any performance metrics printed to stdout
-
-5. Detect error types:
-   - Import errors (ModuleNotFoundError, ImportError)
-   - Syntax errors (SyntaxError)
-   - Runtime errors (Exception stack traces)
-   - Timeout (execution exceeds {self.timeout}s)
-
-6. Extract metrics from output if available:
-   - Look for patterns like "accuracy: 0.95", "loss: 0.23"
-   - Training progress (epoch, steps)
-   - Evaluation results
-
-7. Generate execution summary including:
-   - Whether execution succeeded or failed
-   - Key results and metrics
-   - Error description if applicable
-   - Execution time
-
-Use the available tools to execute the code and capture all information.
+**Instructions**:
+1. Check `{entry_script}` content to understand arguments.
+2. Construct and run commands like: `python {entry_script} --arg val > {self.log_dir}/run_1.log 2>&1`
+3. Analyze logs and iterate until the goal is met.
 """
 
-        # Run execute agent
-        # Use streamed version for real-time output
+        # 4. Run the Agent (ReAct Loop)
+        # The Runner will handle the loop: Agent -> Tool -> Agent -> Tool ...
         result_stream = Runner.run_streamed(
-            self.execute_agent, execute_input, max_turns=100
+            self.researcher_agent, task_prompt, max_turns=self.max_iterations
         )
+
+        final_text = ""
+        chat_history = []
+
         async for event in result_stream.stream_events():
-            if hasattr(event, "data"):
-                event_type = type(event.data).__name__
-                if "FunctionCallArguments" not in event_type and hasattr(
-                    event.data, "delta"
-                ):
-                    delta = event.data.delta
-                    if hasattr(delta, "content") and delta.content:
-                        print(delta.content, end="", flush=True)
-                    elif hasattr(delta, "text") and delta.text:
-                        print(delta.text, end="", flush=True)
-        result = result_stream  # The stream object is the result
+            if hasattr(event, "data") and hasattr(event.data, "delta"):
+                delta = event.data.delta
+                if hasattr(delta, "content") and delta.content:
+                    print(delta.content, end="", flush=True)
+                    final_text += delta.content
 
-        return result.final_output
+        # Capture the full history for the unifier to analyze
+        if hasattr(result_stream, "chat_history"):
+            chat_history = result_stream.chat_history
+            # Append final text if not in history yet
+            full_log = "\n".join([f"{msg.role}: {msg.content}" for msg in chat_history])
+        else:
+            full_log = final_text
 
-    def execute_sync(
-        self,
-        code_path: str,
-        entry_script: str,
-        execution_args: Optional[dict] = None,
-    ) -> ExperimentExecuteOutput:
-        """
-        Synchronous version of execute method.
+        print_success("\nResearch Session Completed.")
 
-        Args:
-            code_path: Path to the implemented codebase
-            entry_script: Main script to execute (e.g., "train.py")
-            execution_args: Optional execution arguments
+        # 5. Unify Output
+        # We send the entire conversation log to the unifier so it can pick the best run.
+        unifier_input = f"""
+Please analyze this research session log and extract the details of the BEST/FINAL run.
 
-        Returns:
-            ExperimentExecuteOutput with execution results and log path
-        """
-        import asyncio
+=== SESSION LOG ===
+{full_log}
+"""
+        unifier_stream = Runner.run_streamed(
+            self.output_unifier, unifier_input, hooks=None
+        )
 
-        return asyncio.run(self.execute(code_path, entry_script, execution_args))
+        async for _ in unifier_stream.stream_events():
+            pass
+
+        final_output = unifier_stream.final_output
+
+        # Hydrate log preview
+        if final_output.log_path and os.path.exists(final_output.log_path):
+            log_content = self.get_log_content(final_output.log_path)
+            lines = log_content.splitlines()
+            if lines:
+                final_output.stdout_preview = "\n".join(lines[:50])
+                if len(lines) > 50:
+                    final_output.stdout_preview += "\n..."
+                if final_output.has_error:
+                    final_output.stderr_preview = "\n".join(lines[-50:])
+
+        return final_output
+
+    def _find_entry_script(self, context: Any) -> Optional[str]:
+        if context.code_plan_output:
+            plan_output = context.code_plan_output
+            file_structure = []
+            if isinstance(plan_output, dict):
+                file_structure = plan_output.get("file_structure", [])
+            elif hasattr(plan_output, "file_structure"):
+                file_structure = plan_output.file_structure
+
+            for item in file_structure:
+                path = ""
+                if hasattr(item, "path"):
+                    path = item.path
+                elif isinstance(item, dict):
+                    path = item.get("path", "")
+                else:
+                    continue
+
+                if "main.py" in path or "train.py" in path or "run.py" in path:
+                    return path.split("/")[-1] if "/" in path else path
+        return None
+
+    def _create_skipped_output(self) -> ExperimentExecuteOutput:
+        return ExperimentExecuteOutput(
+            log_path="",
+            has_error=False,
+            execution_status="skipped",
+            exit_code=0,
+            execution_time=0.0,
+            stdout_preview="N/A",
+            stderr_preview="",
+            experiment_metrics={},
+            execution_summary="Execution skipped - no entry script found.",
+        )
 
     def get_log_content(self, log_path: str) -> str:
-        """
-        Read and return the content of a log file.
-
-        Args:
-            log_path: Path to the log file
-
-        Returns:
-            Log file content as string
-        """
         try:
             with open(log_path, "r", encoding="utf-8") as f:
                 return f.read()
@@ -381,57 +273,20 @@ Use the available tools to execute the code and capture all information.
 
 def create_experiment_execute_agent(
     model: str = "gpt-4o",
+    working_dir: str = None,
     tools: Optional[list] = None,
     log_dir: str = "./experiment_logs",
     timeout: int = 3600,
+    max_iterations: int = 20,  # Give it enough turns to think and act
 ) -> ExperimentExecuteAgent:
     """
     Factory function to create an experiment execute agent.
-
-    Args:
-        model: Model to use for execution monitoring
-        tools: List of tools for code execution
-        log_dir: Directory to store execution logs
-        timeout: Maximum execution time in seconds
-
-    Returns:
-        ExperimentExecuteAgent instance
     """
     return ExperimentExecuteAgent(
-        model=model, tools=tools, log_dir=log_dir, timeout=timeout
+        model=model,
+        working_dir=working_dir,
+        tools=tools,
+        log_dir=log_dir,
+        timeout=timeout,
+        max_iterations=max_iterations,
     )
-
-
-# Example usage:
-if __name__ == "__main__":
-    import asyncio
-
-    async def main():
-        # Create the experiment execute agent
-        agent = create_experiment_execute_agent(
-            model="gpt-4o", log_dir="./experiment_logs", timeout=3600
-        )
-
-        # Execute experiment
-        result = await agent.execute(
-            code_path="/path/to/implemented/code",
-            entry_script="train.py",
-            execution_args={"epochs": 10, "batch_size": 32},
-        )
-
-        print("Execution Result:")
-        print(f"Status: {result.execution_status}")
-        print(f"Has Error: {result.has_error}")
-        print(f"Log Path: {result.log_path}")
-        print(f"Execution Time: {result.execution_time}s")
-
-        if result.has_error:
-            print(f"Error Type: {result.error_type}")
-            print(f"Error Message: {result.error_message}")
-
-        if result.experiment_metrics:
-            print(f"Metrics: {result.experiment_metrics}")
-
-        print(f"\nSummary: {result.execution_summary}")
-
-    asyncio.run(main())

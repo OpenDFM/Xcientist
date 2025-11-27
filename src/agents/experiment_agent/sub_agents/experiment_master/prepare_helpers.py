@@ -198,7 +198,9 @@ def prepare_workspace_info(workspace_dir: str) -> Dict:
     papers_count = 0
     if papers_dir.exists():
         papers_count = len(
-            list(papers_dir.glob("*.tex")) + list(papers_dir.glob("*.pdf"))
+            list(papers_dir.glob("*.tex"))
+            + list(papers_dir.glob("*.pdf"))
+            + list(papers_dir.glob("*.md"))
         )
 
     # Scan datasets

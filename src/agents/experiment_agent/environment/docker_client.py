@@ -20,7 +20,7 @@ class DockerClientConfig:
     port: int = 8000
     timeout: int = 300  # 5 minutes default timeout
     buffer_size: int = 4096
-    max_retries: int = 3
+    max_retries: int = 10
     retry_delay: float = 1.0
 
 
@@ -46,7 +46,7 @@ class DockerClient:
         port: int = 8000,
         timeout: int = 300,
         buffer_size: int = 4096,
-        max_retries: int = 3,
+        max_retries: int = 10,
         retry_delay: float = 1.0,
     ):
         """

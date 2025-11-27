@@ -87,7 +87,7 @@ class WorkflowContext:
     # Error tracking
     last_error: Optional[str] = None
     retry_count: int = 0
-    max_retries: int = 3
+    max_retries: int = 10
 
     # History
     state_history: List[StateTransition] = None
@@ -441,35 +441,57 @@ class WorkflowStateMachine:
 
         execute_output = context.experiment_execute_output
 
+        # Get execution status (handle both dict and object formats)
+        if isinstance(execute_output, dict):
+            execution_status = execute_output.get("execution_status", "unknown")
+        else:
+            execution_status = getattr(execute_output, "execution_status", "unknown")
+
         # Check execution status
-        if hasattr(execute_output, "status"):
-            if execute_output.status == "success":
-                context.retry_count = 0
+        if execution_status == "success":
+            context.retry_count = 0
+            return (
+                WorkflowState.EXPERIMENT_ANALYSIS,
+                "Experiment executed successfully, moving to analysis",
+                {
+                    "execution_results": execute_output,
+                    "expected_results": context.pre_analysis_output,
+                },
+            )
+        elif execution_status == "skipped":
+            # Execution was skipped (e.g., no entry script found)
+            # Still proceed to analysis to evaluate the implementation
+            context.retry_count = 0
+            return (
+                WorkflowState.EXPERIMENT_ANALYSIS,
+                "Experiment execution skipped (library implementation), moving to analysis",
+                {
+                    "execution_results": execute_output,
+                    "expected_results": context.pre_analysis_output,
+                },
+            )
+        elif execution_status == "error":
+            if context.retry_count < context.max_retries:
+                context.retry_count += 1
+                error_message = ""
+                if isinstance(execute_output, dict):
+                    error_message = execute_output.get("error_message", "")
+                else:
+                    error_message = getattr(execute_output, "error_message", "")
                 return (
-                    WorkflowState.EXPERIMENT_ANALYSIS,
-                    "Experiment executed successfully, moving to analysis",
+                    WorkflowState.CODE_IMPLEMENT,
+                    f"Experiment execution failed, fixing code (attempt {context.retry_count}/{context.max_retries})",
                     {
-                        "execution_results": execute_output,
-                        "expected_results": context.pre_analysis_output,
+                        "plan": context.code_plan_output,
+                        "error": error_message,
                     },
                 )
-            elif execute_output.status == "error":
-                if context.retry_count < context.max_retries:
-                    context.retry_count += 1
-                    return (
-                        WorkflowState.CODE_IMPLEMENT,
-                        f"Experiment execution failed, fixing code (attempt {context.retry_count}/{context.max_retries})",
-                        {
-                            "plan": context.code_plan_output,
-                            "error": getattr(execute_output, "error_message", ""),
-                        },
-                    )
-                else:
-                    return (
-                        WorkflowState.FAILED,
-                        "Experiment execution failed after max retries",
-                        None,
-                    )
+            else:
+                return (
+                    WorkflowState.FAILED,
+                    "Experiment execution failed after max retries",
+                    None,
+                )
 
         # Default: proceed to analysis
         context.retry_count = 0

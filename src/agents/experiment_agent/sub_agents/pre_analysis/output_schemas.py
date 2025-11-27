@@ -15,9 +15,8 @@ class ConceptAnalysis(BaseModel):
         description="High-level system architecture and design patterns"
     )
     conceptual_framework: str = Field(
-        description="Conceptual framework and theoretical foundations"
+        description="Conceptual framework, theoretical foundations, design philosophy and principles"
     )
-    design_philosophy: str = Field(description="Core design philosophy and principles")
     key_innovations: str = Field(
         description="Key innovative concepts and contributions"
     )
@@ -29,17 +28,25 @@ class ConceptAnalysis(BaseModel):
 class AlgorithmAnalysis(BaseModel):
     """Algorithm analysis output structure."""
 
-    algorithms: str = Field(description="Core algorithms and procedures")
+    algorithms: str = Field(
+        description="Core algorithms, procedures, and computational methods"
+    )
     mathematical_formulations: str = Field(
         description="Mathematical models, formulas, and equations"
     )
     technical_details: str = Field(
         description="Implementation-level technical specifications"
     )
-    computational_methods: str = Field(
-        description="Computational methods and optimization strategies"
-    )
     algorithm_flow: str = Field(description="Algorithm flow and execution pipeline")
+
+
+class AnalysisSynthesis(BaseModel):
+    """Synthesis of analysis results."""
+
+    summary: str = Field(description="Executive summary of the analysis")
+    implementation_guidance: str = Field(
+        description="Guidance for implementation and code planning"
+    )
 
 
 class PreAnalysisOutput(BaseModel):
@@ -57,21 +64,19 @@ class PreAnalysisOutput(BaseModel):
         description="System architecture and high-level design"
     )
     conceptual_framework: str = Field(
-        description="Conceptual framework and theoretical foundations"
+        description="Conceptual framework, theoretical foundations, design philosophy and principles"
     )
-    design_philosophy: str = Field(description="Design philosophy and principles")
     key_innovations: str = Field(description="Key innovations and contributions")
 
     # Algorithm analysis
-    algorithms: str = Field(description="Core algorithms and procedures")
+    algorithms: str = Field(
+        description="Core algorithms, procedures, and computational methods"
+    )
     mathematical_formulations: str = Field(
         description="Mathematical models and formulas"
     )
     technical_specifications: str = Field(
         description="Technical specifications and implementation details"
-    )
-    computational_methods: str = Field(
-        description="Computational methods and strategies"
     )
 
     # Additional metadata

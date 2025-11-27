@@ -19,8 +19,21 @@ The state machine handles feedback loops automatically:
 """
 
 import os
+import asyncio
+import logging
+import httpx
+import httpcore
 from typing import Dict, Optional, Any
 from datetime import datetime
+
+# Retry mechanism imports
+from tenacity import (
+    AsyncRetrying,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+    before_sleep_log,
+)
 
 from src.agents.experiment_agent.sub_agents.experiment_master.output_schemas import (
     ExperimentMasterOutput,
@@ -53,6 +66,17 @@ from src.agents.experiment_agent.sub_agents.experiment_analysis import (
     create_experiment_analysis_agent,
 )
 
+from src.memory.api.slot_process_api import (
+    SlotProcess,
+)
+
+# from src.memory.memory_system.decorator import (
+#     short_term_slot_trace,
+# )
+from src.memory.api.faiss_memory_system_api import (
+    FAISSMemorySystem,
+)
+
 
 # Orchestrator removed - using rule-based state machine instead
 
@@ -72,8 +96,12 @@ class ExperimentMasterAgent:
     def __init__(
         self,
         model: str = "gpt-4o",
-        expensive_model: Optional[str] = None,
-        cheap_model: Optional[str] = None,
+        pre_analysis_model: Optional[str] = None,
+        code_plan_model: Optional[str] = None,
+        code_implement_model: Optional[str] = None,
+        code_judge_model: Optional[str] = None,
+        execute_experiment_model: Optional[str] = None,
+        result_analysis_model: Optional[str] = None,
         max_iterations: int = 5,
         tools: Optional[Dict[str, list]] = None,
         working_dir: Optional[str] = None,
@@ -85,9 +113,13 @@ class ExperimentMasterAgent:
         Initialize the experiment master agent.
 
         Args:
-            model: Default model to use for all agents (for backward compatibility)
-            expensive_model: Model for critical tasks (code plan, judge, execute). If None, uses model.
-            cheap_model: Model for non-critical tasks (implement, analysis, etc.). If None, uses model.
+            model: Default model to use for all agents (fallback if specific model not provided)
+            pre_analysis_model: Model for pre-analysis agent. If None, uses model.
+            code_plan_model: Model for code plan agent. If None, uses model.
+            code_implement_model: Model for code implement agent. If None, uses model.
+            code_judge_model: Model for code judge agent. If None, uses model.
+            execute_experiment_model: Model for execute experiment agent. If None, uses model.
+            result_analysis_model: Model for result analysis agent. If None, uses model.
             max_iterations: Maximum number of complete workflow iterations
             tools: Optional dictionary mapping agent types to their tools.
                    If None, automatically loads recommended tools for all agents.
@@ -97,12 +129,20 @@ class ExperimentMasterAgent:
             verbose: If True, enable verbose hooks to show full LLM responses and tool calls
         """
         self.model = model
-        self.expensive_model = expensive_model or model
-        self.cheap_model = cheap_model or model
+        self.pre_analysis_model = pre_analysis_model or model
+        self.code_plan_model = code_plan_model or model
+        self.code_implement_model = code_implement_model or model
+        self.code_judge_model = code_judge_model or model
+        self.execute_experiment_model = execute_experiment_model or model
+        self.result_analysis_model = result_analysis_model or model
         self.max_iterations = max_iterations
         self.working_dir = working_dir
         self.log_dir = log_dir
         self.verbose = verbose
+        self.slot_process = SlotProcess()
+        self.semantic_memory_store = FAISSMemorySystem(memory_type="semantic")
+        self.episodic_memory_store = FAISSMemorySystem(memory_type="episodic")
+        self.procedural_memory_store = FAISSMemorySystem(memory_type="procedural")
 
         if tools is None:
             from src.agents.experiment_agent.sub_agents.experiment_master import (
@@ -123,47 +163,44 @@ class ExperimentMasterAgent:
         self.cache_manager = CacheManager(cache_dir=cache_dir)
         print(f"[CACHE] Cache directory: {cache_dir}")
 
-        # Initialize all sub-agents with appropriate models
-        # Use cheap model for pre-analysis
+        # Initialize all sub-agents with their specific models
         self.pre_analysis_agent = create_pre_analysis_agent(
-            model=self.cheap_model,
+            model=self.pre_analysis_model,
             tools=self.tools.get("pre_analysis"),
             verbose=verbose,
         )
 
-        # Use expensive model for code plan (critical task)
         self.code_plan_agent = create_code_plan_agent(
-            model=self.expensive_model,
+            model=self.code_plan_model,
             working_dir=working_dir,
             tools=self.tools.get("code_plan"),
             verbose=verbose,
         )
 
-        # Use expensive model for code implementation (critical task)
         self.code_implement_agent = create_code_implement_agent(
-            model=self.expensive_model,
+            model=self.code_implement_model,
             working_dir=working_dir,
             tools=self.tools.get("code_implement"),
             verbose=verbose,
         )
 
-        # Use expensive model for code judge (critical task)
         self.code_judge_agent = create_code_judge_agent(
-            model=self.expensive_model,
+            model=self.code_judge_model,
+            working_dir=working_dir,
             tools=self.tools.get("code_judge"),
             verbose=verbose,
         )
 
-        # Use cheap model for experiment execute
         self.experiment_execute_agent = create_experiment_execute_agent(
-            model=self.cheap_model,
+            model=self.execute_experiment_model,
+            working_dir=working_dir,
             log_dir=log_dir,
             tools=self.tools.get("experiment_execute"),
         )
 
-        # Use cheap model for experiment analysis
         self.experiment_analysis_agent = create_experiment_analysis_agent(
-            model=self.cheap_model, tools=self.tools.get("experiment_analysis")
+            model=self.result_analysis_model,
+            tools=self.tools.get("experiment_analysis"),
         )
 
         # Agent mapping for easy access
@@ -230,7 +267,7 @@ class ExperimentMasterAgent:
                 # Get workspace directory (parent of project dir)
                 import os
 
-                workspace_dir = os.path.dirname(self.working_dir)
+                workspace_dir = self.working_dir
 
                 # Prepare workspace information
                 prepare_info = prepare_workspace_info(workspace_dir)
@@ -312,24 +349,44 @@ class ExperimentMasterAgent:
         else:
             # Resumed experiment - check if current state already has output
             print(f"\n[RESUMED] Continuing from: {context.current_state.value}")
-            
+
             # Check if the current state's output already exists
             state_output_exists = False
-            if context.current_state == WorkflowState.PRE_ANALYSIS and context.pre_analysis_output:
+            if (
+                context.current_state == WorkflowState.PRE_ANALYSIS
+                and context.pre_analysis_output
+            ):
                 state_output_exists = True
-            elif context.current_state == WorkflowState.CODE_PLAN and context.code_plan_output:
+            elif (
+                context.current_state == WorkflowState.CODE_PLAN
+                and context.code_plan_output
+            ):
                 state_output_exists = True
-            elif context.current_state == WorkflowState.CODE_IMPLEMENT and context.code_implement_output:
+            elif (
+                context.current_state == WorkflowState.CODE_IMPLEMENT
+                and context.code_implement_output
+            ):
                 state_output_exists = True
-            elif context.current_state == WorkflowState.CODE_JUDGE and context.code_judge_output:
+            elif (
+                context.current_state == WorkflowState.CODE_JUDGE
+                and context.code_judge_output
+            ):
                 state_output_exists = True
-            elif context.current_state == WorkflowState.EXPERIMENT_EXECUTE and context.experiment_execute_output:
+            elif (
+                context.current_state == WorkflowState.EXPERIMENT_EXECUTE
+                and context.experiment_execute_output
+            ):
                 state_output_exists = True
-            elif context.current_state == WorkflowState.EXPERIMENT_ANALYSIS and context.experiment_analysis_output:
+            elif (
+                context.current_state == WorkflowState.EXPERIMENT_ANALYSIS
+                and context.experiment_analysis_output
+            ):
                 state_output_exists = True
-            
+
             if state_output_exists:
-                print(f"[SKIP] Current state output already exists, transitioning to next state...")
+                print(
+                    f"[SKIP] Current state output already exists, transitioning to next state..."
+                )
                 # Perform state transition immediately
                 transition = self.state_machine.transition(context)
                 print(f"\n[STATE TRANSITION]")
@@ -338,7 +395,9 @@ class ExperimentMasterAgent:
                 print(f"Reason: {transition.reason}")
                 transition_data = transition.data or {}
             else:
-                print(f"[CONTINUE] Current state output not found, will execute agent...")
+                print(
+                    f"[CONTINUE] Current state output not found, will execute agent..."
+                )
                 transition_data = {}
 
         while not self.state_machine.is_terminal_state(context.current_state):
@@ -415,6 +474,7 @@ class ExperimentMasterAgent:
 
         return self._build_final_output(context)
 
+    # @short_term_slot_trace(context=context)
     async def _execute_agent(
         self, agent_name: str, context: WorkflowContext, data: Dict[str, Any]
     ) -> Any:
@@ -432,12 +492,6 @@ class ExperimentMasterAgent:
         agent = self.agents.get(agent_name)
         if not agent:
             raise ValueError(f"Unknown agent: {agent_name}")
-
-        # Prepare input for agent based on state
-        agent_input = self._prepare_agent_input(agent_name, context, data)
-
-        print(f"[DEBUG] Agent input length: {len(agent_input)} characters")
-        print(f"[DEBUG] Agent input preview:\n{agent_input[:300]}...")
 
         # Increment execution step counter for cache management
         context.execution_step_counter += 1
@@ -468,82 +522,37 @@ class ExperimentMasterAgent:
 
         # Execute agent based on its interface
         try:
-            if hasattr(agent, "analyze"):
-                # Pre-analysis agent uses analyze method
-                print(f"[DEBUG] Calling agent.analyze()")
-                result = await agent.analyze(agent_input)
-            elif hasattr(agent, "plan"):
-                # Code plan agent
-                print(f"[DEBUG] Calling agent.plan()")
-                result = await agent.plan(agent_input)
-            elif hasattr(agent, "implement"):
-                # Code implement agent
-                print(f"[DEBUG] Calling agent.implement()")
-                result = await agent.implement(agent_input)
-            elif hasattr(agent, "judge"):
-                # Code judge agent
-                print(f"[DEBUG] Calling agent.judge()")
-                result = await agent.judge(agent_input)
-            elif hasattr(agent, "execute"):
-                # Experiment execute agent - needs special parameters
-                print(f"[DEBUG] Calling agent.execute()")
+            if hasattr(agent, "process"):
+                print(f"[DEBUG] Calling agent.process()")
 
-                # Extract entry script from code plan if available
-                entry_script = None
-                if context.code_plan_output:
-                    file_structure = (
-                        context.code_plan_output.file_structure
-                        if hasattr(context.code_plan_output, "file_structure")
-                        else []
-                    )
-                    # Look for main entry point files
-                    for item in file_structure:
-                        if hasattr(item, "path"):
-                            path = item.path
-                        elif isinstance(item, dict):
-                            path = item.get("path", "")
-                        else:
-                            continue
-
-                        if "main.py" in path or "train.py" in path or "run.py" in path:
-                            # Extract just the filename from the path
-                            entry_script = path.split("/")[-1] if "/" in path else path
-                            break
-
-                # If no entry script found, try to create one or skip execution
-                if not entry_script:
-                    print(
-                        f"[WARNING] No entry script (main.py/train.py) found in file structure"
-                    )
-                    print(
-                        f"[INFO] Skipping experiment execution - implementation appears to be a library"
-                    )
-                    # Create a dummy successful execution output
-                    from src.agents.experiment_agent.sub_agents.experiment_execute.output_schemas import (
-                        ExperimentExecuteOutput,
-                    )
-
-                    result = ExperimentExecuteOutput(
-                        status="skipped",
-                        log_path="",
-                        execution_time=0.0,
-                        success=True,
-                        summary="Execution skipped - no entry script found. Implementation is a library/module.",
-                        output_preview="N/A - Library implementation without executable entry point",
-                    )
-                else:
-                    result = await agent.execute(
-                        code_path=self.working_dir,
-                        entry_script=entry_script,
-                        execution_args=None,
-                    )
-            elif hasattr(agent, "run"):
-                # Generic run method
-                print(f"[DEBUG] Calling agent.run()")
-                result = await agent.run(agent_input)
+                # Retry logic for network/protocol errors
+                async for attempt in AsyncRetrying(
+                    stop=stop_after_attempt(5),  # Retry up to 5 times
+                    wait=wait_exponential(
+                        multiplier=1, min=2, max=30
+                    ),  # Exponential backoff
+                    retry=retry_if_exception_type(
+                        (
+                            httpx.RemoteProtocolError,
+                            httpcore.RemoteProtocolError,
+                            httpx.ReadTimeout,
+                            httpx.ConnectTimeout,
+                            httpx.PoolTimeout,
+                            TimeoutError,
+                            ConnectionError,
+                        )
+                    ),
+                    reraise=True,
+                ):
+                    with attempt:
+                        if attempt.retry_state.attempt_number > 1:
+                            print(
+                                f"[RETRY] Attempt {attempt.retry_state.attempt_number} for {agent_name} due to network error..."
+                            )
+                        result = await agent.process(context, **data)
             else:
                 raise ValueError(
-                    f"Agent {agent_name} has no recognized execution method"
+                    f"Agent {agent_name} has no recognized execution method (missing 'process')"
                 )
 
             print(f"[DEBUG] Agent method completed, result type: {type(result)}")
@@ -551,7 +560,7 @@ class ExperimentMasterAgent:
             # Save result to cache
             self.cache_manager.save_cache(
                 agent_name=agent_name,
-                input_data=agent_input,
+                input_data=str(data),
                 output=result,
                 metadata={
                     "timestamp": datetime.now().isoformat(),
@@ -568,371 +577,6 @@ class ExperimentMasterAgent:
 
             traceback.print_exc()
             raise
-
-    def _format_list(self, items: list) -> str:
-        """Format a list into a readable string."""
-        if not items:
-            return "N/A"
-        return "\n".join(f"- {item}" for item in items)
-
-    def _format_dict(self, d: dict) -> str:
-        """Format a dictionary into a readable string."""
-        if not d:
-            return "N/A"
-        return "\n".join(f"- {key}: {value}" for key, value in d.items())
-
-    def _prepare_agent_input(
-        self, agent_name: str, context: WorkflowContext, data: Dict[str, Any]
-    ) -> str:
-        """Prepare input string for agent execution."""
-        # Build input based on agent type
-        if agent_name == "pre_analysis":
-            if context.input_type == "idea":
-                # Parse idea JSON and format with explicit fields
-                import json
-
-                try:
-                    idea_data = json.loads(context.research_input)
-                    idea_obj = idea_data.get("idea", {})
-
-                    # Format the idea with explicit field labels
-                    formatted_input = f"""Analyze the following research idea:
-
-=== IDEA INFORMATION ===
-
-**Title:** {idea_obj.get("title", "N/A")}
-
-**Description:**
-{idea_obj.get("description", "N/A")}
-
-**Key Innovations:**
-{self._format_list(idea_obj.get("key_innovations", []))}
-
-**Methodology:**
-{self._format_dict(idea_obj.get("methodology", {}))}
-
-**Expected Outcomes:**
-{self._format_list(idea_obj.get("expected_outcomes", []))}
-
-**Reference Papers:**
-{self._format_list(idea_data.get("reference_papers", []))}
-
-=== TASK ===
-Provide a comprehensive analysis covering:
-1. System architecture and conceptual framework
-2. Key innovations and theoretical basis
-3. Algorithms and mathematical formulations (design the specific algorithms based on the methodology)
-4. Technical details and computational methods
-5. Implementation guidance"""
-
-                    return formatted_input
-
-                except json.JSONDecodeError:
-                    # Fallback if JSON parsing fails
-                    return f"""Analyze the following research idea:
-
-{context.research_input}
-
-Provide a comprehensive analysis covering system architecture, algorithms, innovations, and technical details."""
-            else:
-                # For papers, use the original format
-                return f"""Analyze the following research {context.input_type}:
-
-{context.research_input}
-
-Provide a comprehensive analysis covering system architecture, algorithms, innovations, and technical details."""
-
-        elif agent_name == "code_plan":
-            feedback = data.get("feedback", "")
-            feedback_section = (
-                f"\nFeedback from previous iteration:\n{feedback}\n" if feedback else ""
-            )
-
-            return f"""Create an implementation plan based on the following analysis:
-
-{context.pre_analysis_output}
-{feedback_section}
-Provide a detailed implementation plan including file structure, model architecture, and training configuration."""
-
-        elif agent_name == "code_implement":
-            # Extract step information and feedback
-            current_step = data.get("current_step", None)
-            checklist_progress = data.get("checklist_progress", "")
-            completed_steps = data.get("completed_steps", [])
-            feedback = data.get("feedback", "")
-            judge_output = data.get("judge_output", None)
-
-            # Build current step section
-            step_section = ""
-            if current_step:
-                step_section = f"""
-=== CURRENT STEP TO IMPLEMENT ===
-
-Step ID: {current_step.step_id}
-Title: {current_step.title}
-Progress: {checklist_progress}
-
-Description:
-{current_step.description}
-
-Files to Create in This Step:
-{chr(10).join(f'  - {f}' for f in current_step.files_to_create) if current_step.files_to_create else '  (none)'}
-
-Files to Modify in This Step:
-{chr(10).join(f'  - {f}' for f in current_step.files_to_modify) if current_step.files_to_modify else '  (none)'}
-
-Acceptance Criteria (verify these are met):
-{chr(10).join(f'  - {criterion}' for criterion in current_step.acceptance_criteria)}
-
-Dependencies (already completed):
-{', '.join(map(str, current_step.dependencies)) if current_step.dependencies else 'None - this is the first step'}
-
-Completed Steps: {', '.join(map(str, completed_steps)) if completed_steps else 'None'}
-
-IMPORTANT: Implement ONLY this step. Do not implement future steps.
-"""
-
-            # Build feedback section if code was rejected
-            feedback_section = ""
-            if feedback or judge_output:
-                # Extract overall assessment
-                overall_assessment = (
-                    feedback
-                    if feedback
-                    else (
-                        judge_output.overall_assessment
-                        if hasattr(judge_output, "overall_assessment")
-                        else ""
-                    )
-                )
-
-                # Extract issues if available
-                issues_text = ""
-                if (
-                    judge_output
-                    and hasattr(judge_output, "issues")
-                    and judge_output.issues
-                ):
-                    issues_text = "\n=== SPECIFIC ISSUES FOUND ===\n\n"
-                    for idx, issue in enumerate(judge_output.issues, 1):
-                        issues_text += f"Issue {idx}: [{issue.severity.upper()}] {issue.issue_type}\n"
-                        issues_text += f"  File: {issue.file_path}\n"
-                        if issue.line_numbers:
-                            issues_text += f"  Lines: {issue.line_numbers}\n"
-                        issues_text += f"  Description: {issue.description}\n"
-                        issues_text += f"  Expected: {issue.expected}\n"
-                        issues_text += f"  Actual: {issue.actual}\n"
-                        issues_text += f"  Suggestion: {issue.suggestion}\n\n"
-
-                # Extract priority fixes
-                priority_fixes_text = ""
-                if (
-                    judge_output
-                    and hasattr(judge_output, "priority_fixes")
-                    and judge_output.priority_fixes
-                ):
-                    priority_fixes_text = (
-                        "\n=== PRIORITY FIXES (Address these first) ===\n\n"
-                    )
-                    for idx, fix in enumerate(judge_output.priority_fixes, 1):
-                        priority_fixes_text += f"{idx}. {fix}\n"
-
-                # Extract missing components
-                missing_components_text = ""
-                if (
-                    judge_output
-                    and hasattr(judge_output, "missing_components")
-                    and judge_output.missing_components
-                ):
-                    missing_components_text = "\n=== MISSING COMPONENTS ===\n\n"
-                    for component in judge_output.missing_components:
-                        missing_components_text += f"  - {component}\n"
-
-                # Extract unit test information
-                unit_tests_text = ""
-                if (
-                    judge_output
-                    and hasattr(judge_output, "unit_tests")
-                    and judge_output.unit_tests
-                ):
-                    unit_tests_text = f"\n=== UNIT TESTS GENERATED ===\n\n"
-                    unit_tests_text += f"The code judge generated {len(judge_output.unit_tests)} unit test(s) for validation.\n"
-                    unit_tests_text += (
-                        "These tests should already be written to the file system.\n"
-                    )
-                    for idx, test in enumerate(judge_output.unit_tests, 1):
-                        unit_tests_text += f"\nTest {idx}: {test.test_file_path}\n"
-                        unit_tests_text += f"  Description: {test.test_description}\n"
-                        unit_tests_text += (
-                            f"  Target files: {', '.join(test.target_files)}\n"
-                        )
-
-                feedback_section = f"""
-=== FEEDBACK FROM CODE REVIEW ===
-
-The previous implementation of this step was reviewed and needs improvement.
-
-=== OVERALL ASSESSMENT ===
-
-{overall_assessment}
-{issues_text}{priority_fixes_text}{missing_components_text}{unit_tests_text}
-
-IMPORTANT: Please address ALL the issues above, especially the priority fixes, and re-implement this step correctly.
-"""
-
-            # Get reference codebases information from cache
-            reference_codebases_info = ""
-            try:
-                from src.agents.experiment_agent.sub_agents.experiment_master.prepare_helpers import (
-                    load_prepare_info_from_cache,
-                )
-
-                prepare_info = load_prepare_info_from_cache(self.cache_dir, self.domain)
-                if prepare_info and "reference_codebases" in prepare_info:
-                    reference_codebases_info = prepare_info["reference_codebases"].get(
-                        "formatted_list", ""
-                    )
-            except Exception as e:
-                print(f"Warning: Could not load reference codebases info: {e}")
-                reference_codebases_info = "(Codebase information not available)"
-
-            # Extract project structure tree from plan
-            project_tree = ""
-            if hasattr(context.code_plan_output, "project_structure_tree"):
-                project_tree = f"""
-=== PROJECT STRUCTURE TREE (MUST FOLLOW EXACTLY) ===
-
-{context.code_plan_output.project_structure_tree}
-
-CRITICAL: This is the DEFINITIVE project structure. You MUST:
-- Follow this structure EXACTLY
-- Do NOT create files outside this structure
-- Do NOT create additional directories
-- File paths MUST match this tree exactly
-
-"""
-
-            return f"""Implement code for the CURRENT STEP ONLY (step-by-step iterative implementation):
-{step_section}
-{project_tree}
-=== REFERENCE CODEBASES (EXPLORE BEFORE IMPLEMENTING) ===
-
-{reference_codebases_info}
-
-IMPORTANT: Before implementing, explore relevant reference codebases using:
-- `list_directory("../repos/[repo_name]")` to see structure
-- `generate_code_tree("../repos/[repo_name]")` for overview
-- `read_file("../repos/[repo_name]/path/to/file.py")` to read implementations
-- `analyze_python_file("../repos/[repo_name]/path/to/file.py")` to understand structure
-
-=== COMPLETE PLAN (for context) ===
-
-{context.code_plan_output}
-{feedback_section}
-
-Remember: Focus ONLY on the current step. Follow the PROJECT STRUCTURE TREE exactly. Use tools to check what files already exist from previous steps."""
-
-        elif agent_name == "code_judge":
-            # Extract current step info from data
-            current_step = data.get("current_step", None)
-            checklist_progress = data.get("checklist_progress", "")
-
-            step_info = ""
-            if current_step:
-                step_info = f"""
-=== CURRENT STEP TO EVALUATE ===
-
-Step ID: {current_step.step_id}
-Title: {current_step.title}
-Description: {current_step.description}
-
-Files to Create: {', '.join(current_step.files_to_create) if current_step.files_to_create else 'None'}
-Files to Modify: {', '.join(current_step.files_to_modify) if current_step.files_to_modify else 'None'}
-
-Acceptance Criteria:
-{chr(10).join(f'  - {criterion}' for criterion in current_step.acceptance_criteria)}
-
-Dependencies: {', '.join(map(str, current_step.dependencies)) if current_step.dependencies else 'None'}
-Complexity: {current_step.estimated_complexity}
-
-Progress: {checklist_progress}
-"""
-
-            return f"""Review the following code implementation (STEP-BY-STEP MODE):
-{step_info}
-
-=== COMPLETE PLAN (for context) ===
-
-{context.code_plan_output}
-
-=== ANALYSIS (for context) ===
-
-{context.pre_analysis_output}
-
-=== IMPLEMENTATION OUTPUT ===
-
-{context.code_implement_output}
-
-=== CODEBASE PATH ===
-
-Project directory (check files here): {self.working_dir or '/workspace/project'}
-
-IMPORTANT: Use the tools to check if files exist in the project directory above.
-The project directory is where all implementation code should be located.
-
-Evaluate if the CURRENT STEP (shown above) is correctly implemented according to its acceptance criteria."""
-
-        elif agent_name == "experiment_execute":
-            # Build implementation context
-            impl_context = ""
-            if context.code_implement_output:
-                impl_context = f"""
-=== IMPLEMENTATION CONTEXT ===
-
-Recent Implementation Output:
-{str(context.code_implement_output)[:1000]}...
-
-"""
-
-            # Build expected behavior from plan
-            expected_behavior = ""
-            if context.code_plan_output:
-                expected_behavior = f"""
-=== EXPECTED BEHAVIOR (from Code Plan) ===
-
-Research Summary:
-{context.code_plan_output.research_summary}
-
-Expected Outcomes:
-{context.code_plan_output.expected_outcomes if hasattr(context.code_plan_output, 'expected_outcomes') else 'Not specified'}
-
-Performance Targets:
-{context.code_plan_output.performance_targets if hasattr(context.code_plan_output, 'performance_targets') else 'Not specified'}
-
-"""
-
-            return f"""Execute experiment code with full context:
-{impl_context}{expected_behavior}
-=== EXECUTION TASK ===
-
-Your task is to execute the implemented code and monitor its behavior.
-You should understand what the code is supposed to do (from context above),
-execute it properly, and compare actual behavior with expected behavior.
-
-Run the experiment and capture all results, metrics, and any deviations from expectations."""
-
-        elif agent_name == "experiment_analysis":
-            return f"""Analyze the experiment results:
-
-Expected (from analysis):
-{context.pre_analysis_output}
-
-Execution Results:
-{context.experiment_execute_output}
-
-Provide analysis and recommendations."""
-
-        return ""
 
     def _update_context_with_result(
         self, context: WorkflowContext, state: WorkflowState, result: Any
@@ -978,14 +622,38 @@ Provide analysis and recommendations."""
         final_recommendations = ""
 
         if context.experiment_analysis_output:
-            if hasattr(context.experiment_analysis_output, "summary"):
-                overall_summary = context.experiment_analysis_output.summary
-            if hasattr(context.experiment_analysis_output, "findings"):
-                key_findings = context.experiment_analysis_output.findings
-            if hasattr(context.experiment_analysis_output, "recommendations"):
-                final_recommendations = (
-                    context.experiment_analysis_output.recommendations
+            # Map overall_analysis to overall_summary
+            if hasattr(context.experiment_analysis_output, "overall_analysis"):
+                overall_summary = context.experiment_analysis_output.overall_analysis
+
+            # Map unexpected_findings and potential_issues to key_findings
+            findings_list = []
+            if hasattr(context.experiment_analysis_output, "unexpected_findings"):
+                findings_list.extend(
+                    context.experiment_analysis_output.unexpected_findings
                 )
+            if hasattr(context.experiment_analysis_output, "potential_issues"):
+                findings_list.extend(
+                    context.experiment_analysis_output.potential_issues
+                )
+            key_findings = findings_list
+
+            # Map next_steps and priority_actions to final_recommendations
+            recommendation_parts = []
+            if hasattr(context.experiment_analysis_output, "next_steps"):
+                recommendation_parts.append(
+                    context.experiment_analysis_output.next_steps
+                )
+
+            if hasattr(context.experiment_analysis_output, "priority_actions"):
+                actions = context.experiment_analysis_output.priority_actions
+                if actions:
+                    recommendation_parts.append(
+                        "Priority Actions:\n" + "\n".join(f"- {a}" for a in actions)
+                    )
+
+            if recommendation_parts:
+                final_recommendations = "\n\n".join(recommendation_parts)
 
         if not overall_summary:
             overall_summary = f"Workflow {final_status} after {context.iteration_count} iterations. Final state: {context.current_state.value}"
@@ -1024,8 +692,12 @@ Provide analysis and recommendations."""
 
 def create_experiment_master_agent(
     model: str = "gpt-4o",
-    expensive_model: Optional[str] = None,
-    cheap_model: Optional[str] = None,
+    pre_analysis_model: Optional[str] = None,
+    code_plan_model: Optional[str] = None,
+    code_implement_model: Optional[str] = None,
+    code_judge_model: Optional[str] = None,
+    execute_experiment_model: Optional[str] = None,
+    result_analysis_model: Optional[str] = None,
     max_iterations: int = 5,
     tools: Optional[Dict[str, list]] = None,
     working_dir: Optional[str] = None,
@@ -1037,9 +709,13 @@ def create_experiment_master_agent(
     Factory function to create an experiment master agent.
 
     Args:
-        model: Default model to use for all agents (for backward compatibility)
-        expensive_model: Model for critical tasks (code plan, judge, execute). If None, uses model.
-        cheap_model: Model for non-critical tasks (implement, analysis, etc.). If None, uses model.
+        model: Default model to use for all agents (fallback if specific model not provided)
+        pre_analysis_model: Model for pre-analysis agent. If None, uses model.
+        code_plan_model: Model for code plan agent. If None, uses model.
+        code_implement_model: Model for code implement agent. If None, uses model.
+        code_judge_model: Model for code judge agent. If None, uses model.
+        execute_experiment_model: Model for execute experiment agent. If None, uses model.
+        result_analysis_model: Model for result analysis agent. If None, uses model.
         max_iterations: Maximum number of workflow iterations
         tools: Dictionary mapping agent types to their tools
         working_dir: Working directory for code operations
@@ -1052,8 +728,12 @@ def create_experiment_master_agent(
     """
     return ExperimentMasterAgent(
         model=model,
-        expensive_model=expensive_model,
-        cheap_model=cheap_model,
+        pre_analysis_model=pre_analysis_model,
+        code_plan_model=code_plan_model,
+        code_implement_model=code_implement_model,
+        code_judge_model=code_judge_model,
+        execute_experiment_model=execute_experiment_model,
+        result_analysis_model=result_analysis_model,
         max_iterations=max_iterations,
         tools=tools,
         working_dir=working_dir,

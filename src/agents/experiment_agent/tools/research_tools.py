@@ -62,7 +62,7 @@ def search_arxiv(query: str, max_results: int = 50) -> List[Dict]:
         response = None
 
         # Add retry mechanism for API rate limiting
-        max_retries = 3
+        max_retries = 10
         for retry in range(max_retries):
             try:
                 # Use requests to fetch with timeout

@@ -33,7 +33,7 @@ from src.agents.experiment_agent.config import (
     validate_config,
     print_config,
     ENABLE_TRACING,
-    MODEL_NAME,
+    DEFAULT_MODEL,
 )
 
 # Import experiment agent
@@ -47,10 +47,6 @@ from src.agents.experiment_agent.input_processing import (
     ResearchInput,
 )
 
-# Import tools for Docker setup
-from src.agents.experiment_agent.tools.execution_tools import set_docker_client
-from src.agents.experiment_agent.environment import create_docker_client
-
 # Import research tools for paper and code preparation
 from src.agents.experiment_agent.tools.research_tools import (
     download_papers_by_titles,
@@ -60,6 +56,7 @@ from src.agents.experiment_agent.tools.research_tools import (
 # Import custom logger
 from src.agents.experiment_agent.logger import setup_agent_logging
 
+import src.agents.experiment_agent.config as agent_config
 
 # =============================================================================
 # Colored Print Utilities
@@ -136,7 +133,7 @@ def setup_openai_api() -> bool:
                     write=30.0,  # 写入超时30秒
                     pool=10.0,  # 连接池超时10秒
                 ),
-                max_retries=3,  # 最多重试3次
+                max_retries=10,  # 最多重试10次
             )
             print_success(
                 f"Azure OpenAI client initialized (endpoint: {config['endpoint']}, timeout: 300s)"
@@ -153,7 +150,7 @@ def setup_openai_api() -> bool:
                     write=30.0,  # 写入超时30秒
                     pool=10.0,  # 连接池超时10秒
                 ),
-                "max_retries": 3,  # 最多重试3次
+                "max_retries": 10,  # 最多重试10次
             }
             if "base_url" in config and config["base_url"]:
                 client_kwargs["base_url"] = config["base_url"]
@@ -162,7 +159,7 @@ def setup_openai_api() -> bool:
                 print_info("Using default OpenAI API base: https://api.openai.com/v1")
 
             client = AsyncOpenAI(**client_kwargs)
-            print_success("OpenAI client initialized (timeout: 300s, retries: 3)")
+            print_success("OpenAI client initialized (timeout: 300s, retries: 10)")
 
         # Set as default client
         set_default_openai_client(client)
@@ -185,56 +182,34 @@ def setup_openai_api() -> bool:
 
 def check_docker_environment() -> bool:
     """
-    Check if Docker environment is properly configured.
+    Check if environment is properly configured.
+    (Legacy: Was checking Docker, now checks local environment)
 
     Returns:
-        True if Docker is ready, False otherwise
+        True if ready, False otherwise
     """
-    print_step("Checking Docker environment...")
+    print_step("Checking local environment...")
+
+    # Basic check for python
+    import subprocess
 
     try:
-        docker_config = get_docker_config()
-
-        # Create Docker client
-        client = create_docker_client(
-            host=docker_config["host"],
-            port=docker_config["port"],
-            timeout=docker_config["timeout"],
-        )
-
-        # Test connection
-        result = client.test_connection()
-
-        if result["success"]:
-            print_success(
-                f"Docker connection successful ({docker_config['host']}:{docker_config['port']})"
-            )
-            print_info(f"Container response: {result['message']}")
-
-            # Set as global Docker client
-            set_docker_client(client)
-
-            # Get environment info
-            env_info = client.run_command("python --version", retry=False)
-            if env_info["status"] == 0:
-                print_info(f"Python version: {env_info['result'].strip()}")
-
+        result = subprocess.run(["python", "--version"], capture_output=True, text=True)
+        if result.returncode == 0:
+            print_success(f"Local Python environment OK: {result.stdout.strip()}")
             return True
         else:
-            print_error(f"Docker connection failed: {result['message']}")
-            print_warning(
-                f"Make sure Docker container is running on {docker_config['host']}:{docker_config['port']}"
-            )
-            print_warning("You can start the container with: docker-compose up -d")
+            print_error("Failed to check python version")
             return False
-
     except Exception as e:
-        print_error(f"Docker environment check failed: {str(e)}")
+        print_error(f"Environment check failed: {str(e)}")
         return False
 
 
 def validate_input_paths(
-    input_type: str, input_path: Optional[str] = None
+    input_type: str,
+    input_path: Optional[str] = None,
+    experiment_id: Optional[str] = None,
 ) -> tuple[bool, str]:
     """
     Validate input file exists.
@@ -242,17 +217,23 @@ def validate_input_paths(
     Args:
         input_type: Type of input ('paper' or 'idea')
         input_path: Optional custom input path
+        experiment_id: Experiment ID for workspace management
 
     Returns:
         Tuple of (is_valid, actual_path)
     """
     print_step(f"Validating {input_type} input...")
 
-    path_config = get_path_config()
-
+    # If input_path is provided, use it directly; otherwise use config paths
     if input_path:
         actual_path = input_path
     else:
+        # Need experiment_id to get config paths
+        if not experiment_id:
+            print_error("experiment_id is required when input_path is not provided")
+            return False, ""
+
+        path_config = get_path_config(experiment_id)
         actual_path = (
             path_config["paper_input"]
             if input_type == "paper"
@@ -269,7 +250,7 @@ def validate_input_paths(
     return True, actual_path
 
 
-def run_prepare_workflow(input_path: str) -> bool:
+def run_prepare_workflow(input_path: str, experiment_id: str) -> bool:
     """
     Run preparation workflow to download papers and clone repositories.
 
@@ -280,6 +261,7 @@ def run_prepare_workflow(input_path: str) -> bool:
 
     Args:
         input_path: Path to idea.json file
+        experiment_id: Experiment ID for workspace management
 
     Returns:
         True if preparation completed successfully, False otherwise
@@ -307,7 +289,7 @@ def run_prepare_workflow(input_path: str) -> bool:
             print(f"  {i}. {paper}")
 
         # Get path configuration
-        path_config = get_path_config()
+        path_config = get_path_config(experiment_id)
         workspace_dir = path_config["local_workspace"]
 
         # Create output directories
@@ -703,15 +685,39 @@ async def run_experiment_workflow(
         # Create experiment master agent
         print_step("Initializing Experiment Master Agent...")
 
-        path_config = get_path_config()
+        from datetime import datetime
+
+        # Generate experiment_id if not provided
+        if not experiment_id:
+
+            experiment_id = datetime.now().strftime("exp_%Y%m%d_%H%M%S")
+            print_info(f"Auto-generated experiment ID: {experiment_id}")
+
+        path_config = get_path_config(experiment_id)
         model_config = get_model_config()
 
+        agent_config.ExperimentContext.initialize(
+            workspace_root=path_config["working_dir"],
+            project_root=path_config["project_dir"],
+            experiment_id=experiment_id,
+        )
+
+        print_info(f"Global context initialized with:")
+        print_info(f"  WORKSPACE_ROOT = {agent_config.WORKSPACE_ROOT}")
+        print_info(f"  PROJECT_ROOT = {agent_config.PROJECT_ROOT}")
+
         master_agent = create_experiment_master_agent(
-            model=MODEL_NAME,
-            expensive_model=model_config["expensive_model"],
-            cheap_model=model_config["cheap_model"],
+            model=DEFAULT_MODEL,
+            pre_analysis_model=model_config["pre_analysis"],
+            code_plan_model=model_config["code_plan"],
+            code_implement_model=model_config["code_implement"],
+            code_judge_model=model_config["code_judge"],
+            execute_experiment_model=model_config["execute_experiment"],
+            result_analysis_model=model_config["result_analysis"],
             max_iterations=max_iterations,
-            working_dir=path_config["project_dir"],
+            working_dir=path_config[
+                "working_dir"
+            ],  # Use workspace dir as working_dir for agents
             log_dir=path_config["logs_dir"],
             cache_dir=path_config["cache_dir"],
             verbose=verbose,
@@ -720,12 +726,16 @@ async def run_experiment_workflow(
         print_success("Experiment Master Agent initialized")
         print_info(f"Max iterations: {max_iterations}")
         print_info(
-            f"Expensive model (code plan/implement/judge): {model_config['expensive_model']}"
+            f"Pre-Analysis: {model_config['pre_analysis']}, "
+            f"Code Plan: {model_config['code_plan']}, "
+            f"Code Implement: {model_config['code_implement']}"
         )
         print_info(
-            f"Cheap model (pre-analysis/execute/analysis): {model_config['cheap_model']}"
+            f"Code Judge: {model_config['code_judge']}, "
+            f"Execute: {model_config['execute_experiment']}, "
+            f"Analysis: {model_config['result_analysis']}"
         )
-        print_info(f"Working directory: {path_config['project_dir']}")
+        print_info(f"Working directory: {path_config['working_dir']}")
         print_info(f"Log directory: {path_config['logs_dir']}")
         print_info(f"Cache directory: {path_config['cache_dir']}")
 
@@ -821,11 +831,6 @@ async def run_experiment_workflow(
 
         traceback.print_exc()
         return False
-
-
-# =============================================================================
-# Main Function
-# =============================================================================
 
 
 def get_args():
@@ -943,15 +948,37 @@ async def main():
         print_error("OpenAI API setup failed")
         sys.exit(1)
 
+    # Step 3.5: Generate experiment_id if not provided
+    experiment_id = args.experiment_id
+    if not experiment_id:
+        from datetime import datetime
+
+        experiment_id = datetime.now().strftime("exp_%Y%m%d_%H%M%S")
+        print_info(f"Auto-generated experiment ID: {experiment_id}")
+    else:
+        print_info(f"Using experiment ID: {experiment_id}")
+
+    # Validate and create experiment workspace
+    print_step("Setting up experiment workspace...")
+    is_valid, errors = validate_config(experiment_id)
+    if not is_valid:
+        print_error("Failed to setup experiment workspace:")
+        for error in errors:
+            print(f"  - {error}")
+        sys.exit(1)
+    print_success(f"Experiment workspace ready: {experiment_id}")
+
     # Step 4: Validate input
-    is_valid, input_path = validate_input_paths(args.input_type, args.input_path)
+    is_valid, input_path = validate_input_paths(
+        args.input_type, args.input_path, experiment_id
+    )
     if not is_valid:
         sys.exit(1)
 
     # Step 5: Run preparation workflow if requested
     if args.prepare or args.prepare_only:
         if args.input_type == "idea":
-            prepare_success = run_prepare_workflow(input_path)
+            prepare_success = run_prepare_workflow(input_path, experiment_id)
             if not prepare_success:
                 print_error("Preparation workflow failed")
                 sys.exit(1)
@@ -975,7 +1002,7 @@ async def main():
         input_path=input_path,
         max_iterations=args.max_iterations,
         verbose=args.verbose,
-        experiment_id=args.experiment_id,
+        experiment_id=experiment_id,
     )
 
     # Final status

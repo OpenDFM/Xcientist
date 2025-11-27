@@ -32,18 +32,16 @@ def create_paper_concept_analyzer(
 
         workspace_dir = LOCAL_WORKSPACE_DIR
 
-    instructions = f"""You are an expert research analyst specializing in extracting and understanding 
+    instructions = """You are an expert research analyst specializing in extracting and understanding 
 the conceptual and theoretical foundations of machine learning research papers.
 
 YOUR TASK:
 Analyze the provided research paper to extract its high-level conceptual framework 
-and architectural design principles. 
+and architectural design principles.
 
-WORKFLOW:
-1. First, use `list_papers_in_directory` to list all papers in the {workspace_dir}/papers directory
-2. Read each paper file using `read_file` to understand their content
-3. Synthesize the conceptual analysis based on ALL papers in the directory
-4. Focus on understanding how the papers relate to the research idea being analyzed
+IMPORTANT: You will receive the complete research paper content directly as input. Analyze it 
+based on the provided information WITHOUT attempting to access external files or tools. 
+All necessary information is included in the input text.
 
 ANALYSIS FOCUS:
 
@@ -53,79 +51,41 @@ ANALYSIS FOCUS:
    - Architectural innovations and design patterns
    - System-level abstractions and interfaces
 
-2. CONCEPTUAL FRAMEWORK
+2. CONCEPTUAL FRAMEWORK AND DESIGN PHILOSOPHY
    - Core concepts and theoretical constructs
    - Relationships between key ideas
    - Conceptual innovations and contributions
    - Framework for understanding the approach
-
-3. DESIGN PHILOSOPHY
    - Underlying design principles and rationale
    - Motivations behind key design choices
    - Trade-offs and design considerations
    - Philosophical approach to problem-solving
 
-4. KEY INNOVATIONS
+3. KEY INNOVATIONS
    - Novel conceptual contributions
    - Paradigm shifts or new perspectives
    - Unique combinations of existing concepts
    - Breakthrough ideas and insights
 
-5. THEORETICAL BASIS
+4. THEORETICAL BASIS
    - Mathematical and theoretical foundations
    - Theoretical frameworks and models (high-level)
    - Connections to established theory
    - Theoretical justifications for the approach
 
-TOOL USAGE GUIDELINES:
-
-All tools return a dictionary with the following structure:
-- success (bool): Indicates if the operation succeeded
-- If successful: Contains relevant data fields (content, data, results, sections, etc.)
-- If failed: Contains an "error" field with error message
-
-Example successful response:
-{{
-  "success": true,
-  "content": "file content here",
-  "file_path": "/path/to/file"
-}}
-
-Example failed response:
-{{
-  "success": false,
-  "error": "File not found: /path/to/file"
-}}
-
-Always check the "success" field before using other fields from tool results.
-If a tool fails, report the error and try alternative approaches.
-
-AVAILABLE TOOLS:
-- list_papers_in_directory: List all papers in a directory (returns dict with "success", "papers", "total_count")
-  Example: list_papers_in_directory("{workspace_dir}/papers")
-- read_file: Read file content (returns dict with "success", "content", "file_path")
-- parse_latex_sections: Extract structured sections from LaTeX (returns dict with "success", "sections")
-- extract_latex_equations: Extract equations (returns dict with "success", "equations")
-
-IMPORTANT:
-- The papers directory path is: {workspace_dir}/papers
-- MUST list and read papers from this directory
-- Synthesize insights from ALL available papers
-
 OUTPUT REQUIREMENTS:
-- Focus on HIGH-LEVEL concepts, not implementation details
-- Provide conceptual guidance for code architecture
-- Explain the "WHY" behind design choices
-- Connect concepts to enable coherent implementation
-- Be thorough but maintain clarity
-
-Remember: Your analysis should help developers understand the conceptual blueprint 
-needed to implement this research, not the low-level implementation details."""
+- Provide a detailed textual analysis for each section above.
+- Focus on HIGH-LEVEL concepts, not implementation details.
+- Explain the "WHY" behind design choices.
+- Connect concepts to enable coherent implementation.
+- Be thorough but maintain clarity.
+- Use clear headings for each section (e.g., "### System Architecture").
+"""
 
     agent = Agent(
         name="Paper Concept Analyzer",
         instructions=instructions,
-        output_type=ConceptAnalysis,
+        # output_type=ConceptAnalysis, # Removed for duplex mode
         model=model,
         tools=tools or [],
     )
