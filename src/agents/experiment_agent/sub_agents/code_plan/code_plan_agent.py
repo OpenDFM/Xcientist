@@ -101,24 +101,42 @@ def create_code_plan_unifier_agent(model: str = "gpt-4o") -> Agent:
     return Agent(
         name="Code Plan Output Unifier",
         instructions="""You are an expert data structuring assistant.
-Your task is to convert the raw textual code plan into a structured `CodePlanOutput` object.
+Your task is to convert the raw textual plan into a structured `CodePlanOutput` object.
 
-Input text will contain sections for:
-- Research Summary
-- Key Innovations
-- File Structure
-- Dataset Plan
-- Model Plan
-- Training Plan
-- Testing Plan
-- Implementation Checklist
-- Implementation Notes & Challenges
+The input text contains TWO PARTS:
+1. **PART I: CODE PLAN** - Software architecture and implementation
+2. **PART II: EXPERIMENT PLAN** - Experiment design and validation
 
-Map these sections to the corresponding fields in the output schema.
-Preserve the detailed content of each section.
-Ensure `file_structure` is a list of `FileStructureItem` (path, type, description).
-Ensure `implementation_checklist` is a list of `ChecklistItem` (step_id, title, description, files_to_create, files_to_modify, acceptance_criteria, dependencies, estimated_complexity).
-Set `plan_type` based on the context (initial, judge_feedback, error_feedback, analysis_feedback).
+### CODE PLAN FIELDS
+Map these sections from PART I:
+- Research Summary -> research_summary
+- Key Innovations -> key_innovations
+- File Structure -> file_structure (list of FileStructureItem)
+- Module Descriptions -> model_plan
+- Dataset Plan -> dataset_plan
+- Training Plan -> training_plan
+- Testing/Evaluation Plan -> testing_plan
+- Implementation Checklist -> implementation_checklist (list of ChecklistItem)
+- Notes & Challenges -> implementation_notes, potential_challenges
+
+### EXPERIMENT PLAN FIELDS (CRITICAL - MUST EXTRACT)
+Map these sections from PART II to the `experiment_plan` field:
+- Baseline Definition -> baseline_method, baseline_justification, baseline_implementation
+- Dataset List -> datasets (list of paths)
+- Dataset Preprocessing -> dataset_preprocessing
+- Hyperparameter Search Space -> hyperparameter_space
+- Tuning Strategy -> tuning_strategy
+- Experiment Matrix -> experiment_matrix (list of ExperimentItem)
+  - Each row becomes an ExperimentItem with: exp_id, method, dataset, hyperparameters, seeds, priority
+- Evaluation Metrics -> primary_metrics, secondary_metrics
+- Success Criteria -> success_criteria
+- Estimated Runtime -> estimated_runtime
+
+### IMPORTANT
+- `experiment_plan` is MANDATORY - you must populate it with extracted experiment details.
+- `experiment_matrix` should contain ALL experiments listed in the table/matrix.
+- Each ExperimentItem must have: exp_id (str), method (str), dataset (str), hyperparameters (str), seeds (list of int), priority (str).
+- Set `plan_type` based on the context (initial, judge_feedback, error_feedback, analysis_feedback).
 """,
         output_type=CodePlanOutput,
         model=OUTPUT_UNIFIER_MODEL,
@@ -140,13 +158,12 @@ class CodePlanAgent:
         self.model = model
         self.working_dir = working_dir
         self.verbose = verbose
-        self.hooks = (
-            create_verbose_hooks(
-                show_llm_responses=verbose,
-                show_tools=verbose,
-            )
-            if verbose
-            else None
+        # Always create hooks to show tool arguments
+        # verbose mode controls whether to show detailed responses and results
+        self.hooks = create_verbose_hooks(
+            show_llm_responses=verbose,
+            show_tools=verbose,
+            show_tool_args=True,  # Always show tool arguments
         )
 
         # Auto-load recommended tools if not provided

@@ -129,14 +129,12 @@ class CodeJudgeAgent:
         self.working_dir = working_dir
         self.verbose = verbose
 
-        # Create hooks for verbose output
-        self.hooks = (
-            create_verbose_hooks(
-                show_llm_responses=verbose,
-                show_tools=verbose,
-            )
-            if verbose
-            else None
+        # Always create hooks to show tool arguments
+        # verbose mode controls whether to show detailed responses and results
+        self.hooks = create_verbose_hooks(
+            show_llm_responses=verbose,
+            show_tools=verbose,
+            show_tool_args=True,  # Always show tool arguments
         )
 
         # Auto-load recommended tools if not provided

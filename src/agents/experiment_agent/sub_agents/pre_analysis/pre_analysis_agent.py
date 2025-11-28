@@ -54,13 +54,12 @@ class PreAnalysisAgent:
         self.model = model
         self.verbose = verbose
 
-        self.hooks = (
-            create_verbose_hooks(
-                show_llm_responses=verbose,
-                show_tools=verbose,
-            )
-            if verbose
-            else None
+        # Always create hooks to show tool arguments
+        # verbose mode controls whether to show detailed responses and results
+        self.hooks = create_verbose_hooks(
+            show_llm_responses=verbose,
+            show_tools=verbose,
+            show_tool_args=True,  # Always show tool arguments
         )
 
         if workspace_dir is None:

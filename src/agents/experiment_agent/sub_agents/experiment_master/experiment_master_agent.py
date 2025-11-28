@@ -70,9 +70,9 @@ from src.memory.api.slot_process_api import (
     SlotProcess,
 )
 
-# from src.memory.memory_system.decorator import (
-#     short_term_slot_trace,
-# )
+from src.memory.decorator import (
+    short_term_slot_trace,
+)
 from src.memory.api.faiss_memory_system_api import (
     FAISSMemorySystem,
 )
@@ -200,6 +200,7 @@ class ExperimentMasterAgent:
 
         self.experiment_analysis_agent = create_experiment_analysis_agent(
             model=self.result_analysis_model,
+            working_dir=working_dir,
             tools=self.tools.get("experiment_analysis"),
         )
 
@@ -474,7 +475,7 @@ class ExperimentMasterAgent:
 
         return self._build_final_output(context)
 
-    # @short_term_slot_trace(context=context)
+    @short_term_slot_trace(context=context)
     async def _execute_agent(
         self, agent_name: str, context: WorkflowContext, data: Dict[str, Any]
     ) -> Any:

@@ -51,12 +51,79 @@ class ChecklistItem(BaseModel):
     )
 
 
+class ExperimentItem(BaseModel):
+    """Single experiment in the experiment matrix."""
+
+    exp_id: str = Field(description="Unique experiment identifier (e.g., 'E1', 'E2')")
+    method: str = Field(
+        description="Method name: 'baseline' or 'proposed' or specific method name"
+    )
+    dataset: str = Field(description="Dataset name")
+    hyperparameters: str = Field(
+        description="Key hyperparameters for this run (e.g., 'lr=0.01, batch_size=32')"
+    )
+    seeds: List[int] = Field(
+        description="Random seeds for reproducibility", default_factory=lambda: [42]
+    )
+    priority: str = Field(
+        description="Priority: 'high', 'medium', 'low'", default="medium"
+    )
+
+
+class ExperimentPlan(BaseModel):
+    """
+    Experiment plan defining all experiments to run.
+
+    This is SEPARATE from CodePlan and focuses on experimental validation.
+    """
+
+    # Baseline definition
+    baseline_method: str = Field(description="Name of the baseline method")
+    baseline_justification: str = Field(description="Why this baseline is appropriate")
+    baseline_implementation: str = Field(
+        description="How baseline is implemented (file/function)"
+    )
+
+    # Dataset coverage
+    datasets: List[str] = Field(description="List of ALL datasets to use (paths)")
+    dataset_preprocessing: str = Field(
+        description="Preprocessing steps for each dataset"
+    )
+
+    # Hyperparameter search
+    hyperparameter_space: str = Field(
+        description="Complete hyperparameter search space definition"
+    )
+    tuning_strategy: str = Field(
+        description="Tuning strategy: 'grid', 'random', 'manual'"
+    )
+
+    # Experiment matrix
+    experiment_matrix: List[ExperimentItem] = Field(
+        description="Complete list of ALL experiments to run"
+    )
+
+    # Evaluation
+    primary_metrics: List[str] = Field(description="Primary evaluation metrics")
+    secondary_metrics: List[str] = Field(
+        description="Secondary metrics", default_factory=list
+    )
+    success_criteria: str = Field(
+        description="How to determine if proposed method succeeds"
+    )
+
+    # Runtime estimate
+    estimated_runtime: str = Field(
+        description="Estimated total runtime for all experiments", default=""
+    )
+
+
 class CodePlanOutput(BaseModel):
     """
     Unified code plan output in YAML-compatible format.
 
-    This structure is used by all code planning agents and
-    will be formatted into YAML for downstream consumption.
+    This structure contains BOTH the Code Plan and Experiment Plan.
+    The Code Plan must support all experiments in the Experiment Plan.
     """
 
     # Metadata
@@ -74,7 +141,7 @@ class CodePlanOutput(BaseModel):
         description="Complete file and directory structure (EXCLUDE tests/ directory)"
     )
 
-    # Implementation plans
+    # Implementation plans (CODE PLAN)
     dataset_plan: str = Field(description="Dataset preparation and loading plan")
     model_plan: str = Field(description="Model implementation plan")
     training_plan: str = Field(description="Training pipeline plan")
@@ -93,6 +160,12 @@ class CodePlanOutput(BaseModel):
     )
     potential_challenges: str = Field(
         description="Potential challenges and mitigation strategies"
+    )
+
+    # EXPERIMENT PLAN (NEW - MANDATORY)
+    experiment_plan: ExperimentPlan = Field(
+        default=None,
+        description="Complete experiment plan including baseline, datasets, hyperparameters, and experiment matrix",
     )
 
     # Feedback-specific (optional, depending on plan_type)

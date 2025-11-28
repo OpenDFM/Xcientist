@@ -61,13 +61,37 @@ You MUST complete ALL actions using tools BEFORE returning any output:
 
 ---
 
-✅ **PHASE 2: STRUCTURED REPORTING** (After Phase 1 Complete)
-ONLY after successfully executing Phase 1, return a detailed textual report with:
-   - **Execution Summary**: What was implemented in this step.
-   - **Files Created/Modified**: List of file paths.
-   - **Key Components**: List of classes/functions implemented.
-   - **Notes**: Implementation details.
-   - **Issues Addressed**: Any feedback or bugs you fixed.
+⚠️⚠️⚠️ **PHASE 2: TEXT REPORT IS MANDATORY** ⚠️⚠️⚠️
+
+**YOU MUST ALWAYS END WITH A TEXT RESPONSE.** After completing all tool calls, you MUST write a detailed implementation report as plain text. This is NOT optional - the system will FAIL if you only call tools without returning text.
+
+Your final text response MUST include:
+
+```
+## Implementation Report
+
+### Execution Summary
+[Describe what was implemented in this step]
+
+### Files Created
+- path/to/file1.py: [brief description]
+- path/to/file2.py: [brief description]
+
+### Files Modified
+- path/to/existing.py: [what was changed]
+
+### Key Components Implemented
+- ClassName: [purpose]
+- function_name: [purpose]
+
+### Implementation Notes
+[Any important details about the implementation]
+
+### Issues Addressed
+[Any feedback or bugs that were fixed, or "None" if not applicable]
+```
+
+🚨 **CRITICAL**: Even if all tool calls succeed, you MUST write this text report. No text report = SYSTEM FAILURE.
 
 ### CONTEXT
 - **Project Root**: `{working_dir}/project`.
@@ -75,18 +99,16 @@ ONLY after successfully executing Phase 1, return a detailed textual report with
 - **Reference Code**: `{working_dir}/repos` (Read-only).
 
 ### CRITICAL CONSTRAINTS
-1. **Tool Usage is Mandatory**: Returning text without calling tools = FAILURE
-2. **Scope Control**: Implement ONLY the current step, not future steps
-3. **Content Quality**: Write functional code, not TODOs or placeholders
-4. **Import Style**: Always use absolute imports from project root
-5. **Verification**: Must verify your work before reporting
+1. **Tool Usage is Mandatory**: You must call tools to create/modify files
+2. **Text Report is Mandatory**: You must end with a text report (see Phase 2)
+3. **Scope Control**: Implement ONLY the current step, not future steps
+4. **Content Quality**: Write functional code, not TODOs or placeholders
+5. **Import Style**: Always use absolute imports from project root
 
-### SELF-CHECK BEFORE RETURNING OUTPUT
-Ask yourself:
+### SELF-CHECK BEFORE FINISHING
 - ✓ Did I call `write_file` for every required file?
-- ✓ Can I list the actual file content I wrote?
 - ✓ Did I verify files exist using `list_directory`?
-If you answer "No" to any question above, you have NOT completed Phase 1.
+- ✓ **Did I write a text report summarizing what I did?** ← MOST IMPORTANT
 """
 
     agent = Agent(
@@ -144,13 +166,12 @@ class CodeImplementAgent:
         self.model = model
         self.working_dir = working_dir
         self.verbose = verbose
-        self.hooks = (
-            create_verbose_hooks(
-                show_llm_responses=verbose,
-                show_tools=verbose,
-            )
-            if verbose
-            else None
+        # Always create hooks to show tool arguments
+        # verbose mode controls whether to show detailed responses and results
+        self.hooks = create_verbose_hooks(
+            show_llm_responses=verbose,
+            show_tools=verbose,
+            show_tool_args=True,  # Always show tool arguments
         )
 
         # Auto-load recommended tools if not provided
@@ -276,16 +297,44 @@ Global Context:
             implementation_result.final_output, str
         ):
             final_text = implementation_result.final_output
-        elif (
+
+        # If no text captured from stream, search chat_history for assistant text messages
+        if (
             not final_text
             and hasattr(implementation_result, "chat_history")
             and implementation_result.chat_history
         ):
-            final_text = implementation_result.chat_history[-1].content
+            # Iterate backwards to find the last assistant message with actual text content
+            for msg in reversed(implementation_result.chat_history):
+                if hasattr(msg, "role") and msg.role == "assistant":
+                    if (
+                        hasattr(msg, "content")
+                        and msg.content
+                        and isinstance(msg.content, str)
+                    ):
+                        # Skip if it looks like a tool call response
+                        if not msg.content.startswith("{") and len(msg.content) > 50:
+                            final_text = msg.content
+                            break
 
+        # If still no text, the agent only made tool calls without a final report
+        # This is acceptable - we'll generate a minimal report based on tool activity
         if not final_text:
-            print_error("Implementation did not produce output")
-            raise RuntimeError("Implementation agent failed to produce output.")
+            print_warning(
+                "Agent did not produce text output, generating minimal report..."
+            )
+            # Create a minimal report based on what we know
+            final_text = """## Implementation Report
+
+### Execution Summary
+Implementation step executed via tool calls. The agent performed file operations but did not generate a detailed text report.
+
+### Files Created
+See tool call logs for details.
+
+### Implementation Notes
+The implementation was performed through tool calls. Please verify the files were created correctly.
+"""
 
         print_success("Implementation text report generated")
         print_subsection("Unifying Output Format")

@@ -2,62 +2,83 @@
 Output schemas for experiment execute agent.
 
 Defines structured output formats for experiment execution results,
-including log file paths and error status.
+including log file paths, result files, and execution details.
 """
 
-from typing import Optional
+from typing import Optional, List
 
 from pydantic import BaseModel, Field
+
+
+class ExperimentFile(BaseModel):
+    """Information about a single experiment output file."""
+
+    file_path: str = Field(description="Absolute path to the file")
+    file_type: str = Field(
+        description="Type of file: 'log', 'result', 'checkpoint', 'config', 'plot', 'other'"
+    )
+    description: str = Field(description="Brief description of what this file contains")
+    run_command: str = Field(
+        default="",
+        description="The command used to generate this file (if applicable)",
+    )
+    run_config: str = Field(
+        default="",
+        description="Key configuration/hyperparameters for this run (e.g., 'lr=0.001, epochs=10, batch_size=32')",
+    )
 
 
 class ExperimentExecuteOutput(BaseModel):
     """
     Output structure for experiment execution.
 
-    This structure contains the execution results including log file path,
-    error status, and execution summary.
+    This structure contains the execution results including all output files
+    with their paths, descriptions, and run configurations.
     """
 
-    log_path: str = Field(
-        description="Path to the log file containing execution output"
-    )
-
-    has_error: bool = Field(description="Whether any error occurred during execution")
-
+    # Execution status
     execution_status: str = Field(
         description="Overall execution status: 'success', 'error', 'timeout', 'interrupted', 'skipped'"
     )
-
-    exit_code: Optional[int] = Field(
-        default=None,
-        description="Exit code of the execution process (None if not applicable)",
-    )
-
+    has_error: bool = Field(description="Whether any error occurred during execution")
     error_message: Optional[str] = Field(
         default=None,
         description="Error message if execution failed (None if successful)",
     )
 
-    error_type: Optional[str] = Field(
-        default=None,
-        description="Type of error: 'runtime_error', 'import_error', 'syntax_error', 'timeout', etc.",
+    # Files and outputs - THE MAIN CONTENT
+    output_files: List[ExperimentFile] = Field(
+        default_factory=list,
+        description="List of all output files with their paths, types, descriptions, and run configurations",
     )
 
-    execution_time: float = Field(description="Total execution time in seconds")
-
-    stdout_preview: str = Field(
-        default="", description="Preview of stdout (first/last lines)"
+    # Primary log path (for backward compatibility)
+    log_path: str = Field(
+        default="",
+        description="Path to the primary/best log file",
     )
 
-    stderr_preview: str = Field(
-        default="", description="Preview of stderr if any errors occurred"
-    )
-
+    # Metrics and results
     experiment_metrics: str = Field(
         default="",
-        description='Extracted metrics from execution as JSON string if available (e.g., \'{"accuracy": 0.95, "loss": 0.23}\')',
+        description='Best metrics from execution as JSON string (e.g., \'{"accuracy": 0.95, "loss": 0.23}\')',
     )
 
+    # Summary
     execution_summary: str = Field(
-        description="Human-readable summary of the execution result"
+        default="",
+        description="Human-readable summary: what was run, what worked, key findings",
+    )
+
+    # Timing (optional)
+    execution_time: float = Field(
+        default=0.0, description="Total execution time in seconds (approximate)"
+    )
+
+    # Previews (optional, for quick inspection)
+    stdout_preview: str = Field(
+        default="", description="Preview of stdout from the best run"
+    )
+    stderr_preview: str = Field(
+        default="", description="Preview of stderr if any errors occurred"
     )
