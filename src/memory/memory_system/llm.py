@@ -22,8 +22,38 @@ class OpenAIClient:
         self,
         system_prompt: str,
         user_prompt: str,
-        max_tokens: int = 512,
-        temperature: float = 0.0,
+        max_tokens: int = 1024,
+        temperature: float = 0.7,
+        max_retries: int = 5,
+        retry_delay: float = 1.0,
+    ) -> str:
+        last_error: Optional[Exception] = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                return await self._complete_once(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                )
+            except Exception as exc:
+                last_error = exc
+                if attempt == max_retries:
+                    raise last_error
+                # simple exponential backoff between attempts
+                delay = retry_delay * (2 ** attempt)
+                if delay > 0:
+                    await asyncio.sleep(delay)
+
+        raise last_error or RuntimeError("LLM completion failed.")
+
+    async def _complete_once(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int,
+        temperature: float,
     ) -> str:
         messages = [
             {"role": "system", "content": system_prompt},

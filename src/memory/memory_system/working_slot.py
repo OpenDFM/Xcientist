@@ -1,12 +1,12 @@
 import asyncio
 
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union, Protocol
-from .utils import new_id, dump_slot_json
+from memory.memory_system.utils import new_id, dump_slot_json
 from pydantic import BaseModel, Field, field_validator, validate_call
 from openai import OpenAI
 from textwrap import dedent
-from .user_prompt import WORKING_SLOT_FILTER_USER_PROMPT, WORKING_SLOT_ROUTE_USER_PROMPT
-from .llm import OpenAIClient, LLMClient
+from memory.memory_system.user_prompt import WORKING_SLOT_FILTER_USER_PROMPT, WORKING_SLOT_ROUTE_USER_PROMPT
+from memory.memory_system.llm import OpenAIClient, LLMClient
 
 class SlotPayload(BaseModel):
     id: str = Field(default_factory=lambda: new_id("work"))
@@ -44,7 +44,7 @@ class WorkingSlot(SlotPayload):
         return True if out.strip().lower() == "yes" else False
     
     async def slot_router(self, llm: LLMClient) -> Literal["semantic", "procedural", "episodic"]:
-        system_prompt = "You are a memory type classifier. Only output legal string."
+        system_prompt = "You are a memory type classifier. Only output legal string: 'semantic', 'procedural', or 'episodic'."
         user_prompt = WORKING_SLOT_ROUTE_USER_PROMPT.format(slot_dump=dump_slot_json(self))
         out = await llm.complete(system_prompt, user_prompt)
         if out.strip() not in ["semantic", "procedural", "episodic"]:

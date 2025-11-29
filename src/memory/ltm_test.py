@@ -1,11 +1,11 @@
 import os
 import shutil
 import sys
-from api.faiss_memory_system_api import FAISSMemorySystem
+from memory.api.faiss_memory_system_api import FAISSMemorySystem
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-from memory_system import FaissVectorStore
+from memory.memory_system import FaissVectorStore
 
 
 
