@@ -69,7 +69,7 @@ def dump_slot_json(slot) -> str:
 def _extract_json_between(text: str, open_tag: str, close_tag: str) -> Dict[str, Any]:
     m = re.search(rf"<{re.escape(open_tag)}>\s*(\{{.*\}})\s*</{re.escape(close_tag)}>", text, flags=re.S)
     if not m:
-        raise ValueError(f"Missing <{open_tag}> JSON block.")
+        return {}
     try:
         return json.loads(m.group(1))
     except Exception as e:
