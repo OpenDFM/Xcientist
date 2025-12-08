@@ -69,7 +69,7 @@ def dump_slot_json(slot) -> str:
 def _extract_json_between(text: str, open_tag: str, close_tag: str) -> Dict[str, Any]:
     m = re.search(rf"<{re.escape(open_tag)}>\s*(\{{.*\}})\s*</{re.escape(close_tag)}>", text, flags=re.S)
     if not m:
-        raise ValueError(f"Missing <{open_tag}> JSON block.")
+        return {}
     try:
         return json.loads(m.group(1))
     except Exception as e:
@@ -96,13 +96,13 @@ def _transfer_dict_to_semantic_text(d: Dict[str, Any], prefix: str = "") -> str:
     return "\n".join(lines)
 
 
-def _build_context_snapshot(self, context, state: str, char_limit: int = 4000) -> str:
+def _build_context_snapshot(context, state: str, char_limit: int = 4000) -> str:
     attr = state + "_output"
 
     snapshot = {
         "input": {
             "type": context.input_type,
-            "research_excerpt": self._truncate_text(context.research_input),
+            "research_excerpt": _truncate_text(context.research_input),
         },
         "state": {
             "current_state": context.current_state.value,
@@ -111,7 +111,7 @@ def _build_context_snapshot(self, context, state: str, char_limit: int = 4000) -
             "retry_count": context.retry_count,
             "last_error": context.last_error,
         },
-        "outputs": self._safe_dump(getattr(context, attr)),
+        "outputs": _safe_dump(getattr(context, attr)),
         "history": [
             {
                 "from": transition.from_state.value,
@@ -123,10 +123,10 @@ def _build_context_snapshot(self, context, state: str, char_limit: int = 4000) -
     }
 
     serialized = json.dumps(snapshot, ensure_ascii=False, indent=2, default=str)
-    return self._truncate_text(serialized, limit=char_limit)
+    return _truncate_text(serialized, limit=char_limit)
 
 
-def _safe_dump(self, value):
+def _safe_dump(value):
     if value is None:
         return None
     if hasattr(value, "model_dump"):
@@ -140,13 +140,13 @@ def _safe_dump(self, value):
         except Exception:
             pass
     if isinstance(value, list):
-        return [self._safe_dump(v) for v in value]
+        return [_safe_dump(v) for v in value]
     if isinstance(value, dict):
-        return {k: self._safe_dump(v) for k, v in value.items()}
-    return self._truncate_text(str(value))
+        return {k: _safe_dump(v) for k, v in value.items()}
+    return _truncate_text(str(value))
 
 
-def _truncate_text(self, text: Optional[str], limit: int = 1500) -> Optional[str]:
+def _truncate_text(text: Optional[str], limit: int = 1500) -> Optional[str]:
     if text is None:
         return None
     if len(text) <= limit:

@@ -95,9 +95,7 @@ class SemanticRecord(object):
             id=payload.get("id", ""),
             summary=payload.get("summary", ""),
             detail=payload.get("detail", ""),
-            source_ids=payload.get("source_ids"),
             tags=payload.get("tags"),
-            confidence=payload.get("confidence", 0.5),
             created_at=payload.get("created_at", ""),
             updated_at=payload.get("updated_at", ""),
         )

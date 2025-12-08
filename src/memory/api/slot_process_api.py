@@ -150,14 +150,9 @@ class SlotProcess:
         )
 
         response = await self.llm_model.complete(system_prompt=system_prompt, user_prompt=user_prompt)
-        payload = _extract_json_between(response, "working-slots", "working-slots")
-        if not payload:
+        data = _extract_json_between(response, "working-slots", "working-slots")
+        if not data:
             return []
-
-        try:
-            data = json.loads(payload)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Failed to parse WorkingSlot JSON: {exc}") from exc
 
         slots_data = data.get("slots", [])
         if not isinstance(slots_data, list):
