@@ -39,7 +39,6 @@ class CodeImplementOutput(BaseDictModel):
 
     # Metadata
     implementation_type: str = Field(description="Type: 'initial' or 'fix'")
-    timestamp: str = Field(description="Implementation timestamp")
 
     # Generated code
     generated_files: List[GeneratedFile] = Field(

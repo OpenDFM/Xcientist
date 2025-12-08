@@ -176,7 +176,7 @@ When reporting issues, you MUST provide **SPECIFIC, ACTIONABLE** details:
 - **ANY `.md` files** - NO markdown files allowed. 
 
 **You should ONLY create:**
-- Test files in `tests/` directory (e.g., `tests/test_step_X.py`)
+- Test or validation files in `tests/` directory. You should not create any other files in the project root.
 - Nothing else. Your output is the JSON response, not files.
 
 ## 📁 TEST FILE LOCATION RULE

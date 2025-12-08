@@ -1,0 +1,1 @@
+python -m src.agents.experiment_agent.main --input-type idea --experiment-id pinn --verbose

@@ -95,10 +95,9 @@ After completing all tool calls, you **MUST** output a JSON object.
 - `*_EVALUATION*.json`, `*_SUMMARY*.json`
 - **ANY `.md` files** - NO markdown files allowed. 
 
-🚨 **TEST FILE LOCATION RULE** 🚨
-- ✅ CORRECT: `{working_dir}/project/tests/test_*.py`
-- ❌ WRONG: `{working_dir}/project/test_*.py` (NOT in project root!)
-- ALL test files MUST be placed in `tests/` directory only.
+🚨 **TEST OR VALIDATION FILE LOCATION RULE** 🚨
+- ALL test or validation files MUST be placed in `tests/` directory only. 
+- You should not create any other files in the project root.
 
 ---
 
@@ -382,11 +381,10 @@ Global Context:
                         hasattr(msg, "content")
                         and msg.content
                         and isinstance(msg.content, str)
+                        and len(msg.content) > 10
                     ):
-                        # Skip if it looks like a tool call response
-                        if not msg.content.startswith("{") and len(msg.content) > 50:
-                            final_text = msg.content
-                            break
+                        final_text = msg.content
+                        break
 
         print_subsection("Parsing JSON Output")
 

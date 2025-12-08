@@ -306,10 +306,9 @@ Start by reading the log files.
         if not final_text and hasattr(result_stream, "chat_history"):
             for msg in reversed(result_stream.chat_history):
                 if hasattr(msg, "role") and msg.role == "assistant":
-                    if hasattr(msg, "content") and msg.content and isinstance(msg.content, str):
-                        if not msg.content.startswith("{") and len(msg.content) > 50:
-                            final_text = msg.content
-                            break
+                    if hasattr(msg, "content") and msg.content and isinstance(msg.content, str) and len(msg.content) > 10:
+                        final_text = msg.content
+                        break
 
         print_success("\nAnalysis text generated")
 
