@@ -448,17 +448,38 @@ def generate_json_schema_instruction(schema_class: Type[BaseModel]) -> str:
             for name, prop in def_props.items():
                 lines.append(format_property(name, prop, def_required))
     
+    # Generate a concrete example based on required fields
+    example_lines = ["{"]
+    for name in required:
+        prop = properties.get(name, {})
+        prop_type = prop.get('type', 'string')
+        if prop_type == 'string':
+            example_lines.append(f'  "{name}": "...",')
+        elif prop_type == 'boolean':
+            example_lines.append(f'  "{name}": false,')
+        elif prop_type == 'integer' or prop_type == 'number':
+            example_lines.append(f'  "{name}": 0,')
+        elif prop_type == 'array':
+            example_lines.append(f'  "{name}": [],')
+        elif prop_type == 'object' or '$ref' in prop:
+            example_lines.append(f'  "{name}": {{}},')
+        else:
+            example_lines.append(f'  "{name}": null,')
+    # Remove trailing comma from last line
+    if example_lines[-1].endswith(','):
+        example_lines[-1] = example_lines[-1][:-1]
+    example_lines.append("}")
+    example_str = "\n".join(example_lines)
+    
     lines.extend([
         "",
         "### Example Output Format:",
         "```json",
-        "{",
-        '  "field_name": "value",',
-        '  ...',
-        "}",
+        example_str,
         "```",
         "",
-        "IMPORTANT: Ensure ALL required fields are included and the JSON is valid.",
+        "IMPORTANT: Your JSON output MUST include ALL required fields listed above.",
+        "Return the FULL top-level JSON structure.",
     ])
     
     return "\n".join(lines)
