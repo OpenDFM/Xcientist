@@ -41,12 +41,18 @@ def create_analysis_agent(model: str = "gpt-4o", tools: Optional[list] = None) -
 ## PURPOSE
 Analysis triggers iteration back to code_plan_agent. Provide ACTIONABLE feedback.
 
+## FILE LOCATIONS
+| Path | Content |
+|------|---------|
+| `project/logs/` | Experiment logs (stdout/stderr) |
+| `project/results/` | Experiment results (metrics, checkpoints) |
+
 ---
 
 ## WORKFLOW: READ → ANALYZE → OUTPUT JSON
 
 ### 1️⃣ READ
-Use `read_file` to read log files and extract ACTUAL metrics.
+Use `read_file` to read log files from `project/logs/` and results from `project/results/`.
 🚫 **DO NOT make up numbers** - only report what you find in logs.
 
 ### 2️⃣ ANALYZE

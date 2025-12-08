@@ -45,7 +45,8 @@ def create_execute_agent(
 | Path | Description |
 |------|-------------|
 | `{working_dir}/project` | Project root |
-| `{log_dir}` | Log directory |
+| `{working_dir}/project/logs` | Experiment logs (stdout/stderr) |
+| `{working_dir}/project/results` | Experiment results (metrics, checkpoints) |
 
 ---
 
@@ -59,10 +60,11 @@ def create_execute_agent(
 
 ### 2️⃣ EXECUTE
 For EACH experiment:
-1. Construct command with proper arguments
-2. Execute: `python script.py [args] > {log_dir}/exp_name.log 2>&1`
-3. **IMMEDIATELY verify**: Read log file, check for errors/metrics
-4. Record result before next experiment
+1. Create directories: `mkdir -p {working_dir}/project/logs {working_dir}/project/results`
+2. Construct command with proper arguments
+3. Execute: `python script.py [args] > {working_dir}/project/logs/exp_name.log 2>&1`
+4. **IMMEDIATELY verify**: Read log file, check for errors/metrics
+5. Record result before next experiment
 
 **Verification Protocol:**
 - Read log file (last 100 lines)
