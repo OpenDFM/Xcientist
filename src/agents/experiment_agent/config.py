@@ -51,12 +51,9 @@ CODE_JUDGE_MODEL: str = "MiniMax-M2"
 
 EXECUTE_EXPERIMENT_MODEL: str = "MiniMax-M2"
 
-RESULT_ANALYSIS_MODEL: str = "MiniMax-M2"
+RESULT_ANALYSIS_MODEL: str = "gpt-5.1"
 
 DEFAULT_MODEL: str = "MiniMax-M2"
-
-OUTPUT_UNIFIER_MODEL: str = "gpt-5-mini"
-
 
 # =============================================================================
 # Docker Configuration
@@ -287,7 +284,7 @@ def get_model_config() -> dict:
         "code_judge": CODE_JUDGE_MODEL,
         "execute_experiment": EXECUTE_EXPERIMENT_MODEL,
         "result_analysis": RESULT_ANALYSIS_MODEL,
-        "output_unifier": OUTPUT_UNIFIER_MODEL,
+        # "output_unifier": OUTPUT_UNIFIER_MODEL,  # Deprecated
         "default": DEFAULT_MODEL,
     }
 

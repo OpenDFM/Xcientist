@@ -9,15 +9,23 @@ all guided by the code plan from the code_plan agent.
 import os
 from typing import Dict, Optional, Any
 
-from agents import Agent, Runner
+from agents import Agent, Runner, RunConfig, ModelSettings
 from src.agents.experiment_agent.sub_agents.code_implement.output_schemas import (
     CodeImplementOutput,
 )
 from src.agents.experiment_agent.utils.common_utils import extract_core_plan_context
 from src.agents.experiment_agent.logger import create_verbose_hooks
-from src.agents.experiment_agent.config import OUTPUT_UNIFIER_MODEL
+from src.agents.experiment_agent.utils.json_utils import (
+    extract_and_parse_json,
+    generate_json_schema_instruction,
+    JSONParseError,
+)
 
 from src.agents.experiment_agent.utils.print_utils import *
+
+
+# Generate JSON output instruction for CodeImplementOutput
+CODE_IMPLEMENT_JSON_OUTPUT_INSTRUCTION = generate_json_schema_instruction(CodeImplementOutput)
 
 
 def create_unified_implement_agent(
@@ -29,104 +37,122 @@ def create_unified_implement_agent(
     Create unified implementation agent that follows code plan instructions.
     """
 
-    instructions = f"""You are the Lead Developer executing ONE step of the Implementation Plan.
+    instructions = f"""You are implementing ONE step of an Implementation Plan.
 
-### CRITICAL: TWO-PHASE EXECUTION MODEL
-
-⚠️ **PHASE 1: PHYSICAL EXECUTION** (Tools Required)
-You MUST complete ALL actions using tools BEFORE returning any output:
-
-**1.1 Analysis Phase:**
-   - Use `list_directory` to check current project state
-   - Identify what needs to be created, modified, or fixed
-   - Check `files_to_create` and `files_to_modify` in the task
-
-**1.2 Directory Setup:**
-   - Use `run_shell_command` with `mkdir -p` to create required directories
-   - Ensure all parent directories exist before creating files
-
-**1.3 File Operations:**
-   - For NEW files: Use `write_file` to create each file
-   - For EXISTING files: Use `read_file` first, then `write_file` to update
-   - For FIXES: Read error context, modify code, write back
-   - Write complete, functional code (not placeholders or comments)
-   - Use absolute imports: `from data.loader import X` (not relative imports)
-
-**1.4 Verification:**
-   - Use `list_directory` to confirm all required files exist
-   - Use `read_file` to spot-check critical files if needed
-   - Verify acceptance criteria are met
-
-🚫 **DO NOT PROCEED TO PHASE 2 UNTIL ALL FILES ARE PHYSICALLY CREATED/MODIFIED!**
+## WORKSPACE
+| Path | Description |
+|------|-------------|
+| `{working_dir}/project` | Project root (write code here) |
+| `{working_dir}/repos` | Reference code (read-only) |
 
 ---
 
-✅ **PHASE 2: STRUCTURED REPORTING** (After Phase 1 Complete)
-ONLY after successfully executing Phase 1, return a detailed textual report with:
-   - **Execution Summary**: What was implemented in this step.
-   - **Files Created/Modified**: List of file paths.
-   - **Key Components**: List of classes/functions implemented.
-   - **Notes**: Implementation details.
-   - **Issues Addressed**: Any feedback or bugs you fixed.
+## WORKFLOW: DISCOVER → IMPLEMENT → OUTPUT JSON
 
-### CONTEXT
-- **Project Root**: `{working_dir}/project`.
-- **Workspace**: `{working_dir}`.
-- **Reference Code**: `{working_dir}/repos` (Read-only).
+### 1️⃣ DISCOVER (Before Writing Code)
 
-### CRITICAL CONSTRAINTS
-1. **Tool Usage is Mandatory**: Returning text without calling tools = FAILURE
-2. **Scope Control**: Implement ONLY the current step, not future steps
-3. **Content Quality**: Write functional code, not TODOs or placeholders
-4. **Import Style**: Always use absolute imports from project root
-5. **Verification**: Must verify your work before reporting
+**Read before you write.** Use `read_file` to:
+- Trace inputs: find where arguments are created, their types/keys
+- Trace outputs: find consumers of your return values, verify expected format
+- Verify calls: read function definitions before calling them
 
-### SELF-CHECK BEFORE RETURNING OUTPUT
-Ask yourself:
-- ✓ Did I call `write_file` for every required file?
-- ✓ Can I list the actual file content I wrote?
-- ✓ Did I verify files exist using `list_directory`?
-If you answer "No" to any question above, you have NOT completed Phase 1.
+🚫 **NEVER** guess data structures. **NEVER** modify signatures without checking callers.
+
+---
+
+### 2️⃣ IMPLEMENT (Tool Execution)
+
+**File Operations:**
+- `list_directory` → check project state
+- `run_shell_command mkdir -p` → create directories
+- `write_file` → for NEW files (complete, functional code)
+- `edit_file` → for EXISTING files (preferred for modifications)
+- `list_directory` → verify files exist
+
+**Tool Argument Rules:**
+- `contents`/`new_content` must be a SINGLE LINE string
+- Replace newlines with `\\n`, escape `"` as `\\"`, escape `\\` as `\\\\`
+
+**Code Quality:**
+- Use absolute imports: `from data.loader import X`
+- Write complete code, not TODOs or placeholders
+- Implement ONLY the current step
+- Input validation: check None, ≤0, empty, wrong type
+- Float comparison: use `torch.allclose(a, b, atol=1e-5)` not `==`
+
+---
+
+### 3️⃣ OUTPUT JSON (MANDATORY)
+
+After completing all tool calls, you **MUST** output a JSON object.
+
+---
+
+## 🚫 PROHIBITED
+
+**DO NOT create these files:**
+- `STEP*_COMPLETION*.json`, `STEP*_REPORT*.json`
+- `*_EVALUATION*.json`, `*_SUMMARY*.json`, `*_SUMMARY*.md`
+- Any report/completion markdown files
+
+**Test files MUST go in `tests/` directory only.**
+
+---
+
+## ⚠️ CRITICAL: REQUIRED OUTPUT FORMAT
+
+🚨🚨🚨 **YOUR FINAL OUTPUT MUST BE ONLY A JSON OBJECT** 🚨🚨🚨
+
+**DO NOT** write markdown summaries like "I have successfully completed..." or "✅ Step Complete".
+**DO NOT** write any explanatory text after completing tool calls.
+**ONLY** output a valid JSON wrapped in ```json ... ``` code block.
+
+**REQUIRED JSON STRUCTURE:**
+```json
+{{
+  "implementation_type": "initial",
+  "timestamp": "2025-12-08T12:00:00",
+  "generated_files": [
+    {{
+      "file_path": "project/path/to/file.py",
+      "content": "",
+      "description": "Description of file",
+      "dependencies": []
+    }}
+  ],
+  "implementation_summary": {{
+    "files_created": 5,
+    "files_modified": 0,
+    "total_lines": 500,
+    "key_components": ["component1", "component2"]
+  }},
+  "test_files": [],
+  "issues_addressed": ""
+}}
+```
+
+**JSON Field Guide:**
+- `implementation_type`: "initial" or "fix"
+- `timestamp`: ISO format datetime
+- `generated_files`: List with file_path, content (can be ""), description, dependencies
+- `implementation_summary`: files_created, files_modified, total_lines, key_components
+- `test_files`: empty list (tests handled by Code Judge)
+- `issues_addressed`: issues fixed (for fix type only)
+
+❌ WRONG: "I have completed the task! Here's what I did: ..."
+✅ CORRECT: Only output the JSON block above, nothing else.
+
+**If you output markdown text instead of JSON, the system will FAIL and retry.**
 """
 
     agent = Agent(
         name="Code Implementation Agent",
         instructions=instructions,
-        # output_type=CodeImplementOutput, # Removed for duplex mode
         model=model,
         tools=tools or [],
     )
 
     return agent
-
-
-def create_code_implement_unifier_agent(model: str = "gpt-4o") -> Agent:
-    return Agent(
-        name="Code Implement Unifier",
-        instructions="""You are an expert data structuring assistant.
-Your task is to convert the implementation report into a structured `CodeImplementOutput` object.
-
-Input text will contain:
-- Execution Summary
-- Files Created/Modified
-- Key Components
-- Notes
-- Issues Addressed
-
-Map these to the schema.
-For `generated_files`:
-- Extract `file_path` and `description`.
-- Set `content` to an empty string "" (it will be filled by the system).
-- Set `dependencies` based on imports if mentioned, or empty list.
-
-For `implementation_summary`:
-- Extract `files_created`, `files_modified` counts.
-- `key_components` list.
-- `implementation_notes`.
-""",
-        output_type=CodeImplementOutput,
-        model=OUTPUT_UNIFIER_MODEL,
-    )
 
 
 class CodeImplementAgent:
@@ -144,13 +170,12 @@ class CodeImplementAgent:
         self.model = model
         self.working_dir = working_dir
         self.verbose = verbose
-        self.hooks = (
-            create_verbose_hooks(
-                show_llm_responses=verbose,
-                show_tools=verbose,
-            )
-            if verbose
-            else None
+        # Always create hooks to show tool arguments
+        # verbose mode controls whether to show detailed responses and results
+        self.hooks = create_verbose_hooks(
+            show_llm_responses=verbose,
+            show_tools=verbose,
+            show_tool_args=True,  # Always show tool arguments
         )
 
         # Auto-load recommended tools if not provided
@@ -170,74 +195,160 @@ class CodeImplementAgent:
             tools=self.tools,
         )
 
-        # Initialize output unifier
-        self.output_unifier = create_code_implement_unifier_agent(model=model)
-
         # Expose implementation agent as main agent for compatibility
         self.agent = self.implementation_agent
+
+    def _get_checklist_from_plan(self, code_plan_output: Any) -> list:
+        """Get implementation checklist from code plan output."""
+        if not code_plan_output:
+            return []
+        
+        checklist = code_plan_output.get("implementation_checklist", [])
+        
+        if checklist and isinstance(checklist[0], dict):
+            class ChecklistStep:
+                def __init__(self, data):
+                    for key, value in data.items():
+                        setattr(self, key, value)
+            checklist = [ChecklistStep(item) for item in checklist]
+        
+        return checklist
+
+    def _extract_judge_feedback(self, judge_output: Any) -> str:
+        """Extract feedback from judge output."""
+        if not judge_output:
+            return ""
+
+        # Build feedback section
+        feedback_section = "=== LATEST FEEDBACK (from current judge review) ===\n"
+        issues = judge_output.get("issues", [])
+        if issues:
+            feedback_section += f"DETAILED ISSUES FROM CODE JUDGE: {len(issues)} found\n"
+            for i, issue in enumerate(issues, 1):
+                desc = issue.get("description", "No description")
+                sugg = issue.get("suggestion", "No suggestion")
+                file_p = issue.get("file_path", "Unknown file")
+                severity = issue.get("severity", "unknown")
+                expected = issue.get("expected", "N/A")
+                actual = issue.get("actual", "N/A")
+                
+                feedback_section += f"\n--- Issue #{i} [{severity.upper()}] ---\n"
+                feedback_section += f"File: {file_p}\n"
+                feedback_section += f"Problem: {desc}\n"
+                feedback_section += f"Expected: {expected}\n"
+                feedback_section += f"Actual: {actual}\n"
+                feedback_section += f"Fix: {sugg}\n"
+            
+            feedback_section += f"\n{'='*60}\n"
+
+        return feedback_section
+    
+    def _extract_issue_history(self, context: Any) -> str:
+        """Extract issue history from context's issue tracker."""
+        if not hasattr(context, 'get_issue_tracker') or not hasattr(context, 'issue_tracker_data'):
+            return ""
+        
+        if context.issue_tracker_data is None:
+            return ""
+        
+        try:
+            tracker = context.get_issue_tracker()
+            return tracker.format_for_implement_agent()
+        except Exception as e:
+            print(f"[CODE_IMPLEMENT] Warning: Could not extract issue history: {e}")
+            return ""
 
     async def process(self, context: Any, **kwargs) -> CodeImplementOutput:
         """
         Process the current step using context data.
         """
-        data = kwargs
-        current_step = data.get("current_step", None)
-        checklist_progress = data.get("checklist_progress", "")
-        completed_steps = data.get("completed_steps", [])
-        feedback = data.get("feedback", "")
-        judge_output = data.get("judge_output", None)
+        # Extract data from context
+        plan = getattr(context, "code_plan_output", None)
+        checklist = self._get_checklist_from_plan(plan)
+        current_step_idx = getattr(context, "current_checklist_step", 0)
+        current_step = None
+        checklist_progress = ""
+        
+        if checklist and current_step_idx < len(checklist):
+            current_step = checklist[current_step_idx]
+            checklist_progress = f"Step {current_step_idx + 1}/{len(checklist)}"
+            
+        # Determine feedback
+        judge_output = None
+        
+        # Check for retry (retry count > 0 or explicit feedback type)
+        retry_count = getattr(context, "checklist_step_retry_count", 0)
+        pending_feedback_type = getattr(context, "pending_feedback_type", None)
+        
+        feedback_section = ""
+        if retry_count > 0 or pending_feedback_type == "judge_rejection":
+            judge_output = getattr(context, "code_judge_output", None)
+            feedback_section = self._extract_judge_feedback(judge_output)
 
         # Build current step section
         step_section = ""
         if current_step:
             step_section = f"""
 === CURRENT STEP ===
-ID: {current_step.step_id}
+Current Checklist Step: {checklist_progress}
 Title: {current_step.title}
 Description: {current_step.description}
 Files to Create: {', '.join(current_step.files_to_create) if current_step.files_to_create else 'None'}
 Files to Modify: {', '.join(current_step.files_to_modify) if current_step.files_to_modify else 'None'}
 Acceptance Criteria:
 {chr(10).join(f'  - {c}' for c in current_step.acceptance_criteria)}
-Dependencies: {', '.join(map(str, current_step.dependencies)) if current_step.dependencies else 'None'}
 """
 
-        # Build feedback section if code was rejected
-        feedback_section = ""
-        if feedback or judge_output:
-            feedback_section = f"\n=== FEEDBACK ===\n{feedback}\n"
-            if judge_output and hasattr(judge_output, "issues"):
-                feedback_section += (
-                    f"\nJudge Issues: {len(judge_output.issues)} found.\n"
-                )
 
-        # Get reference codebases information
-        reference_codebases_info = data.get(
-            "reference_codebases_info", "(Codebase information not available)"
-        )
 
         # Extract file structure from plan
         file_structure_info = ""
-        if hasattr(context.code_plan_output, "file_structure"):
+        file_structure = context.code_plan_output.get("file_structure", []) if context.code_plan_output else []
+        
+        if file_structure:
             structure_lines = ["=== FILE STRUCTURE ===\n"]
-            for item in context.code_plan_output.file_structure:
-                if hasattr(item, "path"):
-                    structure_lines.append(f"- {item.path}")
+            for item in file_structure:
+                # Handle item being dict or object
+                path = item.get("path") if hasattr(item, "get") else getattr(item, "path", None)
+                if path:
+                    structure_lines.append(f"- {path}")
             file_structure_info = "\n".join(structure_lines)
 
         core_plan_context = extract_core_plan_context(context.code_plan_output)
+        
+        # Extract code repos info from pre_analysis_output
+        code_repos_info_section = ""
+        if hasattr(context, "pre_analysis_output") and context.pre_analysis_output:
+            code_repos_info = context.pre_analysis_output.get("code_repos_info", "")
+            if code_repos_info:
+                code_repos_info_section = f"=== REFERENCE CODE REPOSITORIES ===\n{code_repos_info}\n"
+        
+        # Extract issue history from tracker
+        issue_history_section = self._extract_issue_history(context)
 
+        mode_instructions = "You should follow the instructions to implement the code." if not feedback_section else f"You should follow the feedback to fix the code."
+        
+        # Add priority note for recurring issues
+        priority_note = ""
+        if issue_history_section:
+            priority_note = """
+⚠️ IMPORTANT: Review the ISSUE HISTORY section below. Issues marked as "RECURRING" have appeared multiple times 
+and MUST be prioritized. Failing to address recurring issues will result in continued rejection.
+"""
+        
         input_prompt = f"""
-IMPLEMENTATION TASK
+{mode_instructions}
+{priority_note}
 
 {step_section}
 
 {file_structure_info}
 
-{feedback_section}
+{code_repos_info_section}
 
-Reference Info:
-{reference_codebases_info}
+{issue_history_section}
+
+{feedback_section}
 
 Global Context:
 {core_plan_context}
@@ -253,9 +364,16 @@ Global Context:
 
         print_subsection("Implementing Current Step")
 
-        # Use streamed version for real-time output
+        run_config = RunConfig(
+            model_settings=ModelSettings(max_tokens=128*1024)
+        )
+
         implementation_stream = Runner.run_streamed(
-            self.implementation_agent, input_data, hooks=self.hooks, max_turns=100
+            self.implementation_agent, 
+            input_data, 
+            hooks=self.hooks, 
+            max_turns=100,
+            run_config=run_config
         )
         final_text = ""
         async for event in implementation_stream.stream_events():
@@ -276,75 +394,37 @@ Global Context:
             implementation_result.final_output, str
         ):
             final_text = implementation_result.final_output
-        elif (
+
+        # If no text captured from stream, search chat_history for assistant text messages
+        if (
             not final_text
             and hasattr(implementation_result, "chat_history")
             and implementation_result.chat_history
         ):
-            final_text = implementation_result.chat_history[-1].content
+            # Iterate backwards to find the last assistant message with actual text content
+            for msg in reversed(implementation_result.chat_history):
+                if hasattr(msg, "role") and msg.role == "assistant":
+                    if (
+                        hasattr(msg, "content")
+                        and msg.content
+                        and isinstance(msg.content, str)
+                    ):
+                        # Skip if it looks like a tool call response
+                        if not msg.content.startswith("{") and len(msg.content) > 50:
+                            final_text = msg.content
+                            break
 
-        if not final_text:
-            print_error("Implementation did not produce output")
-            raise RuntimeError("Implementation agent failed to produce output.")
+        print_subsection("Parsing JSON Output")
 
-        print_success("Implementation text report generated")
-        print_subsection("Unifying Output Format")
+        # Extract and parse JSON from the implementation output
+        # Use raise_on_failure=True to trigger retry in master agent
+        try:
+            final_output = extract_and_parse_json(final_text, CodeImplementOutput, raise_on_failure=True)
+        except JSONParseError as e:
+            # Re-raise JSONParseError to trigger retry in master agent
+            print_error(f"JSON parsing failed, will trigger retry: {e}")
+            raise
 
-        # Unify
-        unifier_input = f"""
-Please convert the following implementation report into the structured `CodeImplementOutput` format.
-
-=== IMPLEMENTATION REPORT ===
-{final_text}
-"""
-        unifier_stream = Runner.run_streamed(
-            self.output_unifier, unifier_input, hooks=None
-        )
-
-        async for _ in unifier_stream.stream_events():
-            pass
-
-        final_output = unifier_stream.final_output
-
-        project_root = os.path.join(self.working_dir, "project")
-
-        print_info("Reading generated files from disk...")
-        for gen_file in final_output.generated_files:
-            # Handle absolute paths that might be returned by LLM
-            raw_path = gen_file.file_path.strip()
-
-            # If it's an absolute path and starts with project_root, use it directly
-            # Also handle potential double-slash issues or symlinks by resolving
-            try:
-                # Normalize paths for comparison
-                norm_project_root = os.path.normpath(project_root)
-                norm_raw_path = os.path.normpath(raw_path)
-
-                if os.path.isabs(norm_raw_path) and norm_raw_path.startswith(
-                    norm_project_root
-                ):
-                    full_path = norm_raw_path
-                    # Update relative path for display/storage consistency
-                    rel_path = os.path.relpath(full_path, start=project_root)
-                else:
-                    # Treat as relative path
-                    rel_path = raw_path.lstrip("/").lstrip("\\")
-                    full_path = os.path.join(project_root, rel_path)
-            except Exception:
-                # Fallback to original behavior if path manipulation fails
-                rel_path = raw_path.lstrip("/").lstrip("\\")
-                full_path = os.path.join(project_root, rel_path)
-
-            if os.path.exists(full_path) and os.path.isfile(full_path):
-                try:
-                    with open(full_path, "r", encoding="utf-8", errors="replace") as f:
-                        gen_file.content = f.read()
-                except Exception as e:
-                    gen_file.content = f"[Error reading file: {str(e)}]"
-                    print_error(f"Failed to read {rel_path}: {e}")
-            else:
-                gen_file.content = "[File not found on disk]"
-                print_error(f"File not found: {full_path}")
 
         print_success("Implementation completed")
         print_info(f"Generated {len(final_output.generated_files)} files")
@@ -370,13 +450,3 @@ def create_code_implement_agent(
     return CodeImplementAgent(
         model=model, working_dir=working_dir, tools=tools, verbose=verbose
     )
-
-
-if __name__ == "__main__":
-    import asyncio
-
-    async def main():
-        agent = create_code_implement_agent(model="gpt-4o", working_dir="/workspace")
-        print("Agent created.")
-
-    asyncio.run(main())

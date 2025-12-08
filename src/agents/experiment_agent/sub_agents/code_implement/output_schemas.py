@@ -7,8 +7,10 @@ Defines structured output formats for code implementation results.
 from pydantic import BaseModel, Field
 from typing import List, Dict
 
+from src.agents.experiment_agent.sub_agents.base.output_schemas import BaseDictModel
 
-class GeneratedFile(BaseModel):
+
+class GeneratedFile(BaseDictModel):
     """Information about a generated file."""
 
     file_path: str = Field(description="Relative path of the generated file")
@@ -19,17 +21,16 @@ class GeneratedFile(BaseModel):
     )
 
 
-class ImplementationSummary(BaseModel):
+class ImplementationSummary(BaseDictModel):
     """Summary of implementation work done."""
 
     files_created: int = Field(description="Number of files created")
     files_modified: int = Field(description="Number of files modified")
     total_lines: int = Field(description="Total lines of code generated")
     key_components: List[str] = Field(description="List of key components implemented")
-    implementation_notes: str = Field(description="Notes about the implementation")
 
 
-class CodeImplementOutput(BaseModel):
+class CodeImplementOutput(BaseDictModel):
     """
     Unified code implementation output.
 
@@ -53,22 +54,6 @@ class CodeImplementOutput(BaseModel):
     # Testing and validation
     test_files: List[GeneratedFile] = Field(
         description="Test files generated", default_factory=list
-    )
-
-    # Documentation
-    setup_instructions: str = Field(
-        description="Instructions for setting up and running the code"
-    )
-    usage_examples: str = Field(
-        description="Examples of how to use the implemented code"
-    )
-
-    # Quality notes
-    known_limitations: str = Field(
-        default="", description="Known limitations or areas needing attention"
-    )
-    next_steps: str = Field(
-        default="", description="Suggested next steps or improvements"
     )
 
     # Fix-specific (optional)

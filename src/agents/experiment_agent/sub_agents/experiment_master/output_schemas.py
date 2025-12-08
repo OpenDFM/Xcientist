@@ -8,8 +8,10 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+from src.agents.experiment_agent.sub_agents.base.output_schemas import BaseDictModel
 
-class WorkflowStep(BaseModel):
+
+class WorkflowStep(BaseDictModel):
     """Record of a single workflow step."""
 
     step_number: int = Field(description="Sequential step number")
@@ -18,7 +20,7 @@ class WorkflowStep(BaseModel):
     summary: str = Field(description="Brief summary of this step's result")
 
 
-class ExperimentMasterOutput(BaseModel):
+class ExperimentMasterOutput(BaseDictModel):
     """
     Output structure for the complete experiment workflow.
 

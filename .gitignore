@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Experiment Agent - 排除工作空间和缓存
+src/agents/experiment_agent/workspaces/
+src/agents/experiment_agent/workspace/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Environment
+.env
+.venv/
+venv/

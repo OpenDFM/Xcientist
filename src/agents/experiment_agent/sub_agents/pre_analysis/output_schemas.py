@@ -7,8 +7,10 @@ and the unified output format.
 
 from pydantic import BaseModel, Field
 
+from src.agents.experiment_agent.sub_agents.base.output_schemas import BaseDictModel
 
-class ConceptAnalysis(BaseModel):
+
+class ConceptAnalysis(BaseDictModel):
     """Concept analysis output structure."""
 
     system_architecture: str = Field(
@@ -25,7 +27,7 @@ class ConceptAnalysis(BaseModel):
     )
 
 
-class AlgorithmAnalysis(BaseModel):
+class AlgorithmAnalysis(BaseDictModel):
     """Algorithm analysis output structure."""
 
     algorithms: str = Field(
@@ -40,7 +42,7 @@ class AlgorithmAnalysis(BaseModel):
     algorithm_flow: str = Field(description="Algorithm flow and execution pipeline")
 
 
-class AnalysisSynthesis(BaseModel):
+class AnalysisSynthesis(BaseDictModel):
     """Synthesis of analysis results."""
 
     summary: str = Field(description="Executive summary of the analysis")
@@ -49,7 +51,18 @@ class AnalysisSynthesis(BaseModel):
     )
 
 
-class PreAnalysisOutput(BaseModel):
+class CodeRepoInfo(BaseDictModel):
+    """Information about a single code repository."""
+    
+    repo_name: str = Field(description="Name of the repository")
+    repo_path: str = Field(description="Path to the repository")
+    purpose: str = Field(description="Brief description of what this repository does")
+    key_components: str = Field(description="Key components and their descriptions")
+    relevance: str = Field(description="How this repo relates to the research idea/paper")
+    useful_patterns: str = Field(description="Useful code patterns that could be reused")
+
+
+class PreAnalysisOutput(BaseDictModel):
     """
     Unified analysis output for both paper and idea inputs.
 
@@ -84,3 +97,11 @@ class PreAnalysisOutput(BaseModel):
     implementation_guidance: str = Field(
         description="Guidance for implementation and code planning"
     )
+    
+    # Code repository analysis
+    code_repos_info: str = Field(
+        default="",
+        description="Analysis of reference code repositories: their purpose, structure, and relevance to the research"
+    )
+    
+

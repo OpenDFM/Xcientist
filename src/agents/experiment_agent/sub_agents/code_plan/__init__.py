@@ -29,7 +29,6 @@ def get_recommended_tools():
 
     return {
         "initial": tools,
-        "judge_feedback": tools,
         "error_feedback": tools,
         "analysis_feedback": tools,
     }

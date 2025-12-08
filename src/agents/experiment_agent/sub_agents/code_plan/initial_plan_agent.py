@@ -9,6 +9,11 @@ from agents import Agent
 from src.agents.experiment_agent.sub_agents.code_plan.output_schemas import (
     CodePlanOutput,
 )
+from src.agents.experiment_agent.utils.json_utils import generate_json_schema_instruction
+
+
+# Generate JSON output instruction for CodePlanOutput
+CODE_PLAN_JSON_OUTPUT_INSTRUCTION = generate_json_schema_instruction(CodePlanOutput)
 
 
 def create_initial_plan_agent(
@@ -26,52 +31,74 @@ def create_initial_plan_agent(
         Agent instance configured for initial planning
     """
 
-    instructions = f"""You are the System Architect for a machine learning research project.
-Your goal is to translate a theoretical research analysis into a concrete, actionable software architecture and implementation plan.
+    instructions = f"""You are a System Architect creating CODE PLAN + EXPERIMENT PLAN for an ML research project.
 
-### ENVIRONMENT & CONTEXT
-- **Project Root**: `{working_dir}/project`
-- **Execution Context**: All Python code will run with `{working_dir}/project` as the current working directory (PYTHONPATH root).
-- **Resources**:
-  - `../repos/`: Reference implementations (Read-only).
-  - `../dataset_candidate/`: Available datasets (Read-only).
+## WORKFLOW: 1️⃣ EXPLORE → 2️⃣ DESIGN → 3️⃣ OUTPUT
 
-### PROCEDURE
+---
 
-1. **RECONNAISSANCE (Mandatory)**
-   Before planning, you must verify available resources to ground your plan in reality.
-   - Scan `{working_dir}/dataset_candidate` to confirm dataset paths and structure.
-   - Scan `{working_dir}/repos` to identify reusable patterns or model architectures.
+## 1️⃣ EXPLORE (Mandatory Before Planning)
 
-2. **ARCHITECTURE DESIGN**
-   Generate a comprehensive technical design document.
+| Resource | Action | Extract |
+|----------|--------|---------|
+| `{working_dir}/repos/` | `list_files` + `read_file` | Architecture patterns, training loops, data formats |
+| `{working_dir}/dataset_candidate/` | Scan contents | Available datasets, formats, sizes |
 
-   **A. File Structure Strategy**
-   - Design a clean, modular Python project structure (data/, models/, training/, configs/, utils/).
-   - **Constraint**: DO NOT plan any `tests/` directory or test files. Testing is handled by an external QA process.
-   - **Constraint**: Ensure all imports are designed relative to the Project Root.
-   - **Constraint**: The project structure must be FLAT within the Project Root. DO NOT create a top-level package directory (e.g., do not create 'dasvr_project/models', just 'models/').
+🚫 **NEVER** invent architectures. **ALWAYS** base designs on actual reference code you read.
 
+---
 
-   **B. Implementation Checklist**
-   Create a step-by-step implementation roadmap.
-   - **Granularity**: Each step should be an atomic, verifiable task (1-3 files).
-   - **Dependency**: Logical order (Utils -> Data -> Model -> Train).
-   - **Step 1 is Fixed**: You MUST strictly define Step 1 as "Create Complete Project Structure" (creating all directories and `__init__.py` files).
+## 2️⃣ DESIGN
 
-### OUTPUT REQUIREMENTS
-Provide a detailed textual project plan containing:
-1. **Research Summary**: Brief summary of what is being implemented.
-2. **Key Innovations**: The core novelties to be implemented.
-3. **File Structure**: A complete tree or list of files and directories (excluding tests).
-4. **Dataset Plan**: How data will be loaded and processed.
-5. **Model Plan**: Architecture details.
-6. **Training Plan**: Training loop and optimization strategy.
-7. **Testing Plan**: Evaluation metrics and validation strategy (NOT unit tests).
-8. **Implementation Checklist**: A numbered list of implementation steps. For each step, specify the files to create/modify and acceptance criteria.
-9. **Notes & Challenges**: Implementation notes and potential risks.
+### PART I: CODE PLAN
 
-Use clear headings for each section.
+| Section | Requirements |
+|---------|--------------|
+| File Structure | Flat under `{working_dir}/project/`. Dirs: data/, models/, training/, configs/, utils/, scripts/, tests/ |
+| Tests Directory | ALL test files and test-related folders MUST be placed in `tests/` directory |
+| Imports | Absolute from project root: `from models.net import X` |
+| Checklist | Step 1 = "Create Project Structure". Each step = 1-3 files, atomic, verifiable. **MAX 15 STEPS** |
+| Baseline Support | Same interface for proposed AND baseline methods |
+
+⚠️ **CHECKLIST CONSTRAINTS:**
+- **Maximum 10 steps** - combine related tasks if needed
+- Each step should be **actionable**
+- Prioritize core functionality over edge cases
+- Group related files into single steps (e.g., "Create model components" can include 2-3 model files)
+
+### PART II: EXPERIMENT PLAN
+
+| Section | Requirements |
+|---------|--------------|
+| Baseline | Define method, justify why, same conditions as proposed |
+| Datasets | ALL relevant datasets from `../dataset_candidate/` |
+| Hyperparameters | ≥3 values per key param (lr, method-specific) |
+| Experiment Matrix | Complete table: ExpID, Method, Dataset, Params, Seeds |
+| Metrics | Primary + secondary metrics, success criteria |
+
+---
+
+## 3️⃣ OUTPUT (JSON FORMAT - CRITICAL)
+
+After completing your analysis and design, you MUST output your final plan as a JSON object.
+
+{CODE_PLAN_JSON_OUTPUT_INSTRUCTION}
+
+**Important JSON Field Mappings:**
+- `plan_type`: Set to "initial"
+- `file_structure`: List of FileStructureItem objects with path, description
+- `dataset_plan`: Dataset preparation and loading plan
+- `model_plan`: Model implementation plan (Module Descriptions)
+- `training_plan`: Training pipeline plan
+- `implementation_checklist`: List of ChecklistItem objects with step_id, title, description, files_to_create, files_to_modify, acceptance_criteria
+- `implementation_notes`: Reference Code Analysis + important notes
+- `experiment_plan`: ExperimentPlan object with baseline_method, datasets, hyperparameter_space, experiment_matrix, primary_metrics
+
+---
+
+## KEY PRINCIPLE
+
+The CODE PLAN must provide ALL infrastructure to execute EVERY experiment in the EXPERIMENT PLAN.
 """
 
     agent = Agent(

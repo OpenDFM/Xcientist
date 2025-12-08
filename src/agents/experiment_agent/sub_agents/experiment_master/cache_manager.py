@@ -68,6 +68,9 @@ class CacheManager:
                     "checklist_step_retry_count": 0,
                     "execution_step_counter": 0,
                     "iteration_count": 0,
+                    "retry_count": 0,
+                    "pending_feedback_type": None,
+                    "pending_feedback_data": None,
                 },
                 "cached_outputs": {},
                 "workflow_progress": [],
@@ -450,6 +453,12 @@ class CacheManager:
             "checklist_step_retry_count": context.checklist_step_retry_count,
             "execution_step_counter": context.execution_step_counter,
             "iteration_count": context.iteration_count,
+            "retry_count": context.retry_count,  # For error feedback consistency
+            # Record the reason for current state (for code_plan re-planning scenarios)
+            "pending_feedback_type": getattr(context, "pending_feedback_type", None),
+            "pending_feedback_data": getattr(context, "pending_feedback_data", None),
+            # Issue tracker state for persistence across sessions
+            "issue_tracker_data": getattr(context, "issue_tracker_data", None),
         }
 
         # Update cached outputs references
@@ -515,6 +524,14 @@ class CacheManager:
             ]
             context.execution_step_counter = workflow_state["execution_step_counter"]
             context.iteration_count = workflow_state["iteration_count"]
+            context.retry_count = workflow_state.get("retry_count", 0)
+            
+            # Restore pending feedback info (for code_plan re-planning scenarios)
+            context.pending_feedback_type = workflow_state.get("pending_feedback_type")
+            context.pending_feedback_data = workflow_state.get("pending_feedback_data")
+            
+            # Restore issue tracker state
+            context.issue_tracker_data = workflow_state.get("issue_tracker_data")
 
             # Restore cached outputs
             import re
@@ -565,16 +582,40 @@ class CacheManager:
                             f"[CACHE] Loaded step{step_id}_code_judge output (saved: {cached_outputs.get('last_code_judge_timestamp', 'unknown')})"
                         )
 
+            # Load experiment_execute output if exists
+            if "experiment_execute" in cached_outputs:
+                execute_file = cached_outputs["experiment_execute"]
+                match = re.search(r"step(\d+)_", execute_file)
+                if match:
+                    step_id = int(match.group(1))
+                    context.experiment_execute_output = self.load_cache("experiment_execute", step_id)
+                    if context.experiment_execute_output:
+                        print(
+                            f"[CACHE] Loaded step{step_id}_experiment_execute output"
+                        )
+
             print(f"[CACHE] Restored workflow state:")
             print(f"  State: {context.current_state.value}")
             print(f"  Checklist step: {context.current_checklist_step}")
             print(f"  Completed steps: {context.completed_checklist_steps}")
-            print(f"  Retry count: {context.checklist_step_retry_count}")
+            print(f"  Step retry count: {context.checklist_step_retry_count}")
+            print(f"  Global retry count: {context.retry_count}")
+            print(f"  Iteration count: {context.iteration_count}")
             print(f"  Execution counter: {context.execution_step_counter}")
+            print(f"  Pending feedback type: {context.pending_feedback_type}")
+            print(f"  Has pending feedback data: {context.pending_feedback_data is not None}")
+            print(f"  Has issue tracker data: {context.issue_tracker_data is not None}")
+            if context.issue_tracker_data:
+                tracker = context.get_issue_tracker()
+                stats = tracker.get_stats()
+                print(f"    - Open issues: {stats['open_count']}")
+                print(f"    - Resolved issues: {stats['resolved_count']}")
+                print(f"    - Recurring issues: {stats['recurring_count']}")
             print(f"  Has pre_analysis: {context.pre_analysis_output is not None}")
             print(f"  Has code_plan: {context.code_plan_output is not None}")
             print(f"  Has code_implement: {context.code_implement_output is not None}")
             print(f"  Has code_judge: {context.code_judge_output is not None}")
+            print(f"  Has experiment_execute: {context.experiment_execute_output is not None}")
 
             return True
 

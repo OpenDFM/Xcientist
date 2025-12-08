@@ -6,9 +6,10 @@ pre-analysis and code plan expectations, and suggests improvements for both
 the research idea and implementation plan.
 """
 
+import os
 from typing import Optional, Any
 
-from agents import Agent, Runner
+from agents import Agent, Runner, RunConfig, ModelSettings
 
 from src.agents.experiment_agent.sub_agents.experiment_analysis.output_schemas import (
     ExperimentAnalysisOutput,
@@ -16,11 +17,18 @@ from src.agents.experiment_agent.sub_agents.experiment_analysis.output_schemas i
 
 from src.agents.experiment_agent.logger import create_verbose_hooks
 
-from src.agents.experiment_agent.config import OUTPUT_UNIFIER_MODEL
-
 from src.agents.experiment_agent.utils import *
 
 from src.agents.experiment_agent.utils.print_utils import *
+from src.agents.experiment_agent.utils.json_utils import (
+    extract_and_parse_json,
+    generate_json_schema_instruction,
+    JSONParseError,
+)
+
+
+# Generate JSON output instruction for ExperimentAnalysisOutput
+EXPERIMENT_ANALYSIS_JSON_OUTPUT_INSTRUCTION = generate_json_schema_instruction(ExperimentAnalysisOutput)
 
 
 def create_analysis_agent(model: str = "gpt-4o", tools: Optional[list] = None) -> Agent:
@@ -28,110 +36,73 @@ def create_analysis_agent(model: str = "gpt-4o", tools: Optional[list] = None) -
     Create the experiment analysis agent.
     """
 
-    instructions = """You are a Principal Researcher. Your task is to write a comprehensive Research Report based on the experiment results.
+    instructions = f"""You are a Principal Researcher analyzing experiment results to provide feedback for the next iteration.
 
-This report will be used to summarize the current iteration and provide insights for future idea generation.
+## Purpose
+Analysis ALWAYS triggers iteration back to code_plan_agent. Your job is to provide actionable feedback.
 
-### INPUTS
-1. **Execution Logs**: Contains metrics (Loss, Accuracy, etc.) and stdout.
-2. **Pre-Analysis**: The theoretical claims, expected innovations, and motivation.
-3. **Code Plan**: The implementation specifications and setup.
+## Your Workflow
 
-### REPORT STRUCTURE
-You MUST format your output as a Research Report with the following sections:
+1. **Read**: Use `read_file` to read log files and extract actual metrics
+2. **Analyze**: Compare baseline vs proposed, identify patterns, evaluate innovations
+3. **Report**: Provide structured JSON output (DO NOT write to file)
 
-# [Title]
+## Key Requirements
+- Read ALL relevant log files to extract actual numbers
+- Be specific with metrics - no vague claims
+- Compare baseline vs proposed when applicable
+- Provide ACTIONABLE improvement suggestions for the next iteration
+- Focus on what specifically needs to change in the code plan
 
-## Abstract
-Brief summary of the task, approach, and key results.
+## ⚠️ CRITICAL ⚠️
+- You MUST output a complete structured JSON analysis
+- Extract ACTUAL metrics from log files - do not make up numbers
+- If a file cannot be read, explain what you tried
+- DO NOT use `write_file` - just output the JSON
 
-## 1. Introduction
-   - **Task Background**: What is the problem being solved?
-   - **Motivation**: Why is this problem important? What are the limitations of existing methods?
-   - **Proposed Approach**: Briefly describe the core idea/innovation.
+---
 
-## 2. Methodology
-   - **Theoretical Basis**: Explain the key innovations in detail.
-   - **Implementation Details**: How was it implemented?
+## OUTPUT FORMAT (JSON - CRITICAL)
 
-## 3. Experimental Setup
-   - **Dataset**: What data was used?
-   - **Hyperparameters**: Key settings (LR, Batch Size, Optimizer, etc.).
-   - **Environment**: Hardware/Software context.
+After completing your analysis, you MUST output your result as a JSON object.
 
-## 4. Results
-   - **Key Metrics**: Present the results (Best Accuracy, Final Loss, etc.).
-   - **Training Dynamics**: Describe the convergence behavior.
-   - **Comparison**: Compare with baselines or targets.
+{EXPERIMENT_ANALYSIS_JSON_OUTPUT_INSTRUCTION}
 
-## 5. Analysis (CRITICAL)
-   - **Hypothesis Verification**: Did the innovations work as expected? Why or why not?
-   - **Ablation/Deep Dive**: What components contributed most?
-   - **Error Analysis**: Identify patterns in failure cases.
+**Important JSON Field Mappings:**
+- `meets_requirements`: Boolean - whether the experiment meets requirements from pre-analysis and plan
+- `overall_analysis`: High-level analysis string including summary, strengths, unexpected findings
+- `metrics_analysis`: List of MetricAnalysis objects with metric_name, actual_value (float or null), analysis (str)
+- `plan_improvements`: Specific improvements for the code plan - what to change, add, or fix
+- `potential_issues`: List of issues identified that need to be addressed in next iteration
+- `next_steps`: Recommended next steps with prioritized actions
 
-## 6. Conclusion & Future Work
-   - **Summary**: Recap the main findings.
-   - **Suggestions**: Concrete ideas for the next iteration.
-
-### METADATA (MANDATORY)
-At the very end of your response, you MUST include a code block with the following boolean flags for system parsing:
+**Example JSON Structure:**
 ```json
-{
-    "meets_requirements": boolean,
-    "key_innovations_validated": boolean,
-    "idea_needs_improvement": boolean,
-    "plan_needs_improvement": boolean,
-    "plan_completeness": float_0_to_1
-}
+{{
+  "meets_requirements": false,
+  "overall_analysis": "The experiment showed promising results but did not meet all targets...",
+  "metrics_analysis": [
+    {{
+      "metric_name": "accuracy",
+      "actual_value": 0.85,
+      "analysis": "Accuracy is 5% below target (expected 0.90), likely due to insufficient training epochs"
+    }}
+  ],
+  "plan_improvements": "1. Increase training epochs from 10 to 50\\n2. Add learning rate scheduler...",
+  "potential_issues": ["Model overfitting on training data", "Insufficient hyperparameter tuning"],
+  "next_steps": "1. Fix overfitting with regularization\\n2. Run hyperparameter search..."
+}}
 ```
-
-### GUIDELINES
-- Use professional academic tone.
-- Be specific with numbers.
-- Be critical in the Analysis section.
-- **Output the report in valid Markdown.**
 """
 
     agent = Agent(
         name="Experiment Analysis Agent",
         instructions=instructions,
         tools=tools or [],
-        # output_type=ExperimentAnalysisOutput, # Removed for duplex mode
         model=model,
     )
 
     return agent
-
-
-def create_analysis_unifier_agent(model: str = "gpt-4o") -> Agent:
-    return Agent(
-        name="Analysis Output Unifier",
-        instructions="""You are an expert data structuring assistant.
-Your task is to convert the Research Report into a structured `ExperimentAnalysisOutput` object.
-
-Input text is a full Research Report containing:
-- Abstract
-- Introduction
-- Methodology
-- Setup
-- Results
-- Analysis
-- Conclusion & Future Work
-
-Map these to the schema:
-- `overall_analysis`: Combine Abstract, Introduction, and Methodology summaries.
-- `metrics_analysis`: Extract metrics from the Results section.
-- `innovations_analysis`: Extract from Methodology and Analysis sections.
-- `plan_alignment`: Extract from Setup and Analysis.
-- `idea_improvements` & `plan_improvements`: Extract from Conclusion & Future Work.
-- `next_steps`: Extract from Future Work.
-
-Ensure `metrics_analysis` is a list of `MetricAnalysis` objects.
-Ensure boolean flags are correctly inferred from the text.
-""",
-        output_type=ExperimentAnalysisOutput,
-        model=OUTPUT_UNIFIER_MODEL,
-    )
 
 
 class ExperimentAnalysisAgent:
@@ -142,18 +113,19 @@ class ExperimentAnalysisAgent:
     def __init__(
         self,
         model: str = "gpt-4o",
+        working_dir: str = None,
         tools: Optional[list] = None,
         verbose: bool = False,
     ):
         self.model = model
+        self.working_dir = working_dir
         self.verbose = verbose
-        self.hooks = (
-            create_verbose_hooks(
-                show_llm_responses=verbose,
-                show_tools=verbose,
-            )
-            if verbose
-            else None
+        # Always create hooks to show tool arguments
+        # verbose mode controls whether to show detailed responses and results
+        self.hooks = create_verbose_hooks(
+            show_llm_responses=verbose,
+            show_tools=verbose,
+            show_tool_args=True,  # Always show tool arguments
         )
 
         # Auto-load recommended tools if not provided
@@ -169,183 +141,203 @@ class ExperimentAnalysisAgent:
         # Initialize analysis agent
         self.analysis_agent = create_analysis_agent(model=model, tools=self.tools)
 
-        # Removed output_unifier for md output mode
-        # self.output_unifier = create_analysis_unifier_agent(model=model)
-
         # Expose analysis agent as main agent for handoff compatibility
         self.agent = self.analysis_agent
 
+    def extract_summary(self, analysis_output: Any) -> tuple:
+        """Extract summary, findings, and recommendations from analysis output."""
+        if not analysis_output:
+            return "", [], ""
+
+
+        overall_summary = analysis_output.get("overall_analysis", "")
+        
+        key_findings = []
+        for attr in ["unexpected_findings", "potential_issues"]:
+            items = analysis_output.get(attr, [])
+            if items:
+                key_findings.extend(items)
+
+        recommendations = []
+        next_steps = analysis_output.get("next_steps", "")
+        if next_steps:
+            recommendations.append(next_steps)
+        priority_actions = analysis_output.get("priority_actions", [])
+        if priority_actions:
+            recommendations.append("Priority Actions:\n" + "\n".join(f"- {a}" for a in priority_actions))
+
+        return overall_summary, key_findings, "\n\n".join(recommendations)
+
     async def process(self, context: Any, **kwargs) -> ExperimentAnalysisOutput:
         """Process the analysis step."""
-        log_path = ""
-        if context.experiment_execute_output:
-            if isinstance(context.experiment_execute_output, dict):
-                log_path = context.experiment_execute_output.get("log_path", "")
-            else:
-                log_path = getattr(context.experiment_execute_output, "log_path", "")
+        # Extract full execute output
+        execute_output = context.get("experiment_execute_output", None)
 
         return await self.analyze(
-            pre_analysis=context.pre_analysis_output,
-            code_plan=context.code_plan_output,
-            log_path=log_path,
+            pre_analysis=context.get("pre_analysis_output", None),
+            code_plan=context.get("code_plan_output", None),
+            execute_output=execute_output,
         )
 
     async def analyze(
         self,
         pre_analysis,
         code_plan,
-        log_path: str,
-        log_content: Optional[str] = None,
+        execute_output,
     ) -> ExperimentAnalysisOutput:
         """
         Analyze experiment results and provide improvement suggestions.
+
+        Args:
+            pre_analysis: Pre-analysis output with research context
+            code_plan: Code plan output with implementation details
+            execute_output: Full execution output including all files and configs
         """
         print_section("EXPERIMENT ANALYSIS WORKFLOW", "=")
 
         # Helper function to get attribute from object or dict
         def get_attr(obj, attr, default="N/A"):
-            if isinstance(obj, dict):
+            if hasattr(obj, "get"):
                 return obj.get(attr, default)
             return getattr(obj, attr, default)
 
         print_subsection("Preparing Analysis Context")
-        print_info(f"Log path: {log_path}")
 
-        # Prepare input for analysis agent
-        log_preview = ""
-        if log_content:
-            preview = log_content[:2000] if log_content else "Use tools to read log"
-            log_preview = f"Log Content Preview:\n{preview}\n..."
-            print_info(f"Log content loaded ({len(log_content)} characters)")
+        # Extract execution information
+        log_path = execute_output.get("log_path", "")
+        execution_status = execute_output.get("execution_status", "unknown")
+        execution_summary = execute_output.get("execution_summary", "")
+        experiment_metrics = execute_output.get("experiment_metrics", "")
+
+        # Extract output files information
+        output_files = execute_output.get("output_files", [])
+        files_info = ""
+        if output_files:
+            files_info = "\n=== EXPERIMENT OUTPUT FILES ===\n"
+            for i, f in enumerate(output_files, 1):
+                if isinstance(f, dict):
+                    file_path = f.get("file_path", "")
+                    file_type = f.get("file_type", "")
+                    description = f.get("description", "")
+                    run_command = f.get("run_command", "")
+                    run_config = f.get("run_config", "")
+                else:
+                    file_path = getattr(f, "file_path", "")
+                    file_type = getattr(f, "file_type", "")
+                    description = getattr(f, "description", "")
+                    run_command = getattr(f, "run_command", "")
+                    run_config = getattr(f, "run_config", "")
+
+                files_info += f"""
+{i}. {file_path}
+   - Type: {file_type}
+   - Description: {description}
+   - Command: {run_command}
+   - Config: {run_config}
+"""
+            print_info(f"Found {len(output_files)} output files")
         else:
-            print_info("Log will be read using tools during analysis")
+            print_info("No structured output files found")
 
-        analysis_input = f"""
-ANALYZE EXPERIMENT & WRITE REPORT
+        print_info(f"Primary log path: {log_path}")
+        print_info(f"Execution status: {execution_status}")
 
-Log Path: {log_path}
-{log_preview}
+        # Extract experiment plan info if available
+        experiment_plan_info = ""
+        if code_plan:
+            exp_plan = code_plan.get("experiment_plan", None)
+            if exp_plan:
+                baseline = exp_plan.get("baseline_method", "")
+                datasets = exp_plan.get("datasets", [])
+                metrics = exp_plan.get("primary_metrics", [])
+                if baseline:
+                    experiment_plan_info += f"Baseline Method: {baseline}\n"
+                if datasets:
+                    experiment_plan_info += (
+                        f"Datasets: {', '.join(str(d) for d in datasets)}\n"
+                    )
+                if metrics:
+                    experiment_plan_info += f"Primary Metrics: {', '.join(metrics)}\n"
 
-=== CONTEXT ===
-Input Type: {get_attr(pre_analysis, "input_type")}
-Research Summary: {get_attr(pre_analysis, "summary")}
-Innovations: {get_attr(pre_analysis, "key_innovations")}
+        analysis_input = f"""## Task
+Analyze experiment results and provide structured feedback for improvement.
 
-Plan Targets: {get_attr(code_plan, "performance_targets")}
-Plan Overview: {get_attr(code_plan, "plan_overview", "See full plan details if available")}
+## Execution Results
+- Status: {execution_status}
+- Summary: {execution_summary}
+- Metrics: {experiment_metrics}
+{files_info}
 
-Task:
-1. Read log at `{log_path}` using tools.
-2. Extract all relevant metrics and training dynamics.
-3. Synthesize information from Context (Pre-Analysis, Code Plan) and Logs.
-4. Write a **Comprehensive Research Report** following the specified structure (Intro, Method, Setup, Results, Analysis, Conclusion).
+## Research Context
+- Goal: {pre_analysis.get("summary", "Validate the research implementation")}
+- Innovations: {pre_analysis.get("key_innovations", "See implementation")}
+{f"- {experiment_plan_info}" if experiment_plan_info else ""}
+
+## Instructions
+1. Read log files using `read_file` to extract actual metrics
+2. Analyze results comparing baseline vs proposed (if applicable)
+3. Provide structured JSON feedback following the format in your instructions
+
+Focus on:
+- What worked well
+- What needs improvement for next iteration
+- Specific actionable suggestions
+
+Start by reading the log files.
 """
 
         print_subsection("Analyzing Experiment Results")
 
+        run_config = RunConfig(
+            model_settings=ModelSettings(max_tokens=128*1024)
+        )
+
         # Run analysis agent with streaming
         result_stream = Runner.run_streamed(
-            self.analysis_agent, analysis_input, hooks=self.hooks, max_turns=100
+            self.analysis_agent, analysis_input, hooks=self.hooks, max_turns=100, run_config=run_config
         )
+
         final_text = ""
         async for event in result_stream.stream_events():
             if hasattr(event, "data"):
-                event_type = type(event.data).__name__
-                if "FunctionCallArguments" not in event_type:
-                    if hasattr(event.data, "delta"):
-                        delta = event.data.delta
-                        if hasattr(delta, "content") and delta.content:
-                            print(delta.content, end="", flush=True)
-                            final_text += delta.content
-                        elif hasattr(delta, "text") and delta.text:
-                            print(delta.text, end="", flush=True)
-                            final_text += delta.text
+                if hasattr(event.data, "delta"):
+                    delta = event.data.delta
+                    if hasattr(delta, "content") and delta.content:
+                        print(delta.content, end="", flush=True)
+                        final_text += delta.content
+                    elif hasattr(delta, "text") and delta.text:
+                        print(delta.text, end="", flush=True)
+                        final_text += delta.text
 
-        result = result_stream
-        if hasattr(result, "final_output") and isinstance(result.final_output, str):
-            final_text = result.final_output
-        elif not final_text and hasattr(result, "chat_history") and result.chat_history:
-            final_text = result.chat_history[-1].content
+        # Get final output from stream if not captured
+        if not final_text and hasattr(result_stream, "final_output"):
+            if isinstance(result_stream.final_output, str):
+                final_text = result_stream.final_output
 
-        print_success("Analysis text report generated")
-        print_subsection("Saving Report & Extracting Metadata")
+        # Fallback: search chat history
+        if not final_text and hasattr(result_stream, "chat_history"):
+            for msg in reversed(result_stream.chat_history):
+                if hasattr(msg, "role") and msg.role == "assistant":
+                    if hasattr(msg, "content") and msg.content and isinstance(msg.content, str):
+                        if not msg.content.startswith("{") and len(msg.content) > 50:
+                            final_text = msg.content
+                            break
 
-        # Save MD file
-        import os
-        import json
-        import re
+        print_success("\nAnalysis text generated")
 
-        report_path = "analysis_report.md"
-        if log_path:
-            log_dir = os.path.dirname(log_path)
-            report_path = os.path.join(log_dir, "analysis_report.md")
+        # Parse JSON output
+        print_subsection("Parsing JSON Output")
 
+        # Use raise_on_failure=True to trigger retry in master agent
         try:
-            with open(report_path, "w", encoding="utf-8") as f:
-                f.write(final_text)
-            print_success(f"Report saved to: {report_path}")
-        except Exception as e:
-            print_error(f"Failed to save report: {e}")
+            final_output = extract_and_parse_json(final_text, ExperimentAnalysisOutput, raise_on_failure=True)
+        except JSONParseError as e:
+            # Re-raise JSONParseError to trigger retry in master agent
+            print_error(f"JSON parsing failed, will trigger retry: {e}")
+            raise
 
-        # Extract Metadata JSON
-        metadata = {}
-        try:
-            # Match the last JSON code block
-            json_matches = list(
-                re.finditer(r"```json\s*(\{.*?\})\s*```", final_text, re.DOTALL)
-            )
-            if json_matches:
-                json_str = json_matches[-1].group(1)
-                metadata = json.loads(json_str)
-                print_info("Metadata extracted successfully")
-            else:
-                print_warning("No metadata JSON block found in report")
-        except Exception as e:
-            print_warning(f"Failed to parse metadata: {e}")
 
-        # Construct Output Object manually
-        final_output = ExperimentAnalysisOutput(
-            meets_requirements=metadata.get("meets_requirements", False),
-            overall_analysis=final_text,  # Put full report here
-            metrics_analysis=[],  # Skip detailed parsing
-            pre_analysis_alignment="See full report.",
-            key_innovations_validated=metadata.get("key_innovations_validated", False),
-            innovations_analysis="See full report.",
-            plan_alignment="See full report.",
-            plan_completeness=metadata.get("plan_completeness", 0.0),
-            idea_needs_improvement=metadata.get("idea_needs_improvement", True),
-            idea_improvements="See full report.",
-            plan_needs_improvement=metadata.get("plan_needs_improvement", True),
-            plan_improvements="See full report.",
-            next_steps="See full report.",
-        )
-
-        print_success("Analysis completed (MD Output Mode)")
-
-        # Display key analysis results
-        if hasattr(final_output, "meets_requirements"):
-            status = (
-                "✓ MEETS REQUIREMENTS"
-                if final_output.meets_requirements
-                else "✗ NEEDS IMPROVEMENT"
-            )
-            color = (
-                Colors.OKGREEN if final_output.meets_requirements else Colors.WARNING
-            )
-            print(f"\n{color}{Colors.BOLD}{status}{Colors.ENDC}\n")
-
-        if (
-            hasattr(final_output, "idea_needs_improvement")
-            and final_output.idea_needs_improvement
-        ):
-            print_info("💡 Research idea improvements recommended")
-
-        if (
-            hasattr(final_output, "plan_needs_improvement")
-            and final_output.plan_needs_improvement
-        ):
-            print_info("📋 Implementation plan improvements recommended")
-
+        print_success("Output parsed successfully")
         print_section("EXPERIMENT ANALYSIS COMPLETE", "=")
 
         return final_output
@@ -354,22 +346,25 @@ Task:
         self,
         pre_analysis,
         code_plan,
-        log_path: str,
-        log_content: Optional[str] = None,
+        execute_output,
     ) -> ExperimentAnalysisOutput:
         import asyncio
 
-        return asyncio.run(self.analyze(pre_analysis, code_plan, log_path, log_content))
+        return asyncio.run(self.analyze(pre_analysis, code_plan, execute_output))
 
 
 def create_experiment_analysis_agent(
     model: str = "gpt-4o",
+    working_dir: str = None,
     tools: Optional[list] = None,
+    verbose: bool = False,
 ) -> ExperimentAnalysisAgent:
     """
     Factory function to create an experiment analysis agent.
     """
-    return ExperimentAnalysisAgent(model=model, tools=tools)
+    return ExperimentAnalysisAgent(
+        model=model, working_dir=working_dir, tools=tools, verbose=verbose
+    )
 
 
 if __name__ == "__main__":

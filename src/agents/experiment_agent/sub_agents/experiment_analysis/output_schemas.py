@@ -7,110 +7,82 @@ including improvement suggestions for ideas and code plans.
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from src.agents.experiment_agent.sub_agents.base.output_schemas import BaseDictModel
 
 
-class MetricAnalysis(BaseModel):
+class MetricAnalysis(BaseDictModel):
     """Analysis of a specific metric."""
 
-    metric_name: str = Field(
-        description="Name of the metric (e.g., 'accuracy', 'loss')"
-    )
-    actual_value: Optional[float] = Field(
-        default=None, description="Actual value achieved in experiment"
-    )
-    expected_value: Optional[float] = Field(
-        default=None, description="Expected value from analysis/plan"
-    )
-    meets_expectation: bool = Field(description="Whether the metric meets expectations")
-    analysis: str = Field(description="Detailed analysis of this metric's performance")
+    metric_name: str = Field(description="Name of the metric (e.g., 'accuracy', 'loss')")
+    actual_value: Optional[float] = Field(default=None, description="Actual value achieved in experiment")
+    analysis: str = Field(description="Brief analysis of this metric's performance and whether it meets expectations")
 
 
-class ExperimentAnalysisOutput(BaseModel):
+class ExperimentAnalysisOutput(BaseDictModel):
     """
-    Output structure for experiment analysis.
+    Simplified output structure for experiment analysis.
 
-    This structure contains the analysis of experiment results,
-    comparing them with pre-analysis and plan expectations,
-    and providing improvement suggestions.
+    Analysis always triggers iteration to code_plan_agent for the next round.
     """
 
-    # Overall assessment
+    # === Core Assessment ===
     meets_requirements: bool = Field(
         description="Whether the experiment meets the requirements from pre-analysis and plan"
     )
 
     overall_analysis: str = Field(
-        description="High-level analysis of experiment results and their alignment with expectations"
+        description="High-level analysis including: summary, strengths, unexpected findings"
     )
 
-    # Metric analysis
+    # === Metrics Analysis ===
     metrics_analysis: List[MetricAnalysis] = Field(
         default_factory=list,
         description="Detailed analysis of individual metrics",
     )
 
-    # Pre-analysis alignment
-    pre_analysis_alignment: str = Field(
-        description="Analysis of how well results align with pre-analysis expectations"
-    )
-
-    key_innovations_validated: bool = Field(
-        description="Whether the key innovations from pre-analysis are validated"
-    )
-
-    innovations_analysis: str = Field(
-        description="Analysis of how well key innovations performed"
-    )
-
-    # Plan alignment
-    plan_alignment: str = Field(
-        description="Analysis of how well implementation follows the code plan"
-    )
-
-    plan_completeness: float = Field(
-        description="Score (0-1) indicating how completely the plan was implemented"
-    )
-
-    # Improvement suggestions
-    idea_needs_improvement: bool = Field(
-        description="Whether the research idea needs improvement"
-    )
-
-    idea_improvements: str = Field(
-        default="",
-        description="Specific improvements for the research idea (empty if not needed)",
-    )
-
-    plan_needs_improvement: bool = Field(
-        description="Whether the code plan needs improvement"
-    )
-
+    # === Plan Feedback (for code_plan_agent iteration) ===
     plan_improvements: str = Field(
         default="",
-        description="Specific improvements for the code plan (empty if not needed)",
-    )
-
-    # Additional findings
-    unexpected_findings: List[str] = Field(
-        default_factory=list,
-        description="Unexpected findings or observations from the experiment",
+        description="Specific improvements for the code plan: what to change, add, or fix",
     )
 
     potential_issues: List[str] = Field(
         default_factory=list,
-        description="Potential issues identified in the experiment",
+        description="Issues identified that need to be addressed in next iteration",
     )
 
-    strengths: List[str] = Field(
-        default_factory=list,
-        description="Strengths and positive aspects of the implementation",
+    # === Next Steps ===
+    next_steps: str = Field(
+        description="Recommended next steps with prioritized actions"
     )
 
-    # Recommendations
-    next_steps: str = Field(description="Recommended next steps based on analysis")
+    # === Iteration Control (for workflow state machine) ===
+    @property
+    def needs_iteration(self) -> bool:
+        """Analysis always triggers iteration."""
+        return True
 
-    priority_actions: List[str] = Field(
-        default_factory=list,
-        description="Prioritized list of actions to take",
-    )
+    @property
+    def iteration_target(self) -> str:
+        """Always iterate back to plan."""
+        return "plan"
+
+    @property
+    def feedback(self) -> str:
+        """Combined feedback formatted for code_plan_agent."""
+        parts = []
+        
+        parts.append(f"### Overall Analysis\n{self.overall_analysis}")
+        
+        if self.plan_improvements:
+            parts.append(f"### Plan Improvements\n{self.plan_improvements}")
+        
+        if self.potential_issues:
+            parts.append(f"### Issues to Address\n" + "\n".join(f"- {issue}" for issue in self.potential_issues))
+        
+        if self.next_steps:
+            parts.append(f"### Recommended Actions\n{self.next_steps}")
+        
+        return "\n\n".join(parts)

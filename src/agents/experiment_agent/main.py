@@ -47,20 +47,12 @@ from src.agents.experiment_agent.input_processing import (
     ResearchInput,
 )
 
-# Import research tools for paper and code preparation
-from src.agents.experiment_agent.tools.research_tools import (
-    download_papers_by_titles,
-    search_and_clone_repos_for_papers,
-)
 
 # Import custom logger
 from src.agents.experiment_agent.logger import setup_agent_logging
 
 import src.agents.experiment_agent.config as agent_config
 
-# =============================================================================
-# Colored Print Utilities
-# =============================================================================
 
 
 class Colors:
@@ -102,10 +94,6 @@ def print_info(message: str):
     print(f"{Colors.OKBLUE}ℹ{Colors.ENDC} {message}")
 
 
-# =============================================================================
-# Configuration Setup
-# =============================================================================
-
 
 def setup_openai_api() -> bool:
     """
@@ -128,12 +116,12 @@ def setup_openai_api() -> bool:
                 azure_endpoint=config["endpoint"],
                 api_key=config["api_key"],
                 timeout=Timeout(
-                    connect=10.0,  # 连接超时10秒
-                    read=300.0,  # 读取超时300秒（5分钟）
-                    write=30.0,  # 写入超时30秒
-                    pool=10.0,  # 连接池超时10秒
+                    connect=10.0, 
+                    read=300.0,  
+                    write=30.0,  
+                    pool=10.0,  
                 ),
-                max_retries=10,  # 最多重试10次
+                max_retries=10, 
             )
             print_success(
                 f"Azure OpenAI client initialized (endpoint: {config['endpoint']}, timeout: 300s)"
@@ -145,12 +133,12 @@ def setup_openai_api() -> bool:
             client_kwargs = {
                 "api_key": config["api_key"],
                 "timeout": Timeout(
-                    connect=10.0,  # 连接超时10秒
-                    read=300.0,  # 读取超时300秒（5分钟）
-                    write=30.0,  # 写入超时30秒
-                    pool=10.0,  # 连接池超时10秒
+                    connect=10.0, 
+                    read=300.0,  
+                    write=30.0,  
+                    pool=10.0,  
                 ),
-                "max_retries": 10,  # 最多重试10次
+                "max_retries": 10,  
             }
             if "base_url" in config and config["base_url"]:
                 client_kwargs["base_url"] = config["base_url"]
@@ -161,7 +149,6 @@ def setup_openai_api() -> bool:
             client = AsyncOpenAI(**client_kwargs)
             print_success("OpenAI client initialized (timeout: 300s, retries: 10)")
 
-        # Set as default client
         set_default_openai_client(client)
         set_default_openai_api("chat_completions")
 
@@ -256,8 +243,8 @@ def run_prepare_workflow(input_path: str, experiment_id: str) -> bool:
 
     This workflow:
     1. Loads reference papers from idea.json
-    2. Downloads papers from arXiv (sequential)
-    3. Searches and clones related GitHub repositories (sequential)
+    2. Downloads papers from arXiv 
+    3. Searches and clones related GitHub repositories 
 
     Args:
         input_path: Path to idea.json file
@@ -619,11 +606,6 @@ def run_prepare_workflow(input_path: str, experiment_id: str) -> bool:
 
         traceback.print_exc()
         return False
-
-
-# =============================================================================
-# Main Workflow
-# =============================================================================
 
 
 async def run_experiment_workflow(

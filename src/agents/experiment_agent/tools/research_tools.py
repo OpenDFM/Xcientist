@@ -35,11 +35,6 @@ def search_arxiv(query: str, max_results: int = 50) -> List[Dict]:
     Returns:
         List of paper information dictionaries
     """
-    # Temporarily disable proxy (feedparser doesn't support SOCKS5 proxy)
-    old_http_proxy = os.environ.pop("http_proxy", None)
-    old_https_proxy = os.environ.pop("https_proxy", None)
-    old_HTTP_PROXY = os.environ.pop("HTTP_PROXY", None)
-    old_HTTPS_PROXY = os.environ.pop("HTTPS_PROXY", None)
 
     try:
         # Build API URL
@@ -227,17 +222,8 @@ def search_arxiv(query: str, max_results: int = 50) -> List[Dict]:
         return papers
 
     finally:
-        # Restore proxy settings
-        if old_http_proxy is not None:
-            os.environ["http_proxy"] = old_http_proxy
-        if old_https_proxy is not None:
-            os.environ["https_proxy"] = old_https_proxy
-        if old_HTTP_PROXY is not None:
-            os.environ["HTTP_PROXY"] = old_HTTP_PROXY
-        if old_HTTPS_PROXY is not None:
-            os.environ["HTTPS_PROXY"] = old_HTTPS_PROXY
-
-
+        pass
+    
 def extract_tex_content(tar_path: str) -> str:
     """
     Extract all .tex file contents from tar.gz file.
@@ -357,14 +343,14 @@ def download_arxiv_pdf(arxiv_url: str, output_dir: str, title: str) -> Dict[str,
                     DOCLING_AVAILABLE,
                 )
 
-                # Extract text from PDF
+                # Extract text from PDF (PyPDF2 first - faster)
                 text = ""
-                if DOCLING_AVAILABLE:
-                    text = _extract_pdf_with_docling(pdf_filepath)
-
-                if not text and PYPDF2_AVAILABLE:
-                    print(f"  Falling back to PyPDF2...")
+                if PYPDF2_AVAILABLE:
                     text = _extract_pdf_with_pypdf2(pdf_filepath)
+
+                if not text and DOCLING_AVAILABLE:
+                    print(f"  PyPDF2 failed, trying Docling...")
+                    text = _extract_pdf_with_docling(pdf_filepath)
 
                 if not text:
                     pdf_result = {
@@ -397,7 +383,7 @@ def download_arxiv_pdf(arxiv_url: str, output_dir: str, title: str) -> Dict[str,
                         "text": text,
                         "text_length": len(text),
                         "extraction_method": (
-                            "docling" if DOCLING_AVAILABLE else "pypdf2"
+                            "pypdf2" if PYPDF2_AVAILABLE else "docling"
                         ),
                     }
 
@@ -649,14 +635,38 @@ def clone_github_repo(clone_url: str, output_dir: str, repo_name: str) -> Dict:
 
 def extract_github_links_from_text(text: str) -> List[str]:
     """
-    Extract GitHub repository URLs from text content.
+    Extract GitHub repository URLs from text content, excluding links in references section.
 
     Args:
         text: Text content to search (e.g., paper content)
 
     Returns:
-        List of GitHub repository URLs found in the text
+        List of GitHub repository URLs found in the text (excluding references section)
     """
+    # Remove references section from text before extracting links
+    # Common references section headers in academic papers
+    references_patterns = [
+        r"\n\s*References?\s*\n",
+        r"\n\s*REFERENCES?\s*\n",
+        r"\n\s*Bibliography\s*\n",
+        r"\n\s*BIBLIOGRAPHY\s*\n",
+        r"\n\s*参考文献\s*\n",
+        r"\n\s*引用\s*\n",
+    ]
+    
+    # Find the earliest references section and truncate text there
+    text_to_search = text
+    earliest_pos = len(text)
+    
+    for pattern in references_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match and match.start() < earliest_pos:
+            earliest_pos = match.start()
+    
+    # Only search in text before references section
+    if earliest_pos < len(text):
+        text_to_search = text[:earliest_pos]
+    
     github_patterns = [
         r"https?://github\.com/[\w\-\.]+/[\w\-\.]+",
         r"github\.com/[\w\-\.]+/[\w\-\.]+",
@@ -666,7 +676,7 @@ def extract_github_links_from_text(text: str) -> List[str]:
     found_links = set()
 
     for pattern in github_patterns:
-        matches = re.findall(pattern, text, re.IGNORECASE)
+        matches = re.findall(pattern, text_to_search, re.IGNORECASE)
         for match in matches:
             # Normalize the URL
             if not match.startswith("http"):

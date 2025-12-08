@@ -19,8 +19,13 @@ Transitions are based on rules evaluated from each state's output.
 """
 
 from enum import Enum
-from typing import Dict, Any, Optional, List, Tuple
-from dataclasses import dataclass
+from typing import Dict, Any, Optional, List, Tuple, TYPE_CHECKING
+from pydantic import Field
+
+from src.agents.experiment_agent.sub_agents.base.output_schemas import BaseDictModel
+
+if TYPE_CHECKING:
+    from src.agents.experiment_agent.sub_agents.experiment_master.issue_tracker import IssueTracker
 
 
 class WorkflowState(Enum):
@@ -37,8 +42,7 @@ class WorkflowState(Enum):
     FAILED = "failed"
 
 
-@dataclass
-class StateTransition:
+class StateTransition(BaseDictModel):
     """Represents a state transition with reason."""
 
     from_state: WorkflowState
@@ -47,8 +51,7 @@ class StateTransition:
     data: Optional[Dict[str, Any]] = None
 
 
-@dataclass
-class WorkflowContext:
+class WorkflowContext(BaseDictModel):
     """
     Context object that holds all workflow data.
 
@@ -75,7 +78,7 @@ class WorkflowContext:
 
     # Checklist tracking for iterative implementation
     current_checklist_step: int = 0  # Index of current step being implemented
-    completed_checklist_steps: List[int] = None  # List of completed step IDs
+    completed_checklist_steps: List[int] = Field(default_factory=list)  # List of completed step IDs
     checklist_step_retry_count: int = 0  # Retry count for current step
     max_step_retries: int = 999  # Maximum retries per step (effectively unlimited)
 
@@ -89,14 +92,30 @@ class WorkflowContext:
     retry_count: int = 0
     max_retries: int = 10
 
-    # History
-    state_history: List[StateTransition] = None
+    # Pending feedback for code_plan re-planning scenarios
+    # Type can be: "initial", "error_feedback", "analysis_feedback"
+    pending_feedback_type: Optional[str] = None
+    # Data contains the feedback content to pass to code_plan agent
+    pending_feedback_data: Optional[Dict[str, Any]] = None
 
-    def __post_init__(self):
-        if self.state_history is None:
-            self.state_history = []
-        if self.completed_checklist_steps is None:
-            self.completed_checklist_steps = []
+    # Issue tracking across judge iterations
+    # Stored as dict for JSON serialization, converted to IssueTracker at runtime
+    issue_tracker_data: Optional[Dict[str, Any]] = None
+    
+    # History
+    state_history: List[StateTransition] = Field(default_factory=list)
+    
+    def get_issue_tracker(self) -> "IssueTracker":
+        """Get or create IssueTracker instance from stored data."""
+        from src.agents.experiment_agent.sub_agents.experiment_master.issue_tracker import IssueTracker
+        
+        if self.issue_tracker_data is None:
+            return IssueTracker()
+        return IssueTracker.from_dict(self.issue_tracker_data)
+    
+    def save_issue_tracker(self, tracker: "IssueTracker") -> None:
+        """Save IssueTracker state to context for serialization."""
+        self.issue_tracker_data = tracker.to_dict()
 
 
 class WorkflowStateMachine:
@@ -138,10 +157,9 @@ class WorkflowStateMachine:
             List of checklist items (as objects with attribute access)
         """
         checklist = []
-        if isinstance(code_plan_output, dict):
+        if code_plan_output:
+            # Unified access
             checklist = code_plan_output.get("implementation_checklist", [])
-        elif hasattr(code_plan_output, "implementation_checklist"):
-            checklist = code_plan_output.implementation_checklist
 
         # Convert dict items to objects for consistent attribute access
         if checklist and isinstance(checklist[0], dict):
@@ -154,6 +172,27 @@ class WorkflowStateMachine:
             checklist = [ChecklistStep(item) for item in checklist]
 
         return checklist
+
+    def _is_judge_accepted(self, judge_output: Any) -> bool:
+        """
+        Determine if judge output indicates acceptance.
+        Uses is_consistent field.
+        """
+        return judge_output.get("is_consistent", False)
+        
+    def _extract_judge_feedback(self, judge_output: Any) -> str:
+        """Extract feedback from judge output for retry."""
+        # Extract issues as feedback
+        issues = judge_output.get("issues", []) if hasattr(judge_output, "get") else getattr(judge_output, "issues", [])
+        if issues:
+            feedback_parts = []
+            for issue in issues[:5]:  # Limit to first 5 issues
+                desc = issue.get("description", "") if isinstance(issue, dict) else getattr(issue, "description", "")
+                sugg = issue.get("suggestion", "") if isinstance(issue, dict) else getattr(issue, "suggestion", "")
+                if desc:
+                    feedback_parts.append(f"- {desc}" + (f" (Fix: {sugg})" if sugg else ""))
+            return "\n".join(feedback_parts)
+        return ""
 
     def get_next_state(
         self, context: WorkflowContext
@@ -211,16 +250,7 @@ class WorkflowStateMachine:
         if context.pre_analysis_output is None:
             return WorkflowState.FAILED, "Pre-analysis produced no output", None
 
-        # Check if pre-analysis was successful
-        if hasattr(context.pre_analysis_output, "status"):
-            if context.pre_analysis_output.status == "failed":
-                return (
-                    WorkflowState.FAILED,
-                    "Pre-analysis failed: " + str(context.pre_analysis_output.message),
-                    None,
-                )
-
-        # Successful pre-analysis -> move to code planning
+        # Pre-analysis completed -> move to code planning
         return (
             WorkflowState.CODE_PLAN,
             "Pre-analysis completed successfully, moving to code planning",
@@ -234,28 +264,15 @@ class WorkflowStateMachine:
         if context.code_plan_output is None:
             return WorkflowState.FAILED, "Code planning produced no output", None
 
-        # Check if planning was successful
-        if hasattr(context.code_plan_output, "status"):
-            if context.code_plan_output.status == "failed":
-                if context.retry_count < context.max_retries:
-                    context.retry_count += 1
-                    return (
-                        WorkflowState.CODE_PLAN,
-                        f"Code planning failed, retrying (attempt {context.retry_count}/{context.max_retries})",
-                        {"feedback": str(context.code_plan_output.message)},
-                    )
-                else:
-                    return (
-                        WorkflowState.FAILED,
-                        "Code planning failed after max retries",
-                        None,
-                    )
-
         # Initialize checklist-based implementation
-        context.retry_count = 0  # Reset retry count
-        context.current_checklist_step = 0  # Start from first step
+        context.retry_count = 0
+        context.current_checklist_step = 0
         context.completed_checklist_steps = []
         context.checklist_step_retry_count = 0
+        
+        # Clear pending feedback after successful code_plan completion
+        context.pending_feedback_type = None
+        context.pending_feedback_data = None
 
         # Get checklist from plan (support both object and dict formats)
         checklist = self._get_checklist(context.code_plan_output)
@@ -272,12 +289,7 @@ class WorkflowStateMachine:
         return (
             WorkflowState.CODE_IMPLEMENT,
             f"Code planning completed, starting step 1/{len(checklist)}: {current_step.title}",
-            {
-                "analysis": context.pre_analysis_output,
-                "plan": context.code_plan_output,
-                "current_step": current_step,
-                "checklist_progress": f"Step 1/{len(checklist)}",
-            },
+            None,
         )
 
     def _from_code_implement(
@@ -285,53 +297,22 @@ class WorkflowStateMachine:
     ) -> Tuple[WorkflowState, str, Optional[Dict]]:
         """
         Transition from CODE_IMPLEMENT state.
-
-        After each step implementation, always go to CODE_JUDGE for evaluation.
+        After implementation, always go to CODE_JUDGE for evaluation.
         """
         if context.code_implement_output is None:
             return WorkflowState.FAILED, "Code implementation produced no output", None
 
-        # Check if implementation was successful
-        if hasattr(context.code_implement_output, "status"):
-            if context.code_implement_output.status == "failed":
-                # Implementation failed at system level (not review failure)
-                if context.checklist_step_retry_count < context.max_step_retries:
-                    context.checklist_step_retry_count += 1
-
-                    checklist = self._get_checklist(context.code_plan_output)
-                    current_step = checklist[context.current_checklist_step]
-
-                    return (
-                        WorkflowState.CODE_IMPLEMENT,
-                        f"Step implementation failed, retrying (attempt {context.checklist_step_retry_count}/{context.max_step_retries})",
-                        {
-                            "plan": context.code_plan_output,
-                            "current_step": current_step,
-                            "feedback": str(context.code_implement_output.message),
-                            "checklist_progress": f"Step {context.current_checklist_step + 1}/{len(checklist)}",
-                        },
-                    )
-                else:
-                    return (
-                        WorkflowState.FAILED,
-                        f"Step {context.current_checklist_step + 1} failed after max retries",
-                        None,
-                    )
-
-        # Step implementation completed -> move to code judge for evaluation
+        # Implementation completed -> move to code judge for evaluation
         checklist = self._get_checklist(context.code_plan_output)
-        current_step = checklist[context.current_checklist_step]
+        
+        # Check index bounds
+        if context.current_checklist_step >= len(checklist):
+             return WorkflowState.FAILED, "Current step index out of bounds", None
 
         return (
             WorkflowState.CODE_JUDGE,
             f"Step {context.current_checklist_step + 1}/{len(checklist)} implemented, moving to review",
-            {
-                "analysis": context.pre_analysis_output,
-                "plan": context.code_plan_output,
-                "implementation": context.code_implement_output,
-                "current_step": current_step,
-                "checklist_progress": f"Step {context.current_checklist_step + 1}/{len(checklist)}",
-            },
+            None,
         )
 
     def _from_code_judge(
@@ -339,90 +320,58 @@ class WorkflowStateMachine:
     ) -> Tuple[WorkflowState, str, Optional[Dict]]:
         """
         Transition from CODE_JUDGE state.
-
-        Judge evaluates current step. If accepted, move to next step or complete.
-        If rejected and retries available, return to CODE_IMPLEMENT with feedback.
+        If accepted -> next step or execution. If rejected -> retry with feedback.
         """
         if context.code_judge_output is None:
             return WorkflowState.FAILED, "Code review produced no output", None
 
         judge_output = context.code_judge_output
         checklist = self._get_checklist(context.code_plan_output)
+        
+        # Check index bounds
+        if context.current_checklist_step >= len(checklist):
+             return WorkflowState.FAILED, "Current step index out of bounds", None
+             
         current_step_index = context.current_checklist_step
         current_step = checklist[current_step_index]
 
-        # Check if current step is accepted
-        step_accepted = False
-        # Handle both dict and object formats (for cached vs fresh outputs)
-        if isinstance(judge_output, dict):
-            step_accepted = judge_output.get("is_consistent", False)
-            if not step_accepted and "overall_score" in judge_output:
-                step_accepted = judge_output.get("overall_score", 0) >= 0.7
-        else:
-            if hasattr(judge_output, "is_consistent"):
-                step_accepted = judge_output.is_consistent
-            elif hasattr(judge_output, "overall_score"):
-                # Fallback to score-based evaluation
-                step_accepted = judge_output.overall_score >= 0.7
+        # Determine acceptance based on is_consistent field
+        step_accepted = self._is_judge_accepted(judge_output)
 
         if step_accepted:
             # Current step passed review
             context.completed_checklist_steps.append(current_step.step_id)
-            context.checklist_step_retry_count = 0  # Reset retry count for this step
+            context.checklist_step_retry_count = 0
 
-            # Check if all steps are completed
             if current_step_index + 1 >= len(checklist):
                 # All steps completed -> proceed to execution
                 context.retry_count = 0
                 return (
                     WorkflowState.EXPERIMENT_EXECUTE,
-                    f"All {len(checklist)} implementation steps completed and reviewed, proceeding to execution",
-                    {"code": context.code_implement_output},
+                    f"All {len(checklist)} steps completed, proceeding to execution",
+                    None,
                 )
-
-            # Move to next step
             else:
+                # Move to next step
                 context.current_checklist_step += 1
-                next_step = checklist[context.current_checklist_step]
                 return (
                     WorkflowState.CODE_IMPLEMENT,
-                    f"Step {current_step_index + 1} approved, moving to step {context.current_checklist_step + 1}/{len(checklist)}: {next_step.title}",
-                    {
-                        "plan": context.code_plan_output,
-                        "current_step": next_step,
-                        "completed_steps": context.completed_checklist_steps,
-                        "checklist_progress": f"Step {context.current_checklist_step + 1}/{len(checklist)}",
-                    },
+                    f"Step {current_step_index + 1} approved, moving to step {context.current_checklist_step + 1}/{len(checklist)}",
+                    None,
                 )
-
         else:
-            # Current step rejected
+            # Current step rejected - retry with feedback
             if context.checklist_step_retry_count < context.max_step_retries:
-                # Retry current step with feedback
                 context.checklist_step_retry_count += 1
-
-                feedback = ""
-                # Handle both dict and object formats
-                if isinstance(judge_output, dict):
-                    feedback = judge_output.get("next_steps") or judge_output.get(
-                        "overall_assessment", ""
-                    )
-                else:
-                    if hasattr(judge_output, "next_steps"):
-                        feedback = judge_output.next_steps
-                    elif hasattr(judge_output, "overall_assessment"):
-                        feedback = judge_output.overall_assessment
+                
+                # Save pending feedback type
+                context.pending_feedback_type = "judge_rejection"
+                context.pending_feedback_data = None
 
                 return (
                     WorkflowState.CODE_IMPLEMENT,
                     f"Step {current_step_index + 1} needs improvement (attempt {context.checklist_step_retry_count}/{context.max_step_retries})",
-                    {
-                        "plan": context.code_plan_output,
-                        "current_step": current_step,
-                        "feedback": feedback,
-                        "judge_output": judge_output,
-                        "checklist_progress": f"Step {context.current_checklist_step + 1}/{len(checklist)}",
-                    },
+                    None,
                 )
             else:
                 # Max retries exceeded for this step
@@ -453,10 +402,7 @@ class WorkflowStateMachine:
             return (
                 WorkflowState.EXPERIMENT_ANALYSIS,
                 "Experiment executed successfully, moving to analysis",
-                {
-                    "execution_results": execute_output,
-                    "expected_results": context.pre_analysis_output,
-                },
+                None,
             )
         elif execution_status == "skipped":
             # Execution was skipped (e.g., no entry script found)
@@ -465,26 +411,26 @@ class WorkflowStateMachine:
             return (
                 WorkflowState.EXPERIMENT_ANALYSIS,
                 "Experiment execution skipped (library implementation), moving to analysis",
-                {
-                    "execution_results": execute_output,
-                    "expected_results": context.pre_analysis_output,
-                },
+                None,
             )
         elif execution_status == "error":
             if context.retry_count < context.max_retries:
                 context.retry_count += 1
-                error_message = ""
-                if isinstance(execute_output, dict):
-                    error_message = execute_output.get("error_message", "")
-                else:
-                    error_message = getattr(execute_output, "error_message", "")
+                context.iteration_count += 1
+                
+                # Reset checklist progress for re-planning
+                context.current_checklist_step = 0
+                context.completed_checklist_steps = []
+                context.checklist_step_retry_count = 0
+                
+                # Set pending feedback type
+                context.pending_feedback_type = "error_feedback"
+                context.pending_feedback_data = None
+                
                 return (
-                    WorkflowState.CODE_IMPLEMENT,
-                    f"Experiment execution failed, fixing code (attempt {context.retry_count}/{context.max_retries})",
-                    {
-                        "plan": context.code_plan_output,
-                        "error": error_message,
-                    },
+                    WorkflowState.CODE_PLAN,
+                    f"Experiment execution failed, sending to code plan agent for re-planning (attempt {context.retry_count}/{context.max_retries})",
+                    None,
                 )
             else:
                 return (
@@ -498,10 +444,7 @@ class WorkflowStateMachine:
         return (
             WorkflowState.EXPERIMENT_ANALYSIS,
             "Experiment execution completed, moving to analysis",
-            {
-                "execution_results": execute_output,
-                "expected_results": context.pre_analysis_output,
-            },
+            None,
         )
 
     def _from_experiment_analysis(
@@ -513,42 +456,41 @@ class WorkflowStateMachine:
 
         analysis_output = context.experiment_analysis_output
 
-        # Check if analysis recommends iteration
-        if hasattr(analysis_output, "needs_iteration"):
-            if (
-                analysis_output.needs_iteration
-                and context.iteration_count < context.max_iterations
-            ):
-                context.iteration_count += 1
-                context.retry_count = 0
+        # Check if analysis recommends iteration (unified .get() access)
+        needs_iteration = analysis_output.get("needs_iteration", False) if hasattr(analysis_output, "get") else getattr(analysis_output, "needs_iteration", False)
+        if needs_iteration and context.iteration_count < context.max_iterations:
+            context.iteration_count += 1
+            context.retry_count = 0
 
-                # Determine where to iterate back to based on feedback
-                if hasattr(analysis_output, "iteration_target"):
-                    target = analysis_output.iteration_target
-                    if target == "plan":
-                        return (
-                            WorkflowState.CODE_PLAN,
-                            f"Analysis suggests revising plan (iteration {context.iteration_count})",
-                            {
-                                "analysis": context.pre_analysis_output,
-                                "feedback": getattr(analysis_output, "feedback", ""),
-                            },
-                        )
-                    elif target == "implementation":
-                        return (
-                            WorkflowState.CODE_IMPLEMENT,
-                            f"Analysis suggests improving implementation (iteration {context.iteration_count})",
-                            {
-                                "plan": context.code_plan_output,
-                                "feedback": getattr(analysis_output, "feedback", ""),
-                            },
-                        )
+            # Determine where to iterate back to based on feedback
+            target = analysis_output.get("iteration_target", None) if hasattr(analysis_output, "get") else getattr(analysis_output, "iteration_target", None)
+            if target == "plan":
+                # Set pending feedback type
+                context.pending_feedback_type = "analysis_feedback"
+                context.pending_feedback_data = None
+                
+                # Reset checklist progress for re-planning
+                context.current_checklist_step = 0
+                context.completed_checklist_steps = []
+                context.checklist_step_retry_count = 0
+                
+                return (
+                    WorkflowState.CODE_PLAN,
+                    f"Analysis suggests revising plan (iteration {context.iteration_count})",
+                    None,
+                )
+            elif target == "implementation":
+                return (
+                    WorkflowState.CODE_IMPLEMENT,
+                    f"Analysis suggests improving implementation (iteration {context.iteration_count})",
+                    None,
+                )
 
         # No iteration needed or max iterations reached -> completed
         return (
             WorkflowState.COMPLETED,
             "Experiment analysis completed successfully, workflow finished",
-            {"final_analysis": analysis_output},
+            None,
         )
 
     def transition(self, context: WorkflowContext) -> StateTransition:

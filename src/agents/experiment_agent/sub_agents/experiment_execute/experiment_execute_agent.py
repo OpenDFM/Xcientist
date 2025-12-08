@@ -6,18 +6,24 @@ and iteratively tune hyperparameters to achieve research goals.
 """
 
 import os
-import json
-import asyncio
-from datetime import datetime
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any
 
-from agents import Agent, Runner
+from agents import Agent, Runner, RunConfig, ModelSettings
 
 from src.agents.experiment_agent.sub_agents.experiment_execute.output_schemas import (
     ExperimentExecuteOutput,
 )
-from src.agents.experiment_agent.config import OUTPUT_UNIFIER_MODEL
+from src.agents.experiment_agent.logger import create_verbose_hooks
 from src.agents.experiment_agent.utils.print_utils import *
+from src.agents.experiment_agent.utils.json_utils import (
+    extract_and_parse_json,
+    generate_json_schema_instruction,
+    JSONParseError,
+)
+
+
+# Generate JSON output instruction for ExperimentExecuteOutput
+EXPERIMENT_EXECUTE_JSON_OUTPUT_INSTRUCTION = generate_json_schema_instruction(ExperimentExecuteOutput)
 
 
 # --- AGENT FACTORIES ---
@@ -30,70 +36,132 @@ def create_execute_agent(
     tools: Optional[list] = None,
 ) -> Agent:
     """
-    Create the autonomous experiment researcher agent.
+    Create the experiment execution agent.
     """
 
-    instructions = f"""You are an Expert AI Researcher.
-Your goal is to successfully execute the provided Code Implementation to verify the Research Idea.
+    instructions = f"""You are an autonomous AI researcher executing experiments to validate research ideas.
 
-### YOUR CAPABILITIES
-1. **Run Experiments**: You can execute the code using `run_shell_command`.
-2. **Analyze Logs**: You can read the output logs using `read_file` to see loss, accuracy, and errors.
-3. **Iterate**: You are expected to NOT just run once. You should:
-   - Run with initial/default parameters.
-   - Check the results (Is it converging? Is there an OOM error? Is performance satisfying?).
-   - **Adjust parameters** (LR, Batch Size, Epochs, Model Config) and RUN AGAIN.
-   - Repeat until you achieve a satisfactory result or determine the idea fails.
+## Environment
+- Project Root: `{working_dir}/project`
+- Log Directory: `{log_dir}`
 
-### ENVIRONMENT
-- **Workspace**: `{working_dir}`
-- **Project Root**: `{working_dir}/project`
-- **Log Dir**: `{log_dir}` (You MUST save logs here).
+## Workflow (MUST follow in order)
 
-### PROTOCOL
-1. **Understand**: Read the `entry_script` content first to see what `argparse` arguments are available!
-2. **Execute**: 
-   - Construct a command like: `python train.py --epochs 10 --lr 0.01 > {log_dir}/run_1.log 2>&1`
-   - **CRITICAL**: Always use redirection (`> log_file 2>&1`) to capture output.
-   - Run it using `run_shell_command` from the Project Root.
-3. **Observe**: Read the log file immediately after running.
-4. **Reflect**: 
-   - *Error?* Fix args (e.g., reduce batch size if OOM).
-   - *Poor Performance?* Tune args (e.g., increase epochs, change LR).
-   - *Success?* Great, you are done.
-5. **Report**: When you are satisfied, provide a final summary.
+### Phase 1: Exploration & Validation
+1. **List project structure** to understand the codebase
+2. **Find entry scripts**: Look for `main.py`, `train.py`, `run_*.py`, `experiment*.py`
+3. **Read the entry script** to understand:
+   - Required arguments and configurations
+   - Expected input/output formats
+   - Dependencies and data paths
+4. **Check data availability**: Verify datasets exist or can be generated
 
-**IMPORTANT**: You are autonomous. Do not ask the user for permission to run again. Just do it.
+### Phase 2: Execution
+For EACH experiment in the plan:
+1. **Construct the command** with proper arguments
+2. **Execute and redirect output**: `python script.py [args] > {log_dir}/exp_name.log 2>&1`
+3. **IMMEDIATELY verify** after each run:
+   - Read the log file to check for errors
+   - Verify expected output files were created
+   - Check if metrics were generated (not just "training started")
+4. **Record the result** before moving to next experiment
+
+### Phase 3: Analysis & Reporting
+1. Parse all log files to extract metrics
+2. Build comparison tables
+3. Generate final report
+
+---
+
+## Execution Verification Protocol (CRITICAL)
+
+After EVERY experiment run, you MUST:
+
+1. **Read the log file** (at least the last 100 lines)
+2. **Check for these SUCCESS indicators**:
+   - Training completed message (e.g., "Training finished", "Done", "Completed")
+   - Final metrics printed (e.g., "Final loss: X.XX", "Test accuracy: X.XX")
+   - Expected number of epochs/iterations completed
+3. **Check for these FAILURE indicators**:
+   - `Error`, `Exception`, `Traceback` in output
+   - `CUDA out of memory`, `OOM`
+   - `killed`, `segmentation fault`
+   - Process ended without printing final metrics
+   - Training stuck (same loss for many iterations)
+4. **Verify output artifacts exist**:
+   - Check if log file has content (not empty)
+   - Check if checkpoint/model files were saved (if expected)
+   - Check if result files were generated
+
+**A run is ONLY successful if ALL of these are true:**
+- No errors in the log
+- Final metrics are present and reasonable
+- Expected output files exist
+
+---
+
+## Error Handling Strategy
+
+If an experiment fails:
+1. **Diagnose**: Read full error message, identify root cause
+2. **Categorize**:
+   - **Fixable**: Missing dependency, wrong path, config error → Try to fix and re-run
+   - **Resource**: OOM, timeout → Reduce batch size, simplify, or note limitation
+   - **Code bug**: Implementation error → Document as failed, continue to next
+3. **Document**: Record failure reason in your report
+4. **Continue**: Don't stop the entire experiment session for one failure
+
+---
+
+## Scientific Rigor
+
+- **Baseline first**: Always run baseline before proposed method
+- **Same conditions**: Use identical data splits, seeds, and hardware for fair comparison
+- **Multiple seeds**: Run with at least 2-3 different seeds if time permits
+- **All datasets**: Test on all specified datasets, not just one
+
+---
+
+## Critical Rules
+
+1. **NEVER claim success without verification** - Always read the log file
+2. **NEVER fabricate metrics** - Only report numbers from actual output
+3. **NEVER skip failed experiments in report** - Document all failures
+4. **ALWAYS use absolute paths** for log files and outputs
+5. **ALWAYS redirect stderr** to capture error messages: `2>&1`
+
+---
+
+## OUTPUT FORMAT (JSON - CRITICAL)
+
+After completing all experiments and analysis, you MUST output your final report as a JSON object.
+
+{EXPERIMENT_EXECUTE_JSON_OUTPUT_INSTRUCTION}
+
+**Important JSON Field Mappings:**
+- `execution_status`: One of 'success', 'partial', 'error', 'timeout', 'interrupted', 'skipped'
+  - 'success': At least ONE experiment ran to completion with final metrics
+  - 'error': All experiments failed
+  - 'partial': Some experiments succeeded, others failed
+  - 'skipped': No experiments were actually executed
+- `has_error`: True if ANY error occurred during execution
+- `error_message`: Error message if execution failed, None if successful
+- `output_files`: List of ExperimentFile objects with file_path (FULL ABSOLUTE PATH), file_type, description, run_command, run_config
+- `log_path`: Path to the primary/best log file
+- `experiment_metrics`: JSON string of ACTUAL metrics from output (e.g., '{{"accuracy": 0.95, "loss": 0.23}}')
+- `execution_summary`: Human-readable summary of what was run and key findings
+- `stdout_preview`: Preview of stdout from the best run
+- `stderr_preview`: Preview of stderr if any errors occurred
 """
 
     agent = Agent(
-        name="Experiment Researcher",
+        name="Experiment Executor",
         instructions=instructions,
         tools=tools or [],
         model=model,
     )
 
     return agent
-
-
-def create_execute_unifier_agent(model: str = "gpt-4o") -> Agent:
-    return Agent(
-        name="Execute Output Unifier",
-        instructions="""You are an expert data structuring assistant.
-Your task is to convert the researcher's final report into a structured `ExperimentExecuteOutput` object.
-
-Input text will contain the conversation history of the researcher.
-Identify the **BEST/FINAL** run from the history.
-
-Extract:
-- Log Path (of the best run)
-- Status (Success/Fail)
-- Metrics (JSON string of the best metrics found)
-- Summary (What was achieved, what parameters worked best)
-""",
-        output_type=ExperimentExecuteOutput,
-        model=OUTPUT_UNIFIER_MODEL,
-    )
 
 
 class ExperimentExecuteAgent:
@@ -109,13 +177,22 @@ class ExperimentExecuteAgent:
         tools: Optional[list] = None,
         log_dir: str = "./experiment_logs",
         timeout: int = 3600,
-        max_iterations: int = 10,  # Passed to Runner as max_turns
+        max_iterations: Optional[int] = None,  # None = unlimited turns
+        verbose: bool = False,
     ):
         self.model = model
         self.working_dir = working_dir
         self.log_dir = log_dir
         self.timeout = timeout
-        self.max_iterations = max_iterations
+        self.max_iterations = max_iterations  # None means no limit
+        self.verbose = verbose
+        # Always create hooks to show tool arguments
+        # verbose mode controls whether to show detailed responses and results
+        self.hooks = create_verbose_hooks(
+            show_llm_responses=verbose,
+            show_tools=verbose,
+            show_tool_args=True,  # Always show tool arguments
+        )
 
         # Auto-load recommended tools if not provided
         if tools is None:
@@ -132,90 +209,150 @@ class ExperimentExecuteAgent:
             model=model, working_dir=working_dir, log_dir=log_dir, tools=self.tools
         )
 
-        # Initialize output unifier
-        self.output_unifier = create_execute_unifier_agent(model=model)
-
         # Expose agent
         self.agent = self.researcher_agent
 
     async def process(self, context: Any, **kwargs) -> ExperimentExecuteOutput:
         """
         Process the execution step.
+        Let the agent autonomously explore and execute the experiment.
         """
+        print_section("EXPERIMENT EXECUTION WORKFLOW", "=")
 
-        # 1. Identify Entry Script
-        entry_script = self._find_entry_script(context)
-        if not entry_script:
-            return self._create_skipped_output()
+        # 确保日志目录存在
+        os.makedirs(self.log_dir, exist_ok=True)
+        print_info(f"Log directory: {self.log_dir}")
 
-        # 2. Prepare Context
-        summary = None
-        if hasattr(context.pre_analysis_output, "summary"):
-            summary = context.pre_analysis_output.summary
+        # 提取研究目标摘要
+        print_subsection("Preparing Execution Context")
+        summary = ""
+        if hasattr(context, "pre_analysis_output") and context.pre_analysis_output:
+            # Unified access
+            if hasattr(context.pre_analysis_output, "get"):
+                 summary = context.pre_analysis_output.get("summary", "")
+            else:
+                 summary = getattr(context.pre_analysis_output, "summary", "")
+        print_info(f"Research goal loaded: {len(summary)} chars")
 
-        print_section("STARTING AUTONOMOUS EXPERIMENT RESEARCH", "=")
-        print_info(f"Entry Script: {entry_script}")
-        print_info(f"Max Turns: {self.max_iterations}")
+        # 提取代码计划信息（如果有）
+        code_plan_info = ""
+        experiment_plan_info = ""
+        if hasattr(context, "code_plan_output") and context.code_plan_output:
+            plan = context.code_plan_output
+            # Unified access helper
+            def get_val(obj, key, default=None):
+                if hasattr(obj, "get"):
+                    return obj.get(key, default)
+                return getattr(obj, key, default)
 
-        # 3. Construct the initial prompt
-        # We give the agent the context and tell it to GO.
-        task_prompt = f"""
-START RESEARCH TASK
+            # Extract experiment plan
+            exp_plan = get_val(plan, "experiment_plan")
+            if exp_plan:
+                experiment_plan_info = self._format_experiment_plan(exp_plan)
+                
+        if code_plan_info:
+            print_info("Code plan context extracted")
+        if experiment_plan_info:
+            print_info(
+                "Experiment plan extracted - will execute ALL planned experiments"
+            )
 
-**Target Script**: `{entry_script}`
-**Research Goal**: {summary}
-**Log Directory**: `{self.log_dir}`
+        print_info(f"Project Root: {self.working_dir}/project")
+        print_info(
+            f"Max Turns: {'Unlimited' if self.max_iterations is None else self.max_iterations}"
+        )
 
-**Instructions**:
-1. Check `{entry_script}` content to understand arguments.
-2. Construct and run commands like: `python {entry_script} --arg val > {self.log_dir}/run_1.log 2>&1`
-3. Analyze logs and iterate until the goal is met.
+        # Build task prompt
+        task_prompt = f"""## Task
+Execute experiments to validate the research implementation.
+
+## Research Goal
+{summary if summary else "Validate the implemented code through systematic experiments."}
+
+## Environment
+- Project: `{self.working_dir}/project`
+- Logs: `{self.log_dir}`
+{f'''
+## Context
+{code_plan_info}''' if code_plan_info else ""}
+{f'''
+## Experiment Plan
+{experiment_plan_info}''' if experiment_plan_info else ""}
+
+## Instructions
+1. Explore the project structure to understand how to run experiments
+2. Execute the experiments (baseline + proposed method, all datasets, multiple configs)
+3. Create comparison tables and identify the best configuration
+4. Report all results with log file paths
+
+Begin by exploring the project with `list_files`.
 """
 
-        # 4. Run the Agent (ReAct Loop)
-        # The Runner will handle the loop: Agent -> Tool -> Agent -> Tool ...
+        print_subsection("Running Autonomous Researcher")
+
+        effective_max_turns = (
+            self.max_iterations if self.max_iterations is not None else 1000
+        )
+
+        run_config = RunConfig(
+            model_settings=ModelSettings(max_tokens=128*1024)
+        )
+
         result_stream = Runner.run_streamed(
-            self.researcher_agent, task_prompt, max_turns=self.max_iterations
+            self.researcher_agent,
+            task_prompt,
+            hooks=self.hooks,
+            max_turns=effective_max_turns,
+            run_config=run_config
         )
 
         final_text = ""
-        chat_history = []
 
         async for event in result_stream.stream_events():
-            if hasattr(event, "data") and hasattr(event.data, "delta"):
-                delta = event.data.delta
-                if hasattr(delta, "content") and delta.content:
-                    print(delta.content, end="", flush=True)
-                    final_text += delta.content
+            if hasattr(event, "data"):
+                event_type = type(event.data).__name__
+                if hasattr(event.data, "delta"):
+                    delta = event.data.delta
+                    if hasattr(delta, "content") and delta.content:
+                        print(delta.content, end="", flush=True)
+                        final_text += delta.content
+                    elif hasattr(delta, "text") and delta.text:
+                        print(delta.text, end="", flush=True)
+                        final_text += delta.text
 
-        # Capture the full history for the unifier to analyze
-        if hasattr(result_stream, "chat_history"):
-            chat_history = result_stream.chat_history
-            # Append final text if not in history yet
-            full_log = "\n".join([f"{msg.role}: {msg.content}" for msg in chat_history])
+        if hasattr(result_stream, "final_output") and isinstance(
+            result_stream.final_output, str
+        ):
+            final_text = result_stream.final_output
+        elif (
+            not final_text
+            and hasattr(result_stream, "chat_history")
+            and result_stream.chat_history
+        ):
+            final_text = result_stream.chat_history[-1].content
+
+        # Build full log from chat history if available
+        if hasattr(result_stream, "chat_history") and result_stream.chat_history:
+            full_log = "\n".join(
+                [f"{msg.role}: {msg.content}" for msg in result_stream.chat_history]
+            )
         else:
             full_log = final_text
 
-        print_success("\nResearch Session Completed.")
+        print_success("Research session completed")
 
-        # 5. Unify Output
-        # We send the entire conversation log to the unifier so it can pick the best run.
-        unifier_input = f"""
-Please analyze this research session log and extract the details of the BEST/FINAL run.
+        print_subsection("Parsing JSON Output")
+        
+        # Extract and parse JSON from the execution output
+        # Use raise_on_failure=True to trigger retry in master agent
+        try:
+            final_output = extract_and_parse_json(final_text, ExperimentExecuteOutput, raise_on_failure=True)
+        except JSONParseError as e:
+            # Re-raise JSONParseError to trigger retry in master agent
+            print_error(f"JSON parsing failed, will trigger retry: {e}")
+            raise
 
-=== SESSION LOG ===
-{full_log}
-"""
-        unifier_stream = Runner.run_streamed(
-            self.output_unifier, unifier_input, hooks=None
-        )
-
-        async for _ in unifier_stream.stream_events():
-            pass
-
-        final_output = unifier_stream.final_output
-
-        # Hydrate log preview
+        # 填充日志预览
         if final_output.log_path and os.path.exists(final_output.log_path):
             log_content = self.get_log_content(final_output.log_path)
             lines = log_content.splitlines()
@@ -225,43 +362,74 @@ Please analyze this research session log and extract the details of the BEST/FIN
                     final_output.stdout_preview += "\n..."
                 if final_output.has_error:
                     final_output.stderr_preview = "\n".join(lines[-50:])
+            print_info(f"Log preview loaded from: {final_output.log_path}")
+
+        print_success("Execution output parsed")
+
+        # Display execution status
+        if hasattr(final_output, "execution_status"):
+            status = final_output.execution_status
+            if status == "success":
+                print(
+                    f"\n{Colors.OKGREEN}{Colors.BOLD}✓ EXECUTION SUCCESS{Colors.ENDC}\n"
+                )
+            elif status == "error":
+                print(f"\n{Colors.FAIL}{Colors.BOLD}✗ EXECUTION FAILED{Colors.ENDC}\n")
+            else:
+                print(
+                    f"\n{Colors.WARNING}{Colors.BOLD}⚠ STATUS: {status.upper()}{Colors.ENDC}\n"
+                )
+
+        print_section("EXPERIMENT EXECUTION COMPLETE", "=")
 
         return final_output
 
-    def _find_entry_script(self, context: Any) -> Optional[str]:
-        if context.code_plan_output:
-            plan_output = context.code_plan_output
-            file_structure = []
-            if isinstance(plan_output, dict):
-                file_structure = plan_output.get("file_structure", [])
-            elif hasattr(plan_output, "file_structure"):
-                file_structure = plan_output.file_structure
+    def _format_experiment_plan(self, exp_plan) -> str:
+        """Format experiment plan into readable text for the agent."""
+        lines = []
 
-            for item in file_structure:
-                path = ""
-                if hasattr(item, "path"):
-                    path = item.path
-                elif isinstance(item, dict):
-                    path = item.get("path", "")
-                else:
-                    continue
+        # Baseline
+        baseline = exp_plan.get("baseline_method", "")
+        if baseline:
+            lines.append(f"**Baseline**: {baseline}")
 
-                if "main.py" in path or "train.py" in path or "run.py" in path:
-                    return path.split("/")[-1] if "/" in path else path
-        return None
+        # Datasets
+        datasets = exp_plan.get("datasets", [])
+        if datasets:
+            lines.append(
+                f"**Datasets** ({len(datasets)}): {', '.join(str(d) for d in datasets)}"
+            )
 
-    def _create_skipped_output(self) -> ExperimentExecuteOutput:
-        return ExperimentExecuteOutput(
-            log_path="",
-            has_error=False,
-            execution_status="skipped",
-            exit_code=0,
-            execution_time=0.0,
-            stdout_preview="N/A",
-            stderr_preview="",
-            experiment_metrics={},
-            execution_summary="Execution skipped - no entry script found.",
-        )
+        # Hyperparameters
+        hp_space = exp_plan.get("hyperparameter_space", "")
+        if hp_space:
+            lines.append(f"**Hyperparameters**: {hp_space}")
+
+        # Experiment matrix
+        exp_matrix = exp_plan.get("experiment_matrix", [])
+        if exp_matrix:
+            lines.append(f"\n**Experiment Matrix** ({len(exp_matrix)} experiments):")
+            lines.append("| Exp ID | Method | Dataset | Config | Seeds |")
+            lines.append("|--------|--------|---------|--------|-------|")
+            for exp in exp_matrix:
+                exp_id = exp.get("exp_id", "?")
+                method = exp.get("method", "?")
+                dataset = exp.get("dataset", "?")
+                hp = exp.get("hyperparameters", "default")
+                seeds = exp.get("seeds", [42])
+                seeds_str = (
+                    ",".join(map(str, seeds)) if isinstance(seeds, list) else str(seeds)
+                )
+                lines.append(
+                    f"| {exp_id} | {method} | {dataset} | {hp} | {seeds_str} |"
+                )
+
+        # Metrics
+        primary = exp_plan.get("primary_metrics", [])
+        if primary:
+            lines.append(f"\n**Primary Metrics**: {', '.join(primary)}")
+
+        return "\n".join(lines)
 
     def get_log_content(self, log_path: str) -> str:
         try:
@@ -277,10 +445,14 @@ def create_experiment_execute_agent(
     tools: Optional[list] = None,
     log_dir: str = "./experiment_logs",
     timeout: int = 3600,
-    max_iterations: int = 20,  # Give it enough turns to think and act
+    max_iterations: Optional[int] = None,  # None = unlimited turns
+    verbose: bool = False,
 ) -> ExperimentExecuteAgent:
     """
     Factory function to create an experiment execute agent.
+
+    Args:
+        max_iterations: Maximum number of turns. None means unlimited.
     """
     return ExperimentExecuteAgent(
         model=model,
@@ -289,4 +461,5 @@ def create_experiment_execute_agent(
         log_dir=log_dir,
         timeout=timeout,
         max_iterations=max_iterations,
+        verbose=verbose,
     )

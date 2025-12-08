@@ -36,14 +36,10 @@ from src.agents.experiment_agent.tools.code_analysis_tools import (
 
 from src.agents.experiment_agent.tools.repository_tools import (
     list_papers_in_directory,
-    generate_code_tree,
-    analyze_repository_structure,
-    get_repository_overview,
     read_pdf_paper,
 )
 
 
-# Tool categories for different agents
 FILE_TOOLS = [
     read_file,
     write_file,
@@ -51,7 +47,6 @@ FILE_TOOLS = [
     list_directory,
 ]
 
-# Read-only file tools for planning/analysis phases
 FILE_TOOLS_READONLY = [
     read_file,
     list_directory,
@@ -78,13 +73,9 @@ CODE_ANALYSIS_TOOLS = [
 
 REPOSITORY_TOOLS = [
     list_papers_in_directory,
-    generate_code_tree,
-    analyze_repository_structure,
-    get_repository_overview,
     read_pdf_paper,
 ]
 
-# All tools combined
 ALL_TOOLS = (
     FILE_TOOLS
     + EXECUTION_TOOLS
@@ -92,6 +83,8 @@ ALL_TOOLS = (
     + CODE_ANALYSIS_TOOLS
     + REPOSITORY_TOOLS
 )
+
+
 
 
 def get_tools_for_agent(agent_type: str) -> List:
@@ -104,25 +97,14 @@ def get_tools_for_agent(agent_type: str) -> List:
     Returns:
         List of tool functions for the agent
     """
-    # Base tools for all agents (Shell/Read)
-    # Actually, only "execution" agents should get run_shell_command in write mode?
-    # No, per discussion:
-    # - Plan/Analysis: Read-only (read_file, list_dir) + maybe shell for grep?
-    # - Implement/Execute: Full Shell + Write
-
-    # However, strict read-only agents shouldn't have run_shell_command unless we trust them
-    # to only use grep. The user said "don't use run_shell_command for plan agents".
-
     tool_configs = {
         "pre_analysis": {
             "paper": DOCUMENT_TOOLS + FILE_TOOLS_READONLY + REPOSITORY_TOOLS,
             "idea": DOCUMENT_TOOLS + FILE_TOOLS_READONLY + REPOSITORY_TOOLS,
+            "code_repo_analyzer": FILE_TOOLS_READONLY + CODE_ANALYSIS_TOOLS,
         },
         "code_plan": {
             "initial": FILE_TOOLS_READONLY + CODE_ANALYSIS_TOOLS + REPOSITORY_TOOLS,
-            "judge_feedback": FILE_TOOLS_READONLY
-            + CODE_ANALYSIS_TOOLS
-            + REPOSITORY_TOOLS,
             "error_feedback": FILE_TOOLS_READONLY
             + CODE_ANALYSIS_TOOLS
             + REPOSITORY_TOOLS,

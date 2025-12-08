@@ -1,16 +1,13 @@
 """
-Code Plan Agent - Main orchestrator for code planning using handoff mechanism.
+Code Plan Agent - Main orchestrator for code planning using deterministic routing.
 
-This agent uses OpenAI agents library's handoff mechanism to route inputs
+This agent uses deterministic logic (based on pending_feedback_type) to route inputs
 to appropriate scenario-specific planners and produces unified YAML-format code plans.
 """
 
 from typing import Dict, Optional, Any
 
-from src.agents.experiment_agent.config import (
-    OUTPUT_UNIFIER_MODEL,
-)
-from agents import Agent, Runner, handoff
+from agents import Agent, Runner
 from src.agents.experiment_agent.logger import create_verbose_hooks
 
 
@@ -20,9 +17,6 @@ from src.agents.experiment_agent.sub_agents.code_plan.output_schemas import (
 from src.agents.experiment_agent.sub_agents.code_plan.initial_plan_agent import (
     create_initial_plan_agent,
 )
-from src.agents.experiment_agent.sub_agents.code_plan.judge_feedback_plan_agent import (
-    create_judge_feedback_plan_agent,
-)
 from src.agents.experiment_agent.sub_agents.code_plan.error_feedback_plan_agent import (
     create_error_feedback_plan_agent,
 )
@@ -31,103 +25,21 @@ from src.agents.experiment_agent.sub_agents.code_plan.analysis_feedback_plan_age
 )
 
 from src.agents.experiment_agent.utils.print_utils import *
-
-
-def create_triage_agent(
-    initial_planner: Agent,
-    judge_feedback_planner: Agent,
-    error_feedback_planner: Agent,
-    analysis_feedback_planner: Agent,
-) -> Agent:
-    """
-    Create a triage agent that uses handoffs to route to appropriate planners.
-    """
-
-    instructions = """You are the Routing Dispatcher. Your ONLY job is to analyze the input context and handoff to the correct specialist.
-
-### ROUTING RULES
-
-1. **INITIAL PLANNING**
-   - Context: Research Analysis only. No previous failures.
-   - Action: Handoff to `Initial Plan Agent`.
-
-2. **CODE REVIEW (JUDGE) FEEDBACK**
-   - Context: Code was rejected by the Judge/QA.
-   - Keywords: "Issues Found", "Code Quality", "Logic Error".
-   - Action: Handoff to `Judge Feedback Plan Agent`.
-
-3. **RUNTIME ERROR FEEDBACK**
-   - Context: Execution crashed.
-   - Keywords: "Traceback", "Exception", "Runtime Error".
-   - Action: Handoff to `Error Feedback Plan Agent`.
-
-4. **ANALYSIS FEEDBACK**
-   - Context: Experiment ran successfully but results were poor (Low accuracy, etc.).
-   - Keywords: "Analysis Result", "Metrics", "Optimization".
-   - Action: Handoff to `Analysis Feedback Plan Agent`.
-
-### EXECUTION
-- Do NOT generate a plan yourself.
-- IMMEDIATELY call the handoff tool matching the scenario.
-"""
-
-    triage = Agent(
-        name="Planning Triage Agent",
-        instructions=instructions,
-        handoffs=[
-            handoff(
-                initial_planner,
-                tool_description_override="Handoff to Initial Plan Agent.",
-            ),
-            handoff(
-                judge_feedback_planner,
-                tool_description_override="Handoff to Judge Feedback Plan Agent.",
-            ),
-            handoff(
-                error_feedback_planner,
-                tool_description_override="Handoff to Error Feedback Plan Agent.",
-            ),
-            handoff(
-                analysis_feedback_planner,
-                tool_description_override="Handoff to Analysis Feedback Plan Agent.",
-            ),
-        ],
-    )
-
-    return triage
-
-
-def create_code_plan_unifier_agent(model: str = "gpt-4o") -> Agent:
-    return Agent(
-        name="Code Plan Output Unifier",
-        instructions="""You are an expert data structuring assistant.
-Your task is to convert the raw textual code plan into a structured `CodePlanOutput` object.
-
-Input text will contain sections for:
-- Research Summary
-- Key Innovations
-- File Structure
-- Dataset Plan
-- Model Plan
-- Training Plan
-- Testing Plan
-- Implementation Checklist
-- Implementation Notes & Challenges
-
-Map these sections to the corresponding fields in the output schema.
-Preserve the detailed content of each section.
-Ensure `file_structure` is a list of `FileStructureItem` (path, type, description).
-Ensure `implementation_checklist` is a list of `ChecklistItem` (step_id, title, description, files_to_create, files_to_modify, acceptance_criteria, dependencies, estimated_complexity).
-Set `plan_type` based on the context (initial, judge_feedback, error_feedback, analysis_feedback).
-""",
-        output_type=CodePlanOutput,
-        model=OUTPUT_UNIFIER_MODEL,
-    )
+from src.agents.experiment_agent.utils.json_utils import (
+    extract_and_parse_json,
+    generate_json_schema_instruction,
+    JSONParseError,
+)
 
 
 class CodePlanAgent:
     """
-    Main code planning agent that orchestrates the entire planning workflow using handoffs.
+    Main code planning agent that orchestrates the entire planning workflow.
+    
+    Uses deterministic routing based on pending_feedback_type to select the correct planner:
+    - None or "initial" -> Initial Plan Agent
+    - "error_feedback" -> Error Feedback Plan Agent
+    - "analysis_feedback" -> Analysis Feedback Plan Agent
     """
 
     def __init__(
@@ -140,13 +52,12 @@ class CodePlanAgent:
         self.model = model
         self.working_dir = working_dir
         self.verbose = verbose
-        self.hooks = (
-            create_verbose_hooks(
-                show_llm_responses=verbose,
-                show_tools=verbose,
-            )
-            if verbose
-            else None
+        # Always create hooks to show tool arguments
+        # verbose mode controls whether to show detailed responses and results
+        self.hooks = create_verbose_hooks(
+            show_llm_responses=verbose,
+            show_tools=verbose,
+            show_tool_args=True,  # Always show tool arguments
         )
 
         # Auto-load recommended tools if not provided
@@ -164,12 +75,6 @@ class CodePlanAgent:
             model=model, working_dir=working_dir, tools=self.tools.get("initial", [])
         )
 
-        self.judge_feedback_planner = create_judge_feedback_plan_agent(
-            model=model,
-            working_dir=working_dir,
-            tools=self.tools.get("judge_feedback", []),
-        )
-
         self.error_feedback_planner = create_error_feedback_plan_agent(
             model=model,
             working_dir=working_dir,
@@ -182,56 +87,127 @@ class CodePlanAgent:
             tools=self.tools.get("analysis_feedback", []),
         )
 
-        # Initialize triage agent with handoffs
-        self.triage_agent = create_triage_agent(
-            self.initial_planner,
-            self.judge_feedback_planner,
-            self.error_feedback_planner,
-            self.analysis_feedback_planner,
-        )
+        # Default agent (for compatibility)
+        self.agent = self.initial_planner
 
-        # Initialize output unifier
-        self.output_unifier = create_code_plan_unifier_agent(model=model)
+    def _select_planner(self, feedback_type: Optional[str]) -> tuple[Agent, str]:
+        """
+        Select the appropriate planner based on feedback type.
+        
+        Args:
+            feedback_type: One of None, "initial", "error_feedback", "analysis_feedback"
+            
+        Returns:
+            Tuple of (planner_agent, plan_type_name)
+        """
+        if feedback_type == "error_feedback":
+            return self.error_feedback_planner, "error_feedback"
+        elif feedback_type == "analysis_feedback":
+            return self.analysis_feedback_planner, "analysis_feedback"
+        else:
+            # Default to initial planner
+            return self.initial_planner, "initial"
 
-        # Expose triage agent as main agent for handoff compatibility
-        self.agent = self.triage_agent
+    def _extract_error_feedback(self, context: Any) -> str:
+        output = context.get("experiment_execute_output", None)
+        if not output:
+            return ""
+            
+        error_message = output.get("error_message", "")
+        execution_summary = output.get("execution_summary", "")
+        stdout_preview = output.get("stdout_preview", "")
+        stderr_preview = output.get("stderr_preview", "")
+        
+        retry_count = context.get("retry_count", 0)
+        max_retries = context.get("max_retries", 10)
+        
+        return f"""## Runtime Error Feedback
+
+### Error Summary
+{error_message}
+
+### Execution Summary
+{execution_summary if execution_summary else "N/A"}
+
+### Stdout Preview
+{stdout_preview if stdout_preview else "N/A"}
+
+### Stderr/Error Log
+{stderr_preview if stderr_preview else "N/A"}
+
+### Retry Information
+Attempt: {retry_count}/{max_retries}
+"""
+
+    def _extract_analysis_feedback(self, context: Any) -> str:
+        output = context.get("experiment_analysis_output", None)
+        if not output:
+            return ""
+        
+        # Unified access
+        feedback = output.get("feedback", "")
+            
+        return f"## Analysis Feedback\n\n{feedback}"
 
     async def process(self, context: Any, **kwargs) -> CodePlanOutput:
         """
         Process the current step using context data.
+        
+        Uses deterministic routing based on context.pending_feedback_type.
         """
-        data = kwargs
-        feedback = data.get("feedback", "")
+        # Determine feedback type from context
+        feedback_type = context.get("pending_feedback_type", None)
+        
+        # Extract feedback
+        feedback = ""
+        if feedback_type == "error_feedback":
+            feedback = self._extract_error_feedback(context)
+        elif feedback_type == "analysis_feedback":
+            feedback = self._extract_analysis_feedback(context)
+            
         feedback_section = f"\nPRIORITY FEEDBACK:\n{feedback}\n" if feedback else ""
 
         summary = ""
-        if hasattr(context.pre_analysis_output, "summary"):
-            summary = f"RESEARCH SUMMARY:\n{context.pre_analysis_output.summary}\n\n"
+        code_repos_info = ""
+        if context.get("pre_analysis_output", None):
+            if context.pre_analysis_output.get("summary", None):
+                summary = context.pre_analysis_output.get("summary", "")
+                summary = f"RESEARCH SUMMARY:\n{summary}\n\n"
+            if context.pre_analysis_output.get("code_repos_info", None):
+                code_repos_info = context.pre_analysis_output.get("code_repos_info", "")
+                code_repos_info = f"CODE REPOSITORIES ANALYSIS:\n{code_repos_info}\n\n"
+        
+        # Select appropriate planner
+        planner, plan_type = self._select_planner(feedback_type)
+        
+        print_info(f"Routing to: {planner.name} (feedback_type={feedback_type})")
 
         formatted_input = f"""
 PLANNING REQUEST
 
 {summary}
-{context.pre_analysis_output}
+{code_repos_info}
+{context.get("pre_analysis_output", "")}
 
 {feedback_section}
 
 Objective: Generate/Update the Code Plan based on the inputs above.
+Use the code repositories analysis to identify reusable components and patterns.
 """
 
-        return await self.plan(formatted_input)
+        return await self.plan_with_planner(formatted_input, planner, plan_type)
 
-    async def plan(self, input_data: str) -> CodePlanOutput:
+    async def plan_with_planner(self, input_data: str, planner: Agent, plan_type: str) -> CodePlanOutput:
         """
-        Generate code implementation plan based on input.
+        Generate code implementation plan using specified planner.
         """
         print_section("CODE PLANNING WORKFLOW", "=")
 
-        print_subsection("Planning Triage & Execution")
+        print_subsection(f"Executing {planner.name}")
 
         # Use streamed version for real-time output
         planning_stream = Runner.run_streamed(
-            self.triage_agent, input_data, hooks=self.hooks, max_turns=100
+            planner, input_data, hooks=self.hooks, max_turns=100
         )
         async for event in planning_stream.stream_events():
             if hasattr(event, "data"):
@@ -259,40 +235,38 @@ Objective: Generate/Update the Code Plan based on the inputs above.
             print_error("Planning failed to produce output")
             raise RuntimeError("Planning agent failed to produce output")
 
-        active_agent_name = (
-            planning_result.last_agent.name
-            if planning_result.last_agent
-            else "Unknown Agent"
-        )
+        print_success(f"Planning text generated using: {planner.name}")
+        print_subsection("Parsing JSON Output")
 
-        print_success(f"Planning text generated using: {active_agent_name}")
-        print_subsection("Unifying Output Format")
-
-        # Step 2: Unify output
-        unifier_input = f"""
-Please convert the following code plan into the structured `CodePlanOutput` format.
-
-=== CODE PLAN ===
-{final_text}
-"""
-        unifier_stream = Runner.run_streamed(
-            self.output_unifier, unifier_input, hooks=None
-        )
-
-        async for _ in unifier_stream.stream_events():
-            pass
-
-        final_plan = unifier_stream.final_output
+        # Extract and parse JSON from the planner output using post-processing
+        # Use raise_on_failure=True to trigger retry in master agent
+        try:
+            final_plan = extract_and_parse_json(final_text, CodePlanOutput, raise_on_failure=True)
+        except JSONParseError as e:
+            # Re-raise JSONParseError to trigger retry in master agent
+            print_error(f"JSON parsing failed, will trigger retry: {e}")
+            raise
 
         print_info(f"Plan type: {final_plan.plan_type}")
         print_section("CODE PLANNING COMPLETE", "=")
 
         return final_plan
 
-    def plan_sync(self, input_data: str) -> CodePlanOutput:
+    async def plan(self, input_data: str, feedback_type: Optional[str] = None) -> CodePlanOutput:
+        """
+        Generate code implementation plan based on input.
+        
+        Args:
+            input_data: Input text for planning
+            feedback_type: Optional feedback type to determine planner
+        """
+        planner, plan_type = self._select_planner(feedback_type)
+        return await self.plan_with_planner(input_data, planner, plan_type)
+
+    def plan_sync(self, input_data: str, feedback_type: Optional[str] = None) -> CodePlanOutput:
         import asyncio
 
-        return asyncio.run(self.plan(input_data))
+        return asyncio.run(self.plan(input_data, feedback_type))
 
 
 def create_code_plan_agent(

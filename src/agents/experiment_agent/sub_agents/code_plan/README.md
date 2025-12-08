@@ -11,7 +11,6 @@ Code Plan Agent System
 ├── Router Agent                  → Detects input scenario
 ├── Scenario-Specific Planners
 │   ├── Initial Plan Agent        → First-time planning
-│   ├── Judge Feedback Plan       → Re-plan after code review
 │   ├── Error Feedback Plan       → Re-plan after runtime errors
 │   └── Analysis Feedback Plan    → Re-plan after analysis
 └── Output Formatter              → YAML-compatible formatting
@@ -24,15 +23,7 @@ Code Plan Agent System
 **Input**: `UnifiedAnalysisOutput` from pre_analysis_agent  
 **Purpose**: Create comprehensive initial implementation plan
 
-### 2. Judge Feedback Planning (`judge_feedback`)
-**Trigger**: Code failed code_judge_agent review  
-**Input**: 
-- `UnifiedAnalysisOutput` from pre_analysis_agent
-- Processed feedback from code_judge_agent (via experiment_master_agent)
-
-**Purpose**: Revise plan to address code quality and logic issues
-
-### 3. Error Feedback Planning (`error_feedback`)
+### 2. Error Feedback Planning (`error_feedback`)
 **Trigger**: Code execution failed at runtime  
 **Input**:
 - `UnifiedAnalysisOutput` from pre_analysis_agent
@@ -40,7 +31,7 @@ Code Plan Agent System
 
 **Purpose**: Revise plan to fix runtime errors and add robustness
 
-### 4. Analysis Feedback Planning (`analysis_feedback`)
+### 3. Analysis Feedback Planning (`analysis_feedback`)
 **Trigger**: Experimental results were unsatisfactory  
 **Input**:
 - `UnifiedAnalysisOutput` from pre_analysis_agent
@@ -69,18 +60,7 @@ Creates the first implementation plan from research analysis.
 
 **Output**: `IntermediatePlanOutput`
 
-### 3. Judge Feedback Plan Agent (`judge_feedback_plan_agent.py`)
-Revises plan based on code review feedback.
-
-**Focus**:
-- Address code quality issues
-- Fix logic errors
-- Improve implementation clarity
-- Add missing specifications
-
-**Output**: `IntermediatePlanOutput`
-
-### 4. Error Feedback Plan Agent (`error_feedback_plan_agent.py`)
+### 3. Error Feedback Plan Agent (`error_feedback_plan_agent.py`)
 Revises plan based on runtime errors.
 
 **Focus**:
@@ -91,7 +71,7 @@ Revises plan based on runtime errors.
 
 **Output**: `IntermediatePlanOutput`
 
-### 5. Analysis Feedback Plan Agent (`analysis_feedback_plan_agent.py`)
+### 4. Analysis Feedback Plan Agent (`analysis_feedback_plan_agent.py`)
 Revises plan based on experimental analysis.
 
 **Focus**:
@@ -102,7 +82,7 @@ Revises plan based on experimental analysis.
 
 **Output**: `IntermediatePlanOutput`
 
-### 6. Output Formatter (`output_formatter.py`)
+### 5. Output Formatter (`output_formatter.py`)
 Converts intermediate output to YAML-compatible format.
 
 **Tasks**:
@@ -118,7 +98,7 @@ Converts intermediate output to YAML-compatible format.
 ### CodePlanOutput (YAML-compatible)
 
 ```yaml
-plan_type: "initial" | "judge_feedback" | "error_feedback" | "analysis_feedback"
+plan_type: "initial" | "error_feedback" | "analysis_feedback"
 timestamp: "2025-11-05T..."
 
 research_summary: "..."
@@ -168,7 +148,6 @@ async def main():
         working_dir="/workspace",
         tools={
             "initial": [gen_code_tree_structure, read_file],
-            "judge_feedback": [gen_code_tree_structure, read_file],
             "error_feedback": [gen_code_tree_structure, read_file, read_logs],
             "analysis_feedback": [gen_code_tree_structure, read_file, read_logs, read_results]
         }
@@ -212,26 +191,7 @@ UnifiedAnalysisOutput:
 plan = await agent.plan(input_data)
 ```
 
-#### Scenario 2: Judge Feedback
-```python
-input_data = """
-UnifiedAnalysisOutput:
-  ...
-
-Judge Feedback (from experiment_master_agent):
-  code_quality_issues:
-    - Issue 1: ...
-    - Issue 2: ...
-  logic_errors:
-    - Error 1: ...
-  suggested_improvements:
-    - ...
-"""
-
-plan = await agent.plan(input_data)
-```
-
-#### Scenario 3: Error Feedback
+#### Scenario 2: Error Feedback
 ```python
 input_data = """
 UnifiedAnalysisOutput:
@@ -248,7 +208,7 @@ Error Feedback (from experiment_master_agent):
 plan = await agent.plan(input_data)
 ```
 
-#### Scenario 4: Analysis Feedback
+#### Scenario 3: Analysis Feedback
 ```python
 input_data = """
 UnifiedAnalysisOutput:
@@ -350,12 +310,6 @@ plan = await code_plan_agent.plan(str(analysis.dict()))
 
 # ... implementation happens ...
 
-# If code judge finds issues
-judge_feedback = "..."  # from experiment_master_agent
-revised_plan = await code_plan_agent.plan(
-    f"{analysis.dict()}\n\nJudge Feedback:\n{judge_feedback}"
-)
-
 # If execution errors occur
 error_feedback = "..."  # from experiment_master_agent
 revised_plan = await code_plan_agent.plan(
@@ -374,7 +328,6 @@ improved_plan = await code_plan_agent.plan(
 ### 1. Scenario-Based Planning
 Each scenario has specialized planning logic:
 - **Initial**: Comprehensive, exploratory
-- **Judge Feedback**: Focused on code quality
 - **Error Feedback**: Focused on robustness
 - **Analysis Feedback**: Focused on performance
 
@@ -403,9 +356,8 @@ code_plan_agent/
 ├── output_schemas.py                    # Pydantic models
 ├── code_plan_agent.py                  # Main orchestrator
 ├── initial_plan_agent.py               # Scenario 1
-├── judge_feedback_plan_agent.py        # Scenario 2
-├── error_feedback_plan_agent.py        # Scenario 3
-├── analysis_feedback_plan_agent.py     # Scenario 4
+├── error_feedback_plan_agent.py        # Scenario 2
+├── analysis_feedback_plan_agent.py     # Scenario 3
 ├── output_formatter.py                 # YAML formatting
 └── README.md                           # Documentation
 ```

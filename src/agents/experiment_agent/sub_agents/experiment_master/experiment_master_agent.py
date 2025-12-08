@@ -47,6 +47,10 @@ from src.agents.experiment_agent.sub_agents.experiment_master.workflow_state_mac
 from src.agents.experiment_agent.sub_agents.experiment_master.cache_manager import (
     CacheManager,
 )
+from src.agents.experiment_agent.sub_agents.experiment_master.issue_tracker import (
+    IssueTracker,
+)
+from src.agents.experiment_agent.utils.json_utils import JSONParseError
 from src.agents.experiment_agent.sub_agents.pre_analysis import (
     create_pre_analysis_agent,
 )
@@ -65,26 +69,17 @@ from src.agents.experiment_agent.sub_agents.experiment_execute import (
 from src.agents.experiment_agent.sub_agents.experiment_analysis import (
     create_experiment_analysis_agent,
 )
-from memory.api.slot_process_api import (
-    SlotProcess,
-)
-from memory.decorator import (
-    short_term_slot_trace,
-)
-from memory.api.faiss_memory_system_api import (
-    FAISSMemorySystem,
-)
 
-from src.memory.api.slot_process_api import (
-    SlotProcess,
-)
+# from src.memory.api.slot_process_api import (
+#     SlotProcess,
+# )
 
-# from src.memory.memory_system.decorator import (
+# from src.memory.decorator import (
 #     short_term_slot_trace,
 # )
-from src.memory.api.faiss_memory_system_api import (
-    FAISSMemorySystem,
-)
+# from src.memory.api.faiss_memory_system_api import (
+#     FAISSMemorySystem,
+# )
 
 
 # Orchestrator removed - using rule-based state machine instead
@@ -148,10 +143,10 @@ class ExperimentMasterAgent:
         self.working_dir = working_dir
         self.log_dir = log_dir
         self.verbose = verbose
-        self.slot_process = SlotProcess()
-        self.semantic_memory_store = FAISSMemorySystem(memory_type="semantic")
-        self.episodic_memory_store = FAISSMemorySystem(memory_type="episodic")
-        self.procedural_memory_store = FAISSMemorySystem(memory_type="procedural")
+        # self.slot_process = SlotProcess()
+        # self.semantic_memory_store = FAISSMemorySystem(memory_type="semantic")
+        # self.episodic_memory_store = FAISSMemorySystem(memory_type="episodic")
+        # self.procedural_memory_store = FAISSMemorySystem(memory_type="procedural")
 
         if tools is None:
             from src.agents.experiment_agent.sub_agents.experiment_master import (
@@ -209,6 +204,7 @@ class ExperimentMasterAgent:
 
         self.experiment_analysis_agent = create_experiment_analysis_agent(
             model=self.result_analysis_model,
+            working_dir=working_dir,
             tools=self.tools.get("experiment_analysis"),
         )
 
@@ -356,57 +352,17 @@ class ExperimentMasterAgent:
             print(f"Reason: {transition.reason}")
             transition_data = transition.data or {}
         else:
-            # Resumed experiment - check if current state already has output
+            # Resumed experiment
             print(f"\n[RESUMED] Continuing from: {context.current_state.value}")
-
-            # Check if the current state's output already exists
-            state_output_exists = False
-            if (
-                context.current_state == WorkflowState.PRE_ANALYSIS
-                and context.pre_analysis_output
-            ):
-                state_output_exists = True
-            elif (
-                context.current_state == WorkflowState.CODE_PLAN
-                and context.code_plan_output
-            ):
-                state_output_exists = True
-            elif (
-                context.current_state == WorkflowState.CODE_IMPLEMENT
-                and context.code_implement_output
-            ):
-                state_output_exists = True
-            elif (
-                context.current_state == WorkflowState.CODE_JUDGE
-                and context.code_judge_output
-            ):
-                state_output_exists = True
-            elif (
-                context.current_state == WorkflowState.EXPERIMENT_EXECUTE
-                and context.experiment_execute_output
-            ):
-                state_output_exists = True
-            elif (
-                context.current_state == WorkflowState.EXPERIMENT_ANALYSIS
-                and context.experiment_analysis_output
-            ):
-                state_output_exists = True
+            state_output_exists = self._check_state_output_exists(context)
 
             if state_output_exists:
-                print(
-                    f"[SKIP] Current state output already exists, transitioning to next state..."
-                )
-                # Perform state transition immediately
+                print("[SKIP] Current state output exists, transitioning...")
                 transition = self.state_machine.transition(context)
-                print(f"\n[STATE TRANSITION]")
-                print(f"From: {transition.from_state.value}")
-                print(f"To: {transition.to_state.value}")
-                print(f"Reason: {transition.reason}")
+                print(f"[TRANSITION] {transition.from_state.value} -> {transition.to_state.value}")
                 transition_data = transition.data or {}
             else:
-                print(
-                    f"[CONTINUE] Current state output not found, will execute agent..."
-                )
+                print("[CONTINUE] Executing agent...")
                 transition_data = {}
 
         while not self.state_machine.is_terminal_state(context.current_state):
@@ -423,8 +379,40 @@ class ExperimentMasterAgent:
             if agent_name:
                 print(f"\n[EXECUTING] {agent_name} agent (step {step_count})...")
 
+                # Debug: Show transition data being passed
+                if transition_data:
+                    print(
+                        f"[DEBUG] Transition data keys: {list(transition_data.keys())}"
+                    )
+                    if "feedback" in transition_data:
+                        print(f"[DEBUG] Has feedback from previous step")
+                    if "judge_output" in transition_data:
+                        print(f"[DEBUG] Has judge_output from previous step")
+
                 try:
-                    result = await self._execute_agent(agent_name, context, {})
+                    # ✅ FIX: Pass transition_data from previous state transition
+                    # This includes feedback, judge_output, and other important data
+                    result = await self._execute_agent(
+                        agent_name, context, transition_data
+                    )
+
+                    # Debug output
+                    print(f"[DEBUG] Agent result type: {type(result)}")
+                    print(
+                        f"[DEBUG] Agent result: {str(result)[:200] if result else 'None'}"
+                    )
+
+                    # Store result in context
+                    self._update_context_with_result(
+                        context, context.current_state, result
+                    )
+
+                    print(f"[COMPLETED] {agent_name} agent finished")
+
+                    # Save workflow snapshot after each agent execution
+                    self.cache_manager.save_workflow_snapshot(
+                        context, agent_name=agent_name, agent_output=result
+                    )
 
                 except Exception as e:
                     print(f"[ERROR] Agent execution failed: {str(e)}")
@@ -456,7 +444,7 @@ class ExperimentMasterAgent:
         self, agent_name: str, context: WorkflowContext, data: Dict[str, Any]
     ) -> Any:
         """
-        Execute a specific agent.
+        Execute a specific agent with JSON parsing failure retry.
 
         Args:
             agent_name: Name of agent to execute
@@ -465,6 +453,9 @@ class ExperimentMasterAgent:
 
         Returns:
             Agent output
+            
+        Note:
+            If JSON parsing fails, the agent will be re-executed up to 3 times.
         """
         agent = self.agents.get(agent_name)
         if not agent:
@@ -497,143 +488,250 @@ class ExperimentMasterAgent:
                 f"[CACHE] Skipping cache for {cache_key} (retry attempt {context.checklist_step_retry_count})"
             )
 
-        # Execute agent based on its interface
-        try:
-            if hasattr(agent, "process"):
-                print(f"[DEBUG] Calling agent.process()")
+        # JSON parsing retry configuration
+        max_json_parse_retries = 3
+        json_parse_retry_count = 0
+        
+        # Execute agent based on its interface with JSON parsing retry
+        while json_parse_retry_count < max_json_parse_retries:
+            try:
+                if hasattr(agent, "process"):
+                    if json_parse_retry_count > 0:
+                        print(f"[JSON_RETRY] Attempt {json_parse_retry_count + 1}/{max_json_parse_retries} for {agent_name} due to JSON parsing failure...")
+                    else:
+                        print(f"[DEBUG] Calling agent.process()")
 
-                # Retry logic for network/protocol errors
-                async for attempt in AsyncRetrying(
-                    stop=stop_after_attempt(5),  # Retry up to 5 times
-                    wait=wait_exponential(
-                        multiplier=1, min=2, max=30
-                    ),  # Exponential backoff
-                    retry=retry_if_exception_type(
-                        (
-                            httpx.RemoteProtocolError,
-                            httpcore.RemoteProtocolError,
-                            httpx.ReadTimeout,
-                            httpx.ConnectTimeout,
-                            httpx.PoolTimeout,
-                            TimeoutError,
-                            ConnectionError,
-                        )
-                    ),
-                    reraise=True,
-                ):
-                    with attempt:
-                        if attempt.retry_state.attempt_number > 1:
-                            print(
-                                f"[RETRY] Attempt {attempt.retry_state.attempt_number} for {agent_name} due to network error..."
+                    # Retry logic for network/protocol errors
+                    async for attempt in AsyncRetrying(
+                        stop=stop_after_attempt(5),  # Retry up to 5 times
+                        wait=wait_exponential(
+                            multiplier=1, min=2, max=30
+                        ),  # Exponential backoff
+                        retry=retry_if_exception_type(
+                            (
+                                httpx.RemoteProtocolError,
+                                httpcore.RemoteProtocolError,
+                                httpx.ReadTimeout,
+                                httpx.ConnectTimeout,
+                                httpx.PoolTimeout,
+                                TimeoutError,
+                                ConnectionError,
                             )
-                        result = await agent.process(context, **data)
-            else:
-                raise ValueError(
-                    f"Agent {agent_name} has no recognized execution method (missing 'process')"
-                )
+                        ),
+                        reraise=True,
+                    ):
+                        with attempt:
+                            if attempt.retry_state.attempt_number > 1:
+                                print(
+                                    f"[RETRY] Attempt {attempt.retry_state.attempt_number} for {agent_name} due to network error..."
+                                )
+                            result = await agent.process(context, **data)
+                else:
+                    raise ValueError(
+                        f"Agent {agent_name} has no recognized execution method (missing 'process')"
+                    )
 
-            print(f"[DEBUG] Agent method completed, result type: {type(result)}")
+                print(f"[DEBUG] Agent method completed, result type: {type(result)}")
+                
+                # Check if result indicates JSON parsing failure
+                # Results with JSON parsing failure will have specific markers
+                json_parse_failed = self._check_json_parse_failure(result)
+                
+                if json_parse_failed and json_parse_retry_count < max_json_parse_retries - 1:
+                    json_parse_retry_count += 1
+                    print(f"[JSON_RETRY] JSON parsing failed for {agent_name}, will retry ({json_parse_retry_count}/{max_json_parse_retries})...")
+                    continue  # Retry the agent execution
+                
+                # Save result to cache (only if not a JSON parse failure)
+                if not json_parse_failed:
+                    self.cache_manager.save_cache(
+                        agent_name=agent_name,
+                        input_data=str(data),
+                        output=result,
+                        metadata={
+                            "timestamp": datetime.now().isoformat(),
+                            "model": self.model,
+                        },
+                        step_id=step_id,
+                    )
+                else:
+                    print(f"[CACHE] Not caching result due to JSON parsing failure")
 
-            # Save result to cache
-            self.cache_manager.save_cache(
-                agent_name=agent_name,
-                input_data=str(data),
-                output=result,
-                metadata={
-                    "timestamp": datetime.now().isoformat(),
-                    "model": self.model,
-                },
-                step_id=step_id,
-            )
+                return result
 
-            return result
-
-        except Exception as e:
-            print(f"[ERROR] Agent {agent_name} execution failed: {str(e)}")
-            import traceback
-
-            traceback.print_exc()
-            raise
+            except JSONParseError as e:
+                # JSON parsing failed, retry the entire step
+                json_parse_retry_count += 1
+                print(f"[JSON_PARSE_ERROR] {str(e)}")
+                
+                if json_parse_retry_count >= max_json_parse_retries:
+                    print(f"[ERROR] Max JSON parsing retries ({max_json_parse_retries}) exceeded for {agent_name}")
+                    raise
+                
+                print(f"[JSON_RETRY] Will retry agent execution ({json_parse_retry_count}/{max_json_parse_retries})...")
+                continue
+                
+            except Exception as e:
+                print(f"[ERROR] Agent {agent_name} execution failed: {str(e)}")
+                import traceback
+                traceback.print_exc()
+                raise
+        
+        # Should not reach here, but just in case
+        raise RuntimeError(f"Agent {agent_name} execution failed after {max_json_parse_retries} JSON parsing retries")
+    
+    def _check_json_parse_failure(self, result: Any) -> bool:
+        """
+        Check if the agent result indicates a JSON parsing failure.
+        
+        JSON parsing failures are typically marked in the output with specific indicators.
+        
+        Args:
+            result: Agent output to check
+            
+        Returns:
+            True if JSON parsing failed, False otherwise
+        """
+        if result is None:
+            return True
+        
+        # Check for common JSON parse failure indicators in result
+        failure_indicators = [
+            "JSON parsing failed",
+            "JSON parse error",
+            "No valid JSON found",
+            "JSON decode error",
+        ]
+        
+        # Check in various fields that might contain error messages
+        fields_to_check = [
+            "overall_assessment",
+            "overall_analysis", 
+            "implementation_notes",
+            "execution_summary",
+            "analysis_summary",
+        ]
+        
+        for field in fields_to_check:
+            value = None
+            if hasattr(result, field):
+                value = getattr(result, field, None)
+            elif isinstance(result, dict) and field in result:
+                value = result.get(field)
+            
+            if value and isinstance(value, str):
+                for indicator in failure_indicators:
+                    if indicator.lower() in value.lower():
+                        return True
+        
+        return False
 
     def _update_context_with_result(
         self, context: WorkflowContext, state: WorkflowState, result: Any
     ):
         """Update context with agent result."""
-        if state == WorkflowState.PRE_ANALYSIS:
-            context.pre_analysis_output = result
-        elif state == WorkflowState.CODE_PLAN:
-            context.code_plan_output = result
-        elif state == WorkflowState.CODE_IMPLEMENT:
-            context.code_implement_output = result
-        elif state == WorkflowState.CODE_JUDGE:
-            context.code_judge_output = result
-        elif state == WorkflowState.EXPERIMENT_EXECUTE:
-            context.experiment_execute_output = result
-        elif state == WorkflowState.EXPERIMENT_ANALYSIS:
-            context.experiment_analysis_output = result
+        state_to_attr = {
+            WorkflowState.PRE_ANALYSIS: "pre_analysis_output",
+            WorkflowState.CODE_PLAN: "code_plan_output",
+            WorkflowState.CODE_IMPLEMENT: "code_implement_output",
+            WorkflowState.CODE_JUDGE: "code_judge_output",
+            WorkflowState.EXPERIMENT_EXECUTE: "experiment_execute_output",
+            WorkflowState.EXPERIMENT_ANALYSIS: "experiment_analysis_output",
+        }
+        if state in state_to_attr:
+            setattr(context, state_to_attr[state], result)
+        
+        # Special handling for code_judge: update issue tracker
+        if state == WorkflowState.CODE_JUDGE and result is not None:
+            self._update_issue_tracker(context, result)
+    
+    def _update_issue_tracker(self, context: WorkflowContext, judge_output: Any) -> None:
+        """
+        Update issue tracker with judge output.
+        
+        This method:
+        1. Gets or creates the issue tracker
+        2. Processes judge output to update issue tracking
+        3. Saves tracker state back to context
+        """
+        try:
+            # Get tracker (creates new if none exists)
+            tracker = context.get_issue_tracker()
+            
+            # Convert judge_output to dict if needed
+            if hasattr(judge_output, "model_dump"):
+                judge_dict = judge_output.model_dump()
+            elif hasattr(judge_output, "dict"):
+                judge_dict = judge_output.dict()
+            elif isinstance(judge_output, dict):
+                judge_dict = judge_output
+            else:
+                print("[ISSUE_TRACKER] Warning: Cannot process judge output - unknown format")
+                return
+            
+            # Process the judge output
+            summary = tracker.process_judge_output(
+                judge_dict, 
+                context.execution_step_counter
+            )
+            
+            print(f"[ISSUE_TRACKER] Summary:")
+            print(f"  New issues: {summary['new_issues']}")
+            print(f"  Updated issues: {summary['updated_issues']}")
+            print(f"  Resolved issues: {summary['resolved_issues']}")
+            print(f"  Total open: {summary['total_open']}")
+            
+            # Save tracker state back to context
+            context.save_issue_tracker(tracker)
+            
+        except Exception as e:
+            print(f"[ISSUE_TRACKER] Error updating tracker: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _check_state_output_exists(self, context: WorkflowContext) -> bool:
+        """Check if current state's output already exists."""
+        state_to_attr = {
+            WorkflowState.PRE_ANALYSIS: "pre_analysis_output",
+            WorkflowState.CODE_PLAN: "code_plan_output",
+            WorkflowState.CODE_IMPLEMENT: "code_implement_output",
+            WorkflowState.CODE_JUDGE: "code_judge_output",
+            WorkflowState.EXPERIMENT_EXECUTE: "experiment_execute_output",
+            WorkflowState.EXPERIMENT_ANALYSIS: "experiment_analysis_output",
+        }
+        attr = state_to_attr.get(context.current_state)
+        if not attr:
+            return False
+        output = getattr(context, attr, None)
+        # Don't skip code_plan if this is a re-planning iteration
+        if context.current_state == WorkflowState.CODE_PLAN and context.iteration_count > 0:
+            return False
+        return output is not None
+
 
     def _build_final_output(self, context: WorkflowContext) -> ExperimentMasterOutput:
         """Build final output from workflow context."""
         workflow_completed = context.current_state == WorkflowState.COMPLETED
         final_status = context.current_state.value
 
-        # Build workflow history from state transitions
-        workflow_history = []
-        for i, transition in enumerate(context.state_history, 1):
-            step = WorkflowStep(
+        # Build workflow history
+        workflow_history = [
+            WorkflowStep(
                 step_number=i,
-                agent_name=self.state_machine.get_required_agent(transition.to_state)
-                or transition.to_state.value,
-                status=(
-                    "completed"
-                    if transition.to_state != WorkflowState.FAILED
-                    else "failed"
-                ),
-                summary=transition.reason[:200],
+                agent_name=self.state_machine.get_required_agent(t.to_state) or t.to_state.value,
+                status="completed" if t.to_state != WorkflowState.FAILED else "failed",
+                summary=t.reason[:200],
             )
-            workflow_history.append(step)
+            for i, t in enumerate(context.state_history, 1)
+        ]
 
-        # Extract summary from analysis output
-        overall_summary = ""
-        key_findings = []
-        final_recommendations = ""
-
-        if context.experiment_analysis_output:
-            # Map overall_analysis to overall_summary
-            if hasattr(context.experiment_analysis_output, "overall_analysis"):
-                overall_summary = context.experiment_analysis_output.overall_analysis
-
-            # Map unexpected_findings and potential_issues to key_findings
-            findings_list = []
-            if hasattr(context.experiment_analysis_output, "unexpected_findings"):
-                findings_list.extend(
-                    context.experiment_analysis_output.unexpected_findings
-                )
-            if hasattr(context.experiment_analysis_output, "potential_issues"):
-                findings_list.extend(
-                    context.experiment_analysis_output.potential_issues
-                )
-            key_findings = findings_list
-
-            # Map next_steps and priority_actions to final_recommendations
-            recommendation_parts = []
-            if hasattr(context.experiment_analysis_output, "next_steps"):
-                recommendation_parts.append(
-                    context.experiment_analysis_output.next_steps
-                )
-
-            if hasattr(context.experiment_analysis_output, "priority_actions"):
-                actions = context.experiment_analysis_output.priority_actions
-                if actions:
-                    recommendation_parts.append(
-                        "Priority Actions:\n" + "\n".join(f"- {a}" for a in actions)
-                    )
-
-            if recommendation_parts:
-                final_recommendations = "\n\n".join(recommendation_parts)
+        # Extract from analysis output
+        overall_summary, key_findings, final_recommendations = self.experiment_analysis_agent.extract_summary(
+            context.experiment_analysis_output
+        )
 
         if not overall_summary:
-            overall_summary = f"Workflow {final_status} after {context.iteration_count} iterations. Final state: {context.current_state.value}"
+            overall_summary = f"Workflow {final_status} after {context.iteration_count} iterations."
 
         return ExperimentMasterOutput(
             workflow_completed=workflow_completed,
@@ -644,6 +742,7 @@ class ExperimentMasterAgent:
             key_findings=key_findings,
             final_recommendations=final_recommendations,
         )
+
 
     def run_workflow_sync(
         self,

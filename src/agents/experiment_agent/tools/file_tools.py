@@ -75,33 +75,48 @@ def _validate_path_security(
             from src.agents.experiment_agent.config import PROJECT_ROOT, WORKSPACE_ROOT
 
             if allow_read_only:
-                # READ MODE: Try PROJECT_ROOT first, then WORKSPACE_ROOT
-                project_abs = os.path.abspath(
-                    os.path.join(
-                        os.path.abspath(os.path.expanduser(PROJECT_ROOT)), file_path
-                    )
+                # READ MODE: Always validate against WORKSPACE_ROOT for read-only operations
+                # This allows reading from project/, repos/, dataset_candidate/, etc.
+                workspace_root_abs = (
+                    os.path.abspath(os.path.expanduser(WORKSPACE_ROOT))
+                    if WORKSPACE_ROOT
+                    else ""
                 )
-                workspace_abs = os.path.abspath(
-                    os.path.join(
-                        os.path.abspath(os.path.expanduser(WORKSPACE_ROOT)), file_path
-                    )
+                project_root_abs = (
+                    os.path.abspath(os.path.expanduser(PROJECT_ROOT))
+                    if PROJECT_ROOT
+                    else ""
                 )
 
-                if os.path.exists(project_abs):
+                # Try resolving the path
+                project_abs = (
+                    os.path.abspath(os.path.join(project_root_abs, file_path))
+                    if project_root_abs
+                    else ""
+                )
+                workspace_abs = (
+                    os.path.abspath(os.path.join(workspace_root_abs, file_path))
+                    if workspace_root_abs
+                    else ""
+                )
+
+                # Determine which resolved path exists
+                if project_abs and os.path.exists(project_abs):
                     abs_path = project_abs
-                    abs_root = os.path.abspath(
-                        os.path.expanduser(PROJECT_ROOT)
-                    )  # Validate against project root
-                elif os.path.exists(workspace_abs):
+                elif workspace_abs and os.path.exists(workspace_abs):
                     abs_path = workspace_abs
-                    abs_root = os.path.abspath(
-                        os.path.expanduser(WORKSPACE_ROOT)
-                    )  # Validate against workspace root
                 else:
-                    # Default to checking against the provided root_dir (which is usually WORKSPACE_ROOT in read mode)
-                    # to allow listing directories that don't fully resolve yet
-                    abs_root = os.path.abspath(os.path.expanduser(root_dir))
+                    # Default to workspace-based resolution
+                    abs_root = (
+                        workspace_root_abs if workspace_root_abs else project_root_abs
+                    )
                     abs_path = os.path.abspath(os.path.join(abs_root, file_path))
+
+                # For read-only operations, ALWAYS validate against WORKSPACE_ROOT (broader scope)
+                # This is the key fix: abs_root should be WORKSPACE_ROOT, not PROJECT_ROOT
+                abs_root = (
+                    workspace_root_abs if workspace_root_abs else project_root_abs
+                )
             else:
                 # WRITE MODE: Always PROJECT_ROOT
                 abs_root = os.path.abspath(os.path.expanduser(PROJECT_ROOT))
@@ -127,11 +142,18 @@ def _validate_path_security(
         return False, "", f"Validation error: {str(e)}"
 
 
+# Limits for large file handling
+MAX_READ_BYTES = 100 * 1024  # 100KB
+MAX_READ_LINES = 2000
+
+
 @function_tool
 def read_file(file_path: str, encoding: str = "utf-8") -> Dict[str, Any]:
     """
     Read content from a file.
     Scope: WORKSPACE_ROOT (Can read project/, repos/, papers/, datasets/)
+
+    For large files (>100KB or >2000 lines), returns the first portion with a truncation notice.
     """
     # Allow reading from entire workspace
     is_valid, abs_path, error_msg = _validate_path_security(
@@ -142,16 +164,65 @@ def read_file(file_path: str, encoding: str = "utf-8") -> Dict[str, Any]:
         return {"success": False, "error": error_msg}
 
     try:
-        with open(abs_path, "r", encoding=encoding) as f:
-            content = f.read()
+        file_size = os.path.getsize(abs_path)
+        truncated = False
+        truncation_reason = ""
 
-        return {
+        # Read file with size limit
+        with open(abs_path, "r", encoding=encoding, errors="replace") as f:
+            if file_size > MAX_READ_BYTES:
+                # Read only first MAX_READ_BYTES
+                content = f.read(MAX_READ_BYTES)
+                truncated = True
+                truncation_reason = f"File too large ({file_size:,} bytes). Showing first {MAX_READ_BYTES:,} bytes."
+            else:
+                content = f.read()
+
+        # Check line count and truncate if needed
+        lines = content.split("\n")
+        total_lines_read = len(lines)
+
+        if not truncated and total_lines_read > MAX_READ_LINES:
+            # Truncate by lines
+            content = "\n".join(lines[:MAX_READ_LINES])
+            truncated = True
+            truncation_reason = (
+                f"File has many lines. Showing first {MAX_READ_LINES} lines."
+            )
+
+        # Count total lines in original file if truncated
+        if truncated:
+            # For large files, estimate total lines
+            if file_size > MAX_READ_BYTES:
+                # Estimate based on average line length from what we read
+                avg_line_len = MAX_READ_BYTES / max(total_lines_read, 1)
+                estimated_total_lines = (
+                    int(file_size / avg_line_len)
+                    if avg_line_len > 0
+                    else total_lines_read
+                )
+                line_count_info = f"~{estimated_total_lines:,} (estimated)"
+            else:
+                line_count_info = str(total_lines_read)
+
+            content += f"\n\n... [TRUNCATED] {truncation_reason} ..."
+        else:
+            line_count_info = str(content.count("\n") + 1)
+
+        result = {
             "success": True,
             "content": content,
             "file_path": abs_path,
-            "size_bytes": os.path.getsize(abs_path),
-            "line_count": content.count("\n") + 1,
+            "size_bytes": file_size,
+            "line_count": line_count_info,
+            "truncated": truncated,
         }
+
+        if truncated:
+            result["truncation_note"] = truncation_reason
+
+        return result
+
     except Exception as e:
         return {"success": False, "error": f"Read error: {str(e)}"}
 

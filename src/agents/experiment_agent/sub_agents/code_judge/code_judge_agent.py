@@ -8,10 +8,7 @@ from the code plan and pre-analysis, identifying issues and providing feedback.
 import os
 from typing import Optional, Any
 
-from src.agents.experiment_agent.config import (
-    OUTPUT_UNIFIER_MODEL,
-)
-from agents import Agent, Runner
+from agents import Agent, Runner, RunConfig, ModelSettings
 from src.agents.experiment_agent.sub_agents.code_judge.output_schemas import (
     CodeJudgeOutput,
 )
@@ -21,8 +18,17 @@ from src.agents.experiment_agent.utils.common_utils import (
     extract_core_plan_context,
     extract_analysis_summary,
 )
+from src.agents.experiment_agent.utils.json_utils import (
+    extract_and_parse_json,
+    generate_json_schema_instruction,
+    JSONParseError,
+)
 
 from src.agents.experiment_agent.utils.print_utils import *
+
+
+# Generate JSON output instruction for CodeJudgeOutput
+CODE_JUDGE_JSON_OUTPUT_INSTRUCTION = generate_json_schema_instruction(CodeJudgeOutput)
 
 
 def create_judge_agent(
@@ -32,49 +38,166 @@ def create_judge_agent(
     Create the code judge agent for reviewing implementation.
     """
 
-    instructions = f"""You are the Lead QA Engineer. Your job is to certify that the Current Implementation Step is complete, correct, and bug-free.
+    instructions = f"""You are the QA Engineer certifying code quality. **ZERO TOLERANCE** for issues.
 
-### SCOPE
-- **Target**: Files listed in `files_to_create` / `files_to_modify` for the Current Step.
-- **Context**: Project Root is `{working_dir}/project`.
+## WORKFLOW: 1️⃣ INSPECT → 2️⃣ TEST → 3️⃣ JUDGE
 
-### WORKFLOW
-You must strictly follow this verification pipeline:
+---
 
-1. **INSPECTION**
-   - Use `read_file` to examine the code implemented in this step.
-   - Verify: Are imports correct? (No `project.` prefix).
-   - Verify: Are all required functions/classes defined?
+## 1️⃣ INSPECT (Interface Audit)
 
-2. **VERIFICATION (Dynamic Testing)**
-   - You are the ONLY agent authorized to write tests.
-   - Generate **MINIMAL, LIGHTWEIGHT** unit tests (2-5 tests) to verify the new code works.
-   - **Action**:
-     1. Write test file: `write_file("{working_dir}/project/tests/test_step_X.py", code)`
-     2. Run test: `run_pytest_local("tests/", working_dir="{working_dir}/project")`
-   - **Constraint**: Tests must be fast (< 30s). Mock heavy resources.
-   - **Constraint**: Include `sys.path.append(os.getcwd())` in your test files to ensure `models`, `utils`, etc. are importable.
-   - **CRITICAL**: Keep test code SHORT to avoid output truncation.
+| Check | Method | Flag If |
+|-------|--------|---------|
+| Imports | `read_file` target files | Import doesn't resolve to actual export |
+| Data contracts | Trace producer→consumer | Output format ≠ expected input format |
+| Signatures | Compare definition vs calls | Mismatch in params/types |
+| Breaking changes | Check callers of modified APIs | Callers not updated |
 
-3. **ADJUDICATION**
-   - Based on code inspection AND test results, determine `is_consistent`.
-   - If tests fail -> `is_consistent: False`.
-   - If logic is flawed -> `is_consistent: False`.
-   - If strictly consistent with Plan and passes tests -> `is_consistent: True`.
+🚫 Flag as **CRITICAL** if Implement Agent didn't read related files before coding.
 
-### OUTPUT FORMAT
-Provide your evaluation in clear, detailed text. Your response MUST include the following sections:
+---
 
-1. **Overall Assessment**: High-level summary of the code quality and consistency.
-2. **Scores**:
-   - Plan Consistency Score (0.0 - 1.0)
-   - Analysis Consistency Score (0.0 - 1.0)
-3. **Consistency Verdict**: Whether the code is consistent with the plan (True/False).
-4. **Issues Identified**: List any issues found (Logic Errors, Missing Implementation, Quality Issues, etc.). For each issue, specify the file, severity, and a brief description.
-5. **Strengths**: List aspects that are well implemented.
-6. **Missing/Extra Components**: Components specified in the plan but missing, or extra components not in the plan.
-7. **Unit Tests**: List the test files created and a brief description of what they verify.
-8. **Recommendations**: Priority fixes and next steps.
+## 2️⃣ TEST (Dynamic Verification)
+
+**Execute ALL tests:**
+1. Create/modify test files:
+   - **For NEW test files**: Use `write_file(file_path="{working_dir}/project/tests/test_step_X.py", contents=code)`
+   - **For EXISTING test files**: Prefer `edit_file` to modify specific test cases instead of rewriting the entire file
+   - ⚠️ **CRITICAL JSON SYNTAX RULES** (for both tools): 
+     - The `contents`/`new_content` argument MUST be a SINGLE LINE string in the JSON payload.
+     - Replace ALL actual newlines in the code with `\\n`.
+     - Escape ALL double quotes (`"`) as `\\"`.
+     - Escape ALL backslashes (`\\`) as `\\\\`.
+     - DO NOT include actual line breaks inside the JSON string value.
+2. `run_pytest_local("tests/", working_dir="{working_dir}/project")`
+
+**Required Test Types:**
+
+| Test | Purpose |
+|------|---------|
+| Interface Contract | Producer output matches consumer input |
+| Integration | Real data flow between components |
+| Smoke | Main entrypoint runs without crash |
+
+**Test Constraints:**
+- Include `sys.path.append(os.getcwd())` for imports
+- Keep tests SHORT (< 30s, mock heavy resources)
+
+---
+
+## 3️⃣ JUDGE (Decision)
+
+**Decision Matrix (NO EXCEPTIONS):**
+
+| Condition | is_consistent | Score Constraint |
+|-----------|---------------|------------------|
+| ANY test fails | **False** | < 0.5 |
+| ANY critical issue | **False** | < 0.5 |
+| ANY major issue | **False** | < 0.6 |
+| ANY minor issue | **False** | < 0.7 |
+| ALL pass + zero issues | **True** | ≥ 0.8 |
+
+---
+
+## FAILURE PATTERNS
+
+| Pattern | Example |
+|---------|---------|
+| Contract violation | Function returns dict, caller expects object |
+| Undefined reference | Import/variable/field not defined |
+| Integration gap | Works isolated, fails connected |
+| Missing validation | No checks for None/empty/wrong type |
+
+---
+
+## ⚠️ PREVIOUSLY IDENTIFIED ISSUES
+
+If the input includes a "PREVIOUSLY IDENTIFIED ISSUES" section:
+1. **CHECK EACH ISSUE** - Verify if it has been resolved in the current implementation
+2. **If RESOLVED** - Do NOT include it in your output (the system will auto-detect resolution)
+3. **If STILL PRESENT** - Include it in your output with updated details
+4. **RECURRING issues** are HIGH PRIORITY - mark them appropriately
+
+---
+
+## 🔍 ISSUE REPORTING REQUIREMENTS (MANDATORY)
+
+When reporting issues, you MUST provide **SPECIFIC, ACTIONABLE** details:
+
+### REQUIRED for EVERY issue:
+1. **Exact file path** (e.g., `models/encoder.py`)
+2. **Line numbers** if possible (e.g., "lines 45-52")
+3. **Concrete code example** showing the problem
+4. **Concrete fix suggestion** with code example
+
+### GOOD Example:
+```
+[MAJOR] models/encoder.py (lines 45-52):
+  Problem: Encoder uses fixed flattened_size=1024 but input grid_size=64 produces 256 features.
+  Current code:
+    self.fc = nn.Linear(1024, hidden_dim)  # Wrong: hardcoded
+  Expected fix:
+    # Option 1: Use adaptive pooling
+    self.pool = nn.AdaptiveAvgPool2d((1, 1))
+    self.fc = nn.Linear(channels, hidden_dim)
+    
+    # Option 2: Compute dynamically
+    with torch.no_grad():
+        dummy = torch.zeros(1, in_channels, grid_size, grid_size)
+        flattened_size = self.conv(dummy).view(1, -1).shape[1]
+    self.fc = nn.Linear(flattened_size, hidden_dim)
+```
+
+### BAD Example (DO NOT DO THIS):
+```
+[MAJOR] encoder.py: The encoder has size mismatch issues.
+  Suggestion: Fix the size calculation.
+```
+
+---
+
+## PRINCIPLE
+
+**When in doubt, REJECT.** You are the last line of defense.
+
+---
+
+## 🚫 PROHIBITED FILE CREATION
+
+**DO NOT create any of the following files:**
+- `STEP*_COMPLETION*.json` or any completion report files
+- `STEP*_REPORT*.json` or any report JSON files  
+- `*_EVALUATION*.json` files (except for actual test result data)
+- `*_SUMMARY*.json` or `*_SUMMARY*.md` summary files
+- Any markdown report files like `*_REPORT.md`
+
+**You should ONLY create:**
+- Test files in `tests/` directory (e.g., `tests/test_step_X.py`)
+- Nothing else. Your output is the JSON response, not files.
+
+## 📁 TEST FILE LOCATION RULE
+
+**ALL test files and test-related folders MUST be placed in `tests/` directory:**
+- ✅ `{working_dir}/project/tests/test_step_1.py`
+- ✅ `{working_dir}/project/tests/test_integration.py`
+- ✅ `{working_dir}/project/tests/fixtures/` (test fixtures)
+- ❌ `{working_dir}/project/test_*.py` (NOT in project root)
+- ❌ `{working_dir}/project/evaluation_results/` (NOT outside tests/)
+- ❌ `{working_dir}/project/test_results/` (NOT as separate folder)
+
+---
+
+## OUTPUT FORMAT (JSON - CRITICAL)
+
+After completing your evaluation, you MUST output your result as a JSON object.
+
+{CODE_JUDGE_JSON_OUTPUT_INSTRUCTION}
+
+**Important JSON Field Mappings:**
+- `is_consistent`: Boolean - True ONLY if ALL tests pass AND zero issues
+- `issues`: List of CodeIssue objects with file_path, issue_type, severity, description, expected, actual, suggestion, line_numbers
+- `unit_tests`: List of UnitTestSpec objects with test_file_path, test_code, test_description, target_files, time_limit_seconds
+- `implementation_suggestions`: List of strings - improvement suggestions
 """
 
     agent = Agent(
@@ -86,31 +209,6 @@ Provide your evaluation in clear, detailed text. Your response MUST include the 
     )
 
     return agent
-
-
-def create_output_unifier_agent(model: str = "gpt-4o") -> Agent:
-    """
-    Create an agent to unify code judge output into structured format.
-    """
-    return Agent(
-        name="Judge Output Unifier",
-        instructions="""You are an expert data structuring assistant.
-Your task is to convert the raw text evaluation from the Code Judge into a structured JSON format.
-
-Input text will contain:
-- Overall assessment
-- Consistency scores
-- Issues found
-- Strengths and weaknesses
-- Unit tests information
-
-You must extract this information and map it to the `CodeJudgeOutput` structure.
-Ensure all fields are correctly populated based on the text.
-If specific details are missing, use reasonable defaults or empty lists.
-""",
-        output_type=CodeJudgeOutput,
-        model=OUTPUT_UNIFIER_MODEL,
-    )
 
 
 class CodeJudgeAgent:
@@ -129,14 +227,12 @@ class CodeJudgeAgent:
         self.working_dir = working_dir
         self.verbose = verbose
 
-        # Create hooks for verbose output
-        self.hooks = (
-            create_verbose_hooks(
-                show_llm_responses=verbose,
-                show_tools=verbose,
-            )
-            if verbose
-            else None
+        # Always create hooks to show tool arguments
+        # verbose mode controls whether to show detailed responses and results
+        self.hooks = create_verbose_hooks(
+            show_llm_responses=verbose,
+            show_tools=verbose,
+            show_tool_args=True,  # Always show tool arguments
         )
 
         # Auto-load recommended tools if not provided
@@ -154,19 +250,57 @@ class CodeJudgeAgent:
             model=model, working_dir=working_dir, tools=self.tools
         )
 
-        # Initialize output unifier
-        self.output_unifier = create_output_unifier_agent(model=model)
-
         # Expose judge agent as main agent for handoff compatibility
         self.agent = self.judge_agent
+
+    def _get_checklist_from_plan(self, code_plan_output: Any) -> list:
+        """Get implementation checklist from code plan output."""
+        if not code_plan_output:
+            return []
+        
+        # Unified access
+        checklist = code_plan_output.get("implementation_checklist", [])
+        
+        # Convert dict items to objects for consistent attribute access
+        if checklist and isinstance(checklist[0], dict):
+            class ChecklistStep:
+                def __init__(self, data):
+                    for key, value in data.items():
+                        setattr(self, key, value)
+            checklist = [ChecklistStep(item) for item in checklist]
+        
+        return checklist
+    
+    def _extract_issue_history(self, context: Any) -> str:
+        """Extract issue history from context's issue tracker for judge agent."""
+        if not hasattr(context, 'get_issue_tracker') or not hasattr(context, 'issue_tracker_data'):
+            return ""
+        
+        if context.issue_tracker_data is None:
+            return ""
+        
+        try:
+            tracker = context.get_issue_tracker()
+            return tracker.format_for_judge_agent()
+        except Exception as e:
+            print(f"[CODE_JUDGE] Warning: Could not extract issue history: {e}")
+            return ""
 
     async def process(self, context: Any, **kwargs) -> CodeJudgeOutput:
         """
         Process the current step using context data.
         """
-        data = kwargs
-        current_step = data.get("current_step", None)
-        checklist_progress = data.get("checklist_progress", "")
+        # Extract data from context
+        plan = context.get("code_plan_output", None)
+        checklist = self._get_checklist_from_plan(plan)
+        
+        current_step_idx = context.get("current_checklist_step", 0)
+        current_step = None
+        checklist_progress = ""
+        
+        if checklist and current_step_idx < len(checklist):
+            current_step = checklist[current_step_idx]
+            checklist_progress = f"Step {current_step_idx + 1}/{len(checklist)}"
 
         target_files_context = ""
         if current_step:
@@ -185,16 +319,20 @@ class CodeJudgeAgent:
                     continue
                 if f.endswith("/"):
                     continue
-                full_path = os.path.join(self.working_dir, "project", f)
+                # Remove duplicate "project/" prefix if present
+                clean_f = f.strip().lstrip("/").lstrip("\\")
+                if clean_f.startswith("project/") or clean_f.startswith("project\\"):
+                    clean_f = clean_f[8:]
+                full_path = os.path.join(self.working_dir, "project", clean_f)
                 if os.path.exists(full_path) and os.path.isdir(full_path):
                     continue
-                actual_files.append(f)
+                actual_files.append(clean_f)
 
             if actual_files:
                 file_contents = []
                 for f in actual_files:
-                    # Ensure f is a clean relative path
-                    clean_f = f.strip().lstrip("/").lstrip("\\")
+                    # f is already cleaned in the loop above
+                    clean_f = f
 
                     # 1. Try standard location: working_dir/project/path
                     project_path = os.path.join(self.working_dir, "project", clean_f)
@@ -257,18 +395,20 @@ Files to Modify: {', '.join(current_step.files_to_modify) if current_step.files_
 Acceptance Criteria:
 {chr(10).join(f'  - {criterion}' for criterion in current_step.acceptance_criteria)}
 
-Dependencies: {', '.join(map(str, current_step.dependencies)) if current_step.dependencies else 'None'}
-Complexity: {current_step.estimated_complexity}
-
 Progress: {checklist_progress}
 """
 
         core_plan_context = extract_core_plan_context(context.code_plan_output)
+        
+        # Get issue history for tracking recurring problems
+        issue_history_section = self._extract_issue_history(context)
 
         input_data = f"""Review the following code implementation (STEP-BY-STEP MODE):
 {step_info}
 
 {target_files_context}
+
+{issue_history_section}
 
 === GLOBAL DESIGN CONTEXT ===
 {core_plan_context}
@@ -281,7 +421,9 @@ Project directory: {self.working_dir}/project
 
 INSTRUCTIONS:
 1. Check files in the Project Directory using available tools.
-2. Execute the VERIFICATION pipeline (write test -> run test -> judge).
+2. If there are PREVIOUSLY IDENTIFIED ISSUES, check if each one has been resolved.
+3. Execute the VERIFICATION pipeline (write test -> run test -> judge).
+4. Report issues with SPECIFIC details (file path, line numbers, code examples, concrete fixes).
 """
 
         return await self.judge(input_data)
@@ -302,8 +444,8 @@ INSTRUCTIONS:
 ### EXECUTION REQUIRED
 You must strictly follow the WORKFLOW defined in your system instructions.
 1. INSPECT: `read_file` target files.
-2. TEST: `write_file` (tests/test_step_x.py) -> `run_pytest_local`.
-3. JUDGE: Return `CodeJudgeOutput` based on results.
+2. TEST: `write_file` (ensure valid JSON escaping: \\n for newlines, \\" for quotes) -> `run_pytest_local`.
+3. JUDGE: Return JSON output based on results.
 
 Current Working Directory: `{self.working_dir}`
 Project Root: `{self.working_dir}/project`
@@ -312,9 +454,17 @@ Project Root: `{self.working_dir}/project`
         print_subsection("Evaluating Current Step Implementation")
         print_info("Reviewing code and running verification tests...")
 
+        run_config = RunConfig(
+            model_settings=ModelSettings(max_tokens=128*1024)
+        )
+
         # Use streamed version for real-time output
         result_stream = Runner.run_streamed(
-            self.judge_agent, judge_input, hooks=self.hooks, max_turns=100
+            self.judge_agent, 
+            judge_input, 
+            hooks=self.hooks, 
+            max_turns=100,
+            run_config=run_config
         )
         final_text = ""
         async for event in result_stream.stream_events():
@@ -341,59 +491,34 @@ Project Root: `{self.working_dir}/project`
             # Fallback: get last message
             final_text = result_stream.chat_history[-1].content
 
-        print_success("Judge analysis completed. Formatting output...")
+        print_success("Judge analysis completed. Parsing JSON output...")
 
-        # Step 2: Unify output
-        unifier_input = f"""
-Please convert the following code judge evaluation into the structured `CodeJudgeOutput` format.
-
-=== JUDGE EVALUATION ===
-{final_text}
-"""
-        unifier_stream = Runner.run_streamed(
-            self.output_unifier, unifier_input, hooks=None
-        )
-
-        # We can just await the final result for the unifier
-        result = unifier_stream
-
-        # Ensure we wait for completion if needed (though run_streamed usually completes)
-        # In the current Runner implementation, we iterate to drive it or access final_output after iteration
-        async for _ in unifier_stream.stream_events():
-            pass
-
-        evaluation: CodeJudgeOutput = result.final_output
+        # Extract and parse JSON from the judge output
+        # Use raise_on_failure=True to trigger retry in master agent
+        try:
+            evaluation = extract_and_parse_json(final_text, CodeJudgeOutput, raise_on_failure=True)
+        except JSONParseError as e:
+            # Re-raise JSONParseError to trigger retry in master agent
+            print_error(f"JSON parsing failed, will trigger retry: {e}")
+            raise
+        except Exception as e:
+            print_error(f"Failed to parse JSON output: {e}")
+            print_warning("Creating minimal evaluation structure...")
+            evaluation = CodeJudgeOutput(
+                is_consistent=False,
+                issues=[],
+                unit_tests=[],
+                implementation_suggestions=[f"JSON parsing failed: {str(e)}. Re-run evaluation."],
+            )
 
         # Display evaluation results
         print_subsection("Evaluation Results")
 
         if evaluation.is_consistent:
-            print_success(
-                f"Code review passed! (Consistency: {evaluation.is_consistent})"
-            )
-            print_info(
-                f"Plan consistency score: {evaluation.plan_consistency_score:.2f}"
-            )
-            print_info(
-                f"Analysis consistency score: {evaluation.analysis_consistency_score:.2f}"
-            )
+            print_success(f"Code review passed! (Consistency: {evaluation.is_consistent})")
         else:
-            print_error(
-                f"Code review failed! (Consistency: {evaluation.is_consistent})"
-            )
-            print_warning(
-                f"Plan consistency score: {evaluation.plan_consistency_score:.2f}"
-            )
-            print_warning(
-                f"Analysis consistency score: {evaluation.analysis_consistency_score:.2f}"
-            )
+            print_error(f"Code review failed! (Consistency: {evaluation.is_consistent})")
             print_warning(f"Issues found: {len(evaluation.issues)}")
-
-        print_result_box(
-            "Overall Assessment",
-            evaluation.overall_assessment,
-            max_length=1000,
-        )
 
         if evaluation.issues:
             print_subsection("Issues Identified")
@@ -414,11 +539,6 @@ Please convert the following code judge evaluation into the structured `CodeJudg
                     print(f"  Suggestion: {issue.suggestion}")
                 print()
 
-        if evaluation.strengths:
-            print_subsection("Strengths")
-            for strength in evaluation.strengths:
-                print_success(strength, indent=1)
-
         if evaluation.unit_tests:
             print_subsection("Unit Tests Generated")
             print_info(
@@ -429,11 +549,6 @@ Please convert the following code judge evaluation into the structured `CodeJudg
                 print(f"  Description: {test.test_description}")
                 print(f"  Target files: {', '.join(test.target_files)}")
                 print(f"  Time limit: {test.time_limit_seconds}s")
-
-        if evaluation.priority_fixes:
-            print_subsection("Priority Fixes Required")
-            for i, fix in enumerate(evaluation.priority_fixes, 1):
-                print_warning(f"{i}. {fix}", indent=1)
 
         print_success("Code review completed!")
         print_section("CODE REVIEW COMPLETE", "=")
@@ -476,15 +591,3 @@ def create_code_judge_agent(
         model=model, working_dir=working_dir, tools=tools, verbose=verbose
     )
 
-
-if __name__ == "__main__":
-    import asyncio
-
-    async def main():
-        print("Example 1: Simple creation")
-        print("=" * 60)
-
-        agent = create_code_judge_agent(model="gpt-4o")
-        print("✓ Code judge agent created with all tools automatically loaded\n")
-
-    asyncio.run(main())

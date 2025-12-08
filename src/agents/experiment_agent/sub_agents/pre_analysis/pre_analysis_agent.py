@@ -10,7 +10,7 @@ import os
 import time
 from typing import Dict, Optional, Any
 
-from agents import Agent, Runner
+from agents import Agent, Runner, RunConfig, ModelSettings
 
 from src.agents.experiment_agent.utils.common_utils import format_list, format_dict
 from src.agents.experiment_agent.logger import create_verbose_hooks
@@ -33,10 +33,12 @@ from src.agents.experiment_agent.sub_agents.pre_analysis.idea_algorithm_analyzer
 from src.agents.experiment_agent.sub_agents.pre_analysis.analysis_synthesizer import (
     create_analysis_synthesizer,
 )
-
-from src.agents.experiment_agent.config import OUTPUT_UNIFIER_MODEL
+from src.agents.experiment_agent.sub_agents.pre_analysis.code_repo_analyzer import (
+    create_code_repo_analyzer_agent,
+)
 
 from src.agents.experiment_agent.utils.print_utils import *
+from src.agents.experiment_agent.utils.json_utils import extract_and_parse_json, JSONParseError
 
 
 class PreAnalysisAgent:
@@ -54,13 +56,12 @@ class PreAnalysisAgent:
         self.model = model
         self.verbose = verbose
 
-        self.hooks = (
-            create_verbose_hooks(
-                show_llm_responses=verbose,
-                show_tools=verbose,
-            )
-            if verbose
-            else None
+        # Always create hooks to show tool arguments
+        # verbose mode controls whether to show detailed responses and results
+        self.hooks = create_verbose_hooks(
+            show_llm_responses=verbose,
+            show_tools=verbose,
+            show_tool_args=True,  # Always show tool arguments
         )
 
         if workspace_dir is None:
@@ -102,28 +103,9 @@ class PreAnalysisAgent:
         )
 
         self.synthesizer = create_analysis_synthesizer(model=model)
-
-        # Initialize Output Unifier
-        self.output_unifier = Agent(
-            name="Pre-Analysis Output Unifier",
-            instructions="""You are an expert data structuring assistant.
-Your task is to extract structured information from the provided research analysis text and format it into the `PreAnalysisOutput` schema.
-
-Input text will contain sections for:
-- System Architecture
-- Conceptual Framework
-- Key Innovations
-- Algorithms
-- Mathematical Formulations
-- Technical Specifications
-- Executive Summary
-- Implementation Guidance
-
-Map these sections to the corresponding fields in the output schema.
-Preserve the detail and formatting (including LaTeX) of the original text.
-""",
-            output_type=PreAnalysisOutput,
-            model=OUTPUT_UNIFIER_MODEL,
+        
+        self.code_repo_analyzer = create_code_repo_analyzer_agent(
+            model=model, workspace_dir=workspace_dir, verbose=verbose
         )
 
         # Simplified Orchestrator Prompt
@@ -226,6 +208,7 @@ Methodology: {format_dict(idea_obj.get("methodology", {}))}
             concept_prompt,
             hooks=self.hooks,
             max_turns=100,
+            run_config=RunConfig(model_settings=ModelSettings(max_tokens=128*1024)),
         )
         async for event in concept_stream.stream_events():
             if hasattr(event, "data"):
@@ -272,6 +255,7 @@ Methodology: {format_dict(idea_obj.get("methodology", {}))}
             algo_prompt,
             hooks=self.hooks,
             max_turns=100,
+            run_config=RunConfig(model_settings=ModelSettings(max_tokens=128*1024)),
         )
         async for event in algorithm_stream.stream_events():
             if hasattr(event, "data"):
@@ -297,19 +281,41 @@ Methodology: {format_dict(idea_obj.get("methodology", {}))}
 
         print_success(f"Algorithm analysis completed")
 
-        # Step 4: Synthesis
-        print_subsection("Merging Analysis Results")
+        # Rate limiting
+        print_info(f"Waiting 5 seconds...", indent=0)
+        await asyncio.sleep(5)
+
+        # Step 4: Code Repository Analysis
+        print_subsection("Code Repository Analysis")
+        
+        research_context = f"""
+=== CONCEPT ANALYSIS ===
+{concept_analysis_text}
+
+=== ALGORITHM ANALYSIS ===
+{algorithm_analysis_text}
+"""
+        code_repos_info = await self.code_repo_analyzer.analyze(research_context)
+        print_success(f"Code repository analysis completed")
+
+        # Step 6: Synthesis - Synthesizer outputs JSON directly
+        print_subsection("Synthesizing and Generating JSON Output")
 
         synthesis_prompt = f"""
-Please synthesize the following analysis results:
+Synthesize the following analysis results into a JSON output:
 
-INPUT TYPE: {input_type}
+INPUT_TYPE: {input_type}
 
 === CONCEPT ANALYSIS ===
 {concept_analysis_text}
 
 === ALGORITHM ANALYSIS ===
 {algorithm_analysis_text}
+
+=== CODE REPOSITORIES ANALYSIS ===
+{code_repos_info}
+
+Output the structured JSON as specified in your instructions.
 """
 
         synthesis_stream = Runner.run_streamed(
@@ -317,8 +323,10 @@ INPUT TYPE: {input_type}
             synthesis_prompt,
             hooks=self.hooks,
             max_turns=100,
+            run_config=RunConfig(model_settings=ModelSettings(max_tokens=128*1024)),
         )
 
+        synthesis_json_text = ""
         async for event in synthesis_stream.stream_events():
             if hasattr(event, "data"):
                 event_type = type(event.data).__name__
@@ -326,45 +334,33 @@ INPUT TYPE: {input_type}
                     if hasattr(event.data, "delta"):
                         delta = event.data.delta
                         if hasattr(delta, "content") and delta.content:
+                            synthesis_json_text += delta.content
                             print(delta.content, end="", flush=True)
                         elif hasattr(delta, "text") and delta.text:
+                            synthesis_json_text += delta.text
                             print(delta.text, end="", flush=True)
 
-        synthesis_result = synthesis_stream
-        synthesis_text = ""
-        if hasattr(synthesis_result, "final_output") and isinstance(
-            synthesis_result.final_output, str
+        # Get final output from stream
+        if hasattr(synthesis_stream, "final_output") and isinstance(
+            synthesis_stream.final_output, str
         ):
-            synthesis_text = synthesis_result.final_output
+            synthesis_json_text = synthesis_stream.final_output
         elif (
-            hasattr(synthesis_result, "chat_history") and synthesis_result.chat_history
+            hasattr(synthesis_stream, "chat_history") and synthesis_stream.chat_history
         ):
-            synthesis_text = synthesis_result.chat_history[-1].content
+            synthesis_json_text = synthesis_stream.chat_history[-1].content
 
-        # Step 5: Unification
-        print_subsection("Unifying Output Format")
+        print()  # Newline after streaming
 
-        unifier_input = f"""
-Input Type: {input_type}
+        # Parse JSON directly from synthesizer output
+        # Use raise_on_failure=True to trigger retry in master agent
+        try:
+            unified_output = extract_and_parse_json(synthesis_json_text, PreAnalysisOutput, raise_on_failure=True)
+        except JSONParseError as e:
+            # Re-raise JSONParseError to trigger retry in master agent
+            print_error(f"JSON parsing failed, will trigger retry: {e}")
+            raise
 
-=== CONCEPT ANALYSIS ===
-{concept_analysis_text}
-
-=== ALGORITHM ANALYSIS ===
-{algorithm_analysis_text}
-
-=== SYNTHESIS ===
-{synthesis_text}
-"""
-        unifier_stream = Runner.run_streamed(
-            self.output_unifier, unifier_input, hooks=None
-        )
-
-        # Drive the unifier stream
-        async for _ in unifier_stream.stream_events():
-            pass
-
-        unified_output = unifier_stream.final_output
 
         print_success("Analysis results merged successfully")
         print_section("PRE-ANALYSIS COMPLETE", "=")

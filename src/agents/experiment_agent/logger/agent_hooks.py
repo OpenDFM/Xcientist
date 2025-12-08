@@ -53,17 +53,24 @@ class VerboseRunHooks(RunHooks):
     - Tool calls/results
     """
 
-    def __init__(self, show_llm_responses: bool = True, show_tools: bool = True):
+    def __init__(
+        self,
+        show_llm_responses: bool = True,
+        show_tools: bool = True,
+        show_tool_args: bool = True,
+    ):
         """
         Initialize verbose hooks.
 
         Args:
             show_llm_responses: Whether to show LLM response content
-            show_tools: Whether to show tool calls and results
+            show_tools: Whether to show tool results (detailed output)
+            show_tool_args: Whether to show tool call arguments (always recommended)
         """
         super().__init__()
         self.show_llm_responses = show_llm_responses
         self.show_tools = show_tools
+        self.show_tool_args = show_tool_args
         self.current_agent_name = None
         self.turn_count = 0
         self.current_step = None  # For displaying step number in agent header
@@ -282,9 +289,6 @@ class VerboseRunHooks(RunHooks):
 
     async def on_tool_start(self, *args, **kwargs):
         """Called when a tool execution starts."""
-        if not self.show_tools:
-            return
-
         # Extract tool info from ToolContext
         tool_ctx = args[0] if args else None
 
@@ -306,34 +310,63 @@ class VerboseRunHooks(RunHooks):
             except:
                 arguments = tool_ctx.tool_arguments
 
-        print(f"{Colors.OKGREEN}🔧 {tool_name}{Colors.ENDC}")
+        # Always print tool name
+        print(f"\n{Colors.OKGREEN}🔧 TOOL: {tool_name}{Colors.ENDC}")
 
-        # Show all arguments for debugging
-        if arguments and isinstance(arguments, dict):
-            print(f"{Colors.OKCYAN}   Arguments:{Colors.ENDC}")
+        # Show arguments (controlled by show_tool_args, default True)
+        if self.show_tool_args and arguments and isinstance(arguments, dict):
             for key, value in arguments.items():
                 # Truncate long values
                 val_str = str(value)
-                if len(val_str) > 200:
-                    val_str = val_str[:197] + "..."
-                print(f"{Colors.OKCYAN}     {key}:{Colors.ENDC} {val_str}")
+                if len(val_str) > 300:
+                    val_str = val_str[:297] + "..."
+                print(f"   {Colors.OKCYAN}{key}:{Colors.ENDC} {val_str}")
 
-        print(f"   {Colors.WARNING}Processing...{Colors.ENDC}", end=" ", flush=True)
+        if self.show_tools:
+            print(f"   {Colors.WARNING}Processing...{Colors.ENDC}", end=" ", flush=True)
 
     async def on_tool_end(self, *args, **kwargs):
         """Called when a tool execution ends."""
-        if not self.show_tools:
-            return
+        # Extract result - SDK signature: on_tool_end(context, agent, tool, result)
+        # args[0]=context, args[1]=agent, args[2]=tool, args[3]=result
+        result = args[3] if len(args) > 3 else kwargs.get("result", None)
 
-        # Extract result
-        result = args[1] if len(args) > 1 else kwargs.get("result", None)
+        # Extract tool name for special handling
+        tool_ctx = args[0] if args else None
+        tool_name = "Unknown"
+        if hasattr(tool_ctx, "tool_name"):
+            tool_name = tool_ctx.tool_name
+        elif len(args) > 2:
+            tool_arg = args[2]
+            if hasattr(tool_arg, "name"):
+                tool_name = tool_arg.name
+            elif isinstance(tool_arg, str):
+                tool_name = tool_arg
 
-        print(f"{Colors.OKGREEN}✓{Colors.ENDC}")
+        # Check if we should show full output (write_file error)
+        show_full_output = False
+        if tool_name == "write_file":
+            if isinstance(result, dict) and result.get("success") is False:
+                show_full_output = True
+            elif isinstance(result, str) and (
+                "An error occurred" in result
+                or "Error:" in result
+                or "Exception" in result
+            ):
+                show_full_output = True
+
+        # Always print completion indicator if we printed "Processing..."
+        if self.show_tools:
+            print(f"{Colors.OKGREEN}✓{Colors.ENDC}")
+        else:
+            # Print a simple completion message
+            print(f"   {Colors.OKGREEN}✓ Done{Colors.ENDC}")
 
         if result is None:
+            print(f"   {Colors.WARNING}📋 Result: (None){Colors.ENDC}")
             return
 
-        # Display tool output
+        # Always display tool output (with truncation)
         try:
             # Convert result to string for display
             result_str = None
@@ -345,47 +378,50 @@ class VerboseRunHooks(RunHooks):
                     # Show error info
                     error_msg = result.get("error", "Unknown error")
                     print(f"   {Colors.FAIL}❌ Error: {error_msg}{Colors.ENDC}")
-                    return
+                    # Still show result content for debugging
+                    result_str = json.dumps(result, indent=2, ensure_ascii=False)
                 elif success is True:
                     print(f"   {Colors.OKGREEN}✓ Success{Colors.ENDC}", end="")
 
-                # Try to show key information
-                key_info = []
+                    # Try to show key information
+                    key_info = []
 
-                # Common fields to show (with truncation for long values)
-                if "message" in result:
-                    msg = str(result["message"])
-                    if len(msg) > 60:
-                        msg = msg[:57] + "..."
-                    key_info.append(f"Message: {msg}")
-                if "total_count" in result:
-                    key_info.append(f"Count: {result['total_count']}")
-                if "file_path" in result:
-                    path = str(result["file_path"])
-                    if len(path) > 50:
-                        path = "..." + path[-47:]
-                    key_info.append(f"Path: {path}")
-                if "path" in result:
-                    path = str(result["path"])
-                    if len(path) > 50:
-                        path = "..." + path[-47:]
-                    key_info.append(f"Path: {path}")
-                if "files" in result and isinstance(result["files"], list):
-                    key_info.append(f"Files: {len(result['files'])} items")
-                if "directories" in result and isinstance(result["directories"], list):
-                    key_info.append(f"Dirs: {len(result['directories'])} items")
-                if "imports" in result and isinstance(result["imports"], list):
-                    key_info.append(f"Imports: {len(result['imports'])} items")
-                if "classes" in result and isinstance(result["classes"], list):
-                    key_info.append(f"Classes: {len(result['classes'])} items")
-                if "functions" in result and isinstance(result["functions"], list):
-                    key_info.append(f"Functions: {len(result['functions'])} items")
+                    # Common fields to show (with truncation for long values)
+                    if "message" in result:
+                        msg = str(result["message"])
+                        if len(msg) > 60:
+                            msg = msg[:57] + "..."
+                        key_info.append(f"Message: {msg}")
+                    if "total_count" in result:
+                        key_info.append(f"Count: {result['total_count']}")
+                    if "file_path" in result:
+                        path = str(result["file_path"])
+                        if len(path) > 50:
+                            path = "..." + path[-47:]
+                        key_info.append(f"Path: {path}")
+                    if "path" in result:
+                        path = str(result["path"])
+                        if len(path) > 50:
+                            path = "..." + path[-47:]
+                        key_info.append(f"Path: {path}")
+                    if "files" in result and isinstance(result["files"], list):
+                        key_info.append(f"Files: {len(result['files'])} items")
+                    if "directories" in result and isinstance(
+                        result["directories"], list
+                    ):
+                        key_info.append(f"Dirs: {len(result['directories'])} items")
+                    if "imports" in result and isinstance(result["imports"], list):
+                        key_info.append(f"Imports: {len(result['imports'])} items")
+                    if "classes" in result and isinstance(result["classes"], list):
+                        key_info.append(f"Classes: {len(result['classes'])} items")
+                    if "functions" in result and isinstance(result["functions"], list):
+                        key_info.append(f"Functions: {len(result['functions'])} items")
 
-                # If we have compact info, show it
-                if key_info:
-                    print(f" | {Colors.OKCYAN}{' | '.join(key_info)}{Colors.ENDC}")
-                else:
-                    print()  # newline after success
+                    # If we have compact info, show it
+                    if key_info:
+                        print(f" | {Colors.OKCYAN}{' | '.join(key_info)}{Colors.ENDC}")
+                    else:
+                        print()  # newline after success
 
                 # Try to extract main content for display
                 for content_key in ["content", "output", "result", "data", "text"]:
@@ -402,23 +438,27 @@ class VerboseRunHooks(RunHooks):
             else:
                 result_str = str(result)
 
-            # Display truncated output if we have content
+            # Always display truncated output
             if result_str and len(result_str.strip()) > 0:
                 # Avoid displaying Agent objects
                 if "Agent(name=" in result_str or "FunctionTool(name=" in result_str:
-                    # Skip displaying full agent/tool objects
-                    pass
+                    print(
+                        f"   {Colors.OKCYAN}📋 Result: (Agent/Tool object){Colors.ENDC}"
+                    )
+                elif show_full_output:
+                    print(f"   {Colors.OKCYAN}📋 Result (Full Error):{Colors.ENDC}")
+                    print(f"     {Colors.FAIL}{result_str}{Colors.ENDC}")
                 else:
-                    # Truncate to 1000 tokens (about 4000 chars)
-                    truncated_result = _truncate_to_tokens(result_str, max_tokens=1000)
+                    # Truncate to 500 tokens (about 2000 chars) for readability
+                    truncated_result = _truncate_to_tokens(result_str, max_tokens=5000)
                     print(f"   {Colors.OKCYAN}📋 Result:{Colors.ENDC}")
-                    # Show first 20 lines
+                    # Show first 15 lines max
                     lines = truncated_result.split("\n")
-                    max_display_lines = 20
+                    max_display_lines = 15
                     for line in lines[:max_display_lines]:
                         # Truncate very long lines
-                        if len(line) > 150:
-                            line = line[:147] + "..."
+                        if len(line) > 200:
+                            line = line[:117] + "..."
                         if line.strip():
                             print(f"     {Colors.OKBLUE}{line}{Colors.ENDC}")
                     if len(lines) > max_display_lines:
@@ -427,8 +467,10 @@ class VerboseRunHooks(RunHooks):
                         )
 
         except Exception as e:
-            # Silently fail - don't break tool execution
-            pass
+            # Show error for debugging
+            print(
+                f"   {Colors.FAIL}📋 Result parse error: {type(e).__name__}: {e}{Colors.ENDC}"
+            )
 
     async def on_handoff(self, *args, **kwargs):
         """Called when control is handed off between agents."""
@@ -449,13 +491,15 @@ class VerboseRunHooks(RunHooks):
 def create_verbose_hooks(
     show_llm_responses: bool = True,
     show_tools: bool = True,
+    show_tool_args: bool = True,
 ) -> VerboseRunHooks:
     """
     Create verbose run hooks for agent execution.
 
     Args:
         show_llm_responses: Whether to show full LLM responses
-        show_tools: Whether to show tool calls and results
+        show_tools: Whether to show detailed tool results
+        show_tool_args: Whether to show tool call arguments (default True)
 
     Returns:
         VerboseRunHooks instance
@@ -463,4 +507,5 @@ def create_verbose_hooks(
     return VerboseRunHooks(
         show_llm_responses=show_llm_responses,
         show_tools=show_tools,
+        show_tool_args=show_tool_args,
     )

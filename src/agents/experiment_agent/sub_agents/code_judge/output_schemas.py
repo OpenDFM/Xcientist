@@ -9,8 +9,10 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+from src.agents.experiment_agent.sub_agents.base.output_schemas import BaseDictModel
 
-class CodeIssue(BaseModel):
+
+class CodeIssue(BaseDictModel):
     """Individual code issue identified during review."""
 
     file_path: str = Field(description="Path to the file with the issue")
@@ -27,7 +29,7 @@ class CodeIssue(BaseModel):
     )
 
 
-class UnitTestSpec(BaseModel):
+class UnitTestSpec(BaseDictModel):
     """Specification for a unit test to verify implementation."""
 
     test_file_path: str = Field(
@@ -50,7 +52,7 @@ class UnitTestSpec(BaseModel):
     )
 
 
-class CodeJudgeOutput(BaseModel):
+class CodeJudgeOutput(BaseDictModel):
     """
     Output structure for code consistency evaluation.
 
@@ -62,37 +64,10 @@ class CodeJudgeOutput(BaseModel):
         description="Whether the code implementation is consistent with plan and analysis"
     )
 
-    overall_assessment: str = Field(
-        description="High-level assessment of the code implementation quality and consistency"
-    )
-
-    # Consistency evaluation
-    plan_consistency_score: float = Field(
-        description="Score (0-1) indicating consistency with the code plan"
-    )
-    analysis_consistency_score: float = Field(
-        description="Score (0-1) indicating consistency with the pre-analysis"
-    )
-
     # Detailed feedback
     issues: List[CodeIssue] = Field(
         default_factory=list,
         description="List of issues found in the implementation",
-    )
-
-    strengths: List[str] = Field(
-        default_factory=list,
-        description="Aspects of the implementation that are well done",
-    )
-
-    missing_components: List[str] = Field(
-        default_factory=list,
-        description="Components specified in plan but missing in implementation",
-    )
-
-    extra_components: List[str] = Field(
-        default_factory=list,
-        description="Components implemented but not specified in plan",
     )
 
     # Unit tests for verification
@@ -101,17 +76,7 @@ class CodeJudgeOutput(BaseModel):
         description="Unit tests generated to verify the current step implementation",
     )
 
-    # Recommendations
-    priority_fixes: List[str] = Field(
-        default_factory=list,
-        description="High-priority fixes that should be addressed first",
-    )
-
     implementation_suggestions: List[str] = Field(
         default_factory=list,
         description="Suggestions for improving the implementation",
-    )
-
-    next_steps: str = Field(
-        description="Recommended next steps based on the evaluation"
     )
