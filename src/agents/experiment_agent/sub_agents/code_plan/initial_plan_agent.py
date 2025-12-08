@@ -75,34 +75,7 @@ Use `list_files` + `read_file` to scan:
 **DO NOT** write markdown summaries like "Here is my plan..." or "I've designed...".
 **ONLY** output a valid JSON wrapped in ```json ... ``` code block.
 
-**REQUIRED JSON STRUCTURE:**
-```json
-{{
-  "plan_type": "initial",
-  "file_structure": [{{"path": "models/encoder.py", "description": "..."}}],
-  "dataset_plan": "...",
-  "model_plan": "...",
-  "training_plan": "...",
-  "implementation_checklist": [
-    {{
-      "step_id": "1",
-      "title": "Create Project Structure",
-      "description": "...",
-      "files_to_create": ["models/__init__.py"],
-      "files_to_modify": [],
-      "acceptance_criteria": ["Directory structure exists"]
-    }}
-  ],
-  "implementation_notes": "...",
-  "experiment_plan": {{
-    "baseline_method": "...",
-    "datasets": ["dataset1"],
-    "hyperparameter_space": "...",
-    "experiment_matrix": [],
-    "primary_metrics": ["accuracy"]
-  }}
-}}
-```
+{CODE_PLAN_JSON_OUTPUT_INSTRUCTION}
 
 ❌ WRONG: "Here is my implementation plan for the project..."
 ✅ CORRECT: Only output the JSON block above, nothing else.

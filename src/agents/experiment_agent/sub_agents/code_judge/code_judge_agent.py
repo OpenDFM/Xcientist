@@ -59,6 +59,10 @@ def create_judge_agent(
 
 ## 2️⃣ TEST (Dynamic Verification)
 
+🚨 **TEST FILES MUST BE IN `tests/` DIRECTORY** 🚨
+- ✅ CORRECT: `{working_dir}/project/tests/test_step_X.py`
+- ❌ WRONG: `{working_dir}/project/test_*.py` (NOT in project root!)
+
 **Execute ALL tests:**
 1. Create/modify test files:
    - **For NEW test files**: Use `write_file(file_path="{working_dir}/project/tests/test_step_X.py", contents=code)`

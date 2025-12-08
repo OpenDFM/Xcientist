@@ -83,28 +83,7 @@ Priority order (try simpler fixes first):
 **DO NOT** write markdown summaries like "The error is caused by..." or "I'll fix this by...".
 **ONLY** output a valid JSON wrapped in ```json ... ``` code block.
 
-**REQUIRED JSON STRUCTURE:**
-```json
-{{
-  "plan_type": "error_feedback",
-  "file_structure": [...],
-  "dataset_plan": "...",
-  "model_plan": "...",
-  "training_plan": "...",
-  "implementation_checklist": [
-    {{
-      "step_id": "1",
-      "title": "Fix TypeError in encoder.py",
-      "description": "Change dim=0 to dim=1 at line 45",
-      "files_to_create": [],
-      "files_to_modify": ["models/encoder.py"],
-      "acceptance_criteria": ["No TypeError on import"]
-    }}
-  ],
-  "implementation_notes": "Error diagnosis: TypeError at line 45...",
-  "experiment_plan": {{...}}
-}}
-```
+{CODE_PLAN_JSON_OUTPUT_INSTRUCTION}
 
 ❌ WRONG: "The error occurs because of a dimension mismatch. Here's how to fix it..."
 ✅ CORRECT: Only output the JSON block above, nothing else.

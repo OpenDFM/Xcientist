@@ -44,7 +44,7 @@ def create_analysis_feedback_plan_agent(
 
 ### 1️⃣ READ (Before Planning)
 Use `read_file` to examine:
-- Files mentioned in the feedback
+   - Files mentioned in the feedback
 - Related files and dependencies
 - Entry points and main logic
 
@@ -55,7 +55,7 @@ Use `read_file` to examine:
 ### 2️⃣ ANALYZE
 Extract ONLY actionable items from feedback:
 - Specific bugs to fix
-- Specific performance issues  
+- Specific performance issues
 - Specific missing features
 
 For each item, identify:
@@ -83,28 +83,7 @@ For each item, identify:
 **DO NOT** write markdown summaries like "Based on the feedback..." or "I'll make these changes...".
 **ONLY** output a valid JSON wrapped in ```json ... ``` code block.
 
-**REQUIRED JSON STRUCTURE:**
-```json
-{{
-  "plan_type": "analysis_feedback",
-  "file_structure": [...],
-  "dataset_plan": "...",
-  "model_plan": "...",
-  "training_plan": "...",
-  "implementation_checklist": [
-    {{
-      "step_id": "1",
-      "title": "Fix dimension mismatch",
-      "description": "Change line 45 in encoder.py",
-      "files_to_create": [],
-      "files_to_modify": ["models/encoder.py"],
-      "acceptance_criteria": ["Shape matches expected"]
-    }}
-  ],
-  "implementation_notes": "Analysis: ...",
-  "experiment_plan": {{...}}
-}}
-```
+{CODE_PLAN_JSON_OUTPUT_INSTRUCTION}
 
 ❌ WRONG: "Based on the analysis feedback, I'll propose the following changes..."
 ✅ CORRECT: Only output the JSON block above, nothing else.

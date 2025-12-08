@@ -91,34 +91,7 @@ Parse logs, extract metrics, build comparison tables.
 **DO NOT** write any explanatory text after completing tool calls.
 **ONLY** output a valid JSON wrapped in ```json ... ``` code block.
 
-**REQUIRED JSON STRUCTURE:**
-```json
-{{
-  "execution_status": "success",
-  "has_error": false,
-  "error_message": null,
-  "output_files": [
-    {{
-      "file_path": "/absolute/path/to/log.txt",
-      "file_type": "log",
-      "description": "Training log for experiment 1",
-      "run_command": "python train.py --lr 0.001",
-      "run_config": "{{\\"lr\\": 0.001}}"
-    }}
-  ],
-  "log_path": "/absolute/path/to/best_log.txt",
-  "experiment_metrics": "{{\\"accuracy\\": 0.95, \\"loss\\": 0.23}}",
-  "execution_summary": "Ran 3 experiments. Proposed method achieved 95% accuracy vs 90% baseline.",
-  "stdout_preview": "Training complete. Final accuracy: 0.95",
-  "stderr_preview": ""
-}}
-```
-
-**JSON Field Guide:**
-- `execution_status`: 'success' | 'partial' | 'error' | 'timeout' | 'skipped'
-- `has_error`: True if ANY error occurred
-- `output_files`: List with file_path (ABSOLUTE), file_type, description, run_command, run_config
-- `experiment_metrics`: JSON string of ACTUAL metrics from output
+{EXPERIMENT_EXECUTE_JSON_OUTPUT_INSTRUCTION}
 
 ❌ WRONG: "I have successfully completed the experiments! Here are the results..."
 ✅ CORRECT: Only output the JSON block above, nothing else.

@@ -95,7 +95,10 @@ After completing all tool calls, you **MUST** output a JSON object.
 - `*_EVALUATION*.json`, `*_SUMMARY*.json`, `*_SUMMARY*.md`
 - Any report/completion markdown files
 
-**Test files MUST go in `tests/` directory only.**
+🚨 **TEST FILE LOCATION RULE** 🚨
+- ✅ CORRECT: `{working_dir}/project/tests/test_*.py`
+- ❌ WRONG: `{working_dir}/project/test_*.py` (NOT in project root!)
+- ALL test files MUST be placed in `tests/` directory only.
 
 ---
 
@@ -107,37 +110,7 @@ After completing all tool calls, you **MUST** output a JSON object.
 **DO NOT** write any explanatory text after completing tool calls.
 **ONLY** output a valid JSON wrapped in ```json ... ``` code block.
 
-**REQUIRED JSON STRUCTURE:**
-```json
-{{
-  "implementation_type": "initial",
-  "timestamp": "2025-12-08T12:00:00",
-  "generated_files": [
-    {{
-      "file_path": "project/path/to/file.py",
-      "content": "",
-      "description": "Description of file",
-      "dependencies": []
-    }}
-  ],
-  "implementation_summary": {{
-    "files_created": 5,
-    "files_modified": 0,
-    "total_lines": 500,
-    "key_components": ["component1", "component2"]
-  }},
-  "test_files": [],
-  "issues_addressed": ""
-}}
-```
-
-**JSON Field Guide:**
-- `implementation_type`: "initial" or "fix"
-- `timestamp`: ISO format datetime
-- `generated_files`: List with file_path, content (can be ""), description, dependencies
-- `implementation_summary`: files_created, files_modified, total_lines, key_components
-- `test_files`: empty list (tests handled by Code Judge)
-- `issues_addressed`: issues fixed (for fix type only)
+{CODE_IMPLEMENT_JSON_OUTPUT_INSTRUCTION}
 
 ❌ WRONG: "I have completed the task! Here's what I did: ..."
 ✅ CORRECT: Only output the JSON block above, nothing else.

@@ -68,31 +68,7 @@ Provide structured JSON output.
 **DO NOT** write any explanatory text after completing tool calls.
 **ONLY** output a valid JSON wrapped in ```json ... ``` code block.
 
-**REQUIRED JSON STRUCTURE:**
-```json
-{{
-  "meets_requirements": false,
-  "overall_analysis": "The experiment showed promising results but did not meet all targets...",
-  "metrics_analysis": [
-    {{
-      "metric_name": "accuracy",
-      "actual_value": 0.85,
-      "analysis": "Accuracy is 5% below target (expected 0.90)"
-    }}
-  ],
-  "plan_improvements": "1. Increase training epochs\\n2. Add learning rate scheduler",
-  "potential_issues": ["Model overfitting", "Insufficient hyperparameter tuning"],
-  "next_steps": "1. Fix overfitting with regularization\\n2. Run hyperparameter search"
-}}
-```
-
-**JSON Field Guide:**
-- `meets_requirements`: Boolean - whether experiment meets requirements
-- `overall_analysis`: High-level analysis with summary, strengths, findings
-- `metrics_analysis`: List with metric_name, actual_value (float or null), analysis (str)
-- `plan_improvements`: Specific improvements for the code plan
-- `potential_issues`: Issues to address in next iteration
-- `next_steps`: Recommended prioritized actions
+{EXPERIMENT_ANALYSIS_JSON_OUTPUT_INSTRUCTION}
 
 ❌ WRONG: "Based on my analysis of the experiment results, I found that..."
 ✅ CORRECT: Only output the JSON block above, nothing else.
