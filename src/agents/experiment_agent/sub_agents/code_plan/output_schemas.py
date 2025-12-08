@@ -5,7 +5,7 @@ Defines structured output formats for code plans and intermediate outputs.
 """
 
 from pydantic import Field
-from typing import List
+from typing import List, Optional
 
 from src.agents.experiment_agent.sub_agents.base.output_schemas import BaseDictModel
 
@@ -28,16 +28,17 @@ class ChecklistItem(BaseDictModel):
     step_id: int = Field(description="Unique identifier for this step")
     title: str = Field(description="Brief title of the implementation step")
     description: str = Field(description="What needs to be implemented in this step")
-    files_to_create: List[str] = Field(
+    files_to_create: Optional[List[str]] = Field(
+        default=None,
         description="List of specific file paths to create (e.g., ['data/dataset.py'])",
-        default_factory=list,
     )
-    files_to_modify: List[str] = Field(
+    files_to_modify: Optional[List[str]] = Field(
+        default=None,
         description="List of specific file paths to modify",
-        default_factory=list,
     )
-    acceptance_criteria: List[str] = Field(
-        description="Criteria to verify this step is correctly implemented"
+    acceptance_criteria: Optional[List[str]] = Field(
+        default=None,
+        description="Criteria to verify this step is correctly implemented",
     )
 
 
@@ -48,7 +49,7 @@ class ExperimentItem(BaseDictModel):
     method: str = Field(description="Method name: 'baseline' or 'proposed' or specific method name")
     dataset: str = Field(description="Dataset name")
     hyperparameters: str = Field(description="Key hyperparameters (e.g., 'lr=0.01, batch_size=32')")
-    seeds: List[int] = Field(description="Random seeds for reproducibility", default_factory=lambda: [42])
+    seeds: Optional[List[int]] = Field(default=None, description="Random seeds for reproducibility")
 
 
 class ExperimentPlan(BaseDictModel):
@@ -59,10 +60,10 @@ class ExperimentPlan(BaseDictModel):
     """
 
     baseline_method: str = Field(description="Name of the baseline method")
-    datasets: List[str] = Field(description="List of ALL datasets to use (paths)")
+    datasets: Optional[List[str]] = Field(default=None, description="List of ALL datasets to use (paths)")
     hyperparameter_space: str = Field(description="Complete hyperparameter search space definition")
-    experiment_matrix: List[ExperimentItem] = Field(description="Complete list of ALL experiments to run")
-    primary_metrics: List[str] = Field(description="Primary evaluation metrics")
+    experiment_matrix: Optional[List[ExperimentItem]] = Field(default=None, description="Complete list of ALL experiments to run")
+    primary_metrics: Optional[List[str]] = Field(default=None, description="Primary evaluation metrics")
 
 
 class CodePlanOutput(BaseDictModel):
@@ -77,8 +78,9 @@ class CodePlanOutput(BaseDictModel):
     plan_type: str = Field(description="Type of plan: 'initial', 'error_feedback', 'analysis_feedback'")
 
     # File structure
-    file_structure: List[FileStructureItem] = Field(
-        description="Complete file and directory structure (EXCLUDE tests/ directory)"
+    file_structure: Optional[List[FileStructureItem]] = Field(
+        default=None,
+        description="Complete file and directory structure (EXCLUDE tests/ directory)",
     )
 
     # Implementation plans (CODE PLAN)
@@ -87,8 +89,9 @@ class CodePlanOutput(BaseDictModel):
     training_plan: str = Field(description="Training pipeline plan")
 
     # Checklist for iterative implementation
-    implementation_checklist: List[ChecklistItem] = Field(
-        description="Detailed checklist for step-by-step iterative implementation"
+    implementation_checklist: Optional[List[ChecklistItem]] = Field(
+        default=None,
+        description="Detailed checklist for step-by-step iterative implementation",
     )
 
     # Additional guidance

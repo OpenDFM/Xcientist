@@ -20,15 +20,75 @@ from src.agents.experiment_agent.utils.common_utils import (
 )
 from src.agents.experiment_agent.utils.json_utils import (
     extract_and_parse_json,
-    generate_json_schema_instruction,
     JSONParseError,
 )
 
 from src.agents.experiment_agent.utils.print_utils import *
 
 
-# Generate JSON output instruction for CodeJudgeOutput
-CODE_JUDGE_JSON_OUTPUT_INSTRUCTION = generate_json_schema_instruction(CodeJudgeOutput)
+# Hand-written JSON output instruction for CodeJudgeOutput
+CODE_JUDGE_JSON_OUTPUT_INSTRUCTION = """
+## Required JSON Output Format: CodeJudgeOutput
+
+You MUST output a JSON object with this EXACT structure:
+
+```json
+{
+  "is_consistent": false,
+  "issues": [
+    {
+      "file_path": "models/encoder.py",
+      "issue_type": "logic_error",
+      "severity": "major",
+      "description": "Encoder uses fixed flattened_size=1024 but input grid_size=64 produces 256 features",
+      "expected": "Dynamic calculation based on input size",
+      "actual": "Hardcoded value 1024",
+      "suggestion": "Use nn.AdaptiveAvgPool2d or compute dynamically",
+      "line_numbers": "45-52"
+    }
+  ],
+  "unit_tests": [
+    {
+      "test_file_path": "tests/test_encoder.py",
+      "test_code": "import pytest\\nimport torch\\nfrom models.encoder import Encoder\\n\\ndef test_encoder_output_shape():\\n    ...",
+      "test_description": "Test encoder output shape matches expected dimensions",
+      "target_files": ["models/encoder.py"],
+      "time_limit_seconds": 30,
+      "data_subset_size": 10
+    }
+  ],
+  "implementation_suggestions": ["Consider adding input validation", "Add docstrings"]
+}
+```
+
+### Field Descriptions:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `is_consistent` | boolean | YES | true if ALL tests pass AND zero issues, false otherwise |
+| `issues` | array or null | NO | List of CodeIssue objects (null if no issues) |
+| `unit_tests` | array or null | NO | List of UnitTestSpec objects |
+| `implementation_suggestions` | array or null | NO | General improvement suggestions |
+
+### CodeIssue Object:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `file_path` | string | YES | Path to file with issue |
+| `issue_type` | string | YES | "logic_error", "missing_implementation", "inconsistency", "quality" |
+| `severity` | string | YES | "critical", "major", "minor" |
+| `description` | string | YES | Detailed problem description |
+| `expected` | string | YES | What should happen |
+| `actual` | string | YES | What actually happens |
+| `suggestion` | string | YES | How to fix it |
+| `line_numbers` | string | NO | e.g., "45-52" |
+
+### Decision Rules:
+- `is_consistent = false` if ANY test fails OR ANY issue exists
+- `is_consistent = true` ONLY if ALL tests pass AND zero issues
+
+⚠️ **CRITICAL**: Always output the complete CodeJudgeOutput structure!
+"""
 
 
 def create_judge_agent(
@@ -166,42 +226,20 @@ When reporting issues, you MUST provide **SPECIFIC, ACTIONABLE** details:
 
 ---
 
-## 🚫 PROHIBITED FILE CREATION
+## 4️⃣ OUTPUT JSON (MANDATORY)
 
-**DO NOT create any of the following files:**
-- `STEP*_COMPLETION*.json` or any completion report files
-- `STEP*_REPORT*.json` or any report JSON files  
-- `*_EVALUATION*.json` files (except for actual test result data)
-- `*_SUMMARY*.json` summary files
-- **ANY `.md` files** - NO markdown files allowed. 
+After completing your evaluation, you MUST **DIRECTLY OUTPUT** your result as a JSON object in your response text.
 
-**You should ONLY create:**
-- Test or validation files in `tests/` directory. You should not create any other files in the project root.
-- Nothing else. Your output is the JSON response, not files.
+🚨 **CRITICAL**: 
+- **DO NOT** use `write_file` to save the evaluation result!
+- **DO NOT** call any tool to output the result!
+- **JUST PRINT** the JSON directly in your response message!
 
-## 📁 TEST FILE LOCATION RULE
-
-**ALL test files and test-related folders MUST be placed in `tests/` directory:**
-- ✅ `{working_dir}/project/tests/test_step_1.py`
-- ✅ `{working_dir}/project/tests/test_integration.py`
-- ✅ `{working_dir}/project/tests/fixtures/` (test fixtures)
-- ❌ `{working_dir}/project/test_*.py` (NOT in project root)
-- ❌ `{working_dir}/project/evaluation_results/` (NOT outside tests/)
-- ❌ `{working_dir}/project/test_results/` (NOT as separate folder)
-
----
-
-## OUTPUT FORMAT (JSON - CRITICAL)
-
-After completing your evaluation, you MUST output your result as a JSON object.
-
+**DO NOT** write markdown summaries like "I have successfully completed..." or "✅ Evaluation Complete".
+**DO NOT** write any explanatory text after completing tool calls.
+**ONLY** output a valid JSON wrapped in ```json ... ``` code block.
 {CODE_JUDGE_JSON_OUTPUT_INSTRUCTION}
 
-**Important JSON Field Mappings:**
-- `is_consistent`: Boolean - True ONLY if ALL tests pass AND zero issues
-- `issues`: List of CodeIssue objects with file_path, issue_type, severity, description, expected, actual, suggestion, line_numbers
-- `unit_tests`: List of UnitTestSpec objects with test_file_path, test_code, test_description, target_files, time_limit_seconds
-- `implementation_suggestions`: List of strings - improvement suggestions
 """
 
     agent = Agent(

@@ -65,18 +65,18 @@ class CodeJudgeOutput(BaseDictModel):
     )
 
     # Detailed feedback
-    issues: List[CodeIssue] = Field(
-        default_factory=list,
+    issues: Optional[List[CodeIssue]] = Field(
+        default=None,
         description="List of issues found in the implementation",
     )
 
     # Unit tests for verification
-    unit_tests: List[UnitTestSpec] = Field(
-        default_factory=list,
+    unit_tests: Optional[List[UnitTestSpec]] = Field(
+        default=None,
         description="Unit tests generated to verify the current step implementation",
     )
 
-    implementation_suggestions: List[str] = Field(
-        default_factory=list,
+    implementation_suggestions: Optional[List[str]] = Field(
+        default=None,
         description="Suggestions for improving the implementation",
     )

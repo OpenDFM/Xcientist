@@ -5,7 +5,7 @@ Defines structured output formats for code implementation results.
 """
 
 from pydantic import BaseModel, Field
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from src.agents.experiment_agent.sub_agents.base.output_schemas import BaseDictModel
 
@@ -51,8 +51,8 @@ class CodeImplementOutput(BaseDictModel):
     )
 
     # Testing and validation
-    test_files: List[GeneratedFile] = Field(
-        description="Test files generated", default_factory=list
+    test_files: Optional[List[GeneratedFile]] = Field(
+        default=None, description="Test files generated"
     )
 
     # Fix-specific (optional)

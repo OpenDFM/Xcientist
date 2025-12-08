@@ -17,15 +17,61 @@ from src.agents.experiment_agent.utils.common_utils import extract_core_plan_con
 from src.agents.experiment_agent.logger import create_verbose_hooks
 from src.agents.experiment_agent.utils.json_utils import (
     extract_and_parse_json,
-    generate_json_schema_instruction,
     JSONParseError,
 )
 
 from src.agents.experiment_agent.utils.print_utils import *
 
 
-# Generate JSON output instruction for CodeImplementOutput
-CODE_IMPLEMENT_JSON_OUTPUT_INSTRUCTION = generate_json_schema_instruction(CodeImplementOutput)
+# Hand-written JSON output instruction for CodeImplementOutput
+CODE_IMPLEMENT_JSON_OUTPUT_INSTRUCTION = """
+## Required JSON Output Format: CodeImplementOutput
+
+You MUST output a JSON object with this EXACT structure:
+
+```json
+{
+  "implementation_type": "initial",
+  "generated_files": [
+    {
+      "file_path": "models/encoder.py",
+      "content": "import torch\\nimport torch.nn as nn\\n\\nclass Encoder(nn.Module):\\n    ...",
+      "description": "Encoder module for the model",
+      "dependencies": ["utils/config.py"]
+    }
+  ],
+  "implementation_summary": {
+    "files_created": 2,
+    "files_modified": 0,
+    "total_lines": 150,
+    "key_components": ["Encoder class", "forward method"]
+  },
+  "test_files": null,
+  "issues_addressed": ""
+}
+```
+
+### Field Descriptions:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `implementation_type` | string | YES | Must be "initial" or "fix" |
+| `generated_files` | array | YES | List of GeneratedFile objects |
+| `implementation_summary` | object | YES | Summary with files_created, files_modified, total_lines, key_components |
+| `test_files` | array or null | NO | Test files if any |
+| `issues_addressed` | string | NO | Issues fixed (for fix mode) |
+
+### GeneratedFile Object:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `file_path` | string | YES | Relative path like "models/net.py" |
+| `content` | string | YES | Full file content |
+| `description` | string | YES | What this file does |
+| `dependencies` | array | NO | Files this depends on |
+
+⚠️ **CRITICAL**: The root object MUST be CodeImplementOutput with ALL required fields!
+"""
 
 
 def create_unified_implement_agent(
@@ -80,42 +126,30 @@ def create_unified_implement_agent(
 - Input validation: check None, ≤0, empty, wrong type
 - Float comparison: use `torch.allclose(a, b, atol=1e-5)` not `==`
 
+**🚫 PROHIBITED files (DO NOT create via `write_file`):**
+- `STEP*.json`, `*_COMPLETION*.json`, `*_EVALUATION*.json`, `*_SUMMARY*.json`
+- `*_ISSUE*.json`, `*_ANALYSIS*.json`, `*_RESULT*.json`
+- **ANY `.md` files**
+
+**📁 TEST FILE LOCATION:**
+- ALL test/validation files MUST be placed in `tests/` directory only.
+
 ---
 
 ### 3️⃣ OUTPUT JSON (MANDATORY)
 
-After completing all tool calls, you **MUST** output a JSON object.
+After completing all tool calls, you **MUST** output a JSON object **DIRECTLY in your response**.
 
----
-
-## 🚫 PROHIBITED
-
-**DO NOT create these files:**
-- `STEP*_COMPLETION*.json`, `STEP*_REPORT*.json`
-- `*_EVALUATION*.json`, `*_SUMMARY*.json`
-- **ANY `.md` files** - NO markdown files allowed. 
-
-🚨 **TEST OR VALIDATION FILE LOCATION RULE** 🚨
-- ALL test or validation files MUST be placed in `tests/` directory only. 
-- You should not create any other files in the project root.
-
----
-
-## ⚠️ CRITICAL: REQUIRED OUTPUT FORMAT
-
-🚨🚨🚨 **YOUR FINAL OUTPUT MUST BE ONLY A JSON OBJECT** 🚨🚨🚨
+🚨 **CRITICAL**: 
+- **DO NOT** use `write_file` to save your final result JSON!
+- **DO NOT** call any tool to output the result!
+- **JUST PRINT** the JSON directly in your response message!
 
 **DO NOT** write markdown summaries like "I have successfully completed..." or "✅ Step Complete".
 **DO NOT** write any explanatory text after completing tool calls.
-**DO NOT** create any `.md` files (no README.md, no REPORT.md, no SUMMARY.md, nothing).
 **ONLY** output a valid JSON wrapped in ```json ... ``` code block.
 
 {CODE_IMPLEMENT_JSON_OUTPUT_INSTRUCTION}
-
-❌ WRONG: "I have completed the task! Here's what I did: ..."
-✅ CORRECT: Only output the JSON block above, nothing else.
-
-**If you output markdown text instead of JSON, the system will FAIL and retry.**
 """
 
     agent = Agent(

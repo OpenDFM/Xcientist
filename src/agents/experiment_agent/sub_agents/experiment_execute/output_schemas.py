@@ -49,8 +49,8 @@ class ExperimentExecuteOutput(BaseDictModel):
     )
 
     # Files and outputs - THE MAIN CONTENT
-    output_files: List[ExperimentFile] = Field(
-        default_factory=list,
+    output_files: Optional[List[ExperimentFile]] = Field(
+        default=None,
         description="List of all output files with their paths, types, descriptions, and run configurations",
     )
 

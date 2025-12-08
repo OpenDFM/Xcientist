@@ -10,11 +10,72 @@ from agents import Agent
 from src.agents.experiment_agent.sub_agents.code_plan.output_schemas import (
     CodePlanOutput,
 )
-from src.agents.experiment_agent.utils.json_utils import generate_json_schema_instruction
 
 
-# Generate JSON output instruction for CodePlanOutput
-CODE_PLAN_JSON_OUTPUT_INSTRUCTION = generate_json_schema_instruction(CodePlanOutput)
+# Hand-written JSON output instruction for CodePlanOutput (Analysis Feedback)
+CODE_PLAN_JSON_OUTPUT_INSTRUCTION = """
+## Required JSON Output Format: CodePlanOutput
+
+You MUST output a JSON object with this EXACT structure:
+
+```json
+{
+  "plan_type": "analysis_feedback",
+  "file_structure": [
+    {"path": "training/scheduler.py", "description": "NEW: Learning rate scheduler"},
+    {"path": "training/trainer.py", "description": "MODIFY: Add scheduler support"}
+  ],
+  "dataset_plan": "No changes - data loading works correctly.",
+  "model_plan": "No changes - model architecture is validated.",
+  "training_plan": "Add cosine learning rate scheduler, increase batch size from 32 to 64.",
+  "implementation_checklist": [
+    {
+      "step_id": 1,
+      "title": "Add Learning Rate Scheduler",
+      "description": "Create scheduler.py with CosineAnnealingLR wrapper",
+      "files_to_create": ["training/scheduler.py"],
+      "files_to_modify": null,
+      "acceptance_criteria": ["Scheduler reduces LR over epochs"]
+    },
+    {
+      "step_id": 2,
+      "title": "Integrate Scheduler in Trainer",
+      "description": "Add scheduler.step() call in training loop",
+      "files_to_create": null,
+      "files_to_modify": ["training/trainer.py"],
+      "acceptance_criteria": ["LR decreases during training"]
+    }
+  ],
+  "implementation_notes": "Based on analysis: model converges but slowly. Adding scheduler should improve convergence.",
+  "experiment_plan": {
+    "baseline_method": "Standard CNN autoencoder",
+    "datasets": ["dataset_candidate/mnist"],
+    "hyperparameter_space": "lr: [0.001], batch_size: [64], scheduler: cosine",
+    "experiment_matrix": [
+      {"exp_id": "E1", "method": "proposed_v2", "dataset": "mnist", "hyperparameters": "lr=0.001, batch_size=64, scheduler=cosine", "seeds": [42]}
+    ],
+    "primary_metrics": ["loss", "convergence_epochs"]
+  }
+}
+```
+
+### Key Fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `plan_type` | string | YES | Must be "analysis_feedback" |
+| `file_structure` | array | YES | Only files to create/modify |
+| `implementation_checklist` | array | YES | 1-5 targeted improvement steps (MAX 15 steps) |
+| `implementation_notes` | string | YES | Reference the analysis feedback |
+
+### Improvement Guidelines:
+- Make SMALL, PRECISE improvements
+- Every change must be JUSTIFIED by feedback
+- If something works, DON'T TOUCH IT
+- MAX 15 steps, prefer 1-5 targeted improvements
+
+⚠️ **CRITICAL**: Output ONLY valid JSON, no markdown explanations!
+"""
 
 
 def create_analysis_feedback_plan_agent(

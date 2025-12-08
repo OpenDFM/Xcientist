@@ -27,7 +27,6 @@ from src.agents.experiment_agent.sub_agents.code_plan.analysis_feedback_plan_age
 from src.agents.experiment_agent.utils.print_utils import *
 from src.agents.experiment_agent.utils.json_utils import (
     extract_and_parse_json,
-    generate_json_schema_instruction,
     JSONParseError,
 )
 

@@ -22,13 +22,62 @@ from src.agents.experiment_agent.utils import *
 from src.agents.experiment_agent.utils.print_utils import *
 from src.agents.experiment_agent.utils.json_utils import (
     extract_and_parse_json,
-    generate_json_schema_instruction,
     JSONParseError,
 )
 
 
-# Generate JSON output instruction for ExperimentAnalysisOutput
-EXPERIMENT_ANALYSIS_JSON_OUTPUT_INSTRUCTION = generate_json_schema_instruction(ExperimentAnalysisOutput)
+# Hand-written JSON output instruction for ExperimentAnalysisOutput
+EXPERIMENT_ANALYSIS_JSON_OUTPUT_INSTRUCTION = """
+## Required JSON Output Format: ExperimentAnalysisOutput
+
+You MUST output a JSON object with this EXACT structure:
+
+```json
+{
+  "meets_requirements": true,
+  "overall_analysis": "The experiment successfully demonstrated the proposed method outperforms baseline by 5% on accuracy. Key strengths: efficient training, stable convergence. Unexpected finding: better performance on small datasets.",
+  "metrics_analysis": [
+    {
+      "metric_name": "accuracy",
+      "actual_value": 0.92,
+      "analysis": "Achieved 92% accuracy, exceeding the baseline of 87%. Meets the target of >90%."
+    },
+    {
+      "metric_name": "loss",
+      "actual_value": 0.23,
+      "analysis": "Final loss of 0.23, indicating good convergence."
+    }
+  ],
+  "plan_improvements": "1. Add learning rate scheduling\\n2. Increase batch size for faster training\\n3. Add data augmentation",
+  "potential_issues": [
+    "Training time is longer than expected",
+    "Memory usage could be optimized"
+  ],
+  "next_steps": "Priority actions:\\n1. Implement cosine learning rate scheduler\\n2. Profile memory usage\\n3. Test on larger dataset"
+}
+```
+
+### Field Descriptions:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `meets_requirements` | boolean | YES | Whether experiment meets pre-analysis requirements |
+| `overall_analysis` | string | YES | High-level summary: what worked, strengths, unexpected findings |
+| `metrics_analysis` | array or null | NO | List of MetricAnalysis objects |
+| `plan_improvements` | string | NO | Specific improvements for code plan |
+| `potential_issues` | array or null | NO | Issues to address in next iteration |
+| `next_steps` | string | YES | Recommended next steps with prioritized actions |
+
+### MetricAnalysis Object:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `metric_name` | string | YES | e.g., "accuracy", "loss", "f1_score" |
+| `actual_value` | number or null | NO | The actual numeric value achieved |
+| `analysis` | string | YES | Analysis of this metric's performance |
+
+⚠️ **CRITICAL**: Output ONLY valid JSON, no markdown explanations!
+"""
 
 
 def create_analysis_agent(model: str = "gpt-4o", tools: Optional[list] = None) -> Agent:
@@ -71,16 +120,16 @@ Provide structured JSON output.
 
 🚨🚨🚨 **YOUR FINAL OUTPUT MUST BE ONLY A JSON OBJECT** 🚨🚨🚨
 
+🚨 **CRITICAL**: 
+- **DO NOT** use `write_file` to save your final result JSON!
+- **DO NOT** call any tool to output the result!
+- **JUST PRINT** the JSON directly in your response message!
+
 **DO NOT** write markdown summaries like "Based on my analysis..." or "The experiment results show...".
 **DO NOT** write any explanatory text after completing tool calls.
 **ONLY** output a valid JSON wrapped in ```json ... ``` code block.
 
 {EXPERIMENT_ANALYSIS_JSON_OUTPUT_INSTRUCTION}
-
-❌ WRONG: "Based on my analysis of the experiment results, I found that..."
-✅ CORRECT: Only output the JSON block above, nothing else.
-
-**If you output markdown text instead of JSON, the system will FAIL and retry.**
 """
 
     agent = Agent(

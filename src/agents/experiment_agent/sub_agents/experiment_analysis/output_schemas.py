@@ -37,8 +37,8 @@ class ExperimentAnalysisOutput(BaseDictModel):
     )
 
     # === Metrics Analysis ===
-    metrics_analysis: List[MetricAnalysis] = Field(
-        default_factory=list,
+    metrics_analysis: Optional[List[MetricAnalysis]] = Field(
+        default=None,
         description="Detailed analysis of individual metrics",
     )
 
@@ -48,8 +48,8 @@ class ExperimentAnalysisOutput(BaseDictModel):
         description="Specific improvements for the code plan: what to change, add, or fix",
     )
 
-    potential_issues: List[str] = Field(
-        default_factory=list,
+    potential_issues: Optional[List[str]] = Field(
+        default=None,
         description="Issues identified that need to be addressed in next iteration",
     )
 

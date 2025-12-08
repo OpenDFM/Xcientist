@@ -9,11 +9,100 @@ from agents import Agent
 from src.agents.experiment_agent.sub_agents.code_plan.output_schemas import (
     CodePlanOutput,
 )
-from src.agents.experiment_agent.utils.json_utils import generate_json_schema_instruction
 
 
-# Generate JSON output instruction for CodePlanOutput
-CODE_PLAN_JSON_OUTPUT_INSTRUCTION = generate_json_schema_instruction(CodePlanOutput)
+# Hand-written JSON output instruction for CodePlanOutput
+CODE_PLAN_JSON_OUTPUT_INSTRUCTION = """
+## Required JSON Output Format: CodePlanOutput
+
+You MUST output a JSON object with this EXACT structure:
+
+```json
+{
+  "plan_type": "initial",
+  "file_structure": [
+    {"path": "data/", "description": "Data loading and preprocessing"},
+    {"path": "data/dataset.py", "description": "Dataset class for loading data"},
+    {"path": "models/", "description": "Model architecture definitions"},
+    {"path": "models/encoder.py", "description": "Encoder network"},
+    {"path": "training/", "description": "Training pipeline"},
+    {"path": "training/trainer.py", "description": "Main training loop"},
+    {"path": "configs/", "description": "Configuration files"},
+    {"path": "configs/default.yaml", "description": "Default hyperparameters"},
+    {"path": "scripts/", "description": "Entry point scripts"},
+    {"path": "scripts/train.py", "description": "Main training script"}
+  ],
+  "dataset_plan": "Load data from dataset_candidate/, implement Dataset class with __getitem__ and __len__, apply normalization transforms.",
+  "model_plan": "Implement Encoder with Conv2d layers, Decoder with ConvTranspose2d, connect via latent space.",
+  "training_plan": "Use Adam optimizer, MSE loss, train for 100 epochs with early stopping, save best checkpoint.",
+  "implementation_checklist": [
+    {
+      "step_id": 1,
+      "title": "Create Project Structure",
+      "description": "Create all directories and __init__.py files",
+      "files_to_create": ["data/__init__.py", "models/__init__.py", "training/__init__.py"],
+      "files_to_modify": null,
+      "acceptance_criteria": ["All directories exist", "All __init__.py files created"]
+    },
+    {
+      "step_id": 2,
+      "title": "Implement Dataset",
+      "description": "Create Dataset class for loading and preprocessing data",
+      "files_to_create": ["data/dataset.py"],
+      "files_to_modify": null,
+      "acceptance_criteria": ["Dataset class has __getitem__ and __len__", "Can load sample data"]
+    }
+  ],
+  "implementation_notes": "Use PyTorch 2.0+, ensure reproducibility with fixed seeds, use absolute imports.",
+  "experiment_plan": {
+    "baseline_method": "Standard CNN autoencoder",
+    "datasets": ["dataset_candidate/mnist", "dataset_candidate/cifar10"],
+    "hyperparameter_space": "lr: [0.001, 0.0001], batch_size: [32, 64, 128], hidden_dim: [64, 128, 256]",
+    "experiment_matrix": [
+      {"exp_id": "E1", "method": "baseline", "dataset": "mnist", "hyperparameters": "lr=0.001, batch_size=32", "seeds": [42, 123, 456]},
+      {"exp_id": "E2", "method": "proposed", "dataset": "mnist", "hyperparameters": "lr=0.001, batch_size=32", "seeds": [42, 123, 456]}
+    ],
+    "primary_metrics": ["reconstruction_loss", "accuracy"]
+  }
+}
+```
+
+### Field Descriptions:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `plan_type` | string | YES | "initial", "error_feedback", or "analysis_feedback" |
+| `file_structure` | array | YES | List of {path, description} objects |
+| `dataset_plan` | string | YES | Data loading strategy |
+| `model_plan` | string | YES | Model architecture plan |
+| `training_plan` | string | YES | Training pipeline plan |
+| `implementation_checklist` | array | YES | List of ChecklistItem objects (MAX 10 steps) |
+| `implementation_notes` | string | YES | Important implementation notes |
+| `experiment_plan` | object | YES | ExperimentPlan object |
+
+### ChecklistItem Object:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `step_id` | integer | YES | Unique step ID (1, 2, 3...) |
+| `title` | string | YES | Brief step title |
+| `description` | string | YES | What to implement |
+| `files_to_create` | array or null | NO | Files to create |
+| `files_to_modify` | array or null | NO | Files to modify |
+| `acceptance_criteria` | array or null | NO | Verification criteria |
+
+### ExperimentPlan Object:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `baseline_method` | string | YES | Baseline method name |
+| `datasets` | array or null | NO | Dataset paths |
+| `hyperparameter_space` | string | YES | Hyperparameter search space |
+| `experiment_matrix` | array or null | NO | List of ExperimentItem objects |
+| `primary_metrics` | array or null | NO | Evaluation metrics |
+
+⚠️ **CRITICAL**: Output ONLY valid JSON, no markdown explanations!
+"""
 
 
 def create_initial_plan_agent(

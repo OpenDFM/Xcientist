@@ -17,13 +17,71 @@ from src.agents.experiment_agent.logger import create_verbose_hooks
 from src.agents.experiment_agent.utils.print_utils import *
 from src.agents.experiment_agent.utils.json_utils import (
     extract_and_parse_json,
-    generate_json_schema_instruction,
     JSONParseError,
 )
 
 
-# Generate JSON output instruction for ExperimentExecuteOutput
-EXPERIMENT_EXECUTE_JSON_OUTPUT_INSTRUCTION = generate_json_schema_instruction(ExperimentExecuteOutput)
+# Hand-written JSON output instruction for ExperimentExecuteOutput
+EXPERIMENT_EXECUTE_JSON_OUTPUT_INSTRUCTION = """
+## Required JSON Output Format: ExperimentExecuteOutput
+
+You MUST output a JSON object with this EXACT structure:
+
+```json
+{
+  "execution_status": "success",
+  "has_error": false,
+  "error_message": null,
+  "output_files": [
+    {
+      "file_path": "/path/to/project/logs/baseline_exp.log",
+      "file_type": "log",
+      "description": "Baseline experiment training log",
+      "run_command": "python train.py --method baseline --dataset mnist",
+      "run_config": "lr=0.001, epochs=10, batch_size=32"
+    },
+    {
+      "file_path": "/path/to/project/results/model_best.pt",
+      "file_type": "checkpoint",
+      "description": "Best model checkpoint",
+      "run_command": "",
+      "run_config": ""
+    }
+  ],
+  "log_path": "/path/to/project/logs/baseline_exp.log",
+  "experiment_metrics": "{\\"accuracy\\": 0.95, \\"loss\\": 0.23}",
+  "execution_summary": "Ran baseline and proposed method on MNIST. Proposed achieved 95% accuracy vs baseline 87%.",
+  "stdout_preview": "Epoch 10/10: loss=0.23, acc=0.95",
+  "stderr_preview": ""
+}
+```
+
+### Field Descriptions:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `execution_status` | string | YES | "success", "partial", "error", "timeout", "interrupted", "skipped" |
+| `has_error` | boolean | YES | Whether any error occurred |
+| `error_message` | string or null | NO | Error message if failed |
+| `output_files` | array or null | NO | List of ExperimentFile objects |
+| `log_path` | string | NO | Path to primary log file |
+| `experiment_metrics` | string | NO | JSON string of best metrics |
+| `execution_summary` | string | NO | Human-readable summary |
+| `stdout_preview` | string | NO | Preview of stdout |
+| `stderr_preview` | string | NO | Preview of stderr if errors |
+
+### ExperimentFile Object:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `file_path` | string | YES | Absolute path to file |
+| `file_type` | string | YES | "log", "result", "checkpoint", "config", "plot", "other" |
+| `description` | string | YES | What this file contains |
+| `run_command` | string | NO | Command used to generate this file |
+| `run_config` | string | NO | Key hyperparameters |
+
+⚠️ **CRITICAL**: Output ONLY valid JSON, no markdown explanations!
+"""
 
 
 # --- AGENT FACTORIES ---
@@ -90,16 +148,16 @@ Parse logs, extract metrics, build comparison tables.
 
 🚨🚨🚨 **YOUR FINAL OUTPUT MUST BE ONLY A JSON OBJECT** 🚨🚨🚨
 
+🚨 **CRITICAL**: 
+- **DO NOT** use `write_file` to save your final result JSON!
+- **DO NOT** call any tool to output the result!
+- **JUST PRINT** the JSON directly in your response message!
+
 **DO NOT** write markdown summaries like "I have completed the experiments..." or "Here are my findings...".
 **DO NOT** write any explanatory text after completing tool calls.
 **ONLY** output a valid JSON wrapped in ```json ... ``` code block.
 
 {EXPERIMENT_EXECUTE_JSON_OUTPUT_INSTRUCTION}
-
-❌ WRONG: "I have successfully completed the experiments! Here are the results..."
-✅ CORRECT: Only output the JSON block above, nothing else.
-
-**If you output markdown text instead of JSON, the system will FAIL and retry.**
 """
 
     agent = Agent(
