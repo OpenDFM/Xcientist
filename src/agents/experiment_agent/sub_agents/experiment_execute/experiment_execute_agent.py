@@ -80,6 +80,7 @@ Parse logs, extract metrics, build comparison tables.
 - **NEVER fabricate metrics** - Only report actual numbers from logs
 - **NEVER claim success without verification**
 - **Document ALL failures** - Don't skip failed experiments
+- **NO .md files** - Do NOT create any markdown files.
 
 ---
 

@@ -57,6 +57,7 @@ Use `read_file` to read log files and extract ACTUAL metrics.
 ### 3️⃣ REPORT
 Provide structured JSON output.
 🚫 **DO NOT use `write_file`** - just output the JSON.
+🚫 **NO .md files** - Do NOT create any markdown file.
 
 ---
 

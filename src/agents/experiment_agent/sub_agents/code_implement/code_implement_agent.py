@@ -92,8 +92,8 @@ After completing all tool calls, you **MUST** output a JSON object.
 
 **DO NOT create these files:**
 - `STEP*_COMPLETION*.json`, `STEP*_REPORT*.json`
-- `*_EVALUATION*.json`, `*_SUMMARY*.json`, `*_SUMMARY*.md`
-- Any report/completion markdown files
+- `*_EVALUATION*.json`, `*_SUMMARY*.json`
+- **ANY `.md` files** - NO markdown files allowed. 
 
 🚨 **TEST FILE LOCATION RULE** 🚨
 - ✅ CORRECT: `{working_dir}/project/tests/test_*.py`
@@ -108,6 +108,7 @@ After completing all tool calls, you **MUST** output a JSON object.
 
 **DO NOT** write markdown summaries like "I have successfully completed..." or "✅ Step Complete".
 **DO NOT** write any explanatory text after completing tool calls.
+**DO NOT** create any `.md` files (no README.md, no REPORT.md, no SUMMARY.md, nothing).
 **ONLY** output a valid JSON wrapped in ```json ... ``` code block.
 
 {CODE_IMPLEMENT_JSON_OUTPUT_INSTRUCTION}

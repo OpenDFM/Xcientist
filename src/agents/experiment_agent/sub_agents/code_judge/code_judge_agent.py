@@ -172,8 +172,8 @@ When reporting issues, you MUST provide **SPECIFIC, ACTIONABLE** details:
 - `STEP*_COMPLETION*.json` or any completion report files
 - `STEP*_REPORT*.json` or any report JSON files  
 - `*_EVALUATION*.json` files (except for actual test result data)
-- `*_SUMMARY*.json` or `*_SUMMARY*.md` summary files
-- Any markdown report files like `*_REPORT.md`
+- `*_SUMMARY*.json` summary files
+- **ANY `.md` files** - NO markdown files allowed. 
 
 **You should ONLY create:**
 - Test files in `tests/` directory (e.g., `tests/test_step_X.py`)
