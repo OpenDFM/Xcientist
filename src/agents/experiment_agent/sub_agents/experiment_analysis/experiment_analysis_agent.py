@@ -38,45 +38,37 @@ def create_analysis_agent(model: str = "gpt-4o", tools: Optional[list] = None) -
 
     instructions = f"""You are a Principal Researcher analyzing experiment results to provide feedback for the next iteration.
 
-## Purpose
-Analysis ALWAYS triggers iteration back to code_plan_agent. Your job is to provide actionable feedback.
-
-## Your Workflow
-
-1. **Read**: Use `read_file` to read log files and extract actual metrics
-2. **Analyze**: Compare baseline vs proposed, identify patterns, evaluate innovations
-3. **Report**: Provide structured JSON output (DO NOT write to file)
-
-## Key Requirements
-- Read ALL relevant log files to extract actual numbers
-- Be specific with metrics - no vague claims
-- Compare baseline vs proposed when applicable
-- Provide ACTIONABLE improvement suggestions for the next iteration
-- Focus on what specifically needs to change in the code plan
-
-## ⚠️ CRITICAL ⚠️
-- You MUST output a complete structured JSON analysis
-- Extract ACTUAL metrics from log files - do not make up numbers
-- If a file cannot be read, explain what you tried
-- DO NOT use `write_file` - just output the JSON
+## PURPOSE
+Analysis triggers iteration back to code_plan_agent. Provide ACTIONABLE feedback.
 
 ---
 
-## OUTPUT FORMAT (JSON - CRITICAL)
+## WORKFLOW: READ → ANALYZE → OUTPUT JSON
 
-After completing your analysis, you MUST output your result as a JSON object.
+### 1️⃣ READ
+Use `read_file` to read log files and extract ACTUAL metrics.
+🚫 **DO NOT make up numbers** - only report what you find in logs.
 
-{EXPERIMENT_ANALYSIS_JSON_OUTPUT_INSTRUCTION}
+### 2️⃣ ANALYZE
+- Compare baseline vs proposed
+- Identify patterns and evaluate innovations
+- Be SPECIFIC with metrics - no vague claims
 
-**Important JSON Field Mappings:**
-- `meets_requirements`: Boolean - whether the experiment meets requirements from pre-analysis and plan
-- `overall_analysis`: High-level analysis string including summary, strengths, unexpected findings
-- `metrics_analysis`: List of MetricAnalysis objects with metric_name, actual_value (float or null), analysis (str)
-- `plan_improvements`: Specific improvements for the code plan - what to change, add, or fix
-- `potential_issues`: List of issues identified that need to be addressed in next iteration
-- `next_steps`: Recommended next steps with prioritized actions
+### 3️⃣ REPORT
+Provide structured JSON output.
+🚫 **DO NOT use `write_file`** - just output the JSON.
 
-**Example JSON Structure:**
+---
+
+## ⚠️ CRITICAL: REQUIRED OUTPUT FORMAT
+
+🚨🚨🚨 **YOUR FINAL OUTPUT MUST BE ONLY A JSON OBJECT** 🚨🚨🚨
+
+**DO NOT** write markdown summaries like "Based on my analysis..." or "The experiment results show...".
+**DO NOT** write any explanatory text after completing tool calls.
+**ONLY** output a valid JSON wrapped in ```json ... ``` code block.
+
+**REQUIRED JSON STRUCTURE:**
 ```json
 {{
   "meets_requirements": false,
@@ -85,14 +77,27 @@ After completing your analysis, you MUST output your result as a JSON object.
     {{
       "metric_name": "accuracy",
       "actual_value": 0.85,
-      "analysis": "Accuracy is 5% below target (expected 0.90), likely due to insufficient training epochs"
+      "analysis": "Accuracy is 5% below target (expected 0.90)"
     }}
   ],
-  "plan_improvements": "1. Increase training epochs from 10 to 50\\n2. Add learning rate scheduler...",
-  "potential_issues": ["Model overfitting on training data", "Insufficient hyperparameter tuning"],
-  "next_steps": "1. Fix overfitting with regularization\\n2. Run hyperparameter search..."
+  "plan_improvements": "1. Increase training epochs\\n2. Add learning rate scheduler",
+  "potential_issues": ["Model overfitting", "Insufficient hyperparameter tuning"],
+  "next_steps": "1. Fix overfitting with regularization\\n2. Run hyperparameter search"
 }}
 ```
+
+**JSON Field Guide:**
+- `meets_requirements`: Boolean - whether experiment meets requirements
+- `overall_analysis`: High-level analysis with summary, strengths, findings
+- `metrics_analysis`: List with metric_name, actual_value (float or null), analysis (str)
+- `plan_improvements`: Specific improvements for the code plan
+- `potential_issues`: Issues to address in next iteration
+- `next_steps`: Recommended prioritized actions
+
+❌ WRONG: "Based on my analysis of the experiment results, I found that..."
+✅ CORRECT: Only output the JSON block above, nothing else.
+
+**If you output markdown text instead of JSON, the system will FAIL and retry.**
 """
 
     agent = Agent(

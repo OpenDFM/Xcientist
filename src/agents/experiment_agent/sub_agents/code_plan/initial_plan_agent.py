@@ -33,72 +33,81 @@ def create_initial_plan_agent(
 
     instructions = f"""You are a System Architect creating CODE PLAN + EXPERIMENT PLAN for an ML research project.
 
-## WORKFLOW: 1️⃣ EXPLORE → 2️⃣ DESIGN → 3️⃣ OUTPUT
+## WORKSPACE
+| Path | Description |
+|------|-------------|
+| `{working_dir}/repos/` | Reference codebases (read-only) |
+| `{working_dir}/dataset_candidate/` | Available datasets |
+| `{working_dir}/project/` | Project root (code will be here) |
 
 ---
 
-## 1️⃣ EXPLORE (Mandatory Before Planning)
+## WORKFLOW: EXPLORE → DESIGN → OUTPUT JSON
 
-| Resource | Action | Extract |
-|----------|--------|---------|
-| `{working_dir}/repos/` | `list_files` + `read_file` | Architecture patterns, training loops, data formats |
-| `{working_dir}/dataset_candidate/` | Scan contents | Available datasets, formats, sizes |
+### 1️⃣ EXPLORE (Before Planning)
+Use `list_files` + `read_file` to scan:
+- `repos/`: Architecture patterns, training loops, data formats
+- `dataset_candidate/`: Available datasets, formats, sizes
 
-🚫 **NEVER** invent architectures. **ALWAYS** base designs on actual reference code you read.
-
----
-
-## 2️⃣ DESIGN
-
-### PART I: CODE PLAN
-
-| Section | Requirements |
-|---------|--------------|
-| File Structure | Flat under `{working_dir}/project/`. Dirs: data/, models/, training/, configs/, utils/, scripts/, tests/ |
-| Tests Directory | ALL test files and test-related folders MUST be placed in `tests/` directory |
-| Imports | Absolute from project root: `from models.net import X` |
-| Checklist | Step 1 = "Create Project Structure". Each step = 1-3 files, atomic, verifiable. **MAX 15 STEPS** |
-| Baseline Support | Same interface for proposed AND baseline methods |
-
-⚠️ **CHECKLIST CONSTRAINTS:**
-- **Maximum 10 steps** - combine related tasks if needed
-- Each step should be **actionable**
-- Prioritize core functionality over edge cases
-- Group related files into single steps (e.g., "Create model components" can include 2-3 model files)
-
-### PART II: EXPERIMENT PLAN
-
-| Section | Requirements |
-|---------|--------------|
-| Baseline | Define method, justify why, same conditions as proposed |
-| Datasets | ALL relevant datasets from `../dataset_candidate/` |
-| Hyperparameters | ≥3 values per key param (lr, method-specific) |
-| Experiment Matrix | Complete table: ExpID, Method, Dataset, Params, Seeds |
-| Metrics | Primary + secondary metrics, success criteria |
+🚫 **NEVER** invent architectures. **ALWAYS** base designs on actual reference code.
 
 ---
 
-## 3️⃣ OUTPUT (JSON FORMAT - CRITICAL)
+### 2️⃣ DESIGN
 
-After completing your analysis and design, you MUST output your final plan as a JSON object.
+**CODE PLAN:**
+- File Structure: Flat under `project/`. Dirs: data/, models/, training/, configs/, utils/, scripts/, tests/
+- Imports: Absolute from project root: `from models.net import X`
+- Checklist: Step 1 = "Create Project Structure". **MAX 10 STEPS**, each = 1-3 files
 
-{CODE_PLAN_JSON_OUTPUT_INSTRUCTION}
-
-**Important JSON Field Mappings:**
-- `plan_type`: Set to "initial"
-- `file_structure`: List of FileStructureItem objects with path, description
-- `dataset_plan`: Dataset preparation and loading plan
-- `model_plan`: Model implementation plan (Module Descriptions)
-- `training_plan`: Training pipeline plan
-- `implementation_checklist`: List of ChecklistItem objects with step_id, title, description, files_to_create, files_to_modify, acceptance_criteria
-- `implementation_notes`: Reference Code Analysis + important notes
-- `experiment_plan`: ExperimentPlan object with baseline_method, datasets, hyperparameter_space, experiment_matrix, primary_metrics
+**EXPERIMENT PLAN:**
+- Baseline: Define method with same conditions as proposed
+- Datasets: ALL from `dataset_candidate/`
+- Hyperparameters: ≥3 values per key param
+- Experiment Matrix: ExpID, Method, Dataset, Params, Seeds
 
 ---
 
-## KEY PRINCIPLE
+## ⚠️ CRITICAL: REQUIRED OUTPUT FORMAT
 
-The CODE PLAN must provide ALL infrastructure to execute EVERY experiment in the EXPERIMENT PLAN.
+🚨🚨🚨 **YOUR FINAL OUTPUT MUST BE ONLY A JSON OBJECT** 🚨🚨🚨
+
+**DO NOT** write markdown summaries like "Here is my plan..." or "I've designed...".
+**ONLY** output a valid JSON wrapped in ```json ... ``` code block.
+
+**REQUIRED JSON STRUCTURE:**
+```json
+{{
+  "plan_type": "initial",
+  "file_structure": [{{"path": "models/encoder.py", "description": "..."}}],
+  "dataset_plan": "...",
+  "model_plan": "...",
+  "training_plan": "...",
+  "implementation_checklist": [
+    {{
+      "step_id": "1",
+      "title": "Create Project Structure",
+      "description": "...",
+      "files_to_create": ["models/__init__.py"],
+      "files_to_modify": [],
+      "acceptance_criteria": ["Directory structure exists"]
+    }}
+  ],
+  "implementation_notes": "...",
+  "experiment_plan": {{
+    "baseline_method": "...",
+    "datasets": ["dataset1"],
+    "hyperparameter_space": "...",
+    "experiment_matrix": [],
+    "primary_metrics": ["accuracy"]
+  }}
+}}
+```
+
+❌ WRONG: "Here is my implementation plan for the project..."
+✅ CORRECT: Only output the JSON block above, nothing else.
+
+**If you output markdown text instead of JSON, the system will FAIL and retry.**
 """
 
     agent = Agent(
