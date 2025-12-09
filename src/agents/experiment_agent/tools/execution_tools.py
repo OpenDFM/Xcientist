@@ -149,18 +149,6 @@ def run_shell_command(
         }
 
 
-# =============================================================================
-# Legacy/Redundant Tools (Removed)
-# =============================================================================
-# The following tools have been removed in favor of run_shell_command:
-# - run_python_script -> use "python script.py"
-# - run_python_code -> use "python -c '...'"
-# - install_package -> use "pip install ..."
-# - list_installed_packages -> use "pip list"
-# - check_python_syntax -> use "python -m py_compile ..."
-# - get_environment_info -> use "python --version", "uname -a"
-# - create_log_file -> use "touch" or write_file
-# - run_in_docker -> N/A (Local execution)
 
 # Export only the single universal tool
 __all__ = ["run_shell_command"]

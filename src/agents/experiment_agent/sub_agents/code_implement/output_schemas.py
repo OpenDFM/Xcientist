@@ -14,11 +14,9 @@ class GeneratedFile(BaseDictModel):
     """Information about a generated file."""
 
     file_path: str = Field(description="Relative path of the generated file")
-    content: str = Field(description="Complete file content")
-    description: str = Field(description="Purpose and description of this file")
-    dependencies: List[str] = Field(
-        description="List of files this file depends on", default_factory=list
-    )
+    content: str = Field(default="", description="Complete file content (may be empty for references)")
+    description: str = Field(default="", description="Purpose and description of this file")
+    dependencies: List[str] = Field(default_factory=list, description="List of files this file depends on")
 
 
 class ImplementationSummary(BaseDictModel):

@@ -26,11 +26,30 @@ from src.agents.experiment_agent.utils.json_utils import (
 from src.agents.experiment_agent.utils.print_utils import *
 
 
-# Hand-written JSON output instruction for CodeJudgeOutput
-CODE_JUDGE_JSON_OUTPUT_INSTRUCTION = """
-## Required JSON Output Format: CodeJudgeOutput
+# Unifier instruction for CodeJudgeOutput
+CODE_JUDGE_UNIFIER_INSTRUCTION = """You are an Output Formatter. Convert the structured code review output into JSON.
 
-You MUST output a JSON object with this EXACT structure:
+## Input Format
+The input follows this structure:
+```
+=== CODE JUDGE OUTPUT ===
+IS_CONSISTENT: true/false
+=== ISSUES ===
+ISSUE #N:
+FILE_PATH: ...
+ISSUE_TYPE: ...
+SEVERITY: ...
+...
+=== UNIT TESTS ===
+TEST #N:
+TEST_FILE_PATH: ...
+...
+=== IMPLEMENTATION SUGGESTIONS ===
+- suggestion1
+- suggestion2
+```
+
+## Required JSON Output Format
 
 ```json
 {
@@ -40,55 +59,50 @@ You MUST output a JSON object with this EXACT structure:
       "file_path": "models/encoder.py",
       "issue_type": "logic_error",
       "severity": "major",
-      "description": "Encoder uses fixed flattened_size=1024 but input grid_size=64 produces 256 features",
-      "expected": "Dynamic calculation based on input size",
-      "actual": "Hardcoded value 1024",
-      "suggestion": "Use nn.AdaptiveAvgPool2d or compute dynamically",
+      "description": "Problem description",
+      "expected": "What should happen",
+      "actual": "What actually happens",
+      "suggestion": "How to fix it",
       "line_numbers": "45-52"
     }
   ],
   "unit_tests": [
     {
       "test_file_path": "tests/test_encoder.py",
-      "test_code": "import pytest\\nimport torch\\nfrom models.encoder import Encoder\\n\\ndef test_encoder_output_shape():\\n    ...",
-      "test_description": "Test encoder output shape matches expected dimensions",
+      "test_code": "<test code>",
+      "test_description": "What this test validates",
       "target_files": ["models/encoder.py"],
       "time_limit_seconds": 30,
-      "data_subset_size": 10
+      "data_subset_size": null
     }
   ],
-  "implementation_suggestions": ["Consider adding input validation", "Add docstrings"]
+  "implementation_suggestions": ["Suggestion 1", "Suggestion 2"]
 }
 ```
 
-### Field Descriptions:
+### Rules:
+1. Parse IS_CONSISTENT -> `is_consistent` (boolean)
+2. Parse each ISSUE block -> `issues` array (null if no issues)
+3. Parse each TEST block -> `unit_tests` array (null if no tests)
+4. Parse IMPLEMENTATION SUGGESTIONS -> `implementation_suggestions` array
+5. **CRITICAL**: `time_limit_seconds` and `data_subset_size` MUST be integers or null, NEVER strings!
+   - ✅ Correct: `"data_subset_size": 10` or `"data_subset_size": null`
+   - ❌ Wrong: `"data_subset_size": "Full test coverage"` (THIS WILL CAUSE ERROR!)
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `is_consistent` | boolean | YES | true if ALL tests pass AND zero issues, false otherwise |
-| `issues` | array or null | NO | List of CodeIssue objects (null if no issues) |
-| `unit_tests` | array or null | NO | List of UnitTestSpec objects |
-| `implementation_suggestions` | array or null | NO | General improvement suggestions |
-
-### CodeIssue Object:
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `file_path` | string | YES | Path to file with issue |
-| `issue_type` | string | YES | "logic_error", "missing_implementation", "inconsistency", "quality" |
-| `severity` | string | YES | "critical", "major", "minor" |
-| `description` | string | YES | Detailed problem description |
-| `expected` | string | YES | What should happen |
-| `actual` | string | YES | What actually happens |
-| `suggestion` | string | YES | How to fix it |
-| `line_numbers` | string | NO | e.g., "45-52" |
-
-### Decision Rules:
-- `is_consistent = false` if ANY test fails OR ANY issue exists
-- `is_consistent = true` ONLY if ALL tests pass AND zero issues
-
-⚠️ **CRITICAL**: Always output the complete CodeJudgeOutput structure!
+Output ONLY valid JSON wrapped in ```json ... ``` block.
 """
+
+
+def create_judge_output_unifier(model: str = None) -> Agent:
+    """Create unifier agent to format judge output."""
+    if model is None:
+        from src.agents.experiment_agent.config import UNIFIER_MODEL
+        model = UNIFIER_MODEL
+    return Agent(
+        name="Code Judge Output Unifier",
+        instructions=CODE_JUDGE_UNIFIER_INSTRUCTION,
+        model=model,
+    )
 
 
 def create_judge_agent(
@@ -226,20 +240,68 @@ When reporting issues, you MUST provide **SPECIFIC, ACTIONABLE** details:
 
 ---
 
-## 4️⃣ OUTPUT JSON (MANDATORY)
+## 4️⃣ OUTPUT (MANDATORY - AS CHAT RESPONSE, NOT FILE!)
 
-After completing your evaluation, you MUST **DIRECTLY OUTPUT** your result as a JSON object in your response text.
+**🚨 CRITICAL OUTPUT RULES:**
+- **DO NOT use `write_file` to write the output below!**
+- **DO NOT write any JSON/summary/progress files to disk!**
+- The format below is your **FINAL CHAT RESPONSE** - just type it directly as text!
+- A separate unifier agent will convert your text response to JSON.
 
-🚨 **CRITICAL**: 
-- **DO NOT** use `write_file` to save the evaluation result!
-- **DO NOT** call any tool to output the result!
-- **JUST PRINT** the JSON directly in your response message!
+After completing your evaluation, **STOP calling tools** and output this TEXT directly in chat:
 
-**DO NOT** write markdown summaries like "I have successfully completed..." or "✅ Evaluation Complete".
-**DO NOT** write any explanatory text after completing tool calls.
-**ONLY** output a valid JSON wrapped in ```json ... ``` code block.
-{CODE_JUDGE_JSON_OUTPUT_INSTRUCTION}
+```
+=== CODE JUDGE OUTPUT ===
 
+IS_CONSISTENT: false  # true ONLY if ALL tests pass AND zero issues
+
+=== ISSUES ===
+
+ISSUE #1:
+FILE_PATH: models/encoder.py
+ISSUE_TYPE: logic_error  # logic_error, missing_implementation, inconsistency, quality
+SEVERITY: major  # critical, major, minor
+LINE_NUMBERS: 45-52
+DESCRIPTION: Encoder uses fixed flattened_size=1024 but input produces 256 features
+EXPECTED: Dynamic calculation based on input size
+ACTUAL: Hardcoded value 1024
+SUGGESTION: Use nn.AdaptiveAvgPool2d or compute dynamically
+
+ISSUE #2:
+FILE_PATH: ...
+...
+
+=== UNIT TESTS ===
+
+TEST #1:
+TEST_FILE_PATH: tests/test_encoder.py
+TEST_DESCRIPTION: Test encoder output shape matches expected dimensions
+TARGET_FILES: models/encoder.py
+TIME_LIMIT_SECONDS: 30  # integer only
+DATA_SUBSET_SIZE: 10  # integer or null, NOT a string description!
+TEST_CODE:
+import pytest
+import torch
+from models.encoder import Encoder
+
+def test_encoder_output_shape():
+    ...
+
+TEST #2:
+...
+
+=== IMPLEMENTATION SUGGESTIONS ===
+- Consider adding input validation
+- Add docstrings to public methods
+```
+
+**🚨 REMINDER**: 
+- This output format is your **CHAT RESPONSE** - just type it out!
+- **DO NOT call write_file() with this content!**
+
+**Decision Rules:**
+- `IS_CONSISTENT: false` if ANY test fails OR ANY issue exists
+- `IS_CONSISTENT: true` ONLY if ALL tests pass AND zero issues
 """
 
     agent = Agent(
@@ -291,6 +353,9 @@ class CodeJudgeAgent:
         self.judge_agent = create_judge_agent(
             model=model, working_dir=working_dir, tools=self.tools
         )
+
+        # Initialize output unifier agent
+        self.output_unifier = create_judge_output_unifier(model=model)
 
         # Expose judge agent as main agent for handoff compatibility
         self.agent = self.judge_agent
@@ -533,14 +598,36 @@ Project Root: `{self.working_dir}/project`
             # Fallback: get last message
             final_text = result_stream.chat_history[-1].content
 
-        print_success("Judge analysis completed. Parsing JSON output...")
+        print_success("Judge analysis completed.")
+        print_subsection("Unifying Output")
 
-        # Extract and parse JSON from the judge output
-        # Use raise_on_failure=True to trigger retry in master agent
+        # Use unifier agent to convert raw output to structured JSON
+        unifier_prompt = f"""Convert the following code review output to JSON:
+
+=== RAW OUTPUT START ===
+{final_text}
+=== RAW OUTPUT END ===
+
+Extract all issues, test results, and output the structured JSON:"""
+
+        unifier_result = await Runner.run(
+            self.output_unifier,
+            unifier_prompt,
+            run_config=RunConfig(model_settings=ModelSettings(max_tokens=64*1024)),
+        )
+
+        unified_text = ""
+        if hasattr(unifier_result, "final_output") and isinstance(unifier_result.final_output, str):
+            unified_text = unifier_result.final_output
+        elif hasattr(unifier_result, "chat_history") and unifier_result.chat_history:
+            unified_text = unifier_result.chat_history[-1].content
+
+        print_subsection("Parsing JSON Output")
+
+        # Extract and parse JSON from the unified output
         try:
-            evaluation = extract_and_parse_json(final_text, CodeJudgeOutput, raise_on_failure=True)
+            evaluation = extract_and_parse_json(unified_text, CodeJudgeOutput, raise_on_failure=True)
         except JSONParseError as e:
-            # Re-raise JSONParseError to trigger retry in master agent
             print_error(f"JSON parsing failed, will trigger retry: {e}")
             raise
         except Exception as e:

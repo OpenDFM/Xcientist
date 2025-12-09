@@ -39,18 +39,34 @@ You MUST output a JSON object with this EXACT structure:
     {
       "step_id": 1,
       "title": "Create Project Structure",
-      "description": "Create all directories and __init__.py files",
+      "description": "Create directories and __init__.py files",
       "files_to_create": ["data/__init__.py", "models/__init__.py", "training/__init__.py"],
       "files_to_modify": null,
-      "acceptance_criteria": ["All directories exist", "All __init__.py files created"]
+      "acceptance_criteria": ["All directories exist"]
     },
     {
       "step_id": 2,
-      "title": "Implement Dataset",
-      "description": "Create Dataset class for loading and preprocessing data",
+      "title": "Implement Dataset Class",
+      "description": "Create Dataset with __getitem__ and __len__",
       "files_to_create": ["data/dataset.py"],
       "files_to_modify": null,
-      "acceptance_criteria": ["Dataset class has __getitem__ and __len__", "Can load sample data"]
+      "acceptance_criteria": ["Dataset class works"]
+    },
+    {
+      "step_id": 3,
+      "title": "Implement Encoder",
+      "description": "Create Encoder network with Conv2d layers",
+      "files_to_create": ["models/encoder.py"],
+      "files_to_modify": null,
+      "acceptance_criteria": ["Encoder forward pass works"]
+    },
+    {
+      "step_id": 4,
+      "title": "Implement Decoder",
+      "description": "Create Decoder network with ConvTranspose2d",
+      "files_to_create": ["models/decoder.py"],
+      "files_to_modify": null,
+      "acceptance_criteria": ["Decoder forward pass works"]
     }
   ],
   "implementation_notes": "Use PyTorch 2.0+, ensure reproducibility with fixed seeds, use absolute imports.",
@@ -76,7 +92,7 @@ You MUST output a JSON object with this EXACT structure:
 | `dataset_plan` | string | YES | Data loading strategy |
 | `model_plan` | string | YES | Model architecture plan |
 | `training_plan` | string | YES | Training pipeline plan |
-| `implementation_checklist` | array | YES | List of ChecklistItem objects (MAX 10 steps) |
+| `implementation_checklist` | array | YES | List of ChecklistItem objects |
 | `implementation_notes` | string | YES | Important implementation notes |
 | `experiment_plan` | object | YES | ExperimentPlan object |
 
@@ -147,7 +163,7 @@ Use `list_files` + `read_file` to scan:
 **CODE PLAN:**
 - File Structure: Flat under `project/`. Dirs: data/, models/, training/, configs/, utils/, scripts/, tests/
 - Imports: Absolute from project root: `from models.net import X`
-- Checklist: Step 1 = "Create Project Structure". **MAX 10 STEPS**, each = 1-3 files
+- Checklist: Step 1 = "Create Project Structure", then logical steps as needed
 
 **EXPERIMENT PLAN:**
 - Baseline: Define method with same conditions as proposed

@@ -57,13 +57,13 @@ You MUST output a JSON object with this EXACT structure:
 |-------|------|----------|-------------|
 | `plan_type` | string | YES | Must be "error_feedback" |
 | `file_structure` | array | YES | Files to fix (minimal list) |
-| `implementation_checklist` | array | YES | 1-3 targeted fix steps (MAX 15 steps) |
+| `implementation_checklist` | array | YES | Targeted fix steps |
 | `implementation_notes` | string | YES | Emphasize MINIMAL fix |
 
 ### Fix Guidelines:
 - Target EXACT file and line number
 - Change MINIMUM code necessary
-- MAX 15 steps, prefer 1-3 targeted fixes
+- Prefer targeted fixes, each step handles 1 file
 - If fix requires > 20 lines, reconsider
 
 ⚠️ **CRITICAL**: Output ONLY valid JSON, no markdown explanations!
@@ -121,7 +121,7 @@ Priority order (try simpler fixes first):
 - Target EXACT file and line
 - Change MINIMUM code necessary
 - If fix requires > 20 lines, you're overcomplicating
-- **Max Steps**: 1-3 targeted fixes (max 15 steps)
+- Focus on targeted fixes
 
 **ANTI-PATTERNS:**
 ❌ "Rewrite the data loading pipeline"

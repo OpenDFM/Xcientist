@@ -53,6 +53,8 @@ EXECUTE_EXPERIMENT_MODEL: str = "MiniMax-M2"
 
 RESULT_ANALYSIS_MODEL: str = "gpt-5.1"
 
+UNIFIER_MODEL: str = "gpt-4.1-mini"
+
 DEFAULT_MODEL: str = "MiniMax-M2"
 
 # =============================================================================
@@ -284,7 +286,7 @@ def get_model_config() -> dict:
         "code_judge": CODE_JUDGE_MODEL,
         "execute_experiment": EXECUTE_EXPERIMENT_MODEL,
         "result_analysis": RESULT_ANALYSIS_MODEL,
-        # "output_unifier": OUTPUT_UNIFIER_MODEL,  # Deprecated
+        "unifier": UNIFIER_MODEL,
         "default": DEFAULT_MODEL,
     }
 

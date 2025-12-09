@@ -26,58 +26,71 @@ from src.agents.experiment_agent.utils.json_utils import (
 )
 
 
-# Hand-written JSON output instruction for ExperimentAnalysisOutput
-EXPERIMENT_ANALYSIS_JSON_OUTPUT_INSTRUCTION = """
-## Required JSON Output Format: ExperimentAnalysisOutput
+# Unifier instruction for ExperimentAnalysisOutput
+EXPERIMENT_ANALYSIS_UNIFIER_INSTRUCTION = """You are an Output Formatter. Convert the structured analysis output into JSON.
 
-You MUST output a JSON object with this EXACT structure:
+## Input Format
+The input follows this structure:
+```
+=== EXPERIMENT ANALYSIS OUTPUT ===
+MEETS_REQUIREMENTS: true/false
+=== OVERALL ANALYSIS ===
+...
+=== METRICS ANALYSIS ===
+METRIC #N:
+METRIC_NAME: ...
+ACTUAL_VALUE: ...
+ANALYSIS: ...
+=== PLAN IMPROVEMENTS ===
+...
+=== POTENTIAL ISSUES ===
+- issue1
+- issue2
+=== NEXT STEPS ===
+...
+```
+
+## Required JSON Output Format
 
 ```json
 {
   "meets_requirements": true,
-  "overall_analysis": "The experiment successfully demonstrated the proposed method outperforms baseline by 5% on accuracy. Key strengths: efficient training, stable convergence. Unexpected finding: better performance on small datasets.",
+  "overall_analysis": "Summary text",
   "metrics_analysis": [
     {
       "metric_name": "accuracy",
       "actual_value": 0.92,
-      "analysis": "Achieved 92% accuracy, exceeding the baseline of 87%. Meets the target of >90%."
-    },
-    {
-      "metric_name": "loss",
-      "actual_value": 0.23,
-      "analysis": "Final loss of 0.23, indicating good convergence."
+      "analysis": "Analysis text"
     }
   ],
-  "plan_improvements": "1. Add learning rate scheduling\\n2. Increase batch size for faster training\\n3. Add data augmentation",
-  "potential_issues": [
-    "Training time is longer than expected",
-    "Memory usage could be optimized"
-  ],
-  "next_steps": "Priority actions:\\n1. Implement cosine learning rate scheduler\\n2. Profile memory usage\\n3. Test on larger dataset"
+  "plan_improvements": "Improvements text",
+  "potential_issues": ["Issue 1", "Issue 2"],
+  "next_steps": "Next steps text"
 }
 ```
 
-### Field Descriptions:
+### Rules:
+1. Parse MEETS_REQUIREMENTS -> `meets_requirements` (boolean)
+2. Parse OVERALL ANALYSIS section -> `overall_analysis`
+3. Parse each METRIC block -> `metrics_analysis` array
+4. Parse PLAN IMPROVEMENTS -> `plan_improvements`
+5. Parse POTENTIAL ISSUES -> `potential_issues` array
+6. Parse NEXT STEPS -> `next_steps`
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `meets_requirements` | boolean | YES | Whether experiment meets pre-analysis requirements |
-| `overall_analysis` | string | YES | High-level summary: what worked, strengths, unexpected findings |
-| `metrics_analysis` | array or null | NO | List of MetricAnalysis objects |
-| `plan_improvements` | string | NO | Specific improvements for code plan |
-| `potential_issues` | array or null | NO | Issues to address in next iteration |
-| `next_steps` | string | YES | Recommended next steps with prioritized actions |
-
-### MetricAnalysis Object:
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `metric_name` | string | YES | e.g., "accuracy", "loss", "f1_score" |
-| `actual_value` | number or null | NO | The actual numeric value achieved |
-| `analysis` | string | YES | Analysis of this metric's performance |
-
-⚠️ **CRITICAL**: Output ONLY valid JSON, no markdown explanations!
+Output ONLY valid JSON wrapped in ```json ... ``` block.
 """
+
+
+def create_analysis_output_unifier(model: str = None) -> Agent:
+    """Create unifier agent to format analysis output."""
+    if model is None:
+        from src.agents.experiment_agent.config import UNIFIER_MODEL
+        model = UNIFIER_MODEL
+    return Agent(
+        name="Experiment Analysis Output Unifier",
+        instructions=EXPERIMENT_ANALYSIS_UNIFIER_INSTRUCTION,
+        model=model,
+    )
 
 
 def create_analysis_agent(model: str = "gpt-4o", tools: Optional[list] = None) -> Agent:
@@ -110,26 +123,69 @@ Use `read_file` to read log files from `project/logs/` and results from `project
 - Be SPECIFIC with metrics - no vague claims
 
 ### 3️⃣ REPORT
-Provide structured JSON output.
-🚫 **DO NOT use `write_file`** - just output the JSON.
-🚫 **NO .md files** - Do NOT create any markdown file.
+🚫 **DO NOT use `write_file`** - just output your analysis.
+
+**⛔ ABSOLUTELY PROHIBITED - DO NOT CREATE THESE FILES:**
+- `STEP*.json`, `*_COMPLETION*.json`, `*_EVALUATION*.json`, `*_SUMMARY*.json`
+- `*_RESULT*.json`, `*_ANALYSIS*.json`, `*_STATUS*.json`
+- **ANY `.md` files**, **ANY summary/status/progress files**
+The orchestrator handles step tracking externally.
 
 ---
 
-## ⚠️ CRITICAL: REQUIRED OUTPUT FORMAT
+## 4️⃣ OUTPUT (MANDATORY - AS CHAT RESPONSE, NOT FILE!)
 
-🚨🚨🚨 **YOUR FINAL OUTPUT MUST BE ONLY A JSON OBJECT** 🚨🚨🚨
+**🚨 CRITICAL OUTPUT RULES:**
+- **DO NOT use `write_file` to write the output below!**
+- **DO NOT write any JSON/summary/progress files to disk!**
+- The format below is your **FINAL CHAT RESPONSE** - just type it directly as text!
+- A separate unifier agent will convert your text response to JSON.
 
-🚨 **CRITICAL**: 
-- **DO NOT** use `write_file` to save your final result JSON!
-- **DO NOT** call any tool to output the result!
-- **JUST PRINT** the JSON directly in your response message!
+After completing your analysis, **STOP calling tools** and output this TEXT directly in chat:
 
-**DO NOT** write markdown summaries like "Based on my analysis..." or "The experiment results show...".
-**DO NOT** write any explanatory text after completing tool calls.
-**ONLY** output a valid JSON wrapped in ```json ... ``` code block.
+```
+=== EXPERIMENT ANALYSIS OUTPUT ===
 
-{EXPERIMENT_ANALYSIS_JSON_OUTPUT_INSTRUCTION}
+MEETS_REQUIREMENTS: true  # true if experiment meets pre-analysis requirements
+
+=== OVERALL ANALYSIS ===
+The experiment successfully demonstrated the proposed method outperforms baseline.
+Key strengths: efficient training, stable convergence.
+Unexpected finding: better performance on small datasets than large ones.
+
+=== METRICS ANALYSIS ===
+
+METRIC #1:
+METRIC_NAME: accuracy
+ACTUAL_VALUE: 0.92
+ANALYSIS: Achieved 92% accuracy, exceeding the baseline of 87%. Meets the target of >90%.
+
+METRIC #2:
+METRIC_NAME: loss
+ACTUAL_VALUE: 0.23
+ANALYSIS: Final loss of 0.23, indicating good convergence.
+
+=== PLAN IMPROVEMENTS ===
+1. Add learning rate scheduling for better convergence
+2. Increase batch size for faster training
+3. Add data augmentation to improve generalization
+
+=== POTENTIAL ISSUES ===
+- Training time is longer than expected
+- Memory usage could be optimized
+- Model size may be too large for deployment
+
+=== NEXT STEPS ===
+Priority 1: Implement cosine learning rate scheduler
+Priority 2: Profile memory usage and optimize
+Priority 3: Test on larger dataset
+Priority 4: Add model compression techniques
+```
+
+**🚨 REMINDER**: 
+- This output format is your **CHAT RESPONSE** - just type it out!
+- **DO NOT call write_file() with this content!**
+- Be SPECIFIC with metrics - no vague claims!
 """
 
     agent = Agent(
@@ -177,6 +233,9 @@ class ExperimentAnalysisAgent:
 
         # Initialize analysis agent
         self.analysis_agent = create_analysis_agent(model=model, tools=self.tools)
+
+        # Initialize output unifier agent
+        self.output_unifier = create_analysis_output_unifier(model=model)
 
         # Expose analysis agent as main agent for handoff compatibility
         self.agent = self.analysis_agent
@@ -361,17 +420,37 @@ Start by reading the log files.
 
         print_success("\nAnalysis text generated")
 
-        # Parse JSON output
+        print_subsection("Unifying Output")
+
+        # Use unifier agent to convert raw output to structured JSON
+        unifier_prompt = f"""Convert the following analysis output to JSON:
+
+=== RAW OUTPUT START ===
+{final_text}
+=== RAW OUTPUT END ===
+
+Extract all analysis results, metrics, and recommendations. Output the structured JSON:"""
+
+        unifier_result = await Runner.run(
+            self.output_unifier,
+            unifier_prompt,
+            run_config=RunConfig(model_settings=ModelSettings(max_tokens=64*1024)),
+        )
+
+        unified_text = ""
+        if hasattr(unifier_result, "final_output") and isinstance(unifier_result.final_output, str):
+            unified_text = unifier_result.final_output
+        elif hasattr(unifier_result, "chat_history") and unifier_result.chat_history:
+            unified_text = unifier_result.chat_history[-1].content
+
         print_subsection("Parsing JSON Output")
 
-        # Use raise_on_failure=True to trigger retry in master agent
+        # Extract and parse JSON from the unified output
         try:
-            final_output = extract_and_parse_json(final_text, ExperimentAnalysisOutput, raise_on_failure=True)
+            final_output = extract_and_parse_json(unified_text, ExperimentAnalysisOutput, raise_on_failure=True)
         except JSONParseError as e:
-            # Re-raise JSONParseError to trigger retry in master agent
             print_error(f"JSON parsing failed, will trigger retry: {e}")
             raise
-
 
         print_success("Output parsed successfully")
         print_section("EXPERIMENT ANALYSIS COMPLETE", "=")

@@ -21,11 +21,35 @@ from src.agents.experiment_agent.utils.json_utils import (
 )
 
 
-# Hand-written JSON output instruction for ExperimentExecuteOutput
-EXPERIMENT_EXECUTE_JSON_OUTPUT_INSTRUCTION = """
-## Required JSON Output Format: ExperimentExecuteOutput
+# Unifier instruction for ExperimentExecuteOutput
+EXPERIMENT_EXECUTE_UNIFIER_INSTRUCTION = """You are an Output Formatter. Convert the structured execution output into JSON.
 
-You MUST output a JSON object with this EXACT structure:
+## Input Format
+The input follows this structure:
+```
+=== EXPERIMENT EXECUTION OUTPUT ===
+EXECUTION_STATUS: success/partial/error
+HAS_ERROR: true/false
+ERROR_MESSAGE: ...
+=== OUTPUT FILES ===
+FILE #N:
+FILE_PATH: ...
+FILE_TYPE: ...
+...
+=== PRIMARY LOG ===
+LOG_PATH: ...
+=== EXPERIMENT METRICS ===
+metric: value
+...
+=== EXECUTION SUMMARY ===
+...
+=== STDOUT PREVIEW ===
+...
+=== STDERR PREVIEW ===
+...
+```
+
+## Required JSON Output Format
 
 ```json
 {
@@ -34,54 +58,42 @@ You MUST output a JSON object with this EXACT structure:
   "error_message": null,
   "output_files": [
     {
-      "file_path": "/path/to/project/logs/baseline_exp.log",
+      "file_path": "/path/to/logs/exp.log",
       "file_type": "log",
-      "description": "Baseline experiment training log",
-      "run_command": "python train.py --method baseline --dataset mnist",
-      "run_config": "lr=0.001, epochs=10, batch_size=32"
-    },
-    {
-      "file_path": "/path/to/project/results/model_best.pt",
-      "file_type": "checkpoint",
-      "description": "Best model checkpoint",
-      "run_command": "",
-      "run_config": ""
+      "description": "Description",
+      "run_command": "python train.py",
+      "run_config": "lr=0.001"
     }
   ],
-  "log_path": "/path/to/project/logs/baseline_exp.log",
-  "experiment_metrics": "{\\"accuracy\\": 0.95, \\"loss\\": 0.23}",
-  "execution_summary": "Ran baseline and proposed method on MNIST. Proposed achieved 95% accuracy vs baseline 87%.",
-  "stdout_preview": "Epoch 10/10: loss=0.23, acc=0.95",
+  "log_path": "/path/to/logs/exp.log",
+  "experiment_metrics": "{\\"accuracy\\": 0.95}",
+  "execution_summary": "Summary text",
+  "stdout_preview": "Output preview",
   "stderr_preview": ""
 }
 ```
 
-### Field Descriptions:
+### Rules:
+1. Parse EXECUTION_STATUS, HAS_ERROR, ERROR_MESSAGE
+2. Parse each FILE block -> `output_files` array
+3. Parse LOG_PATH -> `log_path`
+4. Parse EXPERIMENT METRICS -> `experiment_metrics` (as JSON string)
+5. Parse summaries and previews
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `execution_status` | string | YES | "success", "partial", "error", "timeout", "interrupted", "skipped" |
-| `has_error` | boolean | YES | Whether any error occurred |
-| `error_message` | string or null | NO | Error message if failed |
-| `output_files` | array or null | NO | List of ExperimentFile objects |
-| `log_path` | string | NO | Path to primary log file |
-| `experiment_metrics` | string | NO | JSON string of best metrics |
-| `execution_summary` | string | NO | Human-readable summary |
-| `stdout_preview` | string | NO | Preview of stdout |
-| `stderr_preview` | string | NO | Preview of stderr if errors |
-
-### ExperimentFile Object:
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `file_path` | string | YES | Absolute path to file |
-| `file_type` | string | YES | "log", "result", "checkpoint", "config", "plot", "other" |
-| `description` | string | YES | What this file contains |
-| `run_command` | string | NO | Command used to generate this file |
-| `run_config` | string | NO | Key hyperparameters |
-
-⚠️ **CRITICAL**: Output ONLY valid JSON, no markdown explanations!
+Output ONLY valid JSON wrapped in ```json ... ``` block.
 """
+
+
+def create_execute_output_unifier(model: str = None) -> Agent:
+    """Create unifier agent to format execution output."""
+    if model is None:
+        from src.agents.experiment_agent.config import UNIFIER_MODEL
+        model = UNIFIER_MODEL
+    return Agent(
+        name="Experiment Execute Output Unifier",
+        instructions=EXPERIMENT_EXECUTE_UNIFIER_INSTRUCTION,
+        model=model,
+    )
 
 
 # --- AGENT FACTORIES ---
@@ -140,24 +152,73 @@ Parse logs, extract metrics, build comparison tables.
 - **NEVER fabricate metrics** - Only report actual numbers from logs
 - **NEVER claim success without verification**
 - **Document ALL failures** - Don't skip failed experiments
-- **NO .md files** - Do NOT create any markdown files.
+
+**⛔ ABSOLUTELY PROHIBITED - DO NOT CREATE THESE FILES:**
+- `STEP*.json`, `*_COMPLETION*.json`, `*_EVALUATION*.json`, `*_SUMMARY*.json`
+- `*_RESULT*.json`, `*_ANALYSIS*.json`, `*_STATUS*.json`
+- **ANY `.md` files**, **ANY summary/status/progress files**
+The orchestrator handles step tracking externally.
 
 ---
 
-## ⚠️ CRITICAL: REQUIRED OUTPUT FORMAT
+## 4️⃣ OUTPUT (MANDATORY - AS CHAT RESPONSE, NOT FILE!)
 
-🚨🚨🚨 **YOUR FINAL OUTPUT MUST BE ONLY A JSON OBJECT** 🚨🚨🚨
+**🚨 CRITICAL OUTPUT RULES:**
+- **DO NOT use `write_file` to write the output below!**
+- **DO NOT write any JSON/summary/progress files to disk!**
+- The format below is your **FINAL CHAT RESPONSE** - just type it directly as text!
+- A separate unifier agent will convert your text response to JSON.
 
-🚨 **CRITICAL**: 
-- **DO NOT** use `write_file` to save your final result JSON!
-- **DO NOT** call any tool to output the result!
-- **JUST PRINT** the JSON directly in your response message!
+After completing all experiments, **STOP calling tools** and output this TEXT directly in chat:
 
-**DO NOT** write markdown summaries like "I have completed the experiments..." or "Here are my findings...".
-**DO NOT** write any explanatory text after completing tool calls.
-**ONLY** output a valid JSON wrapped in ```json ... ``` code block.
+```
+=== EXPERIMENT EXECUTION OUTPUT ===
 
-{EXPERIMENT_EXECUTE_JSON_OUTPUT_INSTRUCTION}
+EXECUTION_STATUS: success  # success, partial, error, timeout, interrupted, skipped
+HAS_ERROR: false
+ERROR_MESSAGE: null  # or error description if failed
+
+=== OUTPUT FILES ===
+
+FILE #1:
+FILE_PATH: /workspace/project/logs/baseline_exp.log
+FILE_TYPE: log  # log, result, checkpoint, config, plot, other
+DESCRIPTION: Baseline experiment training log
+RUN_COMMAND: python train.py --method baseline --dataset mnist
+RUN_CONFIG: lr=0.001, epochs=10, batch_size=32
+
+FILE #2:
+FILE_PATH: /workspace/project/results/model_best.pt
+FILE_TYPE: checkpoint
+DESCRIPTION: Best model checkpoint
+RUN_COMMAND: 
+RUN_CONFIG: 
+
+=== PRIMARY LOG ===
+LOG_PATH: /workspace/project/logs/baseline_exp.log
+
+=== EXPERIMENT METRICS ===
+accuracy: 0.95
+loss: 0.23
+f1_score: 0.92
+
+=== EXECUTION SUMMARY ===
+Ran baseline and proposed method on MNIST dataset.
+Baseline achieved 87% accuracy.
+Proposed method achieved 95% accuracy, outperforming baseline by 8%.
+
+=== STDOUT PREVIEW ===
+Epoch 10/10: loss=0.23, acc=0.95
+Training completed successfully.
+
+=== STDERR PREVIEW ===
+[empty if no errors]
+```
+
+**🚨 REMINDER**: 
+- This output format is your **CHAT RESPONSE** - just type it out!
+- **DO NOT call write_file() with this content!**
+- Include ALL output files with their full paths!
 """
 
     agent = Agent(
@@ -214,6 +275,9 @@ class ExperimentExecuteAgent:
         self.researcher_agent = create_execute_agent(
             model=model, working_dir=working_dir, log_dir=log_dir, tools=self.tools
         )
+
+        # Initialize output unifier agent
+        self.output_unifier = create_execute_output_unifier(model=model)
 
         # Expose agent
         self.agent = self.researcher_agent
@@ -347,14 +411,35 @@ Begin by exploring the project with `list_files`.
 
         print_success("Research session completed")
 
+        print_subsection("Unifying Output")
+
+        # Use unifier agent to convert raw output to structured JSON
+        unifier_prompt = f"""Convert the following experiment execution output to JSON:
+
+=== RAW OUTPUT START ===
+{final_text}
+=== RAW OUTPUT END ===
+
+Extract all execution results, file paths, and metrics. Output the structured JSON:"""
+
+        unifier_result = await Runner.run(
+            self.output_unifier,
+            unifier_prompt,
+            run_config=RunConfig(model_settings=ModelSettings(max_tokens=64*1024)),
+        )
+
+        unified_text = ""
+        if hasattr(unifier_result, "final_output") and isinstance(unifier_result.final_output, str):
+            unified_text = unifier_result.final_output
+        elif hasattr(unifier_result, "chat_history") and unifier_result.chat_history:
+            unified_text = unifier_result.chat_history[-1].content
+
         print_subsection("Parsing JSON Output")
         
-        # Extract and parse JSON from the execution output
-        # Use raise_on_failure=True to trigger retry in master agent
+        # Extract and parse JSON from the unified output
         try:
-            final_output = extract_and_parse_json(final_text, ExperimentExecuteOutput, raise_on_failure=True)
+            final_output = extract_and_parse_json(unified_text, ExperimentExecuteOutput, raise_on_failure=True)
         except JSONParseError as e:
-            # Re-raise JSONParseError to trigger retry in master agent
             print_error(f"JSON parsing failed, will trigger retry: {e}")
             raise
 

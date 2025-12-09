@@ -42,7 +42,7 @@ class UnitTestSpec(BaseDictModel):
     target_files: List[str] = Field(
         description="List of implementation files that this test validates"
     )
-    time_limit_seconds: int = Field(
+    time_limit_seconds: Optional[int] = Field(
         default=30,
         description="Maximum allowed execution time for this test in seconds",
     )

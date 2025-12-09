@@ -23,11 +23,30 @@ from src.agents.experiment_agent.utils.json_utils import (
 from src.agents.experiment_agent.utils.print_utils import *
 
 
-# Hand-written JSON output instruction for CodeImplementOutput
-CODE_IMPLEMENT_JSON_OUTPUT_INSTRUCTION = """
-## Required JSON Output Format: CodeImplementOutput
+# Unifier instruction for CodeImplementOutput
+CODE_IMPLEMENT_UNIFIER_INSTRUCTION = """You are an Output Formatter. Convert the structured implementation output into JSON.
 
-You MUST output a JSON object with this EXACT structure:
+## Input Format
+The input follows this structure:
+```
+=== IMPLEMENTATION OUTPUT ===
+IMPLEMENTATION_TYPE: initial/fix
+=== GENERATED FILES ===
+FILE: path
+DESCRIPTION: ...
+DEPENDENCIES: ...
+CONTENT: ...
+=== IMPLEMENTATION SUMMARY ===
+FILES_CREATED: N
+FILES_MODIFIED: N
+...
+=== TEST FILES ===
+FILE: tests/test_xxx.py
+DESCRIPTION: ...
+CONTENT: ...
+```
+
+## Required JSON Output Format
 
 ```json
 {
@@ -35,43 +54,54 @@ You MUST output a JSON object with this EXACT structure:
   "generated_files": [
     {
       "file_path": "models/encoder.py",
-      "content": "import torch\\nimport torch.nn as nn\\n\\nclass Encoder(nn.Module):\\n    ...",
-      "description": "Encoder module for the model",
-      "dependencies": ["utils/config.py"]
+      "content": "<full file content>",
+      "description": "Description of this file",
+      "dependencies": ["other/file.py"]
     }
   ],
   "implementation_summary": {
     "files_created": 2,
     "files_modified": 0,
     "total_lines": 150,
-    "key_components": ["Encoder class", "forward method"]
+    "key_components": ["Component1", "Component2"]
   },
-  "test_files": null,
+  "test_files": [
+    {
+      "file_path": "tests/test_encoder.py",
+      "content": "<full test file content or empty string if not provided>",
+      "description": "Unit tests for encoder",
+      "dependencies": []
+    }
+  ],
   "issues_addressed": ""
 }
 ```
 
-### Field Descriptions:
+### Rules:
+1. Parse IMPLEMENTATION_TYPE -> `implementation_type`
+2. Parse each FILE block -> `generated_files` array
+3. Parse IMPLEMENTATION SUMMARY section -> `implementation_summary` object
+4. Parse TEST FILES section -> `test_files`:
+   - If NO test files mentioned: set to `null`
+   - If test files listed but no content: set `content` to empty string `""`
+   - If test files with content: include full content
+   - **CRITICAL**: Each test_file MUST have `file_path`, `content`, `description`, `dependencies` fields
+5. Parse ISSUES ADDRESSED -> `issues_addressed` (empty string if none)
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `implementation_type` | string | YES | Must be "initial" or "fix" |
-| `generated_files` | array | YES | List of GeneratedFile objects |
-| `implementation_summary` | object | YES | Summary with files_created, files_modified, total_lines, key_components |
-| `test_files` | array or null | NO | Test files if any |
-| `issues_addressed` | string | NO | Issues fixed (for fix mode) |
-
-### GeneratedFile Object:
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `file_path` | string | YES | Relative path like "models/net.py" |
-| `content` | string | YES | Full file content |
-| `description` | string | YES | What this file does |
-| `dependencies` | array | NO | Files this depends on |
-
-⚠️ **CRITICAL**: The root object MUST be CodeImplementOutput with ALL required fields!
+Output ONLY valid JSON wrapped in ```json ... ``` block.
 """
+
+
+def create_implement_output_unifier(model: str = None) -> Agent:
+    """Create unifier agent to format implementation output."""
+    if model is None:
+        from src.agents.experiment_agent.config import UNIFIER_MODEL
+        model = UNIFIER_MODEL
+    return Agent(
+        name="Code Implement Output Unifier",
+        instructions=CODE_IMPLEMENT_UNIFIER_INSTRUCTION,
+        model=model,
+    )
 
 
 def create_unified_implement_agent(
@@ -126,30 +156,67 @@ def create_unified_implement_agent(
 - Input validation: check None, ≤0, empty, wrong type
 - Float comparison: use `torch.allclose(a, b, atol=1e-5)` not `==`
 
-**🚫 PROHIBITED files (DO NOT create via `write_file`):**
+**⛔ ABSOLUTELY PROHIBITED - DO NOT CREATE THESE FILES:**
 - `STEP*.json`, `*_COMPLETION*.json`, `*_EVALUATION*.json`, `*_SUMMARY*.json`
 - `*_ISSUE*.json`, `*_ANALYSIS*.json`, `*_RESULT*.json`
-- **ANY `.md` files**
+- **ANY `.md` files**, **ANY summary/status/progress files**
+- **NEVER write JSON files to track step completion or progress**
 
 **📁 TEST FILE LOCATION:**
 - ALL test/validation files MUST be placed in `tests/` directory only.
 
 ---
 
-### 3️⃣ OUTPUT JSON (MANDATORY)
+### 3️⃣ OUTPUT (MANDATORY - AS CHAT RESPONSE, NOT FILE!)
 
-After completing all tool calls, you **MUST** output a JSON object **DIRECTLY in your response**.
+**🚨 CRITICAL OUTPUT RULES:**
+- **DO NOT use `write_file` to write the output below!**
+- **DO NOT write any JSON/summary/progress files to disk!**
+- The format below is your **FINAL CHAT RESPONSE** - just type it directly as text!
+- A separate unifier agent will convert your text response to JSON.
 
-🚨 **CRITICAL**: 
-- **DO NOT** use `write_file` to save your final result JSON!
-- **DO NOT** call any tool to output the result!
-- **JUST PRINT** the JSON directly in your response message!
+After completing all tool calls, **STOP calling tools** and output this TEXT directly in chat:
 
-**DO NOT** write markdown summaries like "I have successfully completed..." or "✅ Step Complete".
-**DO NOT** write any explanatory text after completing tool calls.
-**ONLY** output a valid JSON wrapped in ```json ... ``` code block.
+```
+=== IMPLEMENTATION OUTPUT ===
 
-{CODE_IMPLEMENT_JSON_OUTPUT_INSTRUCTION}
+IMPLEMENTATION_TYPE: initial  # or "fix"
+
+=== GENERATED FILES ===
+
+FILE: models/encoder.py
+DESCRIPTION: Encoder module with attention mechanism
+DEPENDENCIES: utils/config.py, data/loader.py
+CONTENT:
+import torch
+import torch.nn as nn
+...
+[full file content here]
+
+FILE: models/decoder.py
+DESCRIPTION: Decoder module
+DEPENDENCIES: models/encoder.py
+CONTENT:
+...
+
+=== IMPLEMENTATION SUMMARY ===
+FILES_CREATED: 2
+FILES_MODIFIED: 0
+TOTAL_LINES: 150
+KEY_COMPONENTS: Encoder class, Decoder class, forward method
+
+=== TEST FILES ===
+FILE: tests/test_encoder.py
+DESCRIPTION: Unit tests for encoder
+
+=== ISSUES ADDRESSED ===
+[If fix mode, describe what was fixed]
+```
+
+**🚨 REMINDER**: 
+- This output format is your **CHAT RESPONSE** - just type it out!
+- **DO NOT call write_file() with this content!**
+- Include ALL generated file contents in full!
 """
 
     agent = Agent(
@@ -201,6 +268,9 @@ class CodeImplementAgent:
             working_dir=working_dir,
             tools=self.tools,
         )
+
+        # Initialize output unifier agent
+        self.output_unifier = create_implement_output_unifier(model=model)
 
         # Expose implementation agent as main agent for compatibility
         self.agent = self.implementation_agent
@@ -420,17 +490,37 @@ Global Context:
                         final_text = msg.content
                         break
 
+        print_subsection("Unifying Output")
+
+        # Use unifier agent to convert raw output to structured JSON
+        unifier_prompt = f"""Convert the following implementation output to JSON:
+
+=== RAW OUTPUT START ===
+{final_text}
+=== RAW OUTPUT END ===
+
+Extract all file information and output the structured JSON:"""
+
+        unifier_result = await Runner.run(
+            self.output_unifier,
+            unifier_prompt,
+            run_config=RunConfig(model_settings=ModelSettings(max_tokens=64*1024)),
+        )
+
+        unified_text = ""
+        if hasattr(unifier_result, "final_output") and isinstance(unifier_result.final_output, str):
+            unified_text = unifier_result.final_output
+        elif hasattr(unifier_result, "chat_history") and unifier_result.chat_history:
+            unified_text = unifier_result.chat_history[-1].content
+
         print_subsection("Parsing JSON Output")
 
-        # Extract and parse JSON from the implementation output
-        # Use raise_on_failure=True to trigger retry in master agent
+        # Extract and parse JSON from the unified output
         try:
-            final_output = extract_and_parse_json(final_text, CodeImplementOutput, raise_on_failure=True)
+            final_output = extract_and_parse_json(unified_text, CodeImplementOutput, raise_on_failure=True)
         except JSONParseError as e:
-            # Re-raise JSONParseError to trigger retry in master agent
             print_error(f"JSON parsing failed, will trigger retry: {e}")
             raise
-
 
         print_success("Implementation completed")
         print_info(f"Generated {len(final_output.generated_files)} files")
