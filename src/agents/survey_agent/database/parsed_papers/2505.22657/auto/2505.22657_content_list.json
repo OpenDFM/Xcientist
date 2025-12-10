@@ -1,0 +1,2507 @@
+[
+    {
+        "type": "text",
+        "text": "3DLLM-Mem: Long-Term Spatial-Temporal Memory for Embodied 3D Large Language Model ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            122,
+            823,
+            172
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Wenbo $\\mathbf { H } \\mathbf { u } ^ { 1 \\boxtimes }$ Yining Hong1 Yanjun Wang1 Leison Gao1 Zibu Wei1 Xingcheng Yao1 Nanyun Peng1 Yonatan Bitton2 Idan Szpektor2 Kai-Wei Chang1 ",
+        "bbox": [
+            181,
+            224,
+            818,
+            256
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1University of California, Los Angeles, 2Google Research ",
+        "bbox": [
+            307,
+            267,
+            691,
+            284
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "https://3dllm-mem.github.io ",
+        "bbox": [
+            379,
+            290,
+            614,
+            304
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/07d0750612e36d90b95f9f453a0f190ef0b6bfe531f71ddae4f5e30d80c9df7c.jpg",
+        "image_caption": [
+            "Figure 1: We propose 3DLLM-MEM, a memory-enhanced 3D embodied agent that explores and incorporates feedback from the environment, interacts with objects, and incrementally builds and maintains a task-relevant long-term memory throughout its trajectory. For illustration purposes, agents from multiple time steps are shown simultaneously. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            176,
+            337,
+            823,
+            551
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Abstract ",
+        "text_level": 1,
+        "bbox": [
+            462,
+            632,
+            535,
+            648
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Humans excel at performing complex tasks by leveraging long-term memory across temporal and spatial experiences. In contrast, current Large Language Models (LLMs) struggle to effectively plan and act in dynamic, multi-room 3D environments. We posit that part of this limitation is due to the lack of proper 3D spatial-temporal memory modeling in LLMs. To address this, we first introduce 3DMEM-BENCH, a comprehensive benchmark comprising over 26,000 trajectost ries and 2,892 embodied tasks, question-answering and captioning, designed to table evaluate an agent’s ability to reason over long-term memory in 3D environments. sent Second, we propose 3DLLM-MEM, a novel dynamic memory management and x for the fusion model for embodied spatial-temporal reasoning and actions in LLMs. Our model uses working memory tokens, which represents current observations, as queries to selectively attend to and fuse the most useful spatial and temporal features from episodic memory, which stores past observations and interactions. Our approach allows the agent to focus on task-relevant information while maintaining memory efficiency in complex, long-horizon environments. Experimental results demonstrate that 3DLLM-MEM achieves state-of-the-art performance across various tasks, outperforming the strongest baselines by $1 6 . 5 \\%$ in success rate on 3DMEM-BENCH’s most challenging in-the-wild embodied tasks. ",
+        "bbox": [
+            233,
+            665,
+            766,
+            872
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            232,
+            92,
+            767,
+            133
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "1 Introduction ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            165,
+            312,
+            181
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Picture yourself traversing an unfamiliar home, as illustrated in Figure 1, on a mission to explore multiple rooms and evaluate various gift boxes to find the most suitable one for wrapping a teddy bear. As you navigate from room to room, your brain instinctively creates a 3D cognitive map of the environment, maintains a working memory of objects you’ve encountered, forms episodic memories that link observations across space and time, and plans efficient actions. This seamless integration of 3D spatial understanding, long-term memory encoding and retrieval, fluid switching between working and episodic memory, and purposeful action planning — cognitive processes that humans take for granted — remain formidable challenges for embodied AI systems today. ",
+        "bbox": [
+            174,
+            188,
+            825,
+            297
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Recent extensions of Large Language Models (LLMs) to 3D environments have birthed 3DLLMs (Hong et al., 2023b; Guo et al., 2023; Gu et al., 2024; Huang et al., 2024b; Xu et al., 2025a) that can perceive and reason about 3D spaces, while 3D Vision-Language-Action models (Zhen et al., 2024; Zhao et al., 2025; Intelligence et al., 2025) further incorporate the ability to plan and act within these environments. Despite these advances, several critical limitations persist that prevent models from performing the kinds of tasks described above. First, current models struggle to maintain long-term memory chains when performing complex tasks that unfold across multiple visual scenarios, such as several rooms in a house, and extended time frames. Real-world 3D physical scenes are remarkably vast and information-dense, where every detail can matter for long-horizon embodied tasks — for instance, in Figure 1, finding the most suitable gift box requires remembering all the gift boxes encountered along the way and their characteristics and interaction with teddy bear. Dense 3D representations are particularly valuable as they capture comprehensive spatial information, preserving intricate geometric relationships and environmental details that sparse or object-centric approaches might miss. However, how to accurately and efficiently store dense 3D memory remains a fundamental challenge - retrieving the entire history would overwhelm the model’s context limits, while selective retrieval (Xie et al., 2024; Wang et al., 2024; Yang et al., 2025b) risks omitting critical information needed for accurate reasoning and decision-making. The second challenge resides in the entanglement of spatial and temporal memory — agents must track not only where objects are, but how they change over time through exploration and interaction. As environments evolve, maintaining coherent representations of previously seen spaces while incorporating new information continues to exceed the capabilities of current embodied AI models. ",
+        "bbox": [
+            174,
+            304,
+            826,
+            594
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Our efforts at solving this challenge are two-fold. First, we introduce a novel benchmark for reasoning, planning and acting with long-term spatial-temporal memory in embodied environments. Our benchmark, 3DMEM-BENCH, encompasses multi-room 3D scenes from the Habitat environment, augmented with interactive objects to enable manipulation tasks across extended spatial-temporal horizons. Notably, we define fine-grained embodied tasks across varying levels of difficulty—from simple to hard—enabling deeper insight into model performance, which we believe is not addressed in prior benchmarks as shown in Table 1. Our task set spans a wide range of complexities, from straightforward object collection to challenging comparative reasoning tasks that require integrating observations across multiple rooms and time steps. Additionally, we include in-the-wild challenge tasks to evaluate the model’s generalization capabilities beyond seen environments. The benchmark includes three evaluation categories: (1) embodied tasks requiring extended action sequences across multiple rooms, (2) spatial-temporal embodied question answering (EQA) that evaluates understanding of spatial relationships over time, and (3) long-term scene captioning that tests memorization of previously observed environments. Our dataset includes $^ { 2 6 , 0 0 0 + }$ trajectory examples spanning $1 8 2 +$ unique scenes with an average of 18 rooms per scene. ",
+        "bbox": [
+            174,
+            601,
+            825,
+            808
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Second, we introduce 3DLLM-MEM, a 3D embodied LLM with dynamic memory management capabilities designed specifically for embodied spatial-temporal reasoning, planning and acting. To our knowledge, we are among the first to explore dense 3D representations as memory for embodied 3D LLMs — addressing a significant gap in current research as noted in recent 3D memory studies (Yang et al., 2025b). Unlike standard approaches that rely solely on context windows (Hong et al., 2023b; Huang et al., 2024b; Zhu et al., 2024), 3DLLM-MEM implements a dual-memory system: a limited-capacity working memory for current observations and an expandable episodic ",
+        "bbox": [
+            174,
+            814,
+            825,
+            911
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "table",
+        "img_path": "images/4a73e0dab6b1b875b7154f0a93f51bfcb28f3beaca355984f713247258f3a168.jpg",
+        "table_caption": [],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Benchmark</td><td>#Test Tasks #Train Trajectories Long-term Memory Fine-grained complexity EQA Captioning</td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>ALFWorld (Shridhar et al., 2021)</td><td>274</td><td>3,553</td><td>X</td><td>X</td><td>NA</td><td>NA</td></tr><tr><td>Behavior-1K (Li et al., 2024a)</td><td>1,000</td><td>NA</td><td>X</td><td>×</td><td>NA</td><td>NA</td></tr><tr><td>VisualAgentBench (Liu et al., 2024)</td><td>746</td><td>4,482</td><td>X</td><td>×</td><td>NA</td><td>NA</td></tr><tr><td>EmbodiedBench (Yang et al., 2025a)</td><td>1,128</td><td>NA</td><td>X</td><td>X</td><td>NA</td><td>NA</td></tr><tr><td>3DMEM-BeNCH (ours)</td><td>1,860</td><td>26,276</td><td>✓</td><td>✓</td><td>865</td><td>167</td></tr></table>",
+        "bbox": [
+            176,
+            79,
+            823,
+            159
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Table 1: Comparison with related benchmarks. 3DMEM-BENCH focus on spatial-temporal memory through fine-grained embodied tasks and EQA that span multiple “pieces” of long-term memory, distinguishing it from prior benchmarks that typically target single-step or short-horizon reasoning. Fine-grained complexity indicates our embodied task spans from simple to medium to hard. ",
+        "bbox": [
+            173,
+            165,
+            825,
+            219
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "memory that stores past spatial-temporal information as dense 3D representations. The key innovation is our memory fusion module that actively integrates information from both memory systems based on task relevance and spatial-temporal relationships. This allows the model to leverage the benefits of dense 3D representations while mitigating their computational demands, maintaining coherent spatial-temporal understanding across extended task horizons. The fusion process preserves critical spatial relationships while accounting for their evolvement through agent interactions over time. ",
+        "bbox": [
+            174,
+            244,
+            825,
+            329
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "We evaluate popular 3D-LLMs and memory mechanisms on 3DMEM-BENCH. Experimental results demonstrate 3DLLM-MEM significantly outperforms all existing approaches in both in-domain and in-the-wild embodied tasks. Notably, while the performance of other methods drops sharply in the challenging in-the-wild setting, our method remains robust, achieving an average success rate of $3 2 . 1 \\%$ —demonstrating strong generalization capabilities. As task complexity increases from simple to hard, all existing approaches degrade significantly, achieving only ${ \\sim } 5 \\%$ success rate in hard in-thewild tasks. In contrast, 3DLLM-MEM maintains a strong performance of $2 7 . 8 \\%$ , demonstrating its scalability and effectiveness in managing longer-term memory representations. ",
+        "bbox": [
+            174,
+            335,
+            825,
+            446
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Our contributions can be summarized as below: ",
+        "bbox": [
+            176,
+            453,
+            485,
+            467
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "• We propose a novel task that requires agents to execute action chains while maintaining and utilizing long-term spatial-temporal memory.   \n• We construct 3DMEM-BENCH, a comprehensive benchmark comprising over 26,000 trajectories and 1,860 fine-grained long-term memory embodied tasks—ranging from simple to hard—along with question-answering tasks that target memory changes across time and space, and captioning tasks in complex 3D environments.   \n• We propose 3DLLM-MEM, an embodied 3D LLM with a novel memory fusion module for spatialtemporal reasoning, planning, and acting-which utilizes working memory tokens as queries to selectively fuse relevant features from episodic memory for efficient, task-aware decision-making. • Experimental results on embodied tasks, question-answering, and captioning demonstrate that 3DLLM-MEM outperforms baselines by a large margin. ",
+        "bbox": [
+            173,
+            472,
+            826,
+            635
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "2 The Embodied 3D Long-Term Spatial-Temporal Memory Benchmark ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            655,
+            787,
+            672
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "2.1 Overview of 3DMEM-BENCH ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            684,
+            419,
+            699
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Design principles Long-term memory (Camina and Güell, 2017; Friedman et al., 2018; Zlotnik and Vansintjan, 2019) can be categorized into explicit memory and implicit memory. Explicit memory includes semantic memory, which stores general knowledge and facts about the world, and episodic memory, which consists of personal experiences that are time-stamped and context-specific. In contrast, implicit memory primarily involves procedural memory, such as learned skills and habits. ",
+        "bbox": [
+            174,
+            710,
+            825,
+            780
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "To comprehensively evaluate 3D long-term memory for real-world applications, we design 3DMEMBENCH following three core task categories: embodied tasks, long-term memory EQA, and captioning. As illustrated in Figure 2, embodied tasks require an embodied agent to solve realistic indoor environment challenges by leveraging both implicit and explicit long-term memory. Long-term memory EQA tests the agent’s ability to answer complex embodied questions using spatial-temporal memory. This task includes five subcategories: spatial reasoning questions, long-term object navigation, comparative reasoning, multi-room layout understanding, and semantic object counting. Captioning tasks involve summarizing the agent’s episodic memory to highlight shared and distinctive features across experiences, enabling more informed decision-making under the current task context. ",
+        "bbox": [
+            174,
+            786,
+            826,
+            911
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "image",
+        "img_path": "images/c7baf85dbcad1dfe6d79452052135c65b414c03380c970fdb99b374e469cebe7.jpg",
+        "image_caption": [
+            "Figure 2: Overview of 3DMEM-BENCH. For long-term memory embodied tasks, we further incorporate in-the-wild challenges to test 3D agent’s generalization abilities. Text inside $< >$ indicates high-level action tokens. For complete embodied task trajectories, please refer to Appendix C. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            174,
+            89,
+            823,
+            488
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "2.2 Data Collection ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            558,
+            320,
+            571
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Base environment construction We build our scenes on top of the Habitat-Matterport 3D (HM3D) semantics dataset (Ramakrishnan et al., 2021), which has 1000 3D spaces and 10,600 rooms within those spaces. Pre-processing for the axis-aligned bounding box and using valid semantic label annotation, we filter to 182 3D spaces and 2,602 rooms. However, existing objects in HM3D scene are not interactive in Habitat-sim (Szot et al., 2021). To expand our task diversity and enable embodied tasks, we add interactive objects from Objaverse (Deitke et al., 2023) which consists of 800K 3D objects spanning rich categories. More environment construction details are illustrated in Appendix B. ",
+        "bbox": [
+            174,
+            584,
+            825,
+            681
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Generating task trajectories Following Hong et al. (2023b, 2024), we adopt box-demonstrationinstruction-based prompting, which utilizes the axis-aligned bounding boxes (AABB) of both rooms and objects within the 3D scenes to prompt Gemini (Team et al., 2023) to generate diverse tasks. We further prompt Gemini to incorporate interactive objects based on task requirements and their appropriateness within indoor environments. Detailed prompt instructions and few-shot demonstration examples are provided in Appendix E. To ensure the validity of the generated trajectories, we develop a trajectory simulation pipeline that verifies each trajectory step-by-step. At every step, the simulator checks: (1) the correctness of the agent’s location, (2) the existence and validity of referenced objects, and (3) the correctness of pick-up and put-down actions. Finally, we ensure that high-level actions can be executed in the simulator, following (Szot et al., 2024; Yang et al., 2025a). Details of this implementation are in Appendix F.1. On average, our filtering process yields a validation rate of approximately $24 \\%$ , ensuring the correctness and feasibility of the generated trajectories. ",
+        "bbox": [
+            173,
+            699,
+            825,
+            864
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Embodied data collection In our task settings, an embodied agent first performs random exploration within the environment to collect RGB-D observations and corresponding camera poses. ",
+        "bbox": [
+            174,
+            883,
+            823,
+            911
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "image",
+        "img_path": "images/453818b810b525c56765a9edcb394e35287e551a79e411d4d6a3aea2cf075543.jpg",
+        "image_caption": [
+            "Figure 3: (a) We propose 3DLLM-MEM, a memory-enhanced 3D embodied agent that gradually form its long-term memory while executing tasks. Multiple timesteps are shown together but in different colors, with each timestep’s memory including the prior one. The task is “prepare a simple breakfast” as shown in Figure 2. (b) Overview of our memory fusion mechanism. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            173,
+            89,
+            820,
+            311
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Memory BanWorking Memory Fused Episodic Memory Language Instruction Memory  Memory Then the agent follows the task trajectory, incrementally exploring new environments, executing interaction actions, and receiving feedback with new RGB-D observation data. All interaction results Fusion are recorded and the reconstructed point cloud data is precomputed and stored locally to enable faster Memory loading during both training and inference. ",
+        "bbox": [
+            174,
+            388,
+            825,
+            444
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "2.3 Data Curation ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            460,
+            313,
+            476
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Save to Memory Bank As mentioned previously, we collect embodied data by prompting Gemini. To enable a fine-grained analysis of long-term memory capacity, we divide the tasks into three subcategories: simple, medium, and hard, comprising of 3, 5 and 10 multi-room scene settings respectively. In total, we collect 51K trajectories, with 31K in the simple setting, 10K in the medium, and 10K in the hard. ",
+        "bbox": [
+            174,
+            482,
+            825,
+            537
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "To construct in-domain evaluation sets, we first remove training tasks and filter for instances that never shown in the agent’s working memory. For the in-the-wild evaluation set, we apply additional filtering to assess the agent’s generalization capabilities. Specifically, we select instances involving unseen objects and entirely unseen memory context, and we introduce novel in-the-wild challenges that differ from those encountered during training, as illustrated in Figure 2. ",
+        "bbox": [
+            174,
+            545,
+            825,
+            614
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "For EQA data curation, we extract complete trajectories explored by agents and then prompt Gemini to generate question-answer pairs. The questions are categorized into spatial reasoning, long-term object navigation, comparative reasoning, multi-room layout understanding, and semantic object counting. As shown in Figure 2, these questions evaluate models on spatial-temporal changes in memory during embodied task execution. For long-term memory captioning, which primarily targets semantic episodic memory, we collect data across multiple rooms before and after the execution of each trajectory, enabling comparison and summarization of memory-relevant experiences. ",
+        "bbox": [
+            174,
+            619,
+            825,
+            717
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Quality control After constructing the entire benchmark, we implement two quality control procedures: automatic validation using trajectory simulation rules and a manual review of each benchmark instance. The automatic check involves re-running the trajectory simulation validation pipeline, as described in $\\ S$ , particularly for the in-the-wild tasks. For human validation, four student experts in the field manually inspect each benchmark example. We render multi-view images of the entire scene using the simulator and verify whether the benchmark annotations accurately correspond to the simulated environment. More details are in Appendix F.2. ",
+        "bbox": [
+            173,
+            724,
+            825,
+            821
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "3 3D Long-Term Spatial-Temporal Memory Model (3DLLM-MEM) ",
+        "text_level": 1,
+        "bbox": [
+            171,
+            833,
+            759,
+            851
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "3.1 Preliminary ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            861,
+            295,
+            876
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Recent work on 3D Large Language Models (3D-LLMs) has showcased robust capabilities. We choose LLaVA-3D (Zhu et al., 2024) as the base model to build our long-term memory 3D-LLM. ",
+        "bbox": [
+            174,
+            883,
+            825,
+            911
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "LLaVA-3D directly builds on 2D-LLM with multi-view images as input and utilizing the 3D position embeddings to bring the 2D patches within a 3D spatial context to construct 3D patches. For each frame image, a CLIP encoder splits the image $\\boldsymbol { X } \\in \\dot { \\mathbb { R } } ^ { 3 \\times W \\times H }$ into patches at the patch size $P$ . For each 3D scene, $V$ multi-view image patch features are encoded and then projected into LLM space as $X _ { p } \\in \\mathbb { R } ^ { V \\times d \\times w \\times h }$ , where $\\begin{array} { r } { h = \\left[ \\frac { H ^ { \\star } } { P } \\right] , w = \\left\\lfloor \\frac { W } { P } \\right\\rfloor } \\end{array}$ , and $d$ represents LLM’s hidden dimension. The 3D positions in the 3D world are obtained with known depth image, camera intrinsic and extrinsic parameters and are further encoded into 3D position embeddings $P \\in \\mathbb { R } ^ { V \\times d \\times w \\times h }$ . These are directly added to the 2D patch visual tokens $X _ { p }$ , resulting in pixel-aligned 3D patches $X _ { 3 D } \\in \\mathbb { R } ^ { V \\times d \\times w \\times h }$ . To reduce redundancy in 3D patches, we adopt the Farthest Point Sampling (FPS) strategy to downsample the 3D features to a fixed number of tokens, resulting in $X _ { 3 \\mathrm { { D F e a t } } } \\mathbf { \\bar { \\Pi } } \\in \\mathbb { R } ^ { N \\times d }$ . ",
+        "bbox": [
+            173,
+            90,
+            825,
+            229
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "3.2 3DLLM-MEM Memory Module ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            244,
+            441,
+            261
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "A 3D embodied agent gradually explores the environment by collecting observations and interacting with surrounding environments. For humans, current observations are held in working memory, while longer-term observations and experiences are stored in episodic memory. Inspired by human cognitive structure, 3DLLM-MEM is designed with a similar paradigm as illustrated in Figure 3. The current observation at time step $t = i$ , denoted as $X ^ { [ t = i ] } \\in \\mathbb { R } ^ { N \\times d }$ , remains within the context window and serves as the agent’s working memory. As the agent accumulates more experiences, past observations from time steps 1 to $T$ , represented as $X ^ { [ t = 1 : T ] } \\in \\mathbb { R } ^ { T \\times N \\times d }$ , are stored as part of its episodic memory, where $T$ denotes the total number of timesteps. ",
+        "bbox": [
+            173,
+            271,
+            826,
+            386
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Episodic memory To manage episodic memory, we propose the use of a memory feature bank. For each observation at time step $j$ , where $1 \\leq j \\leq T$ , we first apply a multi-layer perceptron (MLP) layer to project the observation into a memory-specific feature space, which is then stored in the memory bank for future retrieval. To further enhance the temporal understanding of the agent’s exploration, we incorporate sinusoidal positional embeddings to encode each time step $t = j$ , and then directly added to the corresponding memory feature representations. ",
+        "bbox": [
+            173,
+            398,
+            825,
+            483
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Memory fusion Our motivation is that an agent should leverage its current observations to recall the most relevant information from its episodic memory in order to complete the current task. To achieve this, we propose a mechanism called $3 D$ memory fusion. Specifically, we encode the 3D features from the working memory into a shared memory space and use this representation as the query feature, denoted as $f _ { t } ^ { Q } \\in \\mathbb { R } ^ { N \\times M }$ , where $M$ is the dimensionality of the memory feature space. ",
+        "bbox": [
+            174,
+            497,
+            825,
+            569
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "The episodic memory bank stores the corresponding key and value features from past observations: $f ^ { K } \\in \\mathbf { \\bar { \\mathbb { R } } } ^ { T \\times N \\times M }$ and $f ^ { V } \\in \\mathbb { R } ^ { T \\times N \\times M }$ , respectively. Here, $T$ is the number of past timesteps and $N$ is the number of memory tokens per timestep. This structure allows the agent to retrieve task-relevant information through memory-query attention. The fused memory feature is then concatenated with the working memory feature to produce the final memory-enhanced representation $f ^ { M }$ for the agent: ",
+        "bbox": [
+            173,
+            575,
+            825,
+            645
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "equation",
+        "img_path": "images/c0926b4985d8787af99f0323ca08292b24c44908f098526cf4941655f5dd3370.jpg",
+        "text": "$$\nf _ { \\mathrm { f u s e } } ^ { Q } = \\mathrm { S o f t m a x } \\left( \\frac { f _ { t } ^ { Q } ( f ^ { K } ) ^ { \\top } } { \\sqrt { C } } \\right) f ^ { V } , \\quad f ^ { M } = \\mathrm { C o n c a t } \\left[ f _ { \\mathrm { f u s e } } ^ { Q } ; f _ { t } ^ { Q } \\right]\n$$",
+        "text_format": "latex",
+        "bbox": [
+            282,
+            660,
+            714,
+            703
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Memory update The working memory is dynamic and updated online. As the agent interacts with the environment, changes in the environment are immediately reflected in the working memory through updated 3D representations. When the agent moves to a new environment, the previous working memory is transferred to the episodic memory bank. If the corresponding environment already exists in the memory bank and has been modified by the agent, the memory entry is updated accordingly. Thus, the memory bank remains dynamic and reflects the latest state of the explored environments. As described in $\\ S 2 . 2$ , environment changes and corresponding observations are pre-collected and stored locally to facilitate efficient data loading during both training and inference. ",
+        "bbox": [
+            173,
+            714,
+            825,
+            827
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "4 Experiments ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            844,
+            312,
+            862
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "In this section, we first introduce the experimental setup and existing memory management baselines in $\\ S$ . Then, we benchmark existing approaches on 3DMEM-BENCH, and present comprehensive results on embodied tasks, EQA, and captioning tasks to demonstrate the effectiveness of our ",
+        "bbox": [
+            174,
+            869,
+            825,
+            911
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "table",
+        "img_path": "images/8d8adb845b80feedf7bcfbea05ef68120021ae622f83f4144a72b60cc142e268.jpg",
+        "table_caption": [],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"3\">Model</td><td colspan=\"4\">Simple</td><td colspan=\"4\">Medium</td><td colspan=\"4\">Hard</td><td colspan=\"4\">Average</td></tr><tr><td colspan=\"2\">In-domain</td><td colspan=\"2\">In-the-wild</td><td colspan=\"2\">In-domain</td><td colspan=\"2\">In-the-wild</td><td colspan=\"2\">In-domain</td><td colspan=\"2\">In-the-wild</td><td colspan=\"2\">In-domain</td><td colspan=\"2\">In-the-wild</td></tr><tr><td colspan=\"2\">| SR Sub-SR SR Sub-SR| SR Sub-SR SR Sub-SR| SR Sub-SR SR Sub-SR| SR Sub-SR SR Sub-SR</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>3D-LLM (Finetuned)</td><td>| 10.4</td><td>20.3</td><td>9.1</td><td>18.5</td><td>-</td><td></td><td></td><td></td><td>-</td><td></td><td>-</td><td>-</td><td></td><td></td><td></td><td>-</td></tr><tr><td>Everything in Context</td><td>35.5</td><td>63.9</td><td>32.4</td><td>45.2</td><td>-</td><td></td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td></td><td>- -</td><td>-</td></tr><tr><td>Most Recent Memory</td><td>32.8</td><td>62.3</td><td>23.4</td><td>38.6</td><td>20.1</td><td>34.8</td><td>12.4</td><td>25.3</td><td>10.4</td><td>20.7</td><td>5.4</td><td>12.1</td><td>21.1</td><td>39.3</td><td>13.7</td><td>25.3</td></tr><tr><td>Retrieval-Augmented Memory</td><td>34.2</td><td>663.0</td><td>28.3</td><td>46.2</td><td>|21.8</td><td>40.2</td><td>13.7</td><td>28.0</td><td>10.8</td><td>21.6</td><td>4.8</td><td>10.6</td><td> 22.3</td><td>41.6</td><td>15.6</td><td>28.3</td></tr><tr><td>3DLLM-MEM (Ours)</td><td>45.5</td><td>73.4</td><td>37.0</td><td>65.4</td><td>| 36.8</td><td>67.8</td><td>31.6</td><td>57.4</td><td>| 30.5</td><td>46.2</td><td>27.8</td><td>42.1</td><td>37.6</td><td>62.5</td><td>32.1</td><td>55.0</td></tr></table>",
+        "bbox": [
+            176,
+            89,
+            821,
+            181
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "table",
+        "img_path": "images/916c661c18078307075f88d79ae97d1829620106ea52319b80eb405236fd1697.jpg",
+        "table_caption": [
+            "(a) Results on 3DMEM-BENCH embodied tasks. SR stands for success rate. Sub-SR stands for sub-success rate. Our model outperforms existing approaches by a large margin. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Model</td><td colspan=\"2\">Embodied Task</td><td colspan=\"4\">Embodied Question Answering (EQA)</td><td colspan=\"3\">Captioning</td></tr><tr><td> In-domain In-the-wild | Spatial Nav. Comparative Layout Count |</td><td></td><td></td><td></td><td></td><td></td><td>| BLEU1</td><td>BLEU4 METEOR</td><td></td></tr><tr><td>3D-LLM (Finetuned)</td><td>-</td><td>-</td><td>2.9</td><td>5.8</td><td>0.0</td><td>7.7 0.0</td><td>42.3</td><td>12.0</td><td>30.6</td></tr><tr><td>3D-Mem (GPT4-0)</td><td></td><td>-</td><td>39.9</td><td>11.0</td><td>25.8</td><td>19.1 7.8</td><td>41.7</td><td>4.7</td><td>31.8</td></tr><tr><td>3D-Mem (Gemini-2.5-Flash)</td><td>-</td><td>-</td><td>41.6</td><td>18.2</td><td>37.6</td><td>30.2 12.7</td><td>42.8</td><td>4.8</td><td>29.6</td></tr><tr><td>3D-Mem (Gemini-2.5-Pro)</td><td>-</td><td>-</td><td>39.7</td><td>27.7</td><td>36.0</td><td>35.2 16.4</td><td>41.5</td><td>3.0</td><td>28.6</td></tr><tr><td>Most Recent Memory</td><td>21.1</td><td>13.7</td><td>27.5</td><td>30.2</td><td>24.3</td><td>20.1 10.5</td><td>32.4</td><td>10.1</td><td>25.6</td></tr><tr><td>Retrieval-Augmented Memory</td><td>22.3</td><td>15.6</td><td>38.0</td><td>33.4</td><td>31.8</td><td>29.7 15.6</td><td>40.8</td><td>11.5</td><td>29.3</td></tr><tr><td>3DLLM-MeM (Ours)</td><td>37.6</td><td>32.1</td><td>62.8</td><td>40.6</td><td>41.4</td><td>39.9</td><td>26.3 58.2</td><td>18.8</td><td>37.3</td></tr></table>",
+        "bbox": [
+            176,
+            214,
+            821,
+            325
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "(b) Results on all tasks in 3DMEM-BENCH. Average success rate is reported for embodied tasks. Nav. stands for long-term object navigation. We report accuracy score for open-ended EQA evaluation and follow the standard LLM-as-judge evaluation protocol by prompting Gemini. Evaluation details are provided in Appendix E. ",
+        "bbox": [
+            174,
+            332,
+            821,
+            369
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Table 2: Comparison with 3D memory models and standard memory management approaches. Our model, 3DLLM-MEM, achieves the best performance across embodied, EQA and captioning tasks. ",
+        "bbox": [
+            173,
+            377,
+            823,
+            406
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "3DLLM-MEM in $\\ S 4 . 2$ , along with qualitative results. Finally, in $\\ S 4 . 3$ , we conduct an ablation study of key design choices in 3DLLM-MEM, demonstrating the effectiveness of our proposed memory fusion mechanism. ",
+        "bbox": [
+            174,
+            422,
+            825,
+            464
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "4.1 Experimental Setup ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            481,
+            352,
+            496
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Implementation details We implement our model based on LLaVA-3D (Zhu et al., 2024), modifying it to be compatible with Google TPUs with PyTorch/XLA frameworks (Paszke et al., 2019; team, 2017–2025) . We first expand the model’s context window to 8192 tokens to accommodate long-term memory inputs. We then fine-tune our proposed memory module along with the LLM decoder using our training split, initializing from LLaVA-3D’s pretrained weights. Training is conducted on 8 Google Cloud TPU v5p cores with a batch size of 256. Our model is trained using supervised fine-tuning (SFT) with a standard language modeling loss. More details are provided in Appendix D. ",
+        "bbox": [
+            173,
+            506,
+            826,
+            603
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Baselines We compare 3DLLM-MEM against a broad range of memory management approaches: ",
+        "bbox": [
+            178,
+            618,
+            820,
+            633
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "• Everything in Context. For a small subset of scenes, it is feasible to fit all observations directly into the model’s context window. ",
+        "bbox": [
+            173,
+            637,
+            823,
+            665
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "• Most Recent Memory. Since retaining all observations in context is infeasible, we keep only the most recent observations, assuming they are most relevant to the current task. ",
+        "bbox": [
+            173,
+            667,
+            823,
+            695
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "• Retrieval-Augmented Memory. Inspired by retrieval-based techniques, we adopt a memory bank that stores past observations. During inference, the most relevant memory entries are retrieved and appended before the working memory to augment reasoning. ",
+        "bbox": [
+            173,
+            696,
+            826,
+            739
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "• 3D-LLM (Hong et al., 2023b). A popular 3D LLM recognized by the community. We finetune it on our training data and report its performance using the “everything in context” strategy with the longest context window supported. Further details are provided in Appendix G. ",
+        "bbox": [
+            174,
+            741,
+            821,
+            784
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "• 3D-Mem (Yang et al., 2025b). A framework designed for 3D scene memory in embodied exploration and reasoning. However, this method does not support embodied interaction or action execution. ",
+        "bbox": [
+            174,
+            785,
+            825,
+            814
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "4.2 Experimental Results ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            829,
+            362,
+            844
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Results on embodied tasks As shown in Table 2a, 3DLLM-MEM significantly outperforms all existing approaches on both in-domain and in-the-wild embodied tasks. Notably, while the performance of other methods drops sharply in the in-the-wild setting, our method demonstrates strong generalization capabilities with a average success rate of $3 2 . 1 \\%$ . 3D-LLM showcases the lowest performance even under simple task settings, highlighting the necessity of incorporating an explicit memory module. Both the Most Recent Memory and Retrieval-Augmented Memory (RAG) baselines perform poorly in this setting, with RAG showing only a slight improvement, highlighting the challenges of retrieving relevant episodic memory. Interestingly, the Everything in Context baseline performs better than both recent memory and RAG approaches, suggesting that when all information can fit within the context window, the model can effectively utilize it. However, 3DLLM-MEM still outperforms Everything in Context, indicating the benefits of selectively fusing task-relevant memory features to better guide embodied reasoning and execution. As task complexity increases from simple to hard, all existing approaches degrade significantly, achieving only ${ \\sim } 5 \\%$ success rate (4) (5) (6) in hard in-the-wild tasks. In contrast, 3DLLM-MEM maintains a strong performance of $2 7 . 8 \\%$ , demonstrating its scalability and effectiveness in managing longer-term memory representations. ",
+        "bbox": [
+            174,
+            856,
+            825,
+            911
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "image",
+        "img_path": "images/0fcb786da72768fcc4e41430a7225026bdb4f553ada66555a84bbdad41439872.jpg",
+        "image_caption": [
+            "Figure 4: Qualitative example of 3DLLM-MEM, which maintains and utilizes a long-term memory to complete the task. Detailed task execution trajectory can be found in Figure 6. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            174,
+            89,
+            818,
+            236
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            286,
+            825,
+            439
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Results on long-term EQA and captioning As shown in Table 2b, 3DLLM-MEM consistently outperforms all existing approaches across all tasks in our benchmark. Notably, 3D-LLM achieves the second-best performance on the captioning task, highlighting its strong ability to summarize object-centric semantic memory. However, due to limited context length, it performs poorly on the EQA tasks, which require long-term spatial-temporal reasoning. 3D-Mem demonstrates improved performance in EQA over other baseline approaches. However, it falls short on spatial relation, navigation and object counting tasks, indicating the limitation of relying solely on aggregated imagecentric memories. 3DLLM-MEM significantly outperforms both Most Recent Memory and RAG Memory, which further demonstrates the effectiveness of our memory fusion technique. ",
+        "bbox": [
+            174,
+            450,
+            825,
+            574
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "(7) (8) (9) Qualitative results We provide qualitative examples in Figure 4 and a more detailed version with explanations in Figure 6 (Appendix H), demonstrating that 3DLLM-MEM is capable of maintaining long-term memory and executing complex tasks in embodied environments. ",
+        "bbox": [
+            174,
+            587,
+            825,
+            628
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "4.3 Ablation Study ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            637,
+            316,
+            652
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Our approach initializes the fused memory using working memory features, aiming to fuse the most relevant memories for the current task. We ablate several design choices for initializing the fusion query, as shown in Table 3. When using either the most recent episodic memory or learnable zero parameters, performance degrades compared to our proposed method. Interestingly, using the most recent memory outperforms zero initialization in the simple setting but underperforms in the hard setting. One possible explanation is that recent memory initialization encourages fusion with nearby observations, which may be sufficient for simple tasks and leads to faster convergence. In contrast, zero initialization is guided solely by training supervision to learn which memories are most useful. In summary, the ablation results demonstrate that initializing fusion queries with working memory tokens provides the most effective and robust design choice for long-term memory fusion. ",
+        "bbox": [
+            174,
+            662,
+            825,
+            801
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "5 Related Works ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            814,
+            330,
+            830
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "3D Large Language Models 3D Large Language Models (3D-LLMs) have demonstrated promising results across a wide variety of tasks, including 3D scene understanding, object detection, and segmentation (Hong et al., 2023b; Zhou et al., 2024; Huang et al., 2024a; Chen et al., 2024b; Xu et al., 2025a). In parallel, 3D embodied agents have expanded these capabilities to planning and action in interactive environments (Brohan et al., 2023; Huang et al., 2024b; Chen et al., 2024a; Black et al., ",
+        "bbox": [
+            174,
+            842,
+            825,
+            911
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "table",
+        "img_path": "images/2349d3e4a551092c2342988b8494020ee765459d9966a4312b8b57682eedaa96.jpg",
+        "table_caption": [
+            "Table 3: Ablation study of query initialization designs in our memory fusion module. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"3\">Model</td><td colspan=\"4\">Simple</td><td colspan=\"4\">Medium</td><td colspan=\"4\">Hard</td><td colspan=\"4\">Average</td></tr><tr><td colspan=\"2\">In-domain</td><td colspan=\"2\">In-the-wild</td><td colspan=\"2\">In-domain</td><td colspan=\"2\">In-the-wild</td><td colspan=\"2\">In-domain</td><td colspan=\"2\">In-the-wild</td><td colspan=\"2\">In-domain</td><td colspan=\"2\">In-the-wild</td></tr><tr><td>SR Sub-SR</td><td></td><td>SR</td><td>Sub-SR |</td><td>SR</td><td>Sub-SR</td><td>SR</td><td>Sub-SR |</td><td>SR</td><td>Sub-SR</td><td>SR</td><td>Sub-SR</td><td>SR</td><td>Sub-SR</td><td>SR Sub-SR</td><td></td></tr><tr><td>3DLLM-MEM</td><td>|45.5</td><td>73.4</td><td>37.0</td><td>65.4</td><td>|36.8</td><td>67.8</td><td>31.6</td><td>57.4</td><td>| 30.5</td><td>46.2</td><td>27.8</td><td>42.1</td><td>|37.6</td><td>62.5</td><td>32.1</td><td>55.0</td></tr><tr><td>Init with Most Recent Episodic Memory</td><td>| 42.3</td><td>69.4</td><td>28.6</td><td>50.7</td><td>| 32.4</td><td>58.6</td><td>23.7</td><td>45.1</td><td>| 22.6</td><td>37.8</td><td>15.3</td><td>31.4</td><td>|32.4</td><td>55.3</td><td>22.5</td><td>42.4</td></tr><tr><td>Init with Learnable Zero Parameters</td><td>| 41.4</td><td>67.2</td><td>27.9</td><td>50.00</td><td>|33.0</td><td>59.2</td><td>23.4</td><td>45.8</td><td>24.2</td><td>40.4</td><td>18.6</td><td>35.6</td><td>32.9</td><td>55.6</td><td>23.3</td><td>43.8</td></tr></table>",
+        "bbox": [
+            176,
+            89,
+            821,
+            160
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "2024). Yet, existing models face significant challenges when performing long-horizon embodied tasks in densely populated 3D environments that require reasoning over long-term spatial-temporal memory. To address this, we propose an explicit memory module inspired by the structure of human implicit and explicit memory. Our model employs a memory fusion mechanism that efficiently retrieves and learns task-relevant information, resulting in enhanced performance on complex embodied tasks. ",
+        "bbox": [
+            174,
+            196,
+            825,
+            267
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Long-term Embodied Trajectories Embodied AI simulators (Chang et al., 2017; Kolve et al., 2017; Szot et al., 2021; Shen et al., 2021) have fostered the development of embodied AI agents. Grounded in these environments, some existing benchmarks focus on high-level planning tasks, typically involving short trajectories that can often be completed within single-room settings, thereby requiring minimal spatial-temporal memory (Shridhar et al., 2020, 2021; Li et al., 2024a; Szot et al., 2024; Li et al., 2024b; Yang et al., 2025a). Other benchmarks emphasize long-term scene exploration with extended trajectories, but are primarily centered around navigation tasks and often lack embodied interaction support (Deitke et al., 2020; Ramakrishnan et al., 2021; Krantz et al., 2022; Khanna et al., 2024). To bridge this gap, we introduce 3DMEM-BENCH, a benchmark specifically designed to evaluate long-horizon task execution that requires rich spatial-temporal memory and full embodied task support, as summarized in Table 1. ",
+        "bbox": [
+            174,
+            285,
+            825,
+            438
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Embodied Question Answering Benchmark Embodied Question Answering (EQA) benchmarks (Das et al., 2018; Wijmans et al., 2019; Yu et al., 2019) have been developed to advance goal-driven agents that can perceive their environment. Some EQA benchmarks also include embodied memory QA evaluation, such as OpenEQA (Majumdar et al., 2024), which includes an episodic memory QA split, and Yang et al. (2024), which focuses on spatial memory QA. In contrast, our benchmark, 3DMEM-BENCH jointly targets both spatial and episodic memory, especially their changes over time, while also supporting embodied action tasks, EQA and captioning. For specific comparison on EQA, our long-term memory EQA tasks are designed to require reasoning over multiple “pieces” of memory and their changes across time and space. Additionally, we consider the agent’s location in the scene at the moment of answering each question during evaluation. ",
+        "bbox": [
+            174,
+            455,
+            825,
+            594
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Memory System Memory is a fundamental component of AI systems, with early work in the context of LLM agents that utilize memory for decision-making in web-based and sandbox environments (Shinn et al., 2023; Zhang et al., 2023; Packer et al., 2023; Zhang et al., 2024). Most existing approaches construct an experience pool or memory bank and focus on improving the retrieval of useful past information (Zhao et al., 2024; Gao et al., 2024; Xu et al., 2025b). In the computer vision domain, temporal memory has been studied extensively in video understanding and generation tasks (Wang et al., 2021; Diao et al., 2025), while spatial memory has been applied to scene-level visual understanding and 3D reconstruction (Wang and Agapito, 2024; Zou et al., 2025). Recent work such as 3D-Mem (Yang et al., 2025b) has investigated 3D scene memory for exploration and reasoning by prompting vision-language models. In contrast, our work focuses on dense 3D memory representations that are critical for real-world embodied scenarios, where task execution depends heavily on maintaining and reasoning over long-term spatial-temporal memory. ",
+        "bbox": [
+            174,
+            613,
+            825,
+            779
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "6 Conclusion ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            801,
+            299,
+            819
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "In this work, we introduce 3DMEM-BENCH, a comprehensive benchmark containing fine-grained long-term memory embodied tasks—ranging from simple to hard—along with question-answering tasks that target memory changes across time and space, and captioning task in complex 3D environments. We propose 3DLLM-MEM, an embodied 3D-LLM with novel memory fusion approach for spatial-temporal reasoning, planning, and acting. One limitation of our model is that currently 3DLLM-MEM does not involve low-level navigation and control policy, but utilizes high-level predefined policies in simulator for carrying out the actions. We think that such aspects are orthogonal to our study, and could be explored and seamlessly integrated into our framework in the future. ",
+        "bbox": [
+            174,
+            827,
+            825,
+            911
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            171,
+            92,
+            823,
+            119
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "References ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            140,
+            266,
+            156
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Kevin Black, Noah Brown, Danny Driess, Adnan Esmail, Michael Equi, Chelsea Finn, Niccolo Fusai, Lachy Groom, Karol Hausman, Brian Ichter, Szymon Jakubczak, Tim Jones, Liyiming Ke, Sergey Levine, Adrian Li-Bell, Mohith Mothukuri, Suraj Nair, Karl Pertsch, Lucy Xiaoyang Shi, James Tanner, Quan Vuong, Anna Walling, Haohuan Wang, and Ury Zhilinsky. 2024. $\\pi$ : A vision-language-action flow model for general robot control. 8 ",
+        "bbox": [
+            176,
+            165,
+            826,
+            233
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Anthony Brohan, Noah Brown, Justice Carbajal, Yevgen Chebotar, Xi Chen, Krzysztof Choromanski, Tianli Ding, Danny Driess, Avinava Dubey, Chelsea Finn, Pete Florence, Chuyuan Fu, Montse Gonzalez Arenas, Keerthana Gopalakrishnan, Kehang Han, Karol Hausman, Alex Herzog, Jasmine Hsu, Brian Ichter, Alex Irpan, Nikhil Joshi, Ryan Julian, Dmitry Kalashnikov, Yuheng Kuang, Isabel Leal, Lisa Lee, Tsang-Wei Edward Lee, Sergey Levine, Yao Lu, Henryk Michalewski, Igor Mordatch, Karl Pertsch, Kanishka Rao, Krista Reymann, Michael Ryoo, Grecia Salazar, Pannag Sanketi, Pierre Sermanet, Jaspiar Singh, Anikait Singh, Radu Soricut, Huong Tran, Vincent Vanhoucke, Quan Vuong, Ayzaan Wahid, Stefan Welker, Paul Wohlhart, Jialin Wu, Fei Xia, Ted Xiao, Peng Xu, Sichun Xu, Tianhe Yu, and Brianna Zitkovich. 2023. Rt-2: Vision-language-action models transfer web knowledge to robotic control. volume abs/2307.15818. 8 ",
+        "bbox": [
+            176,
+            244,
+            823,
+            382
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Eduardo Camina and Francisco Güell. 2017. The neuroanatomical, neurophysiological and psychological basis of memory: Current models and their origins. Frontiers in Pharmacology, 8:438. 3 ",
+        "bbox": [
+            176,
+            392,
+            825,
+            435
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Angel Chang, Angela Dai, Thomas Funkhouser, Maciej Halber, Matthias Niessner, Manolis Savva, Shuran Song, Andy Zeng, and Yinda Zhang. 2017. Matterport3d: Learning from rgb-d data in indoor environments. International Conference on 3D Vision (3DV). 9 ",
+        "bbox": [
+            176,
+            445,
+            825,
+            488
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Boyuan Chen, Zhuo Xu, Sean Kirmani, Brian Ichter, Dorsa Sadigh, Leonidas J. Guibas, and Fei Xia. 2024a. Spatialvlm: Endowing vision-language models with spatial reasoning capabilities. In IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2024, Seattle, WA, USA, June 16-22, 2024, pages 14455–14465. IEEE. 8 ",
+        "bbox": [
+            178,
+            498,
+            825,
+            554
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Yilun Chen, Shuai Yang, Haifeng Huang, Tai Wang, Ruiyuan Lyu, Runsen Xu, Dahua Lin, and Jiangmiao Pang. 2024b. Grounded 3d-llm with referent tokens. ArXiv preprint, abs/2405.10370. 8 ",
+        "bbox": [
+            171,
+            564,
+            825,
+            593
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Hyung Won Chung, Le Hou, Shayne Longpre, Barret Zoph, Yi Tay, William Fedus, Yunxuan Li, Xuezhi Wang, Mostafa Dehghani, Siddhartha Brahma, et al. 2022. Scaling instruction-finetuned language models. ArXiv preprint, abs/2210.11416. 19 ",
+        "bbox": [
+            174,
+            603,
+            825,
+            646
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Abhishek Das, Samyak Datta, Georgia Gkioxari, Stefan Lee, Devi Parikh, and Dhruv Batra. 2018. Embodied question answering. In 2018 IEEE Conference on Computer Vision and Pattern Recognition, CVPR 2018, Salt Lake City, UT, USA, June 18-22, 2018, pages 1–10. IEEE Computer Society. 9 ",
+        "bbox": [
+            178,
+            656,
+            826,
+            713
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Matt Deitke, Winson Han, Alvaro Herrasti, Aniruddha Kembhavi, Eric Kolve, Roozbeh Mottaghi, Jordi Salvador, Dustin Schwenk, Eli VanderBilt, Matthew Wallingford, Luca Weihs, Mark Yatskar, and Ali Farhadi. 2020. Robothor: An open simulation-to-real embodied AI platform. In 2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2020, Seattle, WA, USA, June 13-19, 2020, pages 3161–3171. IEEE. 9 ",
+        "bbox": [
+            173,
+            723,
+            826,
+            792
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Matt Deitke, Dustin Schwenk, Jordi Salvador, Luca Weihs, Oscar Michel, Eli VanderBilt, Ludwig Schmidt, Kiana Ehsani, Aniruddha Kembhavi, and Ali Farhadi. 2023. Objaverse: A universe of annotated 3d objects. In IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2023, Vancouver, BC, Canada, June 17-24, 2023, pages 13142–13153. IEEE. 4 ",
+        "bbox": [
+            178,
+            803,
+            823,
+            858
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Xingjian Diao, Chunhui Zhang, Weiyi Wu, Zhongyu Ouyang, Peijun Qing, Ming Cheng, Soroush Vosoughi, and Jiang Gui. 2025. Temporal working memory: Query-guided segment refinement for enhanced multimodal understanding. 9 ",
+        "bbox": [
+            174,
+            868,
+            826,
+            911
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Gary N Friedman, Luke Johnson, and Zachary M Williams. 2018. Long-term visual memory and its role in learning suppression. Frontiers in Psychology, 9:1896. 3 ",
+        "bbox": [
+            173,
+            90,
+            825,
+            119
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Jinglong Gao, Xiao Ding, Yiming Cui, Jianbai Zhao, Hepeng Wang, Ting Liu, and Bing Qin. 2024. Self-evolving gpt: A lifelong autonomous experiential learner. 9 ",
+        "bbox": [
+            171,
+            128,
+            825,
+            159
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Qiao Gu, Ali Kuwajerwala, Sacha Morin, Krishna Murthy Jatavallabhula, Bipasha Sen, Aditya Agarwal, Corban Rivera, William Paul, Kirsty Ellis, Rama Chellappa, et al. 2024. Conceptgraphs: Open-vocabulary 3d scene graphs for perception and planning. In 2024 IEEE International Conference on Robotics and Automation (ICRA), pages 5021–5028. IEEE. 2 ",
+        "bbox": [
+            174,
+            167,
+            826,
+            224
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Ziyu Guo, Renrui Zhang, Xiangyang Zhu, Yiwen Tang, Xianzheng Ma, Jiaming Han, Kexin Chen, Peng Gao, Xianzhi Li, Hongsheng Li, and Pheng-Ann Heng. 2023. Point-bind & point-llm: Aligning point cloud with multi-modality for 3d understanding, generation, and instruction following. 2 ",
+        "bbox": [
+            173,
+            234,
+            826,
+            289
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Yining Hong, Chunru Lin, Yilun Du, Zhenfang Chen, Joshua B. Tenenbaum, and Chuang Gan. 2023a. 3d concept learning and reasoning from multi-view images. In IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2023, Vancouver, BC, Canada, June 17-24, 2023, pages 9202–9212. IEEE. 15 ",
+        "bbox": [
+            174,
+            299,
+            826,
+            356
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Yining Hong, Haoyu Zhen, Peihao Chen, Shuhong Zheng, Yilun Du, Zhenfang Chen, and Chuang Gan. 2023b. 3d-llm: Injecting the 3d world into large language models. In Advances in Neural Information Processing Systems 36: Annual Conference on Neural Information Processing Systems 2023, NeurIPS 2023, New Orleans, LA, USA, December 10 - 16, 2023. 2, 4, 7, 8, 19 ",
+        "bbox": [
+            174,
+            366,
+            826,
+            421
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Yining Hong, Zishuo Zheng, Peihao Chen, Yian Wang, Junyan Li, and Chuang Gan. 2024. Multiply: A multisensory object-centric embodied large language model in 3d world. In IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2024, Seattle, WA, USA, June 16-22, 2024, pages 26396–26406. IEEE. 4 ",
+        "bbox": [
+            174,
+            431,
+            825,
+            488
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Haifeng Huang, Yilun Chen, Zehan Wang, Rongjie Huang, Runsen Xu, Tai Wang, Luping Liu, Xize Cheng, Yang Zhao, Jiangmiao Pang, and Zhou Zhao. 2024a. Chat-scene: Bridging 3d scene and large language models with object identifiers. In Advances in Neural Information Processing Systems 38: Annual Conference on Neural Information Processing Systems 2024, NeurIPS 2024, Vancouver, BC, Canada, December 10 - 15, 2024. 8 ",
+        "bbox": [
+            173,
+            497,
+            826,
+            568
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Jiangyong Huang, Silong Yong, Xiaojian Ma, Xiongkun Linghu, Puhao Li, Yan Wang, Qing Li, Song-Chun Zhu, Baoxiong Jia, and Siyuan Huang. 2024b. An embodied generalist agent in 3d world. In Forty-first International Conference on Machine Learning, ICML 2024, Vienna, Austria, July 21-27, 2024. OpenReview.net. 2, 8 ",
+        "bbox": [
+            173,
+            577,
+            826,
+            633
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Physical Intelligence, Kevin Black, Noah Brown, James Darpinian, Karan Dhabalia, Danny Driess, Adnan Esmail, Michael Equi, Chelsea Finn, Niccolo Fusai, Manuel Y. Galliker, Dibya Ghosh, Lachy Groom, Karol Hausman, Brian Ichter, Szymon Jakubczak, Tim Jones, Liyiming Ke, Devin LeBlanc, Sergey Levine, Adrian Li-Bell, Mohith Mothukuri, Suraj Nair, Karl Pertsch, Allen Z. Ren, Lucy Xiaoyang Shi, Laura Smith, Jost Tobias Springenberg, Kyle Stachowicz, James Tanner, Quan Vuong, Homer Walke, Anna Walling, Haohuan Wang, Lili Yu, and Ury Zhilinsky. 2025. π0.5: a vision-language-action model with open-world generalization. 2 ",
+        "bbox": [
+            174,
+            643,
+            826,
+            742
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Mukul Khanna, Ram Ramrakhya, Gunjan Chhablani, Sriram Yenamandra, Théophile Gervet, Matthew Chang, Zsolt Kira, Devendra Singh Chaplot, Dhruv Batra, and Roozbeh Mottaghi. 2024. Goat-bench: A benchmark for multi-modal lifelong navigation. In IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2024, Seattle, WA, USA, June 16-22, 2024, pages 16373–16383. IEEE. 9 ",
+        "bbox": [
+            173,
+            751,
+            826,
+            820
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Eric Kolve, Roozbeh Mottaghi, Winson Han, Eli VanderBilt, Luca Weihs, Alvaro Herrasti, Daniel Gordon, Yuke Zhu, Abhinav Gupta, and Ali Farhadi. 2017. AI2-THOR: An Interactive 3D Environment for Visual AI. arXiv. 9 ",
+        "bbox": [
+            176,
+            830,
+            821,
+            872
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Jacob Krantz, Stefan Lee, Jitendra Malik, Dhruv Batra, and Devendra Singh Chaplot. 2022. Instancespecific image goal navigation: Training embodied agents to find object instances. 9 ",
+        "bbox": [
+            173,
+            883,
+            823,
+            911
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Chengshu Li, Ruohan Zhang, Josiah Wong, Cem Gokmen, Sanjana Srivastava, Roberto MartínMartín, Chen Wang, Gabrael Levine, Wensi Ai, Benjamin Martinez, Hang Yin, Michael Lingelbach, Minjune Hwang, Ayano Hiranaka, Sujay Garlanka, Arman Aydin, Sharon Lee, Jiankai Sun, Mona Anvari, Manasi Sharma, Dhruva Bansal, Samuel Hunter, Kyu-Young Kim, Alan Lou, Caleb R Matthews, Ivan Villa-Renteria, Jerry Huayang Tang, Claire Tang, Fei Xia, Yunzhu Li, Silvio Savarese, Hyowon Gweon, C. Karen Liu, Jiajun Wu, and Li Fei-Fei. 2024a. Behavior-1k: A human-centered, embodied ai benchmark with 1,000 everyday activities and realistic simulation. 3, 9 ",
+        "bbox": [
+            174,
+            90,
+            826,
+            200
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Manling Li, Shiyu Zhao, Qineng Wang, Kangrui Wang, Yu Zhou, Sanjana Srivastava, Cem Gokmen, Tony Lee, Li Erran Li, Ruohan Zhang, Weiyu Liu, Percy Liang, Li Fei-Fei, Jiayuan Mao, and Jiajun Wu. 2024b. Embodied agent interface: Benchmarking llms for embodied decision making. In Advances in Neural Information Processing Systems 38: Annual Conference on Neural Information Processing Systems 2024, NeurIPS 2024, Vancouver, BC, Canada, December 10 - 15, 2024. 9 ",
+        "bbox": [
+            173,
+            212,
+            826,
+            282
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Xiao Liu, Tianjie Zhang, Yu Gu, Iat Long Iong, Yifan Xu, Xixuan Song, Shudan Zhang, Hanyu Lai, Xinyi Liu, Hanlin Zhao, et al. 2024. Visualagentbench: Towards large multimodal models as visual foundation agents. ArXiv preprint, abs/2408.06327. 3 ",
+        "bbox": [
+            174,
+            291,
+            825,
+            333
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Arjun Majumdar, Anurag Ajay, Xiaohan Zhang, Pranav Putta, Sriram Yenamandra, Mikael Henaff, Sneha Silwal, Paul McVay, Oleksandr Maksymets, Sergio Arnaud, Karmesh Yadav, Qiyang Li, Ben Newman, Mohit Sharma, Vincent-Pierre Berges, Shiqi Zhang, Pulkit Agrawal, Yonatan Bisk, Dhruv Batra, Mrinal Kalakrishnan, Franziska Meier, Chris Paxton, Alexander Sax, and Aravind Rajeswaran. 2024. Openeqa: Embodied question answering in the era of foundation models. In IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2024, Seattle, WA, USA, June 16-22, 2024, pages 16488–16498. IEEE. 9 ",
+        "bbox": [
+            174,
+            343,
+            826,
+            440
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Charles Packer, Sarah Wooders, Kevin Lin, Vivian Fang, Shishir G. Patil, Ion Stoica, and Joseph E. Gonzalez. 2023. Memgpt: Towards llms as operating systems. 9 ",
+        "bbox": [
+            173,
+            450,
+            825,
+            479
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Adam Paszke, Sam Gross, Francisco Massa, Adam Lerer, James Bradbury, Gregory Chanan, Trevor Killeen, Zeming Lin, Florian Gribonval, Rafal Jozefowicz, et al. 2019. Pytorch. https:// pytorch.org/. 7, 17 ",
+        "bbox": [
+            174,
+            488,
+            825,
+            531
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Santhosh Kumar Ramakrishnan, Aaron Gokaslan, Erik Wijmans, Oleksandr Maksymets, Alexander Clegg, John M Turner, Eric Undersander, Wojciech Galuba, Andrew Westbury, Angel X Chang, Manolis Savva, Yili Zhao, and Dhruv Batra. 2021. Habitat-matterport 3d dataset (HM3d): 1000 large-scale 3d environments for embodied AI. volume abs/2109.08238. 4, 9 ",
+        "bbox": [
+            174,
+            540,
+            825,
+            595
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Bokui Shen, Fei Xia, Chengshu Li, Roberto Martín-Martín, Linxi Fan, Guanzhi Wang, Claudia Pérez-D’Arpino, Shyamal Buch, Sanjana Srivastava, Lyne P. Tchapmi, Micael E. Tchapmi, Kent Vainio, Josiah Wong, Li Fei-Fei, and Silvio Savarese. 2021. igibson 1.0: a simulation environment for interactive tasks in large realistic scenes. In 2021 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), page accepted. IEEE. 9 ",
+        "bbox": [
+            174,
+            606,
+            826,
+            676
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Noah Shinn, Federico Cassano, Ashwin Gopinath, Karthik Narasimhan, and Shunyu Yao. 2023. Reflexion: language agents with verbal reinforcement learning. In Advances in Neural Information Processing Systems 36: Annual Conference on Neural Information Processing Systems 2023, NeurIPS 2023, New Orleans, LA, USA, December 10 - 16, 2023. 9 ",
+        "bbox": [
+            173,
+            685,
+            826,
+            742
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Mohit Shridhar, Jesse Thomason, Daniel Gordon, Yonatan Bisk, Winson Han, Roozbeh Mottaghi, Luke Zettlemoyer, and Dieter Fox. 2020. ALFRED: A benchmark for interpreting grounded instructions for everyday tasks. In 2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2020, Seattle, WA, USA, June 13-19, 2020, pages 10737–10746. IEEE. 9 ",
+        "bbox": [
+            174,
+            751,
+            825,
+            808
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Mohit Shridhar, Xingdi Yuan, Marc-Alexandre Côté, Yonatan Bisk, Adam Trischler, and Matthew J. Hausknecht. 2021. Alfworld: Aligning text and embodied environments for interactive learning. In 9th International Conference on Learning Representations, ICLR 2021, Virtual Event, Austria, May 3-7, 2021. OpenReview.net. 3, 9 ",
+        "bbox": [
+            173,
+            818,
+            826,
+            873
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Andrew Szot, Alexander Clegg, Eric Undersander, Erik Wijmans, Yili Zhao, John Turner, Noah Maestre, Mustafa Mukadam, Devendra Singh Chaplot, Oleksandr Maksymets, Aaron Gokaslan, ",
+        "bbox": [
+            174,
+            882,
+            820,
+            911
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Vladimir Vondrus, Sameer Dharur, Franziska Meier, Wojciech Galuba, Angel X. Chang, Zsolt Kira, Vladlen Koltun, Jitendra Malik, Manolis Savva, and Dhruv Batra. 2021. Habitat 2.0: Training home assistants to rearrange their habitat. In Advances in Neural Information Processing Systems 34: Annual Conference on Neural Information Processing Systems 2021, NeurIPS 2021, December 6-14, 2021, virtual, pages 251–266. 4, 9 ",
+        "bbox": [
+            187,
+            90,
+            826,
+            161
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Andrew Szot, Max Schwarzer, Harsh Agrawal, Bogdan Mazoure, Rin Metcalf, Walter Talbott, Natalie Mackraz, R. Devon Hjelm, and Alexander T. Toshev. 2024. Large language models as generalizable policies for embodied tasks. In The Twelfth International Conference on Learning Representations, ICLR 2024, Vienna, Austria, May 7-11, 2024. OpenReview.net. 4, 9 ",
+        "bbox": [
+            178,
+            170,
+            823,
+            227
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Gemini Team, Rohan Anil, Sebastian Borgeaud, Yonghui Wu, Jean-Baptiste Alayrac, Jiahui Yu, Radu Soricut, Johan Schalkwyk, Andrew M Dai, Anja Hauth, et al. 2023. Gemini: a family of highly capable multimodal models. ArXiv preprint, abs/2312.11805. 4 ",
+        "bbox": [
+            176,
+            236,
+            823,
+            279
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "XLA team. 2017–2025. Xla: Optimizing compiler for machine learning. https://www. tensorflow.org/xla. 7, 17 ",
+        "bbox": [
+            173,
+            286,
+            821,
+            316
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Hao Wang, Weining Wang, and Jing Liu. 2021. Temporal memory attention for video semantic segmentation. In 2021 IEEE International Conference on Image Processing (ICIP), pages 2254– 2258. IEEE. 9 ",
+        "bbox": [
+            171,
+            325,
+            823,
+            367
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Hengyi Wang and Lourdes Agapito. 2024. 3d reconstruction with spatial memory. ArXiv preprint, abs/2408.16061. 9 ",
+        "bbox": [
+            168,
+            376,
+            825,
+            406
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Zixuan Wang, Bo Yu, Junzhe Zhao, Wenhao Sun, Sai Hou, Shuai Liang, Xing Hu, Yinhe Han, and Yiming Gan. 2024. Karma: Augmenting embodied ai agents with long-and-short term memory systems. 2 ",
+        "bbox": [
+            173,
+            415,
+            823,
+            457
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Erik Wijmans, Samyak Datta, Oleksandr Maksymets, Abhishek Das, Georgia Gkioxari, Stefan Lee, Irfan Essa, Devi Parikh, and Dhruv Batra. 2019. Embodied question answering in photorealistic environments with point cloud perception. In IEEE Conference on Computer Vision and Pattern Recognition, CVPR 2019, Long Beach, CA, USA, June 16-20, 2019, pages 6659–6668. Computer Vision Foundation / IEEE. 9 ",
+        "bbox": [
+            173,
+            465,
+            825,
+            535
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Quanting Xie, So Yeon Min, Pengliang Ji, Yue Yang, Tianyi Zhang, Aarav Bajaj, Ruslan Salakhutdinov, Matthew Johnson-Roberson, and Yonatan Bisk. 2024. Embodied-rag: General non-parametric embodied memory for retrieval and generation. 2 ",
+        "bbox": [
+            173,
+            545,
+            826,
+            588
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Runsen Xu, Xiaolong Wang, Tai Wang, Yilun Chen, Jiangmiao Pang, and Dahua Lin. 2025a. Pointllm: Empowering large language models to understand point clouds. In Computer Vision – ECCV 2024, pages 131–147. Springer Nature Switzerland. 2, 8 ",
+        "bbox": [
+            174,
+            597,
+            825,
+            640
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Wujiang Xu, Zujie Liang, Kai Mei, Hang Gao, Juntao Tan, and Yongfeng Zhang. 2025b. A-mem: Agentic memory for llm agents. ArXiv preprint, abs/2502.12110. 9 ",
+        "bbox": [
+            173,
+            648,
+            823,
+            678
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Jihan Yang, Shusheng Yang, Anjali W. Gupta, Rilyn Han, Li Fei-Fei, and Saining Xie. 2024. Thinking in Space: How Multimodal Large Language Models See, Remember and Recall Spaces. ArXiv preprint, abs/2412.14171. 9 ",
+        "bbox": [
+            173,
+            686,
+            825,
+            729
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Rui Yang, Hanyang Chen, Junyu Zhang, Mark Zhao, Cheng Qian, Kangrui Wang, Qineng Wang, Teja Venkat Koripella, Marziyeh Movahedi, Manling Li, Heng Ji, Huan Zhang, and Tong Zhang. 2025a. Embodiedbench: Comprehensive benchmarking multi-modal large language models for vision-driven embodied agents. 3, 4, 9 ",
+        "bbox": [
+            173,
+            738,
+            825,
+            794
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Yuncong Yang, Han Yang, Jiachen Zhou, Peihao Chen, Hongxin Zhang, Yilun Du, and Chuang Gan. 2025b. 3d-mem: 3d scene memory for embodied exploration and reasoning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR). 2, 7, 9, 20 ",
+        "bbox": [
+            174,
+            803,
+            825,
+            847
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Licheng Yu, Xinlei Chen, Georgia Gkioxari, Mohit Bansal, Tamara L. Berg, and Dhruv Batra. 2019. Multi-target embodied question answering. In IEEE Conference on Computer Vision and Pattern Recognition, CVPR 2019, Long Beach, CA, USA, June 16-20, 2019, pages 6309–6318. Computer Vision Foundation / IEEE. 9 ",
+        "bbox": [
+            173,
+            856,
+            826,
+            911
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Danyang Zhang, Lu Chen, Situo Zhang, Hongshen Xu, Zihan Zhao, and Kai Yu. 2023. Large language model is semi-parametric reinforcement learning agent. ArXiv preprint, abs/2306.07929. 9 ",
+        "bbox": [
+            174,
+            90,
+            825,
+            133
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Zeyu Zhang, Xiaohe Bo, Chen Ma, Rui Li, Xu Chen, Quanyu Dai, Jieming Zhu, Zhenhua Dong, and Ji-Rong Wen. 2024. A survey on the memory mechanism of large language model based agents. 9 ",
+        "bbox": [
+            174,
+            148,
+            825,
+            178
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Andrew Zhao, Daniel Huang, Quentin Xu, Matthieu Lin, Yong-Jin Liu, and Gao Huang. 2024. Expel: LLM agents are experiential learners. In Thirty-Eighth AAAI Conference on Artificial Intelligence, AAAI 2024, Thirty-Sixth Conference on Innovative Applications of Artificial Intelligence, IAAI 2024, Fourteenth Symposium on Educational Advances in Artificial Intelligence, EAAI 2014, February 20-27, 2024, Vancouver, Canada, pages 19632–19642. AAAI Press. 9 ",
+        "bbox": [
+            173,
+            193,
+            826,
+            262
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Qingqing Zhao, Yao Lu, Moo Jin Kim, Zipeng Fu, Zhuoyang Zhang, Yecheng Wu, Zhaoshuo Li, Qianli Ma, Song Han, Chelsea Finn, Ankur Handa, Ming-Yu Liu, Donglai Xiang, Gordon Wetzstein, and Tsung-Yi Lin. 2025. Cot-vla: Visual chain-of-thought reasoning for vision-languageaction models. 2 ",
+        "bbox": [
+            173,
+            277,
+            826,
+            334
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Haoyu Zhen, Xiaowen Qiu, Peihao Chen, Jincheng Yang, Xin Yan, Yilun Du, Yining Hong, and Chuang Gan. 2024. 3d-vla: 3d vision-language-action generative world model. ArXiv preprint, abs/2403.09631. 2 ",
+        "bbox": [
+            173,
+            349,
+            828,
+            392
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Junsheng Zhou, Jinsheng Wang, Baorui Ma, Yu-Shen Liu, Tiejun Huang, and Xinlong Wang. 2024. Uni3d: Exploring unified 3d representation at scale. In The Twelfth International Conference on Learning Representations, ICLR 2024, Vienna, Austria, May 7-11, 2024. OpenReview.net. 8 ",
+        "bbox": [
+            173,
+            407,
+            826,
+            450
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Chenming Zhu, Tai Wang, Wenwei Zhang, Jiangmiao Pang, and Xihui Liu. 2024. Llava-3d: A simple yet effective pathway to empowering lmms with 3d-awareness. ArXiv preprint, abs/2409.18125. 2, 5, 7, 17 ",
+        "bbox": [
+            176,
+            465,
+            825,
+            508
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Guillermo Zlotnik and Aaron Vansintjan. 2019. Memory: An extended definition. Frontiers in Psychology, 10:2523. 3 ",
+        "bbox": [
+            176,
+            523,
+            823,
+            551
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Xueyan Zou, Yuchen Song, Ri-Zhao Qiu, Xuanbin Peng, Jianglong Ye, Sifei Liu, and Xiaolong Wang. 2025. M3: 3d-spatial multimodal memory. In ICLR. 9 ",
+        "bbox": [
+            173,
+            566,
+            823,
+            597
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "A Broader Impact ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            627,
+            343,
+            645
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "The deployment and release of 3DLLM-MEM carry both potential benefits and risks. These considerations include visual aspects as well as common issues found in existing LLMs like Alpaca and Vicuna. Since 3DLLM-MEM is built on LLaMA, Vicuna, and CLIP, it inherits certain challenges associated with LLMs and vision encoders. Below, we outline the risks and the mitigation strategies implemented for the release of this model. ",
+        "bbox": [
+            174,
+            660,
+            825,
+            729
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Hallucination Similar to other LLMs, 3DLLM-MEM might produce outputs that are not based on factual information or input data. This raises concerns about the accuracy of inferences, particularly in critical applications such as medical fields. ",
+        "bbox": [
+            174,
+            748,
+            825,
+            790
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Biases Biases present in the base models can be brought to 3DLLM-MEM, stemming from both the vision encoder (CLIP) and the language decoder (LLaMA / Vicuna). This may result in biased outcomes or unfair representations of diverse content. ",
+        "bbox": [
+            174,
+            809,
+            825,
+            851
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Energy Consumption We train our model on our training data split which contains about 26K trajectories. The training time only takes less than one day, which makes energy consumption not a primary concern. ",
+        "bbox": [
+            176,
+            869,
+            825,
+            911
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "B Environment Construction ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            89,
+            433,
+            106
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "To support navigation-centric interaction, the agent requires precise knowledge of two things: the traversable layout of each scene and the exact locations of all movable objects. Following 3D-CLR (Hong et al., 2023a), we build this spatial substrate from HM3D’s richly annotated indoor scans. We rely on the semantic surface mesh that accompanies each scene to calculate the room and objects’ locations. The mesh scan has a unique (24-bit) hexadecimal color for every surface triangle that provides a semantic table that links each color to a surface label (e.g., floor or ceiling) and a room identifier. ",
+        "bbox": [
+            174,
+            121,
+            825,
+            218
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "We first derive an axis-aligned bounding box for every room in each HM3D scene. We query the semantic table to retrieve, for every room identifier, the hex colors assigned to its floor and ceiling surfaces. Before processing individual rooms we aggregate the minimum heights of all floor surfaces in the entire scan, producing a global set of candidate floor elevations. For each room we then load the point clouds of its floor and ceiling. When both are available, the vertical bounds are given by the floor’s lowest point and the ceiling’s highest point. If the floor is missing, the lower bound is set to the highest global floor elevation that still lies below the room’s ceiling; if the ceiling is missing, the upper bound defaults to the highest point in the available cloud (i.e., the surface immediately above the floor). Rooms for which both surfaces are absent are discarded because no reliable vertical evidence is present. Horizontal limits are simply the minimum and maximum coordinates of the room’s floor and ceiling points, and together these six coordinates constitute the room’s axis-aligned bounding box. ",
+        "bbox": [
+            173,
+            224,
+            825,
+            390
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Based on the bounding boxes for each room, we calculate the bounding boxes of objects in that room by gathering the corresponding vertices and computing the bounding boxes of the object by taking the minimum and maximum coordinates along the three axes. We merge room-level and object-level bounding boxes by their shared room index. After the aforementioned processing, the dataset comprises 182 distinct 3-D scenes covering a total of 2,602 rooms. ",
+        "bbox": [
+            174,
+            396,
+            825,
+            465
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "C Embodied Task Data Examples ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            486,
+            470,
+            503
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "In this section, we provide complete embodied task trajectories. ",
+        "bbox": [
+            173,
+            518,
+            591,
+            532
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Here is an example of in-the-wild task: ",
+        "bbox": [
+            176,
+            539,
+            429,
+            553
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Task: Rearrange desk items by size. The items to be rearranged are: vase, box, and printer. Trajectory: ",
+        "bbox": [
+            174,
+            553,
+            772,
+            580
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "\"I’m in room 10. I will start exploring the room for the items I need.\", \"I see a printer(0) on the   \ndesk(0). I also see a box(0) on the cabinet(0).\", \"I need to remember their locations and sizes for   \ncomparison later.\",   \n\"<GO TO NEW ROOM>\",   \n\"Now I’m in room 11. I’m exploring this room for the items.\", \"I don’t see a vase in the room, but I   \nsee a printer(0) on a rack(1).\", \"I will remember these objects and their locations.\",   \n\"<GO TO NEW ROOM>\",   \n\"Now I’m in room 6. I’m exploring this room.\", \"I do not see any of the items I am looking for.\",   \n\"<GO TO NEW ROOM>\",   \n\"I’m in room 8. I am exploring this room.\", \"I see flower vase(0) on the floor. I will remember the   \nobject and its location.\",   \n\"<GO TO NEW ROOM>\",   \n\"I’m in room 7. I am exploring this room.\", \"I do not see any of the items I am looking for.\",   \n\"<GO TO NEW ROOM>\",   \n\"I’m in room 9. I am exploring this room.\", \"I do not see any of the items I am looking for.\",   \n\"<GO TO NEW ROOM>\",   \n\"Now I am in room 5. I am exploring this room.\", \"I do not see any of the items I am looking for.\",   \n\"<GO TO NEW ROOM>\",   \n\"Now I am in room 2. I am exploring this room.\", \"I see a box(0) on the armchair(1). I will remember   \nthese objects and their locations.\",   \n\"<GO TO NEW ROOM>\",   \n\"I’m in room 1. I do not see any items that are part of the rearrangement.\",   \n\"<GO TO NEW ROOM>\",   \n\"Now I’m in room 12. I will start exploring this room.\", \"I think I’ve seen the vase, printer, and box   \nin other rooms, so I’ll head back to room 8 to pick up the vase first.\",   \n\"<GO TO $\\mathrm { R O O M } ( 8 ) { > } ^ { \\prime \\prime }$ ,   \n\"I need to pick up flower vase(0) in this room first. I pick up flower vase(0).\",   \n\"<PICK UP flower vase(0) from room(8) in room $( 8 ) > \"$ ,   \n\"I’m carrying flower vase(0) to room 10 where I saw printer and box.\",   \n\"<GO TO $\\mathsf { R O O M } ( 1 0 ) { > } ^ { \\prime }$ ,   \n\"Now I am in room 10. I will put flower vase(0) on the desk(0) for now so I can pick up box(0).\",   \n\"<PUT DOWN flower vase(0) from room(8) on desk(0) in $\\mathrm { r o o m } ( 1 0 ) { > } \"$ ,   \n\"Now I will pick up box(0) from cabinet(0).\",   \n\"<PICK UP box(0) from room(10) in $\\mathrm { r o o m } ( 1 0 ) { > } ^ { \\prime \\prime }$ ,   \n\"Now I will put box(0) on the desk(0) so I can pick up printer(0).\",   \n\"<PUT DOWN box(0) from room(10) on desk(0) in room $( 1 0 ) { > } \"$ ,   \n\"Now I will pick up printer(0) from beside the desk(0).\",   \n\"<PICK UP printer(0) from room(10) in room $( 1 0 ) { > } \"$ ,   \n\"I need to compare the sizes of the vase, box and printer now to determine the rearranging order.\",   \n\"I recall that printer(0) in this room had the largest bounding box dimensions based on my earlier   \nobservation. I need to put down printer(0).\",   \n\"<PUT DOWN printer(0) from room(10) on desk(0) in room $( 1 0 ) { > } \"$ ,   \n\"Now I will pick up box(0).\",   \n\"<PICK UP box(0) from room(10) in $\\mathrm { r o o m } ( 1 0 ) { > } ^ { \\prime \\prime }$ ,   \n\"I remember that box(0) from cabinet(0) had medium bounding box dimensions, so I will put it on   \nthe desk.\",   \n\"<PUT DOWN box(0) from room(10) on desk(0) in room $( 1 0 ) { > } \"$ ,   \n\"Now I will pick up flower vase(0).\",   \n\"<PICK UP flower vase(0) from room(8) in $\\mathrm { r o o m } ( 1 0 ) { > } ^ { \\prime \\prime }$ ,   \n\"I remember that flower vase(0) had the smallest bounding box dimensions, so I will put it on the   \ndesk.\",   \n\"<PUT DOWN flower vase(0) from room(8) on desk(0) in $\\mathrm { r o o m } ( 1 0 ) { > } \"$ ,   \n\"I will now arrange the objects from small to large: flower vase(0), box(0) and printer(0) on the   \ndesk(0).\", \"Now I pick up the medium object, box(0).\",   \n\"<PICK UP box(0) from room(10) in $\\mathrm { r o o m } ( 1 0 ) { > } ^ { \\prime \\prime }$ ,   \n\"I will put the medium object on the left of the largest object, printer(0).\",   \n\"<PUT DOWN box(0) from room(10) on desk(0) in room $( 1 0 ) { > } \"$ ,   \n\"Now I pick up the smallest object, flower vase(0).\",   \n\"<PICK UP flower vase(0) from room(8) in room $( 1 0 ) { > } \"$ ,   \n\"I will put the smallest object on the left of the medium object, box(0).\",   \n\"<PUT DOWN flower vase(0) from room(8) on desk(0) in $\\mathrm { r o o m } ( 1 0 ) { > } ^ { \\prime \\prime }$ ,   \n\"The objects are now arranged from small to large: flower vase(0), box(0) and printer(0) on the   \ndesk(0). Task Complete.\" ",
+        "bbox": [
+            173,
+            579,
+            826,
+            912
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            173,
+            92,
+            826,
+            636
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Here is an example of in-domain task: ",
+        "bbox": [
+            176,
+            636,
+            423,
+            650
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Task: Preparing for Cooking Stir-fried Tomato and Scrambled Eggs. You need to prepare the ingredients, seasonings and cooking tools. ",
+        "bbox": [
+            173,
+            656,
+            823,
+            684
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Trajectory: \"I’m at room 4. It seems to be living room, I need to prepare ingredients and seasonings and cooking tools and setup them in the kitchen\", \"There is seasonings on the table.\",   \n\"<PICK UP seasonings(0) from room(4) in room $( 4 ) > \"$ ,   \n\"No other things found for my task\",   \n\"<GO TO NEW ROOM>\",   \n\"I’m at room 5. It seems to be dining room. I saw an apron on dining table.\", \"I need the apron but I have seasonings(0) on my hand. Lets find kitchen to put the seasonings first and go back for apron\", \"<GO TO NEW ROOM>\",   \n\"I’m at room 8. It seems to be kitchen with two cabinets. I found tomatoes and eggs on the cabinet(1) that is far away from me and cooking pan in the sink.\", \"There are two countertops in this room. countertop(1) is closer to stove(0). I should setup on countertop(1).\",   \n\"<PUT DOWN seasonings(0) from room(4) on countertop(1) in room $( 8 ) > \"$ ,   \n\"<PICK UP tomatoes(0) from room(8) in room $( 8 ) { > } \"$ ,   \n\"<PUT DOWN tomatoes(0) from room(8) on countertop(1) in room $( 8 ) > \"$ ,   \n\"<PICK UP eggs(0) from room(8) in $\\mathrm { r o o m } ( 8 ) > ^ { \\prime \\prime }$ ,   \n\"<PUT DOWN eggs(0) from room(8) on countertop(1) in room $( 8 ) > \"$ ,   \n\"<PICK UP cooking pan(0) from room(8) in room $( 8 ) > \"$ ,   \n\"<PUT DOWN cooking pan(0) from room(8) on stove(0) in room $( 8 ) > \"$ ,   \n\"I remember I saw apron in room 5. I need to find it back.\",   \n\"<GO TO ROOM(5)>\",   \n\"<PICK UP apron(0) from room(5) in room $( 5 ) > \"$ ,   \n\"<GO TO ${ \\mathrm { R O O M } } ( 8 ) { > } ^ { \\prime \\prime }$ ,   \n\"<PUT DOWN apron(0) from room(5) on countertop(1) in room $( 8 ) > \"$ ,   \n\"The setup in kitchen has been prepared. Task Complete.\" ",
+        "bbox": [
+            173,
+            691,
+            826,
+            898
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            90,
+            645,
+            217
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "D Implementation Details ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            237,
+            406,
+            255
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "We implement our model based on LLaVA-3D (Zhu et al., 2024), modifying it to be compatible with Google TPUs with PyTorch/XLA frameworks (Paszke et al., 2019; team, 2017–2025) . We first expand the model’s context window to 8192 tokens to accommodate long-term memory inputs. We then fine-tune our proposed memory module along with the LLM decoder using our training split, initializing from LLaVA-3D’s pretrained weights. Training is conducted on 8 Google Cloud TPU v5p cores with a batch size of 256 for 1000 steps, which takes about 1 day to complete. We use Adam optimizer with learning rate of 2e-5 with no weight decay. Additionally, we apply a linear warmup of the learning rate during the initial $3 \\%$ steps, increasing from $1 0 ^ { - 8 }$ to $1 0 ^ { - 5 }$ , followed by a cosine decay scheduler. ",
+        "bbox": [
+            173,
+            271,
+            825,
+            395
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "E Prompts for Gemini ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            417,
+            375,
+            435
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "As mentioned in $\\ S \\ 2 . 2$ , we prompt Gemini to generate the long-term trajectories as illustrated in Table 4, generate the question-answering tasks as shown in Table 5, and generate caption tasks as shown in Table 6. For open-ended QA evaluation, we followed standard LLM-as-judge protocol by prompting Gemini as illustrated in Table 7. ",
+        "bbox": [
+            174,
+            450,
+            825,
+            506
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "F Data Validation ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            529,
+            338,
+            546
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "F.1 Trajectory Validation ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            561,
+            362,
+            577
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "We implement a trajectory simulation pipeline driven by the commands listed in Table 4. For each command, the simulator records the agent’s current room and the full set of objects it is holding, then updates the set of objects in each room to reflect pick-up and put-down actions. A pick-up removes the specified object (along with any nested items) from the room the agent occupies and adds it to the agent’s hand; a put-down removes the object from the agent’s hand and places it into the designated room. The pipeline validates each command based on these criteria: (1) the agent’s location; (2) the referenced object and (3) the correctness of pick-up and put-down actions. For location validation, a command is marked as invalid if the agent attempts to pick up an object from a room that does not match its current room, or tries to drop an object into a room other than the one it currently occupies. Additionally, if the agent tries to visit a room that does not exist in the scene, or attempts to enter a new room when all rooms have already been explored, the trajectory is also considered invalid. For object validation, a pick-up command is invalid if the target object does not exist in the current room, and a put-down command is invalid if the agent is not currently holding the specified object. For pick-up and put-down validation, the agent is allowed to hold only one object at a time. A command is considered invalid if the agent attempts to pick up an object while already holding one, or tries to put down an object when its hand is empty. Finally, after all commands have been executed, if the trajectory ends with the agent still holding an object that was never put down, the entire trajectory is marked as invalid. ",
+        "bbox": [
+            173,
+            587,
+            826,
+            837
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "F.2 Human Validation ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            856,
+            341,
+            871
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "As mentioned in $\\ S$ After automatic trajectory validation, we further conduct human validation, in which four student experts in the field manually inspect each benchmark example. We render multi",
+        "bbox": [
+            176,
+            883,
+            821,
+            911
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "System message ",
+        "text_level": 1,
+        "bbox": [
+            230,
+            102,
+            331,
+            114
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "You are an AI assistant and task generator for a 3D embodied agent operating in a multi-room environment. The environment provides detailed object instance information, including bounding boxes and IDs. Your goal is to generate a complex task that requires the agent to explore multiple rooms, navigate, and crucially use long-term memory to recall details observed earlier. ",
+        "bbox": [
+            230,
+            114,
+            769,
+            176
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Prompt ",
+        "text_level": 1,
+        "bbox": [
+            230,
+            184,
+            279,
+            195
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "1. Environment and Object Information ",
+        "bbox": [
+            232,
+            196,
+            465,
+            208
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Object Representation: Each object is given with a bounding box in the format: “<object_name>(num)”: [x_min, y_min, z_min], [x_max, y_max, z_max] Here, (num) indicates the ID, with (0) being the closest to the origin [0,0,0]. IDs reset for each room (e.g., sofa(0) in room 2 and sofa(0) in room 4 if each room has one sofa). ",
+        "bbox": [
+            228,
+            209,
+            769,
+            258
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Actions Available: ${ \\mathit { \\Omega } } { < } \\mathrm { G O }$ TO ROOM(id)>: Navigate to a room that has already been visited. <GO TO NEW ROOM>: Navigate to a new, unexplored room (and unlock its objects). Do not use this for rooms that have been visited before. <PICK UP object_name(id) from room(id) in room(id)>: Pick up an object that originally belongs to a specific room while in that same room. <PUT DOWN object_name(id) from room(id) on object_name(id) in room(id)>: Place an object (that originally belongs to a room) onto another object (such as a table or floor) in a room. ",
+        "bbox": [
+            230,
+            258,
+            769,
+            347
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "New Objects: You can add extra objects to diversify the task. Important: Use only object names from the provided new_objects_name_list. If a room already has an object with the same name, the new object should have a new ID (e.g., if lamp(0) exists, the added one should be lamp(1)). These extra objects are only for task design; the agent’s trajectory should not mention adding them. ",
+        "bbox": [
+            230,
+            347,
+            767,
+            410
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "2. Task Design Requirements ",
+        "text_level": 1,
+        "bbox": [
+            230,
+            422,
+            405,
+            435
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Multi-Room Exploration: Design a task that spans several rooms. The room order (given in a Room Order list) should be chosen so that necessary items are distributed across rooms. The agent should explore every room in the specified order. ",
+        "bbox": [
+            228,
+            435,
+            767,
+            472
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Long-Term Memory and Implicit Cues: Do not simply list all items as a checklist at the start. Instead: Provide a vague overall goal (e.g., “prepare a meal”). Later in the trajectory, have the agent recall these earlier observations when the need arises. Ensure the agent must remember something seen long ago rather than simply following an explicit list. ",
+        "bbox": [
+            228,
+            473,
+            769,
+            523
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Update Memory and make new decision based on your current observations: The agent originall planned to use one object for completing its task, but couldn’t find it after exploration of rooms. It has to change to a another similar object to complete its task. ",
+        "bbox": [
+            228,
+            523,
+            767,
+            560
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Inventory and Action Constraints: The agent can only hold one item at a time. Never perform consecutive PICK UP or PUT DOWN actions. If the agent holds an item, it must put it down before picking up another. When temporarily storing an object (e.g., on a table), include a “thought” explaining why the object is being set down and later recalled. ",
+        "bbox": [
+            228,
+            561,
+            769,
+            612
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "3.Reasoning and Object Comparisons: If your task requires choosing a specific object instance (e.g., selecting table(1) because it is bigger than table(0)), compare their bounding boxes and explain your choice in the trajectory. ",
+        "bbox": [
+            228,
+            623,
+            767,
+            661
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "For clarity, consider these examples: {In-context examples} Here is the scene information: {Input scene information} view images of the entire scene using the simulator and verify whether the benchmark annotations accurately correspond to the simulated environment as illustrated in Figure 5. ",
+        "bbox": [
+            228,
+            674,
+            581,
+            713
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            882,
+            825,
+            911
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Prompt ",
+        "text_level": 1,
+        "bbox": [
+            230,
+            102,
+            279,
+            113
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "You are an AI assistant / task generator in the room. All object instances in this 3D scene are given, along with their bounding boxes and ids.\" Each object’s bounding boxes are represented by a 3D coordinate ’<obj_name>(num)’: [x min, y min, z min],[x max, y max, z max]’ with units of meters, and each represents left-bottom corner and the right-top corner coordinate. ",
+        "bbox": [
+            230,
+            114,
+            769,
+            176
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "You will also receive a trajectory composed of the following tokens and reasoning chains. ${ \\mathit { \\Omega } } { < } \\mathrm { G O }$ TO ROOM(id)>: which navigates back to a specific room (id). This can only be done if the agent already go to this room. <PICK UP object_name(id) from room(id) in room(id)>: Pick up an object that originally belongs to a specific room while in that same room. <PUT DOWN object_name(id) from room(id) on object_name(id) in room(id)>: Place an object (that originally belongs to a room) onto another object (such as a table or floor) in a room. <GO TO NEW ROOM>: which navigates to a new room you haven’t explored and unlocks objects there. ",
+        "bbox": [
+            230,
+            189,
+            769,
+            290
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "This trajectory is what the agent have executed over the past. You need to propose several questions and answers that focused on the reasoning abilities of the long-term memory of the agent. These reasoning questions should focus on what have changed temporally or spatially in this agent’s memory. It’s important that this change challenged the agent’s memory. For example the questions should contain object counting, spatial relation, comparison between objects across rooms, long-term multi-room room layout, long-term multi-room object navigation. Remember spatial memory is important, you should design questions that asked about the 3D object spatial relation and layout in the room that need the agent to perform a hard reasoning for the final answer. ",
+        "bbox": [
+            230,
+            301,
+            767,
+            416
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "For clarity, consider these examples: {In-context examples} Here is the scene information: {Input scene information} Here is the agent’s trajectory: {Input agent’s trajectory} ",
+        "bbox": [
+            228,
+            428,
+            580,
+            479
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Table 5: Prompt template for generate QA data. {In-context examples} are in-context examples.   \n{Input scene information} are scene, room and object semantics along with their bounding boxes.   \n{Input agent’s trajectory} is the 3D agent’s explored trajectories and action chains. ",
+        "bbox": [
+            187,
+            518,
+            812,
+            561
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "G Evaluation Setup Details ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            588,
+            418,
+            606
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "3D-LLM Similar to the 3D-LLM work (Hong et al., 2023b), we use their direct reconstruction method to extract the 3D features from each scene in our training data. To process our long-term memory data, which requires multi-scene input across each task, we feed each room in the task through the 3D-LLm Q-Former head independently to get separate 32-token dense representation of each room with per-room 3d positional embeddings injected into the features. Then we concatenate the representations before feeding the input into the frozen t5-flanxl (Chung et al., 2022) backbone like the original work. ",
+        "bbox": [
+            173,
+            621,
+            825,
+            718
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "The 3D-LLM model also included learned location tokens used to describe certain locations within each room in the scene. To fit 3D-LLM to our task data, we substitute the location tokens with our specific interaction tokens (eg. <GO TO ROOM> used by all models in our experiments) and train the model to learn the new tokens to stay consistent with our higher level interaction used across our training data. Analysis of the 3D-LLM model evaluation output, indicated the primary struggle for the model was retaining long term memory of semantic observations in the scene, so we prioritized aligning 3D-LLM with the high level long-term memory representation in our data over low level spatial understanding of the scene. ",
+        "bbox": [
+            173,
+            724,
+            825,
+            835
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Our longer task data input also required truncation to fit within the 512 token context length of 3DLLM’s t5-flanxl backbone. We retain the task description and move the question to the beginning of the prompt for the QA data to ensure the model still receives the information necessary to understand its tasks. The longer trajectory of past events is then the only information that gets truncated before fed into the t5 encoder. ",
+        "bbox": [
+            174,
+            842,
+            825,
+            911
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Prompt ",
+        "text_level": 1,
+        "bbox": [
+            230,
+            102,
+            279,
+            113
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "You are provided with a scene description containing multiple rooms. Each room includes a list of objects along with their positions in the room, represented by bounding boxes. Each object’s bounding box is defined by a 3D coordinate in the format: <object_name>(num): [x min, y min, z min],[x max, y max, z max] with units in meters (defining the left-bottom and right-top corners). Your task is to generate an object caption for each room in the form of a coherent, descriptive paragraph that conveys the 3D spatial arrangement and relative positions of all objects within that room. ",
+        "bbox": [
+            230,
+            114,
+            769,
+            202
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "Then, you will receive the object descriptions and caption for the current 3D room you are in. You will also be provided with the previous rooms’ captions as well. Your task is to generate new captions covering the summarization of the common features across all rooms based on your current room and important difference based on your current room. The reasons of generating the new caption is to help the agent to remind of what are in previous rooms memories can help the agent in this current room. The past objects and observations should be related to current room by examining the summarization of common things and differences. ",
+        "bbox": [
+            230,
+            202,
+            769,
+            290
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "For clarity, consider these examples: {In-context examples}   \nHere is the scene information: {Input scene information}   \nHere is current room you are in and previous rooms you went: {Input agent’s location} Table 6: Prompt template for generate QA data. {In-context examples} are in-context examples.   \n{Input scene information} are scene, room and object semantics along with their bounding boxes.   \n{Input agent’s location} is the location for current room in the scene and the past explored rooms. ",
+        "bbox": [
+            228,
+            303,
+            743,
+            354
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            187,
+            393,
+            810,
+            435
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "For finetuning on our data, we use the hyperparameters provided by 3D-LLM and finetune until model loss stops decreasing. Due to compute limitations, we trained on captioning task for 15 epochs, question-answering task for 20 epochs, and allocated most of the compute time on the embodied task, which we trained on for 75 epochs. ",
+        "bbox": [
+            176,
+            463,
+            825,
+            518
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "3D-Mem We benchmark 3D-Mem (Yang et al., 2025b) on the question-answering and captioning splits of 3DMEM-BENCH. 3D-Mem is a snapshot-based 3D memory architecture originally developed for embodied exploration and reasoning; it keeps two complementary stores—memory snapshots, a compact set of multi-view RGB-D frames with per-object bounding boxes summarizing the areas the agent has inspected, and frontier snapshots, boundary views that suggest where useful new information may be found next. In its native setting the agent navigates an unfamiliar scene by selecting the frontier view most likely to advance its task and then answers visual questions using the most relevant memory snapshots. Because our evaluation focuses on post-exploration reasoning rather than active exploration, we disable the frontier component and retain only the memory snapshots. For these two tasks, the system will capture memory snapshots in each room from the room center, and finish the QA and captioning base on the memory snapshots of all the explored rooms. ",
+        "bbox": [
+            173,
+            532,
+            825,
+            685
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "H Qualitative Examples ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            704,
+            390,
+            722
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "We provide qualitative examples as shown in Figure 6. It demonstrates that 3DLLM-MEM can maintain a long-term memory and perform complex tasks in the embodied environments. More examples can be found in the supplementary materials. ",
+        "bbox": [
+            174,
+            736,
+            825,
+            779
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "image",
+        "img_path": "images/d064c634570ee538b82c01facc2ae5d7851cebec2bb76767b074b54c9a73f1db.jpg",
+        "image_caption": [
+            "Table 7: Prompt template for open-ended QA evaluation following standard LLM-as-judge protocol. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            222,
+            273,
+            792,
+            671
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Object Captioning ",
+        "text_level": 1,
+        "bbox": [
+            186,
+            324,
+            318,
+            338
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Room 8 contains distinct sleeping, working, and lounging zones. $\\mathbf { B e d } ( 0 )$ extends along one side, with pillow(0) near its head and cabinet(1) beside it, which supports decoration(0) and is flanked by book(0) and book(1). Near the foot of bed(0), yoga mat(0), bag(0), and box(0) form a small activity area. At the far end, wardrobe(0) stands near wall(4), next to beanbag chair(0) and exercise $\\mathbf { b a l l } ( 0 )$ , with clothes(0) draped nearby, creating a relaxed corner. The office area, positioned across from bed(0), includes desk(0), office chair(0), and cabinet(0), with trashcan(0) nearby and ceiling lamp(0) overhead. Window(0) on the parapet(0) brings in natural light. The arrangement ensures functional use of space while maintaining clear separation between different activities. ",
+        "bbox": [
+            186,
+            340,
+            808,
+            460
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Question Answering ",
+        "text_level": 1,
+        "bbox": [
+            187,
+            469,
+            331,
+            483
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Object Counting ",
+        "text_level": 1,
+        "bbox": [
+            189,
+            487,
+            287,
+            500
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            196,
+            502,
+            651,
+            530
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Spatial Relation ",
+        "text_level": 1,
+        "bbox": [
+            187,
+            532,
+            284,
+            545
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Q: If you are sitting on the office chair(0) working at the desk(0) in Room 8, where is the window(0) relative to you? ",
+        "bbox": [
+            194,
+            547,
+            805,
+            575
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "image",
+        "img_path": "images/fa4a210385c0e322a0393259e95a1465dd2cd54ed75d20777b933cfe78310890.jpg",
+        "image_caption": [
+            "Figure 5: Example of human annotators manually check the data quality on QA and captioning tasks through multiple rendered multi-view images from each room. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            241,
+            151,
+            758,
+            314
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "● A: The window(0) is behind you to the left. ",
+        "bbox": [
+            199,
+            578,
+            472,
+            590
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Comparative QA ",
+        "text_level": 1,
+        "bbox": [
+            187,
+            593,
+            289,
+            606
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "● Q: Which room has more books, Room 8 or Room 9? ",
+        "bbox": [
+            197,
+            608,
+            527,
+            621
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "A: Room 8 has more books. It contains two books, book(0) and book(1), both placed on top of the cabinet(0) near the desk(0). ",
+        "bbox": [
+            196,
+            623,
+            807,
+            651
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Object Navigation ",
+        "text_level": 1,
+        "bbox": [
+            187,
+            654,
+            297,
+            666
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Q: If you are sitting on the beanbag chair(0) in Room 8, how do you get to the books? A: You need to stand up, turn left, and walk across the room toward the cabinet(0) near the desk(0), where the books are placed. ",
+        "bbox": [
+            189,
+            669,
+            807,
+            712
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Room Layout ",
+        "text_level": 1,
+        "bbox": [
+            187,
+            715,
+            269,
+            727
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Q: In Room 8, what is the relative layout of the bed(0), desk(0), and office chair(0)? Which one is closest to the window(0)? A: The bed(0) is placed along the side wall near the window(0), the desk(0) is located in the far corner of the room along wall(5), and the office chair(0) is positioned directly in front of the desk(0). Among these, the bed(0) is closest to the window(0), which is embedded in the wall beside it. ",
+        "bbox": [
+            196,
+            729,
+            808,
+            805
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "image",
+        "img_path": "images/ed2df676b5dca2952e00f3ea2b89c973a1f1f5e4cc888fdc8f5efa38b4aa11bc.jpg",
+        "image_caption": [
+            "Figure 6: Qualitative example of 3DLLM-MEM. The task instruction is: Prepare a cozy reading nook in the living room with two books and a teacup. In images (1) and (2), the agent explores the environment randomly, forming an initial memory of the scene. After receiving the task instruction, it recalls its memory and navigates to the bedroom to pick up a book from the cabinet, as shown in images (3) and (4). The agent then returns to the living room and places the book on the table in front of the sofa (image 5). Unable to recall any additional books, the agent resumes exploration and finds a second book on the bed, which it picks up (image 6) and stacks on top of the first book (image 7). Finally, the agent recalls seeing a teacup in the kitchen, navigates to retrieve it (image 8), and places it on the table in the living room (image 9). The task is successfully completed. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            181,
+            178,
+            812,
+            699
+        ],
+        "page_idx": 22
+    }
+]

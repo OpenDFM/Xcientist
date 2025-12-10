@@ -1,0 +1,208 @@
+{
+  "extraction": {
+    "title": {
+      "value": "Stop Overthinking: A Survey on Efficient Reasoning for Large Language Models",
+      "type": "string",
+      "unit": null,
+      "evidence": "Stop Overthinking: A Survey on Efficient Reasoning for Large Language Models",
+      "provenance": {
+        "section_header": "Title",
+        "page": null
+      },
+      "notes": "",
+      "score": {
+        "consistency": 5,
+        "insight": 5,
+        "integrity": 5
+      }
+    },
+    "introduction": {
+      "background": {
+        "value": "Large Language Models (LLMs) have emerged as exceptionally powerful AI tools, demonstrating advanced capabilities in natural language understanding and complex reasoning. Recently, the rise of reasoning-focused LLMs, also referred to as reasoning-capable models or Large Reasoning Models (LRMs) such as OpenAI o1 and DeepSeek-R1, has significantly improved performance in System-2 reasoning domains, particularly in challenging mathematics and programming tasks.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Large Language Models (LLMs) have emerged as exceptionally powerful AI tools, demonstrating advanced capabilities in natural language understanding and complex reasoning. Recently, the rise of reasoning-focused LLMs, also referred to as reasoning-capable models or Large Reasoning Models (LRMs) such as OpenAI o1 and DeepSeek-R1, has significantly improved performance in System-2 reasoning domains, particularly in challenging mathematics and programming tasks.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": null
+        },
+        "notes": "The paper discusses the evolution of reasoning-focused LLMs and their impact on complex tasks.",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "problem_statement": {
+        "value": "While long Chain-of-Thought (CoT) reasoning significantly boosts accuracy, step-by-step thinking mechanisms also lead to lengthy output responses, resulting in substantial computational overhead and increased reasoning time. This verbosity significantly increases both inference costs and latency, limiting the practical application of reasoning models in computation-sensitive real-world scenarios.",
+        "type": "string",
+        "unit": null,
+        "evidence": "However, while long CoT reasoning significantly boosts accuracy, step-by-step thinking mechanisms also lead to lengthy output responses, resulting in substantial computational overhead and increased reasoning time. This verbosity significantly increases both inference costs and latency, limiting the practical application of reasoning models in computation-sensitive real-world scenarios.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": null
+        },
+        "notes": "The paper identifies the 'overthinking phenomenon' as a key challenge in efficient reasoning.",
+        "score": {
+          "consistency": 5,
+          "insight": 5,
+          "integrity": 5
+        }
+      }
+    },
+    "efficient_reasoning_approaches": {
+      "model_optimization_approach": {
+        "description": {
+          "value": "Model-based efficient reasoning focuses on optimizing full-length reasoning models into more concise variants or directly training efficient reasoning models.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Model-based efficient reasoning, which focuses on optimizing full-length reasoning models into more concise variants or directly training efficient reasoning models.",
+          "provenance": {
+            "section_header": "Introduction",
+            "page": null
+          },
+          "notes": "This approach aims to enhance reasoning efficiency by optimizing model architecture.",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        },
+        "examples": {
+          "value": "DeepSeek-R1 uses reinforcement learning to enhance reasoning capabilities, focusing on structured thinking templates and rule-based reward mechanisms.",
+          "type": "string",
+          "unit": null,
+          "evidence": "DeepSeek-R1 undergoes multiple rounds of SFT and RL training, emphasizing structured thinking templates and rule-based reward mechanisms.",
+          "provenance": {
+            "section_header": "Introduction",
+            "page": null
+          },
+          "notes": "DeepSeek-R1 is an example of applying RL to improve reasoning efficiency.",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        }
+      },
+      "output_streamlining_approach": {
+        "description": {
+          "value": "Reasoning output-based efficient reasoning dynamically reduces reasoning steps and length during inference.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Reasoning output-based efficient reasoning, which dynamically reduces reasoning steps and length during inference.",
+          "provenance": {
+            "section_header": "Introduction",
+            "page": null
+          },
+          "notes": "This approach aims to streamline the reasoning process by reducing unnecessary steps.",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        },
+        "examples": {
+          "value": "Speculative Rejection generates multiple responses until memory limits are nearly reached, then discards low-quality outputs based on evaluation by a reward model.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Speculative Rejection [165] is an efficient inference-time reasoning algorithm that optimizes Best-of-N (BoN) decoding by dynamically reducing computational overhead.",
+          "provenance": {
+            "section_header": "Dynamic Reasoning Paradigm during Inference",
+            "page": null
+          },
+          "notes": "Speculative Rejection is an example of optimizing inference efficiency.",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        }
+      },
+      "prompt_optimization_approach": {
+        "description": {
+          "value": "Input prompts-based efficient reasoning enhances reasoning efficiency based on input properties such as difficulty or length control.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Input prompts-based efficient reasoning, which enhances reasoning efficiency based on input properties such as difficulty or length control.",
+          "provenance": {
+            "section_header": "Introduction",
+            "page": null
+          },
+          "notes": "This approach focuses on optimizing reasoning through carefully structured prompts.",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        },
+        "examples": {
+          "value": "Token-Budget proposes setting a token budget in prompts to reduce unnecessary reasoning tokens.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Token-Budget [58] proposes setting a token budget in prompts to reduce unnecessary reasoning tokens.",
+          "provenance": {
+            "section_header": "Prompt-guided Efficient Reasoning",
+            "page": null
+          },
+          "notes": "Token-Budget is an example of using prompts to control reasoning length.",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        }
+      }
+    },
+    "experimental_results": {
+      "performance_metrics": {
+        "value": "The study uses various performance indicators to assess reasoning efficiency, including inference time and computational cost.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Efficient reasoning, particularly the reduction of reasoning length, offers significant benefits in such regards, providing direct cost reduction and improved feasibility for real-world deployments.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": null
+        },
+        "notes": "Performance metrics focus on cost reduction and feasibility improvements.",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "results_summary": {
+        "value": "Efficient reasoning methods significantly reduce computational costs and improve responsiveness for real-world applications.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Efficient reasoning, which seeks to optimize reasoning length while preserving reasoning capabilities, offers practical benefits such as reduced computational costs and improved responsiveness for real-world applications.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": null
+        },
+        "notes": "The summary highlights the practical benefits of efficient reasoning.",
+        "score": {
+          "consistency": 5,
+          "insight": 5,
+          "integrity": 5
+        }
+      }
+    },
+    "conclusions": {
+      "value": "Efficient reasoning in LLMs offers significant practical benefits across various domains, including healthcare diagnostics, autonomous driving, embodied AI systems, and financial algorithmic trading. Future research should focus on enhancing reasoning capabilities while reducing computational costs.",
+      "type": "string",
+      "unit": null,
+      "evidence": "Efficient reasoning approaches offer significant practical benefits across various domains: reducing computational costs in healthcare diagnostics, enhancing real-time decision-making and safety in autonomous driving, boosting the reliability and usefulness of embodied AI systems, and enabling quicker, more profitable responses in financial algorithmic trading and risk assessment.",
+      "provenance": {
+        "section_header": "Conclusion",
+        "page": null
+      },
+      "notes": "The conclusion emphasizes the broad applicability and benefits of efficient reasoning.",
+      "score": {
+        "consistency": 5,
+        "insight": 5,
+        "integrity": 5
+      }
+    }
+  }
+}

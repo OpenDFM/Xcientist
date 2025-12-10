@@ -1,0 +1,265 @@
+{
+    "extraction": {
+        "title": {
+            "value": "A survey on automatic generation of medical imaging reports based on deep learning",
+            "type": "string",
+            "unit": null,
+            "evidence": "A survey on automatic generation of medical imaging reports based on deep learning",
+            "provenance": {
+                "section_header": "Title",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "authors": {
+            "value": [
+                "Ting Pang",
+                "Peigao Li",
+                "Lijie Zhao"
+            ],
+            "type": "list",
+            "unit": null,
+            "evidence": "Ting Pang1*, Peigao Li1 and Lijie Zhao1",
+            "provenance": {
+                "section_header": "Author list",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "year": {
+            "value": 2023,
+            "type": "integer",
+            "unit": null,
+            "evidence": "Received: 19 February 2023 Accepted: 9 May 2023 Published online: 18 May 2023",
+            "provenance": {
+                "section_header": "Declarations",
+                "page": 16
+            },
+            "notes": ""
+        },
+        "abstract": {
+            "value": "Recent advances in deep learning have shown great potential for the automatic generation of medical imaging reports. Deep learning techniques, inspired by image captioning, have made significant progress in the field of diagnostic report generation. This paper provides a comprehensive overview of recent research efforts in deep learning-based medical imaging report generation and proposes future directions in this field.",
+            "type": "string",
+            "unit": null,
+            "evidence": "Recent advances in deep learning have shown great potential for the automatic generation of medical imaging reports. Deep learning techniques, inspired by image captioning, have made significant progress in the field of diagnostic report generation. This paper provides a comprehensive overview of recent research efforts in deep learning-based medical imaging report generation and proposes future directions in this field.",
+            "provenance": {
+                "section_header": "Abstract",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "doi": {
+            "value": null,
+            "type": "string",
+            "unit": null,
+            "evidence": null,
+            "provenance": {
+                "section_header": null,
+                "page": null
+            },
+            "notes": "DOI not provided in the paper."
+        },
+        "venue": {
+            "value": null,
+            "type": "string",
+            "unit": null,
+            "evidence": null,
+            "provenance": {
+                "section_header": null,
+                "page": null
+            },
+            "notes": "Publication venue not mentioned in the paper."
+        },
+        "research_focus": {
+            "main_topic": {
+                "value": "Automatic generation of medical imaging reports using deep learning",
+                "type": "string",
+                "unit": null,
+                "evidence": "The primary aim of this manuscript is to present a systematic review of studies on deep learning-based medical imaging reports generation.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 3
+                },
+                "notes": ""
+            },
+            "sub_topics": {
+                "value": [
+                    "Deep learning techniques in medical imaging",
+                    "Image captioning frameworks",
+                    "Hierarchical RNN-based frameworks",
+                    "Attention-based frameworks",
+                    "Reinforcement learning-based frameworks"
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "We summarize and analyze the data set, architecture, application, and evaluation of deep learning-based medical imaging report generation. Specially, we survey the deep learning architectures used in diagnostic report generation, including hierarchical RNN-based frameworks, attention-based frameworks, and reinforcement learning-based frameworks.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            }
+        },
+        "methodology": {
+            "data_sets": {
+                "value": [
+                    {
+                        "name": "IU X-Ray",
+                        "description": "Chest X-ray images paired with their corresponding diagnostic reports.",
+                        "identifier": "http://openi.nlm.nih.gov/"
+                    },
+                    {
+                        "name": "ChestX-ray14",
+                        "description": "Contains 112,120 frontal-view X-ray images of 30,805 unique patients.",
+                        "identifier": "https://nihcc.app.box.com/v/ChestXray-NIHCC"
+                    },
+                    {
+                        "name": "CheXpert",
+                        "description": "Contains 224,316 chest radiographs of 65,240 patients.",
+                        "identifier": "https://stanfordmlgroup.github.io/competitions/chexpert/"
+                    },
+                    {
+                        "name": "MIMIC-CXR",
+                        "description": "A large publicly available dataset of chest radiographs with free-text radiology reports.",
+                        "identifier": "https://physionet.org/content/mimic-cxr/2.0.0/"
+                    },
+                    {
+                        "name": "PadChest",
+                        "description": "A labeled large-scale chest X-ray dataset obtained from 67,000 patients.",
+                        "identifier": "https://bimcv.cipf.es/bimcv-projects/padchest/"
+                    }
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "The current public data sets have greatly contributed to the development of deep learning for medical imaging report generation. Some examples of these data sets include Indiana University Chest XRay (IU X-Ray), ChestX-ray14, CheXpert, MIMIC Chest X-ray (MIMIC-CXR), and PadChest.",
+                "provenance": {
+                    "section_header": "Data sets",
+                    "page": 6
+                },
+                "notes": ""
+            },
+            "architectures": {
+                "value": [
+                    {
+                        "name": "Hierarchical RNN-based framework",
+                        "description": "Uses a hierarchical LSTM consisting of a sentence LSTM and a word LSTM for generating long reports."
+                    },
+                    {
+                        "name": "Attention-based framework",
+                        "description": "Combines image and language models using attention mechanisms to enhance report generation."
+                    },
+                    {
+                        "name": "Reinforcement Learning-based framework",
+                        "description": "Utilizes a cooperative multi-agent system to optimize report generation."
+                    }
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "We focus on medical report generation based on deep learning. Essentially, the paradigm follows a typical encoder\u2013decoder architecture. Recent works focus on generating long-form text instead of single sentences. Attention mechanisms that focus on salient parts have been widely used in image captioning.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 3
+                },
+                "notes": ""
+            },
+            "evaluation_metrics": {
+                "value": [
+                    "BLEU",
+                    "ROUGE",
+                    "METEOR",
+                    "CIDER"
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "BLEU, ROUGE, METEOR, and CIDER are commonly used evaluation metrics for medical image report generation.",
+                "provenance": {
+                    "section_header": "Evaluations",
+                    "page": 12
+                },
+                "notes": ""
+            }
+        },
+        "results": {
+            "performance": {
+                "value": "The paper identifies that the use of deep learning can significantly improve the accuracy and efficiency of medical imaging report generation.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Automatic generation of diagnostic reports from medical images can significantly reduce the workload of report writing.",
+                "provenance": {
+                    "section_header": "Conclusion",
+                    "page": 15
+                },
+                "notes": ""
+            },
+            "challenges": {
+                "value": [
+                    "Imbalanced datasets leading to biased report generation.",
+                    "Lack of public databases with diverse imaging modalities.",
+                    "Labor-intensive nature of image annotation."
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "One major issue is the imbalanced nature of available data sets. There is a lack of public databases that include a variety of image modalities, such as pathology, ultrasound, and magnetic resonance imaging (MRI).",
+                "provenance": {
+                    "section_header": "Discussion and future",
+                    "page": 14
+                },
+                "notes": ""
+            }
+        },
+        "future_directions": {
+            "value": [
+                "Establish public databases with a variety of image modalities.",
+                "Develop private datasets for clinical practice.",
+                "Create specific metrics for evaluating medical imaging reports."
+            ],
+            "type": "list",
+            "unit": null,
+            "evidence": "To address these challenges, we need to establish public databases with a variety of image modalities, as well as develop private data sets to address the limitations of medical images and complex annotations.",
+            "provenance": {
+                "section_header": "Discussion and future",
+                "page": 14
+            },
+            "notes": ""
+        },
+        "author_contributions": {
+            "contributor_roles": {
+                "value": [
+                    "Ting Pang: Wrote the main manuscript text.",
+                    "Peigao Li: Wrote the main manuscript text.",
+                    "Lijie Zhao: Prepared figures and tables."
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "TP and PL wrote the main manuscript text and LZ prepared figures and tables.",
+                "provenance": {
+                    "section_header": "Author contributions",
+                    "page": 15
+                },
+                "notes": ""
+            }
+        },
+        "funding": {
+            "value": "This work was supported by the Key Scientific Research Project of Universities in Henan Province (China) (23A413002).",
+            "type": "string",
+            "unit": null,
+            "evidence": "Funding This work was supported by the Key Scientific Research Project of Universities in Henan Province (China) (23A413002).",
+            "provenance": {
+                "section_header": "Funding",
+                "page": 15
+            },
+            "notes": ""
+        },
+        "ethical_considerations": {
+            "value": "Not applicable.",
+            "type": "string",
+            "unit": null,
+            "evidence": "Ethics approval and consent to participate Not applicable.",
+            "provenance": {
+                "section_header": "Declarations",
+                "page": 16
+            },
+            "notes": ""
+        }
+    }
+}

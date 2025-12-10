@@ -1,0 +1,273 @@
+{
+    "extraction": {
+        "code_url": {
+            "value": "https://github.com/Alpha-Innovator/SurveyForge",
+            "type": "string",
+            "unit": null,
+            "evidence": "The source code content is the specific implementation of the paper.",
+            "provenance": {
+                "section_header": "Introduction",
+                "page": null
+            },
+            "notes": ""
+        },
+        "dataset_url": {
+            "value": "https://huggingface.co/datasets/U4R/SurveyBench",
+            "type": "string",
+            "unit": null,
+            "evidence": "To achieve a comprehensive evaluation, we construct SurveyBench, which includes 100 human-written survey papers for win-rate comparison...",
+            "provenance": {
+                "section_header": "Abstract",
+                "page": null
+            },
+            "notes": ""
+        },
+        "introduction": {
+            "problem_statement": {
+                "value": "The quality gap between LLM-generated surveys and those written by humans remains significant, particularly in terms of outline quality and citation accuracy.",
+                "type": "string",
+                "unit": null,
+                "evidence": "However, the quality gap between LLM-generated surveys and those written by human remains significant, particularly in terms of outline quality and citation accuracy.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": null
+                },
+                "notes": ""
+            },
+            "proposed_solution": {
+                "value": "SURVEYFORGE generates outlines by analyzing human-written outlines and retrieves high-quality papers for content generation.",
+                "type": "string",
+                "unit": null,
+                "evidence": "To close these gaps, we introduce SURVEYFORGE, which first generates the outline by analyzing the logical structure of human-written outlines and referring to the retrieved domain-related articles.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": null
+                },
+                "notes": ""
+            },
+            "key_contributions": {
+                "value": "SURVEYFORGE is a novel automated framework for generating high-quality academic survey papers, utilizing heuristic outline generation and a memory-driven content generation.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Our contribution can be summarized as follows. \u2022 We propose SURVEYFORGE, a novel automated framework for generating high-quality academic survey papers.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": ""
+            }
+        },
+        "motivation": {
+            "outline_quality_issues": {
+                "value": "AI-generated surveys often lack coherent logic and well-structured organization.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Firstly, the structure of AI-generated surveys often lacks coherent logic and is often poorly-organized.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": ""
+            },
+            "reference_quality_issues": {
+                "value": "AI-generated surveys frequently fail to include truly relevant and influential literature.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Secondly, AI-generated surveys often fail to reference key influential literature, reducing the overall depth and value of surveys.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": ""
+            },
+            "evaluation_system_gaps": {
+                "value": "The evaluation of AI-generated surveys mainly relies on LLMs, lacking fine-grained analysis of critical aspects.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Lastly, the evaluation of AI-generated surveys mainly relies on LLMs, focusing on the overall quality of the long-form content.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": ""
+            }
+        },
+        "methods": {
+            "framework_overview": {
+                "value": "SURVEYFORGE consists of two main stages: outline generation and content writing.",
+                "type": "string",
+                "unit": null,
+                "evidence": "As shown in Fig. 2, our framework consists of two main stages: outline generation stage and content writing stage.",
+                "provenance": {
+                    "section_header": "Method",
+                    "page": null
+                },
+                "notes": ""
+            },
+            "heuristic_outline_generation": {
+                "knowledge_fusion": {
+                    "value": "A top-down heuristic learning approach enables LLMs to understand established theoretical frameworks and organizational paradigms.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "To address these challenges, we propose a top-down heuristic learning approach, enabling LLMs to understand the established theoretical frameworks...",
+                    "provenance": {
+                        "section_header": "3.1 Heuristic Outline Generation",
+                        "page": null
+                    },
+                    "notes": ""
+                },
+                "hierarchical_generation": {
+                    "value": "The outline generation process retrieves relevant papers and outlines for the given topic, generating a structured outline.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Retrieve relevant papers and outlines for T:Pr,Ps; Generate first-level outline Oi and queries {Qi}; foreach first-level Oido...",
+                    "provenance": {
+                        "section_header": "3.1 Heuristic Outline Generation",
+                        "page": null
+                    },
+                    "notes": ""
+                },
+                "memory_construction": {
+                    "value": "The memory construction process stores retrieved literature for subsequent content generation.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Store PRiasmemory Mi; Store PR as overall memory M;",
+                    "provenance": {
+                        "section_header": "3.1 Heuristic Outline Generation",
+                        "page": null
+                    },
+                    "notes": ""
+                }
+            },
+            "memory_driven_content_generation": {
+                "sana_module": {
+                    "value": "The Scholar Navigation Agent (SANA) retrieves high-quality literature for each subsection.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "To ensure that the quality and quantity of references in the generated survey papers, we propose a Scholar Navigation Agent (SANA)...",
+                    "provenance": {
+                        "section_header": "3.2.1 SANA: Scholar Navigation Agent",
+                        "page": null
+                    },
+                    "notes": ""
+                },
+                "query_decomposition": {
+                    "value": "Query decomposition breaks down complex queries into smaller sub-queries for precise information retrieval.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Query decomposition is a common technique that involves breaking down a complex query into smaller sub-queries...",
+                    "provenance": {
+                        "section_header": "3.2.1 SANA: Scholar Navigation Agent",
+                        "page": null
+                    },
+                    "notes": ""
+                },
+                "temporal_aware_reranking": {
+                    "value": "The temporal-aware reranking engine integrates textual relevance, citation impact, and publication recency.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Consequently, analyzing papers from different time periods within the same research domain is crucial for identifying high-quality contributions...",
+                    "provenance": {
+                        "section_header": "3.2.1 SANA: Scholar Navigation Agent",
+                        "page": null
+                    },
+                    "notes": ""
+                },
+                "parallel_generation_refinement": {
+                    "value": "Content generation occurs in parallel to reduce generation time, followed by a refinement stage to ensure coherence.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Due to the constraints of maximum context length and inference speed of LLMs, the content of each section is generated in parallel...",
+                    "provenance": {
+                        "section_header": "3.2.2 Parallel Generation and Refinement",
+                        "page": null
+                    },
+                    "notes": ""
+                }
+            },
+            "evaluation_framework": {
+                "survey_bench": {
+                    "value": "SurveyBench consists of approximately 100 human-written survey papers across 10 distinct topics.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "SurveyBench consists of approximately 100 human-written survey papers across 10 distinct topics, carefully curated by doctoral-level researchers...",
+                    "provenance": {
+                        "section_header": "3.3 Multi-dimensional Evaluation Benchmark",
+                        "page": null
+                    },
+                    "notes": ""
+                },
+                "sam_metrics": {
+                    "value": "SAM evaluates reference quality, outline quality, and content quality across AI-generated surveys.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "The SAM series integrate objective metrics, expert knowledge, and multi-dimensional criteria through three core components...",
+                    "provenance": {
+                        "section_header": "3.3 Multi-dimensional Evaluation Benchmark",
+                        "page": null
+                    },
+                    "notes": ""
+                }
+            }
+        },
+        "experimental_results": {
+            "outline_quality_comparison": {
+                "value": "SURVEYFORGE generates outlines that are more logical and comprehensive compared to AutoSurvey.",
+                "type": "string",
+                "unit": null,
+                "evidence": "For outline quality, the results show that SURVEYFORGE generates outlines that are more logical, comprehensive, and closer to human-level performance compared to AutoSurvey.",
+                "provenance": {
+                    "section_header": "4.2 Main Results",
+                    "page": null
+                },
+                "notes": ""
+            },
+            "evaluation_win_rate": {
+                "value": "SURVEYFORGE achieves a Score Win Rate of 73.00% in outline quality assessment.",
+                "type": "string",
+                "unit": null,
+                "evidence": "For outline quality, the automated system achieves a Score Win Rate of 73.00% and a Comparative Win Rate of 75.00%.",
+                "provenance": {
+                    "section_header": "4.3 Comparison with Human Evaluation",
+                    "page": null
+                },
+                "notes": ""
+            }
+        },
+        "conclusions": {
+            "technical_contribution": {
+                "value": "SURVEYFORGE significantly outperforms prior approaches across multiple evaluation metrics.",
+                "type": "string",
+                "unit": null,
+                "evidence": "SURVEYFORGE significantly outperforms prior approaches across multiple evaluation metrics.",
+                "provenance": {
+                    "section_header": "5 Conclusion and Outlook",
+                    "page": null
+                },
+                "notes": ""
+            },
+            "evaluation_contribution": {
+                "value": "The introduction of SurveyBench provides a systematic benchmark for evaluating automated survey generation systems.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Furthermore, we construct SurveyBench, a multidimensional benchmark to facilitate systematic assessment of automated survey generation systems.",
+                "provenance": {
+                    "section_header": "5 Conclusion and Outlook",
+                    "page": null
+                },
+                "notes": ""
+            },
+            "application_value": {
+                "value": "SURVEYFORGE aims to reduce the learning curve for researchers venturing into unfamiliar fields.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We hope to reduce the learning curve for researchers venturing into unfamiliar fields, providing convenience and thereby promoting the integration and development of cross-disciplinary and cross-domain knowledge.",
+                "provenance": {
+                    "section_header": "5 Conclusion and Outlook",
+                    "page": null
+                },
+                "notes": ""
+            }
+        }
+    }
+}

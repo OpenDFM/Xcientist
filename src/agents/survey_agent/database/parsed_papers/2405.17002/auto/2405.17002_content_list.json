@@ -1,0 +1,1747 @@
+[
+    {
+        "type": "text",
+        "text": "UIT-DarkCow team at ImageCLEFmedical Caption 2024: Diagnostic Captioning for Radiology Images Efficiency with Transformer Models ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            73,
+            858,
+            147
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Quan Van Nguyen1,3, Huy Quang Pham1,3, Dan Quang Tran $^ { 1 , 3 }$ , Thang Kien-Bao Nguyen $^ { 1 , 3 }$ Nhat-Hao Nguyen-Dang1,2 and Bao-Thien Nguyen-Tat1,3,\\* ",
+        "bbox": [
+            121,
+            160,
+            872,
+            195
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1Faculty of Information Science and Engineering, University of Information Technology, Ho Chi Minh City, Vietnam   \n2Faculty of Computer Science, University of Information Technology, Ho Chi Minh City, Vietnam   \n3Vietnam National University, Ho Chi Minh City, Vietnam ",
+        "bbox": [
+            121,
+            208,
+            810,
+            252
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Abstract ",
+        "text_level": 1,
+        "bbox": [
+            194,
+            274,
+            267,
+            286
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Purpose: This study focuses on the development of automated text generation from radiology images, termed diagnostic captioning, to assist medical professionals in reducing clinical errors and improving productivity. The aim is to provide tools that enhance report quality and efficiency, which can significantly impact both clinical practice and deep learning research in the biomedical field. ",
+        "bbox": [
+            194,
+            288,
+            878,
+            340
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Methods: In our participation in the ImageCLEFmedical2024 Caption evaluation campaign, we explored caption prediction tasks using advanced Transformer-based models. We developed methods incorporating Transformer encoder-decoder and Query Transformer architectures. These models were trained and evaluated to generate diagnostic captions from radiology images. ",
+        "bbox": [
+            194,
+            340,
+            880,
+            392
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Results: Experimental evaluations demonstrated the effectiveness of our models, with the VisionDiagnostorBioBART model achieving the highest BERTScore of 0.6267. This performance contributed to our team, DarkCow, achieving third place on the leaderboard. ",
+        "bbox": [
+            193,
+            392,
+            880,
+            430
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Conclusion: Our diagnostic captioning models show great promise in aiding medical professionals by generating high-quality reports efficiently. This approach can facilitate better data processing and performance optimization in medical imaging departments, ultimately benefiting healthcare delivery. ",
+        "bbox": [
+            194,
+            431,
+            880,
+            470
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Keywords ",
+        "text_level": 1,
+        "bbox": [
+            194,
+            479,
+            280,
+            492
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "ImageCLEF, Computer Vision, Diagnostic Captioning, Image Captioning, Image Understanding, Radiology Images, Transformer Models, Encoder-Decoder, Query Transformer ",
+        "bbox": [
+            193,
+            493,
+            878,
+            518
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1. Introduction ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            558,
+            289,
+            577
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Machine learning, especially Deep Learning, is creating breakthroughs in many different fields, and its impact on biomedicine is remarkable. With the exponential growth of biomedical data, researchers are exploring its potential in biomedical engineering, advanced computing, imaging systems, and biomedical data mining algorithms based on machine learning [1]. One important area is Diagnostic Captioning. Diagnostic Captioning is the process of automatically generating diagnostic text based on a set of medical images collected during a medical examination. It can assist less experienced physicians by minimizing clinical errors and helping experienced physicians generate diagnostic reports faster [2]. ",
+        "bbox": [
+            117,
+            590,
+            882,
+            703
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "ImageCLEF is an annual multimodal machine learning campaign, part of the Cross-Language Evaluation Forum (CLEF), which has been running since 2003. It encourages breakthroughs in research and development of processing systems. Advanced multimedia processing in computer vision, image analysis, classification and retrieval in a multilingual, multimodal context. This year, one of ImageCLEF’s four main missions is ImageCLEFMedical, which includes a series of challenges from annotating images to creating synthetic images and answering questions. In ImageCLEF 2024 [3], we took part in the ",
+        "bbox": [
+            117,
+            705,
+            882,
+            800
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "ImageCLEFmedical Caption task. As in previous years, this task comprised two subtasks: concept detection and caption prediction. ",
+        "bbox": [
+            115,
+            78,
+            878,
+            109
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Concept detection aims to associate biomedical images with related medical concepts while captioning prediction focuses on automatically generating preliminary diagnostic reports that accurately describe medical conditions and structures and anatomy shown in images. Concept detection also supports diagnostic notes by identifying key concepts that should be included in the preliminary report. Additionally, it can be used to index medical images according to related concepts, facilitating more efficient organization and retrieval. ",
+        "bbox": [
+            117,
+            110,
+            882,
+            205
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Captioning prediction, in other words, diagnostic captioning, remains a challenging research problem, designed to support the diagnostic process by providing a preliminary report rather than replacing the physicians and human factors involved [2]. It is designed as a tool to assist in generating an initial diagnostic report of a patient’s condition, helping doctors focus on important areas of the image [4] and assisting them in making diagnoses. Guess more accurately quickly [5]. This approach can increase the efficiency of experienced clinicians, allowing them to handle high volumes of daily medical examinations more quickly and efficiently. For less experienced clinicians, automated annotation can help reduce the likelihood of clinical errors[6]. ",
+        "bbox": [
+            117,
+            208,
+            882,
+            336
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "1.1. DarkCow Team Contributions ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            353,
+            438,
+            369
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "In this paper, we presented the experiments and the systems that were submitted by our DarkCow team in this year’s caption prediction task, which helped us secure third place on the leaderboard (see Table 1). Our new approaches build on the rapid development of deep learning techniques, especially the Transformer [7] encoder-decoder architecture and the Query Transformer [8] for Large Language Model [9]. We exploited the power of Vision Transformer (ViT) to extract visual features from radiology images. To optimize the use of information, we also used VinVL to extract features of objects in the images. Our first approach is based on encoder-decoder architecture to generate image captions. In the second approach, we leveraged Query Transformer to help LLM understand images. We also conducted experiments with image pre-processing, caption length, and object features to analyze the impact of those aspects. ",
+        "bbox": [
+            117,
+            378,
+            882,
+            539
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "table",
+        "img_path": "images/d8fac89704537a4c0403a6ea35d87d1b3612f158d92ff54619c182927732c77a.jpg",
+        "table_caption": [
+            "Table 1 Caption prediction task scores, rankings are based on BERTScore "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>Team</td><td rowspan=1 colspan=1>ID</td><td rowspan=1 colspan=1>BERTScore</td><td rowspan=1 colspan=1>ROUGE</td><td rowspan=1 colspan=1>BLEU-1</td><td rowspan=1 colspan=1>BLEURT</td><td rowspan=1 colspan=1>METEOR</td><td rowspan=1 colspan=1>CIDEr</td><td rowspan=1 colspan=1>CLIPScore</td><td rowspan=1 colspan=1>RefCLIPScore</td><td rowspan=1 colspan=1>ClinicalBLEURT</td><td rowspan=1 colspan=1>MedBERTScore</td></tr><tr><td rowspan=1 colspan=1>pclmed</td><td rowspan=1 colspan=1>634</td><td rowspan=1 colspan=1>0.629913</td><td rowspan=1 colspan=1>0.272626</td><td rowspan=1 colspan=1>0.268994</td><td rowspan=1 colspan=1>0.337626</td><td rowspan=1 colspan=1>0.113264</td><td rowspan=1 colspan=1>0.268133</td><td rowspan=1 colspan=1>0.823614</td><td rowspan=1 colspan=1>0.817610</td><td rowspan=1 colspan=1>0.466557</td><td rowspan=1 colspan=1>0.632318</td></tr><tr><td rowspan=1 colspan=1>CS_Morgan</td><td rowspan=1 colspan=1>429</td><td rowspan=1 colspan=1>0.628059</td><td rowspan=1 colspan=1>0.250801</td><td rowspan=1 colspan=1>0.209298</td><td rowspan=1 colspan=1>0.317385</td><td rowspan=1 colspan=1>0.092682</td><td rowspan=1 colspan=1>0.245029</td><td rowspan=1 colspan=1>0.821262</td><td rowspan=1 colspan=1>0.815534</td><td rowspan=1 colspan=1>0.455942</td><td rowspan=1 colspan=1>0.632664</td></tr><tr><td rowspan=1 colspan=1>DarkCow</td><td rowspan=1 colspan=1>220</td><td rowspan=1 colspan=1>0.626720</td><td rowspan=1 colspan=1>0.245228</td><td rowspan=1 colspan=1>0.195044</td><td rowspan=1 colspan=1>0.306005</td><td rowspan=1 colspan=1>0.088897</td><td rowspan=1 colspan=1>0.224250</td><td rowspan=1 colspan=1>0.818440</td><td rowspan=1 colspan=1>0.811700</td><td rowspan=1 colspan=1>0.456199</td><td rowspan=1 colspan=1>0.629189</td></tr><tr><td rowspan=1 colspan=1>auebnlpgroup</td><td rowspan=1 colspan=1>630</td><td rowspan=1 colspan=1>0.621112</td><td rowspan=1 colspan=1>0.204883</td><td rowspan=1 colspan=1>0.111034</td><td rowspan=1 colspan=1>0.289907</td><td rowspan=1 colspan=1>0.068022</td><td rowspan=1 colspan=1>0.176923</td><td rowspan=1 colspan=1>0.804067</td><td rowspan=1 colspan=1>0.798684</td><td rowspan=1 colspan=1>0.486560</td><td rowspan=1 colspan=1>0.626134</td></tr><tr><td rowspan=1 colspan=1>2Q2T</td><td rowspan=1 colspan=1>643</td><td rowspan=1 colspan=1>0.617814</td><td rowspan=1 colspan=1>0.247755</td><td rowspan=1 colspan=1>0.221252</td><td rowspan=1 colspan=1>0.313942</td><td rowspan=1 colspan=1>0.098590</td><td rowspan=1 colspan=1>0.220037</td><td rowspan=1 colspan=1>0.827074</td><td rowspan=1 colspan=1>0.813756</td><td rowspan=1 colspan=1>0.475908</td><td rowspan=1 colspan=1>0.622447</td></tr><tr><td rowspan=1 colspan=1>MICLab</td><td rowspan=1 colspan=1>678</td><td rowspan=1 colspan=1>0.612850</td><td rowspan=1 colspan=1>0.213525</td><td rowspan=1 colspan=1>0.185269</td><td rowspan=1 colspan=1>0.306743</td><td rowspan=1 colspan=1>0.077181</td><td rowspan=1 colspan=1>0.158239</td><td rowspan=1 colspan=1>0.815925</td><td rowspan=1 colspan=1>0.804924</td><td rowspan=1 colspan=1>0.445257</td><td rowspan=1 colspan=1>0.617195</td></tr><tr><td rowspan=1 colspan=1>DLNU_CCSE</td><td rowspan=1 colspan=1>674</td><td rowspan=1 colspan=1>0.606578</td><td rowspan=1 colspan=1>0.217857</td><td rowspan=1 colspan=1>0.151179</td><td rowspan=1 colspan=1>0.283133</td><td rowspan=1 colspan=1>0.070419</td><td rowspan=1 colspan=1>0.168765</td><td rowspan=1 colspan=1>0.796707</td><td rowspan=1 colspan=1>0.790424</td><td rowspan=1 colspan=1>0.475625</td><td rowspan=1 colspan=1>0.612954</td></tr><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>559</td><td rowspan=1 colspan=1>0.596362</td><td rowspan=1 colspan=1>0.190497</td><td rowspan=1 colspan=1>0.169726</td><td rowspan=1 colspan=1>0.295109</td><td rowspan=1 colspan=1>0.060896</td><td rowspan=1 colspan=1>0.107017</td><td rowspan=1 colspan=1>0.792183</td><td rowspan=1 colspan=1>0.787201</td><td rowspan=1 colspan=1>0.439971</td><td rowspan=1 colspan=1>0.608924</td></tr><tr><td rowspan=1 colspan=1>DS@BioMed</td><td rowspan=1 colspan=1>571</td><td rowspan=1 colspan=1>0.579438</td><td rowspan=1 colspan=1>0.103095</td><td rowspan=1 colspan=1>0.012144</td><td rowspan=1 colspan=1>0.220211</td><td rowspan=1 colspan=1>0.035335</td><td rowspan=1 colspan=1>0.071529</td><td rowspan=1 colspan=1>0.775566</td><td rowspan=1 colspan=1>0.774823</td><td rowspan=1 colspan=1>0.529529</td><td rowspan=1 colspan=1>0.580388</td></tr><tr><td rowspan=1 colspan=1>DBS-HHU</td><td rowspan=1 colspan=1>637</td><td rowspan=1 colspan=1>0.576891</td><td rowspan=1 colspan=1>0.153103</td><td rowspan=1 colspan=1>0.149275</td><td rowspan=1 colspan=1>0.270965</td><td rowspan=1 colspan=1>0.055929</td><td rowspan=1 colspan=1>0.064361</td><td rowspan=1 colspan=1>0.784199</td><td rowspan=1 colspan=1>0.774985</td><td rowspan=1 colspan=1>0.476634</td><td rowspan=1 colspan=1>0.588744</td></tr></table>",
+        "bbox": [
+            117,
+            587,
+            880,
+            696
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "This paper is organized explicitly as follows: Section 2 presents an overview of studies related to our research field. In Section 3, we introduce the data process and some detailed analysis of our dataset. Next, Section 4 introduces some image pre-processing techniques. Section 5 details the design of the proposed methods and evaluation metric. Section 6 Present experimental results based on the proposed method. Section 7 discusses some impact. Finally, Section 8 summarizes the research and suggests future directions. ",
+        "bbox": [
+            117,
+            709,
+            882,
+            804
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2. Background and Related Works ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            826,
+            500,
+            846
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2.1. Radiology Techniques ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            858,
+            364,
+            876
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "With the continuous advancement of imaging technology, medical imaging diagnosis has evolved from a supplementary examination tool to the most important clinical diagnostic and differential diagnostic method in modern medicine. Radiology techniques are used to scan images within the body, which are then interpreted and reported by radiologists to specialists [10]. With advancements in imaging technology, various imaging diagnostic methods have been developed, each with its own advantages and limitations. For example, X-ray imaging [11] offers non-invasive, quick, and painless imaging, but it involves exposure to ionizing radiation, which increases the risk of developing cancer later in life. On the other hand, MRI imaging [12] provides non-ionizing radiation and high spatial resolution, but it has relatively low sensitivity and longer scanning times, etc. ",
+        "bbox": [
+            117,
+            884,
+            880,
+            916
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            117,
+            78,
+            882,
+            191
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "2.2. Former Medical Image Captioning Datasets ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            209,
+            559,
+            225
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Medical imaging diagnosis today plays an incredibly important role in both the healthcare and information technology sectors. It not only aids in diagnosis and increases understanding of diseases but also holds immense potential in improving healthcare delivery and enhancing quality of life. The application of deep learning in medical image captioning in an era where AI is ubiquitous is evident; it automates the annotation process and significantly accelerates image analysis. Several datasets have been created to facilitate the training of medical image captioning tasks such as ROCO [13], PadChest [14], MIMIC-CXR [15], IU X-Ray [16], and MedICaT [17]. ",
+        "bbox": [
+            117,
+            234,
+            882,
+            347
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "2.3. Related Work Methods ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            365,
+            373,
+            381
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "For the task of medical image captioning, various methods have been developed, with pioneering work in applying the CNN-RNN encoder-decoder approach to generate captions from medical images conducted by Shin et al. [4]. They utilized either the Network-in-Network or GoogLeNet architectures as encoding models, followed by LSTM [18] or GRU [19] as the decoding RNN to translate the encoded images into descriptive captions. In the process of translating images into biomedical text, MDNET made a notable advancement by incorporating an attention mechanism called MDNET [20]. This model employs RESNET for image encoding, extending its skip connections to mitigate gradient vanishing. ",
+        "bbox": [
+            117,
+            390,
+            882,
+            502
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "In recent studies by Wang et al. [21], Kougia et al. [22], and Li et al. [23], a fusion of generative models and retrieval systems for Medical Image Captioning (MIC) has been explored. For instance, Wang et al. [21] proposed an approach that alternates between template retrieval and sentence generation for rare abnormal descriptions. This method relies on a contextual relational-topic encoder derived from visual and textual features, facilitating semantic consistency through hybrid knowledge co-reasoning. Additionally, Kougia et al. [22] from AUEB NLP group presented various systems for the Image-CLEFmed 2019 Caption task. One approach utilized a retrieval-based model that leverages visual features to retrieve the most similar images based on cosine similarity, combining their concepts to predict relevant captions. Another system incorporated CheXNet with enhanced classification labels, employing a CNN encoder and a feed-forward neural network (FFNN) for multi-label classification. They also suggested an ensemble model by combining these systems, computing scores for returned concepts and merging them with image similarity scores to select the most relevant concepts. ",
+        "bbox": [
+            117,
+            504,
+            882,
+            695
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Large language models (LLMs) have catalyzed significant progress in medical question answering; Med-PaLM [24] was the first model to exceed a “passing” score in US Medical Licensing Examination (USMLE). However, this and other prior work suggested significant room for improvement, especially when models’ answers were compared to clinicians’ answers. Med-PaLM 2 [25] bridges these gaps by leveraging a combination of base LLM improvements, medical domain finetuning, and prompting strategies including a novel ensemble refinement approach. Base LLM For Med-PaLM [24], the base LLM was PaLM, Med-PaLM 2 [25] builds upon PaLM 2, a new iteration of Google’s large language model with substantial performance improvements on multiple LLM benchmark tasks. ",
+        "bbox": [
+            117,
+            696,
+            882,
+            825
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3. Dataset ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            847,
+            233,
+            865
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Thanks to AUEB NLP Group for providing an excellent analysis of the dataset in the study of Kaliosis et al. [26]. When comparing ImageCLEFmedical2023 data with ImageCLEFmedical2024, we found no significant differences in the task of caption prediction. Therefore, we decided to reapply to analyze the dataset in this section. ",
+        "bbox": [
+            117,
+            878,
+            880,
+            910
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            117,
+            78,
+            880,
+            109
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "image",
+        "img_path": "images/e59d3379eb5687d70e1746d2ecc3a2aad2be38098c10cfc8bccad8dec98ffecc.jpg",
+        "image_caption": [
+            "Figure 1: Several images from the ImageCLEFmedical2024 dataset "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            129,
+            127,
+            873,
+            476
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "This year’s ImageCLEFmedical Caption task provided a dataset that includes 70,108 radiology images in the training set, each annotated with medical concepts using UMLS terms and diagnostic captions. The organizers initially divided the dataset into training and validation subsets. Building on previous campaigns, this year’s dataset is an updated and expanded version of the Radiology Objects in Context (ROCO) dataset, which is sourced from a variety of biomedical studies in the PubMed Central OpenAccess (PMC OA) subset. The dataset used for the caption prediction task includes images from different modalities, such as X-ray and Computed Tomography (CT), although specific details about the image types were not provided. The goal of the caption prediction task is to generate open-ended diagnostic texts for the medical images (see Figure 1). ",
+        "bbox": [
+            117,
+            532,
+            882,
+            677
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "table",
+        "img_path": "images/78db6c61533ea194db14a1ed02b3b7354447ff1634e8da117c3535f3f307009a.jpg",
+        "table_caption": [
+            "Table 2 The ten most common words and their frequencies in the ImageCLEFmedical2024 train set. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=11>Most common words (excluding stop-words)</td></tr><tr><td rowspan=1 colspan=1>Word</td><td rowspan=1 colspan=1>showing</td><td rowspan=1 colspan=1>right</td><td rowspan=1 colspan=1>left</td><td rowspan=1 colspan=1>ct</td><td rowspan=1 colspan=1>image</td><td rowspan=1 colspan=1>chest</td><td rowspan=1 colspan=1>scan</td><td rowspan=1 colspan=1>computed</td><td rowspan=1 colspan=1>tomography</td><td rowspan=1 colspan=1>shows</td></tr><tr><td rowspan=1 colspan=1>Occurrences</td><td rowspan=1 colspan=1>22519</td><td rowspan=1 colspan=1>18258</td><td rowspan=1 colspan=1>18136</td><td rowspan=1 colspan=1>15167</td><td rowspan=1 colspan=1>10245</td><td rowspan=1 colspan=1>10082</td><td rowspan=1 colspan=1>9296</td><td rowspan=1 colspan=1>9273</td><td rowspan=1 colspan=1>8969</td><td rowspan=1 colspan=1>8600</td></tr></table>",
+        "bbox": [
+            117,
+            727,
+            880,
+            770
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "In the Caption prediction sub-task, each image has a diagnostic caption describing the described medical condition. There are a total of 69,743 captions in the training dataset and 9,959 captions in the validation dataset, one for each image. Similar to last year’s campaign, the majority of captions $( 9 9 . 4 7 \\%$ , or 69,743 out of 70,108) were unique. This is a notable difference from previous versions of the quest, where the uniqueness percentage was much lower. As a result, traditional retrieval methods based on nearest neighbor search are less efficient this year, including variants with a weighting mechanism based on the cosine similarity of the retrieved images. Therefore, more complex methods of creating subtitles are needed. ",
+        "bbox": [
+            117,
+            783,
+            882,
+            913
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "table",
+        "img_path": "images/c921c52d112f747a8f75bbef4566e29954ca4ce8f4e09e1bbb6a2bbedd6f3f8c.jpg",
+        "table_caption": [
+            "Table 3 The five most common captions found in the ImageCLEFmedical2024 train set alongside the number of images they are associated with. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td colspan=\"3\">Most common captions</td></tr><tr><td>Position</td><td>Caption</td><td>Occurences</td></tr><tr><td>1</td><td>Initial panoramic radiograph</td><td>40</td></tr><tr><td>2</td><td>Final panoramic radiograph</td><td>37</td></tr><tr><td>3</td><td>Chest X-ray</td><td>20</td></tr><tr><td>4</td><td>Chest radiograph</td><td>17</td></tr><tr><td>5</td><td>Preoperative CT scan.</td><td>9</td></tr></table>",
+        "bbox": [
+            268,
+            133,
+            729,
+            247
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "image",
+        "img_path": "images/71c0ee1dcc1a5320d88bba6637523780ded582fb2370149e3c1c381cfcf33f6f.jpg",
+        "image_caption": [
+            "Figure 2: Distribution of caption lengths in the training set "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            122,
+            268,
+            873,
+            539
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "image",
+        "img_path": "images/4188b01a3940a39a0b07668e9fe5790f8e7fbc74a7315f454a3ee3fa4efa68cd.jpg",
+        "image_caption": [
+            "Figure 3: Distribution of caption lengths in the valid set "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            122,
+            594,
+            873,
+            871
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "We observed that the maximum number of words in a single caption is 848 (occurred once), while the minimum is 1 (encountered 1 time). The average caption length is 20.84 words. These statistics apply to the entire dataset ( training set and valid set). The five most common captions, as well as the ten most popular words (excluding stopwords), can be found in Tables 3 and 2, respectively. In Figure 2 and Figure 3, we present a distribution caption length of the training and valid sets, both indicating that the majority of captions contain fewer than 100 words. ",
+        "bbox": [
+            117,
+            78,
+            882,
+            174
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "4. Image Pre-processing ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            196,
+            388,
+            216
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "4.1. Denoising ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            227,
+            255,
+            244
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "image",
+        "img_path": "images/9d8a7332dbda7ed41e6148f1f414d0ad39c0c61fe86c59af48f8457f4ac112f5.jpg",
+        "image_caption": [
+            "Figure 4: Application of Gaussian filter. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            127,
+            267,
+            873,
+            514
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Denoising is crucial in enhancing image quality by reducing the noise while preserving the important details. Noise in medical images can come from various sources, such as sensor imperfections, poor scan conditions, or inherent patient movements during image acquisition. ",
+        "bbox": [
+            117,
+            567,
+            880,
+            614
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "The smoothness of images is controlled through the utilization of a Gaussian filter with a fixed kernel size. The Gaussian filter operates by smoothing images using a technique called convolution. It employs a Gaussian kernel - a matrix based on the Gaussian function to adjust pixel values. This kernel is applied over each pixel in the image, averaging the pixel values in its vicinity, weighted by their distance from the central pixel. The standard deviation $\\sigma$ of the Gaussian determines the amount of blurring: a larger $\\sigma$ results in more blurring, smoothing out more details and noise. This process helps in reducing noise and is often used as a preparatory step in image processing tasks to enhance image quality without losing critical structural details (see Figure 4). ",
+        "bbox": [
+            117,
+            615,
+            882,
+            744
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "The 2-D Gaussian function is given by: ",
+        "bbox": [
+            137,
+            745,
+            433,
+            759
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "equation",
+        "img_path": "images/4ec9a5952911bd788e882b944ebe13977810d5a4013e9e5fc646b9af5e8df885.jpg",
+        "text": "$$\nG ( x , y ) = \\frac { 1 } { 2 \\pi \\sigma ^ { 2 } } e ^ { - \\frac { x ^ { 2 } + y ^ { 2 } } { 2 \\sigma ^ { 2 } } }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            403,
+            766,
+            593,
+            797
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Medical image enhancement is one of the most widely used medical image processing techniques in medical domain. Its purpose is to improve the visual effect of the image and facilitate the analysis and understanding of the image by humans or machines. The Laplace transform and the Sobel gradient operator are two common ways of performing edge detection, image sharpening, and enabling the enhancement of the image (see Figure 5). ",
+        "bbox": [
+            117,
+            803,
+            882,
+            883
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Step 1 Laplace Transform: Apply the Laplace transform to enhance contrast by emphasizing areas of rapid intensity change in the original image. ",
+        "bbox": [
+            114,
+            884,
+            877,
+            916
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Step 2 Sobel Operator: Use the Sobel operator to enhance the edges of the image. This step also helps to smooth out noise, making the edges clearer and more cohesive. ",
+        "bbox": [
+            122,
+            78,
+            880,
+            109
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Step 3 Smoothing: Smooth the image processed by the Sobel operator using a $3 \\mathrm { x } 3$ mean filter. This step increases the contrast of the edges against the background. ",
+        "bbox": [
+            122,
+            110,
+            878,
+            142
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Step 4 Dot Product: Intensify the contrast by performing a dot product of the smoothed image with the result from the Laplace transform from step 1. ",
+        "bbox": [
+            115,
+            143,
+            877,
+            174
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Step 5 Addition for Final Sharpening: Enhance the sharpness and visibility of detail by adding the result of the dot product back to the original image. ",
+        "bbox": [
+            115,
+            175,
+            878,
+            206
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Step 6 Histogram Equalization: Apply histogram equalization to distribute the histogram of the image uniformly, improving the overall contrast and making fine details more visible. ",
+        "bbox": [
+            119,
+            208,
+            877,
+            239
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "4.2. Image Enhancement ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            258,
+            349,
+            274
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "image",
+        "img_path": "images/bf18dd462df1fa78399bf082b592cf6468f3971354d76ea27aa7371e3f563fc1.jpg",
+        "image_caption": [
+            "Figure 5: The image after a series of processing. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            122,
+            293,
+            878,
+            569
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "5. Proposed Method ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            643,
+            346,
+            662
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "5.1. Encoder-Decoder Approach ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            674,
+            416,
+            690
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "5.1.1. Features Embedding ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            700,
+            344,
+            715
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "We propose VisionDiagnostor centers around the implementation of Transformer encoder-decoder approach and deployed to evaluate methods having ClinicalT5 [27] and BioBART [28] as encoderdecoder module (see Figure 6). ClinicalT5, based on the T5 [29] architecture, and BioBART, a variant of the BART [30] architecture, have both been trained on a large of biomedical text data. These models stand out as the preeminent and potent pre-trained language models for the medical domain, ensuring the efficacy and robustness of our proposed method. ",
+        "bbox": [
+            117,
+            724,
+            882,
+            820
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Object features: To extract object features in an image, we used the VinVL model to extract object features $R = \\{ r _ { 1 } , r _ { 2 } , . . . , r _ { k } \\}$ from an image, with each $r _ { i }$ being a 2048-dimensional vector. Bounding box coordinates are normalized as $\\begin{array} { r } { b _ { i } = \\left[ \\frac { x _ { i } ^ { m i n } } { w } , \\frac { y _ { i } ^ { m i n } } { h } , \\frac { x _ { i } ^ { m a x } } { w } , \\frac { y _ { i } ^ { m a x } } { h } \\right] } \\end{array}$ , forming $B _ { \\mathrm { o b j } } = \\{ b _ { 1 } , b _ { 2 } , . . . , b _ { k } \\}$ . ",
+        "bbox": [
+            117,
+            821,
+            880,
+            875
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Final object features $V _ { \\mathrm { o b j } }$ are computed by projecting $R$ and $\\vec { B } _ { \\mathrm { o b j } }$ to the language model dimension and summing the results: ",
+        "bbox": [
+            114,
+            875,
+            878,
+            907
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "image",
+        "img_path": "images/6a013d2d0c6371d235ce66a9ebb569bb47636f0c3677d0e01969a9a6a87aaf07.jpg",
+        "image_caption": [
+            "Figure 6: Overview of VisionDiagnostor. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            137,
+            84,
+            855,
+            252
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "equation",
+        "img_path": "images/2534621fc8e2aba510c2696d74563d4add5bf1b87b219f484a22f3e2eae1e4ba.jpg",
+        "text": "$$\nV _ { \\mathrm { o b j } } = R ^ { \\prime } + B _ { \\mathrm { o b j } } ^ { \\prime }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            433,
+            343,
+            564,
+            363
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "We use ViT for visual feature extraction due to its ability to capture global information through its attention mechanism. By freezing ViT and projecting the last hidden state to match the language model’s dimension, we obtain visual features $V$ . ",
+        "bbox": [
+            117,
+            375,
+            882,
+            422
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "The input embedding to the encoder-decoder module is: ",
+        "bbox": [
+            136,
+            423,
+            561,
+            438
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "equation",
+        "img_path": "images/2d3d296d437e4f87b62ca26e4d2529ee48d2edf75b7ee17626afd7de0b2bf860.jpg",
+        "text": "$$\n{ \\mathrm { I n p u t } } = { \\mathrm { C o n c a t } } ( V , V _ { \\mathrm { o b j } } )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            405,
+            467,
+            593,
+            486
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Where $V$ are the visual features from ViT, and $V _ { \\mathrm { o b j } }$ are the $\\mathrm { V i n V L }$ region object features. The Concat(·) function concatenates these features. ",
+        "bbox": [
+            117,
+            497,
+            885,
+            529
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "5.1.2. Encoder-Decoder Module ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            548,
+            386,
+            563
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "In this task, we employed the Transformer encoder-decoder architecture, which is used in ClinicalT5 [27] and BioBART [28] for the encoder-decoder module of VisionDiagnostor. The encoder receives the input features and then passes them to the decoder to generate the output sentence. In the decoder, attention mechanisms are employed, directing focus to both the output of the encoder and the input of the decoder. ",
+        "bbox": [
+            117,
+            571,
+            882,
+            652
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Encoder ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            671,
+            196,
+            687
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Multi-Head Attention: ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            695,
+            322,
+            712
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "equation",
+        "img_path": "images/f2547a059cfd21aaf9a4b6cf89c6e5f1411d94a898762b2d867fabc56c56b7fd.jpg",
+        "text": "$$\n{ \\mathrm { A t t e n t i o n } } ^ { ( { \\mathrm { E n c } } ) } ( Q , K , V ) = { \\mathrm { s o f t m a x } } \\left( { \\frac { Q K ^ { T } } { \\sqrt { d _ { k } } } } \\right) V\n$$",
+        "text_format": "latex",
+        "bbox": [
+            315,
+            727,
+            682,
+            765
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "where $Q , K$ , and $V$ are the query, key, and value matrices, and $d _ { k }$ is the dimensionality of the key vectors. ",
+        "bbox": [
+            117,
+            774,
+            885,
+            806
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Encoder Feed-Forward Network: ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            825,
+            420,
+            841
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "equation",
+        "img_path": "images/c0ca59363fdb4ac79e93e5840eec2be4420ad6e48b6f70e77dfc695024b769da.jpg",
+        "text": "$$\n\\mathrm { F F N } ^ { \\mathrm { ( E n c ) } } ( x ) = \\mathrm { R e L U } ( x W _ { 1 } ^ { \\mathrm { ( E n c ) } } + b _ { 1 } ^ { \\mathrm { ( E n c ) } } ) W _ { 2 } ^ { \\mathrm { ( E n c ) } } + b _ { 2 } ^ { \\mathrm { ( E n c ) } }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            290,
+            858,
+            705,
+            881
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "where ?? (Enc $W _ { 1 } ^ { \\mathrm { ( E n c ) } } , W _ { 2 } ^ { \\mathrm { ( E n c ) } } , b _ { 1 } ^ { \\mathrm { ( E n c ) } }$ ), ?? (Enc)2 , ?? , and ??(E2 $b _ { 2 } ^ { \\mathrm { ( E n c ) } }$ are learnable parameters. ",
+        "bbox": [
+            136,
+            891,
+            626,
+            913
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Encoder Layer Normalization: ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            77,
+            394,
+            95
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "equation",
+        "img_path": "images/698938555fc288937f18e0292c17a76b07bc8b8372331c6d9fd0b77b7d15239f.jpg",
+        "text": "$$\n\\mathrm { L a y e r N o r m } ^ { \\mathrm { ( E n c ) } } ( x ) = \\mathrm { L N } ^ { \\mathrm { ( E n c ) } } ( x + \\mathrm { L a y e r N o r m } ^ { \\mathrm { ( E n c ) } } ( x ) )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            289,
+            111,
+            707,
+            131
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "where $\\mathrm { L N } ^ { \\mathrm { ( E n c ) } }$ is the layer normalization function. ",
+        "bbox": [
+            136,
+            145,
+            514,
+            161
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Decoder ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            179,
+            198,
+            195
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Decoder Self-Attention: ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            204,
+            337,
+            221
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "equation",
+        "img_path": "images/27545143d943d1702f8081b324ad4f77ed96728b136929665b4c928e89878118.jpg",
+        "text": "$$\n{ \\mathrm { A t t e n t i o n } } ^ { ( \\mathrm { D e c } ) } ( Q , K , V ) = { \\mathrm { s o f t m a x } } \\left( { \\frac { Q K ^ { T } } { \\sqrt { d _ { k } } } } \\right) V\n$$",
+        "text_format": "latex",
+        "bbox": [
+            314,
+            235,
+            682,
+            273
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "where $Q , K$ , and $V$ are the query, key, and value matrices, and $d _ { k }$ is the dimensionality of the key vectors. ",
+        "bbox": [
+            119,
+            281,
+            880,
+            313
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Decoder-Encoder Cross-Attention: ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            331,
+            435,
+            348
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "equation",
+        "img_path": "images/9c11ed6ce1f67e5739d84d4299f4c73bb38140d8c6a57d34244d2bff2da2570b.jpg",
+        "text": "$$\n{ \\mathrm { A t t e n t i o n } } ^ { ( \\mathrm { D e c } ) } ( Q , K , V ) = { \\mathrm { s o f t m a x } } \\left( { \\frac { Q K ^ { T } } { \\sqrt { d _ { k } } } } \\right) V\n$$",
+        "text_format": "latex",
+        "bbox": [
+            314,
+            363,
+            684,
+            401
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "where $Q$ comes from the decoder and $K$ , $V$ come from the encoder. ",
+        "bbox": [
+            137,
+            409,
+            647,
+            425
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Decoder Feed-Forward Network: ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            443,
+            423,
+            460
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "equation",
+        "img_path": "images/4d3f3eec575855fe02844273b99fef16e22a09e7d3d1bdafcde91f8d94236c7d.jpg",
+        "text": "$$\n\\mathrm { F F N } ^ { \\mathrm { ( D e c ) } } ( x ) = \\mathrm { R e L U } ( x W _ { 1 } ^ { \\mathrm { ( D e c ) } } + b _ { 1 } ^ { \\mathrm { ( D e c ) } } ) W _ { 2 } ^ { \\mathrm { ( D e c ) } } + b _ { 2 } ^ { \\mathrm { ( D e c ) } }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            289,
+            476,
+            707,
+            499
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "$W _ { 1 } ^ { \\mathrm { ( D e c ) } } , W _ { 2 } ^ { \\mathrm { ( D e c ) } } , b _ { 1 } ^ { \\mathrm { ( D e c ) } }$ , and $b _ { 2 } ^ { \\mathrm { ( D e c ) } }$ are learnable parameters. ",
+        "bbox": [
+            136,
+            508,
+            630,
+            531
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Decoder Layer Normalization: ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            546,
+            398,
+            564
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "equation",
+        "img_path": "images/204ca31a80cab327e74f51a50e718b0174a64eca8c22c936b3dabf6fb9cb41f8.jpg",
+        "text": "$$\n\\mathrm { L a y e r N o r m } ^ { \\mathrm { ( D e c ) } } ( x ) = \\mathrm { L N } ^ { \\mathrm { ( D e c ) } } ( x + \\mathrm { L a y e r N o r m } ^ { \\mathrm { ( D e c ) } } ( x ) )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            287,
+            581,
+            709,
+            602
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "where $\\mathrm { L N } ^ { \\mathrm { ( D e c ) } }$ is the layer normalization function. ",
+        "bbox": [
+            117,
+            614,
+            495,
+            631
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "5.2. Query Transformer Approach ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            649,
+            435,
+            665
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Inspired by the BLIP2 architecture [31], we leveraged the Query Transformer (Q-Former) module, which serves as the trainable intermediary between a fixed image encoder and a fixed Large Language Model. It extracts a consistent number of output features from the image encoder, irrespective of the input image resolution. Q-Former comprises two transformer submodules that share self-attention layers: an image transformer for visual feature extraction from the fixed image encoder and a text transformer acting as both an encoder and decoder. ",
+        "bbox": [
+            117,
+            674,
+            882,
+            770
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "We initialize a set number of learnable query embeddings as input to the image transformer. These queries engage in self-attention and cross-attention interactions with each other and the frozen image features. Additionally, they can interact with the text through self-attention layers, with different attention masks applied based on the pre-training task. ",
+        "bbox": [
+            117,
+            771,
+            880,
+            835
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "In our experiments, we employ 64 queries, each with a dimensionality of 768, matching the hidden dimension of Q-Former. We utilize VIT-huge [32] as the frozen image encoder and BioMistral-7B [33] as the frozen LLM for caption generation, and we call it VisionDiagnostor-Q-BioMistral which is depicted in Figure 7. This bottleneck architecture, combined with our pre-training objectives, compels the queries to extract visual information most pertinent to the accompanying text. ",
+        "bbox": [
+            117,
+            835,
+            882,
+            916
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "image",
+        "img_path": "images/f0d6b760f2f2a18d9d2ffe4eeb3b49176ff765e134394fdcf80e59c9fb35cd99.jpg",
+        "image_caption": [
+            "Figure 7: Overview of VisionDiagnostor- $\\scriptstyle \\cdot \\mathrm { \\mathrm { { Q } } } .$ "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            147,
+            83,
+            850,
+            285
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "5.3. Evaluation Metrics ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            348,
+            334,
+            363
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "5.3.1. BERTScore ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            373,
+            265,
+            387
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "BERTScore is computed as proposed by Zhang et al. [34], where the cosine similarity of each hypothesis token $j$ with each token $i$ in the reference sentence is calculated using contextualized embeddings. Instead of using a time-consuming best-case matching approach, a greedy matching strategy is employed. The F1 measure is then calculated as follows: ",
+        "bbox": [
+            117,
+            397,
+            882,
+            461
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "equation",
+        "img_path": "images/38f6895a91086203999075d3e06b668e9633285e19e9c565c4c23084fbf64f35.jpg",
+        "text": "$$\n\\begin{array} { l } { \\displaystyle R _ { \\mathrm { B E R T } } = \\frac { 1 } { | \\mathbf { r } | } \\sum _ { i \\in \\mathbf { r } } \\underset { j \\in \\mathbf { p } } { \\operatorname* { m a x } } \\cos ( \\vec { i } , \\vec { j } ) , } \\\\ { \\displaystyle P _ { \\mathrm { B E R T } } = \\frac { 1 } { | \\mathbf { p } | } \\sum _ { j \\in \\mathbf { p } } \\underset { i \\in \\mathbf { r } } { \\operatorname* { m a x } } \\cos ( \\vec { i } , \\vec { j } ) , } \\\\ { \\displaystyle \\mathrm { B E R T S c o r e } = F _ { \\mathrm { B E R T } } = \\frac { 2 \\cdot P _ { \\mathrm { B E R T } } \\cdot R _ { \\mathrm { B E R T } } } { P _ { \\mathrm { B E R T } } + R _ { \\mathrm { B E R T } } } . } \\end{array}\n$$",
+        "text_format": "latex",
+        "bbox": [
+            339,
+            483,
+            657,
+            600
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "The BERTScore correlates better with human judgments for the tasks of image captioning and machine translation. ",
+        "bbox": [
+            117,
+            607,
+            878,
+            639
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "5.3.2. Other Metrics ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            658,
+            289,
+            674
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "In addition to BERTScore, the competition also uses many other metrics such as ROUGE [35], BLEU-1 [36], BLEURT [37], METEOR [38], CIDEr [39], CLIPScore [40], RefCLIPScore [40], ClinicBLEURT [41] and MedBERTScore [42]. Applying a variety of these metrics helps us have a more accurate and general view of the model performance of participating teams. Each measure has its own advantages and provides a different perspective on text quality that makes it relevant in a medical context. This multi-dimensional evaluation helps identify outstanding models and gain an objective view of the competition. ",
+        "bbox": [
+            117,
+            682,
+            882,
+            795
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "6. Experiment Results ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            816,
+            366,
+            835
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "6.1. Experimental Configuration ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            848,
+            420,
+            865
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "All our proposed methods were trained and fine-tuned using the Adam optimization [43]. We utilized an A100-GPU setup with 80GB of memory to train models, taking 10 hours on average for each method. ",
+        "bbox": [
+            119,
+            873,
+            880,
+            906
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "We set the learning rate to 3e-05, dropout is set at 0.2, batch size is 32, and the training process is terminated after 3 epochs of not finding any reduction in the valid loss. ",
+        "bbox": [
+            119,
+            78,
+            880,
+            109
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "6.2. Main Result ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            128,
+            272,
+            145
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "table",
+        "img_path": "images/0f5a3fe28ed9730de03f5da977b5540ca35f35af79cd5c73c10dc9589916646f.jpg",
+        "table_caption": [
+            "Table 4 Performance comparison of different models on test set, VD stands for VisionDiagnostor. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Model</td><td>Model Size</td><td>BERTScore</td><td>ROUGE</td><td>BLEU-1</td><td>BLEURT</td><td>METEOR</td><td>CIDEr</td><td>CLIPScore</td><td>RefCLIPScore</td><td>ClinicalBLEURT</td><td>MedBERTScore</td></tr><tr><td>VD-Q-BioMistral</td><td>8B</td><td>0.6200</td><td>0.2139</td><td>0.1685</td><td>0.2913</td><td>0.0751</td><td>0.1585</td><td>0.8132</td><td>0.8014</td><td>0.4597</td><td>0.6233</td></tr><tr><td>VD-ClinicalT5</td><td>310M</td><td>0.5994</td><td>0.2363</td><td>0.2323</td><td>0.2954</td><td>0.0989</td><td>0.1442</td><td>0.8244</td><td>0.8100</td><td>0.4597</td><td>0.6016</td></tr><tr><td>VD-BioBART</td><td>227M</td><td>0.6267</td><td>0.2452</td><td>0.1950</td><td>0.3060</td><td>0.0889</td><td>0.2243</td><td>0.8184</td><td>0.8117</td><td>0.4562</td><td>0.6292</td></tr></table>",
+        "bbox": [
+            117,
+            199,
+            880,
+            241
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Table 4 presents a comprehensive of the results achieved by individual models, showcasing their BERTScore and other metrics. The findings underscore significant disparities in performance among the various models, providing valuable insights into their respective strengths and weaknesses. Notably, within the baseline models, VisionDiagnostor-BioBART stands out as the top performer, showcasing an impressive BERTScore of 0.6267 and almost all other metrics with the smallest size at 227M parameters. Moreover, Table 4 demonstrates that using large-scale pre-trained models in VisionDiagnostor-QBioMistral with a very large size (8B) does not result in significant performance improvement in this task. ",
+        "bbox": [
+            117,
+            258,
+            882,
+            386
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "7. Result Analysis ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            409,
+            319,
+            428
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "In this section, we conduct a subjective analysis of the valid set due to the limited number of submissions in the competition. This means that instead of using the test set for objective evaluation, we used the valid set to analyze the results our proposed methods achieved. ",
+        "bbox": [
+            119,
+            441,
+            880,
+            488
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "7.1. Impact of Image Pre-processing ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            506,
+            450,
+            524
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "table",
+        "img_path": "images/624bb5ffbec315a1a50be9d8852263e150a1e34dc1c4e880632ae0f2ca2fcf10.jpg",
+        "table_caption": [
+            "Table 5 Results of models with image pre-processing in valid set. $\\bigtriangleup$ indicates the increase (↑) or decrease (↓) and compares without pre-processing $( ^ { \\star } )$ . "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td colspan=\"2\">Model BERTScore</td></tr><tr><td>VisionDiagnostor-Q-BioMistral</td><td>0.6841*</td></tr><tr><td>¸</td><td>↓0.0101</td></tr><tr><td>VisionDiagnostor-ClinicalT5</td><td>0.7071*</td></tr><tr><td>¸</td><td>↓0.0166</td></tr><tr><td>VisionDiagnostor-BioBART</td><td>0.7165*</td></tr><tr><td>Δ</td><td>↑ 0.0198</td></tr></table>",
+        "bbox": [
+            326,
+            595,
+            672,
+            714
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Table 5 presents the results comparing the performance of the models with and without image preprocessing on the validation dataset, evaluated using BERTScore. Specifically, for the VisionDiagnostorQ-BioMistral model, BERTScore decreased from 0.6841 to 0.6740 after applying pre-processing, corresponding to a decrease of 0.0101. Similarly, VisionDiagnostor-ClinicalT5 also saw a decrease in performance from 0.7071 to 0.6905, a decrease of 0.0166. In contrast, VisionDiagnostor-BioBART is the only model with an improvement with BERTScore increasing from 0.7165 to 0.7363, an increase of 0.0198. ",
+        "bbox": [
+            117,
+            727,
+            884,
+            839
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Overall, applying image pre-processing does not appear to yield significant improvement for most models. Even for two of the three models (VisionDiagnostor-Q-BioMistral and VisionDiagnostorClinicalT5), image pre-processing degrades performance. The reason may be because of the input images are of good quality and have almost no noise. Some images also have clear instructions, such as arrows pointing to the relevant caption of the image (see Figure 1 in Section 3), making it easy for the model to understand and process the content without additional pre-processing. ",
+        "bbox": [
+            117,
+            841,
+            882,
+            904
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            78,
+            880,
+            110
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "7.2. Impact of Caption Length ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            128,
+            396,
+            145
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Table 6 ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            172,
+            176,
+            184
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Group of caption length in valid set. ",
+        "bbox": [
+            121,
+            186,
+            369,
+            199
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "table",
+        "img_path": "images/9f766e52706d975b9dfc322938e3007b5a98ed0e1060378577e255182da3ad85.jpg",
+        "table_caption": [],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Group</td><td>Length (n)</td><td>Samples</td></tr><tr><td>Short</td><td>n ≤ 20</td><td>5520</td></tr><tr><td>Medium</td><td>20 &lt; n ≤ 25</td><td>2179</td></tr><tr><td>Long</td><td>25 &lt; n ≤ 30</td><td>1339</td></tr><tr><td>Very long</td><td>n &gt; 30</td><td>934</td></tr></table>",
+        "bbox": [
+            356,
+            203,
+            638,
+            279
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "The details of the test set based on different groups of lengths are in Table 6. Classification is done as follows: ",
+        "bbox": [
+            115,
+            292,
+            880,
+            323
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "• Short caption: These are captions shorter than 21 words.   \n• Medium caption: This group includes captions from 21 to 25 words.   \n• Long caption: Captions in this group from 26 to 30 words.   \n• Very long caption: This group contains captions longer than 30 words. ",
+        "bbox": [
+            147,
+            338,
+            695,
+            409
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "image",
+        "img_path": "images/a049b751985d6c10036eedf5f527593b8bd6e0f53d99d2e1bfeaf28b26f73181.jpg",
+        "image_caption": [
+            "Figure 8: The results of models based on caption length. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            233,
+            435,
+            764,
+            638
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "The illustration from Figure 8 is an important step in gaining insight into the model’s performance for different caption lengths. The results show that the length of the caption plays an important role in influencing model performance. ",
+        "bbox": [
+            117,
+            690,
+            880,
+            736
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Specifically, the two models VisionDiagnostor-ClinicalT5 and VisionDiagnostor-BioBART based on the encoder-decoder method have similar trends, both showing a gradual decrease in BERTScore score as the caption length increases. This may indicate a limitation in handling longer captions with this method. ",
+        "bbox": [
+            119,
+            738,
+            880,
+            801
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "It is worth noting that the VisionDiagnostor-Q-BioMistral model represents a different case, with performance increasing as the caption length increases. This may imply that this model is capable of handling longer captions more efficiently than other models, possibly due to its complexity and magnitude. ",
+        "bbox": [
+            119,
+            802,
+            880,
+            866
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "7.3. Impact of Object Features ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            77,
+            398,
+            93
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "According to papers from competing teams in previous years [44], [45], [26], the most popular image feature extraction methods today have two main directions: convolutional neural networks (CNN) and Vision transformers (ViT). Studies and demonstrations have shown that ViT often gives better results than CNN in the task of image captioning. ViT is capable of capturing long-term and global relationships in images more effectively, leading to the creation of richer and more accurate captions. However, to improve the quality of feature extraction further, we used the $\\mathrm { V i n V L }$ model. VinVL takes advantage of the power of the ability to detect and represent objects in images in detail. This allows the model to gain a deeper understanding of the context and elements in the image, thereby creating more accurate captions. ",
+        "bbox": [
+            117,
+            103,
+            882,
+            247
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "table",
+        "img_path": "images/e2f5c85f6097d6b4bc6d26853f52ccbd98775939e01a2b27e916a72254125f20.jpg",
+        "table_caption": [
+            "Table 7 Results of models with image pre-processing in valid set. $\\bigtriangleup$ indicates the increase (↑) or decrease (↓) and compares with models using object features $( ^ { \\star } )$ . "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td colspan=\"2\">Model BERTScore</td></tr><tr><td>VisionDiagnostor-ClinicalT5</td><td>0.7071*</td></tr><tr><td>¸</td><td>↓ 0.0239</td></tr><tr><td>VisionDiagnostor-BioBART</td><td>0.7165*</td></tr><tr><td>Δ</td><td>↓0.0321</td></tr></table>",
+        "bbox": [
+            336,
+            311,
+            662,
+            401
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Table 7 presents the results of the models when not using object features in the valid set. The figures show that not using object features significantly reduced the performance of the models. ",
+        "bbox": [
+            114,
+            416,
+            882,
+            447
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Specifically, the VisionDiagnostor-ClinicalT5 model has a BERTScore of 0.7071 when using object features. However, when not using object features, the performance of this model drops by 0.0239. Similarly, the VisionDiagnostor-BioBART model also shows a significant decrease when not using object features, with BERTScore decreasing from 0.7165 to 0.6844, corresponding to a decrease of 0.0321. ",
+        "bbox": [
+            117,
+            448,
+            882,
+            511
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "These results indicate that using object features has an important effect in improving model performance. Object features can provide detailed and characteristic information about objects in images, helping models understand and describe images more accurately. Removing object features results in the loss of important information, reducing the model’s ability to produce accurate and detailed captions, which in turn reduces BERTScore significantly. ",
+        "bbox": [
+            117,
+            512,
+            882,
+            592
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "8. Conclusion and Future Works ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            613,
+            478,
+            633
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "In this paper, we have proposed three different models to solve the task of medical image captioning, in other words medical image diagnosis, including VisionDiagnostor-ClinicalT5 and VisionDiagnostorBioBART based on encoder-decoder architecture, VisionDiagnostor-Q-BioMistral based on BLIP2 architecture with Query Transformer which leveraging the power of Large Language Models (LLM). ",
+        "bbox": [
+            117,
+            645,
+            882,
+            709
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Our results show that the VisionDiagnostor-BioBART model achieved third place on the leaderboard, with the highest BERTScore of 0.6267, despite being the smallest in size with only 227M parameters. Additionally, we performed analysis of the results to gain a deeper understanding of the factors that influence the performance of the models, including image pre-processing, caption length, and object features. These analyses have provided the comprehensive insight needed to shape and improve future methods and models for this task. ",
+        "bbox": [
+            117,
+            711,
+            882,
+            806
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "In future works, our objective is to delve deeper into the applications of other biomedical large language models (LLMs) BioMedLM [46], BioGPT [47], especially focusing on enhancing their capabilities to generate precise captions that are context-sensitive. This development will be pursued through methods like instruction tuning and better alignment of the models with specific user requirements. In addition, we plan to explore the integration of dense retrieval techniques into the biomedical image captioning process [48]. By adopting frameworks akin to Retrieval Augmented Generation, we intend to supplement the LLMs with an external, non-parametric memory using a FAISS index [49], thereby enriching their reasoning capabilities. Another area of interest will be investigating the interconnections between these approaches. We also anticipate evaluating the qualitative variations in the captions generated through these different methodologies to ascertain their efficacy and practicality in real-world applications. ",
+        "bbox": [
+            117,
+            808,
+            882,
+            904
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            119,
+            78,
+            882,
+            158
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Acknowledgment ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            180,
+            314,
+            200
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "This research was supported by The VNUHCM-University of Information Technology’s Scientific Research Support Fund. ",
+        "bbox": [
+            119,
+            211,
+            877,
+            244
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "References ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            266,
+            242,
+            285
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "[1] C. E. Lawson, J. M. Martí, T. Radivojevic, S. V. R. Jonnalagadda, R. Gentz, N. J. Hillson, S. Peisert, J. Kim, B. A. Simmons, C. J. Petzold, et al., Machine learning for metabolic engineering: A review, Metabolic Engineering 63 (2021) 34–60.   \n[2] J. Pavlopoulos, V. Kougia, I. Androutsopoulos, D. Papamichail, Diagnostic captioning: a survey, Knowledge and Information Systems 64 (2022) 1691–1722.   \n[3] B. Ionescu, H. Müller, A. Drăgulinescu, J. Rückert, A. Ben Abacha, A. García Seco de Herrera, L. Bloch, R. Brüngel, A. Idrissi-Yaghir, H. Schäfer, C. S. Schmidt, T. M. G. Pakull, H. Damm, B. Bracke, C. M. Friedrich, A. Andrei, Y. Prokopchuk, D. Karpenka, A. Radzhabov, V. Kovalev, C. Macaire, D. Schwab, B. Lecouteux, E. Esperança-Rodier, W. Yim, Y. Fu, Z. Sun, M. Yetisgen, F. Xia, S. A. Hicks, M. A. Riegler, V. Thambawita, A. Storås, P. Halvorsen, M. Heinrich, J. Kiesel, M. Potthast, B. Stein, Overview of ImageCLEF 2024: Multimedia retrieval in medical applications, in: Experimental IR Meets Multilinguality, Multimodality, and Interaction, Proceedings of the 15th International Conference of the CLEF Association (CLEF 2024), Springer Lecture Notes in Computer Science LNCS, Grenoble, France, 2024.   \n[4] H.-C. Shin, K. Roberts, L. Lu, D. Demner-Fushman, J. Yao, R. M. Summers, Learning to read chest x-rays: Recurrent neural cascade model for automated image annotation, in: Proceedings of the IEEE conference on computer vision and pattern recognition, 2016, pp. 2497–2506.   \n[5] G. Moschovis, Medical image captioning based on deep architectures, 2022.   \n[6] J. Pavlopoulos, V. Kougia, I. Androutsopoulos, A survey on biomedical image captioning, in: Proceedings of the second workshop on shortcomings in vision and language, 2019, pp. 26–36.   \n[7] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, I. Polosukhin, Attention is all you need, Advances in neural information processing systems 30 (2017).   \n[8] Y. Wang, X. Zhang, T. Yang, J. Sun, Anchor detr: Query design for transformer-based detector, in: Proceedings of the AAAI conference on artificial intelligence, volume 36, 2022, pp. 2567–2575.   \n[9] W. X. Zhao, K. Zhou, J. Li, T. Tang, X. Wang, Y. Hou, Y. Min, B. Zhang, J. Zhang, Z. Dong, et al., A survey of large language models, arXiv preprint arXiv:2303.18223 (2023).   \n[10] H. Kasban, M. El-Bendary, D. Salama, A comparative study of medical imaging techniques, International Journal of Information Science and Intelligent System 4 (2015) 37–58.   \n[11] J. A. Seibert, J. M. Boone, X-ray imaging physics for nuclear medicine technologists. part 2: X-ray interactions and image formation, Journal of nuclear medicine technology 33 (2005) 3–18.   \n[12] M. S. Atkins, B. T. Mackiewich, Fully automatic segmentation of the brain in mri, IEEE transactions on medical imaging 17 (1998) 98–107.   \n[13] O. Pelka, S. Koitka, J. Rückert, F. Nensa, C. M. Friedrich, Radiology objects in context (roco): a multimodal image dataset, in: Intravascular Imaging and Computer Assisted Stenting and LargeScale Annotation of Biomedical Data and Expert Label Synthesis: 7th Joint International Workshop, CVII-STENT 2018 and Third International Workshop, LABELS 2018, Held in Conjunction with MICCAI 2018, Granada, Spain, September 16, 2018, Proceedings 3, Springer, 2018, pp. 180–189.   \n[14] A. Bustos, A. Pertusa, J.-M. Salinas, M. De La Iglesia-Vaya, Padchest: A large chest x-ray image dataset with multi-label annotated reports, Medical image analysis 66 (2020) 101797.   \n[15] A. E. Johnson, T. J. Pollard, N. R. Greenbaum, M. P. Lungren, C.-y. Deng, Y. Peng, Z. Lu, R. G. Mark, S. J. Berkowitz, S. Horng, Mimic-cxr-jpg, a large publicly available database of labeled chest radiographs, arXiv preprint arXiv:1901.07042 (2019).   \n[16] V. Wijerathna, H. Raveen, S. Abeygunawardhana, T. D. Ambegoda, Chest x-ray caption generation with chexnet, in: 2022 Moratuwa Engineering Research Conference (MERCon), IEEE, 2022, pp. 1–6.   \n[17] S. Subramanian, L. L. Wang, B. Bogin, S. Mehta, M. van Zuylen, S. Parasa, S. Singh, M. Gardner, H. Hajishirzi, Medicat: A dataset of medical images, captions, and textual references, Findings of the Association for Computational Linguistics: EMNLP (2020).   \n[18] A. Graves, A. Graves, Long short-term memory, Supervised sequence labelling with recurrent neural networks (2012) 37–45.   \n[19] R. Dey, F. M. Salem, Gate-variants of gated recurrent unit (gru) neural networks, in: 2017 IEEE 60th international midwest symposium on circuits and systems (MWSCAS), IEEE, 2017, pp. 1597–1600.   \n[20] Z. Zhang, P. Chen, M. Sapkota, L. Yang, Tandemnet: Distilling knowledge from medical images using diagnostic reports as optional semantic references, in: Medical Image Computing and Computer Assisted Intervention- MICCAI 2017: 20th International Conference, Quebec City, QC, Canada, September 11-13, 2017, Proceedings, Part III 20, Springer, 2017, pp. 320–328.   \n[21] X. Wang, Z. Guo, C. Xu, L. Sun, J. Li, Imagesem group at imageclefmed caption 2021 task: Exploring the clinical significance of the textual descriptions derived from medical images, in: Conference and Labs of the Evaluation Forum, 2021. URL: https://api.semanticscholar.org/CorpusID:237298727.   \n[22] V. Kougia, J. Pavlopoulos, I. Androutsopoulos, AUEB NLP group at imageclefmed caption 2019, in: L. Cappellato, N. Ferro, D. E. Losada, H. Müller (Eds.), Working Notes of CLEF 2019 - Conference and Labs of the Evaluation Forum, Lugano, Switzerland, September 9-12, 2019, volume 2380 of CEUR Workshop Proceedings, CEUR-WS.org, 2019. URL: https://ceur-ws.org/Vol-2380/paper_136.pdf.   \n[23] Y. Li, X. Liang, Z. Hu, E. P. Xing, Hybrid retrieval-generation reinforced agent for medical image report generation, in: S. Bengio, H. Wallach, H. Larochelle, K. Grauman, N. Cesa-Bianchi, R. Garnett (Eds.), Advances in Neural Information Processing Systems, volume 31, Curran Associates, Inc., 2018.   \n[24] K. Singhal, S. Azizi, T. Tu, et al., Large language models encode clinical knowledge, Nature 620 (2023) 172–180.   \n[25] K. Singhal, T. Tu, J. Gottweis, R. Sayres, et al., Towards expert-level medical question answering with large language models, arXiv 2305.09617 (2023).   \n[26] P. Kaliosis, G. Moschovis, F. Charalambakos, J. Pavlopoulos, I. Androutsopoulos, Aueb nlp group at imageclefmedical caption 2023, in: CLEF2023 Working Notes, CEUR Workshop Proceedings, CEUR-WS. org, Thessaloniki, Greece, 2023.   \n[27] E. Lehman, A. Johnson, Clinical-t5: Large language models built using mimic clinical text, PhysioNet (2023).   \n[28] H. Yuan, Z. Yuan, R. Gan, J. Zhang, Y. Xie, S. Yu, Biobart: Pretraining and evaluation of a biomedical generative language model, arXiv preprint arXiv:2204.03905 (2022).   \n[29] C. Raffel, N. Shazeer, A. Roberts, K. Lee, S. Narang, M. Matena, Y. Zhou, W. Li, P. J. Liu, Exploring the limits of transfer learning with a unified text-to-text transformer, Journal of machine learning research 21 (2020) 1–67.   \n[30] M. Lewis, Y. Liu, N. Goyal, M. Ghazvininejad, A. Mohamed, O. Levy, V. Stoyanov, L. Zettlemoyer, Bart: Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension, arXiv preprint arXiv:1910.13461 (2019).   \n[31] J. Li, D. Li, S. Savarese, S. Hoi, Blip-2: Bootstrapping language-image pre-training with frozen image encoders and large language models, in: International conference on machine learning, PMLR, 2023, pp. 19730–19742.   \n[32] K. He, X. Chen, S. Xie, Y. Li, P. Dollár, R. Girshick, Masked autoencoders are scalable vision learners, in: Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, 2022, pp. 16000–16009.   \n[33] Y. Labrak, A. Bazoge, E. Morin, P.-A. Gourraud, M. Rouvier, R. Dufour, Biomistral: A collection of open-source pretrained large language models for medical domains, arXiv preprint arXiv:2402.10373 (2024).   \n[34] T. Zhang, V. Kishore, F. Wu, K. Q. Weinberger, Y. Artzi, Bertscore: Evaluating text generation with bert, arXiv preprint arXiv:1904.09675 (2019).   \n[35] C.-Y. Lin, Rouge: A package for automatic evaluation of summaries, in: Text summarization branches out, 2004, pp. 74–81.   \n[36] K. Papineni, S. Roukos, T. Ward, W.-J. Zhu, Bleu: a method for automatic evaluation of machine translation, in: Proceedings of the 40th annual meeting of the Association for Computational Linguistics, 2002, pp. 311–318.   \n[37] T. Sellam, D. Das, A. Parikh, Bleurt: Learning robust metrics for text generation, in: Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, 2020, pp. 7881–7892.   \n[38] S. Banerjee, A. Lavie, Meteor: An automatic metric for mt evaluation with improved correlation with human judgments, in: Proceedings of the acl workshop on intrinsic and extrinsic evaluation measures for machine translation and/or summarization, 2005, pp. 65–72.   \n[39] R. Vedantam, C. Lawrence Zitnick, D. Parikh, Cider: Consensus-based image description evaluation, in: Proceedings of the IEEE conference on computer vision and pattern recognition, 2015, pp. 4566–4575.   \n[40] J. Hessel, A. Holtzman, M. Forbes, R. Le Bras, Y. Choi, Clipscore: A reference-free evaluation metric for image captioning, in: Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing, 2021, pp. 7514–7528.   \n[41] K. Huang, J. Altosaar, R. Ranganath, Clinicalbert: Modeling clinical notes and predicting hospital readmission, arXiv preprint arXiv:1904.05342 (2019).   \n[42] A. B. Abacha, W.-w. Yim, G. Michalopoulos, T. Lin, An investigation of evaluation methods in automatic medical note generation, in: Findings of the Association for Computational Linguistics: ACL 2023, 2023, pp. 2575–2588.   \n[43] D. P. Kingma, J. Ba, Adam: A method for stochastic optimization, arXiv preprint arXiv:1412.6980 (2014).   \n[44] A. Nicolson, J. Dowling, B. Koopman, A concise model for medical image captioning, in: CLEF2023 Working Notes, CEUR Workshop Proceedings, CEUR-WS. org, Thessaloniki, Greece, 2023.   \n[45] W. Zhou, Z. Ye, Y. Yang, S. Wang, H. Huang, R. Wang, D. Yang, Transferring pre-trained large language-image model for medical image captioning, in: CLEF2023 Working Notes, CEUR Workshop Proceedings, CEUR-WS. org, Thessaloniki, Greece, 2023.   \n[46] E. Bolton, A. Venigalla, M. Yasunaga, D. Hall, B. Xiong, T. Lee, R. Daneshjou, J. Frankle, P. Liang, M. Carbin, et al., Biomedlm: A 2.7 b parameter language model trained on biomedical text, arXiv preprint arXiv:2403.18421 (2024).   \n[47] R. Luo, L. Sun, Y. Xia, T. Qin, S. Zhang, H. Poon, T.-Y. Liu, Biogpt: generative pre-trained transformer for biomedical text generation and mining, Briefings in bioinformatics 23 (2022) bbac409.   \n[48] G. Moschovis, E. Fransén, Neuraldynamicslab at imageclefmedical 2022., in: CLEF (Working Notes), 2022, pp. 1487–1504.   \n[49] J. Johnson, M. Douze, H. Jégou, Billion-scale similarity search with gpus, IEEE Transactions on Big Data 7 (2019) 535–547. ",
+        "bbox": [
+            124,
+            292,
+            884,
+            896
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            64,
+            884,
+            921
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            86,
+            884,
+            774
+        ],
+        "page_idx": 15
+    }
+]

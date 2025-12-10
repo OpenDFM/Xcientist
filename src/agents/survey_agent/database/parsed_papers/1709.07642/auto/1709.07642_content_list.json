@@ -1,0 +1,1832 @@
+[
+    {
+        "type": "text",
+        "text": "Code Attention: Translating Code to Comments by Exploiting Domain Features ",
+        "text_level": 1,
+        "bbox": [
+            80,
+            98,
+            833,
+            139
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Wenhao Zheng, Hong-Yu Zhou, Ming Li, Jianxin Wu ",
+        "bbox": [
+            263,
+            158,
+            648,
+            172
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "National Key Laboratory for Novel Software Technology, Nanjing University, Nanjing 210023, China $\\circledcirc$ Higher Education Press and Springer-Verlag 2008 ",
+        "bbox": [
+            114,
+            183,
+            794,
+            196
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            52,
+            247,
+            408,
+            260
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Abstract Appropriate comments of code snippets provide insight for code functionality, which are helpful for program comprehension. However, due to the great cost of authoring with the comments, many code projects do not contain adequate comments. Automatic comment generation techniques have been proposed to generate comments from pieces of code in order to alleviate the human efforts in annotating the code. Most existing approaches attempt to exploit certain correlations (usually manually given) between code and generated comments, which could be easily violated if the coding patterns change and hence the performance of comment generation declines. Furthermore, previous datasets are too small to validate the methods and show their advantage. In this paper, we first build C2CGit, a large dataset from open projects in GitHub, which is more than $2 0 \\times$ larger than existing datasets. Then we propose $\\mathsf { \\Lambda } ^ { \\mathsf { \\Lambda } } \\mathsf { C } ^ { \\mathsf { \\Lambda } } \\sqrt { \\mathsf { \\Lambda } } ^ { \\mathsf { a } }$ new attention module called Code Attention to translate code to comments, which is able to utilize the domain features of code snippets, such as symbols and identifiers. By focusing on these specific features, Code Attention has the ability to understand the structure of code snippets. Experimental results demonstrate that the proposed module has better performance over existing approaches in both BLEU, METEOR and human evaluation. We also perform ablation studies to determine effects of different parts in Code Attention. ",
+        "bbox": [
+            28,
+            296,
+            447,
+            661
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "ywords RNN; GRU; software engineering ",
+        "bbox": [
+            68,
+            692,
+            369,
+            705
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1 Introduction ",
+        "text_level": 1,
+        "bbox": [
+            52,
+            737,
+            189,
+            752
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Program comments usually provide insight for code functionality, which are important for program comprehension, maintenance and reusability. For example, comments are helpful for working efficiently in a group or integrating and modifying open-source software. However, because it is time-consuming to create and update comments constantly, plenty of source code, especially the code from open-source software, lack adequate comments [1]. Source code without comments would reduce the maintainability and usability of ",
+        "bbox": [
+            50,
+            763,
+            447,
+            890
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "software. ",
+        "bbox": [
+            465,
+            294,
+            526,
+            306
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "To mitigate the impact, automatic program annotation techniques have been proposed to automatically supplement the missing comments by analyzing source code. [2] generated summary comments by using variable names in code. [3] managed to give a summary by reading software bug reports. [4] leveraged the documentation of API to generate comments of code snippets. ",
+        "bbox": [
+            465,
+            310,
+            862,
+            409
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "As is well known, source code are usually structured while the comments in natural language are organized in a relatively free form. Therefore, the key in automatic program annotation is to identify the relationship between the functional semantics of the code and its corresponding textual descriptions. Since identifying such relationships from the raw data is rather challenging due to the heterogeneity nature of programming language and natural language, most of the aforementioned techniques usually rely on certain assumptions on the correlation between the code and their corresponding comments (e.g., providing paired code and comment templates to be filled in), based on which the code are converted to comments in natural language. However, the assumptions may highly be coupled with certain projects while invalid on other projects. Consequently, these approaches may have large variance in performances on real-world applications. ",
+        "bbox": [
+            465,
+            412,
+            862,
+            652
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "In order to improve the applicability of automatic code commenting, machine learning has been introduced to learn how to generate comments in natural language from source code in programming languages. [5] and [6] treated source code as natural language texts, and learned a neural network to summarize the words in source code into briefer phrases or sentences. However, as pointed out by [7], source code carry non-negligible semantics on the program functionality and should not be simply treated as natural language texts. Therefore, the comments generated by [5] may not well capture the functionality semantics embedded in the program structure. For example, as shown in Figure 1, if only considering the lexical information in this code snippet, the comment would be “swap two elements in the array”. However, if considering both the structure and the lexical information, the correct comment should be “shift the first element in the array to the end”. ",
+        "bbox": [
+            465,
+            655,
+            862,
+            895
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "One question arises: Can we directly learn a mapping between two heterogeneous languages? Inspired by the recent advances in neural machine translation (NMT), we propose a novel attention mechanism called Code Attention ",
+        "bbox": [
+            463,
+            898,
+            862,
+            953
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1 int $ { \\mathrm { ~  ~ \\underline { ~ } { ~ } { ~ \\bf ~ j ~ } ~ } } = \\mathrm { ~  ~ 0 ~ }$ ;   \n2 while( $\\mathrm { i } < \\mathrm { n }$ ){   \n3 // swap is a build-in function in Java   \n4 swap(array[i],array $[ \\dot { 1 } + 1 ]$ );   \n5 $\\dot { \\bar { \\lambda } } + +$ ;} ",
+        "bbox": [
+            48,
+            55,
+            431,
+            121
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "in code. [9] used several templates to fit the source code. If one piece of source code matches the template, the corresponding comment would be generated automatically. [10] predicted class-level comments by utilizing open source Java projects to learn n-gram and topic models, and they tested their models using a character-saving metric on existing comments. There are also retrieval methods to generate summaries for source code based on automatic text summarization [11] or topic modeling [12], possibly combining with the physical actions of expert engineers [13]. ",
+        "bbox": [
+            465,
+            51,
+            862,
+            192
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "to directly translate the source code in programming language into comments in natural language. Our approach is able to explore domain features in code by attention mechanism, e.g. explicitly modeling the semantics embedded in program structures such as loops and symbols, based on which the functional operations of source code are mapped into words. To verify the effectiveness of Code Attention, we build C2CGit, a large dataset collected from open source projects in Github. The whole framework of our proposed method is as shown in Figure 4. Empirical studies indicate that our proposed method can generate better comments than previous work, and the comments we generate would conform to the functional semantics in the program, by explicitly modeling the structure of the code. ",
+        "bbox": [
+            50,
+            210,
+            447,
+            407
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "The rest of this paper is organized as follows. After briefly introducing the related work and preliminaries, we describe the process of collecting and preprocessing data in Section 4, in which we build a new benchmark dataset called C2CGit. In Section 5, we introduce the Code Attention module, which is able to leverage the structure of the source code. In Section 6, we report the experimental results by comparing it with five popular approaches against different evaluation metrics. On BLEU and METEOR, our approach outperforms all other approaches and achieves new state-of-the-art performance in C2CGit. ",
+        "bbox": [
+            50,
+            410,
+            447,
+            564
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Our contribution can be summarized as: ",
+        "bbox": [
+            68,
+            567,
+            337,
+            580
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "i) A new benchmark dataset for code to comments translation. C2CGit contains over 1k projects from GitHub, which makes it more real and $2 0 \\times$ larger than previous dataset [5].   \nii) We explore the possibility of whether recent pure attention model [8] can be applied to this translation task. Experimental results show that the attention model is inferior to traditional RNN, which is the opposite to the performance in NLP tasks.   \niii) To utilize domain features of code snippets, we propose a Code Attention module which contains three steps to exploit the structure in code. Combined with RNN, our approach achieves the best results on BLEU and METEOR over all other methods in different experiments. ",
+        "bbox": [
+            55,
+            586,
+            447,
+            799
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Datasets. There are different datasets describing the relation between code and comments. Most of datasets are from Stack Overflow [5, 14, 15] and GitHub [16]. Stack Overflow based datasets usually contain lots of pairs in the form of Q&A, which assume that real world code and comments are also in Q&A pattern. However, this assumption may not hold all the time because those questions are carefully designed. On the contrary, we argue that current datasets from GitHub are more real but small, for example, [16] only contains 359 comments. In this paper, our C2CGit is much larger and also has the ability to keep the accuracy. ",
+        "bbox": [
+            465,
+            195,
+            862,
+            365
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Machine Translation. In most cases, generating comments from source code is similar to the sub-task named machine translation in natural language processing (NLP). There have been many research work about machine translation in this community. [17] described a series of five statistical models of the translation process and developed an algorithm for estimating the parameters of these models given a set of pairs of sentences that each pair contains mutual translations, and they also define a concept of wordby-word alignment between such pairs of sentences. [18] proposed a new phrase-based translation model and decoding algorithm that enabled us to evaluate and compare several previously proposed phrase-based translation models. However, the system itself consists of many small subcomponents and they are designed to be tuned separately. Although these approaches achieved good performance on NLP tasks, few of them have been applied on code to comments translation. Recently, deep neural networks achieve excellent performance on difficult problems such as speech recognition [19], visual object recognition [20] and machine translation [21]. For example, the neural translator proposed in [21] is a newly emerging approach which attempted to build and train a single, large neural network which takes a sentence as an input and outputs a corresponding translation. ",
+        "bbox": [
+            465,
+            368,
+            862,
+            721
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Two most relevant works are [5] and [6]. [6] mainly focused on extreme summarization of source code snippets into short, descriptive function name-like summaries but our goal is to generate human-readable comments of code snippets. [5] presented the first completely data driven approach for generating high level summaries of source code by using Long Short Term Memory (LSTM) networks to produce sentences. However, they considered the code snippets as natural language texts and employed roughly the same method in NLP without considering the structure of code. ",
+        "bbox": [
+            465,
+            725,
+            862,
+            879
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2 Related Work ",
+        "text_level": 1,
+        "bbox": [
+            50,
+            841,
+            201,
+            857
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Previously, there already existed some work on producing code descriptions based on source code. These work mainly focused on how to extract key information from source code, through rule-based matching, information retrieval, or probabilistic methods. [2] generated conclusive comments of specific source code by using variable names ",
+        "bbox": [
+            50,
+            869,
+            447,
+            952
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Although translating source code to comments is similar to language translation, there does exist some differences. For instance, the structure of code snippets is much more complex than that of natural language and usually has some specific features, such as various identifiers and symbols; ",
+        "bbox": [
+            465,
+            883,
+            862,
+            953
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "the length of source code is usually much longer than the comment; some comments are very simple while the code snippets are very complex. All approaches we have mentioned above do not make any optimization for source code translation. In contrast, we design a new attentional unit called Code Attention which is specially optimized for code structure to help make the translation process more specific. By separating the identifiers and symbols from natural code segments, Code Attention is able to understand the code snippets in a more structural way. ",
+        "bbox": [
+            50,
+            51,
+            448,
+            192
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3 Preliminaries ",
+        "text_level": 1,
+        "bbox": [
+            50,
+            223,
+            198,
+            239
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "In this section, we introduce the recurrent neural networks (RNNs), a family of neural networks designed for processing sequential data. Some traditional types of neural networks (e.g., convolution neural networks, recursive networks) make an assumption that all elements are independent of each other, while RNNs perform the same task with the output being depended on the previous computations. For instance, in natural language processing, if you want to predict the next word in a sentence you better know which words come before it. ",
+        "bbox": [
+            50,
+            249,
+            447,
+            391
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "seq2seq model ",
+        "text_level": 1,
+        "bbox": [
+            50,
+            407,
+            151,
+            422
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "A recurrent neural network (RNN) is a neural network that consists of a hidden state $\\mathbf { h }$ and an optional output y which operates on a variable length sequence. An RNN is able to predict the next symbol in a sequence by modeling a probability distribution over the sequence $\\mathbf { x } { = } \\left( x _ { 1 } , \\ldots , x _ { T } \\right)$ . At each timestep $t$ , the hidden state $\\mathbf { h } _ { t }$ is updated by ",
+        "bbox": [
+            50,
+            429,
+            447,
+            514
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "equation",
+        "img_path": "images/621e87e6dfa6945bafc434915b6f216268dfa37c936bdc25bc125cee3aff1877.jpg",
+        "text": "$$\n\\begin{array} { r } { \\mathbf { h } _ { t } = f _ { e n c o d e r } \\big ( \\mathbf { h } _ { t - 1 } , \\mathbf { x } _ { t } \\big ) } \\end{array}\n$$",
+        "text_format": "latex",
+        "bbox": [
+            166,
+            520,
+            331,
+            537
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "where $f _ { e n c o d e r }$ is a non-linear activation function (e.g., sigmoid function [22], LSTM [23], GRU [24]). One usual way of defining the recurrent unit $f _ { e n c o d e r }$ is a linear transformation plus a nonlinear activation, e.g., ",
+        "bbox": [
+            50,
+            543,
+            447,
+            599
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "equation",
+        "img_path": "images/c59d05b55a97e345b2b93715edf1998434c07e1ca9f4b705de6f02bf28dd4045.jpg",
+        "text": "$$\n\\mathbf { h } _ { t } = t a n h ( W [ \\mathbf { h } _ { t - 1 } , \\mathbf { x } _ { t } ] + \\mathbf { b } )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            147,
+            606,
+            349,
+            621
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "where we parameterized the relation between $\\mathbf { h } _ { t - 1 }$ and $\\mathbf { X } _ { t }$ into matrix $W$ , and $\\mathbf { b }$ is the bias term. Each element of its input is activated by the function tanh. A simple RNN aims to learn the parameters $W$ and $\\mathbf { b }$ . In this case, we can get the final joint distribution, ",
+        "bbox": [
+            48,
+            627,
+            448,
+            697
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "equation",
+        "img_path": "images/0663719f24b7da276c8797203bb98890299225918b10b3f5e32cd6a43c77e7cf.jpg",
+        "text": "$$\np ( \\mathbf x ) = \\prod _ { T } ^ { t = 1 } p ( \\mathbf x _ { t } | \\mathbf x _ { 1 } , \\dots , \\mathbf x _ { t - 1 } )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            144,
+            702,
+            352,
+            744
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "The basic cell unit in RNN is important to decide the final performance. A gated recurrent unit is proposed by Cho et al. [25] to make each recurrent unit to adaptively capture dependencies of different time scales. GRU has gating units but no separate memory cells when compared with LSTM. ",
+        "bbox": [
+            50,
+            747,
+            448,
+            819
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "GRU contains two gates: an update gate $\\mathbf { z }$ and a reset gate $\\mathbf { r }$ which correspond to forget gate and input gate, respectively. We show the update rules of GRU in the Equations (4) to (7), ",
+        "bbox": [
+            48,
+            820,
+            447,
+            875
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "equation",
+        "img_path": "images/a18efa229664e2d41e04e480937244bd4b797729d33d8a806ec5cc00ebcc07dd.jpg",
+        "text": "$$\n\\begin{array} { r l } & { \\mathbf { z } _ { t } = \\sigma ( W _ { z } [ \\mathbf { h } _ { t - 1 } , \\mathbf { x } _ { t } ] + \\mathbf { b } _ { z } ) } \\\\ & { \\mathbf { r } _ { t } = \\sigma ( W _ { r } [ \\mathbf { h } _ { t - 1 } , \\mathbf { x } _ { t } ] + \\mathbf { b } _ { r } ) } \\\\ & { \\widetilde { \\mathbf { h } } _ { t } = t a n h ( W _ { h } [ \\mathbf { r } _ { t } \\odot \\mathbf { t } _ { t - 1 } , \\mathbf { x } _ { t } ] + \\mathbf { b } _ { h } ) } \\\\ & { \\mathbf { h } _ { t } = ( 1 - \\mathbf { z } _ { t } ) \\odot \\mathbf { h } _ { t - 1 } + \\mathbf { z } _ { t } \\odot \\widetilde { \\mathbf { h } } _ { t } } \\end{array}\n$$",
+        "text_format": "latex",
+        "bbox": [
+            124,
+            879,
+            373,
+            956
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "image",
+        "img_path": "images/199ffdb528bee29ba1c65d6dd2b628c3692643185fd642d2251b8faa27e4689f.jpg",
+        "image_caption": [
+            "Fig. 2: The data flow and operations in GRU. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            504,
+            49,
+            816,
+            155
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "where $\\begin{array} { r } { \\sigma ( x ) = \\frac { 1 } { 1 + \\exp ( - \\underline { { x } } ) } } \\end{array}$ 11+exp(−x) , ◦ is the component-wise product between two vectors. For a better understanding, we also provide the data flow and operations in Figure 2. There are two reasons which make us choose GRU: the first one is that Chung et al. [26] found that when LSTM and GRU have the same amount of parameters, GRU slightly outperforms LSTM; the second is that GRU is much easier to implement and train compared with LSTM. ",
+        "bbox": [
+            463,
+            209,
+            863,
+            323
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "In order to learn a better phrase representations, a classical recurrent neural network architecture learns to encode a variable-length inputs into a fixed-length vector representation and then to decode the vector into a variable-length output. To be simple, this architecture bridges the gap between two variable-length vectors. While if we look inside the architecture from a more probabilistic perspective, we can rewrite Eq. (3) into a more general form, e.g., $p ( y _ { 1 } , . ~ . ~ . ~ , y _ { K } \\mid x _ { 1 } , . ~ . ~ . ~ , x _ { T } )$ , where it is worth noting that the length of input and output may differ in this case. ",
+        "bbox": [
+            465,
+            323,
+            863,
+            464
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Above model contains two RNNs. The first one is the encoder, while the other is used as a decoder. The encoder is an RNN that reads each symbol of an input sequence x sequentially. As it reads each symbol, the hidden state of the encoder updates according to Eq. (1). At the end of the input sequence, there is always a symbol telling the end, and after reading this symbol, the last hidden state is a summary c of the whole input sequence. ",
+        "bbox": [
+            463,
+            466,
+            863,
+            579
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "As we have discussed, the decoder is another RNN which is trained to generate the output sequence by predicting the next symbol $\\mathbf { y } _ { t }$ given the hidden state $\\mathbf { h } _ { t }$ . ",
+        "bbox": [
+            465,
+            580,
+            862,
+            621
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "equation",
+        "img_path": "images/ba07fb122ebaaf253c427a4bf51a110d8424608f43e95f45c836e62a29d61b36.jpg",
+        "text": "$$\np ( \\mathbf { y } _ { t } \\mid \\mathbf { y } _ { t - 1 } , . . . , \\mathbf { y } _ { 1 } , \\mathbf { c } ) = f _ { d e c o d e r } ( \\mathbf { h } _ { t } , \\mathbf { y } _ { t - 1 } , \\mathbf { c } ) ,\n$$",
+        "text_format": "latex",
+        "bbox": [
+            504,
+            632,
+            820,
+            649
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "where $\\mathbf { h } _ { t } = f ( \\mathbf { h } _ { t - 1 } , \\mathbf { y } _ { t - 1 } , \\mathbf { c } )$ and $f _ { d e c o d e r }$ is usually a softmax function to produce valid probabilities. Note that there are several differences between this one and the original RNN. The first is the hidden state at timestep $t$ is no longer based on $\\mathbf { x } _ { t - 1 }$ but on the $\\mathbf { y } _ { t - 1 }$ and the summary c, and the second is that we model $\\mathbf { y } _ { t }$ and $\\mathbf { X } _ { t }$ jointly which may result in a better representation. ",
+        "bbox": [
+            465,
+            658,
+            862,
+            758
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Attention Mechanism ",
+        "text_level": 1,
+        "bbox": [
+            465,
+            776,
+            611,
+            789
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "A potential issue with the above encoder-decoder approach is that a recurrent neural network has to compress all the necessary information of $x _ { 1 }$ , . . . , $x _ { T }$ into a context vector c for all time, which means the length of vector c is fixed. There are several disadvantages here. This solution may make it difficult for the neural network to cope with long sentences, especially those that are longer than the senriorates rapidly as the length of an input sentence increases. ",
+        "bbox": [
+            465,
+            797,
+            862,
+            896
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            468,
+            926,
+            858,
+            939
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Specifically, when backing to code-to-comment case, every word in the code may have different effects on each word in the comment. For instance, some keywords in the source code can have direct influences on the comment while others do nothing to affect the result. ",
+        "bbox": [
+            458,
+            940,
+            860,
+            953
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            48,
+            51,
+            447,
+            107
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Considering all factors we have talked above, a global attention mechanism should be existed in a translation system. An overview of the model is provided in Fig. 3. $\\mathbf { h } _ { i , j }$ is the hidden state located at the ith $( i = 1 , 2 )$ layer and $j$ th $( j ~ = ~ 1 , \\dots , T )$ position in the encoder. $\\mathbf { s } _ { i , k }$ is the hidden state located at the ith $( i ~ = ~ 1 , 2 )$ layer and $j$ th $( k \\ = \\ 1 , \\ldots , K )$ position in the decoder. Instead of LSTM, GRU [25] could be used as the cell of both fencoder and $f _ { d e c o d e r }$ . Unlike the fixed vector c in the traditional encoder-decoder approach, current context vector $\\mathbf { c } _ { t }$ varies with the step $t$ , ",
+        "bbox": [
+            50,
+            108,
+            448,
+            263
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "equation",
+        "img_path": "images/5b6af3805f198c93c10833e402744261972177a2abd96297909155b1f6c66318.jpg",
+        "text": "$$\n\\mathbf { c } _ { t } = \\sum _ { j = 1 } ^ { T } \\alpha _ { t , j } \\mathbf { h } _ { 2 , j }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            186,
+            263,
+            309,
+            306
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "and then we can get a new form of $\\mathbf { y } _ { t }$ ",
+        "bbox": [
+            50,
+            313,
+            305,
+            326
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "equation",
+        "img_path": "images/7f40ddd424e835dc994ab9475828345bb6a77027894fa8102b0379891e811509.jpg",
+        "text": "$$\n\\mathbf { y } _ { t } = f _ { d e c o d e r } ( \\mathbf { c } _ { t } , \\mathbf { s } _ { 2 , t - 1 } , \\mathbf { s } _ { 1 , t } )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            147,
+            338,
+            349,
+            356
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "where $\\alpha _ { t , j }$ is the weight term of $j$ th location at step $t$ in the input sequence. Note that the weight term $\\alpha _ { t , j }$ is normalized to $[ 0 , 1 ]$ using a softmax function, ",
+        "bbox": [
+            48,
+            367,
+            447,
+            410
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "equation",
+        "img_path": "images/9da5653955e1dd99849c8801a21837071d86bef31fc1918eff622634d02dc9fd.jpg",
+        "text": "$$\n\\alpha _ { t , j } = \\frac { \\exp ( \\mathbf { e } _ { t , j } ) } { \\sum _ { i = 1 } ^ { T } \\exp ( \\mathbf { e } _ { t , i } ) } ,\n$$",
+        "text_format": "latex",
+        "bbox": [
+            166,
+            420,
+            331,
+            457
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "where ${ \\bf e } _ { t , j } ~ = ~ a ( \\mathbf { s } _ { 2 , t - 1 } , \\mathbf { h } _ { 2 , j } )$ scores how well the inputs around position $j$ and the output at position $t$ match and is a learnable parameter of the model. ",
+        "bbox": [
+            50,
+            468,
+            447,
+            510
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "4 C2CGit: A New Benchmark for Code to Comment Translation ",
+        "text_level": 1,
+        "bbox": [
+            50,
+            541,
+            448,
+            571
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "For evaluating proposed methods effectively, we build the C2CGit dataset firstly. We collected data from GitHub, a web-based Git repository hosting service. We crawled over 1,600 open source projects from GitHub, and got 1,006,584 Java code snippets. After data cleaning, we finally got 879,994 Java code snippets and the same number of comment segments. Although these comments are written by different developers with different styles, there exist common characteristics under these styles. For example, the exactly same code could have totally different comments but they all explain the same meaning of the code. In natural language, same source sentence may have more than one reference translations, which is similar to our setups. We name our dataset as C2CGit. ",
+        "bbox": [
+            50,
+            583,
+            447,
+            781
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "To the best of our knowledge, there does not exist such a large public dataset for code and comment pairs. One choice is using human annotation [28]. By this way, the comments could have high accuracy and reliability. However, it needs many experienced programmers and consumes a lot of time if we want to get big data. Another choice is to use recent CODE-NN [5] which mainly collected data from Stack Overflow which contains some code snippets in answers. For the code snippet from accepted answer of one question, the title of this question is regarded as a comment. Compared with CODE-NN $( \\mathbf { C } \\# )$ , our C2CGit (Java) holds two obvious advantages: ",
+        "bbox": [
+            50,
+            783,
+            447,
+            952
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "table",
+        "img_path": "images/d98123b5d6847580ae1b1987a1a04948155deb8677d08a37edf45e04142f7c3b.jpg",
+        "table_caption": [
+            "Table 1: Average code and comments together with vocabulary sizes for C2CGit, compared with CODE-NN. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1></td><td rowspan=1 colspan=2>Avg. code length Avg. title length</td><td rowspan=1 colspan=1>tokens</td><td rowspan=1 colspan=1>words</td></tr><tr><td rowspan=1 colspan=1>CODE-NN</td><td rowspan=1 colspan=1>38 tokens</td><td rowspan=1 colspan=1>12 words</td><td rowspan=1 colspan=1>91k</td><td rowspan=1 colspan=1>25k</td></tr><tr><td rowspan=1 colspan=1>C2CGit</td><td rowspan=1 colspan=1>128 tokens</td><td rowspan=1 colspan=1>22 words</td><td rowspan=1 colspan=1>129,340k</td><td rowspan=1 colspan=1>22,299k</td></tr></table>",
+        "bbox": [
+            468,
+            87,
+            858,
+            129
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "• Code snippets in C2CGit are more real. In many real projects from C2CGit, several lines of comments often correspond to a much larger code snippet, for example, a 2-line comment is annotated above 50-line code. However, this seldom appears in Stack Overflow. ",
+        "bbox": [
+            480,
+            152,
+            862,
+            236
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "• C2CGit is much larger and more diversified than CODE-NN. We make a detailed comparison in Figure 5 and Table 1. We can see that C2CGit is about $2 0 \\times$ larger than CODE-NN no matter in statements, loops or conditionals. Also, C2CGit holds more tokens and words which demonstrate its diversity. ",
+        "bbox": [
+            480,
+            239,
+            862,
+            322
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Extraction. We downloaded projects from the GitHub website by using web crawler.† Then, the Java file can be easily extracted from these projects. Source code and comments should be split into segments. If we use the whole code from a Java file as the input and the whole comments as the output, we would get many long sentences and it is hard to handle them both in statistical machine translation and neural machine translation. Through analyzing the abstract syntax tree (AST) [29] of code, we got code snippets from the complete Java file. By leveraging the method raised by [16], the comment extraction is much easier, since it only needs to detect different comment styles in Java. ",
+        "bbox": [
+            465,
+            332,
+            862,
+            501
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Matching. Through the above extraction process, one project would generate many code snippets and comment segments. The next step is to find a match between code snippets and comment segments. We extracted all identifiers other than keyword nodes from the AST of code snippets. Besides, the Java code prefer the camel case convention (e.g., StringBuilder can be divided into two terms, string and builder). Each term from code snippets is then broken down based on the camel case convention. Otherwise, if a term uses underline to connect two words, it can also be broken down. After these operations, a code snippet is broken down to many terms. Because comments are natural language, we use a tokenization tool‡, widely used in natural language processing to handle the comment segments. If one code snippet shares the most terms with another comment segment, the comment segment can be regarded as a translation matching to this code snippet. ",
+        "bbox": [
+            465,
+            504,
+            862,
+            744
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Cleaning. We use some prior knowledge to remove noise in the dataset. The noise is from two aspects. One is that we have various natural languages, the other is that the shared words between code snippets and comment segments are too few. Programmers coming from all around the world can upload projects to GitHub, and their comments usually contain non-English words. These comments would make the task more difficult but only occupy a small portion. Therefore, we deleted instances containing nonEnglish words (non-ASCII characters) if they appear in either code snippets or comment segments. Some code snippets only share one word or two with comment segments, which suggests the comment segment can’t express the meaning of code. These code and comment pairs also should be deleted. ",
+        "bbox": [
+            465,
+            745,
+            862,
+            901
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "image",
+        "img_path": "images/7b0681067f7a8c6d15c63485d4ac9a38790c397d22287722039d4f9da8e9596d.jpg",
+        "image_caption": [
+            "Fig. 3: An overview of the translation model. We employ a two-layer recurrent model, where the gray box represents the encoder unit and the blue ones represent the decoder part. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            104,
+            61,
+            793,
+            243
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "image",
+        "img_path": "images/8470ca6ae0de4c6187766a4afed39c74be74c50eb7fa34ef1cbdbeb187013156.jpg",
+        "image_caption": [
+            "Fig. 4: The whole framework of our proposed method. The main skeleton includes two parts: building C2CGit and code to comments translation. ",
+            "Fig. 5: We make a comparison between C2CGit (blue) and CODE-NN (green). We can see that C2CGit is larger and more diversified. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            53,
+            305,
+            438,
+            840
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            48,
+            939,
+            447,
+            953
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "image",
+        "img_path": "images/ade0eda86dbbab221c25d44e911354b8b59f5ab24f66670422c2e904660b9f8a.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            460,
+            315,
+            857,
+            518
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            463,
+            618,
+            862,
+            659
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "5 Proposed method: Code Attention Mechanism ",
+        "text_level": 1,
+        "bbox": [
+            463,
+            694,
+            860,
+            724
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "In this section, we mainly talk about the Code Attention mechanism in the model. For the encoder-decoder structure, we first build a 3-layer translation model as Section 3 said, whose basic element is Gated Recurrent Unit (GRU). Then, we modify the classical attention module in encoder. To be specific, we consider the embedding of symbols in code snippets as learnable prior weights to evaluate the importance of different parts of input sequences. For convenience, we provide an overview of the entire model in Figure 6. ",
+        "bbox": [
+            463,
+            737,
+            863,
+            878
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Unlike traditional statistical language translation, code snippets have some different characteristics, such as some identifiers (for and $i f )$ and different symbols (e.g., $\\times , \\div , = )$ . However, former works usually ignore these differences and employ the common encoding methods in NLP. In order to underline these identifiers and symbols, we simply import two strategies: Identifier Ordering and Token Encoding, after which we then develop a Global Attention module to learn their weights in input code snippets. We will first introduce details of Identifier Ordering and Token Encoding in the following. ",
+        "bbox": [
+            465,
+            882,
+            862,
+            953
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "image",
+        "img_path": "images/3e593c9a5993225bf8d8eef7cf7db684e6f925db0018d7861fad7fcfea30dab2.jpg",
+        "image_caption": [
+            "Fig. 6: The whole model architecture. Note that Code Attention mainly contains 3 steps: Identifier Ordering, Token Encoding and Global Attention. The first two module are followed by two independent embedding layers as shown in the flow diagram above. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            58,
+            48,
+            847,
+            312
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            50,
+            395,
+            447,
+            480
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Identifier Ordering. As the name suggests, we directly sort for and $i f$ in code snippets based on the order they appear. After sorting, ",
+        "bbox": [
+            48,
+            482,
+            447,
+            524
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "equation",
+        "img_path": "images/1ad71725216f335ac880353c9195913df763a821ed66fca3a6d20967c5a12693.jpg",
+        "text": "$$\nf o r / i f \\longrightarrow f o r / i f + N\n$$",
+        "text_format": "latex",
+        "bbox": [
+            154,
+            536,
+            334,
+            552
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "where $\\mathbf { N }$ is decided by the order of each identifier in its upper nest. For example, when we have multiple $i f$ and for, after identifier sorting, we have such forms, ",
+        "bbox": [
+            48,
+            564,
+            447,
+            607
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "image",
+        "img_path": "images/0b712c7465e8de2664ae8147142a59bf2dd2ac31e8ea32458670daa026504435.jpg",
+        "image_caption": [
+            "Fig. 7: An example of collected code snippet after identifier sorting. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            48,
+            627,
+            347,
+            745
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "We can see that replaced identifiers are able to convey the original order of each of them. It is worth noting that Identifier Ordering makes a difference among fors or ifs appeared in different loop levels. ",
+        "bbox": [
+            48,
+            809,
+            447,
+            866
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Token Encoding. In order to stress the distinction among tokens e.g. symbols, variables and keywords in code snippets, these tokens should be encoded in a way which helps make them more conspicuous than naive encoded inputs. To be specific, we first build a dictionary including all symbols, like $\\times , ~ \\div , ~ \\vdots , ~ \\{ , ~ \\}$ and keywords, such as int, f loat, public, ... in code snippets. The tokens not containing in this dictionary are regarded as variables. Next, we construct an independent token vocabulary which is the same size as the vocabulary of all input snippets, and encode these tokens using an extra embedding matrix. The embedded tokens can be treated as learnable weights in Global Attention. ",
+        "bbox": [
+            50,
+            869,
+            448,
+            953
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            465,
+            395,
+            863,
+            494
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Global Attention ",
+        "text_level": 1,
+        "bbox": [
+            465,
+            512,
+            579,
+            525
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "In order to underline the importance of symbols in code, we import a novel attention mechanism called Global Attention. We represent $\\mathbf { X }$ as a set of inputs. Let $I d e n t ( \\cdot )$ and $S y m ( \\cdot )$ stand for our Identifier ordering and Token Encoding, respectively. $E ( \\cdot )$ be used to represent the embedding method. The whole Global Attention operation can be summarized as, ",
+        "bbox": [
+            465,
+            533,
+            862,
+            632
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "equation",
+        "img_path": "images/9cc21c5a4aedbdb6db3afac39ffcec3c0378fd2c02f25ec75a6e6ccfa3330f1a.jpg",
+        "text": "$$\nE ( S y m \\left( I d e n t \\left( \\mathbf { x } \\right) \\right) ) \\otimes f _ { e } ( \\mathbf { x } )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            554,
+            644,
+            763,
+            661
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "where $f _ { e } ( \\cdot )$ is the encoder, $\\bigotimes$ represents dot product to stress the effects of encoded tokens. ",
+        "bbox": [
+            463,
+            670,
+            862,
+            699
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "After Token Encoding, we now have another token embedding matrix: $\\mathbf { F }$ for symbols. We set m as a set of 1-hot vectors $\\mathbf { m } _ { 1 } , . . . , \\mathbf { m } _ { T } \\in \\{ 0 , 1 \\} ^ { | F | }$ for each source code token. We represent the results of $E ( S y m \\ : ( I d e n t \\ : ( C S ) ) )$ as a set of vectors $\\big \\{ \\mathbf { w } _ { 1 } , . . . , \\mathbf { w } _ { T } \\big \\}$ , which can be regarded as a learnable parameter for each token, ",
+        "bbox": [
+            465,
+            700,
+            862,
+            785
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "equation",
+        "img_path": "images/5d7583673c1acfb35160ef3b7c0d70e6a0e49b047e1a104d486b4c2cd7d46e15.jpg",
+        "text": "$$\n\\mathbf { w } _ { i } = \\mathbf { m } _ { i } \\mathbf { F }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            621,
+            797,
+            697,
+            813
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Since the context vector $\\mathbf { c } _ { t }$ varies with time, the formation of context vector $c _ { t }$ is as follows, ",
+        "bbox": [
+            463,
+            824,
+            862,
+            851
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "equation",
+        "img_path": "images/550a09e829345a0ef8ce9dae1ceeba6a5da37449bbc3de09c9a4a596e1d2df0b.jpg",
+        "text": "$$\n\\mathbf { c } _ { t } = \\sum _ { i = 1 } ^ { T } \\alpha _ { t , i } ( \\mathbf { w } _ { i } \\otimes \\mathbf { e } _ { 3 , i } )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            576,
+            860,
+            749,
+            902
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "where $\\mathbf { e } _ { 3 , i }$ is the hidden state located at the 3rd layer and $i$ th position $( i = 1 , \\dots , T )$ in the encoder, $T$ is the input size. $\\alpha _ { t , i }$ is the weight term of ith location at step $t$ in the input ",
+        "bbox": [
+            463,
+            910,
+            862,
+            953
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "table",
+        "img_path": "images/5225bf7cff65991e4b77710105ae6993ec0063b5c62ac370dd2bfb4696fb764a.jpg",
+        "table_caption": [
+            "Table 2: Ablation study about effects of different parts in Code Attention. This table reports the BLEU-4 results of different combinations. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td></td><td>BLEU-4</td><td>Ident</td><td>Token</td><td>Global Attention</td></tr><tr><td></td><td>16.72</td><td>w/o</td><td>w/o</td><td>w/o</td></tr><tr><td></td><td>18.35</td><td>w/</td><td>w/o</td><td>w/o</td></tr><tr><td></td><td>22.38</td><td>w/</td><td>w/</td><td>+</td></tr><tr><td>m4</td><td>24.62</td><td>w/</td><td>w/</td><td>0</td></tr></table>",
+        "bbox": [
+            94,
+            102,
+            403,
+            165
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "sequence, which is used to tackle the situation when input piece is overlength. Then we can get a new form of $\\mathbf { y } _ { t }$ , ",
+        "bbox": [
+            50,
+            190,
+            447,
+            217
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "equation",
+        "img_path": "images/f007f34945ed6a722f737d207a542db3e4def6156e55441a8ce1c631105dc899.jpg",
+        "text": "$$\n\\mathbf { y } _ { t } = f _ { d } ( \\mathbf { c } _ { t } , \\mathbf { d } _ { 3 , t - 1 } , \\mathbf { d } _ { 2 , t } , \\mathbf { y } _ { t - 1 } )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            144,
+            230,
+            352,
+            247
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "$f _ { d } ( \\cdot )$ is the decoder function. $\\mathbf { d } _ { 3 , t }$ is the hidden state located at the 3rd layer and tth step $( t = 1 , \\ldots , K )$ in the decoder. Here, we assume that the length of output is $K$ . Instead of LSTM in [8], we take GRU [25] as basic unit in both $f _ { e } \\left( \\cdot \\right)$ and $f _ { d } \\left( \\cdot \\right)$ . Note that the weight term $\\alpha _ { t , i }$ is normalized to $[ 0 , 1 ]$ using a softmax function, ",
+        "bbox": [
+            50,
+            258,
+            447,
+            343
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "equation",
+        "img_path": "images/22dc667dd566179f71825bcd2e489cca7d3176428a4773aabe1e0730b811cb31.jpg",
+        "text": "$$\n\\alpha _ { t , i } = \\frac { \\exp ( \\mathbf { s } _ { t , i } ) } { \\sum _ { i = 1 } ^ { T } \\exp ( \\mathbf { s } _ { t , i } ) } ,\n$$",
+        "text_format": "latex",
+        "bbox": [
+            168,
+            354,
+            329,
+            390
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "where $\\mathbf { s } _ { t , i } ~ = ~ s c o r e ( \\mathbf { d } _ { 3 , t - 1 } , \\mathbf { e } _ { 3 , i } )$ scores how well the inputs around position $i$ and the output at position $t$ match. As in [30], we parametrize the score function $s c o r e ( \\cdot )$ as a feed-forward neural network which is jointly trained with all the other components of the proposed architecture. ",
+        "bbox": [
+            50,
+            399,
+            447,
+            470
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Ablation Study ",
+        "text_level": 1,
+        "bbox": [
+            50,
+            489,
+            152,
+            502
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "For a better demonstration of the effect of Code Attention, we make a naive ablation study about it. For Table 2, we can get two interesting observations. First, comparing line 1 with line 2, we can see that even single Identifier Ordering have some effects. RNN with Identifier Ordering surpasses normal GRU-NN by 1.63, which reflects that stressing the order of different identifiers can be useful. The improvement can be reached when applying it on other methods based on neural machine translation. Second, $\\bigotimes$ (line 4) surpasses $\\textcircled{+}$ (line 4) by 2.24, which precisely follows our intuition, that $\\bigotimes$ amplifies the effects of tokens more efficiently than $\\textcircled{+}$ does. ",
+        "bbox": [
+            50,
+            512,
+            447,
+            682
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "6 Experiments ",
+        "text_level": 1,
+        "bbox": [
+            50,
+            714,
+            191,
+            730
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "We compared our Code Attention with several baseline methods on C2CGit dataset. The metrics contain both automatic and human evaluation. ",
+        "bbox": [
+            50,
+            740,
+            447,
+            783
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Baselines ",
+        "text_level": 1,
+        "bbox": [
+            50,
+            803,
+            115,
+            815
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "To evaluate the effectiveness of Code Attention, we compare different popular approaches from natural language and code translation, including CloCom, MOSES, LSTMNN [5], GRU-NN and Attention Model [8]. All experiments are performed on C2CGit. It is worth noting that, for a better comparison, we improve the RNN structure in [31] to make it deeper and use GRU [25] units instead of LSTM proposed in the original paper, both of which help it become a strong baseline approach. ",
+        "bbox": [
+            50,
+            825,
+            447,
+            953
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "table",
+        "img_path": "images/fa45bb337093c31a65fadcd02bbae22d93b5f90b707506dafaffa0ee537bd2be.jpg",
+        "table_caption": [
+            "Table 3: BLEU of Each Auto-Generated Comments Methods "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>Methods</td><td rowspan=1 colspan=2>BLEU-1</td><td rowspan=1 colspan=1>BLEU-1</td><td rowspan=1 colspan=1>BLEU-2</td><td rowspan=1 colspan=1>BLEU-3</td><td rowspan=1 colspan=1>BLEU-4</td></tr><tr><td rowspan=1 colspan=1>CloCom</td><td rowspan=1 colspan=3>25.31</td><td rowspan=1 colspan=1>18.67</td><td rowspan=1 colspan=1>16.06</td><td rowspan=1 colspan=1>14.13</td></tr><tr><td rowspan=1 colspan=1>MOSES</td><td rowspan=1 colspan=3>45.20</td><td rowspan=1 colspan=1>21.70</td><td rowspan=1 colspan=1>13.78</td><td rowspan=1 colspan=1>9.54</td></tr><tr><td rowspan=1 colspan=1>LSTM-NN</td><td rowspan=1 colspan=3>50.26</td><td rowspan=1 colspan=1>25.34</td><td rowspan=1 colspan=1>17.85</td><td rowspan=1 colspan=1>13.48</td></tr><tr><td rowspan=1 colspan=1>GRU-NN</td><td rowspan=1 colspan=3>58.69</td><td rowspan=1 colspan=1>30.93</td><td rowspan=1 colspan=1>21.42</td><td rowspan=1 colspan=1>16.72</td></tr><tr><td rowspan=1 colspan=1>Attention</td><td rowspan=1 colspan=3>25.00</td><td rowspan=1 colspan=1>5.58</td><td rowspan=1 colspan=1>2.4</td><td rowspan=1 colspan=1>1.67</td></tr><tr><td rowspan=1 colspan=1>Ours</td><td rowspan=1 colspan=3>61.19</td><td rowspan=1 colspan=1>36.51</td><td rowspan=1 colspan=1>28.20</td><td rowspan=1 colspan=1>24.62</td></tr></table>",
+        "bbox": [
+            495,
+            86,
+            831,
+            175
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "• CloCom: This method raised by [16] leverages code clone detection to match code snippets with comment segments, which can’t generate comment segments from any new code snippets. The code snippets must have similar ones in the database, then it can be annotated by existing comment segments. Hence, most code segments would fail to generate comments. CloCom also can be regarded as an information retrieval baseline. ",
+        "bbox": [
+            482,
+            199,
+            862,
+            326
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "• MOSES: This phase-based method [32] is popular in traditional statistical machine translation. It is usually used as a competitive baseline method in machine translation. We train a 4-gram language model using KenLM [33] to use MOSES. ",
+        "bbox": [
+            482,
+            329,
+            862,
+            398
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "• LSTM-NN: This method raised by [5] uses RNN networks to generate texts from source code. The parameters of LSTM-NN are set up according to [5]. ",
+        "bbox": [
+            482,
+            399,
+            862,
+            442
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "• GRU-NN: GRU-NN is a 3-layer RNN structure with GRU cells [34]. Because this model has a contextual attention, it can be regarded as a strong baseline. ",
+        "bbox": [
+            482,
+            442,
+            862,
+            483
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "• Attention Model: [8] proposed a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. The simple model achieves stateof-the-art results on various benchmarks in natural language processing. ",
+        "bbox": [
+            480,
+            485,
+            862,
+            569
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Automatic Evaluation ",
+        "text_level": 1,
+        "bbox": [
+            465,
+            589,
+            613,
+            601
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "We use BLEU [35] and METEOR [36] as our automatic evaluation index. BLEU measures the average n-gram precision on a set of reference sentences. Most machine translation algorithms are evaluated by BLEU scores, which is a popular evaluation index. ",
+        "bbox": [
+            465,
+            611,
+            862,
+            681
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "METEOR is recall-oriented and measures how well the model captures content from the references in the output. [37] argued that METEOR can be applied in any target language, and the translation of code snippets could be regarded as a kind of minority language. In Table 4, we report the factors impacting the METEOR score, e.g., precision, recall, f1, fMean and final score. ",
+        "bbox": [
+            465,
+            682,
+            862,
+            781
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "In Table 3, BLEU scores for each of the methods for translating code snippets into comment segments in C2CGit, and since BLEU is calculated on n-grams, we report the BLEU scores when n takes different values. From Table 3, we can see that the BLEU scores of our approach are relatively high when compared with previous algorithms, which suggests Code Attention is suitable for translating source code into comment. Equipped with our Code Attention module, RNN gets the best results on BLEU-1 to BLEU-4 and surpass the original GRU-NN by a large margin, e.g., about $50 \\%$ on BLEU-4. ",
+        "bbox": [
+            465,
+            783,
+            862,
+            938
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Table 4 shows the METEOR scores of each comments generation methods. The results are similar to those in Table 3. Our approach already outperforms other methods and it significantly improves the performance compared with GRU-NN in all evaluation indexes. Our approach surpasses GRU-NN by 0.027 (over $15 \\%$ ) in Final Score. It suggests that our Code Attention module has an effect in both BLEU and METEOR scores. In METEOR score, MOSES gets the highest recall compared with other methods, because it always generates long sentences and the words in references would have a high probability to appear in the generated comments. In addition, in METEOR, the Final Score of CloCom is higher than MOSES and LSTM-NN, which is different from Table 3 because CloCom can’t generate comments for most code snippets, the length of comments generated by CloCom is very short. The final score of METEOR would consider penalty of length, so CloCom gets a higher score. ",
+        "bbox": [
+            484,
+            939,
+            862,
+            952
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "table",
+        "img_path": "images/8fd90fb355dcf0f02318294d9843fee836093a4c5413291b958d99020a2047ca.jpg",
+        "table_caption": [
+            "Table 4: METEOR of different comments generation models. Precision: the proportion of the matched n-grams out of the total number of n-grams in the evaluated translation; Recall: the proportion of the matched n-grams out of the total number of n-grams in the reference translation; fMean: a weighted combination of Precision and Recall; Final Score: fMean with penalty on short matches. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>Methods</td><td rowspan=1 colspan=1>Precision</td><td rowspan=1 colspan=1>Recall</td><td rowspan=1 colspan=1>fMean</td><td rowspan=1 colspan=1>Final Score</td></tr><tr><td rowspan=1 colspan=1>CloCom</td><td rowspan=1 colspan=1>0.4068</td><td rowspan=1 colspan=1>0.2910</td><td rowspan=1 colspan=1>0.3571</td><td rowspan=1 colspan=1>0.1896</td></tr><tr><td rowspan=1 colspan=1>MOSES</td><td rowspan=1 colspan=1>0.3446</td><td rowspan=1 colspan=1>0.3532</td><td rowspan=1 colspan=1>0.3476</td><td rowspan=1 colspan=1>0.1618</td></tr><tr><td rowspan=1 colspan=1>LSTM-NN</td><td rowspan=1 colspan=1>0.4592</td><td rowspan=1 colspan=1>0.2090</td><td rowspan=1 colspan=1>0.3236</td><td rowspan=1 colspan=1>0.1532</td></tr><tr><td rowspan=1 colspan=1>GRU-NN</td><td rowspan=1 colspan=1>0.5393</td><td rowspan=1 colspan=1>0.2397</td><td rowspan=1 colspan=1>0.3751</td><td rowspan=1 colspan=1>0.1785</td></tr><tr><td rowspan=1 colspan=1>Attention</td><td rowspan=1 colspan=1>0.1369</td><td rowspan=1 colspan=1>0.0986</td><td rowspan=1 colspan=1>0.1205</td><td rowspan=1 colspan=1>0.0513</td></tr><tr><td rowspan=1 colspan=1>Ours</td><td rowspan=1 colspan=1>0.5626</td><td rowspan=1 colspan=1>0.2808</td><td rowspan=1 colspan=1>0.4164</td><td rowspan=1 colspan=1>0.2051</td></tr></table>",
+        "bbox": [
+            80,
+            173,
+            416,
+            261
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            50,
+            285,
+            448,
+            526
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Unexpectedly, Attention model achieves the worst performance among different models in both BLEU and METEOR, which implies that Attention Model might not have the ability to capture specific features of code snippets. We argue that the typical structure of RNN can be necessary to capture the long-term dependency in code which are not fully reflected in the position encoding method from Attention model [8]. ",
+        "bbox": [
+            50,
+            526,
+            447,
+            639
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Human Evaluation ",
+        "text_level": 1,
+        "bbox": [
+            50,
+            656,
+            176,
+            670
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Since automatic metrics do not always agree with actual quality of the results [38], we perform human evaluation. This task refer to reading the Java code snippets and related comments, hence, we employed 5 workers with $^ { 5 + }$ years Java experience to finish this task. The groudtruth would be read meanwhile rating the comments for eliminating prejudice. Each programmer rated the comments independently. The criterion would be shown in the following: ",
+        "bbox": [
+            50,
+            678,
+            447,
+            791
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "• Understandability: we consider the fluency and grammar of generated comments. The programmers would score these comments according to the criterion shown by Table 5. If programmers catch the meaning of code snippets in a short time, the scores of understandability would be high. ",
+        "bbox": [
+            65,
+            797,
+            447,
+            882
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "• Similarity: we should compare the generated comments with human written ones, which suggests what the models learn from the training set and the details are shown in Table 6. This criterion measures the similarity between generated comments and human writ",
+        "bbox": [
+            65,
+            883,
+            447,
+            953
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "table",
+        "img_path": "images/add9379f8cd1627b5ece2593c72ed7bdbcf3af34e0ef1c8f6dd2751ddb3ace0d.jpg",
+        "table_caption": [
+            "Table 5: Criterion of Understandability "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>Level</td><td rowspan=1 colspan=1>Meaning</td></tr><tr><td rowspan=1 colspan=1>5</td><td rowspan=1 colspan=1>Fluent, and grammatically correctly</td></tr><tr><td rowspan=1 colspan=1>4</td><td rowspan=1 colspan=1>Not fluent, and grammatically correctly</td></tr><tr><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1>Grammatically incorrectly, but easy to understand</td></tr><tr><td rowspan=1 colspan=1>2</td><td rowspan=1 colspan=1>Grammatically incorrectly, and hard to understand</td></tr><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>Meaningless</td></tr></table>",
+        "bbox": [
+            463,
+            73,
+            882,
+            165
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "table",
+        "img_path": "images/fa25e9727ccd5593f294426ea74289afd9c1c313057f241aefddf9bad867354c.jpg",
+        "table_caption": [
+            "Table 6: Criterion of similarity between generated comments and human written "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>Level</td><td rowspan=1 colspan=1>Meaning</td></tr><tr><td rowspan=1 colspan=1>5</td><td rowspan=1 colspan=1>Generated comments are easier to understandthan the human written</td></tr><tr><td rowspan=1 colspan=1>4</td><td rowspan=1 colspan=1>The meaning both generated and human writtencomments is same, and the expression is same</td></tr><tr><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1>The meaning both generated andhuman written comments is same,but the expression is different</td></tr><tr><td rowspan=1 colspan=1>2</td><td rowspan=1 colspan=1>The meaning both generated andhuman written comments is different,but the generated commentsexpress some information of code</td></tr><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>The generated comments is meaningless.</td></tr></table>",
+        "bbox": [
+            463,
+            217,
+            867,
+            407
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "ten. ",
+        "bbox": [
+            497,
+            434,
+            524,
+            444
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "• Interpretability: the connection between code and generated comments also should be considered. The detailed criterion is shown in Table 7, which means the generated comments convey the meaning of code snippets. ",
+        "bbox": [
+            480,
+            447,
+            862,
+            517
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "We randomly choose 220 pairs of code snippets and comment segments from the test set, and let programmers rate them according to above three evaluation. The automatic generated comments come from different methods would be shuffled before rating. The results would be shown in the following. ",
+        "bbox": [
+            465,
+            527,
+            862,
+            612
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Table 8 shows the human evaluation of all autogenerated comments methods from three aspects. The three aspects are understandability, similarity and interpretability. Our method gets the best performance in all aspects. It’s suggested that our proposed method has an improvement than other methods in human evaluation. For details, we show the each human evaluation scores in the following. ",
+        "bbox": [
+            465,
+            612,
+            862,
+            711
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Understandability. From Figure 8, we are able to draw several conclusions. Firstly, our method, with maximum ratios of good comments (4 and 5 points), achieves the best results over other four approaches. Secondly, LSTMNN and GRU-NN obtain the most comments in the “gray zones\". The last phenomenon that draws much attention is ColCom has the worst performance in general, although it has 5 more points than GRU-NN and LSTM-NN . The reason might be the ColCom chooses the comments of similar code snippets as generated comments and these comments often have high quality. However, when facing many code snippets, ColCom can’t generate enough appropriate comments. ",
+        "bbox": [
+            465,
+            712,
+            862,
+            895
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Similarity. The results in Figure 9 are nearly the same as those from Figure 8. We can easily tell that the ColCom has the least similar comments with ground-truth ones, which suggests that two code snippets might share many common words (because ColCom usually chooses the comments of similar code snippets) but the meaning of each could be different from the other. ",
+        "bbox": [
+            465,
+            896,
+            862,
+            953
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "table",
+        "img_path": "images/dc8024c2990e956289ae8d9db8f2a68a00cabbbcd612543bc9d98083d432529c.jpg",
+        "table_caption": [
+            "Table 7: Criterion of interpertability "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>Level</td><td rowspan=1 colspan=1>Meaning</td></tr><tr><td rowspan=1 colspan=1>4</td><td rowspan=1 colspan=1>The generated comments show thehigh level meaning in code snippets</td></tr><tr><td rowspan=1 colspan=1>3</td><td rowspan=1 colspan=1>The generated comments only showpartial meaning in code snippets.</td></tr><tr><td rowspan=1 colspan=1>2</td><td rowspan=1 colspan=1>The generated comments only showssome keywords in code snippets</td></tr><tr><td rowspan=1 colspan=1>1</td><td rowspan=1 colspan=1>There doesn&#x27;t exist connection betweencode snippets and generated comments.</td></tr></table>",
+        "bbox": [
+            75,
+            73,
+            423,
+            208
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "table",
+        "img_path": "images/24d9033236ef19243ddf7c184650b727139d801009661016f6c55a9d11b4d981.jpg",
+        "table_caption": [
+            "Table 8: The human evaluation of all methods "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>Methods</td><td rowspan=1 colspan=1>Understandability</td><td rowspan=1 colspan=1>Similarity</td><td rowspan=1 colspan=1>Interpretability</td></tr><tr><td rowspan=1 colspan=1>CloCom</td><td rowspan=1 colspan=1>2.55</td><td rowspan=1 colspan=1>2.00</td><td rowspan=1 colspan=1>1.77</td></tr><tr><td rowspan=1 colspan=1>MOSES</td><td rowspan=1 colspan=1>3.08</td><td rowspan=1 colspan=1>2.84</td><td rowspan=1 colspan=1>2.60</td></tr><tr><td rowspan=1 colspan=1>LSTM-NN</td><td rowspan=1 colspan=1>3.70</td><td rowspan=1 colspan=1>2.96</td><td rowspan=1 colspan=1>2.39</td></tr><tr><td rowspan=1 colspan=1>GRU-NN</td><td rowspan=1 colspan=1>3.60</td><td rowspan=1 colspan=1>3.27</td><td rowspan=1 colspan=1>2.76</td></tr><tr><td rowspan=1 colspan=1>Ours</td><td rowspan=1 colspan=1>4.08</td><td rowspan=1 colspan=1>3.36</td><td rowspan=1 colspan=1>2.98</td></tr></table>",
+        "bbox": [
+            62,
+            247,
+            435,
+            319
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "image",
+        "img_path": "images/2496580e0a665753b6a8ec5f4d751a626b3b1b87ed52008185205a946dd36f69.jpg",
+        "image_caption": [
+            "Fig. 9: Similarity distribution of each auto-generated comments methods "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            475,
+            48,
+            853,
+            273
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "image",
+        "img_path": "images/e8f70f84984322bfef0314d65bdf7135be1c4fa28330807f16278945b43367a1.jpg",
+        "image_caption": [
+            "Fig. 8: Understandability distribution of each auto-generated comments methods "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            62,
+            332,
+            438,
+            557
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "image",
+        "img_path": "images/8a647ebfbd527e689707e23cfc55292f1839dd9ab9cb9f5e99901cc3da3d5dd9.jpg",
+        "image_caption": [
+            "Fig. 10: Interpretability distribution of each auto-generated comments methods "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            475,
+            342,
+            855,
+            568
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            50,
+            639,
+            447,
+            681
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Interpretability. When comes to the Interpretability, we can see that our method performs much better than other ones. The methods based on RNN architecture, e.g. LSTMNN, GRU-NN, our method, much better than other methods. It’s suggested that RNN architecture could catch the deep semantic not only literal meaning in code snippets. ",
+        "bbox": [
+            50,
+            683,
+            447,
+            768
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Practical Comparison ",
+        "text_level": 1,
+        "bbox": [
+            50,
+            788,
+            196,
+            801
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Table 9 shows examples of the output generated by our models and other methods for code snippets in test set. Not all methods can generate meaningful sentences, suggesting the task is difficult and traditional methods having difficulties to achieve this goal. For the two examples, the comments translated by neutral networks are shorter than others and get the core meaning. Our method and GRU-NN regard the code snippets without condition or loop statements as the same. However, the generated comments are different with each other. It suggests that our proposed method can make the translation better though we only modify part of code snippets. MOSES generates longer comments than other methods, because it tends to make the length between source language and target language close, but the translation of source code does not match this assumption. LSTMNN generates fluent sentences, which are shorter but information is less compared with our method. It’s suggested that LSTM-NN can’t catch the whole information and it is not suitable for code from real programming projects. ",
+        "bbox": [
+            50,
+            812,
+            447,
+            953
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            465,
+            651,
+            862,
+            778
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Implementation Details ",
+        "bbox": [
+            465,
+            801,
+            623,
+            814
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "For RNN architecture, as we have discussed above, we employed a 3-layer encoder-decoder architecture with a Code Attention module to model the joint conditional probability of the input and output sequences. ",
+        "bbox": [
+            465,
+            825,
+            862,
+            881
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Adaptive learning rate. The initial value of learning rate is 0.5. When step loss doesn’t decrease after 3k iterations, the learning rate multiplies decay coefficient 0.99. Reducing the learning rate during the training helps avoid missing the lowest point. Meanwhile, large initial value can speed up the learning process. ",
+        "bbox": [
+            465,
+            883,
+            862,
+            953
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "table",
+        "img_path": "images/4dc89fbfd0da0e81e4a0456d68b55bda3b930f696811b400a5bebe9114407b1c.jpg",
+        "table_caption": [
+            "Table 9: Two examples of code comments generated by different translation models. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"5\">code</td><td></td><td>private void createResolutionEditor(Composite control,</td></tr><tr><td>1 2</td><td>IUpdatableControl updatable) {</td></tr><tr><td></td><td></td></tr><tr><td>3</td><td>screenSizeGroup = new Group(control, SWT.NoNE);</td></tr><tr><td>4</td><td>screenSizeGroup.setText(&quot;Screen Size&quot;);</td></tr><tr><td></td><td>5</td><td>screenSizeGroup.setLayoutData(new GridData(GridData.FILL_HORIZONTAL));</td></tr><tr><td>GroundTruth</td><td></td><td>the property key for horizontal screen size</td></tr><tr><td>ColCom</td><td></td><td>None</td></tr><tr><td>Moses</td><td></td><td>create a new resolution control param control the control segment the segment size group specified screen size group for the current screen size the size of the data is available</td></tr><tr><td>LSTM-NN</td><td></td><td>creates a new instance of a size</td></tr><tr><td>GRU-NN</td><td></td><td>the default button for the control</td></tr><tr><td>Attention</td><td></td><td>param the viewer to select the tree param the total number of elements to select</td></tr><tr><td>Ours</td><td></td><td>create the control with the given size</td></tr><tr><td rowspan=\"4\">code GroundTruth</td><td>1</td><td>while (it.hasNext()) {</td></tr><tr><td>2</td><td>EnsembleLibraryModel currentModel = (EnsembleLibraryModel) it.next();</td></tr><tr><td>3 }</td><td>m_ListModelsPanel.addModel(currentModel);</td></tr><tr><td>4</td><td>gets the model list file that holds the list of models in the ensemble library</td></tr><tr><td>ColCom</td><td></td><td>the library of models from which we can select our ensemble usually loaded from</td></tr><tr><td>Moses</td><td></td><td>a model list file mlf or model xml using the 1 command line option adds a library model from the ensemble library that the list of models in the model</td></tr><tr><td>LSTM-NN</td><td></td><td>get the current model</td></tr><tr><td>GRU-NN</td><td></td><td>this is the list of models from the list in the gui</td></tr><tr><td>Attention</td><td></td><td>the predicted value as a number regression object for every class attribute</td></tr><tr><td>Ours</td><td></td><td></td></tr><tr><td></td><td></td><td>gets the list file that holds the list of models in the ensemble library</td></tr></table>",
+        "bbox": [
+            48,
+            74,
+            904,
+            439
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            50,
+            464,
+            252,
+            478
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Choose the right buckets. We use buckets to deal with code snippets with various lengths. To get a good efficiency, we put every code snippet and its comment to a specific bucket, e.g., for a bucket sized (40, 15), the code snippet in it should be at most 40 words in length and its comment should be at most 15 words in length. In our experiments, we found that bucket size has a great effect on the final result, and we employed a 10-fold cross-validation method to choose a good bucket size. After cross-validation, we choose the following buckets, (40, 15), (55, 20), (70, 40), (220, 60). ",
+        "bbox": [
+            50,
+            480,
+            448,
+            636
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "We use stochastic gradient descent to optimize the network. In this network, the embedding size is 512 and the hidden unit size is 1024. Also, we have tried different sets of parameters. For example, 3-layer RNN is better than 2- layer and 4-layer RNNs, the 2-layer model has low scores while the 4-layer modelâA˘ Zs score is only slightly higher ´ than that of the 3-layer one, but its running time is much longer. Finally, it takes three days and about 90,000 iterations to finish the training stage of our model on one NVIDIA K80 GPU. We employ beam search in the inference. ",
+        "bbox": [
+            50,
+            638,
+            448,
+            791
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "would conform to the functional semantics of program, by explicitly modeling the structure of the code. In the future, we plan to implement AST tree into Code Attention and explore its effectiveness in more programming language. ",
+        "bbox": [
+            465,
+            463,
+            863,
+            520
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "7 Conclusion ",
+        "text_level": 1,
+        "bbox": [
+            50,
+            826,
+            178,
+            841
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "In this paper, we propose an attention module named Code Attention to utilize the specific features of code snippets, like identifiers and symbols. Code Attention contains 3 steps: Identifier Ordering, Token Encoding and Global Attention. Equipped with RNN, our model outperforms competitive baselines and gets the best performance on various metrics. Our results suggest generated comments ",
+        "bbox": [
+            50,
+            853,
+            448,
+            953
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "References ",
+        "text_level": 1,
+        "bbox": [
+            50,
+            91,
+            146,
+            107
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "1. Beat Fluri, Michael Wursch, and Harald C Gall. Do code and comments co-evolve? on the relation between source code and comment changes. In WCRE, pages 70–79. IEEE, 2007.   \n2. Giriprasad Sridhara, Emily Hill, Divya Muppaneni, Lori Pollock, and K Vijay-Shanker. Towards automatically generating summary comments for java methods. In ASE, pages 43–52, 2010.   \n3. Sarah Rastkar, Gail C Murphy, and Gabriel Murray. Summarizing software artifacts: a case study of bug reports. In ICSE, pages 505–514. ACM, 2010.   \n4. Paul W McBurney and Collin McMillan. Automatic documentation generation via source code summarization of method context. In ICPC, pages 279–290. ACM, 2014.   \n5. Iyer Srinivasan, Konstas Ioannis, Cheung Alvin, and Zettlemoyer Luke. Summarizing source code using a neural attention model. In ACL, 2016.   \n6. Miltiadis Allamanis, Hao Peng, and Charles Sutton. A Convolutional Attention Network for Extreme Summarization of Source Code. In ICML, 2016.   \n7. Xuan Huo, Ming Li, and Zhi-Hua Zhou. Learning unified features from natural and programming languages for locating buggy source codes. In IJCAI, pages 1606–1612. IEEE, 2016.   \n8. Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, and Illia Polosukhin. Attention is All You Need. In arXiv preprint arXiv:1706.03762, 2017.   \n9. Giriprasad Sridhara, Lori Pollock, and K Vijay-Shanker. Automatically detecting and describing high level actions within methods. In ICSE, pages 101–110, 2011.   \n10. Dana Movshovitz-Attias and William W. Cohen. Natural language models for predicting programming comments. In ACL, pages 35–40, 2013.   \n11. Sonia Haiduc, Jairo Aponte, Laura Moreno, and Andrian Marcus. On the use of automated text summarization techniques for summarizing source code. In WCRE, pages 35– 44. IEEE, 2010.   \n12. Brian P Eddy, Jeffrey A Robinson, Nicholas A Kraft, and Jeffrey C Carver. Evaluating source code summarization techniques: Replication and expansion. In ICPC, pages 13– 22. IEEE, 2013.   \n13. Paige Rodeghero, Collin McMillan, Paul W McBurney, Nigel Bosch, and Sidney D’Mello. Improving automated source code summarization via an eye-tracking study of programmers. In ICSE, pages 390–401. ACM, 2014.   \n14. Robert Dyer, Hoan Anh Nguyen, Hridesh Rajan, and Tien N. Nguyen. Boa: A language and infrastructure for analyzing ultra-large-scale software repositories. In 35th International Conference on Software Engineering, ICSE 2013, pages 422–431, May 2013.   \n15. Edmund Wong, Jinqiu Yang, and Lin Tan. Autocomment: Mining question and answer sites for automatic comment generation. In ASE, pages 562–567, 2013.   \n16. Edmund Wong, Taiyue Liu, and Lin Tan. Clocom: Mining existing source code for automatic comment generation. In ICSA, pages 380–389. IEEE, 2015.   \n17. Peter E Brown, Stephen A. Della Pietra, Vincent J. Della Pietra, and Robert L. Mercer. The mathematics of statistical machine translation: Parameter estimation. Computational linguistics, 19(2):263–311, 1993.   \n18. Philipp Koehn, Franz Josef Och, and Daniel Marcu. Statistical phrase-based translation. In ACL, pages 48–54. ACL, 2003. rahman Mohamed, Navdeep Jaitly, Andrew Senior, Vincent Vanhoucke, Patrick Nguyen, Tara N. Sainath, and Brian Kingsbury. Deep neural networks for acoustic modeling in speech recognition. IEEE Signal Processing Magazine, 29(6):82–97, 2012.   \n20. Alex Krizhevsky, Ilya Sutskever, and Geoffrey Hinton. ImageNet classification with deep convolutional neural networks. In NIPS, 2014.   \n21. Ilya Sutskever, Oriol Vinyals, and Quoc V. Le. Sequence to sequence learning with neural networks. In NIPS, 2014.   \n22. Xinyou Yin, JAN Goudriaan, Egbert A Lantinga, JAN Vos, and Huub J Spiertz. A flexible sigmoid function of determinate growth. Annals of botany, 91(3):361–371, 2003.   \n23. Sepp Hochreiter and Jurgen Schmidhuber. Long short-term memory. In Neural Computation, volume 9, pages 1735 – 1780, 1997.   \n24. Kyunghyun Cho, Dzmitry Bahdanau, Fethi Bougares, Holger Schwenk, and Yoshua Bengio. Learning phrase representations using rnn encoderâA ¸Sdecoder for statistical ma- ˘ chine translation. In EMNLP, pages 1724–1734, 2014.   \n25. Kyunghyun Cho, Bart van Merrienboer, Dzmitry Bahdanau, and Yoshua Bengio. On the properties of neural machine translation: Encoder-decoder approaches. In arXiv preprint arXiv:1409.1259, 2014.   \n26. Junyoung Chung, Caglar Gulcehre, KyungHyun Cho, and Yoshua Bengio. Empirical Evaluation of Gated Recurrent Neural Networks on Sequence Modeling. In arXiv preprint arXiv:1412.3555, 2014.   \n27. Kyunghyun Cho, Dzmitry Bahdanau, Fethi Bougares, Holger Schwenk, and Yoshua Bengio. Learning phrase representations using RNN encoder-decoder for statistical machine translation. In EMNLP, 2014.   \n28. Yusuke Oda, Hiroyuki Fudaba, Graham Neubig, Hideaki Hata, Sakriani Sakti, Tomoki Toda, and Satoshi Nakamura. Learning to generate pseudo-code from source code using statistical machine translation (t). In ASE, pages 574–584. IEEE, 2015.   \n29. Iulian Neamtiu, Jeffrey S Foster, and Michael Hicks. Understanding source code evolution using abstract syntax tree matching. ACM SIGSOFT Software Engineering Notes, 30(4):1–5, 2005.   \n30. Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua Bengio. Neural machine translation by jointly learning to align and translate. arXiv preprint arXiv:1409.0473, 2014.   \n31. Oriol Vinyals, Łukasz Kaiser, Terry Koo, Slav Petrov, Ilya Sutskever, and Geoffrey Hinton. Grammar as a foreign language. In NIPS, pages 2773–2781, 2015.   \n32. Philipp Koehn, Hieu Hoang, Alexandra Birch, Chris Callison-Burch, Marcello Federico, Nicola Bertoldi, Brooke Cowan, Wade Shen, Christine Moran, Richard Zens, et al. Moses: Open source toolkit for statistical machine translation. In ACL, pages 177–180, 2007.   \n33. Kenneth Heafield. Kenlm: Faster and smaller language model queries. In Proceedings of the 6th Workshop on Statistical Machine Translation, pages 187–197. Association for Computational Linguistics, 2011.   \n34. Kyunghyun Cho, Bart Van Merriënboer, Caglar Gulcehre, Dzmitry Bahdanau, Fethi Bougares, Holger Schwenk, and Yoshua Bengio. Learning phrase representations using rnn encoder-decoder for statistical machine translation. arXiv preprint arXiv:1406.1078, 2014.   \n35. Kishore Papineni, Salim Roukos, Todd Ward, and Wei-Jing Zhu. Bleu: a method for automatic evaluation of machine translation. In ACL, pages 311–318, 2002.   \n36. Satanjeev Banerjee and Alon Lavie. Meteor: An automatic metric for mt evaluation with improved correlation with human judgments. volume 29, pages 65–72, 2005.   \n37. Michael Denkowski and Alon Lavie. Meteor universal: Lan",
+        "bbox": [
+            57,
+            107,
+            450,
+            952
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            468,
+            71,
+            863,
+            950
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "guage specific translation evaluation for any target language. In Proceedings of the 9th Workshop on Statistical Machine Translation. Citeseer, 2014. 38. Amanda Stent, Matthew Marge, and Mohit Singhai. Eval",
+        "bbox": [
+            57,
+            52,
+            447,
+            104
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "uating evaluation methods for generation in the presence of variation. In Proceedings of the 6th International Conference on Intelligent Text Processing and Computational Linguistics, pages 341–351. Springer, 2005. ",
+        "bbox": [
+            470,
+            52,
+            863,
+            103
+        ],
+        "page_idx": 11
+    }
+]

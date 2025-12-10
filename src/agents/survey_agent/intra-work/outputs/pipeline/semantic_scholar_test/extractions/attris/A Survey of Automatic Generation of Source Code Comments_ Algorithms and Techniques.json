@@ -1,0 +1,282 @@
+{
+    "extraction": {
+        "title": {
+            "value": "A SURVEY OF AUTOMATIC GENERATION OF SOURCE CODECOMMENTS: ALGORITHMS AND TECHNIQUES",
+            "type": "string",
+            "unit": null,
+            "evidence": "A SURVEY OF AUTOMATIC GENERATION OF SOURCE CODECOMMENTS: ALGORITHMS AND TECHNIQUES",
+            "provenance": {
+                "section_header": "Title",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "authors": {
+            "value": [
+                "Xiaotao Song",
+                "Hailong Sun",
+                "Xu Wang",
+                "Jiafei Yan"
+            ],
+            "type": "list",
+            "unit": null,
+            "evidence": "Xiaotao Song School of Software Taiyuan University of Technology, China songxiaotao@tyut.edu.cn\nHailong Sun\u2217, Xu Wang and Jiafei Yan SKLSDE Lab, School of Computer Science and Engineering Beijing Advanced Innovation Center for Big Data and Brain Computing Beihang University, Beijing, China sunhl@buaa.edu.cn",
+            "provenance": {
+                "section_header": "Authors",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "year": {
+            "value": 2019,
+            "type": "integer",
+            "unit": null,
+            "evidence": "July 26, 2019",
+            "provenance": {
+                "section_header": "Date",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "abstract": {
+            "value": "As an integral part of source code files, code comments help improve program readability and comprehension. However, developers sometimes do not comment on their program code adequately due to the incurred extra efforts, lack of relevant knowledge, unawareness of the importance of code commenting or some other factors. As a result, code comments can be inadequate, absent or even mismatched with source code, which affects the understanding, reusing and the maintenance of software. To solve these problems of code comments, researchers have been concerned with generating code comments automatically. In this work, we aim at conducting a survey of automatic code commenting researches. First, we generally analyze the challenges and research framework of automatic generation of program comments. Second, we present the classification of representative algorithms, the design principles, strengths and weaknesses of each category of algorithms. Meanwhile, we also provide an overview of the quality assessment of the generated comments. Finally, we summarize some future directions for advancing the techniques of automatic generation of code comments and the quality assessment of comments.",
+            "type": "string",
+            "unit": null,
+            "evidence": "As an integral part of source code files, code comments help improve program readability and comprehension. However, developers sometimes do not comment on their program code adequately due to the incurred extra efforts, lack of relevant knowledge, unawareness of the importance of code commenting or some other factors. As a result, code comments can be inadequate, absent or even mismatched with source code, which affects the understanding, reusing and the maintenance of software. To solve these problems of code comments, researchers have been concerned with generating code comments automatically. In this work, we aim at conducting a survey of automatic code commenting researches. First, we generally analyze the challenges and research framework of automatic generation of program comments. Second, we present the classification of representative algorithms, the design principles, strengths and weaknesses of each category of algorithms. Meanwhile, we also provide an overview of the quality assessment of the generated comments. Finally, we summarize some future directions for advancing the techniques of automatic generation of code comments and the quality assessment of comments.",
+            "provenance": {
+                "section_header": "Abstract",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "doi": {
+            "value": null,
+            "type": "string",
+            "unit": null,
+            "evidence": null,
+            "provenance": {
+                "section_header": null,
+                "page": null
+            },
+            "notes": "No DOI provided in the paper."
+        },
+        "venue": {
+            "value": null,
+            "type": "string",
+            "unit": null,
+            "evidence": null,
+            "provenance": {
+                "section_header": null,
+                "page": null
+            },
+            "notes": "No specific publication venue mentioned."
+        },
+        "problem_statement": {
+            "description": {
+                "value": "The problem addressed is the inadequacy, absence, or mismatch of code comments in software development, which affects program readability, comprehension, and maintenance. Developers often neglect commenting due to various reasons including extra effort, lack of knowledge, and unawareness of importance.",
+                "type": "string",
+                "unit": null,
+                "evidence": "However, developers sometimes do not comment on their program code adequately due to the incurred extra efforts, lack of relevant knowledge, unawareness of the importance of code commenting or some other factors.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "challenges": {
+                "value": [
+                    "Inadequate code comments due to developer neglect.",
+                    "Mismatch between comments and actual code functionality.",
+                    "Lack of a unified dataset for validating commenting algorithms.",
+                    "Need for effective quality assessment metrics for generated comments."
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "As a result, code comments can be inadequate, absent or even mismatched with source code, which affects the understanding, reusing and the maintenance of software.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            }
+        },
+        "methodology": {
+            "framework": {
+                "value": "The research framework consists of three main parts: data preparation for comment generation, representation of source code to capture its structure and semantics, and text generation to create natural language comments based on extracted information.",
+                "type": "string",
+                "unit": null,
+                "evidence": "The generation framework of code commenting is mainly composed of three parts. The first one is data preparation which prepares data for the commenting system. The second part is the representation of source code, which aims at capturing the structure and semantics of source code... The third part is text generation, which is responsible for generating natural language sentences based on the information extracted from source code.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "algorithms": {
+                "value": [
+                    "Information retrieval based algorithms",
+                    "Deep neural networks based algorithms",
+                    "Other automatic code comment generation algorithms"
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "Existing algorithms mainly fall into three categories: information retrieval based algorithms, deep neural networks based algorithms and other automatic code comment generation algorithms.",
+                "provenance": {
+                    "section_header": "The algorithms of AUTOMATIC GENERATION of code comments",
+                    "page": 1
+                },
+                "notes": "These categories highlight the diversity of approaches in automatic code commenting."
+            },
+            "data_collection": {
+                "sources": {
+                    "value": [
+                        "Open source projects from GitHub",
+                        "Q&A sites like Stack Overflow",
+                        "Developer communications and discussions"
+                    ],
+                    "type": "list",
+                    "unit": null,
+                    "evidence": "These datasets come from three sources: open source projects from GitHub software repositories, Q&A sites in Stack Overflow, and communication and discussion information, like emails, among developers.",
+                    "provenance": {
+                        "section_header": "Quality Evaluation Criteria of Code Comments",
+                        "page": 1
+                    },
+                    "notes": ""
+                },
+                "techniques": {
+                    "value": [
+                        "Crawling data from open-source communities",
+                        "Downloading code and comments from repositories",
+                        "Extracting rules needed for comment generation"
+                    ],
+                    "type": "list",
+                    "unit": null,
+                    "evidence": "In order to collect these data, researchers often crawl or download them from open source communities or websites.",
+                    "provenance": {
+                        "section_header": "Challenges of Automatic Code Commenting and Research Framework",
+                        "page": 1
+                    },
+                    "notes": ""
+                }
+            }
+        },
+        "experiments": {
+            "setup": {
+                "value": "The experiments are designed to validate the effectiveness of various algorithms for automatic code commenting by comparing their performance on different datasets.",
+                "type": "string",
+                "unit": null,
+                "evidence": "The task of assessment for quality of code comments involves the comparison and verification of various algorithms.",
+                "provenance": {
+                    "section_header": "Overview of automatic generation of code comments",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "evaluation_metrics": {
+                "value": [
+                    "Human assessment",
+                    "Automatic assessment using metrics like BLEU and METEOR"
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "There are two popular evaluation methods including human assessment and automatic assessment, which will be discussed in Section 4.",
+                "provenance": {
+                    "section_header": "Challenges of Automatic Code Commenting",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "results": {
+                "findings": {
+                    "value": "The effectiveness of automatic code commenting algorithms varies significantly based on the underlying techniques and datasets used, with deep learning methods showing promising improvements.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Our survey indicates that most of code commenting systems developed from 2010 to 2014 exploit information retrieval techniques, and most of code commenting systems developed in the last five years mainly adopt deep neural network techniques.",
+                    "provenance": {
+                        "section_header": "Trends of the development of code commenting techniques",
+                        "page": 1
+                    },
+                    "notes": ""
+                },
+                "comparisons": {
+                    "value": [
+                        "Comparison of algorithm performance across different datasets.",
+                        "Evaluation of comment quality metrics against human assessments."
+                    ],
+                    "type": "list",
+                    "unit": null,
+                    "evidence": "The lack of appropriate quality assessment metrics will lead to the absence of a quantitative comparison that highlights the strengths and weaknesses of each commenting algorithm.",
+                    "provenance": {
+                        "section_header": "Quality Evaluation Criteria of Code Comments",
+                        "page": 1
+                    },
+                    "notes": ""
+                }
+            }
+        },
+        "discussion": {
+            "implications": {
+                "value": "The findings suggest that while significant progress has been made in automatic code commenting, challenges remain in ensuring the quality and relevance of generated comments, which impacts software maintainability and developer productivity.",
+                "type": "string",
+                "unit": null,
+                "evidence": "However, generating satisfying code comments remains a challenging issue. The fundamental reason lies in the fact that programming languages are different from natural languages in nature.",
+                "provenance": {
+                    "section_header": "Challenges of Automatic Code Commenting",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "future_work": {
+                "value": [
+                    "Exploring the synergy between deep neural networks and other models.",
+                    "Fusion of different source code models for better representation.",
+                    "Designing intelligent automatic comment generation systems for various scenarios.",
+                    "Unification of test datasets and comment quality assessment models."
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "In recent years, one of the representative efforts is to utilize deep neural networks to solve the problem of automatic comment generation, and some promising results have been obtained. However, there still exist some drawbacks such as low accuracy of generated comments and insufficient generated comments on the whole.",
+                "provenance": {
+                    "section_header": "Future Directions",
+                    "page": 1
+                },
+                "notes": ""
+            }
+        },
+        "reproducibility_metadata": {
+            "code_availability": {
+                "value": null,
+                "type": "boolean",
+                "unit": null,
+                "evidence": null,
+                "provenance": {
+                    "section_header": null,
+                    "page": null
+                },
+                "notes": "No information about code availability provided."
+            },
+            "data_availability": {
+                "value": null,
+                "type": "boolean",
+                "unit": null,
+                "evidence": null,
+                "provenance": {
+                    "section_header": null,
+                    "page": null
+                },
+                "notes": "No information about data availability provided."
+            },
+            "license": {
+                "value": null,
+                "type": "string",
+                "unit": null,
+                "evidence": null,
+                "provenance": {
+                    "section_header": null,
+                    "page": null
+                },
+                "notes": "No license information provided."
+            }
+        }
+    }
+}

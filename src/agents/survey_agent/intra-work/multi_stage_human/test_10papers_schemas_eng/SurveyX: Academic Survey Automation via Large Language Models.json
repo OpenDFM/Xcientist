@@ -1,0 +1,87 @@
+{
+  "schema_proposal": {
+    "title": {
+      "data_type": "string",
+      "description": "Paper Title",
+      "rationale": "Basic information identifying the paper"
+    },
+    "insights": {
+      "data_type": "list",
+      "description": "Research insights and findings",
+      "rationale": "Extract key research conclusions and value points"
+    },
+    "article_introduction": {
+      "data_type": "object",
+      "description": "Article Introduction Section",
+      "rationale": "Overview of the research background, contributions, and core ideas.",
+      "sub_keys": {
+        "research_background": {
+          "data_type": "string",
+          "description": "Research Background Description",
+          "rationale": "Understanding the origin and significance of the research question"
+        },
+        "main_contributions": {
+          "data_type": "string",
+          "description": "Summary of Key Contributions",
+          "rationale": "Identifying the core value and innovations of the paper"
+        },
+        "core_approach": {
+          "data_type": "string",
+          "description": "Core Idea Explanation",
+          "rationale": "Understanding the basic framework of methodology"
+        }
+      }
+    },
+    "methods": {
+      "data_type": "object",
+      "description": "Detailed description of key solutions",
+      "rationale": "Extract specific technical implementations and method details.",
+      "sub_keys": {
+        "preparation_stage": {
+          "data_type": "object",
+          "description": "Preparation Phase Technical Plan",
+          "rationale": "Documenting literature search and preprocessing methods",
+          "sub_keys": {
+            "reference_acquisition": {
+              "data_type": "string",
+              "description": "参考文献获取方法",
+              "rationale": "理解数据源和获取策略"
+            },
+            "retrieval_algorithms": {
+              "data_type": "string",
+              "description": "检索算法细节",
+              "rationale": "提取关键技术实现"
+            },
+            "reference_preprocessing": {
+              "data_type": "string",
+              "description": "参考文献预处理方法",
+              "rationale": "记录信息提取和结构化技术"
+            }
+          }
+        },
+        "generation_stage": {
+          "data_type": "object",
+          "description": "Generation Phase Technical Scheme",
+          "rationale": "Content Extraction and Optimization Methods",
+          "sub_keys": {
+            "outline_generation": {
+              "data_type": "string",
+              "description": "大纲生成方法",
+              "rationale": "记录大纲优化技术"
+            },
+            "content_generation": {
+              "data_type": "string",
+              "description": "内容生成方法",
+              "rationale": "提取正文生成策略"
+            },
+            "post_optimization": {
+              "data_type": "string",
+              "description": "后期优化模块",
+              "rationale": "记录重写和图表生成技术"
+            }
+          }
+        }
+      }
+    }
+  }
+}

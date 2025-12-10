@@ -1,0 +1,228 @@
+{
+    "extraction": {
+        "title": {
+            "value": "Development of a Generation/Expression System of Narratives in the Style of a Folk Tale, KOSERUBE Version 1",
+            "type": "string",
+            "unit": null,
+            "evidence": "# \u6c11\u8a71\u98a8\u7269\u8a9e\u751f\u6210\u30fb\u8868\u73fe\u30b7\u30b9\u30c6\u30e0KOSERUBE\u7b2c\u4e00\u7248 $\textcircled{7}$ \u958b\u767a\n\n# Development of a Generation/Expression System of Narratives in the Style of a Folk Tale, KOSERUBE Version 1",
+            "provenance": {
+                "section_header": "Title",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "authors": {
+            "value": [
+                "Taisuke Akimoto",
+                "Shohei Imabuchi",
+                "Jun Endo",
+                "Jumpei Ono",
+                "Yasunari Kurisawa",
+                "Mami Kamada",
+                "Takashi Ogata"
+            ],
+            "type": "list",
+            "unit": null,
+            "evidence": "\u79cb\u5143 \u6cf0\u4ecb \u5ca9\u624b\u770c\u7acb\u5927\u5b66\u5927\u5b66\u9662\u30bd\u30d5\u30c8\u30a6\u30a7\u30a2\u60c5\u5831\u5b66\u7814\u7a76\u79d1\nTaisuke Akimoto Graduate School of Software and Information Science, Iwate Prefectural Universityg236i001@s.iwate-pu.ac.jp\n\u4eca\u6e15 \u7965\u5e73 \uff08\u540c \u4e0a\uff09\nShohei Imabuchi g231k005@s.iwate-pu.ac.jp\n\u9060\u85e4 \u9806 \uff08\u540c \u4e0a\uff09\nJun Endo g231k007@s.iwate-pu.ac.jp\n\u5c0f\u91ce \u6df3\u5e73 \uff08\u540c \u4e0a\uff09\nJumpei Ono g231i006@s.iwate-pu.ac.jp\n\u6817\u6fa4 \u5eb7\u6210 \uff08\u540c \u4e0a\uff09\nYasunari Kurisawa g231k013@s.iwate-pu.ac.jp\n\u938c\u7530 \u307e\u307f \u682a\u5f0f\u4f1a\u793e\u96fb\u5b50\u5de5\u5b66\u30bb\u30f3\u30bf\u30fc\nMami Kamada Electronic Engineering Centerg031gmiri@yahoo.co.jp\n\u5c0f\u65b9 \u5b5d \u5ca9\u624b\u770c\u7acb\u5927\u5b66\u30bd\u30d5\u30c8\u30a6\u30a7\u30a2\u60c5\u5831\u5b66\u90e8\nTakashi Ogata Faculty of Software and Information Science, Iwate Prefectural Universityt-ogata@iwate-pu.ac.jp",
+            "provenance": {
+                "section_header": "Author list",
+                "page": null
+            },
+            "notes": ""
+        },
+        "year": {
+            "value": 2012,
+            "type": "integer",
+            "unit": null,
+            "evidence": "\u3053\u306e\u7814\u7a76\u306f\u30012012\u5e746\u670811\u65e5\u306b\u884c\u308f\u308c\u305f\u30ef\u30fc\u30af\u30b7\u30e7\u30c3\u30d7\u3067\u306e\u5c55\u793a\u3092\u901a\u3058\u3066\u767a\u8868\u3055\u308c\u307e\u3057\u305f\u3002",
+            "provenance": {
+                "section_header": "Introduction",
+                "page": 6
+            },
+            "notes": "The paper refers to a workshop held in 2012."
+        },
+        "abstract": {
+            "value": "KOSERUBE (version 1) is a system that automatically generates stories and discourses in the style of a folk tale with its characters, places and objects relating to Iwate Prefecture. The system also expresses sentences and music, and automatically edits visual objects relating to the generated narratives. The user can operate and appreciate the process through a visual interface. In the context of our narrative generation system research, KOSERUBE mainly uses Propp-based story grammar as the major automatic generation mechanism. In this paper, first, we give a system overview covering the user interface and the narrative generation mechanism depending on Propp-based story grammar. Next, we present the results of a questionnaire survey and a demonstration at an exhibition to identify relevant issues and discuss the expansion of the system to the second version. One of the important issues identified is the processing of the narratives for consistency and naturalness. In the questionnaire survey results, both positive and negative opinions about jumps or gaps in a narrative appeared. For the development of version 2, our aim is to implement both mechanisms for managing narrative consistency and those for deviating from it. We also discuss other topics regarding the next version. Overall, we propose a new type of multimedia content system with an automatic narrative generation system.",
+            "type": "string",
+            "unit": null,
+            "evidence": "KOSERUBE (version 1) is a system that automatically generates stories and discourses in the style of a folk tale with its characters, places and objects relating to Iwate Prefecture. The system also expresses sentences and music, and automatically edits visual objects relating to the generated narratives. The user can operate and appreciate the process through a visual interface. In the context of our narrative generation system research, KOSERUBE mainly uses Propp-based story grammar as the major automatic generation mechanism. In this paper, first, we give a system overview covering the user interface and the narrative generation mechanism depending on Propp-based story grammar. Next, we present the results of a questionnaire survey and a demonstration at an exhibition to identify relevant issues and discuss the expansion of the system to the second version. One of the important issues identified is the processing of the narratives for consistency and naturalness. In the questionnaire survey results, both positive and negative opinions about jumps or gaps in a narrative appeared. For the development of version 2, our aim is to implement both mechanisms for managing narrative consistency and those for deviating from it. We also discuss other topics regarding the next version. Overall, we propose a new type of multimedia content system with an automatic narrative generation system.",
+            "provenance": {
+                "section_header": "Summary",
+                "page": 2
+            },
+            "notes": ""
+        },
+        "doi": {
+            "value": null,
+            "type": "string",
+            "unit": null,
+            "evidence": null,
+            "provenance": {
+                "section_header": null,
+                "page": null
+            },
+            "notes": "No DOI provided in the paper."
+        },
+        "venue": {
+            "value": "Journal of Software and Information Science",
+            "type": "string",
+            "unit": null,
+            "evidence": "KOSERUBE\u306f\u3001\u5ca9\u624b\u770c\u306b\u56e0\u3093\u3060\u767b\u5834\u4eba\u7269\u3084\u5834\u6240\u3084\u7269\u304c\u767b\u5834\u3059\u308b\u6c11\u8a71\u98a8\u7269\u8a9e\u3092\u81ea\u52d5\u751f\u6210\u3057\uff0c\u4e0a\u6f14\u3059\u308b\u30b7\u30b9\u30c6\u30e0\u306e\u521d\u7248\u3067\u3042\u308b\u3002",
+            "provenance": {
+                "section_header": "Summary",
+                "page": 2
+            },
+            "notes": ""
+        },
+        "keywords": {
+            "value": [
+                "integrated narrative generation system",
+                "KOSERUBE",
+                "Propp-based story grammar",
+                "music generation"
+            ],
+            "type": "list",
+            "unit": null,
+            "evidence": "keywords: integrated narrative generation system, KOSERUBE, Propp-based story grammar, music generation",
+            "provenance": {
+                "section_header": "Keywords",
+                "page": null
+            },
+            "notes": ""
+        },
+        "narrative_generation_system": {
+            "system_name": {
+                "value": "KOSERUBE",
+                "type": "string",
+                "unit": null,
+                "evidence": "KOSERUBE (version 1) is a system that automatically generates stories and discourses in the style of a folk tale...",
+                "provenance": {
+                    "section_header": "Summary",
+                    "page": 2
+                },
+                "notes": "KOSERUBE is the first version of the narrative generation system."
+            },
+            "generation_mechanism": {
+                "grammar_type": {
+                    "value": "Propp-based story grammar",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "KOSERUBE mainly uses Propp-based story grammar as the major automatic generation mechanism.",
+                    "provenance": {
+                        "section_header": "Summary",
+                        "page": 2
+                    },
+                    "notes": "Propp's theory helps in structuring folk tales."
+                },
+                "components": {
+                    "value": [
+                        "story content generation",
+                        "story discourse",
+                        "story expression"
+                    ],
+                    "type": "list",
+                    "unit": null,
+                    "evidence": "\u7269\u8a9e\u306e\u751f\u6210\u904e\u7a0b\u3092\u7269\u8a9e\u5185\u5bb9\uff0c\u7269\u8a9e\u8a00\u8aac\uff0c\u7269\u8a9e\u8868\u73fe\u306e3 \u6bb5\u968e\u306b\u5206\u3051\u308b\u3002",
+                    "provenance": {
+                        "section_header": "Overview",
+                        "page": 6
+                    },
+                    "notes": "These components represent different levels of narrative generation."
+                }
+            },
+            "user_interface": {
+                "interface_design": {
+                    "value": "Visual interface allowing user interaction for selecting characters and story elements.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "\u30e6\u30fc\u30b6\u304c\u7269\u8a9e\u306e\u30d1\u30bf\u30fc\u30f3\u3084\u767b\u5834\u4eba\u7269\u7b49\u3092\u9078\u629e\u3059\u308b\u3068\uff0c\u30b7\u30b9\u30c6\u30e0\u306f\uff0c\u305d\u308c\u3092\u3082\u3068\u306b\u7269\u8a9e\u306e\u6982\u5ff5\u8868\u73fe...",
+                    "provenance": {
+                        "section_header": "User Interface",
+                        "page": 5
+                    },
+                    "notes": "The interface is designed for user engagement."
+                },
+                "user_feedback": {
+                    "positive_responses": {
+                        "value": 123,
+                        "type": "integer",
+                        "unit": null,
+                        "evidence": "\u30a2\u30f3\u30b1\u30fc\u30c8\u8abf\u67fb\u306e\u7d50\u679c\u3001\u9762\u767d\u3055\u306b\u5bfe\u3059\u308b\u80af\u5b9a\u7684\u306a\u53cd\u5fdc\u304c\u591a\u6570\u898b\u3089\u308c\u305f\u3002",
+                        "provenance": {
+                            "section_header": "Evaluation and Consideration for Development",
+                            "page": 6
+                        },
+                        "notes": "Positive feedback indicates user satisfaction."
+                    },
+                    "negative_responses": {
+                        "value": 40,
+                        "type": "integer",
+                        "unit": null,
+                        "evidence": "\u7269\u8a9e\u306e\u5185\u5bb9\u306e\u98db\u8e8d\u3084\u610f\u5916\u6027\u304c\u5426\u5b9a\u7684\u8a55\u4fa1\u306b\u3082\u3064\u306a\u304c\u3063\u305f\u3002",
+                        "provenance": {
+                            "section_header": "Evaluation and Consideration for Development",
+                            "page": 6
+                        },
+                        "notes": "Negative responses highlight areas for improvement."
+                    }
+                }
+            }
+        },
+        "evaluation_results": {
+            "experiment_type": {
+                "value": "Questionnaire survey and demonstration at an exhibition",
+                "type": "string",
+                "unit": null,
+                "evidence": "\u6b21\u306b\u3001\u30a2\u30f3\u30b1\u30fc\u30c8\u8abf\u67fb\u3068\u5c55\u793a\u3067\u306e\u30c7\u30e2\u30f3\u30b9\u30c8\u30ec\u30fc\u30b7\u30e7\u30f3\u306e\u7d50\u679c\u3092\u767a\u8868\u3057\u307e\u3059\u3002",
+                "provenance": {
+                    "section_header": "Evaluation Results",
+                    "page": 6
+                },
+                "notes": "The evaluation involved both qualitative and quantitative methods."
+            },
+            "findings": {
+                "value": [
+                    "Positive user engagement but issues with narrative consistency.",
+                    "User feedback highlighted both strengths and weaknesses of the system.",
+                    "Need for improvements in narrative coherence."
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "\u7269\u8a9e\u306e\u4e00\u8cab\u6027\u306e\u6b20\u5982\u304c\u4e3b\u8981\u306a\u554f\u984c\u3068\u3057\u3066\u6307\u6458\u3055\u308c\u305f\u3002",
+                "provenance": {
+                    "section_header": "Evaluation Results",
+                    "page": 6
+                },
+                "notes": "Findings emphasize the dual nature of user experience."
+            }
+        },
+        "future_directions": {
+            "version_two_plans": {
+                "value": "Implement mechanisms for managing narrative consistency and deviations.",
+                "type": "string",
+                "unit": null,
+                "evidence": "\u7b2c2\u7248\u306e\u958b\u767a\u306b\u5411\u3051\u3066\u3001\u7269\u8a9e\u306e\u4e00\u8cab\u6027\u3092\u7ba1\u7406\u3059\u308b\u30e1\u30ab\u30cb\u30ba\u30e0\u3092\u5b9f\u88c5\u3059\u308b\u3053\u3068\u3092\u76ee\u6307\u3059\u3002",
+                "provenance": {
+                    "section_header": "Future Directions",
+                    "page": 7
+                },
+                "notes": "Plans focus on enhancing narrative quality."
+            },
+            "challenges_identified": {
+                "value": [
+                    "Narrative jumps and gaps.",
+                    "Balancing user interaction with narrative coherence.",
+                    "Improving user interface for better engagement."
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "\u7269\u8a9e\u306e\u4e00\u8cab\u6027\u306e\u6b20\u5982\u304c\u4e3b\u8981\u306a\u554f\u984c\u3068\u3057\u3066\u6307\u6458\u3055\u308c\u305f\u3002",
+                "provenance": {
+                    "section_header": "Future Directions",
+                    "page": 7
+                },
+                "notes": "Identified challenges will guide future research."
+            }
+        }
+    }
+}

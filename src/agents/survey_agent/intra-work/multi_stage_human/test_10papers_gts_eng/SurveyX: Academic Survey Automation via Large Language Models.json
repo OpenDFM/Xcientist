@@ -1,0 +1,137 @@
+{
+  "extraction": {
+    "title": {
+      "value": "SurveyX: Academic Survey Automation via Large Language Models",
+      "type": "string",
+      "unit": null,
+      "evidence": "SurveyX: Academic Survey Automation via Large Language Models",
+      "provenance": {
+        "section_header": "标题",
+        "page": null
+      },
+      "notes": ""
+    },
+    "insights": {
+      "value": [
+        "SurveyX outperforms existing systems in both content quality and citation quality, approaching the level of human experts.",
+        "The AttributeTree method can effectively enhance the understanding of core information in literature by LLMs, thereby improving the quality of outline organization and content generation.",
+        "The RAG-based rewriting module can significantly improve the quality of citations, ensuring that all arguments are supported by literature."
+      ],
+      "type": "list",
+      "unit": null,
+      "evidence": "SurveyX 在内容质量和引文质量上均优于现有系统，接近人类专家水平。AttributeTree 方法能够有效提高 LLM 对文献核心信息的理解，从而提升大纲组织和内容生成的质量。RAG-based rewriting 模块能够显著提高引文质量，确保所有论点都有文献支持。",
+      "provenance": {
+        "section_header": "Insights",
+        "page": null
+      },
+      "notes": ""
+    },
+    "article_introduction": {
+      "research_background": {
+        "value": "The number of papers in the field of computer science has exploded, and writing reviews by hand is time-consuming and labor-intensive.",
+        "type": "string",
+        "unit": null,
+        "evidence": "研究背景：计算机科学领域论文数量爆炸式增长，人工撰写综述耗时耗力。",
+        "provenance": {
+          "section_header": "文章简介",
+          "page": null
+        },
+        "notes": ""
+      },
+      "main_contributions": {
+        "value": "SurveyX is an efficient and organized automated review generation system that significantly enhances the efficiency and quality of writing reviews.",
+        "type": "string",
+        "unit": null,
+        "evidence": "主要贡献：提出了 SurveyX，一个高效且有组织的自动化综述生成系统，显著提升了综述的撰写效率和质量。",
+        "provenance": {
+          "section_header": "文章简介",
+          "page": null
+        },
+        "notes": ""
+      },
+      "core_approach": {
+        "value": "Simulating the human writing process, the writing of the review is divided into a preparation stage and a generation stage, and innovatively introduces online literature retrieval and the AttributeTree preprocessing method.",
+        "type": "string",
+        "unit": null,
+        "evidence": "核心思路：模拟人类写作过程，将综述撰写分为准备阶段和生成阶段，并创新性地引入在线文献检索和 AttributeTree 预处理方法。",
+        "provenance": {
+          "section_header": "文章简介",
+          "page": null
+        },
+        "notes": ""
+      }
+    },
+    "methods": {
+      "preparation_stage": {
+        "reference_acquisition": {
+          "value": "By combining offline (arXiv) and online (Google Scholar crawler) data sources, we ensure the timeliness and comprehensiveness of the literature.",
+          "type": "string",
+          "unit": null,
+          "evidence": "参考文献获取：结合离线（arXiv）和在线（Google Scholar 爬虫）数据源，保证文献的时效性和全面性。",
+          "provenance": {
+            "section_header": "重点方案",
+            "page": null
+          },
+          "notes": ""
+        },
+        "retrieval_algorithms": {
+          "value": "Keyword expansion algorithm: Iteratively expand keywords through semantic clustering and distance calculation to avoid missing relevant literature. Two-step filtering algorithm: First, perform coarse-grained filtering using the embedding model, and then use LLM for fine-grained filtering to ensure a high relevance of literature to the topic.",
+          "type": "string",
+          "unit": null,
+          "evidence": "检索算法：关键词扩展算法：通过语义聚类和距离计算，迭代扩展关键词，避免遗漏相关文献。两步过滤算法：先用 embedding 模型进行粗粒度过滤，再用 LLM 进行细粒度过滤，保证文献与主题的高度相关性。",
+          "provenance": {
+            "section_header": "重点方案",
+            "page": null
+          },
+          "notes": ""
+        },
+        "reference_preprocessing": {
+          "value": "AttributeTree method: Design different attribute tree templates for different types of literature to efficiently extract key information, increase information density, and improve the utilization of the LLM context window.",
+          "type": "string",
+          "unit": null,
+          "evidence": "参考文献预处理：AttributeTree 方法：针对不同类型的文献设计不同的属性树模板，高效提取关键信息，提高信息密度和 LLM 上下文窗口利用率。",
+          "provenance": {
+            "section_header": "重点方案",
+            "page": null
+          },
+          "notes": ""
+        }
+      },
+      "generation_stage": {
+        "outline_generation": {
+          "value": "Outline Optimization Method: First, allow the LLM to generate prompts based on the AttributeTree, then integrate all prompts to create a secondary outline, and eliminate redundancy through the \"separate-recombine\" step.",
+          "type": "string",
+          "unit": null,
+          "evidence": "大纲生成：Outline Optimization 方法：首先让 LLM 基于 AttributeTree 生成提示，然后综合所有提示生成二级大纲，并通过\"分离-重组\"步骤消除冗余。",
+          "provenance": {
+            "section_header": "重点方案",
+            "page": null
+          },
+          "notes": ""
+        },
+        "content_generation": {
+          "value": "Using a prompt-based approach, the generation of the main text is guided by a secondary outline. When the LLM writes a particular section, it can refer to the content of other sections to ensure consistency.",
+          "type": "string",
+          "unit": null,
+          "evidence": "内容生成：沿用基于提示的方法，利用二级大纲指导正文内容的生成。LLM 在撰写某个小节时，可以查看其他小节的内容，保证内容的一致性。",
+          "provenance": {
+            "section_header": "重点方案",
+            "page": null
+          },
+          "notes": ""
+        },
+        "post_optimization": {
+          "value": "RAG-based rewriting module: Utilizing LLM and AttributeForest to rewrite the initial draft, improving citation quality and content consistency. Chart generation module: Automatically generating charts using information extraction templates and generation templates, enriching the presentation of the review.",
+          "type": "string",
+          "unit": null,
+          "evidence": "后期优化：基于 RAG 的重写模块：利用 LLM 和 AttributeForest 对初始草稿进行重写，提高引文质量和内容一致性。图表生成模块：利用信息抽取模板和生成模板，自动生成图表，丰富综述的表现形式。",
+          "provenance": {
+            "section_header": "重点方案",
+            "page": null
+          },
+          "notes": ""
+        }
+      }
+    }
+  }
+}

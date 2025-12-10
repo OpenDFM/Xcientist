@@ -1,0 +1,273 @@
+{
+  "extraction": {
+    "code_url": {
+      "value": "https://github.com/Alpha-Innovator/SurveyForge",
+      "type": "string",
+      "unit": null,
+      "evidence": "Code:https://github.com/Alpha-Innovator/SurveyForge",
+      "provenance": {
+        "section_header": "背景",
+        "page": null
+      },
+      "notes": ""
+    },
+    "dataset_url": {
+      "value": "https://huggingface.co/datasets/U4R/SurveyBench",
+      "type": "string",
+      "unit": null,
+      "evidence": "https://huggingface.co/datasets/U4R/SurveyBench",
+      "provenance": {
+        "section_header": "背景",
+        "page": null
+      },
+      "notes": ""
+    },
+    "introduction": {
+      "problem_statement": {
+        "value": "This article addresses the quality gap in existing large language models (LLMs) when automatically generating academic reviews, particularly the issues of insufficient outline logic and reference accuracy.",
+        "type": "string",
+        "unit": null,
+        "evidence": "这篇文章针对现有大型语言模型（LLM）在自动生成学术综述时存在的质量差距，特别是大纲逻辑性和参考文献准确性不足的问题",
+        "provenance": {
+          "section_header": "概述",
+          "page": null
+        },
+        "notes": ""
+      },
+      "proposed_solution": {
+        "value": "An automated review generation framework named SURVEYFORGE is proposed. This framework enhances the quality of reviews through a two-stage process: 1. Heuristic outline generation: By analyzing the logical structure of human-written review articles and combining it with retrieved domain-related papers, a well-structured and logically coherent review outline is generated. 2. Memory-driven content generation: Utilizing a module named SANA, high-quality core references are accurately retrieved for each section of the outline, driving the LLM to generate corresponding content, which is then integrated and optimized.",
+        "type": "string",
+        "unit": null,
+        "evidence": "提出了一个名为 SURVEYFORGE 的自动化综述生成框架。该框架通过一个两阶段的过程来提升综述质量： 1. 启发式大纲生成：通过分析人类撰写的综述文章的逻辑结构，并结合检索到的领域相关论文，生成一个结构良好、逻辑连贯的综述大纲。 2. 记忆驱动的内容生成：利用一个名为 SANA的模块，根据大纲的每个小节，精准检索高质量的核心参考文献，并驱动LLM生成相应内容，最后进行整合和优化。",
+        "provenance": {
+          "section_header": "概述",
+          "page": null
+        },
+        "notes": ""
+      },
+      "key_contributions": {
+        "value": "In addition, to objectively and comprehensively evaluate the quality of AI-generated reviews, the authors constructed a benchmark dataset called SurveyBench and a multidimensional evaluation metric system named SAM. Experiments have shown that SURVEYFORGE significantly outperforms previous automated methods in terms of outline quality, reference coverage, and content relevance.",
+        "type": "string",
+        "unit": null,
+        "evidence": "此外，为了能够客观、全面地评估AI生成的综述质量，作者们还构建了一个名为 SurveyBench 的基准数据集和一个多维度的评估指标体系 SAM。实验证明，SURVEYFORGE 在大纲质量、参考文献覆盖率和内容相关性上均显著优于先前的自动化方法。",
+        "provenance": {
+          "section_header": "概述",
+          "page": null
+        },
+        "notes": ""
+      }
+    },
+    "motivation": {
+      "outline_quality_issues": {
+        "value": "Outline quality issues: Currently, reviews generated using LLMs often lack coherent logic and organization in their outline structure. For example, the breadth of chapters may be too wide or too narrow, the depth may be overly detailed or insufficiently analytical, and the overall structure may be unbalanced, lacking the clarity of reviews written by human experts.",
+        "type": "string",
+        "unit": null,
+        "evidence": "大纲质量问题：当前利用LLM生成的综述，其大纲结构往往缺乏连贯的逻辑和组织性。例如，章节的广度可能过宽或过窄，深度可能过于细节或分析不足，整体结构失衡，不如人类专家撰写的综述那样条理清晰。",
+        "provenance": {
+          "section_header": "Motivation",
+          "page": null
+        },
+        "notes": ""
+      },
+      "reference_quality_issues": {
+        "value": "Quality issues in references: AI-generated reviews often fail to accurately cite key and influential core literature in the field, and may instead reference irrelevant or secondary papers, which severely impacts the academic depth and value of the review.",
+        "type": "string",
+        "unit": null,
+        "evidence": "参考文献质量问题：AI生成的综述常常无法准确引用领域内关键且具有影响力的核心文献，反而可能引用一些不相关或次要的论文，这严重影响了综述的学术深度和价值。",
+        "provenance": {
+          "section_header": "Motivation",
+          "page": null
+        },
+        "notes": ""
+      },
+      "evaluation_system_gaps": {
+        "value": "The issue of a missing evaluation system: Currently, the assessment of AI-generated reviews mainly relies on scoring from LLMs, which is highly subjective and lacks fine-grained analysis of key aspects such as outlines, references, and content. The absence of an objective, standardized evaluation benchmark makes it difficult to conduct fair comparisons between different methods.",
+        "type": "string",
+        "unit": null,
+        "evidence": "评估体系缺失问题：目前对AI生成综述的评估主要依赖于LLM的打分，这种方式主观性强，且缺乏对大纲、参考文献、内容等关键方面的细粒度分析。缺少一个客观、标准化的评估基准，使得不同方法之间难以进行公平比较。",
+        "provenance": {
+          "section_header": "Motivation",
+          "page": null
+        },
+        "notes": ""
+      }
+    },
+    "methods": {
+      "framework_overview": {
+        "value": "The SURVEYFORGE framework generates high-quality academic reviews using a \"two-step\" strategy. In the first step, it learns from examples of human-written reviews and retrieves relevant papers to create a structured, logical heuristic outline using an LLM. In the second step, for each subsection of the outline, it employs an agent with memory and temporal awareness capabilities (SANA) to retrieve high-quality core literature, then drives the LLM to generate content for each part in parallel, ultimately summarizing and refining it into a cohesive document. Additionally, to objectively assess the results, the paper introduces a benchmark called SurveyBench, which includes 100 human-written reviews.",
+        "type": "string",
+        "unit": null,
+        "evidence": "SURVEYFORGE 框架通过\"两步走\"策略生成高质量学术综述。第一步，通过学习人类撰写的综述范例和检索相关论文，用LLM生成一个结构化、有逻辑的启发式大纲。第二步，针对大纲的每个小节，利用一个带有记忆和时序感知重排功能的智能体（SANA）来检索高质量的核心文献，然后驱动LLM并行生成各部分内容，最后汇总精炼成文。同时，为了客观评估，文章还提出了一个包含100篇人类综述的SurveyBench基准。",
+        "provenance": {
+          "section_header": "Methods",
+          "page": null
+        },
+        "notes": ""
+      },
+      "heuristic_outline_generation": {
+        "knowledge_fusion": {
+          "value": "Knowledge fusion: Given a review topic (such as \"multimodal large models\"), the system first retrieves information from two databases: one is a research paper database containing a vast number of research papers, and the other is a review outline database containing a large number of human-written reviews and their outlines.",
+          "type": "string",
+          "unit": null,
+          "evidence": "知识融合：给定一个综述主题（如\"多模态大模型\"），系统首先从两个数据库中检索信息：一个是包含海量研究论文的研究论文数据库，另一个是包含大量人类撰写的综述及其大纲的综述大纲数据库。",
+          "provenance": {
+            "section_header": "Methods",
+            "page": null
+          },
+          "notes": ""
+        },
+        "hierarchical_generation": {
+          "value": "Primary outline generation: Using LLM to integrate the information retrieved above, generate a primary outline for the review (such as \"Introduction,\" \"Core Architecture,\" \"Applications,\" etc.) along with the corresponding queries for each chapter. The key to this step is learning the typical structure of human reviews. Secondary outline generation: For each primary chapter, the system will recursively perform similar operations, retrieving more specific papers and review structures based on chapter queries, thereby generating a more detailed secondary outline (such as \"Multimodal Fusion Strategies\" and \"Training Methods\" under \"Core Architecture\") and sub-queries.",
+          "type": "string",
+          "unit": null,
+          "evidence": "一级大纲生成：利用LLM融合上述检索到的信息，生成综述的一级大纲（如\"引言\"、\"核心架构\"、\"应用\"等）以及每个章节对应的查询（Queries）。这一步的关键是学习人类综述的典型结构。 二级大纲生成：对每个一级章节，系统会递归地执行类似操作，即根据章节查询检索更具体的论文和综述结构，从而生成更详细的二级大纲（如\"核心架构\"下的\"多模态融合策略\"、\"训练方法\"等）和子查询。",
+          "provenance": {
+            "section_header": "Methods",
+            "page": null
+          },
+          "notes": ""
+        },
+        "memory_construction": {
+          "value": "Building Memory: In this process, the relevant collection of papers retrieved for each chapter is stored as the \"Memory\" of that chapter, to be used in the next stage of content generation, ensuring the relevance of the content.",
+          "type": "string",
+          "unit": null,
+          "evidence": "构建记忆：在此过程中，为每个章节检索到的相关论文集合被存储为该章节的\"记忆\"（Memory），供下一阶段内容生成时使用，以保证内容的相关性。",
+          "provenance": {
+            "section_header": "Methods",
+            "page": null
+          },
+          "notes": ""
+        }
+      },
+      "memory_driven_content_generation": {
+        "sana_module": {
+          "value": "Stage Two: Memory-Driven Content Generation is led by a module called SANA (Scholar Navigation Agent), responsible for literature retrieval and content writing.",
+          "type": "string",
+          "unit": null,
+          "evidence": "阶段二：记忆驱动的内容生成 (Memory-Driven Content Generation) 这个阶段由一个名为SANA（学者导航智能体）的模块主导，负责文献检索和内容写作。",
+          "provenance": {
+            "section_header": "Methods",
+            "page": null
+          },
+          "notes": ""
+        },
+        "query_decomposition": {
+          "value": "Memory for Sub-query: In order to retrieve literature more accurately, SANA first breaks down the queries for each subsection in the outline into finer-grained sub-queries. This decomposition process is not done arbitrarily; instead, it utilizes the \"memory\" (relevant paper collection) constructed in the first stage for that chapter as context, making the resulting sub-queries more aligned with the topic.",
+          "type": "string",
+          "unit": null,
+          "evidence": "子查询分解 (Memory for Sub-query)：为了更精确地检索文献，SANA首先将大纲中每个小节的查询（query）分解成更细粒度的子查询。这个分解过程不是凭空进行的，而是利用了第一阶段为该章节构建的\"记忆\"（相关论文集）作为上下文，使得分解后的子查询更贴合主题。",
+          "provenance": {
+            "section_header": "Methods",
+            "page": null
+          },
+          "notes": ""
+        },
+        "temporal_aware_reranking": {
+          "value": "Temporal-aware Reranking Engine: The retrieved literature undergoes a reranking engine. This engine not only considers text relevance but also incorporates publication time and citation count. It groups papers by publication year (e.g., every two years) and then selects the Top-K papers within each time group based on citation numbers. This ensures that the final cited literature includes both classic foundational work and the latest high-impact research.",
+          "type": "string",
+          "unit": null,
+          "evidence": "时序感知重排引擎 (Temporal-aware Reranking Engine)：检索到的文献会经过一个重排引擎。该引擎不仅考虑文本相关性，还综合了发表时间和引用量。它会将论文按发表年份（如每两年一个分组）分组，然后在每个时间组内根据引用数选出Top-K的论文。这确保了最终引用的文献既包括了经典的奠基性工作，也覆盖了最新的高影响力研究。",
+          "provenance": {
+            "section_header": "Methods",
+            "page": null
+          },
+          "notes": ""
+        },
+        "parallel_generation_refinement": {
+          "value": "Parallel Generation and Refinement: Using LLMs to generate content for each subsection of an outline in parallel, with the input being the description of the subsection and high-quality references rearranged by SANA. After generating the content for all subsections, a final LLM is used for stitching and refining, eliminating redundancy and ensuring the fluency and consistency of the entire text.",
+          "type": "string",
+          "unit": null,
+          "evidence": "并行生成与精炼：利用LLM为大纲的每个小节并行生成内容，其输入是该小节的描述和经过SANA重排后的高质量参考文献。所有小节内容生成后，再由一个LLM进行最终的拼接和精炼，消除冗余，确保全文的流畅性和一致性。",
+          "provenance": {
+            "section_header": "Methods",
+            "page": null
+          },
+          "notes": ""
+        }
+      },
+      "evaluation_framework": {
+        "survey_bench": {
+          "value": "SurveyBench: A benchmark dataset containing around 100 high-quality human-written reviews in 10 cutting-edge fields of computer science.",
+          "type": "string",
+          "unit": null,
+          "evidence": "SurveyBench: 一个包含10个计算机科学前沿领域的约100篇高质量人类撰写综述的基准数据集。",
+          "provenance": {
+            "section_header": "Methods",
+            "page": null
+          },
+          "notes": ""
+        },
+        "sam_metrics": {
+          "value": "SAM (Survey Assessment Metrics): A set of multidimensional assessment metrics, including: - SAM-R: Evaluates the quality of references, measuring the overlap of citations in AI-generated reviews with benchmark citations. - SAM-O: Assesses outline quality, scored by LLM based on standards such as structure and logic. - SAM-C: Evaluates content quality, scoring from three dimensions: structure, relevance, and coverage.",
+          "type": "string",
+          "unit": null,
+          "evidence": "SAM (Survey Assessment Metrics): 一套多维度的评估指标，包括： - SAM-R: 评估参考文献质量，衡量AI生成综述的引用与基准引用的重合度。 - SAM-O: 评估大纲质量，由LLM根据结构、逻辑等标准打分。 - SAM-C: 评估内容质量，从结构、相关性、覆盖面三个维度进行打分。",
+          "provenance": {
+            "section_header": "Methods",
+            "page": null
+          },
+          "notes": ""
+        }
+      }
+    },
+    "experimental_results": {
+      "outline_quality_comparison": {
+        "value": "Summary: A comparison of the outlines generated by AutoSurvey and SURVEYFORGE on two different topics. It is clear that the outline structure of SURVEYFORGE is more systematic, with clearer hierarchy and stronger logic, while the outline from AutoSurvey appears fragmented and repetitive, resembling a simple list of papers.",
+        "type": "string",
+        "unit": null,
+        "evidence": "总结：比较AutoSurvey和SURVEYFORGE在两个不同主题下生成的大纲。可以明显看出，SURVEYFORGE的大纲结构更系统、层级更清晰、逻辑性更强，而AutoSurvey的大纲则显得零散、重复，像一个简单的论文列表。",
+        "provenance": {
+          "section_header": "详细内容",
+          "page": null
+        },
+        "notes": ""
+      },
+      "evaluation_win_rate": {
+        "value": "Summary: Whether it is LLM automatic evaluation or human expert evaluation, SURVEYFORGE has a win rate of over 70% against AutoSurvey, demonstrating its significant quality advantage and the high consistency between the evaluation system and human judgment.",
+        "type": "string",
+        "unit": null,
+        "evidence": "总结：无论是LLM自动评估还是人类专家评估，SURVEYFORGE对AutoSurvey的胜率都高达70%以上，证明了其质量的显著优势以及评估系统与人类判断的高度一致性。",
+        "provenance": {
+          "section_header": "详细内容",
+          "page": null
+        },
+        "notes": ""
+      }
+    },
+    "conclusions": {
+      "technical_contribution": {
+        "value": "Conclusion 1: SURVEYFORGE has innovatively utilized LLM to generate high-quality reviews, significantly enhancing the quality and efficiency of automated reviews. It has introduced a framework that combines outline heuristic learning with memory-driven content generation, effectively addressing the pain points of existing AI-generated reviews in terms of outline logicality, citation relevance, and content coherence. By learning the patterns of manually written reviews and accurately retrieving and rearranging literature, it has greatly improved the academic rigor and readability of the generated reviews.",
+        "type": "string",
+        "unit": null,
+        "evidence": "结论1： SURVEYFORGE开创性地利用LLM生成高质量综述，显著提升了自动化综述的质量和效率。 首次提出了将提纲启发式学习与记忆驱动内容生成相结合的框架，有效解决了现有AI生成综述在提纲逻辑性、引用相关性和内容连贯性方面的痛点。通过对人工撰写综述的模式学习和对文献的精准检索与重排，大幅提升了生成综述的学术严谨性和可读性。",
+        "provenance": {
+          "section_header": "总结",
+          "page": null
+        },
+        "notes": ""
+      },
+      "evaluation_contribution": {
+        "value": "Conclusion 2: This paper provides a comprehensive and objective benchmark and metrics for evaluating AI-generated reviews. SurveyBench has been constructed, and a multi-dimensional SAM evaluation system (SAM-R, SAM-O, SAM-C) has been designed, covering citation quality, outline quality, and content quality. These quantitative metrics replace the subjectivity of traditional LLM evaluations, making comparisons between different methods more credible. The experimental results further validate the reliability of the evaluation system through a high degree of consistency with human assessments.",
+        "type": "string",
+        "unit": null,
+        "evidence": "结论2： 本文为AI生成综述的评估提供了全面且客观的基准和指标。 构建了SurveyBench，并设计了多维度的SAM评估体系（SAM-R、SAM-O、SAM-C），涵盖了引用质量、提纲质量和内容质量。这些量化指标取代了传统LLM评估的主观性，使不同方法间的比较更具可信度。实验结果通过与人工评估的高度一致性进一步验证了评估系统的可靠性。",
+        "provenance": {
+          "section_header": "总结",
+          "page": null
+        },
+        "notes": ""
+      },
+      "application_value": {
+        "value": "Conclusion 3: SURVEYFORGE has significant application value in lowering the barriers to research and promoting knowledge integration. Automated review writing can greatly reduce the time and effort researchers invest in literature reviews, helping them quickly enter unfamiliar fields and effectively acquire domain knowledge. This is particularly important in rapidly developing areas such as AI, as it aids in accelerating the integration and development of interdisciplinary and cross-domain knowledge. Future exploration of knowledge graph construction and citation network analysis could further enhance the depth and originality of reviews, thereby having a more profound impact in both industry and academia.",
+        "type": "string",
+        "unit": null,
+        "evidence": "结论3： SURVEYFORGE在降低科研门槛和促进知识整合方面具有显著的应用价值。 自动化综述撰写能够极大地减少研究人员在文献综述上投入的时间和精力，帮助他们快速进入不熟悉的领域，有效获取领域知识。这对于快速发展的AI等领域尤为重要，有助于加速跨学科和跨领域知识的整合与发展。未来可进一步探索知识图谱构建和引用网络分析，以提升综述的深度和原创性，从而在产业界和学术界产生更深远的影响。",
+        "provenance": {
+          "section_header": "总结",
+          "page": null
+        },
+        "notes": ""
+      }
+    }
+  }
+}

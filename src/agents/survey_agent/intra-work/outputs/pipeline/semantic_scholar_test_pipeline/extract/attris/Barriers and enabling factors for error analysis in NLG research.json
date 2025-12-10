@@ -1,0 +1,238 @@
+{
+    "extraction": {
+        "title": {
+            "value": "Barriers and enabling factors for error analysis in NLG research",
+            "type": "string",
+            "unit": null,
+            "evidence": "Barriers and enabling factors for error analysis in NLG research",
+            "provenance": {
+                "section_header": "Title",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "authors": {
+            "value": [
+                "Emiel van Miltenburg, Tilburg University, The Netherlands",
+                "Miruna Clinciu, Edinburgh Centre for Robotics, Heriot-Watt University, University of Edinburgh, UK",
+                "Ondrej Du sek, Charles University, Prague, Czechia",
+                "Dimitra Gkatzia, Edinburgh Napier University, UK",
+                "Stephanie Inglis, Arria NLG, Aberdeen, UK",
+                "Leo Leppanen, University of Helsinki, Finland",
+                "Saad Mahamood, trivago N.V., Dusseldorf, Germany",
+                "Stephanie Schoch, University of Virginia, USA",
+                "Craig Thomson, University of Aberdeen, UK",
+                "Luou Wen, Independent Researcher, UK"
+            ],
+            "type": "list",
+            "unit": null,
+            "evidence": "Emiel van Miltenburg, Tilburg University, The Netherlands. c.w.j.vanmiltenburg@tilburguniversity.edu\u2217   Miruna Clinciu, Edinburgh Centre for Robotics, Heriot-Watt University, University of Edinburgh, UK   Ondrej Du sek, Charles University, Prague, Czechia   Dimitra Gkatzia, Edinburgh Napier University, UK   Stephanie Inglis, Arria NLG, Aberdeen, UK   Leo Leppanen, University of Helsinki, Finland   Saad Mahamood, trivago N.V., Dusseldorf, Germany   Stephanie Schoch, University of Virginia, USA   Craig Thomson, University of Aberdeen, UK   Luou Wen, Independent Researcher, UK",
+            "provenance": {
+                "section_header": "Author list",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "year": {
+            "value": 2023,
+            "type": "integer",
+            "unit": null,
+            "evidence": "This paper is based on our shared experience as authors as well as a survey we distributed as a means of public consultation.",
+            "provenance": {
+                "section_header": "Abstract",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "abstract": {
+            "value": "Earlier research has shown that few studies in Natural Language Generation (NLG) evaluate their system outputs using an error analysis, despite known limitations of automatic evaluation metrics and human ratings. This position paper takes the stance that error analyses should be encouraged, and discusses several ways to do so. This paper is based on our shared experience as authors as well as a survey we distributed as a means of public consultation. We provide an overview of existing barriers to carrying out error analyses, and propose changes to improve error reporting in the NLG literature.",
+            "type": "string",
+            "unit": null,
+            "evidence": "Earlier research has shown that few studies in Natural Language Generation (NLG) evaluate their system outputs using an error analysis, despite known limitations of automatic evaluation metrics and human ratings. This position paper takes the stance that error analyses should be encouraged, and discusses several ways to do so. This paper is based on our shared experience as authors as well as a survey we distributed as a means of public consultation. We provide an overview of existing barriers to carrying out error analyses, and propose changes to improve error reporting in the NLG literature.",
+            "provenance": {
+                "section_header": "Abstract",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "doi": {
+            "value": null,
+            "type": "string",
+            "unit": null,
+            "evidence": null,
+            "provenance": {
+                "section_header": null,
+                "page": null
+            },
+            "notes": "No DOI provided in the paper."
+        },
+        "venue": {
+            "value": null,
+            "type": "string",
+            "unit": null,
+            "evidence": null,
+            "provenance": {
+                "section_header": null,
+                "page": null
+            },
+            "notes": "No specific venue mentioned in the paper."
+        },
+        "problem_statement": {
+            "value": "Despite the known limitations of automatic evaluation metrics and human ratings, few studies in NLG evaluate their system outputs using error analysis.",
+            "type": "string",
+            "unit": null,
+            "evidence": "Earlier research has shown that few studies in Natural Language Generation (NLG) evaluate their system outputs using an error analysis, despite known limitations of automatic evaluation metrics and human ratings.",
+            "provenance": {
+                "section_header": "Abstract",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "methodology": {
+            "survey": {
+                "demographics": {
+                    "value": [
+                        "Academia",
+                        "Industry",
+                        "Other"
+                    ],
+                    "type": "list",
+                    "unit": null,
+                    "evidence": "Our survey targets researchers and practitioners interested in NLG research.",
+                    "provenance": {
+                        "section_header": "Method",
+                        "page": 5
+                    },
+                    "notes": "Demographics include affiliations."
+                },
+                "questions": {
+                    "value": [
+                        "Experience reading error analyses",
+                        "Experience carrying out error analyses",
+                        "Barriers and enabling factors to carry out error analyses",
+                        "Necessity and usefulness of error analyses",
+                        "Reporting practices",
+                        "Other comments"
+                    ],
+                    "type": "list",
+                    "unit": null,
+                    "evidence": "Participants were asked some general demographic questions, followed by questions about the following topics (see Appendix C for details): 1. Experience reading error analyses 2. Experience carrying out error analyses 3. Barriers and enabling factors to carry out error analyses 4. Necessity and usefulness of error analyses 5. Reporting practices 6. Other comments",
+                    "provenance": {
+                        "section_header": "Method",
+                        "page": 5
+                    },
+                    "notes": ""
+                }
+            },
+            "analysis": {
+                "value": "We performed a quantitative analysis of the responses to our closed questions. In addition, we performed a qualitative analysis of the open question responses, inspired by other qualitative approaches, such as thematic analysis and grounded theory.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We performed a quantitative analysis of the responses to our closed questions. In addition, we performed a qualitative analysis of the open question responses, inspired by other qualitative approaches, such as thematic analysis (Braun and Clarke, 2006) and grounded theory (e.g., Strauss and Corbin 1994).",
+                "provenance": {
+                    "section_header": "Method",
+                    "page": 5
+                },
+                "notes": ""
+            }
+        },
+        "results": {
+            "barriers": {
+                "value": [
+                    "Time constraints",
+                    "Lack of resources",
+                    "Insufficient recognition from reviewers",
+                    "Absence of established error taxonomy",
+                    "Limited availability of annotators"
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "We identified nine different factors that might influence authors in their decision (not) to carry out an error analysis.",
+                "provenance": {
+                    "section_header": "Results",
+                    "page": 11
+                },
+                "notes": "Participants identified time, money, and recognition from reviewers as the most significant barriers."
+            },
+            "enabling_factors": {
+                "value": [
+                    "Increased page limits for publications",
+                    "Established error taxonomies",
+                    "Availability of dedicated annotation tools",
+                    "Recognition of error analyses in reviews"
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "Participants proposed making error analysis a requirement for papers and explicitly recognising it in review forms; this should highlight its importance both for research and industrial/commercial applications.",
+                "provenance": {
+                    "section_header": "Results",
+                    "page": 12
+                },
+                "notes": ""
+            },
+            "participant_feedback": {
+                "value": [
+                    "Error analyses provide insight into system performance",
+                    "Error analyses help identify remaining challenges",
+                    "Error analyses are better than cherry-picked examples"
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "By far the most common answer was that error analysis could help identify remaining challenges and direct future work, both at a high level, and in terms of improving individual systems.",
+                "provenance": {
+                    "section_header": "Results",
+                    "page": 12
+                },
+                "notes": "Participants emphasized the value of error analyses in improving future work."
+            }
+        },
+        "discussion": {
+            "incentives": {
+                "value": "Most participants thought a culture change is necessary to make error analysis a common practice, suggesting that researchers should be rewarded for conducting thorough error analyses.",
+                "type": "string",
+                "unit": null,
+                "evidence": "One promising idea in this direction seems to be to explicitly reward researchers with badges for exemplary behaviour.",
+                "provenance": {
+                    "section_header": "Discussion",
+                    "page": 19
+                },
+                "notes": ""
+            },
+            "future_work": {
+                "value": "Future efforts should focus on developing tools and resources, such as error taxonomies, annotation tools, and clear guidelines to encourage more routine and robust error analyses.",
+                "type": "string",
+                "unit": null,
+                "evidence": "In the future, we would like to focus on developing tools and resources, such as error taxonomies, annotation tools, and clear guidelines that would help to encourage more routine and robust error analyses.",
+                "provenance": {
+                    "section_header": "Conclusion & Future Work",
+                    "page": 23
+                },
+                "notes": ""
+            }
+        },
+        "reproducibility_metadata": {
+            "data_availability": {
+                "value": "The code and data for this research project are freely available online.",
+                "type": "string",
+                "unit": null,
+                "evidence": "The code and data for this research project are freely available online.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "code_availability": {
+                "value": "All code and data have been shared through GitHub.",
+                "type": "string",
+                "unit": null,
+                "evidence": "All code and data have been shared through GitHub, and submitted along with this paper, thus providing maximal transparency.",
+                "provenance": {
+                    "section_header": "Ethical considerations",
+                    "page": 23
+                },
+                "notes": ""
+            }
+        }
+    }
+}

@@ -1,0 +1,390 @@
+# AutoSurvey: Large Language Models Can Automatically Write Surveys
+
+Yidong Wang1,2∗, Qi $\mathbf { G u o ^ { 2 , 3 * } }$ , Wenjin $\mathbf { Y a o } ^ { 2 }$ , Hongbo Zhang1, Xin Zhang4, Zhen ${ \bf W } { \bf u } ^ { 3 }$ ,Meishan Zhang4, Xinyu Dai3, Min Zhang4, Qingsong Wen5, Wei $\mathbf { Y e ^ { 2 \dagger } } .$ , Shikun Zhang2†, Yue Zhang1†
+
+1Westlake University, 2Peking University, 3Nanjing University, 4Harbin Institute of Technology, Shenzhen, 5Squirrel AI
+
+# Abstract
+
+This paper introduces AutoSurvey, a speedy and well-organized methodology for automating the creation of comprehensive literature surveys in rapidly evolving fields like artificial intelligence. Traditional survey paper creation faces challenges due to the vast volume and complexity of information, prompting the need for efficient survey methods. While large language models (LLMs) offer promise in automating this process, challenges such as context window limitations, parametric knowledge constraints, and the lack of evaluation benchmarks remain. AutoSurvey addresses these challenges through a systematic approach that involves initial retrieval and outline generation, subsection drafting by specialized LLMs, integration and refinement, and rigorous evaluation and iteration. Our contributions include a comprehensive solution to the survey problem, a reliable evaluation method, and experimental validation demonstrating AutoSurvey’s effectiveness. We open our resources at https://github.com/AutoSurveys/AutoSurvey.
+
+# 1 Introduction
+
+Survey papers provide essential academic resources, offering comprehensive overviews of recent research developments, highlighting ongoing trends, and identifying future directions [1–4]. However, crafting these surveys is increasingly challenging, especially in the fast-paced domain of Artificial Intelligence including large language models(LLMs) [5–8]. Figure 1a illustrates a significant trend: in just the first four months of 2024 alone, over 4,000 papers containing the phrase "Large Language Model" in their titles or abstracts were submitted to arXiv. This surge highlights a critical academic issue: the rapid accumulation of new information often outpaces the capacity for comprehensive scholarly review and synthesis, emphasizing the growing need for more efficient methods to synthesize the expanding literature. Moreover, as depicted in Figure 1b, while the number of survey papers has rapidly increased, the growing difficulty of producing traditional human-authored survey papers—due to the sheer volume and complexity of data—remains a significant challenge. This challenge is evidenced by the lack of comprehensive surveys in many fields (Figure 1c), which hinders knowledge transfer and makes it difficult for new researchers to efficiently navigate the vast amount of available information.
+
+The advent of LLMs [7, 9] presents a promising avenue for addressing these challenges. These models, trained on extensive text corpora, demonstrate remarkable capabilities in understanding and generating human-like text, even in long-context scenarios [10–12]. Despite these advancements,
+
+![](images/e37527b231d253ff42b64c7a6b418383c751e5799dd5452ed2d2c6d069b3a206.jpg)
+
+Cluster 0: Emotion Recognition Cluster 7: Ontology Enrichment Cluster 1: Embedding Techniques Cluster 8: Humor Detection Cluster 2: Event Extraction Cluster 9: Empathetic Response Generation Cluster 3: Quantum Theory Cluster 10: Attribute Value Extraction Cluster 4: Data Visualization Cluster 11: Anomaly Detection Cluster 5: Neural Scaling Laws Regular Papers Cluster 6: Mixture-of-Experts (MoE)  Surveys
+
+![](images/23a52c7fa203df1778f605df2e20f263127d70e06df0ea1c5082a024632524ec.jpg)  
+Figure 1: Depicting growth trends from 2019 to 2024 in the number of LLMs-related papers (a) and surveys (b) on arXiv, accompanied by a T-SNE visualization. The data for 2024 is up to April, with a red bar representing the forecasted numbers for the entire year. While the number of surveys is increasing rapidly, the visualization reveals areas where comprehensive surveys are still lacking, despite the overall growth in survey numbers. The research topics of the clusters in the T-SNE plot are generated using GPT-4 to describe their primary focus areas. These clusters of research voids can be addressed using AutoSurvey at a cost of $\$ 1.2$ (cost analysis in Appendix D) and 3 minutes per survey. An example survey focused on Emotion Recognition using LLMs is in Appendix F.
+
+(c) T-SNE visualization of surveys and papers about LLMs. Clusters represent groups of papers identified through clustering, which currently lack comprehensive survey coverage.
+
+the practical application of LLMs to survey generation is fraught with challenges. Firstly, context window limitations: LLMs encounter inherent restrictions in output length due to limited processing windows [13–17]. While several advanced large models, including GPT-4 and Claude 3, support inputs exceeding $1 0 0 \mathrm { k }$ tokens, their output is still limited to fewer than $^ \mathrm { 8 k }$ tokens (the output length of GPT-4 is 8k, and the output length of Claude 3 is 4k). Writing a comprehensive survey typically requires reading hundreds of papers, resulting in input sizes far beyond the capacity of even the most advanced models. Moreover, a well-written survey itself spans tens of thousands of tokens, making it highly challenging to generate such extensive content directly with large models. Secondly, parametric knowledge constraints: Sole reliance on an LLM’s internal knowledge is insufficient for producing surveys that require comprehensive and accurate references [18–20]. LLMs may generate content based on inaccuracies or even non-existent “hallucinated” references. Moreover, these models cannot incorporate the latest studies not included in their training data, which limits the breadth and depth of the surveys they generate. Thirdly, the lack of evaluation benchmark: after production, reliable metrics to evaluate the quality of outputs from LLMs are lacking. Relying on human review for quality assessment is not only resource-intensive but also lacks scalability [21–23]. This presents a significant obstacle to the widespread adoption of LLMs for academic synthesis, where rigorous standards of accuracy and reliability are paramount.
+
+In response to these challenges, we introduce AutoSurvey: a speedy and well-organized methodology for conducting comprehensive literature surveys. Specifically, AutoSurvey’s primary innovations include: logical parallel generation: AutoSurvey employs a two-stage generation approach to parallelly generate survey content efficiently. Initially, multiple LLMs work concurrently to create detailed outlines. A final, comprehensive outline is then synthesized from these individual outlines, setting a clear framework for content development. Subsequently, each subsection of the survey is generated in parallel and guided by the outline, which significantly accelerates the process. To overcome potential transition and consistency issues due to segmented generation phases, AutoSurvey integrates a systematic revision phase. After the initial parallel generation, each section undergoes thorough revision and polishing, ensuring smooth transitions and enhanced overall document consistency. The sections are then seamlessly merged to produce a cohesive and well-organized final document. Real-time knowledge update: AutoSurvey incorporates a Real-time Knowledge Update mechanism using a Retrieval-Augmented Generation (RAG) approach [24–26]. This feature ensures that every aspect of the survey reflects the most current studies. When a survey topic is input by the user, AutoSurvey leverages the RAG system to retrieve the latest relevant papers, forming the basis for generating a structured and informed outline. During subsection writing, the system dynamically pulls in new research articles relevant to the specific content under development. This approach ensures that citations are current and the survey content is aligned with the latest developments in the field, significantly enhancing the accuracy and depth of the literature review. Muti-LLM-as-judge evaluation: AutoSurvey employs the Multi-LLM-as-Judge strategy, leveraging the LLM-as-Judge method for text evaluation [22, 21, 23]. This approach generates initial evaluation metrics using multiple large language models, which process a substantial corpus of high-quality surveys. These metrics are refined by human experts to ensure precision and adherence to academic standards. The Multi-LLM-as-Judge method assesses generated content across two main dimensions: (1) Citation Quality, verifying the accuracy and reliability of the information presented, with sub-indicators for Recall and Precision. (2) Content Quality, consisting of Coverage (assessing the extent of topic encapsulation), Structure (evaluating logical organization and coherence), and Relevance (ensuring alignment with the main topic). By utilizing multiple LLMs, this strategy minimizes bias and ensures a balanced and comprehensive assessment, upholding rigorous academic standards.
+
+![](images/2072148f8af9e6bfc64aa6ff5fab0fe1a7d577118755dd9fb93f1ed6de3d639f.jpg)  
+Figure 2: The AutoSurvey Pipeline for Generating Comprehensive Surveys.
+
+Extensive experimental results across different survey lengths (8k, 16k, 32k, and $6 4 \mathrm { k }$ tokens) demonstrate that AutoSurvey consistently achieves high citation and content quality scores. At 64k tokens, AutoSurvey achieves $8 2 . 2 5 \%$ recall and $7 7 . 4 1 \%$ precision in citation quality, outperforming naive RAG-based LLMs $( 6 8 . 7 9 \%$ recall and $6 1 . 9 7 \%$ precision) and approaching human performance $( 8 6 . 3 3 \%$ recall and $7 7 . 7 8 \%$ precision). In content quality at 64k tokens, AutoSurvey scores 4.73 in coverage, 4.33 in structure, and 4.86 in relevance, closely aligning with human performance (5.00, 4.66, and 5.00 respectively). At shorter lengths (8k, 16k, and 32k tokens), AutoSurvey also maintains strong performance across all metrics. Furthermore, the Spearman’s rho values indicate a moderate positive correlation between the rankings provided by the LLMs and those given by human experts. The mixture of models achieves the highest correlation at 0.5429, indicating a strong alignment with human preferences. These results reinforce the effectiveness of our multi-LLM scoring mechanism, providing a reliable proxy for human judgment across varying survey lengths.
+
+In conclusion, to the best of our knowledge, AutoSurvey is the first system to explore the potential of large model agents in writing extensive academic surveys. It proposes evaluation criteria for surveys that align with human preferences, providing a valuable reference for future related research.
+
+# 2 Methodology
+
+In this section, we describe the methodology employed by AutoSurvey to automate the creation of comprehensive literature surveys. Our approach systematically progresses through four distinct phases—Initial Retrieval and Outline Generation, Subsection Drafting, Integration and Refinement, and Rigorous Evaluation and Iteration. Each phase is meticulously designed to address specific challenges associated with survey creation, thereby enhancing the efficiency and quality of the resulting survey document. The pseudo code of AutoSurvey can be found at Algorithm 1.
+
+1: Input: Survey topic $T$ , publications database $D$   
+2: Output: Final refined and evaluated survey document $F _ { b e s t }$   
+3: for each survey generation trial $t = 1$ to $N$ do   
+4: Phase 1: Initial Retrieval and Outline Generation   
+5: Retrieve initial pool of publications $P _ { \mathrm { i n i t } } $ Retrieve $( T , D )$   
+6: Generate outline $O \gets \mathrm { O u t l i n e } ( T , P _ { \mathrm { i n i t } } )$   
+7: Phase 2: Subsection Drafting   
+8: for each section $O _ { i }$ in $O$ in parallel do   
+9: Retrieve relevant publications $P _ { \mathrm { s e c } } $ Retrieve $( O _ { i } , D )$   
+10: Draft subsection $S _ { i } \gets \operatorname { D r a f t } ( O _ { i } , P _ { \mathrm { s e c } } )$   
+11: end for   
+12: Phase 3: Integration and Refinement   
+13: Refine the merged document to improve coherence $R _ { i } \gets \mathrm { R e f i n e } ( S _ { i } )$   
+14: Merge subsection drafts into a single document $F _ { t } \gets \mathsf { M e r g e } ( R _ { 1 } , R _ { 2 } , . . . , R _ { n } )$   
+15: end for   
+16: Phase 4: Rigorous Evaluation and Iteration   
+17: Evaluate and select the best survey document $\boldsymbol { F _ { \mathrm { b e s t } } } \gets \mathrm { E v a l u a t e } ( F _ { 1 } , F _ { 2 } , \ldots , F _ { N } )$   
+18: Return: Refined and evaluated survey $F _ { \mathrm { b e s t } }$
+
+Initial Retrieval and Outline Generation The process begins with the Initial Retrieval and Outline Generation phase. Utilizing an embedding-based retrieval technique, AutoSurvey scans a database of publications to identify papers most pertinent to the specified survey topic $T$ . This phase is crucial for ensuring that the survey is grounded in the most relevant and recent research. The retrieved publications $P _ { \mathrm { i n i t } }$ are then used to generate a structured outline $O$ , which ensures comprehensive coverage of the topic and logical structuring of the survey. To provide more detailed guidance for writing subsections, the outline generation includes not only titles for each subsection but also brief descriptions. These descriptions convey the main idea of each subsection, aiding in the overall clarity and direction of the survey. Given the extensive amount of relevant papers extracted during this stage, the total length of $P _ { \mathrm { i n i t } }$ often exceeds the context window size of the LLM. To address this, papers are randomly divided according to the LLM’s context window size, resulting in the creation of multiple outlines. The model then consolidates these outlines to form the final comprehensive outline. Finally, the outline $O$ of the entire survey is represented as $O = \mathrm { O u t l i n e } ( T , P _ { \mathrm { i n i t } } )$ .
+
+Subsection Drafting With the structured outline in place, the Subsection Drafting phase commences. During this phase, specialized LLMs draft each section of the outline in parallel. This method not only accelerates the drafting process but also ensures detailed and focused content generation for each survey section, adhering to the thematic boundaries established by the outline. When writing the content of each subsection, the sub-outline $O _ { i }$ of that subsection will be used to retrieve the necessary relevant reference papers $P _ { \mathrm { s e c } }$ to provide information that aligns more closely with the main idea of the subsection. During the writing process, the model is required to cite the provided reference papers to support the generated content. The references in the generated content will be extracted and mapped to the corresponding arXiv papers (see Appendix $\mathbf { B }$ for details). The $i _ { t h }$ subsection $S _ { i }$ can be expressed as: $S _ { i } = \mathrm { D r a f t } ( O _ { i } , P _ { \mathrm { s e c } } )$ .
+
+Integration and Refinement Following the drafting phase, each section $S _ { i }$ is individually refined to enhance readability, eliminate redundancies, and ensure a seamless narrative. The refined sections $R _ { i }$ are then merged into a cohesive document $F$ , which is essential for maintaining a logical flow and coherence throughout the survey. During the refinement process, the model needs to polish each subsection based on the local context (considering the previous and following subsections) to improve readability, eliminate redundancies, and enhance coherency. Additionally, the model is required to check the correctness of the cited references in the content and correct any errors in the citations. This procedure can be represented by: $F = \mathbf { M e r g e } ( R _ { 1 } , R _ { 2 } , \ldots , R _ { n } )$ , where $R _ { i } = \mathsf { R e f i n e } ( S _ { i } )$ .
+
+Rigorous Evaluation and Iteration The final phase involves a rigorous evaluation and iteration pro cess, where the survey document is assessed through a Multi-LLM-as-Judge strategy. This evaluation critically examines the survey in several aspects. The insights gained from this evaluation are used to guide further refinements, ensuring the survey meets the highest academic standards. The best survey is chosen from $N$ candidates. The final output of AutoSurvey is $\boldsymbol { F _ { \mathrm { b e s t } } } = \mathrm { E v a l u a t e } ( \{ F _ { 1 } , F _ { 2 } , \dots , F _ { N } \} )$ .
+
+The methodology outlined here—from initial data retrieval to sophisticated multi-faceted evaluation—ensures that AutoSurvey effectively addresses the complexities of survey creation in evolving research fields using advanced LLM technologies.
+
+# 3 Experiments
+
+Setup We conduct comprehensive experiments to evaluate the performance of AutoSurvey, comparing it against traditional methods for generating survey papers. For the drafting phase of AutoSurvey, we utilize Claude-3-Haiku, known for its speed and cost-effectiveness, capable of handling 200K tokens. For evaluations, we employ a combination of GPT-4, Claude-3-Haiku, and Gemini- $1 . { \bar { 5 } } – \mathrm { P r o } ^ { 3 }$ . The evaluation covers the following key performance metrics:
+
+• Survey Creation Speed: To estimate the time it takes for humans to write a document, we use a mathematical model with the following parameters: $L$ (the length of the document), $E$ (the number of experts), $M$ (the writing speed of each expert), $T _ { r }$ (the preparation time for research and data collection), $T _ { w }$ (the actual writing time, $\begin{array} { r } { T _ { w } = \frac { L } { E \times M } ) } \end{array}$ ), and $T _ { e }$ (the editing and revision time, $\begin{array} { r } { T _ { e } = \frac { 1 } { 2 } T _ { w } \mathrm { . } } \end{array}$ ). Assuming an ideal situation where $E = 1 0$ , $M = 2 0 0 0$ tokens/hour, $T _ { r } = 5$ hours, and $\begin{array} { r } { T _ { e } = \frac { 1 } { 2 } T _ { w } } \end{array}$ , the total time T ime is calculated as:
+
+$$
+T i m e = T _ { r } + T _ { w } + T _ { e } = T _ { r } + \frac { L } { E \times M } + \frac { 1 } { 2 } \times \frac { L } { E \times M } .
+$$
+
+For naive RAG-based LLM generation and AutoSurvey, we count all the time of API calls.   
+The speed is calculated as Speed = 1T ime(hours) .
+
+• Citation Quality: Adopted from [27], this metric assesses the accuracy and relevance of citations in the survey. Assuming a set of claims $C = \{ c _ { 1 } , c _ { 2 } , . . . \}$ extracted from the survey, the metric utilizes an NLI model $h$ to decide whether a claim $c _ { i }$ is supported by its references $\mathsf { R e f } _ { i } = \{ r _ { i _ { 1 } } , r _ { i _ { 2 } } , . . . \}$ , where each $r _ { i _ { k } }$ represents one paper cited. $h ( c _ { i } , \mathbf { R e f } _ { i } ) = 1$ means that the references can support the claim, and $h ( c _ { i } , \mathbf { R e f } _ { i } ) = 0$ otherwise. Refer to Appendix $\textrm { C }$ for more details. Citation quality encompasses two sub-metrics:
+
+– Citation Recall: Measures whether all statements in the generated text are fully supported by the cited passages, which is calculated as
+
+$$
+{ \mathrm { R e c a l l } } = { \frac { \sum _ { i = 1 } ^ { | C | } h ( c _ { i } , \mathbf { R e f } _ { i } ) } { | C | } } .
+$$
+
+Citation Precision: Identifies irrelevant citations, ensuring that the provided citations are pertinent and directly support the statements. Before listing the formula for precision, a function $g$ is defined as $g ( c _ { i } , r _ { i _ { k } } ) = ( h ( c _ { i } , \{ r _ { i _ { k } } \} ) = 1 ) \cup ( h ( c _ { i } , \mathrm { R e f } _ { i } \setminus \{ r _ { i _ { k } } \} ) =$ 0), which measures whether the paper $r _ { i _ { k } }$ is related to the claim $c _ { i }$ . The precision is
+
+$$
+{ \mathrm { P r e c i s i o n } } = { \frac { \sum _ { i = 1 } ^ { | C | } \sum _ { k = 1 } ^ { | { \mathrm { R e f } } _ { i } | } h ( c _ { i } , { \mathrm { R e f } } _ { i } ) \cap g ( c _ { i } , r _ { i _ { k } } ) } { \sum _ { i = 1 } ^ { | C | } | { \mathrm { R e f } } _ { i } | } } .
+$$
+
+• Content Quality: An overarching metric evaluating the excellence of the written survey, encompassing three sub-indicators. Each sub-indicator is judged by LLMs according to a 5-point rubric, calibrated by human experts to meet academic standards. Note that the detailed scoring criteria are provided in Table 1.
+
+– Coverage: Assesses the extent to which the survey encapsulates all aspects of the topic.   
+– Structure: Evaluates the logical organization and coherence of each section.   
+– Relevance: Measures how well the content aligns with the research topic.
+
+Table 1: Content Quality Criteria.   
+
+<table><tr><td>Criteria</td><td>Scores</td></tr><tr><td>Coverage</td><td>ScoreI:Thesurveyhas very limitedcoverage,only touchingonasmallportionof thetopicandlackingdiscusiononkeyareas. Score2:Thesuryoerssomepartsofthtpicbutasotiableomissos,withsiifcantareasiheruderepresetedssing Score3:Thesurveyisgenerallycomprehensive incoverage butstillmissesafewkey points that arenotfullydiscussed. Score 4:The survey covers mostkey areas of the topic comprehensively,with onlyvery minor topics left out.</td></tr><tr><td>Structure</td><td>Score5:Thesurveycomprehensivelycoversallkeyandperipheraltpics,providingetaileddiscusionsandextensiveinfoation. ScoreI:Thesurveylackslogic,withnoclearconnectionsbetweensctions,makingitdifculttounderstandtheoverallframework. Score 2:The survey has weak logical fow with some content arranged ina disordered or unreasonable manner. Score3:Tesuryasnerallasoablelogicaltucturewitotcotetrgedderlyougholisndrasoulde improved such as repeated subsections. Score4:Thereyasgodloicalonsistncywithntetellangedndatualtansitios,onlysghtlyigidiarts.</td></tr><tr><td>Relevance</td><td>Score:Thesuryisghtlyctueddlicallyeaitlleciosdotredotasoablndasioen adjacent sections smooth without redundancy. ScoreI:The content is outdated orunrelated to the fieldit purports toreview,ofering noalignment with the topic. Score2:Thesurveyissomewhatontopicbutwithseveraldigressons;thecoresubjectis evidentbutnotconsistentlydheredto. Score 3: The survey is generally on topic,despite a few unrelated details.</td></tr></table>
+
+Baselines We compare AutoSurvey with surveys authored by human experts (collected from Arxiv) and naive RAG-based LLMs across 20 different computer science topics across 20 different topics in the field of LLMs (see Table 6). For the naive RAG-based LLMs, we begin with a title and a survey length requirement, then iteratively prompt the model to write the content until completion. Note that we also provide the model with the same number of reference papers with AutoSurvey.
+
+For AutoSurvey, we utilize a corpus of 530,000 computer science papers from arXiv as the retrieval database. During the initial drafting stage, we retrieve 1200 papers relevant to the given topic and split them into several chunks with a window size of 30,000 tokens. The model generates an outline for each chunk and merges these outlines into a final comprehensive outline, using only the abstracts of the papers at this stage. The outline predetermines the number of sections as 8. For subsection drafting, the models generate specific sections using the outline and 60 papers retrieved based on the subsection descriptions, focusing on the main body of each paper (up to the first 1,500 tokens). During the reflection and polishing stage, the same reference papers are provided to the model to ensure consistency and accuracy. The iteration number N is set to 2. Note that human writing surveys used for evaluation are excluded during the retrieval process. For more details of implementations, see Appendix B, and the prompts are presented in Appendix F.
+
+Table 2: Results of naive RAG-based LLM generation, Human writing and AutoSurvey. Note that AutoSurvey and naive RAG-based LLM generation both use Claude-haiku as the writer. Note that human writing surveys used for evaluation are excluded during the retrieval process.   
+
+<table><tr><td rowspan="2">Survey Length (#tokens)</td><td rowspan="2">Methods</td><td rowspan="2">Speed</td><td colspan="2">Citation quality</td><td rowspan="2">Coverage</td><td colspan="3">Content Quality</td></tr><tr><td>Recall</td><td>Precision</td><td>Structure</td><td>Relevance</td><td>Avg.</td></tr><tr><td rowspan="3">8k</td><td>Human writing</td><td>0.16</td><td>80.00</td><td>87.50</td><td>4.50</td><td>4.16</td><td>5.00</td><td>4.52</td></tr><tr><td>Naive RAG-based LLM generation</td><td>79.67</td><td>78.14±5.23</td><td>71.92±6.83</td><td>4.40±0.48</td><td>3.86±0.71</td><td>4.86±0.33</td><td>4.33</td></tr><tr><td>AutoSurvey</td><td>107.00</td><td>82.48±2.77</td><td>77.42±3.28</td><td>4.60±0.48</td><td>4.46±0.49</td><td>4.8±0.39</td><td>4.61</td></tr><tr><td rowspan="3">16k</td><td>Human writing</td><td>0.14</td><td>88.52</td><td>79.63</td><td>4.66</td><td>4.38</td><td>5.00</td><td>4.66</td></tr><tr><td>Naive RAG-based LLM generation</td><td>43.41</td><td>71.48±12.50</td><td>65.31±15.36</td><td>4.46±0.49</td><td>3.66±0.69</td><td>4.73±0.44</td><td>4.23</td></tr><tr><td>AutoSurvey</td><td>95.51</td><td>81.34±3.65</td><td>76.94±1.93</td><td>4.66±0.47</td><td>4.33±0.59</td><td>4.86±0.33</td><td>4.60</td></tr><tr><td rowspan="3">32k</td><td>Human writing</td><td>0.10</td><td>88.57</td><td>77.14</td><td>4.66</td><td>4.50</td><td>5.00</td><td>4.71</td></tr><tr><td>Naive RAG-based LLM generation</td><td>22.64</td><td>79.88±4.35</td><td>65.03±8.39</td><td>4.41±0.64</td><td>3.75±0.72</td><td>4.66±0.47</td><td>4.23</td></tr><tr><td>AutoSurvey</td><td>91.46</td><td>83.14±2.44</td><td>78.04±3.14</td><td>4.73±0.44</td><td>4.26±0.69</td><td>4.8±0.54</td><td>4.58</td></tr><tr><td rowspan="3">64k</td><td>Human writing</td><td>0.07</td><td>86.33</td><td>77.78</td><td>5.00</td><td>4.66</td><td>5.00</td><td>4.88</td></tr><tr><td>Naive RAG-based LLM generation</td><td>12.56</td><td>68.79±11.00</td><td>61.97±13.45</td><td>4.4±0.61</td><td>3.66±0.47</td><td>4.66±0.47</td><td>4.19</td></tr><tr><td>AutoSurvey</td><td>73.59</td><td>82.25±3.64</td><td>77.41±3.84</td><td>4.73±0.44</td><td>4.33±0.47</td><td>4.86±0.33</td><td>4.62</td></tr></table>
+
+Main Results The results of our experiments comparing human writing, naive RAG-based LLM generation, and AutoSurvey for generating academic surveys are summarized in Table 2. The key findings are:
+
+• AutoSurvey significantly outperforms both human writing and naive RAG-based LLM generation in terms of speed. For instance, AutoSurvey achieves a speed of 73.59 surveys per hour for a 64k-token survey, compared to 0.07 for human writing and 12.56 for naive RAGbased LLM generation, highlighting the larger gap in speed for longer context generation.
+
+• AutoSurvey demonstrates superior citation quality compared to naive RAG-based LLM generation, with performance close to human writing. For an $^ \mathrm { 8 k }$ -token survey, AutoSurvey achieves citation recall and precision scores of 82.48 and 77.42, respectively, surpassing naive RAG-based LLM generation (78.14 recall, 71.92 precision). While human writing achieves the best performance, ours is close to human’s across different lengths.
+
+• AutoSurvey excels in content quality, scoring 4.60 on average for a 16k-token survey. It achieves 4.66 for coverage, 4.33 for structure, and 4.86 for relevance, matching human writing and surpassing naive RAG-based LLM generation.
+
+The experiments indicate that AutoSurvey provides a balanced trade-off between quality and efficiency. It achieves near-human levels of coverage, relevance, and citation quality while maintaining a significantly lower time cost. While human writing still leads in structure and overall quality, the efficiency and performance of AutoSurvey make it a compelling alternative for generating academic surveys. Naive RAG-based LLM, though effective, falls short in several key areas compared to both human writing and AutoSurvey, making it the least preferred method among the three for generating high-quality academic surveys, particularly in terms of structure, due to the lack of outline.
+
+Meta Evaluation To verify the consistency between our evaluation method and human evaluation, we conduct a meta-evaluation involving human experts and our automated evaluation system. Human experts judge pairs of generated surveys to determine which one is superior. This process, referred to as a "which one is better" game, serves as the golden standard for evaluation. We compare the judgments made by our evaluation method against those made by human experts. Specifically, we provide the experts with the same scoring criteria used in our evaluation for reference. The experts rank the generated 20 surveys, and we compare these rankings with those generated by LLM using Spearman’s rank correlation coefficient to measure consistency between human and LLM evaluations.
+
+The results of this meta-evaluation are presented in Figure 3. The table shows the Spearman’s rho values, indicating the degree of correlation between the rankings given by each LLM and the human experts. The Spearman’s rho values indicate a moderate positive correlation between the rankings provided by the LLMs and those given by the human experts, with the mixture of models achieving the highest correlation at 0.5429. These results suggest that our evaluation method aligns well with human preferences, providing a reliable proxy for human judgment.
+
+Ablation study To assess the impact of various components on the performance of AutoSurvey, we conduct an ablation study by systematically removing key components: the retrieval mechanism, the reflection phase, and iterations. Additionally, we evaluate the influence of using different base LLMs to demonstrate that even with a less optimal LLM like Claude-haiku, AutoSurvey’s performance remains comparable to human-generated surv
+
+![](images/c1723dbe4881a0715eacc3c303f848fa49def78cfd0dc8c56c89ed376b139b39.jpg)  
+Figure 3: Spearman’s rho values indicating the degree of correlation between rankings given by LLMs and human experts. Note that A value over 0.3 indicates a positive correlation and over 0.5 indicates a strong positive correlation.
+
+Table 3: Ablation study results for AutoSurvey with different components removed.   
+
+<table><tr><td rowspan="2">Methods</td><td colspan="2">Citation Quality</td><td rowspan="2">Coverage</td><td colspan="2">Content Quality</td><td></td></tr><tr><td>Recall</td><td>Precision</td><td>Structure</td><td>Relevance</td><td>Avg.</td></tr><tr><td>AutoSurvey</td><td>83.48±5.05</td><td>77.15±6.05</td><td>4.7±0.45</td><td>4.16±0.73</td><td>4.93±0.30</td><td>4.57</td></tr><tr><td>AutoSurvey w/o retrieve</td><td>60.11±6.42</td><td>51.65±6.33</td><td>4.51±0.49</td><td>4.01±0.74</td><td>4.88±0.32</td><td>4.44</td></tr><tr><td>AutoSurvey w/o reflection</td><td>83.23±3.82</td><td>76.36±4.08</td><td>4.76±0.42</td><td>4.13±0.76</td><td>4.88±0.32</td><td>4.56</td></tr></table>
+
+Table 3 demonstrates that removing the retrieval mechanism significantly degrades citation quality, highlighting its critical role in ensuring accurate and relevant references. The absence of the reflection phase slightly impacts the overall content quality, particularly in structure and coherence.
+
+Table 4 shows the performance of AutoSurvey when using different LLMs as the base writer. The results indicate that all three LLMs (GPT-4, Claude-haiku, and Gemini-1.5-Pro) perform well, with
+
+Table 4: Performance of AutoSurvey with different base LLM writers.   
+
+<table><tr><td rowspan="2">Base LLM writer</td><td colspan="2">Citation Quality</td><td colspan="4">Content Quality</td></tr><tr><td>Recall</td><td>Precision</td><td>Coverage</td><td>Structure</td><td>Relevance</td><td>Avg.</td></tr><tr><td>GPT-4</td><td>80.25±4.19</td><td>78.83±7.00</td><td>4.8±0.54</td><td>4.46±0.49</td><td>4.86±0.33</td><td>4.70</td></tr><tr><td>Claude-haiku</td><td>82.45±2.77</td><td>76.31±2.18</td><td>4.66±0.47</td><td>4.26±0.67</td><td>4.86±0.33</td><td>4.58</td></tr><tr><td>Gemini-1.5-pro</td><td>78.13±2.39</td><td>71.24±3.28</td><td>4.86±0.33</td><td>4.33±0.78</td><td>4.93±0.25</td><td>4.69</td></tr><tr><td>Human</td><td>85.86</td><td>80.51</td><td>4.71</td><td>4.43</td><td>5</td><td>4.70</td></tr></table>
+
+GPT-4 slightly outperforming the others in terms of overall content quality. Importantly, even with the less optimal Claude-haiku, AutoSurvey’s performance remains competitive with human standards.
+
+Figure 4 presents the effect of different iteration counts on the performance of AutoSurvey. The results show that increasing the number of iterations from 1 to 5 leads to a slight improvement in overall content quality, with diminishing returns after the second iteration.
+
+To assess whether the generated survey can provide useful information to enrich the knowledge, we created 50 multiple-choice questions about 5 topics. These questions primarily involve knowledge related to literature, such as identifying which paper proposed a particular method. We compared the accuracy of the Claude model under the following conditions: (1) directly chooses the answer without providing any reference materials, (2) has access to a $3 2 \mathrm { k }$ survey generated by naive RAG-based LLMs, (3) has access to a $3 2 \mathrm { k }$ survey generated by AutoSurvey, and (4) can refer to 20 papers (30k tokens in total) retrieved using the options provided (Upper-bound, directly retrieving the answers).
+
+![](images/f86646894387d9b256094b90a77fd532fa9b39e0a5f068c3ef59d797017b772d.jpg)  
+Figure 4: Impact of Iteration on AutoSurvey Performance.
+
+The results are shown in Table 5 and we find providing topic-related materials can effectively improve the accuracy of answers. Providing option-related papers can be considered an upper bound for performance $( 7 3 . 6 0 \% )$ . AutoSurvey improves accuracy by $9 . 2 \%$ compared to directly answering and is $2 . 4 \%$ higher than using naive RAG-based LLM-generated surveys. This demonstrates that our method can effectively provide topic knowledge.
+
+Table 5: Performances given different references.   
+
+<table><tr><td>Methods</td><td>Accuracy</td></tr><tr><td>Direct</td><td>58.40±4.96</td></tr><tr><td>Naive RAG-based LLMs</td><td>65.20±8.06</td></tr><tr><td>Upper-bound</td><td>73.60±3.44</td></tr><tr><td>AutoSurvey</td><td>67.60±4.96</td></tr></table>
+
+In summary, the ablation study underscores the critical role of the retrieval mechanism and reflection phase in AutoSurvey. Furthermore, the performance is influenced by using different LLMs as the base writer and varying the iteration count. Nevertheless, AutoSurvey consistently performs well across various configurations, showcasing its robustness and efficiency.
+
+# 4 Related Work
+
+Long-form Text Generation The ability to effectively process and generate long-form text is a critical challenge for large language models (LLMs) due to the need to maintain coherence and logical flow over extended passages of text [28–31]. Several works try to address the challenge by directly extending the context window with different Positional Encoding Techniques[32, 33]. However, modifying position encoding strategies requires retraining the model, which is costly. Another solution is using memory-augmented techniques. RecurrentGPT [34] enables the generation of arbitrarily long texts by simulating the recurrence mechanism of RNNs using natural language prompts to store previous contextual information. Temp-Lora [35] enables long text generation by embedding context information into a temporary Lora module updated progressively during generation rather than relying on an extensive context window. These methods effectively establish relationships among tokens and maintain contextual understanding, but still face the issue of long generation times. To further accelerate the generation process, Hierarchical Modeling Techniques have been explored extensively to capture the inherent hierarchical nature of long-form text [36, 37]. Despite such efficiency, it ignores the long dependency of text and may degrade the content quality [38]. To tackle the drawbacks, AutoSurvey, similarly using a Hierarchical generation paradigm, creates a well-organized outline for guidance and refines the generated content to improve the quality.
+
+Automatic Writing Due to the high costs associated with manual writing, automated writing has attracted substantial research interest in recent years. Compared to traditional methods, which primarily focus on training models to generate linguistically coherent text [39, 40], the emergency of large language models (LLMs) has opened up new possibilities for automated writing, drawing more attention to broader aspects like faithfulness, logical structure, style, and ethics [41–44]. For example, Retrieval-Augmented Generation techniques are useful for generating claims with citations [27, 45]. IRP framework [46] generates expository text by iteratively performing content planning, fact retrieval, and paraphrasing to ensure factuality and stylistic consistency. Several works focus on the outline creation to improve the structure of generated content. PaperRobot [47] incrementally writes key elements to generate a paper abstract. STORM [20] designs a refined outline based on multiple rounds of wiki-page-related Q&A to facilitate wiki-like article generations. These methods have only been explored in shorter texts $\left( < 4 \mathrm { k } \right)$ . In contrast, Autosurvey shows its effectiveness in generating long content (64k), with a focus on academic reviews.
+
+# 5 Limitation
+
+In addition to directly using recall and precision to evaluate citations, we also perform a manual analysis, providing a more comprehensive view of the citation quality. We examine 100 unsupported claims and their corresponding references and find that the errors mainly fall into three categories: (1) Misalignment, (2) Misinterpretation, and (3) Overgeneralization. Misalignment occurs when the connection between them is incorrectly made, such as an irrelevant citation. Misinterpretation happens when the claim and source are related, but the claim incorrectly represents the information from the source. Overgeneralization occurs when a claim extends the conclusions of the source material to a broader context than is supported. Among the three types of errors, overgeneralization accounts for the largest proportion $(5 1 \% )$ , indicating that LLMs still rely heavily on their parametric knowledge for writing. Misinterpretation has a small proportion $( 1 0 \% )$ , suggesting that LLMs are capable of understanding the content of the references in most cases, avoiding the creation of claims that significantly deviate from the references.
+
+Misalignment $( 3 9 \% )$ : An example is citing the "General Data Protection Regulation (GDPR)" in a context where the referenced paper does not propose GDPR but merely mentions it in the content.
+
+Misinterpretation $( \mathbf { 1 0 \% } )$ : An example is claiming that "In-context learning allows LLMs to adapt to new tasks by simply conditioning on a few demonstration examples, without the need for any parameter updates or fine-tuning," based on a paper that focuses on meta-out-of-context learning and mentions the limitations of in-context learning.
+
+Overgeneralization $( 5 1 \% )$ : An example is that "in-context learning can also benefit from advancements in other learning paradigms, such as multi-task learning," based on a paper that discusses multi-task few-shot learning but does not explicitly address its influence on in-context learning.
+
+Among the three types of errors, overgeneralization accounts for the largest proportion $( 5 1 \% )$ , indicating that LLMs still rely heavily on their parametric knowledge for writing. Misinterpretation has a small proportion $( 1 0 \% )$ , suggesting that LLMs are capable of understanding the content of the references in most cases, avoiding the creation of claims that significantly deviate from the references. Additional potential societal impact and ethical considerations are discussed in Appendix E.
+
+# 6 Conclusion
+
+In this paper, we introduce AutoSurvey, a novel methodology leveraging large language models to automate the creation of comprehensive literature surveys. AutoSurvey addresses key challenges such as context window limitations and parametric knowledge constraints through a systematic approach involving initial retrieval, outline generation, parallel subsection drafting, integration, and rigorous evaluation. Our experiments show that AutoSurvey significantly outperforms naive RAG-based LLM generation and matches human performance in content and citation quality, while also being highly efficient. This advancement offers a scalable and effective solution for synthesizing research literature, providing a valuable tool for researchers in rapidly evolving fields like artificial intelligence.
+
+References   
+[1] Samira Pouyanfar, Saad Sadiq, Yilin Yan, Haiman Tian, Yudong Tao, Maria Presa Reyes, MeiLing Shyu, Shu-Ching Chen, and Sundaraja S Iyengar. A survey on deep learning: Algorithms, techniques, and applications. ACM Computing Surveys (CSUR), 51(5):1–36, 2018.   
+[2] Yupeng Chang, Xu Wang, Jindong Wang, Yuan Wu, Linyi Yang, Kaijie Zhu, Hao Chen, Xiaoyuan Yi, Cunxiang Wang, Yidong Wang, et al. A survey on evaluation of large language models. ACM Transactions on Intelligent Systems and Technology, 2023.   
+[3] Wayne Xin Zhao, Kun Zhou, Junyi Li, Tianyi Tang, Xiaolei Wang, Yupeng Hou, Yingqian Min, Beichen Zhang, Junjie Zhang, Zican Dong, et al. A survey of large language models. arXiv preprint arXiv:2303.18223, 2023.   
+[4] Salman Khan, Muzammal Naseer, Munawar Hayat, Syed Waqas Zamir, Fahad Shahbaz Khan, and Mubarak Shah. Transformers in vision: A survey. ACM computing surveys (CSUR), 54(10s):1–41, 2022.   
+[5] Yann LeCun, Yoshua Bengio, and Geoffrey Hinton. Deep learning. nature, 521(7553):436–444, 2015.   
+[6] Ian Goodfellow, Yoshua Bengio, and Aaron Courville. Deep learning. MIT press, 2016.   
+[7] Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ahmad, Ilge Akkaya, Florencia Leoni Aleman, Diogo Almeida, Janko Altenschmidt, Sam Altman, Shyamal Anadkat, et al. Gpt-4 technical report. arXiv preprint arXiv:2303.08774, 2023.   
+[8] Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao, Chloe Rolland, Laura Gustafson, Tete Xiao, Spencer Whitehead, Alexander C Berg, Wan-Yen Lo, et al. Segment anything. In Proceedings of the IEEE/CVF International Conference on Computer Vision, pages 4015– 4026, 2023.   
+[9] Hugo Touvron, Thibaut Lavril, Gautier Izacard, Xavier Martinet, Marie-Anne Lachaux, Timothée Lacroix, Baptiste Rozière, Naman Goyal, Eric Hambro, Faisal Azhar, et al. Llama: Open and efficient foundation language models. arXiv preprint arXiv:2302.13971, 2023.   
+[10] Shouyuan Chen, Sherman Wong, Liangjian Chen, and Yuandong Tian. Extending context window of large language models via positional interpolation. arXiv preprint arXiv:2306.15595, 2023.   
+[11] Yukang Chen, Shengju Qian, Haotian Tang, Xin Lai, Zhijian Liu, Song Han, and Jiaya Jia. Longlora: Efficient fine-tuning of long-context large language models. In The Twelfth International Conference on Learning Representations, 2023.   
+[12] Weizhi Wang, Li Dong, Hao Cheng, Xiaodong Liu, Xifeng Yan, Jianfeng Gao, and Furu Wei. Augmenting language models with long-term memory. Advances in Neural Information Processing Systems, 36, 2024.   
+[13] Nelson F Liu, Kevin Lin, John Hewitt, Ashwin Paranjape, Michele Bevilacqua, Fabio Petroni, and Percy Liang. Lost in the middle: How language models use long contexts. Transactions of the Association for Computational Linguistics, 12:157–173, 2024.   
+[14] Jean Kaddour, Joshua Harris, Maximilian Mozes, Herbie Bradley, Roberta Raileanu, and Robert McHardy. Challenges and applications of large language models. arXiv preprint arXiv:2307.10169, 2023.   
+[15] Freda Shi, Xinyun Chen, Kanishka Misra, Nathan Scales, David Dohan, Ed H Chi, Nathanael Schärli, and Denny Zhou. Large language models can be easily distracted by irrelevant context. In International Conference on Machine Learning, pages 31210–31227. PMLR, 2023.   
+[16] Dacheng Li, Rulin Shao, Anze Xie, Ying Sheng, Lianmin Zheng, Joseph Gonzalez, Ion Stoica, Xuezhe Ma, and Hao Zhang. How long can context length of open-source llms truly promise? In NeurIPS 2023 Workshop on Instruction Tuning and Instruction Following, 2023.
+
+[17] Tianle Li, Ge Zhang, Quy Duc Do, Xiang Yue, and Wenhu Chen. Long-context llms struggle with long in-context learning. arXiv preprint arXiv:2404.02060, 2024.
+
+[18] Cunxiang Wang, Xiaoze Liu, Yuanhao Yue, Xiangru Tang, Tianhang Zhang, Cheng Jiayang, Yunzhi Yao, Wenyang Gao, Xuming Hu, Zehan Qi, et al. Survey on factuality in large language models: Knowledge, retrieval and domain-specificity. arXiv preprint arXiv:2310.07521, 2023.
+
+[19] Ziwei Ji, Nayeon Lee, Rita Frieske, Tiezheng Yu, Dan Su, Yan Xu, Etsuko Ishii, Ye Jin Bang, Andrea Madotto, and Pascale Fung. Survey of hallucination in natural language generation. ACM Computing Surveys, 55(12):1–38, 2023.
+
+[20] Yijia Shao, Yucheng Jiang, Theodore A. Kanell, Peter Xu, Omar Khattab, and Monica S. Lam. Assisting in Writing Wikipedia-like Articles From Scratch with Large Language Models. In Proceedings of the 2024 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers), 2024.
+
+[21] Yidong Wang, Zhuohao Yu, Zhengran Zeng, Linyi Yang, Cunxiang Wang, Hao Chen, Chaoya Jiang, Rui Xie, Jindong Wang, Xing Xie, Wei Ye, Shikun Zhang, and Yue Zhang. Pandalm: An automatic evaluation benchmark for llm instruction tuning optimization. 2024.
+
+[22] Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, Siyuan Zhuang, Zhanghao Wu, Yonghao Zhuang, Zi Lin, Zhuohan Li, Dacheng Li, Eric Xing, et al. Judging llm-as-a-judge with mt-bench and chatbot arena. Advances in Neural Information Processing Systems, 36, 2024.
+
+[23] Zhuohao Yu, Chang Gao, Wenjin Yao, Yidong Wang, Wei Ye, Jindong Wang, Xing Xie, Yue Zhang, and Shikun Zhang. Kieval: A knowledge-grounded interactive evaluation framework for large language models. 2024.
+
+[24] Yunfan Gao, Yun Xiong, Xinyu Gao, Kangxiang Jia, Jinliu Pan, Yuxi Bi, Yi Dai, Jiawei Sun, and Haofen Wang. Retrieval-augmented generation for large language models: A survey. arXiv preprint arXiv:2312.10997, 2023.
+
+[25] Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, et al. Retrieval-augmented generation for knowledge-intensive nlp tasks. Advances in Neural Information Processing Systems, 33:9459–9474, 2020.
+
+[26] Zhengbao Jiang, Frank F Xu, Luyu Gao, Zhiqing Sun, Qian Liu, Jane Dwivedi-Yu, Yiming Yang, Jamie Callan, and Graham Neubig. Active retrieval augmented generation. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing, pages 7969–7992, 2023.
+
+[27] Tianyu Gao, Howard Yen, Jiatong Yu, and Danqi Chen. Enabling large language models to generate text with citations. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing, 2023.
+
+[28] Bowen Tan, Zichao Yang, Maruan Al-Shedivat, Eric P. Xing, and Zhiting Hu. Progressive generation of long text with pretrained language models. In Kristina Toutanova, Anna Rumshisky, Luke Zettlemoyer, Dilek Hakkani-Tür, Iz Beltagy, Steven Bethard, Ryan Cotterell, Tanmoy Chakraborty, and Yichao Zhou, editors, Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT 2021, Online, June 6-11, 2021, pages 4313–4324. Association for Computational Linguistics, 2021.
+
+[29] Yushi Bai, Xin Lv, Jiajie Zhang, Hongchang Lyu, Jiankai Tang, Zhidian Huang, Zhengxiao Du, Xiao Liu, Aohan Zeng, Lei Hou, Yuxiao Dong, Jie Tang, and Juanzi Li. Longbench: A bilingual, multitask benchmark for long context understanding. CoRR, abs/2308.14508, 2023.
+
+[30] Zican Dong, Tianyi Tang, Junyi Li, Wayne Xin Zhao, and Ji-Rong Wen. BAMBOO: A comprehensive benchmark for evaluating long text modeling capacities of large language models. CoRR, abs/2309.13345, 2023.
+
+[31] Jiaqi Li, Mengmeng Wang, Zilong Zheng, and Muhan Zhang. Loogle: Can long-context language models understand long contexts? CoRR, abs/2311.04939, 2023.
+
+[32] Peter Shaw, Jakob Uszkoreit, and Ashish Vaswani. Self-attention with relative position representations. In Marilyn A. Walker, Heng Ji, and Amanda Stent, editors, Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT, New Orleans, Louisiana, USA, June 1-6, 2018, Volume 2 (Short Papers), pages 464–468. Association for Computational Linguistics, 2018.
+
+[33] Xing Wang, Zhaopeng Tu, Longyue Wang, and Shuming Shi. Self-attention with structural position representations. In Kentaro Inui, Jing Jiang, Vincent $\mathrm { N g }$ , and Xiaojun Wan, editors, Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing, EMNLP-IJCNLP 2019, Hong Kong, China, November 3-7, 2019, pages 1403–1409. Association for Computational Linguistics, 2019.
+
+[34] Wangchunshu Zhou, Yuchen Eleanor Jiang, Peng Cui, Tiannan Wang, Zhenxin Xiao, Yifan Hou, Ryan Cotterell, and Mrinmaya Sachan. Recurrentgpt: Interactive generation of (arbitrarily) long text. arXiv preprint arXiv:2305.13304, 2023.
+
+[35] Y Wang, D Ma, and D Cai. With greater text comes greater necessity: Inference-time training helps long text generation. arXiv preprint arXiv:2401.11504, 2024.
+
+[36] Angela Fan, Mike Lewis, and Yann Dauphin. Hierarchical neural story generation. arXiv preprint arXiv:1805.04833, 2018.
+
+[37] Jeff Wu, Long Ouyang, Daniel M Ziegler, Nisan Stiennon, Ryan Lowe, Jan Leike, and Paul Christiano. Recursively summarizing books with human feedback. arXiv preprint arXiv:2109.10862, 2021.
+
+[38] Yapei Chang, Kyle Lo, Tanya Goyal, and Mohit Iyyer. Booookscore: A systematic exploration of book-length summarization in the era of llms. arXiv preprint arXiv:2310.00785, 2023.
+
+[39] Woon Sang Cho, Pengchuan Zhang, Yizhe Zhang, Xiujun Li, Michel Galley, Chris Brockett, Mengdi Wang, and Jianfeng Gao. Towards coherent and cohesive long-form text generation. arXiv preprint arXiv:1811.00511, 2018.
+
+[40] Antoine Bosselut, Asli Celikyilmaz, Xiaodong He, Jianfeng Gao, Po-Sen Huang, and Yejin Choi. Discourse-aware neural rewards for coherent text generation. arXiv preprint arXiv:1805.03766, 2018.
+
+[41] Wenxuan Zhou, Sheng Zhang, Hoifung Poon, and Muhao Chen. Context-faithful prompting for large language models. arXiv preprint arXiv:2303.11315, 2023.
+
+[42] Jinxin Liu, Shulin Cao, Jiaxin Shi, Tingjian Zhang, Lei Hou, and Juanzi Li. Probing structured semantics understanding and generation of language models via question answering. arXiv preprint arXiv:2401.05777, 2024.
+
+[43] Chiyu Zhang, Honglong Cai, Yuexin Wu, Le Hou, Muhammad Abdul-Mageed, et al. Distilling text style transfer with self-explanation from llms. arXiv preprint arXiv:2403.01106, 2024.
+
+[44] Patrick Schramowski, Cigdem Turan, Nico Andersen, Constantin A Rothkopf, and Kristian Kersting. Large pre-trained language models contain human-like biases of what is right and wrong to do. Nature Machine Intelligence, 4(3):258–268, 2022.
+
+[45] Jacob Menick, Maja Trebacz, Vladimir Mikulik, John Aslanides, Francis Song, Martin Chadwick, Mia Glaese, Susannah Young, Lucy Campbell-Gillingham, Geoffrey Irving, et al. Teaching language models to support answers with verified quotes. arXiv preprint arXiv:2203.11147, 2022.
+
+[46] Nishant Balepur, Jie Huang, and Kevin Chen-Chuan Chang. Expository text generation: Imitate, retrieve, paraphrase. arXiv preprint arXiv:2305.03276, 2023.
+
+[47] Qingyun Wang, Lifu Huang, Zhiying Jiang, Kevin Knight, Heng Ji, Mohit Bansal, and Yi Luan. Paperrobot: Incremental draft generation of scientific ideas. arXiv preprint arXiv:1905.07870, 2019.
+
+[48] Zach Nussbaum, John X. Morris, Brandon Duderstadt, and Andriy Mulyar. Nomic embed: Training a reproducible long context text embedder, 2024.
+
+# A Detail of Topics and Human-writing Surveys
+
+We select 20 surveys from different topics within the LLM field. During the selection process, we prioritize both the breadth of the topics and the citation count (from google scholar) of the surveys. The basic information of surveys are listed in Table 6.
+
+Table 6: Survey Table   
+
+<table><tr><td>Topic</td><td>Survey Title</td><td>Citations</td></tr><tr><td>In-context Learning</td><td>A survey for in-context learning</td><td>323</td></tr><tr><td>LLMs for Recommendation</td><td>ASurvey onLargeLanguage Models forRecommendation</td><td>55</td></tr><tr><td>LLM-Generated Texts Detection</td><td>A Survey of Detecting LLM-Generated Texts</td><td>42</td></tr><tr><td>Explainability for LLMs</td><td>Explainability for Large Language Models</td><td>25</td></tr><tr><td>Evaluation of LLMs</td><td>A Survey on Evaluation of Large Language Models</td><td>183</td></tr><tr><td>LLMs-based Agents</td><td>A Survey on Large Language Model based Autonomous Agents</td><td>101</td></tr><tr><td>LLMs in Medicine</td><td>A Survey of Large Language Models in Medicine</td><td>234</td></tr><tr><td>Domain Specialization ofLLMs</td><td>Domain Specialization as the Key to Make Large Language Models Disruptive</td><td>14</td></tr><tr><td>Challenges of LLMs in Education</td><td>Practical and Ethical Challenges of Large Language Models in Education</td><td>53</td></tr><tr><td>Alignment of LLMs</td><td>Aligning Large Language Models with Human</td><td>53</td></tr><tr><td>ChatGPT</td><td>A Survey on ChatGPT and Beyond</td><td>144</td></tr><tr><td>Instruction Tuning for LLMs</td><td>Instruction Tuning for Large Language Models</td><td>45</td></tr><tr><td>LLMs for Information Retrieval</td><td>Large Language Models for Information Retrieval</td><td>22</td></tr><tr><td>Safety in LLMs</td><td>Towards Safer Generative Language Models: Safety Risks,Evaluations,and Improvements</td><td>17</td></tr><tr><td>Chain of Thought</td><td>A Survey of Chain of Thought Reasoning</td><td>13</td></tr><tr><td>Hallucination in LLMs</td><td>A Survey on Hallucination in Large Language Models</td><td>116</td></tr><tr><td>Biasand Fairness in LLMs</td><td>Bias and Fairness in Large Language Models</td><td>12</td></tr><tr><td>Large Multi-Modal Language Models</td><td>Large-scale Multi-Modal Pre-trained Models</td><td>61</td></tr><tr><td>Acceleration forLLMs</td><td>A Survey on Model Compression and Acceleration for Pretrained Language Models</td><td>22</td></tr><tr><td>LLMs for Software Engineering</td><td>Large Language Models for Software Engineering</td><td>49</td></tr></table>
+
+# B Details of Implementations
+
+We adopt nomic-embed-text-v1.5 [48], a widely used embedding model in RAG applications. To build our database, we store the embeddings of the title and abstract for each paper. Since the context window length is $^ { 8 \mathrm { k } }$ , which is longer than any individual abstract, we embed the raw text directly without chunkings. During generation, related papers are retrieved by the abstract and ranked by their similarity to the query. When generating subsection content, the model needs to write the corresponding paper titles where citations are required. After generation, each title will be embedded as a query and be mapped to the closest paper title in our database. This approach allows the LLMs to use their own parameter knowledge to generate citations without references while ensuring the existence of the generated citations. When calling API, we set temperature $= 1$ and other parameters as default. Even with the same parameters, the final length of the generated surveys can vary. Therefore, papers with lengths from $^ \mathrm { 8 k }$ to $1 6 \mathrm { k }$ are classified into the $^ \mathrm { 8 k }$ category, those from 16k to $3 2 \mathrm { k }$ into the 16k category, and so on.
+
+# C Details of Evaluation
+
+For citation quality, we define a sentence with at least one citation as a claim and extract all the claims from the generated survey. For human evaluations, we invite three PhD students and all of them have experience in writing LLMs-related surveys. We provide them with the same scoring criteria, along with explanations of the specific metrics. They are asked to score based on these criteria, and the final rankings of the generated surveys are determined by the total scores.
+
+# D Cost Analysis
+
+We present the average number of tokens to generate a $3 2 \mathrm { k }$ -tokens survey, along with the cost of using different LLMs in Table 7.
+
+Table 7: Cost of AutoSurvey   
+
+<table><tr><td>Input tokens</td><td>Output tokens</td><td>Claude-haiku</td><td>Gemini-1.5-pro</td><td>GPT-4</td></tr><tr><td>3009.7K</td><td>112.9K</td><td>0.89$</td><td>11.72$</td><td>33.48$</td></tr></table>
+
+# E Societal Impact and Ethical Considerations
+
+By integrating various specialized databases, our approach can generate academic surveys across different fields, potentially filling the gaps in existing reviews. However, as our method relies on the performance of large models, it inevitably contains citation errors. Therefore, the generated survey content is intended for reference only. All personnel involved in the evaluation process participated voluntarily and received ample compensation. All data used in our experiment is sourced from arXiv and is allowed for non-commercial use.
+
+# F Prompt used in AutoSurvey
+
+ROUGH_OUTLINE_PROMPT $=$ You want to write a overall and comprehensive academic survey about [ TOPIC ]. You are provided with a list of papers related to the topic below : [ PAPER LIST ] You need to draft a outline based on the given papers . The outline should contains a title and several sections . Each section follows with a brief sentence to describe what to write in this section . The outline is supposed to be comprehensive and contains [ SECTION NUM ] sections . Return in the format : <format > Title : [ TITLE OF THE SURVEY ] Section 1: [ NAME OF SECTION 1] Description 1: [ DESCRIPTION OF SENTCTION 1] ... Section K: [ NAME OF SECTION K] Description K: [ DESCRIPTION OF SENTCTION K] </ format > The outline : ’’’   
+SUBSECTION_OUTLINE_PROMPT $=$ ’’’ You want to write a overall survey about [ TOPIC ]. You have created a overall outline below : [ OVERALL OUTLINE ] The outline contains a title and several sections . Each section follows with a brief sentence to describe what to write in this section . You need to enrich the section [ SECTION NAME ]. The description of [ SECTION NAME ]: [ SECTION DESCRIPTION ] You need to generate the framwork containing several subsections based on the overall outlines . Each subsection follows with a brief sentence to describe what to write in this subsection .
+
+[ PAPER LIST ] Return the outline in the format : <format > Subsection 1: [ NAME OF SUBSECTION 1] Description 1: [ DESCRIPTION OF SUBSENTCTION 1] . Subsection K: [ NAME OF SUBSECTION K] Description K: [ DESCRIPTION OF SUBSENTCTION K] </ format > Only return the outline without any other informations : MERGING_OUTLINE_PROMPT $=$ ’’’ You want to write a overall survey about [ TOPIC ]. You are provided with a list of outlines as candidates below : [ OUTLINE LIST ] Each outline contains a title and several sections . Each section follows with a brief sentence to describe what to write in this section . You need to generate a final outline based on these provided outlines to make the final outline show comprehensive insights of the topic and more logical . Return the in the format : <format > Title : [ TITLE OF THE SURVEY ] Section 1: [ NAME OF SECTION 1] Description 1: [ DESCRIPTION OF SENTCTION 1] .. Section K: [ NAME OF SECTION K] Description K: [ DESCRIPTION OF SENTCTION K] </ format > Only return the final outline without any other informations : ’’’
+
+# SUBSECTION_WRITING_PROMPT $=$
+
+You wants to write a overall and comprehensive survey about [ TOPIC ].   
+You have created a overall outline below :   
+[ OVERALL OUTLINE ]   
+Below are a list of papers for reference :   
+[ PAPER LIST ]   
+Now you need to write the content for the subsection :   
+"[ SUBSECTION NAME ]".   
+The details of what to write in this subsection called [ SUBSECTION NAME ] is in this descripition :   
+[ DESCRIPTION ]   
+Here is the requirement you must follow :
+
+1. The subsection is recommended to contain more than [ WORD NUM] words .
+
+2. When writing sentences that are based on specific papers above , you cite the " paper_title " in a ’[] ’ format to support your content .
+
+Here ’s a concise guideline for when to cite papers in a survey :
+
+1. Summarizing Research : Cite sources when summarizing the existing literature .   
+2. Using Specific Concepts or Data : Provide citations when discussing specific theories , models , or data .   
+3. Using Established Methods : Cite the creators of methodologies you employ in your survey .   
+4. Supporting Arguments : Cite sources that back up your   
+conclusions and arguments .   
+Only return the content more than [ WORD NUM] words you write for the subsection [ SUBSECTION NAME ] without any other information : ’’’
+
+# CITATION_REFLECTION_PROMPT $=$
+
+You want to write a overall and comprehensive survey about [ TOPIC ] .   
+Below are a list of papers for references :   
+[ PAPER LIST ]   
+You have written a subsection below :   
+[ SUBSECTION ]   
+The sentences that are based on specific papers above are followed with the citation of " paper_title " in "[]".   
+For example ’the emergence of large language models ( LLMs ) [ PaLM : Scaling language modeling with pathways ] ’
+
+Here ’s a concise guideline for when to cite papers in a survey :
+
+1. Summarizing Research : Cite sources when summarizing the existing literature .   
+2. Using Specific Concepts or Data : Provide citations when discussing specific theories , models , or data .   
+3. Using Established Methods : Cite the creators of methodologies you employ in your survey .   
+4. Supporting Arguments : Cite sources that back up your   
+conclusions and arguments .
+
+Once the citation can not support the sentence you write , correct the paper_title in ’[] ’ or just remove it.
+
+Do not change any other things except the citations Only return the subsection with correct citations : ， ， ，
+
+# COHERENCY_REFINEMENT_PROMPT $=$
+
+You want to write a overall and comprehensive survey about [ TOPIC
+
+Now you need to help to refine one of the subsection to improve th ecoherence of your survey .
+
+You are provied with the content of the subsection along with the previous subsections and following subsections .
+
+Previous Subsection : [ PREVIOUS ]   
+Following Subsection : [ FOLLOWING ]   
+Subsection to Refine : [ SUBSECTION ]
+
+Now refine the subsection to enhance coherence , and ensure that it connects more fluidly with the previous and following subsections .
+
+Remember that keep all the essence and core information of the subsection intact . Do not modify any citations in [] following the sentences !!!!
+
+Only return the whole refined content of the subsection without   
+any other informations :   
+，
+
+# Comprehensive Survey on Emotion Recognition using Large Language Models
+
+## 1. Introduction to Emotion Recognition and Large Language Models Emotion recognition has been a crucial and active research area in the field of affective computing , which aims to enable machines to understand , interpret , and respond to human emotions [1]. Emotions play a fundamental role in human cognition , decision - making , and social interaction [2] , and the ability to automatically recognize and interpret emotions has a wide range of applications , including healthcare , education , entertainment , and human - computer interaction [3]. The importance of emotion recognition is evident in various real - world applications . In healthcare , emotion recognition can be used to monitor patient mental health , provide personalized therapy , and improve doctor - patient communication [4]. In education , emotion recognition can help identify student engagement and frustration levels , enabling adaptive learning environments that cater to individual needs [5]. In the entertainment industry , emotion recognition can be used to analyze viewer responses and tailor content to evoke desired emotional responses [6]. Despite the significant benefits of emotion recognition , the field faces several challenges that have hindered its widespread adoption and implementation [7]. One of the primary challenges is the inherent complexity and subjectivity of emotions , which can vary across individuals , cultures , and contexts [8]. Emotions are often expressed through multiple modalities , including facial expressions , vocal cues , body language , and physiological signals , and integrating these diverse sources of information is a significant challenge [9]. Additionally , the availability of high - quality , diverse , and annotated emotion datasets is a persistent challenge in the field [10]. Many existing datasets are limited in size , lack diversity , or have inconsistent or subjective emotion labeling , which can lead to biases and poor generalization of emotion recognition models [11].
+
+### 1.1 Background on Emotion Recognition ### 1.2 Large Language Models and their Capabilities ### 1.3 Emotion Representation in LLMs ### 1.4 Multimodal Emotion Recognition using LLMs ## 2. Techniques and Approaches for Emotion Recognition using LLMs ### 2.1 Fine - tuning LLMs on Emotion Datasets ### 2.2 LLM - based Prompting Methods for Emotion Recognition ### 2.3 Integrating LLMs with Other Modalities for Multimodal Emotion Recognition
+
+## 3. Enhancing LLM - based Emotion Recognition ### 3.1 Data Augmentation for Improving Emotion Recognition ### 3.2 Prompt Engineering for Emotion Recognition ### 3.3 Integrating External Knowledge for Emotion Recognition ## 4. Challenges , Limitations , and Ethical Considerations ### 4.1 Model Biases and Hallucinations ### 4.2 Interpretability and Explainability ### 4.3 Ethical Considerations ## 5. Applications and Future Directions ### 5.1 Assistive Robotics ### 5.2 Mental Health Assessment ### 5.3 Customer Service and User Experience ### 5.4 Symbolic Reasoning and Long - tailed Emotions ### 5.5 Robust Evaluation Frameworks
+
+## References
+
+[1] Affective Computing for Large - Scale Heterogeneous Multimedia Data A Survey   
+[2] Emotion Recognition in Conversation Research Challenges , Datasets , and Recent Advances   
+[3] A Comprehensive Survey on Affective Computing ; Challenges , Trends , Applications , and Future Directions   
+[4] Affective Computing for Healthcare Recent Trends , Applications , Challenges , and Beyond   
+[5] Automatic Sensor - free Affect Detection A Systematic Literature Review   
+[6] Affective Video Content Analysis Decade Review and New Perspectives   
+[7] Emotion Recognition from Multiple Modalities Fundamentals and Methodologies   
+[8] The Ambiguous World of Emotion Representation   
+[9] Multimodal Affective Analysis Using Hierarchical Attention Strategy with Word - Level Alignment   
+[10] Expression , Affect , Action Unit Recognition Aff - Wild2 , Multi - Task Learning and ArcFace   
+[11] Feature Dimensionality Reduction for Video Affect Classification A Comparative Study

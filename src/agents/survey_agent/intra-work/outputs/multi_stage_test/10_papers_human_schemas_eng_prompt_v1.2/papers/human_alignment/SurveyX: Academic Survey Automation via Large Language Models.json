@@ -1,0 +1,148 @@
+{
+  "extraction": {
+    "title": {
+      "value": "SurveyX: Academic Survey Automation via Large Language Models",
+      "type": "string",
+      "unit": null,
+      "evidence": "SurveyX: Academic Survey Automation via Large Language Models",
+      "provenance": {
+        "section_header": "Title",
+        "page": 1
+      },
+      "notes": "",
+      "human_alignment_score": 1
+    },
+    "insights": {
+      "value": [
+        "SurveyX effectively automates the survey generation process, addressing significant limitations in existing systems, such as context window issues and outdated knowledge.",
+        "By integrating online reference retrieval and a structured pre-processing method (AttributeTree), SurveyX enhances the quality and relevance of generated surveys.",
+        "Experimental results demonstrate that SurveyX outperforms prior methods in content and citation quality, achieving results comparable to human experts."
+      ],
+      "type": "list",
+      "unit": null,
+      "evidence": "Experimental evaluation results show that SurveyX outperforms existing automated survey generation systems in content quality (0.259 improvement) and citation quality (1.76 enhancement), approaching human expert performance across multiple evaluation dimensions.",
+      "provenance": {
+        "section_header": "Abstract",
+        "page": 1
+      },
+      "notes": "",
+      "human_alignment_score": 1
+    },
+    "article_introduction": {
+      "research_background": {
+        "value": "The rapid increase in academic publications, particularly on platforms like arXiv, has created a demand for efficient survey generation tools to help researchers synthesize vast amounts of information.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Statistics indicate that arXiv.org receives about a thousand new papers daily... the exponential growth of literature has made it increasingly challenging for researchers attempting to comprehend the technological evolution.",
+        "provenance": {
+          "section_header": "1 INTRODUCTION",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "main_contributions": {
+        "value": "SurveyX introduces a two-phase system for automated survey generation, incorporating innovative reference retrieval and pre-processing techniques to enhance content quality and citation accuracy.",
+        "type": "string",
+        "unit": null,
+        "evidence": "To address these deficiencies, we propose SurveyX, an efficient and well organized system for automated survey generation.",
+        "provenance": {
+          "section_header": "1 INTRODUCTION",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "core_approach": {
+        "value": "The methodology consists of a Preparation Phase for reference acquisition and pre-processing, followed by a Generation Phase for survey outline and content generation, incorporating a post-refinement process.",
+        "type": "string",
+        "unit": null,
+        "evidence": "SurveyX divides the composing process of surveys into two phases: the Preparation Phase and the Generation Phase.",
+        "provenance": {
+          "section_header": "1 INTRODUCTION",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      }
+    },
+    "methods": {
+      "preparation_stage": {
+        "reference_acquisition": {
+          "value": "SurveyX employs a dual approach for reference acquisition, utilizing both offline sources (like arXiv) and a self-developed online crawler based on Google Scholar to ensure timely and relevant references.",
+          "type": "string",
+          "unit": null,
+          "evidence": "The retrieval data source includes both offline and online data sources... The online data source is a self-developed crawler system based on Google Scholar.",
+          "provenance": {
+            "section_header": "3.1 Preparation Phase",
+            "page": 5
+          },
+          "notes": "",
+          "human_alignment_score": 1
+        },
+        "retrieval_algorithms": {
+          "value": "The retrieval algorithm includes a Keyword Expansion Algorithm to maximize reference recall and a two-step filtering process to ensure relevance.",
+          "type": "string",
+          "unit": null,
+          "evidence": "The retrieval algorithm is divided into two steps: reference recall and reference filter... We design a method called the Keyword Expansion Algorithm.",
+          "provenance": {
+            "section_header": "3.1 Preparation Phase",
+            "page": 5
+          },
+          "notes": "",
+          "human_alignment_score": 0
+        },
+        "reference_preprocessing": {
+          "value": "The AttributeTree method categorizes and extracts key information from references, significantly enhancing the information density and context window utilization for LLMs.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We design a reference pre-processing method called AttributeTree... This method significantly increases the information density of the reference materials.",
+          "provenance": {
+            "section_header": "3.1 Preparation Phase",
+            "page": 6
+          },
+          "notes": "",
+          "human_alignment_score": 1
+        }
+      },
+      "generation_stage": {
+        "outline_generation": {
+          "value": "Outline Optimization generates a primary outline using LLMs' internal knowledge and a secondary outline based on hints derived from the AttributeTree, ensuring logical rigor.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We designed an outline generation method named Outline Optimization... This method consists of two steps.",
+          "provenance": {
+            "section_header": "3.2 Generation Phase",
+            "page": 7
+          },
+          "notes": "",
+          "human_alignment_score": 0
+        },
+        "content_generation": {
+          "value": "Content generation uses a hint-based method to guide LLMs in developing the main body of the survey, ensuring consistency across subsections.",
+          "type": "string",
+          "unit": null,
+          "evidence": "During the content generation stage, inspired by the human writing process for surveys, we continue to use the hint-based method employed during the outline generation stage.",
+          "provenance": {
+            "section_header": "3.2 Generation Phase",
+            "page": 8
+          },
+          "notes": "",
+          "human_alignment_score": 1
+        },
+        "post_optimization": {
+          "value": "The post-refinement stage enhances the content quality through a RAG-based rewriting module and generates figures and tables to improve presentation.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We have constructed a comprehensive and systematic post refinement stage that significantly enhances the overall quality of the generated survey while expanding its expressive format.",
+          "provenance": {
+            "section_header": "3.2 Generation Phase",
+            "page": 9
+          },
+          "notes": "",
+          "human_alignment_score": 0
+        }
+      }
+    }
+  }
+}

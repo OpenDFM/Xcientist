@@ -1,0 +1,2556 @@
+[
+    {
+        "type": "text",
+        "text": "Typos that Broke the RAG’s Back: Genetic Attack on RAG Pipeline by Simulating Documents in the Wild via Low-level Perturbations ",
+        "text_level": 1,
+        "bbox": [
+            149,
+            90,
+            850,
+            129
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Sukmin Cho1 Soyeong Jeong2 Jeongyeon Seo1 Taeho Hwang1 Jong C. Park1\\* School of Computing1 Graduate School of AI2 Korea Advanced Institute of Science and Technology1,2 {nelllpic,starsuzi,yena.seo,doubleyyh,jongpark}@kaist.ac.kr ",
+        "bbox": [
+            129,
+            151,
+            870,
+            219
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Abstract ",
+        "text_level": 1,
+        "bbox": [
+            263,
+            261,
+            339,
+            277
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "The robustness of recent Large Language Models (LLMs) has become increasingly crucial as their applicability expands across various domains and real-world applications. RetrievalAugmented Generation (RAG) is a promising solution for addressing the limitations of LLMs, yet existing studies on the robustness of RAG often overlook the interconnected relationships between RAG components or the potential threats prevalent in real-world databases, such as minor textual errors. In this work, we investigate two underexplored aspects when assessing the robustness of RAG: 1) vulnerability to noisy documents through low-level perturbations and 2) a holistic evaluation of RAG robustness. Furthermore, we introduce a novel attack method, the Genetic Attack on RAG (GARAG), which targets these aspects. Specifically, GARAG is designed to reveal vulnerabilities within each component and test the overall system functionality against noisy documents. We validate RAG robustness by applying our $G A R A G$ to standard QA datasets, incorporating diverse retrievers and LLMs. The experimental results show that GARAG consistently achieves high attack success rates. Also, it significantly devastates the performance of each component and their synergy, highlighting the substantial risk that minor textual inaccuracies pose in disrupting RAG systems in the real world. Code is available at https: //github.com/zomss/GARAG. ",
+        "bbox": [
+            144,
+            292,
+            458,
+            744
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1 Introduction ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            760,
+            257,
+            776
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/1e17106aa73b327f27eb3cdc713e8db1c463ff29ee48a3dd35bf1e6756d74239.jpg",
+        "image_caption": [
+            "Figure 1: Impact of noisy documents in real-world databases on the RAG system: The retriever selects a noisy document, causing the reader to produce incorrect answers. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            527,
+            261,
+            862,
+            403
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "or long-tailed knowledge due to their limited parametric memory (Kasai et al., 2023; Mallen et al., 2023), resulting in a hallucination where the models generate convincing yet factually incorrect text (Li et al., 2023a). Retrieval-Augmented Generation (RAG) (Lewis et al., 2020) has emerged as a promising solution by utilizing a retriever to fetch enriched knowledge from external databases, thus enabling accurate, relevant, and up-to-date response generation. Specifically, RAG has shown its superior performance across diverse knowledgeintensive tasks (Lewis et al., 2020; Lazaridou et al., 2022; Jeong et al., 2024), leading to its integration as a core component in various real-world APIs (Qin et al., 2024; Chase, 2022; OpenAI, 2023a). Given its extensive applications, ensuring robustness under diverse conditions of real-world scenarios becomes critical for safe deployment. Thus, assessing potential vulnerabilities within the overall RAG system is vital, particularly by assessing its components: the retriever and the reader. ",
+        "bbox": [
+            512,
+            453,
+            884,
+            790
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Large Language Models (LLMs) (Brown et al., 2020; OpenAI, 2023b) have enabled remarkable advances in diverse Natural Language Processing (NLP) tasks, especially in Question-Answering (QA) tasks (Joshi et al., 2017; Kwiatkowski et al., 2019). Despite these advances, however, LLMs face challenges in having to adapt to ever-evolving ",
+        "bbox": [
+            115,
+            787,
+            485,
+            898
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "However, existing studies on assessing the robustness of RAG often focus solely on either retrievers (Zhong et al., 2023; Zou et al., 2024; Long et al., 2024) or readers (Li et al., 2023b; Wang et al., 2023; Zhu et al., 2023). The robustness of a single component might only partially capture the complexities of RAG systems, where the retriever and reader work together in a sequential flow, which is crucial for optimal performance. In other words, the reader’s ability to accurately ground information significantly depends on the retriever’s capability of sourcing query-relevant documents (Baek et al., 2023; Lee et al., 2023). Thus, it is important to consider both components simultaneously when evaluating the robustness of an RAG system. ",
+        "bbox": [
+            512,
+            794,
+            882,
+            921
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            117,
+            85,
+            487,
+            196
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "While concurrent work has shed light on the sequential interaction between two components, they have primarily evaluated the performance of the reader component given the high-level perturbed errors within retrieved documents, such as context relevance or counterfactual information (Thakur et al., 2023; Chen et al., 2024; Cuconasu et al., 2024). However, they have overlooked the impact of low-level errors, such as textual typos due to human mistakes or preprocessing inaccuracies in retrieval corpora, which often occur in real-world scenarios (Piktus et al., 2021; Le et al., 2023). Additionally, LLMs, commonly used as readers, struggle to produce accurate predictions when confronted with textual errors (Zhu et al., 2023; Wang et al., 2023). Note that these are the practical issues that can affect the performance of any RAG system in real-world scenarios, as illustrated in Figure 1. Therefore, to deploy a more realistic RAG system, we should consider: “Can minor document typos comprehensively disrupt both the retriever and reader components in RAG systems?” ",
+        "bbox": [
+            115,
+            199,
+            487,
+            551
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "In this paper, we evaluate the RAG system’s robustness against textual typos in the database by generating a perturbed counterpart of the clean document retrieved for a given query. Initially, we establish two attack objectives to qualitatively measure the negative impact of the adversarial document on the RAG system’s retrieval and grounding capabilities. To comprehensively assess system resilience under these objectives, we propose a novel black-box adversarial attack method, GARAG, which uses a genetic algorithm to search for the most adversarial document with low values for both loss objectives among the perturbed documents. The method begins by generating an initial population of adversarial documents by injecting minor textual errors into the original document while ensuring that answer tokens remain unaltered. Through an iterative process of mutation, crossover, and selection to refine the population, the method searches for the most adversarial document for a given query by effectively exploring the vast search space of typos space and exploiting the most adversarial documents. To sum up, GARAG assesses the holistic robustness of an RAG system against minor textual errors, offering insights into the system’s resilience through iterative adversarial refinement. ",
+        "bbox": [
+            117,
+            554,
+            487,
+            921
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            510,
+            85,
+            880,
+            147
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "We validate our method on three standard QA datasets (Joshi et al., 2017; Kwiatkowski et al., 2019; Rajpurkar et al., 2016), with diverse retrievers (Karpukhin et al., 2020; Izacard et al., 2022) and LLMs (Touvron et al., 2023; Chiang et al., 2023; Jiang et al., 2023). The experimental results reveal that adversarial documents with low-level perturbation generated by GARAG significantly induce retrieval and grounding errors, achieving a high attack success rate of approximately $70 \\%$ , along with a significant reduction in the performance of each component and the overall system. Our analyses also highlight that lower perturbation rates pose a greater threat to the RAG system, emphasizing the challenges of mitigating such inconspicuous yet critical vulnerabilities. ",
+        "bbox": [
+            512,
+            151,
+            882,
+            405
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            524,
+            407,
+            858,
+            423
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Our contributions in this paper are threefold: • We point out that the RAG system is vulnerable to minor but frequent textual errors within the documents, prevalent in real-world scenarios. • We propose a black-box adversarial attack method, GARAG, based on a genetic algorithm searching for adversarial documents targeting both components within RAG simultaneously. • We experimentally show that GARAG effectively attacks the RAG system with significant performance degradation, validating the vulnerability to textual typos. ",
+        "bbox": [
+            510,
+            413,
+            882,
+            606
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2 Related Work ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            618,
+            663,
+            633
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2.1 Robustness in RAG ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            644,
+            707,
+            658
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "The robustness of RAG, characterized by its ability to fetch and incorporate external information dynamically, has gained much attention for its critical role in real-world applications (Chase, 2022; Liu, 2022; OpenAI, 2023a). However, previous studies concentrated on the robustness of individual components within RAG systems, either retriever or reader. The vulnerability of the retriever is captured by injecting adversarial documents, specially designed to disrupt the retrieval capability, into retrieval corpora (Zhong et al., 2023; Zou et al., 2024; Long et al., 2024). Additionally, the robustness of LLMs, often employed as readers, has been critically examined for their resistance to outof-distribution data and adversarial attacks (Wang et al., 2021; Li et al., 2023b; Wang et al., 2023; ",
+        "bbox": [
+            512,
+            664,
+            882,
+            921
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Zhu et al., 2023). However, these studies overlook the sequential interaction between the retriever and reader components, thus not fully addressing the overall robustness of RAG systems. ",
+        "bbox": [
+            115,
+            84,
+            487,
+            147
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "In response, there is an emerging consensus on the need to assess the holistic robustness of RAG, with a particular emphasis on the sequential interaction of the retriever and reader (Thakur et al., 2023; Chen et al., 2024). They point out that RAG’s vulnerabilities stem from retrieval inaccuracies and inconsistencies in how the reader interprets retrieved documents. Specifically, the reader generates incorrect responses if the retriever fetches partially (or entirely) irrelevant or counterfactual documents within the retrieved set. The solutions to these challenges range from prompt design (Cho et al., 2023; Press et al., 2023) and plug-in models (Baek et al., 2023) to specialized language models for enhancing RAG’s performance (Yoran et al., 2024; Asai et al., 2024). However, they focus on the highlevel errors within retrieved documents, which may overlook more subtle yet realistic low-level errors frequently encountered in the real world. ",
+        "bbox": [
+            115,
+            149,
+            487,
+            455
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "In this study, we spotlight a novel vulnerability in RAG systems related to low-level textual errors found in retrieval corpora, often originating from human mistakes or preprocessing inaccuracies (Thakur et al., 2021; Piktus et al., 2021; Le et al., 2023). Specifically, Faruqui et al. (2018) pointed out that Wikipedia, a widely used retrieval corpus, frequently contains minor errors within its contents. Therefore, we focus on a holistic evaluation of the RAG system’s robustness against pervasive low-level text perturbations, emphasizing the critical need for systems that can maintain comprehensive effectiveness for real-world data. ",
+        "bbox": [
+            117,
+            456,
+            487,
+            663
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "2.2 Adversarial Attacks in NLP ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            675,
+            378,
+            690
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Adversarial attacks involve generating adversarial samples designed to meet specific objectives to measure the robustness of models (Zhang et al., 2020). In NLP, such attacks use a transformation function to inject perturbations into text, accompanied by a search algorithm that identifies the most effective adversarial sample. ",
+        "bbox": [
+            117,
+            697,
+            487,
+            808
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "The operations of the transformation function can be categorized into high-level and low-level perturbations. High-level perturbations leverage semantic understanding (Alzantot et al., 2018; Ribeiro et al., 2018; Jin et al., 2020), while lowlevel perturbations are based on word or characterlevel changes, simulating frequently occurring errors (Eger et al., 2019; Eger and Benz, 2020; Le et al., 2022; Formento et al., 2023). ",
+        "bbox": [
+            117,
+            810,
+            487,
+            922
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            510,
+            85,
+            880,
+            115
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Search algorithms aim to find optimal adversarial samples by identifying victim tokens in the original document, chosen based on their word importance as calculated by a single target model. For instance, deletion-based scoring (Gao et al., 2018) identifies important tokens by assessing increases in attack objectives when a token is deleted, while gradient-based scoring (Yoo and Qi, 2021a) uses the gradient of the attack objective for each token. Since these methods are unsuitable for multiobjective scenarios, a genetic algorithm that randomly selects tokens with elaborate exploitation is more effective (Alzantot et al., 2018; Zang et al., 2020; Williams and Li, 2023). To evaluate the robustness of the overall RAG system, which has nondifferentiable and dual objectives for a retriever and a reader, we propose a novel attack algorithm incorporating a genetic algorithm. ",
+        "bbox": [
+            512,
+            117,
+            882,
+            406
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3 Method ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            419,
+            611,
+            435
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Here, we introduce our problem formulation and a novel attack method, GARAG. Further details of the proposed method are described in Appendix A. ",
+        "bbox": [
+            512,
+            445,
+            882,
+            493
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3.1 Problem Formulation ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            505,
+            726,
+            520
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Pipeline of RAG. Let $\\pmb q$ be a query the user requests. In a RAG system, the retriever first fetches the query-relevant document $\\textbf { \\em d }$ , then the reader generates the answer grounded on document-query pair $( d , q )$ . The retriever, parameterized with $\\phi =$ $( \\phi _ { d } , \\phi _ { q } )$ , identifies the most relevant document in the database. The relevance score $r$ is computed by the dot product of the embeddings for document $\\textbf { \\em d }$ and query $\\pmb q$ , as $\\begin{array} { r } { r _ { \\phi } ( \\pmb { d } , \\pmb { q } ) = \\mathsf { E n c } ( \\pmb { d } ; \\phi _ { d } ) \\cdot \\mathsf { E n c } ( \\pmb { q } ; \\phi _ { q } ) } \\end{array}$ Finally, the reader, using an LLM parameterized with $\\theta$ , generates the answer $^ { a }$ from the documentquery pair $( d , q )$ , as $\\pmb { a } = \\mathsf { L L M } ( \\pmb { d } , \\pmb { q } ; \\theta )$ . ",
+        "bbox": [
+            512,
+            526,
+            882,
+            719
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Adversarial Document Generation. To simulate the adversarial document having typical noise encountered in real-world scenarios, we introduce low-level perturbations to mimic these conditions. We generate an adversarial document $\\mathbf { { \\chi } } _ { d { ' } } \\mathbf { { \\chi } } _ { d { ' } }$ by transforming the clean document $\\textbf { \\em d }$ using a function $f$ that alters each token $d$ into a perturbed version $d ^ { \\prime }$ . The function $f$ randomly applies one of several operations — inner-shuffling, truncation, keyboard errors, or natural typos — to each token, then outputs the perturbed token: $d ^ { \\prime } = f ( d )$ . This randomness reflects the unpredictable nature of textual typos. Therefore, we explore a broad search space of potential adversarial documents generated from $\\textbf { \\em d }$ using $f$ to identify the adversarial document for the RAG system, ",
+        "bbox": [
+            512,
+            730,
+            884,
+            921
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            84,
+            487,
+            147
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Attack Objective on RAG. To identify an adversarial document $\\pmb { d } ^ { \\prime }$ that challenges the capabilities of the RAG, we compare its negative impact against the original document $\\textbf { \\em d }$ for a given query $\\pmb q$ . The goal is for $\\mathbf { \\Omega } _ { d ^ { \\prime } } \\mathbf { \\Omega } _ { }$ to divert attention from $\\textbf { \\em d }$ ensuring that $\\textbf { \\em d }$ no longer appears as the top result for $\\pmb q$ . Additionally, $\\mathbf { \\Omega } _ { d ^ { \\prime } } \\mathbf { \\Omega } _ { }$ should mislead LLM into generating an incorrect answer $\\mathbf { { \\boldsymbol { a } } ^ { \\prime } }$ when paired with $( d ^ { * } , q )$ . To measure this negative impact, we use two loss objectives: the Relevance Score Ratio (RSR) and the Generation Probability Ratio (GPR) for retrieval and grounding, respectively. ",
+        "bbox": [
+            115,
+            159,
+            487,
+            350
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "The RSR calculates the ratio of the relevance score1 from the adversarial document $\\mathbf { \\Omega } _ { d ^ { \\prime } } \\mathbf { \\Omega } _ { }$ to the score from the original document $\\textbf { \\em d }$ for the given query $\\pmb q$ . Conversely, the GPR calculates the ratio of the generation probability2 of the correct answer $^ { a }$ from the original pair $( d , q )$ to the probability from the adversarial pair $( d ^ { \\prime } , q )$ . These two metrics are formally represented as: ",
+        "bbox": [
+            115,
+            353,
+            485,
+            481
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "equation",
+        "img_path": "images/0ebdc254c591ee96e014d7b73cc73252b5b88d3958504e8c1760486c4131efb1.jpg",
+        "text": "$$\n\\mathcal { L } _ { \\mathrm { R S R } } ( d ^ { \\prime } ) = \\frac { e ^ { r _ { \\phi } ( d , q ) } } { e ^ { r _ { \\phi } ( d ^ { \\prime } , q ) } } , \\mathcal { L } _ { \\mathrm { G P R } } ( d ^ { \\prime } ) = \\frac { p _ { \\theta } ( a | d ^ { \\prime } , q ) } { p _ { \\theta } ( a | d , q ) } .\n$$",
+        "text_format": "latex",
+        "bbox": [
+            121,
+            492,
+            480,
+            529
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "The values below 1 signify that a noisy document $\\mathbf { { \\chi } } _ { d { ' } } \\mathbf { { \\chi } } _ { d { ' } }$ generated from the adversarial attack successfully satisfies the attack objectives of distracting the retriever and misleading LLM. Note that, as these objectives are designed for adversarial attacks, they don’t directly align with each module’s performance measured by conventional metrics. ",
+        "bbox": [
+            115,
+            542,
+            487,
+            653
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Consequently, the search for an optimal adversarial document within the RAG system is defined as a dual-objective optimization problem, aiming to minimize both the RSR and GPR simultaneously: ",
+        "bbox": [
+            115,
+            656,
+            487,
+            719
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "equation",
+        "img_path": "images/85436848fbebaeee79dc9742ed9ece97cee8f07ea0d3ee8f6c45517e15ca5668.jpg",
+        "text": "$$\n\\pmb { d } ^ { * } = \\arg \\operatorname* { m i n } _ { { \\pmb { d } } ^ { \\prime } \\in D ^ { \\prime } } ( \\mathcal { L } _ { \\mathrm { R S R } } ( { \\pmb { d } } ^ { \\prime } ) , \\mathcal { L } _ { \\mathrm { G P R } } ( { \\pmb { d } } ^ { \\prime } ) )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            166,
+            731,
+            438,
+            759
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "This optimization problem involves dual-model environments, resulting in non-differentiable conditions. To design effective adversarial attack methods targeting the RAG system through noisy document simulation, these methods must address the challenges of dual-objective and dual-model optimization within a vast search space characterized by unpredictable and diverse textual typos. ",
+        "bbox": [
+            115,
+            770,
+            487,
+            850
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            510,
+            85,
+            882,
+            131
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3.2 GARAG: Genetic Attack on RAG ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            146,
+            818,
+            161
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "In this work, we introduce a novel black-box adversarial attack method called GARAG, employing a genetic algorithm to address the dual-objective and dual-model optimization problem in a large search space. Initially, as shown in Figure 2, we divide the search space into four zones based on the attack objectives: safety, retrieval error, grounding error, and holistic error. The adversarial document should ideally be in a holistic error zone, where retrieval and grounding errors intersect, and should be closer to the origin, indicating a more significant negative impact on the RAG system. Then, our proposed method, GARAG, iteratively refines a population of adversarial documents, methodically moving them closer to the origin. This process involves exploring the search space to discover new adversarial documents and exploit the most adversarial ones with crossover, mutation, and selection steps. ",
+        "bbox": [
+            512,
+            168,
+            882,
+            457
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Formally, given the query-document pair $( q , d )$ where the document $d = \\{ d _ { i } \\} _ { i = 1 } ^ { N }$ is retrieved for the query $\\pmb q$ , our objective is to generate the adversarial counterpart $\\mathbf { \\Omega } _ { d ^ { \\prime } } \\mathbf { \\Omega } _ { }$ with $N \\cdot p r _ { p e r t }$ perturbed tokens, where $p r _ { p e r t }$ is a pre-defined hyperparameter and $N$ is the number of tokens in $\\textbf { \\em d }$ . The steps, including crossover, mutation, and selection, are repeated $N _ { i t e r }$ times after initialization. ",
+        "bbox": [
+            510,
+            460,
+            882,
+            588
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Initialization. Our attack begins with the initialization step. We first construct the initial population $P _ { 0 }$ , consisting of adversarial documents ${ \\mathbf { \\Delta } } d _ { i } ^ { \\prime }$ , formalized as $P = \\{ d _ { i } ^ { \\prime } \\} _ { i = 1 } ^ { S }$ , where $S$ is the total number of documents in the population. In detail, generating the adversarial document $d _ { i } ^ { \\prime }$ involves selecting tokens for the attack, applying perturbations, and assembling the modified document. Initially, to determine which tokens to alter, a subset of indices $I ^ { \\prime }$ containing $N \\cdot p r _ { \\mathrm { p e r t } }$ indices is randomly selected from the complete set of token indices $I = \\{ 1 , \\ldots , N \\}$ , where $N$ represents the total number of tokens in the document $\\textbf { \\em d }$ . This selection is designed to exclude any indices that correspond to the correct answer $^ { a }$ within the document, thus ensuring that the perturbations focus exclusively on assessing the impact of noise. Each selected token $d _ { i }$ is then transformed using the function $f$ , yielding a perturbed version $d _ { i } ^ { \\prime }$ , for $i \\in I ^ { \\prime } \\subset I$ The final document $\\mathbf { \\Omega } _ { d ^ { \\prime } } \\mathbf { \\Omega } _ { }$ merges the set of unaltered tokens $T = \\{ d _ { i } | i \\not \\in I \\setminus I ^ { \\prime } \\}$ with the set of modified tokens, represented by $T ^ { \\prime } = \\{ d _ { j } ^ { \\prime } | j \\in I ^ { \\prime } \\}$ , forming $d ^ { \\prime } = T \\cup T ^ { \\prime }$ . In Figure 2, the figure on the right shows the initialization step where the initial (parent) documents are represented as orange-colored dots, given the star-shaped original document. ",
+        "bbox": [
+            510,
+            600,
+            882,
+            921
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "image",
+        "img_path": "images/734d907330f3bb9f0ac33ae7f6ab6edc1720b2c2793edb61e8247cdc6bc74ed5.jpg",
+        "image_caption": [
+            "Figure 2: (Left) The search space formulated by our proposed attack objectives, $\\mathcal { L } _ { \\mathrm { R S R } }$ and $\\mathcal { L } _ { \\mathrm { G P R } }$ . (Right) An overview of the iterative process implemented by our proposed method, GARAG. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            176,
+            83,
+            823,
+            214
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            256,
+            487,
+            353
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Crossover & Mutation. Then, through the crossover and mutation steps, the adversarial documents are generated by balancing the exploitation of existing knowledge within the current population (parent documents) and the exploration of new documents (offspring documents). In detail, the crossover step generates offspring documents by recombining tokens from pairs of parent documents, incorporating their most effective adversarial features. Subsequently, the mutation step introduces new perturbations to some tokens in the offspring, aiming to explore genetic variations that are not present in the parent documents. ",
+        "bbox": [
+            115,
+            370,
+            487,
+            577
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Formally, the crossover step selects $N _ { \\mathrm { p a r e n t s } }$ pairs of parent documents from the population $P$ . Let $d _ { 0 } ^ { \\prime }$ and $d _ { 1 } ^ { \\prime }$ be the selected parent documents along with their perturbed token sets $T _ { 0 } ^ { \\prime }$ and $T _ { 1 } ^ { \\prime }$ , respectively. Then, the swapping tokens perturbed in each parent document generate the offspring documents, excluding those in the shared set $T _ { 0 } ^ { \\prime } \\cap T _ { 1 } ^ { \\prime }$ . The number of swapping tokens is determined by the predefined crossover rate $p r _ { \\mathrm { c r o s s } }$ , applied to the number of unique perturbed tokens in each document. ",
+        "bbox": [
+            115,
+            582,
+            487,
+            741
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The mutation step selects two corresponding subsets of tokens, $M$ from the original token set $T$ and $M ^ { \\prime }$ from the perturbed token set $T ^ { \\prime }$ , ensuring that both subsets are of equal size $| M | = | M ^ { \\prime } |$ . The size of these subsets is determined by the predefined mutation probability $p r _ { \\mathrm { m u t . } }$ , which is applied to $p r _ { \\mathrm { p e r t . } } \\cdot N$ . Tokens $d _ { i } \\in M$ are altered using a perturbation function $f$ , whereas tokens $d _ { j } ^ { \\prime } \\in M ^ { \\prime }$ are reverted to their original states $d _ { j }$ . Following this, the sets of unperturbed and perturbed tokens, $T _ { \\mathrm { n e w } }$ and $T _ { \\mathrm { n e w } } ^ { \\prime }$ , respectively, are updated to incorporate these modifications: $T _ { \\mathrm { n e w } } = ( T \\backslash M ) \\cup M ^ { \\prime }$ and $T _ { \\mathrm { n e w } } ^ { \\prime } = ( T ^ { \\prime } \\setminus M ^ { \\prime } ) \\cup M$ . The newly mutated document, $d _ { \\mathrm { n e w } } ^ { \\prime }$ , is composed of the updated sets $T _ { \\mathrm { n e w } }$ and $T _ { \\mathrm { n e w } } ^ { \\prime }$ , and the offspring set $O$ is then formed, comprising these mutated documents. The offspring documents are represented by blue-colored dots in the figure on the right in Figure 2. ",
+        "bbox": [
+            117,
+            746,
+            487,
+            922
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            510,
+            256,
+            882,
+            369
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Selection. The remaining step is to select the most optimal adversarial documents from the combined set ${ \\hat { P } } = P \\cup O$ , which includes both parent and offspring documents. Specifically, each document within $\\hat { P }$ is evaluated against the two attack objectives, $\\mathcal { L } _ { \\mathrm { R S R } }$ and $\\mathcal { L } _ { \\mathrm { G P R } }$ , to assess their effectiveness in the adversarial context. Therefore, we incorporate a non-dominated sorting strategy (Deb et al., 2002) to identify the optimal set of documents, known as the Pareto front. In this front, each document is characterized by having all objective values lower than those in any other set, as shown in the right of Figure 2. Then, the documents in the Pareto front will be located in a holistic error zone closer to the origin. Additionally, to help preserve diversity within the document population, we further utilize the crowding distance sorting strategy to identify adversarial documents that possess unique knowledge by measuring how isolated each document is relative to others. Then, the most adversarial document $d ^ { * }$ is selected from a less crowded region of the Pareto front. Details of a non-dominated sorting algorithm are described in Appendix A.4. ",
+        "bbox": [
+            512,
+            400,
+            882,
+            785
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Note that this process, including crossover, mutation, and selection steps, continues iteratively until a successful attack is achieved, where the selected adversarial document $d ^ { * }$ prompts an incorrect answer $a ^ { \\prime }$ , as illustrated in the figure on the right in Figure 2. If the process fails to produce a successful attack, it persists through the predefined number of iterations, $N _ { \\mathrm { i t e r . } }$ . ",
+        "bbox": [
+            512,
+            794,
+            882,
+            922
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "table",
+        "img_path": "images/0a4d6fcfe7fa87d9ca3efa9820641809405a6f41820d96d1925d80b166e752e8.jpg",
+        "table_caption": [
+            "Table 1: Results of adversarial attacks using GARAG, averaged across three datasets, NQ, TQA, and SQuAD. The most vulnerable results are in bold. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td></td><td></td><td colspan=\"3\">Attack Success Ratio (↑)</td><td colspan=\"2\">End-to-End (↓)</td></tr><tr><td>Retriever</td><td>LLM</td><td>ASRR</td><td>ASRL</td><td>ASRT</td><td>EM</td><td>Acc</td></tr><tr><td rowspan=\"5\">DPR</td><td>Llama2-7b</td><td>79.2</td><td>90.5</td><td>70.1</td><td>77.1</td><td>81.3</td></tr><tr><td>Llama2-13b</td><td>78.4</td><td>92.0</td><td>70.8</td><td>81.9</td><td>87.3</td></tr><tr><td>Vicuna-7b</td><td>88.7</td><td>80.7</td><td>69.8</td><td>57.2</td><td>79.3</td></tr><tr><td>Vicuna-13b</td><td>88.8</td><td>81.6</td><td>70.8</td><td>58.4</td><td>83.2</td></tr><tr><td>Mistral-7b</td><td>83.7</td><td>85.5</td><td>69.5</td><td>66.7</td><td>96.5</td></tr><tr><td rowspan=\"5\">Contriever</td><td>Llama2-7b</td><td>85.3</td><td>91.0</td><td>76.6</td><td>75.0</td><td>79.6</td></tr><tr><td>Llama2-13b</td><td>82.0</td><td>92.0</td><td>74.2</td><td>80.7</td><td>87.3</td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Vicuna-7b</td><td>92.1</td><td>81.5</td><td>73.9</td><td>55.1</td><td>76.9</td></tr><tr><td>Vicuna-13b</td><td>91.3</td><td>83.2</td><td>74.7</td><td>53.5</td><td>79.5</td></tr><tr><td>w/o GARAG</td><td>Mistral-7b</td><td>89.2</td><td>86.6</td><td>75.9</td><td>63.1 100</td><td>95.3</td></tr></table>",
+        "bbox": [
+            117,
+            127,
+            484,
+            281
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "4 Experimental Setup ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            302,
+            321,
+            318
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "In this section, we describe the experimental setup. ",
+        "bbox": [
+            119,
+            329,
+            485,
+            343
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "4.1 Model ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            356,
+            210,
+            370
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Retriever. We use two recent dense retrievers: DPR (Karpukhin et al., 2020), a supervised one trained on query-document pairs, and Contriever (Izacard et al., 2022), an unsupervised one. ",
+        "bbox": [
+            115,
+            378,
+            489,
+            442
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Reader. Following concurrent work (Asai et al., 2024; Wang et al., 2024) that utilizes LLMs as readers for the RAG system, with parameters ranging from 7B to 13B, we have selected open-source LLMs of similar capacities: Llama2 (Touvron et al., 2023), Vicuna (Chiang et al., 2023), and Mistral (Jiang et al., 2023). Each model has been either chat-versioned or instruction-tuned. To adapt these models for open-domain QA tasks, we employ a zero-shot prompting template for exact match QA derived from Wang et al. (2024). ",
+        "bbox": [
+            115,
+            453,
+            487,
+            629
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "4.2 Dataset ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            642,
+            220,
+            656
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "We leverage three representative QA datasets: Natural Questions (NQ) (Kwiatkowski et al., 2019), TriviaQA (TQA) (Joshi et al., 2017), and SQuAD (SQD) (Rajpurkar et al., 2016), following the setups of Karpukhin et al. (2020). To assess the robustness of the RAG system, we randomly extract 1,000 instances of the triple $( q , d , a )$ . In each triple, $\\pmb q$ is a question from the datasets, $\\textbf { \\em d }$ is a document from the top-100 documents retrieved from the Wikipedia corpus corresponding to $\\pmb q$ , and $^ { a }$ is the answer generated by the LLM, which is considered as correct for the specific question-document pair. ",
+        "bbox": [
+            115,
+            663,
+            487,
+            856
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "4.3 Evaluation Metric ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            869,
+            304,
+            884
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "To measure the effectiveness of GARAG and the actual impact of generated adversarial documents on ",
+        "bbox": [
+            115,
+            890,
+            487,
+            921
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "table",
+        "img_path": "images/d10274ad9418cbffa3ad155be1ac13ab6dcf02448e293fdbbd1d27549006d363.jpg",
+        "table_caption": [
+            "Table 2: Retrieval performance under RAG system using Llama-7b when the adversarial documents generated by GARAG are injected into the retrieval corpus. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td></td><td></td><td colspan=\"3\">DPR</td><td colspan=\"3\">Contriever</td></tr><tr><td>Dataset</td><td>Attacked</td><td>MAP@100</td><td>NDCG@100</td><td>ASR</td><td>MAP@100</td><td>NDCG@100</td><td>ASRR</td></tr><tr><td rowspan=\"2\">NQ</td><td>X</td><td>.417</td><td>.633</td><td>-</td><td>.248</td><td>.489</td><td>-</td></tr><tr><td></td><td>.356</td><td>.593</td><td>75.4</td><td>.219</td><td>.462</td><td>85.9</td></tr><tr><td rowspan=\"2\">TQA</td><td>X</td><td>.532</td><td>.740</td><td>-</td><td>.337</td><td>.696</td><td>-</td></tr><tr><td></td><td>.471</td><td>.696</td><td>78.2</td><td>.298</td><td>.559</td><td>84.9</td></tr><tr><td rowspan=\"2\">SQD</td><td>X</td><td>.321</td><td>.540</td><td>-</td><td>.267</td><td>.498</td><td>-</td></tr><tr><td></td><td>.279</td><td>.513</td><td>80.0</td><td>.223</td><td>.468</td><td>86.1</td></tr></table>",
+        "bbox": [
+            514,
+            127,
+            880,
+            231
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "RAG systems, we incorporate two types of metrics to show the effectiveness of the adversarial attacks and the end-to-end QA performance measuring the actual impact on the RAG system. ",
+        "bbox": [
+            510,
+            250,
+            880,
+            312
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Attack Success Ratio (ASR). Attack Success Ratio (ASR) is the ratio of the generated documents from the adversarial attack, located in the holistic error zone (i.e., the values below 1 for $\\mathcal { L } _ { \\mathrm { R S R } }$ and $\\mathcal { L } _ { \\mathrm { G P R } } )$ ). Specifically, ASR is for measuring the effectiveness of the proposed method addressing dual-objective optimization problems. ",
+        "bbox": [
+            512,
+            323,
+            882,
+            435
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "End-to-End Performance (E2E). To evaluate the impact of the adversarial document on RAG systems, we report it with standard QA metrics: Exact Match (EM) and Accuracy (Acc). EM evaluates if a prediction precisely matches the correct answer, while Acc checks if the answer span is included in the predicted response. If the attack fails (i.e., either value for $\\mathcal { L } _ { \\mathrm { R S R } }$ or $\\mathcal { L } _ { \\mathrm { G P R } }$ exceeds 1), we transmit the original document $\\textbf { \\em d }$ to LLM instead of the adversarial one $\\mathbf { { \\chi } } _ { d { ' } } \\mathbf { { \\chi } } _ { d { ' } }$ during prediction. ",
+        "bbox": [
+            512,
+            444,
+            882,
+            605
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "4.4 Implementation Details ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            617,
+            741,
+            632
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "The proposed method, GARAG, was configured with hyperparameters: $N _ { \\mathrm { i t e r } }$ was set to 25, $N .$ parents to 10, and $S$ to 25. $p r _ { \\mathrm { p e r t } }$ , $p r _ { \\mathrm { c r o s s } }$ , and $p r _ { \\mathrm { m u t } }$ were set to 0.2, 0.2, and 0.4, respectively. The operations of perturbation function $f$ in $G A R A G$ consist of the inner swap, truncate, keyboard typo, and natural typo, following Eger and Benz $( 2 0 2 0 ) ^ { 3 }$ . For computing resources, we use A100 GPU clusters. ",
+        "bbox": [
+            512,
+            638,
+            882,
+            765
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "5 Results ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            778,
+            606,
+            794
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "In this section, we show our experimental results with an in-depth analysis of the adversarial attack. ",
+        "bbox": [
+            512,
+            803,
+            882,
+            835
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "5.1 Main Result. ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            846,
+            655,
+            862
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Table 1 shows our main results averaged over three datasets using GARAG with two metrics: attack success ratio (ASR) and end-to-end performance (E2E). First, a notable success rate of over $70 \\%$ across all scenarios indicates that GARAG effectively locates adversarial documents within the holistic error zone by simultaneously considering retrieval and reader errors. Additionally, we analyze the E2E performance to assess how adversarial attacks impact overall QA performance. Based on the EM metric, the performance of RAG systems decreased by an average of $30 \\%$ and a maximum of close to $50 \\%$ in all cases. These findings imply that noisy documents with minor errors, frequently found in the real world, can pose significant risks to downstream tasks using RAG. ",
+        "bbox": [
+            512,
+            868,
+            882,
+            898
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "image",
+        "img_path": "images/24fd5af23f91c155449f57e7f012ae309f2051fe9835099dff1dd2cd7de8b854.jpg",
+        "image_caption": [
+            "Figure 3: Adversarial attack analysis on the NQ dataset using Contriever and Llama2-7b: (Left) Variations in ASR and EM scores as the $p r _ { \\mathrm { p e r t } }$ increases from 0 to 0.9, with ASR shown in blue and EM in red. (Center) Variations in ASR and EM scores across increasing iterations $( N _ { \\mathrm { i t e r } } )$ , also indicated in blue and red respectively. (Right) Distribution of correctness among predictions depending on $\\mathcal { L } _ { \\mathrm { G P R } }$ . "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            119,
+            77,
+            878,
+            170
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "image",
+        "img_path": "images/45bce448a9df8dcc06cb049a5a609ded74557e02937e55d75ec09891903fd739.jpg",
+        "image_caption": [
+            "Figure 4: Confusion matrices of prediction from $\\ b { d } ^ { * }$ across EM and Acc. on NQ with Contriever. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            144,
+            236,
+            452,
+            329
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            374,
+            487,
+            599
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Impact on Retrieval Ability. We qualitatively explored the impact of adversarial documents on the RAG system’s retrieval ability. After injecting these documents into the original retrieval corpus, we evaluated the results using conventional IR metrics like MAP and NDCG. As shown in Table 2, the adversarial documents degrade retrieval performance across all scenarios, despite being assessed solely by the $\\mathcal { L } _ { \\mathrm { R S R } }$ in the GARAG process without considering the entire retriever corpus. Additionally, as DPR achieves better retrieval performance both before and after the attack, these results suggest that retrievers with superior retrieval performance tend to be more robust against typos. ",
+        "bbox": [
+            115,
+            608,
+            487,
+            832
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Impact on Grounding Ability. We further analyze the response patterns of LLM to adversarial documents, categorizing the results based on EM and Acc as shown in Figure 4. For instance, an EM of 0 and Acc of 1 indicates that the response includes the correct answer along with irrelevant tokens, whereas an EM and Acc of 0 means that the response is entirely incorrect, likely a hallucination. First, Llama2 tends to produce exact matches more frequently, as evidenced by a high rate of (1,1) outcomes. but struggles with completely incorrect responses under adversarial conditions, indicated by a lower proportion of (0,1). By contrast, Mistral, despite fewer exact matches, consistently includes the correct answer span in its responses. These insights are vital for understanding how different models perform in realistic scenarios, especially when handling noisy or adversarially altered documents, highlighting the varied impacts of such conditions on LLMs. ",
+        "bbox": [
+            115,
+            843,
+            487,
+            921
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            237,
+            882,
+            478
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Impact of $p r _ { \\mathrm { p e r t } }$ and $N _ { \\mathrm { i t e r } }$ Then, we further explore how varying the perturbation probability $p r _ { \\mathrm { p e r t } }$ or the number of iterations $N _ { \\mathrm { i t e r } }$ affects the attack outcomes. As the left and center figures of Figure 3 illustrate, there is an apparent correlation between the attack success rates for the retriever $( \\operatorname { A S R } _ { R } )$ and the entire pipeline $( \\mathrm { A S R } _ { T } )$ . Moreover, the consistently high success rate for the LLM $( \\mathrm { A S R } _ { L } )$ ) across all cases highlights a significant vulnerability in the reader against typos. These findings highlight the critical role of the retriever as a first line of defense in the RAG system. Interestingly, in the left figure of Figure 3, the results indicate that a lower proportion of perturbation within a document leads to a more disruptive impact on the RAG system. These experimental results suggests that documents with a few typos, which are common in the wild, could have a more detrimental effect on performance. ",
+        "bbox": [
+            510,
+            487,
+            882,
+            793
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "This phenomenon is counter-intuitive, as other attack approaches typically show that more attack vectors lead to stronger adversarial effects. We speculate that this occurs because the training data for neural retrievers generally consists of clean documents without typos, making it easier for the retriever to identify and reject documents with many errors. In contrast, LLMs, which are also trained on clean texts, struggle to generate correct answers when typos are present. The errors cause the document to lose key information or clarity, making it difficult for the model to infer the correct answer. ",
+        "bbox": [
+            512,
+            794,
+            882,
+            921
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "table",
+        "img_path": "images/c3e40cdd27a10d1e505f1e4acac27b7edfb09521a75e073485c5adc324a89c2c.jpg",
+        "table_caption": [
+            "Table 3: Ablation study of GARAG on NQ with Contriever and Llama-7b. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\"></td><td colspan=\"2\">ASR</td><td>E2E</td></tr><tr><td>ASRR ASRL</td><td>ASRT</td><td>EM</td></tr><tr><td>GARAG</td><td>85.9 91.1</td><td>77.5</td><td>70.1</td></tr><tr><td colspan=\"4\">Low-level Perturbations included </td></tr><tr><td>Natural Typo</td><td>88.8</td><td>90.0 78.8</td><td>75.4</td></tr><tr><td>Keyboard Typo</td><td>84.6 91.4</td><td>76.2</td><td>71.2</td></tr><tr><td>Truncate</td><td>89.2 90.2</td><td>79.4</td><td>71.4</td></tr><tr><td>Inner Swap</td><td>83.4 87.8</td><td>71.4</td><td>78.0</td></tr><tr><td colspan=\"4\">Low-level Perturbations not inclu</td></tr><tr><td>Punc.</td><td>93.0</td><td>93.7 86.7</td><td>68.9</td></tr><tr><td>Phonetic.</td><td>84.7 92.1</td><td>76.8</td><td>70.0</td></tr><tr><td>Visual.</td><td>77.7 90.5</td><td>68.8</td><td>72.5</td></tr></table>",
+        "bbox": [
+            144,
+            112,
+            453,
+            284
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "table",
+        "img_path": "images/55f2ffec71b147c36265dc1479dd8a18b0c99c751137ff2f06be071a88ec1678.jpg",
+        "table_caption": [
+            "Table 4: Adversarial attack on paraphrased query on NQ with Contriever and Llama-7b. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Paraphrased</td><td>Attacked</td><td>ASRR</td><td>ASRL</td><td>ASRT</td><td>EM</td></tr><tr><td>x ×</td><td>X</td><td>-</td><td>-</td><td>-</td><td>100</td></tr><tr><td></td><td></td><td>85.9</td><td>91.1</td><td>77.5</td><td>70.1</td></tr><tr><td>✓</td><td>X</td><td></td><td>-</td><td>-</td><td>79.1</td></tr><tr><td>√</td><td>√</td><td>72.8</td><td>62.5</td><td>44.1</td><td>75.1</td></tr></table>",
+        "bbox": [
+            117,
+            318,
+            484,
+            395
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            412,
+            487,
+            474
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Impact of Lowering $\\mathcal { L } _ { \\mathrm { G P R } }$ . Since the value of $\\mathcal { L } _ { \\mathrm { G P R } }$ does not directly indicate the likelihood of generating incorrect answers with auto-regressive models, we analyze the correlation between the likelihood of generating incorrect answers and $\\mathcal { L } _ { \\mathrm { G P R } }$ . As illustrated in the right panel of Figure 3, we categorize predictions into buckets based on their $\\mathcal { L } _ { \\mathrm { G P R } }$ ranges and calculate the proportion of incorrect answers within each bucket. The results validate our objective design, demonstrating that a lower $\\mathcal { L } _ { \\mathrm { G P R } }$ value is associated with a higher likelihood of incorrect responses. ",
+        "bbox": [
+            115,
+            487,
+            487,
+            678
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "5.2 Analysis ",
+        "text_level": 1,
+        "bbox": [
+            115,
+            692,
+            226,
+            706
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Evaluation on Paraphrased Query. To create a more realistic scenario, we tested the effect of noisy documents with paraphrased queries that were not used in the adversarial attack. After generating an adversarial document for a given document-query pair, we paraphrased the query using GPT-3.5 (Brown et al., 2020). These paraphrased queries, while not part of the adversarial document generation, still seek the same answers as the original ones. As shown in Table 4, our results demonstrate the robustness of adversarial documents generated by GARAG. While these documents are less effective against paraphrased queries, resulting in lower ASR and higher EM scores, they still degrade RAG system performance after attacks. The paraphrased queries also destabilize RAG systems, underscoring their vulnerability in dynamic, real-world settings like human-RAG system interactions. ",
+        "bbox": [
+            115,
+            713,
+            487,
+            921
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "table",
+        "img_path": "images/452e35a9ca0e4050bed379dfd63b9f2f7a100187c849e66f9d709a379a8363dd.jpg",
+        "table_caption": [
+            "Table 5: Comparison with other search methods on NQ with Contriever and Llama-7b. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\"></td><td colspan=\"3\">ASR</td><td rowspan=\"2\">E2E EM</td></tr><tr><td>ASRR</td><td>ASRL</td><td>ASRT</td></tr><tr><td>GARAG</td><td>85.9</td><td>91.1</td><td>77.5</td><td>70.1</td></tr><tr><td>GARAG on Retriever</td><td>96.6</td><td>18.0</td><td>18.0</td><td>94.4</td></tr><tr><td>GARAG on LLM</td><td>33.2</td><td>100.0</td><td>33.2</td><td>85.2</td></tr><tr><td>DS on Retriever</td><td>94.8</td><td>56.6</td><td>53.8</td><td>89.2</td></tr><tr><td>DS on LLM</td><td>16.0</td><td>100.0</td><td>16.0</td><td>90.4</td></tr><tr><td>GS on Retriever</td><td>26.5</td><td>75.0</td><td>4.6</td><td>93.2</td></tr><tr><td>GS on LLM</td><td>4.9</td><td>96.2</td><td>17.8</td><td>97.2</td></tr></table>",
+        "bbox": [
+            529,
+            112,
+            858,
+            237
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            250,
+            882,
+            346
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Types of Low-level Perturbation. Table 3 presents the results of an ablation study on the operations included and excluded in the transformation function $f$ . Using multiple operations in $f$ as the default setup consistently outperformed all single operations included in $f$ , highlighting GARAG’s ability to exploit promising areas in a vast search space. Furthermore, the other types of low-level perturbations not initially included in $f$ —such as punctuation insertion, phonetic similarity, and visual similarity—successfully comprise the RAG system with a significant performance drop. Notably, punctuation insertion alone compromised the system in $86 \\%$ of the attacks, demonstrating GARAG’s effectiveness in leveraging diverse perturbations for attacks. ",
+        "bbox": [
+            512,
+            356,
+            882,
+            613
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Comparison with Other Search Methods. We validated the effectiveness of our proposed method, GARAG, by comparing it with two search methods based on word importance calculated through deletion scoring (DS) and gradient scoring (GS). Note that both methods can target only a single module. As shown in Table 5, these single-targeted methods fail to comprehensively search for adversarial documents across all modules. Even when implemented for single-module attacks, GARAG achieves significantly higher ASR and lower E2E than other methods, demonstrating the genetic algorithm’s effectiveness. This underscores the importance of attacking both retriever and reader rather than targeting a single module. ",
+        "bbox": [
+            512,
+            624,
+            884,
+            864
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Defense Strategy. Various defense mechanisms against adversarial attacks in NLP have been proposed. Adversarial training, fine-tuning the model on adversarial samples, is a popular approach (Yoo and Qi, 2021b). However, this strategy is not practically viable for RAG systems, given the prohibitive training costs associated with models exceeding a billion parameters. Alternatively, a grammar checker is an effective defense against lowlevel perturbations within documents (Formento et al., 2023). Our analysis, depicted in Figure 5, compares the grammatical correctness of original and adversarial documents via grammar checker model 4 presented in Dehghan et al. (2022). It reveals that approximately $50 \\%$ of the original and clean samples are determined to be the nosiy documents containing grammatical errors. Also, even within the adversarial set, about $2 5 \\%$ of the samples maintain grammatical correctness at a low perturbation level. This observation highlights a critical limitation: relying solely on a grammar checker would result in dismissing many original documents and accepting some adversarial ones. Consequently, this underscores the limitations of grammar checkers as a standalone defense and points to more sophisticated and tailored defense strategies. ",
+        "bbox": [
+            510,
+            875,
+            882,
+            921
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "table",
+        "img_path": "images/8a0d9bae0fab41f763a049febaead8275e9cfca39301fca48dbf6e838b7c4ee2.jpg",
+        "table_caption": [
+            "Table 6: Case study with Contriever and Llama-7b, where perturbed texts are in red and correct answers are in blue . "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Question</td><td>Who sang the first line of &#x27;We Are The World&#x27;?</td></tr><tr><td>Noisy Document</td><td>We h Wd  e   , &quot;We e     are the onsswho make abrighgerday, so lets start giving&quot;. &quot;We Are the World&quot; pens withLionel Richie Stevie Wonder, Paul Simon, Kenny Rogers James Ingram Tina Turner , and Billy Joelsinging the first verse. Michael Jackson and Diana Ross fOllow , completing the first choruc together. Dionne Warwick, Willif fNelson, and Al Jarreau singe the second vers4 4 , before Bruce Springsteen, Kenny</td></tr><tr><td>Answer</td><td>Loggins, Steve Perry, and Daryl Hall go through the second chorus. Stevie Wonder, Tina Turner, Billy Joel, James Ingram, Kenny Rogers, Paul Simon, Lionel Richie</td></tr><tr><td>Prediction</td><td>Michael Jackson</td></tr></table>",
+        "bbox": [
+            122,
+            102,
+            878,
+            222
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "image",
+        "img_path": "images/d655870712834de77601fafe5951cdf42e0c3cb0525b5a32f4f05a6bb439ca9f.jpg",
+        "image_caption": [
+            "Figure 5: Distribution of grammatically correct documents among $\\ b { d } ^ { * }$ on NQ with the Contriever and Llama2-7b. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            122,
+            233,
+            475,
+            325
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            117,
+            373,
+            487,
+            741
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Case Study. We further qualitatively assess the impact of low-level textual perturbations within a document in Table 6. Note that since we ensure that the answer spans remain unperturbed, LLMs should ideally generate correct answers. However, interestingly, an LLM fails to identify the correct answers, which are mentioned in the document, but instead generates an incorrect answer, “Michael ",
+        "bbox": [
+            117,
+            756,
+            485,
+            883
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Jackson,” included in the document. To this end, we would like to emphasize that addressing typographical errors is a complex challenge that requires many considerations in defense against the threat of typos, which seems relatively trivial. In our all experiments, we didn’t perturb the tokens included in the correct answer span, as shown in Table 6, and we empirically validated that RAG systems often can’t generate correct answers from the document, even including the correct answers. This poses a critical question: Should we discard such documents because of typographical errors or find ways to use this information effectively within them? These considerations highlight the need for comprehensive and sophisticated defense strategies, underscoring the ongoing vulnerability within RAG systems. ",
+        "bbox": [
+            512,
+            233,
+            882,
+            505
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "In Appendix B, we provide detailed results of adversarial attacks for each dataset and analysis including comparing high-level perturbation attacks and attacking closed-source models. ",
+        "bbox": [
+            512,
+            508,
+            882,
+            570
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "6 Conclusion ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            588,
+            640,
+            604
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "In this work, we highlighted the importance of assessing the overall robustness of the retriever and reader components within the RAG system, particularly against noisy documents containing minor typos that are common in real-world databases. Specifically, we proposed two objectives to evaluate the resilience of each component, focusing on their sequential dependencies. Furthermore, to simulate real-world noises with low-level perturbations, we introduced a novel adversarial attack method, GARAG, incorporating a genetic algorithm. Our findings indicate that noisy documents critically hurt the RAG system, significantly degrading its performance. Although the retriever serves as a protective barrier for the reader, it still remains susceptible to minor disruptions. Our GARAG shows promise as an adversarial attack strategy when assessing the holistic robustness of RAG systems against various low-level perturbations. ",
+        "bbox": [
+            512,
+            615,
+            884,
+            921
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Acknowledgement ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            84,
+            277,
+            99
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "This work was supported by Institute for Information and communications Technology Promotion (IITP) grant funded by the Korea government (No. 2018-0-00582, Prediction and augmentation of the credibility distribution via linguistic analysis and automated evidence document collection) and the Artificial intelligence industrial convergence cluster development project funded by the Ministry of Science and ICT (MSIT, Korea) & Gwangju Metropolitan City. ",
+        "bbox": [
+            117,
+            112,
+            485,
+            272
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Limitation ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            288,
+            210,
+            303
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "In this work, we explored the robustness of the RAG system by using various recent open-source LLMs of different sizes, which are widely used as reader components in this system. However, due to our limited academic budget, we could not include much larger black-box LLMs such as the GPT series models, which have a hundred billion parameters. We believe that exploring the robustness of these LLMs as reader components would be a valuable line of future work. Furthermore, $G A R A G$ aims for the optimal adversarial document to be located within a holistic error zone, by simultaneously considering both retrieval and grounding errors. However, we would like to note that even though the adversarial document is located within the holistic error zone, this does not necessarily mean that the reader will always generate incorrect answers for every query, due to the auto-regressive nature of how reader models generate tokens. Nevertheless, as shown in the right figure of Figure 3 and discussed in its analysis, we would like to emphasize that there is a clear correlation: a lower $\\mathcal { L } _ { \\mathrm { G P R } }$ value is associated with a higher likelihood of incorrect responses. ",
+        "bbox": [
+            117,
+            317,
+            487,
+            701
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Ethics Statement ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            718,
+            263,
+            733
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "We designed a novel attack strategy for the purpose of building robust and safe RAG systems when deployed in the real world. However, given the potential for malicious users to exploit our GARAG and deliberately attack the system, it is crucial to consider these scenarios. Therefore, to prevent such incidents, we also present a defense strategy, detailed in Figure 5 and its analysis. Additionally, we believe that developing a range of defense strategies remains a critical area for future work. ",
+        "bbox": [
+            117,
+            746,
+            485,
+            904
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "References ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            84,
+            606,
+            99
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Moustafa Alzantot, Yash Sharma, Ahmed Elgohary, BoJhang Ho, Mani B. Srivastava, and Kai-Wei Chang. 2018. Generating natural language adversarial examples. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing, Brussels, Belgium, October 31 - November 4, 2018, pages 2890–2896. Association for Computational Linguistics. ",
+        "bbox": [
+            510,
+            108,
+            882,
+            211
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Akari Asai, Zeqiu Wu, Yizhong Wang, Avirup Sil, and Hannaneh Hajishirzi. 2024. Self-RAG: Learning to retrieve, generate, and critique through self-reflection. In The Twelfth International Conference on Learning Representations. ",
+        "bbox": [
+            512,
+            224,
+            882,
+            288
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Jinheon Baek, Soyeong Jeong, Minki Kang, Jong C. Park, and Sung Ju Hwang. 2023. Knowledgeaugmented language model verification. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing, EMNLP 2023, Singapore, December 6-10, 2023, pages 1720–1736. Association for Computational Linguistics. ",
+        "bbox": [
+            512,
+            302,
+            882,
+            392
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Sandhini Agarwal, Ariel Herbert-Voss, Gretchen Krueger, Tom Henighan, Rewon Child, Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu, Clemens Winter, Christopher Hesse, Mark Chen, Eric Sigler, Mateusz Litwin, Scott Gray, Benjamin Chess, Jack Clark, Christopher Berner, Sam McCandlish, Alec Radford, Ilya Sutskever, and Dario Amodei. 2020. Language models are few-shot learners. In Advances in Neural Information Processing Systems 33: Annual Conference on Neural Information Processing Systems 2020, NeurIPS 2020, December 6-12, 2020, virtual. ",
+        "bbox": [
+            510,
+            404,
+            882,
+            599
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Harrison Chase. 2022. LangChain. ",
+        "bbox": [
+            514,
+            612,
+            747,
+            624
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Jiawei Chen, Hongyu Lin, Xianpei Han, and Le Sun. 2024. Benchmarking large language models in retrieval-augmented generation. In Thirty-Eighth AAAI Conference on Artificial Intelligence, AAAI 2024, Thirty-Sixth Conference on Innovative Applications of Artificial Intelligence, IAAI 2024, Fourteenth Symposium on Educational Advances in Artificial Intelligence, EAAI 2014, February 20-27, 2024, Vancouver, Canada, pages 17754–17762. AAAI Press. ",
+        "bbox": [
+            510,
+            637,
+            882,
+            753
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Wei-Lin Chiang, Zhuohan Li, Zi Lin, Ying Sheng, Zhanghao Wu, Hao Zhang, Lianmin Zheng, Siyuan Zhuang, Yonghao Zhuang, Joseph E. Gonzalez, Ion Stoica, and Eric P. Xing. 2023. Vicuna: An opensource chatbot impressing gpt-4 with $9 0 \\% *$ chatgpt quality. ",
+        "bbox": [
+            512,
+            765,
+            882,
+            844
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Sukmin Cho, Jeongyeon Seo, Soyeong Jeong, and Jong C. Park. 2023. Improving zero-shot reader by reducing distractions from irrelevant documents in open-domain question answering. In Findings of the Association for Computational Linguistics: EMNLP ",
+        "bbox": [
+            512,
+            856,
+            880,
+            921
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "2023, Singapore, December 6-10, 2023, pages 3145–   \n3157. Association for Computational Linguistics. ",
+        "bbox": [
+            134,
+            86,
+            487,
+            112
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Florin Cuconasu, Giovanni Trappolini, Federico Siciliano, Simone Filice, Cesare Campagnano, Yoelle Maarek, Nicola Tonellotto, and Fabrizio Silvestri. 2024. The power of noise: Redefining retrieval for RAG systems. arXiv preprint arXiv:2401.14887, abs/2401.14887. ",
+        "bbox": [
+            117,
+            122,
+            485,
+            199
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Kalyanmoy Deb, Samir Agrawal, Amrit Pratap, and T. Meyarivan. 2002. A fast and elitist multiobjective genetic algorithm: NSGA-II. IEEE Trans. Evol. Comput., 6(2):182–197. ",
+        "bbox": [
+            115,
+            210,
+            487,
+            262
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Mohammad Dehghan, Dhruv Kumar, and Lukasz Golab. 2022. GRS: combining generation and revision in unsupervised sentence simplification. In Findings of the Association for Computational Linguistics: ACL 2022, Dublin, Ireland, May 22-27, 2022, pages 949– 960. Association for Computational Linguistics. ",
+        "bbox": [
+            117,
+            272,
+            487,
+            350
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Javid Ebrahimi, Anyi Rao, Daniel Lowd, and Dejing Dou. 2018. Hotflip: White-box adversarial examples for text classification. In Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics, ACL 2018, Melbourne, Australia, July 15-20, 2018, Volume 2: Short Papers, pages 31–36. Association for Computational Linguistics. ",
+        "bbox": [
+            117,
+            360,
+            485,
+            451
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Steffen Eger and Yannik Benz. 2020. From hero to zéroe: A benchmark of low-level adversarial attacks. In Proceedings of the 1st Conference of the Asia-Pacific Chapter of the Association for Computational Linguistics and the 10th International Joint Conference on Natural Language Processing, AACL/IJCNLP 2020, Suzhou, China, December 4-7, 2020, pages 786–803. Association for Computational Linguistics. ",
+        "bbox": [
+            117,
+            461,
+            487,
+            579
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Steffen Eger, Gözde Gül Sahin, Andreas Rücklé, Ji-Ung Lee, Claudia Schulz, Mohsen Mesgar, Krishnkant Swarnkar, Edwin Simpson, and Iryna Gurevych. 2019. Text processing like humans do: Visually attacking and shielding NLP systems. In Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, NAACL-HLT 2019, Minneapolis, MN, USA, June 2-7, 2019, Volume 1 (Long and Short Papers), pages 1634–1647. Association for Computational Linguistics. ",
+        "bbox": [
+            115,
+            588,
+            487,
+            731
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Manaal Faruqui, Ellie Pavlick, Ian Tenney, and Dipanjan Das. 2018. Wikiatomicedits: A multilingual corpus of wikipedia edits for modeling language and discourse. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing, Brussels, Belgium, October 31 - November 4, 2018, pages 305–315. Association for Computational Linguistics. ",
+        "bbox": [
+            117,
+            741,
+            487,
+            846
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Brian Formento, Chuan-Sheng Foo, Anh Tuan Luu, and See-Kiong Ng. 2023. Using punctuation as an adversarial attack on deep learning-based NLP systems: An empirical study. In Findings of the Association for Computational Linguistics: EACL 2023, ",
+        "bbox": [
+            115,
+            856,
+            487,
+            921
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Dubrovnik, Croatia, May 2-6, 2023, pages 1–34. Association for Computational Linguistics. ",
+        "bbox": [
+            531,
+            86,
+            882,
+            112
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Ji Gao, Jack Lanchantin, Mary Lou Soffa, and Yanjun Qi. 2018. Black-box generation of adversarial text sequences to evade deep learning classifiers. In 2018 IEEE Security and Privacy Workshops, SP Workshops 2018, San Francisco, CA, USA, May 24, 2018, pages 50–56. IEEE Computer Society. ",
+        "bbox": [
+            512,
+            123,
+            882,
+            202
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Gautier Izacard, Mathilde Caron, Lucas Hosseini, Sebastian Riedel, Piotr Bojanowski, Armand Joulin, and Edouard Grave. 2022. Unsupervised dense information retrieval with contrastive learning. Trans. Mach. Learn. Res., 2022. ",
+        "bbox": [
+            510,
+            214,
+            882,
+            278
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Soyeong Jeong, Jinheon Baek, Sukmin Cho, Sung Ju Hwang, and Jong C. Park. 2024. Adaptive-RAG: Learning to adapt retrieval-augmented large language models through question complexity. In 2024 Annual Conference of the North American Chapter of the Association for Computational Linguistics. ",
+        "bbox": [
+            512,
+            290,
+            882,
+            368
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de Las Casas, Florian Bressand, Gianna Lengyel, Guillaume Lample, Lucile Saulnier, Lélio Renard Lavaud, Marie-Anne Lachaux, Pierre Stock, Teven Le Scao, Thibaut Lavril, Thomas Wang, Timothée Lacroix, and William El Sayed. 2023. Mistral 7b. arXiv preprint arXiv:2310.06825, abs/2310.06825. ",
+        "bbox": [
+            510,
+            380,
+            882,
+            497
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Di Jin, Zhijing Jin, Joey Tianyi Zhou, and Peter Szolovits. 2020. Is BERT really robust? A strong baseline for natural language attack on text classification and entailment. In The Thirty-Fourth AAAI Conference on Artificial Intelligence, AAAI 2020, The Thirty-Second Innovative Applications of Artificial Intelligence Conference, IAAI 2020, The Tenth AAAI Symposium on Educational Advances in Artificial Intelligence, EAAI 2020, New York, NY, USA, February 7-12, 2020, pages 8018–8025. AAAI Press. ",
+        "bbox": [
+            510,
+            508,
+            882,
+            638
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Mandar Joshi, Eunsol Choi, Daniel S. Weld, and Luke Zettlemoyer. 2017. Triviaqa: A large scale distantly supervised challenge dataset for reading comprehension. In Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics, ACL 2017, Vancouver, Canada, July 30 - August 4, Volume 1: Long Papers, pages 1601–1611. Association for Computational Linguistics. ",
+        "bbox": [
+            510,
+            650,
+            882,
+            755
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Vladimir Karpukhin, Barlas Oguz, Sewon Min, Patrick S. H. Lewis, Ledell Wu, Sergey Edunov, Danqi Chen, and Wen-tau Yih. 2020. Dense passage retrieval for open-domain question answering. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing, EMNLP 2020, Online, November 16-20, 2020, pages 6769–6781. Association for Computational Linguistics. ",
+        "bbox": [
+            512,
+            766,
+            882,
+            870
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Jungo Kasai, Keisuke Sakaguchi, Yoichi Takahashi, Ronan Le Bras, Akari Asai, Xinyan Yu, Dragomir Radev, Noah A. Smith, Yejin Choi, and Kentaro Inui. ",
+        "bbox": [
+            512,
+            881,
+            882,
+            921
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "2023. Realtime QA: what’s the answer right now? In Advances in Neural Information Processing Systems 36: Annual Conference on Neural Information Processing Systems 2023, NeurIPS 2023, New Orleans, LA, USA, December 10 - 16, 2023. ",
+        "bbox": [
+            134,
+            86,
+            487,
+            151
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Tom Kwiatkowski, Jennimaria Palomaki, Olivia Redfield, Michael Collins, Ankur P. Parikh, Chris Alberti, Danielle Epstein, Illia Polosukhin, Jacob Devlin, Kenton Lee, Kristina Toutanova, Llion Jones, Matthew Kelcey, Ming-Wei Chang, Andrew M. Dai, Jakob Uszkoreit, Quoc Le, and Slav Petrov. 2019. Natural questions: a benchmark for question answering research. Trans. Assoc. Comput. Linguistics, 7:452– 466. ",
+        "bbox": [
+            117,
+            161,
+            487,
+            278
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Angeliki Lazaridou, Elena Gribovskaya, Wojciech Stokowiec, and Nikolai Grigorev. 2022. Internetaugmented language models through few-shot prompting for open-domain question answering. arXiv preprint arXiv:2203.05115, abs/2203.05115. ",
+        "bbox": [
+            117,
+            288,
+            485,
+            353
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Thai Le, Jooyoung Lee, Kevin Yen, Yifan Hu, and Dongwon Lee. 2022. Perturbations in the wild: Leveraging human-written text perturbations for realistic adversarial attack and defense. In Findings of the Association for Computational Linguistics: ACL 2022, Dublin, Ireland, May 22-27, 2022, pages 2953–2965. Association for Computational Linguistics. ",
+        "bbox": [
+            117,
+            363,
+            487,
+            455
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Thai Le, Yiran Ye, Yifan Hu, and Dongwon Lee. 2023. Cryptext: Database and interactive toolkit of human-written text perturbations in the wild. In 39th IEEE International Conference on Data Engineering, ICDE 2023, Anaheim, CA, USA, April 3-7, 2023, pages 3639–3642. IEEE. ",
+        "bbox": [
+            117,
+            464,
+            487,
+            542
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Hyunji Lee, Se June Joo, Chaeeun Kim, Joel Jang, Doyoung Kim, Kyoung-Woon On, and Minjoon Seo. 2023. How well do large language models truly ground? arXiv preprint arXiv:2311.09069, abs/2311.09069. ",
+        "bbox": [
+            115,
+            552,
+            485,
+            617
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Patrick S. H. Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, Sebastian Riedel, and Douwe Kiela. 2020. Retrieval-augmented generation for knowledge-intensive NLP tasks. In Advances in Neural Information Processing Systems 33: Annual Conference on Neural Information Processing Systems 2020, NeurIPS 2020, December 6-12, 2020, virtual. ",
+        "bbox": [
+            115,
+            627,
+            485,
+            744
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Junyi Li, Xiaoxue Cheng, Xin Zhao, Jian-Yun Nie, and Ji-Rong Wen. 2023a. Halueval: A large-scale hallucination evaluation benchmark for large language models. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing, EMNLP 2023, Singapore, December 6-10, 2023, pages 6449–6464. Association for Computational Linguistics. ",
+        "bbox": [
+            117,
+            755,
+            487,
+            858
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Xinzhe Li, Ming Liu, Shang Gao, and Wray L. Buntine. 2023b. A survey on out-of-distribution evaluation of neural NLP models. In Proceedings of the ThirtySecond International Joint Conference on Artificial ",
+        "bbox": [
+            115,
+            869,
+            487,
+            921
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Intelligence, IJCAI 2023, 19th-25th August 2023, Macao, SAR, China, pages 6683–6691. ijcai.org. ",
+        "bbox": [
+            529,
+            86,
+            882,
+            112
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Jerry Liu. 2022. LlamaIndex. ",
+        "bbox": [
+            512,
+            123,
+            710,
+            135
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Quanyu Long, Yue Deng, Leilei Gan, Wenya Wang, and Sinno Jialin Pan. 2024. Backdoor attacks on dense passage retrievers for disseminating misinformation. arXiv preprint arXiv:2402.13532, abs/2402.13532. ",
+        "bbox": [
+            512,
+            146,
+            882,
+            198
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Alex Mallen, Akari Asai, Victor Zhong, Rajarshi Das, Daniel Khashabi, and Hannaneh Hajishirzi. 2023. When not to trust language models: Investigating effectiveness of parametric and non-parametric memories. In Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), ACL 2023, Toronto, Canada, July 9-14, 2023, pages 9802–9822. Association for Computational Linguistics. ",
+        "bbox": [
+            510,
+            209,
+            884,
+            326
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "OpenAI. 2023a. Chatgpt plugins. ",
+        "bbox": [
+            514,
+            337,
+            737,
+            350
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "OpenAI. 2023b. GPT-4 technical report. arXiv preprint arXiv:2303.08774, abs/2303.08774. ",
+        "bbox": [
+            512,
+            360,
+            882,
+            386
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Dmytro Okhonko, Samuel Broscheit, Gautier Izacard, Patrick S. H. Lewis, Barlas Oguz, Edouard Grave, Wen-tau Yih, and Sebastian Riedel. 2021. The web is your oyster - knowledge-intensive NLP against a very large web corpus. arXiv preprint arXiv:2112.09924, abs/2112.09924. ",
+        "bbox": [
+            512,
+            397,
+            882,
+            488
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Ofir Press, Muru Zhang, Sewon Min, Ludwig Schmidt, Noah A. Smith, and Mike Lewis. 2023. Measuring and narrowing the compositionality gap in language models. In Findings of the Association for Computational Linguistics: EMNLP 2023, Singapore, December 6-10, 2023, pages 5687–5711. Association for Computational Linguistics. ",
+        "bbox": [
+            512,
+            499,
+            882,
+            589
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Yujia Qin, Shihao Liang, Yining Ye, Kunlun Zhu, Lan Yan, Yaxi Lu, Yankai Lin, Xin Cong, Xiangru Tang, Bill Qian, Sihan Zhao, Lauren Hong, Runchu Tian, Ruobing Xie, Jie Zhou, Mark Gerstein, dahai li, Zhiyuan Liu, and Maosong Sun. 2024. ToolLLM: Facilitating large language models to master $1 6 0 0 0 +$ real-world APIs. In The Twelfth International Conference on Learning Representations. ",
+        "bbox": [
+            512,
+            600,
+            882,
+            703
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Pranav Rajpurkar, Jian Zhang, Konstantin Lopyrev, and Percy Liang. 2016. Squad: 100, $0 0 0 +$ questions for machine comprehension of text. In Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing, EMNLP 2016, Austin, Texas, USA, November 1-4, 2016, pages 2383–2392. The Association for Computational Linguistics. ",
+        "bbox": [
+            510,
+            714,
+            882,
+            806
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Marco Túlio Ribeiro, Sameer Singh, and Carlos Guestrin. 2018. Semantically equivalent adversarial rules for debugging NLP models. In Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics, ACL 2018, Melbourne, Australia, July 15-20, 2018, Volume 1: Long Papers, pages 856–865. Association for Computational Linguistics. ",
+        "bbox": [
+            512,
+            816,
+            882,
+            921
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Nandan Thakur, Luiz Bonifacio, Xinyu Zhang, Odunayo Ogundepo, Ehsan Kamalloo, David Alfonso-Hermelo, Xiaoguang Li, Qun Liu, Boxing Chen, Mehdi Rezagholizadeh, and Jimmy Lin. 2023. Nomiracl: Knowing when you don’t know for robust multilingual retrieval-augmented generation. arXiv preprint arXiv:2312.11361, abs/2312.11361. ",
+        "bbox": [
+            117,
+            86,
+            485,
+            177
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Nandan Thakur, Nils Reimers, Andreas Rücklé, Abhishek Srivastava, and Iryna Gurevych. 2021. BEIR: A heterogeneous benchmark for zero-shot evaluation of information retrieval models. In Proceedings of the Neural Information Processing Systems Track on Datasets and Benchmarks 1, NeurIPS Datasets and Benchmarks 2021, December 2021, virtual. ",
+        "bbox": [
+            115,
+            187,
+            487,
+            279
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Almahairi, Yasmine Babaei, Nikolay Bashlykov, Soumya Batra, Prajjwal Bhargava, Shruti Bhosale, Dan Bikel, Lukas Blecher, Cristian CantonFerrer, Moya Chen, Guillem Cucurull, David Esiobu, Jude Fernandes, Jeremy Fu, Wenyin Fu, Brian Fuller, Cynthia Gao, Vedanuj Goswami, Naman Goyal, Anthony Hartshorn, Saghar Hosseini, Rui Hou, Hakan Inan, Marcin Kardas, Viktor Kerkez, Madian Khabsa, Isabel Kloumann, Artem Korenev, Punit Singh Koura, Marie-Anne Lachaux, Thibaut Lavril, Jenya Lee, Diana Liskovich, Yinghai Lu, Yuning Mao, Xavier Martinet, Todor Mihaylov, Pushkar Mishra, Igor Molybog, Yixin Nie, Andrew Poulton, Jeremy Reizenstein, Rashi Rungta, Kalyan Saladi, Alan Schelten, Ruan Silva, Eric Michael Smith, Ranjan Subramanian, Xiaoqing Ellen Tan, Binh Tang, Ross Taylor, Adina Williams, Jian Xiang Kuan, Puxin Xu, Zheng Yan, Iliyan Zarov, Yuchen Zhang, Angela Fan, Melanie Kambadur, Sharan Narang, Aurélien Rodriguez, Robert Stojnic, Sergey Edunov, and Thomas Scialom. 2023. Llama 2: Open foundation and finetuned chat models. arXiv preprint arXiv:2307.09288, abs/2307.09288. ",
+        "bbox": [
+            122,
+            290,
+            487,
+            601
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Boxin Wang, Weixin Chen, Hengzhi Pei, Chulin Xie, Mintong Kang, Chenhui Zhang, Chejian Xu, Zidi Xiong, Ritik Dutta, Rylan Schaeffer, Sang T. Truong, Simran Arora, Mantas Mazeika, Dan Hendrycks, Zinan Lin, Yu Cheng, Sanmi Koyejo, Dawn Song, and Bo Li. 2023. Decodingtrust: A comprehensive assessment of trustworthiness in GPT models. In Advances in Neural Information Processing Systems 36: Annual Conference on Neural Information Processing Systems 2023, NeurIPS 2023, New Orleans, LA, USA, December 10 - 16, 2023. ",
+        "bbox": [
+            115,
+            612,
+            487,
+            756
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Boxin Wang, Chejian Xu, Shuohang Wang, Zhe Gan, Yu Cheng, Jianfeng Gao, Ahmed Hassan Awadallah, and Bo Li. 2021. Adversarial GLUE: A multitask benchmark for robustness evaluation of language models. In Proceedings of the Neural Information Processing Systems Track on Datasets and Benchmarks 1, NeurIPS Datasets and Benchmarks 2021, December 2021, virtual. ",
+        "bbox": [
+            117,
+            766,
+            487,
+            871
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Yuhao Wang, Ruiyang Ren, Junyi Li, Wayne Xin Zhao, Jing Liu, and Ji-Rong Wen. 2024. REAR: A relevance-aware retrieval-augmented framework for open-domain question answering. arXiv preprint arXiv:2402.17497, abs/2402.17497. ",
+        "bbox": [
+            117,
+            882,
+            485,
+            921
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            529,
+            86,
+            880,
+            111
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Phoenix Neale Williams and Ke Li. 2023. Black-box sparse adversarial attack via multi-objective optimisation CVPR proceedings. In IEEE/CVF Conference on Computer Vision and Pattern Recognition, CVPR 2023, Vancouver, BC, Canada, June 17-24, 2023, pages 12291–12301. IEEE. ",
+        "bbox": [
+            512,
+            123,
+            882,
+            200
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Jin Yong Yoo and Yanjun Qi. 2021a. Towards improving adversarial training of NLP models. In Findings of the Association for Computational Linguistics: EMNLP 2021, Virtual Event / Punta Cana, Dominican Republic, 16-20 November, 2021, pages 945–956. Association for Computational Linguistics. ",
+        "bbox": [
+            512,
+            211,
+            882,
+            290
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Jin Yong Yoo and Yanjun Qi. 2021b. Towards improving adversarial training of NLP models. In Findings of the Association for Computational Linguistics: EMNLP 2021, Virtual Event / Punta Cana, Dominican Republic, 16-20 November, 2021, pages 945–956. Association for Computational Linguistics. ",
+        "bbox": [
+            510,
+            299,
+            882,
+            378
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Ori Yoran, Tomer Wolfson, Ori Ram, and Jonathan Berant. 2024. Making retrieval-augmented language models robust to irrelevant context. In The Twelfth International Conference on Learning Representations. ",
+        "bbox": [
+            510,
+            388,
+            882,
+            453
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Yuan Zang, Fanchao Qi, Chenghao Yang, Zhiyuan Liu, Meng Zhang, Qun Liu, and Maosong Sun. 2020. Word-level textual adversarial attacking as combinatorial optimization. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, ACL 2020, Online, July 5-10, 2020, pages 6066–6080. Association for Computational Linguistics. ",
+        "bbox": [
+            510,
+            463,
+            882,
+            568
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Wei Emma Zhang, Quan Z. Sheng, Ahoud Alhazmi, and Chenliang Li. 2020. Adversarial attacks on deeplearning models in natural language processing: A survey. ACM Trans. Intell. Syst. Technol., 11(3):24:1– 24:41. ",
+        "bbox": [
+            510,
+            579,
+            882,
+            643
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Zexuan Zhong, Ziqing Huang, Alexander Wettig, and Danqi Chen. 2023. Poisoning retrieval corpora by injecting adversarial passages. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing, EMNLP 2023, Singapore, December 6-10, 2023, pages 13764–13775. Association for Computational Linguistics. ",
+        "bbox": [
+            512,
+            653,
+            882,
+            745
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Kaijie Zhu, Jindong Wang, Jiaheng Zhou, Zichen Wang, Hao Chen, Yidong Wang, Linyi Yang, Wei Ye, Neil Zhenqiang Gong, Yue Zhang, and Xing Xie. 2023. Promptbench: Towards evaluating the robustness of large language models on adversarial prompts. arXiv preprint arXiv:2306.04528, abs/2306.04528. ",
+        "bbox": [
+            512,
+            756,
+            882,
+            834
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Wei Zou, Runpeng Geng, Binghui Wang, and Jinyuan Jia. 2024. Poisonedrag: Knowledge poisoning attacks to retrieval-augmented generation of large language models. arXiv preprint arXiv:2402.07867, abs/2402.07867. ",
+        "bbox": [
+            510,
+            845,
+            882,
+            909
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "A Implementation Detail ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            84,
+            347,
+            99
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "A.1 Operations ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            110,
+            252,
+            126
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "We explore four types of low-level perturbations, capturing the unpredictable and diverse nature of textual typos from Eger and Benz (2020). The operations of transformation function $f$ in our work are as follows: ",
+        "bbox": [
+            117,
+            131,
+            487,
+            211
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "• Inner-Shuffle: Randomly shuffles the letters within a subsequence of a word token, limited to words with more than three characters. ",
+        "bbox": [
+            137,
+            225,
+            485,
+            272
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "• Keyboard Typo: Substitutes a letter with its adjacent counterpart on an English keyboard layout to simulate human typing errors. Only one character per word is replaced. ",
+        "bbox": [
+            137,
+            378,
+            487,
+            442
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "• Natural Typo: Replaces letters based on common human errors derived from Wikipedia’s edit history. This operation encompasses a variety of error types, including phonetic errors, omissions, morphological errors, and their combinations. ",
+        "bbox": [
+            137,
+            455,
+            487,
+            549
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Additionally, we explore other types of low-level perturbations, such as punctuation insertion and phonetic and visual similarity. The operations of these low-level perturbations are as follows: ",
+        "bbox": [
+            115,
+            564,
+            487,
+            626
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "• Punctuation Insertion: Insert random punctuations into the beginning or end of a word token. We insert a maximum of three identical punctuations into the beginning or end of the word. Exploited punctuations are \" ,.’!?; \". ",
+        "bbox": [
+            137,
+            640,
+            487,
+            720
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "• Phonetic Similarity: Swap the characters in a word into the other tokens having phonetic similarity with the original ones. We exploit two types of phonetic similarity attacks from Eger and Benz (2020) and Le et al. (2022). ",
+        "bbox": [
+            137,
+            733,
+            487,
+            827
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "• Visual Similarity: Swap the characters in a word into the other tokens having visual similarity with the original ones. We exploit two types of phonetic similarity attacks from Eger et al. (2019). ",
+        "bbox": [
+            137,
+            843,
+            487,
+            921
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "A.2 Details of Attack Objectives ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            85,
+            778,
+            99
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "In this section, we explain the details of the attack objectives: the Relevance Score Ratio (RSR) and the Generation Probability Ratio (GPR). ",
+        "bbox": [
+            512,
+            107,
+            880,
+            153
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "First, the Relevance Score Ratio (RSR) calculates the ratio of the relevance score from the adversarial document $\\mathbf { \\Omega } _ { d ^ { \\prime } } \\mathbf { \\Omega } _ { }$ to the score from the original document $\\textbf { \\em d }$ for a given query $\\pmb q$ . This ratio measures the superiority of the relevance score for $\\pmb q$ between $\\textbf { \\em d }$ and $\\mathbf { { \\chi } } _ { d { ' } } \\mathbf { { \\chi } } _ { d { ' } }$ . For instance, if the RSR value is below 1, the relevance score from $\\mathbf { \\Delta } d ^ { \\prime }$ is higher than that from $\\textbf { \\em d }$ . Although this ratio is relative to the original document $\\textbf { \\em d }$ and does not capture the actual rank in the retriever corpus, we validated the actual performance degradation of the retriever models, as shown in Table 2. ",
+        "bbox": [
+            512,
+            156,
+            882,
+            348
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "The Generation Probability Ratio (GPR) calculates the ratio of the generation probabilities of the correct answer $^ { a }$ from the original pair $( d , q )$ to the probability from the adversarial pair $( d ^ { \\prime } , q )$ The generation probability of the answer $^ { a }$ for a document-query pair $( d , q )$ is the joint probability over the answer tokens in $^ { a }$ , represented as $\\begin{array} { r } { \\dot { p ( { \\pmb a } | { \\pmb d } , { \\pmb q } ) } = \\prod _ { i = 1 } ^ { L } p ( a _ { i } | a _ { < i } , d , \\pmb q ) } \\end{array}$ . This ratio measures the likelihood that the adversarial document will cause the LLM to generate the correct answer $^ { a }$ compared to the original document $\\textbf { \\em d }$ . For instance, if the GPR value is below 1, the adversarial document $\\mathbf { \\Omega } _ { d ^ { \\prime } } \\mathbf { \\Omega } _ { }$ is more successful in distracting the LLM than the original document $\\textbf { \\em d }$ . Although this measurement does not directly imply generating incorrect answers, we validate the correlation between GPR and the correctness of predictions, as shown in the right panel of Figure 3. These results highlight that lowering the GPR tends to induce the generation of more incorrect answers. ",
+        "bbox": [
+            510,
+            349,
+            882,
+            670
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "A.3 Process of GARAG ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            686,
+            705,
+            699
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "The detailed process of GARAG is showcased in Algorithm 1. Our process begins with the initialization of the adversarial document population, and then the population repeats the cycles of crossover, mutation, and selection. ",
+        "bbox": [
+            512,
+            701,
+            882,
+            780
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "A.4 Sorting Algorithm ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            795,
+            704,
+            809
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "In this study, we utilize the sorting algorithms from NSGA-II (Deb et al., 2002) to identify the most adversarial documents within extensive search spaces of noisy documents derived from an original document. The algorithm employs non-dominated sorting coupled with crowding distance sorting to organize the population. ",
+        "bbox": [
+            512,
+            810,
+            884,
+            922
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "table",
+        "img_path": "images/550f31679cf974806a37726e169caaa2cc5b155d1c878c37770443c25bb75619.jpg",
+        "table_caption": [
+            "Algorithm 2: Non-Dominated Sorting Algorithm "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Input: Query q, Document d, Number of iterations Niter, Number of parents Nparent, Population size S, Perturbation rate prper, Crossover rate prcross, Mutation rate prmut Function: Non-dominated sorting NDS, Crowd sorting CS Output: Adversarial document d* // Initialization P0 ← {}i=1 with prper; for i = 1 to Niter do // Crossover O ← CROSSOVER(Pi−1, Nparent, prcross); // Mutation O ← MUTATE(O, prmut); // Selection Pi ← Pi−1 ∪ O; for d&#x27; in Pi do Evaluate LRsR(d&#x27;) and LgPR(d&#x27;);</td></tr></table>",
+        "bbox": [
+            124,
+            103,
+            462,
+            435
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "image",
+        "img_path": "images/9d9b691e1eb704248739e57e2ed5d480a201a6e34282dc3726761c6ea6ee979c.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            129,
+            482,
+            480,
+            835
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Non-Dominated Sorting. Initially, nondominated sorting arranges the adversarial documents into different front levels, ensuring that documents within the same level do not dominate one another. The domination relation between the adversarial documents is defined as follows: ",
+        "bbox": [
+            115,
+            875,
+            487,
+            921
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            510,
+            84,
+            882,
+            131
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Definition A.1 (Domination). Given two adversarial documents $d _ { i } ^ { \\prime }$ and $d _ { j } ^ { \\prime }$ perturbed from the original document $\\textbf { \\em d }$ leading to generate correct answer $^ { a }$ for a query $\\pmb q$ , ${ \\mathbf { } d } _ { i } ^ { \\prime }$ is said to dominate $d _ { j } ^ { \\prime }$ (i.e., $d _ { j } ^ { \\prime } \\prec { d _ { i } ^ { \\prime } } )$ if the following conditions are satisfied: ",
+        "bbox": [
+            510,
+            139,
+            882,
+            234
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "equation",
+        "img_path": "images/e7f16d5d11884400c4303b320768dbac6216c86e5c53fd4bd3a10d422c03ce5b.jpg",
+        "text": "$$\n\\cdot \\ \\mathcal { L } _ { \\mathrm { R S R } } ( d _ { i } ^ { \\prime } ) < \\mathcal { L } _ { \\mathrm { R S R } } ( d _ { j } ^ { \\prime } )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            539,
+            265,
+            719,
+            285
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "equation",
+        "img_path": "images/de5bdf05949878390967616e7c8df45d3589b91e6237a306ca0cdaec8e3857e5.jpg",
+        "text": "$$\n\\bullet \\mathcal { L } _ { \\mathrm { G P R } } ( d _ { i } ^ { \\prime } ) < \\mathcal { L } _ { \\mathrm { G P R } } ( d _ { j } ^ { \\prime } )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            534,
+            312,
+            721,
+            334
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "The specifics of non-dominated sorting are illustrated in Algorithm 2. ",
+        "bbox": [
+            510,
+            363,
+            882,
+            394
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Crowding Distance Sorting The crowding distance sorting is applied to rank the documents within each front level. The crowding distance is a crucial part of the algorithm, helping maintain population diversity by giving higher preference to solutions in less crowded regions. ",
+        "bbox": [
+            510,
+            422,
+            882,
+            518
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "The process of calculating crowding distance in a population begins by assigning each individual a crowding distance value of zero. The population is then sorted in ascending order for each objective function. Boundary points, the first and last individuals in each sorted list, are assigned an infinite crowding distance to ensure their selection. For all other individuals, the crowding distance is calculated by normalizing the difference in objective function values between adjacent individuals, adjusted by the range of the objective values in the population, as given by d(i) = d(i) + fi+1−fi−1f −f . This calculation is repeated for each objective function. Finally, the individual crowding distances computed for each objective are summed to estimate the density of solutions surrounding a particular solution, facilitating the selection of diverse solutions in multi-objective optimization. ",
+        "bbox": [
+            510,
+            524,
+            884,
+            813
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "A.5 Template ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            843,
+            631,
+            858
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "We adopt the zero-shot prompting template optimal for exact QA tasks, following (Wang et al., 2024), for all LLMs exploited in our experiments. ",
+        "bbox": [
+            512,
+            875,
+            882,
+            921
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "QA Template for LLMs [INST] Documents: {Document} ",
+        "bbox": [
+            141,
+            86,
+            289,
+            98
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            141,
+            110,
+            265,
+            135
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Answer the following question with a very short phrase, such as \"1998\", \"May 16th, 1931\", or \"James Bond\", to meet the criteria of exact match datasets. ",
+        "bbox": [
+            141,
+            146,
+            462,
+            193
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Question: {Question} [/INST] ",
+        "bbox": [
+            142,
+            205,
+            329,
+            218
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Answer: ",
+        "bbox": [
+            142,
+            230,
+            196,
+            241
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "B Additional Results ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            262,
+            312,
+            278
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "B.1 Overall Result ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            288,
+            277,
+            303
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Table 9 shows the overall results across three QA datasets, two retrievers, and five LLMs. ",
+        "bbox": [
+            115,
+            310,
+            485,
+            341
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "B.2 Comparison with HotFlip ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            353,
+            366,
+            369
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "table",
+        "img_path": "images/86d728efe171de32073e49ee68ac3920dc6b8bb8348c00ecbb1323028279693e.jpg",
+        "table_caption": [
+            "Table 7: Comparison with HotFlip Attack on NQ with Contriever and Llama-7b. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\"></td><td colspan=\"3\">ASR</td><td>E2E</td></tr><tr><td>ASRR</td><td>ASRL</td><td>ASRT</td><td>EM</td></tr><tr><td>GARAG</td><td>85.9</td><td>91.1</td><td>77.5</td><td>70.1</td></tr><tr><td>GARAG on Retriever</td><td>96.6</td><td>18.0</td><td>18.0</td><td>94.4</td></tr><tr><td>GARAG on LLM</td><td>33.2</td><td>100.0</td><td>33.2</td><td>85.2</td></tr><tr><td>HotFlip on Retriever</td><td>100.0</td><td>79.0</td><td>79.0</td><td>59.6</td></tr><tr><td>HotFlip on LLM</td><td>6.1</td><td>99.9</td><td>6.1</td><td>94.9</td></tr></table>",
+        "bbox": [
+            132,
+            417,
+            463,
+            514
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "We compare the vulnerability of low-level perturbations with high-level perturbations implemented by HotFlip (Ebrahimi et al., 2018) targeting each module within RAG systems, following the settings of Zhong et al. (2023). Note that HotFlip is for high-level perturbations based on word swap, not for low-level perturbations targeting our work. As shown in Table 7, HotFlip on the retriever showed a higher attack success rate and significant performance degradation compared to LLM, confirming the retriever acts as a shield for the RAG system. Also, HotFlip, with its gradient-based optimization, inevitably finds more adversarial documents than GARAG, showing a lower EM score than GARAG after the attack. However, as ours is the black-box attack just relying on the outputs of the model, not requiring any gradient calculation, it can applied to more diverse scenarios such as exploiting diverse types of perturbations or attacking closed-source models such as ChatGPT (Brown et al., 2020). ",
+        "bbox": [
+            115,
+            519,
+            487,
+            840
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "B.3 Adversarial Attack on Closed-source Model ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            853,
+            452,
+            883
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "We further explore the applicability of black-box attacks on the closed-source model, GPT-3.5. Since ",
+        "bbox": [
+            115,
+            890,
+            487,
+            921
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "table",
+        "img_path": "images/80c104055ac946c598bdc49e41ec84fdbc06a6e26e199cec8c158dae9330e339.jpg",
+        "table_caption": [
+            "Table 8: Adversarial attack with GARAG on NQ to GPT-3.5 "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Retriever</td><td colspan=\"3\">ASR</td><td>E2E</td></tr><tr><td></td><td>ASRR</td><td>ASRL</td><td>ASRT</td><td>EM</td></tr><tr><td>DPR</td><td>64.7</td><td>85.3</td><td>50.0</td><td>88.2</td></tr><tr><td>Contriever</td><td>74.0</td><td>86.3</td><td>60.3</td><td>83.6</td></tr></table>",
+        "bbox": [
+            531,
+            102,
+            858,
+            174
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "OpenAI limits access to their models, preventing operations such as gradient calculation for loss objectives, gradient-based attacks like HotFlip (Ebrahimi et al., 2018) cannot be applied. However, our proposed method, GARAG, can assess the vulnerability of such models as it only requires model outputs for adversarial attacks. Table 8 presents the results of adversarial attacks on GPT-3.5 with two types of retrievers: DPR and Contriever. Although GPT-3.5 showed some weakness to textual typos, it was more robust than the 7B to 13B size models primarily tested in this experiment. Additionally, the results align with our previous experiments, demonstrating that DPR, which has stronger search performance, is more robust against typos. ",
+        "bbox": [
+            512,
+            187,
+            884,
+            445
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "image",
+        "img_path": "images/5cdf9e90a7b2352ccd58d26d77a0d4178ca25f687174015dd30cbeb186380631.jpg",
+        "image_caption": [
+            "B.4 Changes in Population Distribution Across Iterations in GARAG ",
+            "Figure 6: The process of population refinement by GARAG on NQ with Contriever and Llama-7b "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            522,
+            507,
+            867,
+            686
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "We provide a detailed distribution of how the population is refined through the iterative process, as illustrated in Figure 6. As the iteration number increases, the population distribution progressively converges towards the holistic error zone, demonstrating the effectiveness of GARAG in optimization. ",
+        "bbox": [
+            512,
+            744,
+            884,
+            856
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "B.5 Case Study ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            869,
+            647,
+            884
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "We conducted case studies with diverse LLMs, including Llama-7b, Vicuna-7b, and Mistral-7b, as shown in Table 10. In all these studies, while the correct answer tokens were not perturbed — allowing for the possibility of grounding correct information — the LLMs typically failed to answer the correct knowledge within the document. This often resulted in incorrect predictions or even hallucinations, where the answer was not just wrong but absent from the document. However, there was an exception with Mistral-7b, which generated the correct answer and additional explanatory text. While this prediction did not meet the Exact Match (EM) metric, it was semantically correct. ",
+        "bbox": [
+            512,
+            890,
+            884,
+            921
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            84,
+            487,
+            277
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "table",
+        "img_path": "images/8494ef3de40fb94a4937d65a72a42313ed0bd6e3e634628edc3764cdf59f72e9.jpg",
+        "table_caption": [
+            "Table 9: Adversarial attack results of $G A R A G$ on three QA datasets across different retrievers and LLMs. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td></td><td></td><td colspan=\"5\">NQ</td><td colspan=\"5\">TriviaQA</td><td colspan=\"5\">SQuAD</td></tr><tr><td></td><td></td><td></td><td colspan=\"2\">ASR(↑)</td><td colspan=\"2\">E2E(↓)</td><td></td><td colspan=\"2\">ASR()</td><td colspan=\"2\">E2E(↓)</td><td></td><td colspan=\"2\">ASR(↑)</td><td colspan=\"2\">E2E(↓)</td></tr><tr><td>Retriever</td><td>LLM</td><td>ASRR</td><td>ASRL</td><td>ASRT</td><td>EM</td><td>Acc.</td><td>ASRR</td><td>ASRL</td><td>ASRT</td><td>EM</td><td>Acc.</td><td>ASRR</td><td>ASRL</td><td>ASRT</td><td>EM</td><td>Acc.</td></tr><tr><td rowspan=\"5\">DPR</td><td>Llama2-7b</td><td>75.4</td><td>89.8</td><td>66.0</td><td>76.8</td><td>80.6</td><td>78.2</td><td>91.7</td><td>70.2</td><td>81.6</td><td>85.3</td><td>84.1</td><td>90.1</td><td>74.2</td><td>73.0</td><td>78.</td></tr><tr><td>Llama2-13b</td><td>71.3</td><td>91.7</td><td>63.5</td><td>82.8</td><td>88.2</td><td>83.9</td><td>92.0</td><td>76.1</td><td>76.7</td><td>83.3</td><td>80.0</td><td>92.4</td><td>72.7</td><td>86.3</td><td>90.5</td></tr><tr><td>Vicuna-7b</td><td>83.0</td><td>81.6</td><td>65.1</td><td>62.0</td><td>79.2</td><td>91.1</td><td>79.5</td><td>70.8</td><td>58.4</td><td>81.7</td><td>92.0</td><td>81.1</td><td>73.4</td><td>51.2</td><td>76.9</td></tr><tr><td>Vicuna-13b</td><td>82.8</td><td>80.9</td><td>64.4</td><td>58.5</td><td>83.3</td><td>91.8</td><td>83.5</td><td>75.4</td><td>59.2</td><td>85.7</td><td>91.7</td><td>80.5</td><td>72.5</td><td>57.4</td><td>80.5</td></tr><tr><td>Mistral-7b</td><td>78.5</td><td>85.9</td><td>65.1</td><td>669.1</td><td>96.5</td><td>84.7</td><td>84.9</td><td>69.8</td><td>66.5</td><td>97.7</td><td>87.8</td><td>85.7</td><td>73.5</td><td>64.4</td><td>95.2</td></tr><tr><td rowspan=\"5\">Contriever</td><td>Llama2-7b</td><td>85.9</td><td>91.1</td><td>77.5</td><td>70.1</td><td>74.7</td><td>84.9</td><td>90.7</td><td>76.0</td><td>82.0</td><td>86.9</td><td>85.2</td><td>91.2</td><td>76.4</td><td>72.9</td><td>77.2</td></tr><tr><td>Llama2-13b</td><td>78.9</td><td>91.2</td><td>70.5</td><td>78.7</td><td>85.7</td><td>81.0</td><td>91.9</td><td>72.9</td><td>86.2</td><td>91.7</td><td>86.1</td><td>93.0</td><td>79.1</td><td>77.2</td><td>84.5</td></tr><tr><td>Vicuna-7b</td><td>90.8</td><td>81.3</td><td>72.4</td><td>52.2</td><td>72.5</td><td>93.0</td><td>80.8</td><td>74.0</td><td>60.3</td><td>81.5</td><td>92.6</td><td>82.5</td><td>75.2</td><td>52.7</td><td>76.7</td></tr><tr><td>Vicuna-13b</td><td>87.5</td><td>85.5</td><td>73.3</td><td>63.9</td><td>95.4</td><td>88.8</td><td>86.4</td><td>75.2</td><td>66.2</td><td>97.8</td><td>91.2</td><td>88.0</td><td>79.3</td><td>59.2</td><td>92.6</td></tr><tr><td>Mistral-7b</td><td>87.5</td><td>85.5</td><td>73.3</td><td>63.9</td><td>95.4</td><td>88.8</td><td>86.4</td><td>75.2</td><td>66.2</td><td>97.8</td><td>91.2</td><td>88.0</td><td>79.3</td><td>59.2</td><td>92.6</td></tr></table>",
+        "bbox": [
+            122,
+            424,
+            880,
+            601
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "table",
+        "img_path": "images/3e4b3cf76bd2c763393d4bafa8ef6d1133561f1be7b7cb667317f8ac8bfb63e2.jpg",
+        "table_caption": [
+            "Table 10: Case study on NQ with Contriever, where perturbed texts are in red and correct answers are in blue . "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>Llama-7b</td></tr><tr><td rowspan=1 colspan=1>Question          Which site of an enzyme is called allosteric site?</td></tr><tr><td rowspan=2 colspan=1>Noisy Document   A;lostericenzyme Long-range allostery isesprciallybimponantin cell signaling. Allosteric regulation isalso particularly important in the cel&#x27;sabi9tytoadjusyezyme activity. The ter &quot;allostery&quot; comes fomal r, n Th   h h  nalosti protei is physically stic fom  activ .The prot catalyst zymemybepaftof a multi-subunit complex, and/or may transiently or permanentlyassociatrwith a Cofactor (e.g.aenosine triphosphate).Catalysis obiochejicalreacions is vital due to the verylawreaction rates  theuncatalysedreactioms</td></tr><tr><td rowspan=1 colspan=1>a mlosteric</td></tr><tr><td rowspan=1 colspan=1>Answer           Regulatory site</td></tr><tr><td rowspan=1 colspan=1>Prediction        Active site</td></tr><tr><td rowspan=1 colspan=1>Question          Who did Cora marry in once upon a time?</td></tr><tr><td rowspan=1 colspan=1>Noisy Document  The Miller Daughter (Once Upon a Time) to the King and acceptsHenrys resultant marriage proposal.The day before her wedding, Coraques6ionsherolans; she is unlikely to becomeqjeenas Henry is fifthinlinto the throne, while Rumplestiltskin, with whom she has been having an afar, offers her love. Theyagree to amend thecontratcso Cora owes Rumplestiltskin &quot;his&quot; child. He also agrees to teach her howto take a heart, so that she cankilkKing Savier. That night, sheconfromtsthe king. He reveals that heknows of her relationship with Rumplestiltskin; telling her that &quot;&quot; pove is weakness,&quot; heays</td></tr><tr><td rowspan=1 colspan=1>Answer           Henry</td></tr><tr><td rowspan=1 colspan=1>Prediction        Rumplestiltskin</td></tr><tr><td rowspan=1 colspan=1>Vicuna-7b</td></tr><tr><td rowspan=1 colspan=1>Question          What is the 3rd largest state in USA?</td></tr><tr><td rowspan=1 colspan=1>Noisy Document   WexternUnited States LGBT community, and Oakland,Californiahas a largepercen5ageof residentsbeing African-American, as well as LongBeadh,California which also has a large Black community.Thsstate of Utah has a Mormon majority (estimate at 62.4% in 2004), while some cities like Albuquerque,NrwMexico; Billkngs,Montqna; Spokane, Washington; and Tucson, Arizona are located near IndianReservations. In remote areas there are settlements ofAlaskanNatives and Native Hawaiians.Fqcingboth thePaciticOcean and the Mexican border, the West has been shaped by acarietyof ethnic groups.Hawaii is the only state in the union in which</td></tr><tr><td rowspan=1 colspan=1>Answer           California, Alaska</td></tr><tr><td rowspan=1 colspan=1>Prediction        regon</td></tr><tr><td rowspan=1 colspan=1>Question          When did the movie peter pan come out</td></tr><tr><td rowspan=1 colspan=1>Noisy Document  Peter Pan as an adult by Robin Williams, withiblueeyes and dark brown hair; in flashbacks to him in hisyouth, hishwiris light brown. In this film his earsaap;earpoinonly when he isPetefPan, not as PeterBanning. His Pan attire resembles theD9sneyoutfit (minus the cap. In theIvie-acion22003 -eterPan&quot; flm, he is portrayed by JeremySu,pter, who has blond hair and blue-green eyes. His outft is madeof leaves and vines. J.M. Barrie created his character based on his older brother,Davic, who died in anice-skatingaaccieentthe day before</td></tr><tr><td rowspan=1 colspan=1>Answer           25 December 2003, 2003</td></tr><tr><td rowspan=1 colspan=1>Prediction         1998</td></tr><tr><td rowspan=1 colspan=1>Mistral-7b</td></tr><tr><td rowspan=1 colspan=1>Question          Make it or break it who goes to the Olympics?</td></tr><tr><td rowspan=1 colspan=1>Noisy Document  Make It or Break It A new gymnast, Max (Josh Bowman),cpmesto The Rock,wttractingthe attention ofLaurenandPayson Though Max sees more intreste inPayson, she is more focusd on her m.LaurenbtellsPaysonthat Max is hernwwboyfriend; Max denies this. Mas, Austin, andPaysonhopeKaylietrain in st, as they y o conine Sasha thataylis ready to copee at Wors. In the weof Emily&#x27;s departure, Kelly Parke becomes closer toKaylie,des-ite the scheming of her stage her, Sheila(Kathy Najimy).IKaylieoffers her comfort as Kelly&#x27;s mom is onlysup[ortiveof Kelly&#x27;s</td></tr><tr><td rowspan=1 colspan=1>Answer           Jordan, Payson, Lauren, Colleen, Kaylie</td></tr><tr><td rowspan=1 colspan=1>rediction         Kaylie goes to the Olympics</td></tr><tr><td rowspan=1 colspan=1>Question          When did Michael Jordan get his last ring?</td></tr><tr><td rowspan=1 colspan=1>Noisy Document   H the years. It was because of the play of Michael Jordan that basketball started torsachinternationalaudiences, especially on the 992 United States men&#x27;s Olympic basketball team, known as the Dream Team.After hisfianlchampionship and second retirement in98, there was a void as in who would be the faceo baskebalSo;n after with the help of Shaquille O&#x27;Neal,KogeBryant would go on to win three straightchampionships from 20002002 with the Los Angeleskers, helping make basketball</td></tr><tr><td rowspan=1 colspan=1>Answer           1998</td></tr><tr><td rowspan=1 colspan=1>Prediction             </td></tr></table>",
+        "bbox": [
+            122,
+            87,
+            877,
+            923
+        ],
+        "page_idx": 18
+    }
+]

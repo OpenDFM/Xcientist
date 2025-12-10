@@ -1,0 +1,253 @@
+{
+    "extraction": {
+        "background_and_motivation": {
+            "research_problem": {
+                "value": "The central challenge is acquiring and utilizing high-quality dense rewards at scale for online process reward model (PRM) updates, which is crucial for effective reinforcement learning (RL) in large language models (LLMs).",
+                "type": "string",
+                "unit": null,
+                "evidence": "We identify the central challenge as how to acquire and utilize high-quality dense rewards at scale, which enables online process reward model (PRM) update efficiently.",
+                "provenance": {
+                    "section_header": "1 INTRODUCTION",
+                    "page": 2
+                },
+                "notes": ""
+            },
+            "current_limitations": {
+                "value": "Existing methods for training process reward models require extensive human annotation or estimation-based methods that are not scalable, leading to challenges in training efficiency and reward optimization.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Existing methods either need to build complicated human annotation pipelines or rely on estimation-based methods, which require about 10 times more rollouts for each step than sampling only the response-level trajectories.",
+                "provenance": {
+                    "section_header": "1 INTRODUCTION",
+                    "page": 2
+                },
+                "notes": ""
+            },
+            "key_challenges": {
+                "value": "Key challenges include defining process rewards, updating PRMs online without extensive annotations, and the high costs associated with explicit reward modeling.",
+                "type": "string",
+                "unit": null,
+                "evidence": "It is difficult to collect step-level labels since reasoning steps do not naturally occur in sequences... Training reward models requires extensive annotation and broad data coverage to ensure a good balance between adaptability to the policy distribution and generalization to distribution shifts.",
+                "provenance": {
+                    "section_header": "2.2 KEY CHALLENGES IN SCALABLE DENSE REWARDS",
+                    "page": 4
+                },
+                "notes": ""
+            }
+        },
+        "core_concept": {
+            "main_idea": {
+                "value": "PRIME (Process Reinforcement through Implicit Rewards) proposes a scalable framework that utilizes implicit process rewards derived from outcome labels to facilitate online updates of process reward models, thereby enhancing reasoning capabilities in LLMs.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We propose Process Reinforcement through Implicit Rewards (PRIME), a scalable framework for enhancing reasoning capabilities via efficient reinforcement learning with dense token-level rewards.",
+                "provenance": {
+                    "section_header": "1 INTRODUCTION",
+                    "page": 2
+                },
+                "notes": ""
+            },
+            "inspiration_source": {
+                "value": "The design of PRIME is inspired by the need for a more efficient reinforcement learning process that can effectively integrate dense rewards without the overhead of traditional reward modeling.",
+                "type": "string",
+                "unit": null,
+                "evidence": "The key insight of PRIME is to apply implicit process rewards, which are derivable from the Implicit PRM that is trained with only outcome labels.",
+                "provenance": {
+                    "section_header": "3 PRIME",
+                    "page": 5
+                },
+                "notes": ""
+            }
+        },
+        "technical_approach": {
+            "implicit_prm": {
+                "objective": {
+                    "value": "The objective of the implicit process reward modeling (PRM) is to provide fine-grained, token-level rewards during the reinforcement learning process, facilitating efficient updates and mitigating reward hacking.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "This enables PRIME to perform online learning of reward signals using only outcome labels on policy rollouts, thereby fundamentally mitigating reward hacking.",
+                    "provenance": {
+                        "section_header": "3.1 ENABLING SCALABLE REWARD UPDATE WITH IMPLICIT REWARD MODELING",
+                        "page": 6
+                    },
+                    "notes": ""
+                },
+                "method": {
+                    "value": "The method involves initializing the implicit PRM from a supervised fine-tuned (SFT) model and updating it using only outcome labels collected from policy rollouts, thus avoiding the need for extensive human annotations.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "In practice, we find that the starting policy model itself serves as a decent initialization of PRM, bypassing the PRM training stage.",
+                    "provenance": {
+                        "section_header": "3.3 OTHER TECHNIQUES",
+                        "page": 7
+                    },
+                    "notes": ""
+                },
+                "reward_calculation": {
+                    "value": "Rewards are calculated using the log probability of the generated tokens relative to a reference model, enabling the derivation of process rewards from outcome labels.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "The process rewards are obtained by: r_{\u03c6}(y_{t}) := \u03b2 log(\u03c0_{\u03c6}(y_{t} | y_{<t}) / \u03c0_{ref}(y_{t} | y_{<t}))",
+                    "provenance": {
+                        "section_header": "3.1 ENABLING SCALABLE REWARD UPDATE WITH IMPLICIT REWARD MODELING",
+                        "page": 6
+                    },
+                    "notes": ""
+                },
+                "training_objective": {
+                    "value": "The training objective is to minimize the cross-entropy loss between the predicted rewards and the outcome verifier's feedback, ensuring that the implicit PRM aligns well with the actual performance of the policy.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Update Implicit PRM \u03c0_{\u03c6} by CE loss on (x, y, r_{o}(y)) \u2208 T: L_{CE}(\u03c6) = -E_{(x,y,r_{o}(y)) \u223c T}[r_{o}(y) log(\u03c3(r_{\u03c6}(y))) + (1 - r_{o}(y)) log(1 - \u03c3(r_{\u03c6}(y)))]",
+                    "provenance": {
+                        "section_header": "3.1 ENABLING SCALABLE REWARD UPDATE WITH IMPLICIT REWARD MODELING",
+                        "page": 6
+                    },
+                    "notes": ""
+                }
+            },
+            "prime_algorithm": {
+                "workflow": {
+                    "value": "The workflow of the PRIME algorithm involves initializing the policy model and implicit PRM, collecting responses for prompts, filtering based on output accuracy, and updating the PRM with implicit rewards derived from outcome labels.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "PRIME follows that (1) initialize policy model and the Implicit PRM both with the reference model; (2) sample multiple responses for each prompt and filter with output accuracy; (3) obtain implicit process rewards by the Implicit PRM and update it using cross-entropy (CE) loss.",
+                    "provenance": {
+                        "section_header": "3.2 ADVANTAGE ESTIMATION AND POLICY UPDATE",
+                        "page": 7
+                    },
+                    "notes": ""
+                },
+                "key_techniques": {
+                    "value": "Key techniques include online updates of the implicit PRM, the use of implicit process rewards for advantage estimation, and the integration of both token-level and outcome rewards to enhance training efficiency.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "PRIME adopts implicit process rewards for efficient PRM online update, then integrates token-level dense rewards with outcome rewards in MC advantage estimate.",
+                    "provenance": {
+                        "section_header": "3.3 OTHER TECHNIQUES",
+                        "page": 7
+                    },
+                    "notes": ""
+                },
+                "inference_enhancement": {
+                    "value": "Inference is enhanced by the ability to generate dense rewards dynamically during the learning process, allowing for continuous improvement of the model without the need for extensive prior training.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "This property enables us to update the PRMs online to avoid reward hacking.",
+                    "provenance": {
+                        "section_header": "3.1 ENABLING SCALABLE REWARD UPDATE WITH IMPLICIT REWARD MODELING",
+                        "page": 6
+                    },
+                    "notes": ""
+                }
+            }
+        },
+        "experiments_and_results": {
+            "experimental_setup": {
+                "value": "The experimental setup involves training the Qwen2.5-Math-7B-Base model with PRIME after a lightweight supervised fine-tuning (SFT) stage, utilizing various reasoning benchmarks for evaluation.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We train Qwen2.5-Math-7B-Base with PRIME after a lightweight SFT warmup stage.",
+                "provenance": {
+                    "section_header": "4.1 IMITATION WARMUP",
+                    "page": 8
+                },
+                "notes": ""
+            },
+            "key_results": {
+                "algorithm_effectiveness": {
+                    "value": "PRIME significantly improves the performance of LLMs, achieving a 15.1% average improvement across key reasoning benchmarks compared to the SFT model.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Starting from Qwen2.5-Math-7B-Base, PRIME achieves a 15.1% average improvement across several key reasoning benchmarks over the SFT model.",
+                    "provenance": {
+                        "section_header": "4.3 MAIN RESULTS",
+                        "page": 9
+                    },
+                    "notes": ""
+                },
+                "acceleration_effect": {
+                    "value": "PRIME achieves 2.5 times sample efficiency compared to traditional outcome rewards, demonstrating significant improvements in training speed.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Through PRIME, we successfully achieve substantial improvement on key mathematical reasoning benchmarks... leading to 2.5 times sample efficiency gain.",
+                    "provenance": {
+                        "section_header": "4.3 MAIN RESULTS",
+                        "page": 9
+                    },
+                    "notes": ""
+                },
+                "online_prm_importance": {
+                    "value": "The ability to update the PRM online is crucial for mitigating reward hacking and ensuring continuous improvement of the model's performance.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Our analysis shows that updating the PRM online is key to the success of PRIME.",
+                    "provenance": {
+                        "section_header": "4.3 MAIN RESULTS",
+                        "page": 9
+                    },
+                    "notes": ""
+                },
+                "inference_scaling_effect": {
+                    "value": "The integration of implicit rewards allows for fine-grained feedback during inference, which enhances the model's reasoning capabilities and overall performance.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "PRIME adopts implicit process rewards for efficient PRM online update, then integrates token-level dense rewards with outcome rewards.",
+                    "provenance": {
+                        "section_header": "3.1 ENABLING SCALABLE REWARD UPDATE WITH IMPLICIT REWARD MODELING",
+                        "page": 6
+                    },
+                    "notes": ""
+                }
+            }
+        },
+        "conclusions": {
+            "main_findings": {
+                "value": "PRIME effectively enhances the reasoning capabilities of LLMs by leveraging implicit process rewards, significantly improving sample efficiency and performance across various benchmarks while minimizing the costs associated with traditional reward modeling.",
+                "type": "string",
+                "unit": null,
+                "evidence": "This work develops PRIME, which produces and leverages dense rewards in online RL for LLM reasoning.",
+                "provenance": {
+                    "section_header": "7 CONCLUSION",
+                    "page": 12
+                },
+                "notes": ""
+            }
+        },
+        "contributions": {
+            "technical_contributions": {
+                "value": "The paper introduces the PRIME framework, which innovatively combines implicit process rewards with traditional outcome rewards, enabling scalable online updates of reward models and enhancing reinforcement learning efficiency.",
+                "type": "string",
+                "unit": null,
+                "evidence": "PRIME combines well with various advantage functions and forgoes the dedicated reward model training phase that existing approaches require.",
+                "provenance": {
+                    "section_header": "1 INTRODUCTION",
+                    "page": 2
+                },
+                "notes": ""
+            },
+            "practical_contributions": {
+                "value": "PRIME reduces the resource requirements for training language models by minimizing the need for extensive human annotations and enabling efficient online learning, thus increasing the accessibility of advanced RL techniques.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Our final model Eurus-2-7B-PRIME surpassed Qwen2.5-Math-7B-Instruct on five key mathematical benchmarks.",
+                "provenance": {
+                    "section_header": "4.3 MAIN RESULTS",
+                    "page": 9
+                },
+                "notes": ""
+            },
+            "community_contributions": {
+                "value": "The PRIME framework is open-sourced, providing a valuable resource for further research in reinforcement learning and language modeling, thereby contributing to the broader AI community.",
+                "type": "string",
+                "unit": null,
+                "evidence": "PRIME is open-sourced at https://github.com/PRIME-RL/PRIME.",
+                "provenance": {
+                    "section_header": "Acknowledgments",
+                    "page": null
+                },
+                "notes": ""
+            }
+        }
+    }
+}

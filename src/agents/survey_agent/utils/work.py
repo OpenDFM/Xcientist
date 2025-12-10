@@ -1,0 +1,2 @@
+class Work:
+    pass

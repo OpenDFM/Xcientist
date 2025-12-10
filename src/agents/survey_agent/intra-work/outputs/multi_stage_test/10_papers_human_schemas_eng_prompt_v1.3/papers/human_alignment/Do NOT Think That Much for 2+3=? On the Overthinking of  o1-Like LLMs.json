@@ -1,0 +1,322 @@
+{
+  "extraction": {
+    "title": {
+      "value": "Do NOT Think That Much for 2 + 3 = ? On the Overthinking of o1-Like LLMs",
+      "type": "string",
+      "unit": null,
+      "evidence": "# Do NOT Think That Much for $\\mathbf { 2 + 3 = ? }$ On the Overthinking of o1-Like LLMs",
+      "provenance": {
+        "section_header": "Title",
+        "page": 1
+      },
+      "notes": "",
+      "human_alignment_score": 1
+    },
+    "motivation": {
+      "problem_statement": {
+        "value": "o1-like models often allocate excessive computational resources for simple problems, leading to overthinking, which results in minimal benefits in performance.",
+        "type": "string",
+        "unit": null,
+        "evidence": "a critical question remains: How to intelligently and efficiently scale computational resources during testing. This paper presents the first comprehensive study on the prevalent issue of overthinking in these models, where excessive computational resources are allocated for simple problems with minimal benefit.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "key_observation": {
+        "value": "o1-like models consume 1953% more tokens than conventional models for simple problems, with minimal accuracy improvement.",
+        "type": "string",
+        "unit": null,
+        "evidence": "For example, Figure 1(a) compares the token usage of o1-like models with conventional models when answering the question, “what is the answer of 2 plus 3?” On average, o1-like models consumed 1953% more tokens than conventional models to reach the same answer.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 1
+      },
+      "research_goal": {
+        "value": "To analyze overthinking in o1-like models and propose metrics and strategies to mitigate unnecessary computational resource allocation.",
+        "type": "string",
+        "unit": null,
+        "evidence": "We assert that reasoning involves not only accuracy but also the application of the appropriate level of complexity based on the problem’s requirements. This insight motivates our exploration of studying and mitigating overthinking.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      }
+    },
+    "overthinking_observations": {
+      "excessive_solution_rounds": {
+        "value": "o1-like models generate multiple unnecessary solution rounds for simple problems, leading to inefficiency.",
+        "type": "string",
+        "unit": null,
+        "evidence": "In more than 92% of cases, the initial round of solutions produces the correct answer. Notably, the first round generally comprises less than 60% of the total tokens generated, suggesting that the extended CoT might not significantly enhance accuracy.",
+        "provenance": {
+          "section_header": "2.2 Efficiency on Accuracy Improvements",
+          "page": 3
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "diminishing_accuracy_returns": {
+        "value": "Subsequent solutions after the first correct answer contribute minimally to accuracy improvement.",
+        "type": "string",
+        "unit": null,
+        "evidence": "These results suggest that later solutions marginally contribute to improvements in accuracy.",
+        "provenance": {
+          "section_header": "2.2 Efficiency on Accuracy Improvements",
+          "page": 3
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "solution_repetition": {
+        "value": "o1-like models often repeat reasoning strategies in their solutions, leading to a lack of diversity.",
+        "type": "string",
+        "unit": null,
+        "evidence": "The distinctness ratio decreases with higher indices, indicating that later solutions often repeat earlier ones.",
+        "provenance": {
+          "section_header": "2.3 Efficiency on Diverse Thinking",
+          "page": 4
+        },
+        "notes": "",
+        "human_alignment_score": 1
+      }
+    },
+    "evaluation_metrics": {
+      "outcome_efficiency_metric": {
+        "value": "The outcome efficiency metric evaluates how effectively later solutions contribute to accuracy improvements.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Based on the above observation, we propose an outcome efficiency metric to empirically evaluate how effectively later solutions contribute to accuracy improvements.",
+        "provenance": {
+          "section_header": "2.2 Efficiency on Accuracy Improvements",
+          "page": 3
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "process_efficiency_metric": {
+        "value": "The process efficiency metric evaluates the contribution of later solutions to solution diversity.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Based on the above observation, we propose a process efficiency metric to empirically evaluate the contribution of later solutions to solution diversity.",
+        "provenance": {
+          "section_header": "2.3 Efficiency on Diverse Thinking",
+          "page": 4
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "metric_application_finding": {
+        "value": "The proposed metrics reveal that overthinking leads to inefficiencies in both accuracy and diversity in o1-like models.",
+        "type": "string",
+        "unit": null,
+        "evidence": "The experimental results demonstrate that while o1-like models have the capacity to generate multiple solutions, their efficiency is hindered by the overthinking issue.",
+        "provenance": {
+          "section_header": "2.4 Empirical Efficiency Results",
+          "page": 5
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      }
+    },
+    "mitigation_methods": {
+      "training_approaches": {
+        "method_overview": {
+          "value": "The study employs a self-training paradigm to mitigate overthinking in o1-like models.",
+          "type": "string",
+          "unit": null,
+          "evidence": "To mitigate overthinking without introducing external information, we adopt a self-training paradigm.",
+          "provenance": {
+            "section_header": "3 Mitigating Overthinking Issues",
+            "page": 6
+          },
+          "notes": "",
+          "human_alignment_score": 0
+        },
+        "specific_techniques": {
+          "value": "Techniques include Supervised Fine-Tuning (SFT), Direct Preference Optimization (DPO), Reasoning Preference Optimization (RPO), and Simple Preference Optimization (SimPO).",
+          "type": "string",
+          "unit": null,
+          "evidence": "We explore several effective methods for self-improvement: Supervised Fine-Tuning (SFT), Direct Preference Optimization (DPO), Reasoning Preference Optimization (RPO), and Simple Preference Optimization (SimPO).",
+          "provenance": {
+            "section_header": "3.1 Length Preference Optimization",
+            "page": 7
+          },
+          "notes": "",
+          "human_alignment_score": 0
+        },
+        "training_procedure": {
+          "value": "The training procedure involves generating self-training data using the PRM12K dataset to enhance response efficiency.",
+          "type": "string",
+          "unit": null,
+          "evidence": "we primarily utilize the PRM12K dataset (Lightman et al., 2024) as our training dataset to generate self-training data.",
+          "provenance": {
+            "section_header": "3 Mitigating Overthinking Issues",
+            "page": 6
+          },
+          "notes": "",
+          "human_alignment_score": 0
+        },
+        "method_finding": {
+          "value": "The proposed methods significantly reduce token generation while maintaining model performance across various test sets.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Our approach enhances performance on easier testsets such as ASDIV and GSM8K with fewer tokens, demonstrating the effectiveness and versatility of our method in addressing overthinking issues.",
+          "provenance": {
+            "section_header": "3.3 Experimental Results",
+            "page": 8
+          },
+          "notes": "",
+          "human_alignment_score": 0
+        }
+      },
+      "solution_simplification_strategies": {
+        "fcs_strategy": {
+          "value": "The First-Correct Solutions (FCS) strategy retains only the earliest solutions that first arrive at the correct answer.",
+          "type": "string",
+          "unit": null,
+          "evidence": "First-Correct Solutions (FCS): This strategy retains the earliest solutions that first arrive at the correct answer.",
+          "provenance": {
+            "section_header": "3.2 Streamlining Responses to Enhance Efficiency",
+            "page": 7
+          },
+          "notes": "",
+          "human_alignment_score": 1
+        },
+        "fcs_reflection_strategy": {
+          "value": "The FCS + Reflection strategy includes the second solution that reaches the correct answer to enhance reflexivity.",
+          "type": "string",
+          "unit": null,
+          "evidence": "To counter this, we extend the approach to include the second solution that reaches the correct answer in positive examples.",
+          "provenance": {
+            "section_header": "3.2 Streamlining Responses to Enhance Efficiency",
+            "page": 7
+          },
+          "notes": "",
+          "human_alignment_score": 1
+        },
+        "gds_strategy": {
+          "value": "The Greedily Diverse Solutions (GDS) strategy expands solutions providing new reasoning strategies to enhance diversity.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Consequently, we propose a simple heuristic that greedily expands solutions providing new reasoning strategies.",
+          "provenance": {
+            "section_header": "3.2 Streamlining Responses to Enhance Efficiency",
+            "page": 7
+          },
+          "notes": "",
+          "human_alignment_score": 1
+        }
+      }
+    },
+    "experimental_results": {
+      "length_preference_results": {
+        "value": "The FCS strategy achieves the greatest reduction in length but may require more reflection for complex problems.",
+        "type": "string",
+        "unit": null,
+        "evidence": "The First-Correction Solutions strategy achieves the greatest reduction in length.",
+        "provenance": {
+          "section_header": "3.3 Experimental Results",
+          "page": 8
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "response_simplification_results": {
+        "value": "The FCS + Reflection strategy outperforms others in maintaining performance while reducing tokens.",
+        "type": "string",
+        "unit": null,
+        "evidence": "The \"FCS + Reflection\" approach alleviates this issue and surpasses the FCS method.",
+        "provenance": {
+          "section_header": "3.3 Experimental Results",
+          "page": 8
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "challenging_dataset_results": {
+        "test_datasets": {
+          "value": "The datasets used in the experiments include ASDIV, GSM8K, MATH500, GPQA, and AIME.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Experimental results show that our approach successfully reduces computational overhead while preserving model performance across a range of testsets with varying difficulty levels, such as GSM8K, MATH500, GPQA, and AIME.",
+          "provenance": {
+            "section_header": "Abstract",
+            "page": 1
+          },
+          "notes": "",
+          "human_alignment_score": 1
+        },
+        "performance_results": {
+          "value": "The approach maintains model performance while using fewer tokens across various test sets.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Our approach enhances performance on easier testsets such as ASDIV and GSM8K with fewer tokens.",
+          "provenance": {
+            "section_header": "3.3 Experimental Results",
+            "page": 8
+          },
+          "notes": "",
+          "human_alignment_score": 1
+        },
+        "robustness_finding": {
+          "value": "The method demonstrates robustness and generalization capability on challenging datasets.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Our approach maintains model performance while using fewer tokens, demonstrating the robustness and generalization capability of our approach.",
+          "provenance": {
+            "section_header": "3.3 Experimental Results",
+            "page": 8
+          },
+          "notes": "",
+          "human_alignment_score": 1
+        }
+      }
+    },
+    "conclusions": {
+      "key_contribution": {
+        "value": "The study identifies overthinking in o1-like LLMs and proposes metrics and strategies to enhance computational resource efficiency.",
+        "type": "string",
+        "unit": null,
+        "evidence": "We have presented a comprehensive analysis of the overthinking issue in o1-like LLMs. By highlighting the overthinking phenomenon and proposing efficiency metrics, we enhance our understanding of resource utilization in o1-like models.",
+        "provenance": {
+          "section_header": "5 Conclusion",
+          "page": 10
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "efficiency_improvement": {
+        "value": "The proposed methods significantly reduce unnecessary computation while maintaining performance across reasoning benchmarks.",
+        "type": "string",
+        "unit": null,
+        "evidence": "This work not only improves model efficiency but also sets the groundwork for future research on optimizing computational resource allocation in AI reasoning tasks.",
+        "provenance": {
+          "section_header": "5 Conclusion",
+          "page": 10
+        },
+        "notes": "",
+        "human_alignment_score": 1
+      },
+      "broader_implications": {
+        "value": "The research contributes to understanding and optimizing resource utilization in AI reasoning tasks.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Future directions include exploring adaptive compute strategies that dynamically adjust to problem complexity and refining efficiency metrics for broader model generalization.",
+        "provenance": {
+          "section_header": "5 Conclusion",
+          "page": 10
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      }
+    }
+  }
+}

@@ -1,0 +1,339 @@
+{
+  "extraction": {
+    "paper_metadata": {
+      "title": {
+        "value": "OTC: Optimal Tool Calls via Reinforcement Learning",
+        "type": "string",
+        "unit": null,
+        "evidence": "OTC: Optimal Tool Calls via Reinforcement Learning",
+        "provenance": {
+          "section_header": "Title",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 1
+      },
+      "authors": {
+        "value": [
+          "Hongru Wang",
+          "Cheng Qian",
+          "Wanjun Zhong",
+          "Xiusi Chen",
+          "Jiahao Qiu",
+          "Shijue Huang",
+          "Bowen Jin",
+          "Mengdi Wang",
+          "Kam-Fai Wong",
+          "Heng Ji"
+        ],
+        "type": "list",
+        "unit": null,
+        "evidence": "Hongru Wangα, Cheng Qianβ, Wanjun Zhongδ, Xiusi Chenβ, Jiahao Qiuσ, Shijue Huangµ, Bowen Jinβ, Mengdi Wangσ, Kam-Fai Wongα, Heng Jiβ",
+        "provenance": {
+          "section_header": "Author list",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 1
+      },
+      "affiliations": {
+        "value": [
+          "The Chinese University of Hong Kong",
+          "University of Illinois Urbana-Champaign",
+          "Princeton University",
+          "Sun Yat-sen University",
+          "Hong Kong University of Science and Technology"
+        ],
+        "type": "list",
+        "unit": null,
+        "evidence": "αThe Chinese University of Hong Kong, βUniversity of Illinois Urbana-Champaign σPrinceton University, δSun Yat-sen University, µHong Kong University of Science and Technology",
+        "provenance": {
+          "section_header": "Author list",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 1
+      }
+    },
+    "problem_background": {
+      "current_issues": {
+        "value": "Existing reinforcement learning methods in tool-integrated reasoning often overlook the efficiency and cost associated with tool usage, leading to suboptimal behavior such as excessive tool calls or insufficient tool use, which increases computational and financial overhead or compromises answer quality.",
+        "type": "string",
+        "unit": null,
+        "evidence": "While reinforcement learning (RL) has shown promise in improving TIR by optimizing final answer correctness, existing approaches often overlook the efficiency and cost associated with tool usage. This can lead to suboptimal behavior, including excessive tool calls that increase computational and financial overhead, or insufficient tool use that compromises answer quality.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "target": {
+        "value": "The research aims to develop a method that optimizes tool call efficiency in tool-integrated reasoning by introducing a tool-integrated reward that considers both correctness and tool efficiency, encouraging models to produce accurate answers with minimal tool calls.",
+        "type": "string",
+        "unit": null,
+        "evidence": "In this work, we propose Optimal Tool Call-controlled Policy Optimization (OTC-PO), a simple yet effective RL-based framework that encourages models to produce accurate answers with minimal tool calls. Our method introduces a tool-integrated reward that jointly considers correctness and tool efficiency, promoting high tool productivity.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      }
+    },
+    "contributions": {
+      "framework_innovation": {
+        "value": "The paper introduces the Optimal Tool Call-controlled Policy Optimization (OTC-PO), a reinforcement learning framework that explicitly optimizes tool-use efficiency, incorporating a tool-integrated reward system that balances correctness with efficient tool usage.",
+        "type": "string",
+        "unit": null,
+        "evidence": "We propose Optimal Tool Calls controlled Policy Optimization (OTC-PO), a simple yet effective RL-based method that enables large language models (LLMs) to learn precise and adaptive control over external tool usage.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": 2
+        },
+        "notes": "",
+        "human_alignment_score": 1
+      },
+      "metric_innovation": {
+        "value": "The paper introduces the concept of tool productivity as a new metric, defined as the ratio between task benefit (e.g., answer accuracy) and tool usage cost (e.g., number of tool calls), to measure the effectiveness and efficiency of tool-integrated reasoning.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Our formulation shifts the optimization objective from correctness alone to tool productivity, defined as the ratio between task benefit (e.g., answer accuracy) and tool usage cost (e.g., number of tool calls).",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": 2
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "algorithm_innovation": {
+        "value": "OTC-PO is integrated with existing reinforcement learning algorithms like PPO and GRPO, introducing a tool-integrated reward mechanism that dynamically adjusts reward signals based on tool usage, enabling models to optimize tool calls effectively.",
+        "type": "string",
+        "unit": null,
+        "evidence": "We instantiate this framework within both Proximal Policy Optimization (PPO) and Group Relative Preference Optimization (GRPO), resulting in OTC-PPO and OTC-GRPO.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "performance_improvement": {
+        "value": "OTC-PO significantly reduces tool calls by up to 73.1% and improves tool productivity by up to 229.4%, while maintaining comparable answer accuracy across multiple QA benchmarks.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Experiments with Qwen-2.5 and Qwen-Math across multiple QA benchmarks show that our approach reduces tool calls by up to 73.1% and improves tool productivity by up to 229.4%, while maintaining comparable answer accuracy.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      }
+    },
+    "key_findings": {
+      "tool_call_reduction": {
+        "value": "OTC-PO achieves significant reduction in tool calls, with up to 73.1% reduction in tool call counts compared to baseline methods, without sacrificing answer accuracy.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Experiments with Qwen-2.5 and Qwen-Math across multiple QA benchmarks show that our approach reduces tool calls by up to 73.1%.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "model_size_effect": {
+        "value": "As the model size increases, the tendency to over-rely on external tool calls becomes more pronounced, highlighting the importance of penalizing excessive tool usage to fully utilize the model's inherent reasoning capabilities.",
+        "type": "string",
+        "unit": null,
+        "evidence": "If we look at the Search-R1, we can find that 3B model tends to use less tool calls compared with 7B model. This reveals a critical issue: as language models scale up, they tend to over-rely on external tool calls unless explicitly penalized for such behavior.",
+        "provenance": {
+          "section_header": "Main Results",
+          "page": null
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "generalization_performance": {
+        "value": "OTC-PO demonstrates strong generalization capabilities, performing well on out-of-domain datasets with high tool productivity and reduced tool calls, indicating its adaptability across different contexts.",
+        "type": "string",
+        "unit": null,
+        "evidence": "More importantly, we observe that OTC-GRPO is better than OTC-PPO on TP and as the model size increases, our method showcases bigger improvement, serving as another evidence of great scalability of our method.",
+        "provenance": {
+          "section_header": "Out-of-domain Evaluation",
+          "page": null
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "case_study_insights": {
+        "value": "Case studies reveal that OTC-PO effectively minimizes unnecessary tool calls while maximizing internal reasoning capabilities, resulting in more efficient and accurate tool-integrated reasoning.",
+        "type": "string",
+        "unit": null,
+        "evidence": "In summary, our proposed method not only minimize external tool calls, but also maxmize internal reasoning capabilities of LLMs at the same time, resulting in more smart and accurate TIR.",
+        "provenance": {
+          "section_header": "Case Study",
+          "page": null
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      }
+    },
+    "methodology": {
+      "task_definition": {
+        "value": "The task involves generating the correct answer with minimal tool calls, where the cost is measured by the number of tool calls within the reasoning trajectory, encouraging models to minimize tool usage while maintaining answer accuracy.",
+        "type": "string",
+        "unit": null,
+        "evidence": "The objective of the task is to generate the correct answer ˆ a with the minimal cost of tools in the full trajectory τ.",
+        "provenance": {
+          "section_header": "Task Definition",
+          "page": null
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      },
+      "reward_function": {
+        "base_reward": {
+          "value": "The base reward is defined by the correctness of the answer, with a reward of 1 if the predicted answer matches the ground truth, and 0 otherwise.",
+          "type": "string",
+          "unit": null,
+          "evidence": "r _ { \\phi } ( q , y ) = r _ { c o r r e c t } = 1 { \\mathrm { i f } } a = { \\hat { a } } \\operatorname { e l s e } 0 ,",
+          "provenance": {
+            "section_header": "Reward Design",
+            "page": null
+          },
+          "notes": "",
+          "human_alignment_score": 1
+        },
+        "efficiency_reward": {
+          "value": "The efficiency reward is designed to decrease as the number of tool calls increases, encouraging the model to use fewer tools by assigning higher rewards to trajectories with fewer tool calls.",
+          "type": "string",
+          "unit": null,
+          "evidence": "r _ { t o o l } = \\cos ( \frac { m * \\pi } { 2 m + c } )",
+          "provenance": {
+            "section_header": "OTC-PPO",
+            "page": null
+          },
+          "notes": "",
+          "human_alignment_score": 0
+        },
+        "final_reward": {
+          "value": "The final reward combines the base reward with the efficiency reward, scaled by a hyperparameter, ensuring that tool efficiency is rewarded only when the primary task objective is satisfied.",
+          "type": "string",
+          "unit": null,
+          "evidence": "r _ { \\phi } ^ { t o o l } ( q , y ) = \\alpha * r _ { t o o l } * r _ { \\phi } ( q , y )",
+          "provenance": {
+            "section_header": "Tool-integrated Reward Design",
+            "page": null
+          },
+          "notes": "",
+          "human_alignment_score": 0
+        }
+      },
+      "algorithm_integration": {
+        "value": "OTC-PO is integrated with PPO and GRPO algorithms, introducing a tool-integrated reward mechanism that balances correctness with efficient tool usage, enabling models to optimize tool calls effectively.",
+        "type": "string",
+        "unit": null,
+        "evidence": "We instantiate this framework within both Proximal Policy Optimization (PPO) and Group Relative Preference Optimization (GRPO), resulting in OTC-PPO and OTC-GRPO.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": 1
+        },
+        "notes": "",
+        "human_alignment_score": 0
+      }
+    },
+    "experiments": {
+      "experimental_setup": {
+        "datasets": {
+          "value": "The experiments use NQ and HotpotQA for search tasks, and the dataset provided in ToRL for code tasks.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Specifically, we use NQ and HotpotQA as training dataset for search, and we use the dataset provided in ToRL for code.",
+          "provenance": {
+            "section_header": "Set up",
+            "page": null
+          },
+          "notes": "",
+          "human_alignment_score": 1
+        },
+        "models": {
+          "value": "The experiments involve multiple LLMs, including Qwen-2.5-3B/7B-Base and Qwen2.5-Math-1.5B/7B-Base.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Using multiple LLMs—including Qwen-2.5-3B/7B-Base and Qwen2.5-Math-1.5B/7B-Base, we show that OTC-PO significantly reduces tool calls during reasoning trajectories while maintaining comparable accuracy to conventional approaches.",
+          "provenance": {
+            "section_header": "Introduction",
+            "page": 2
+          },
+          "notes": "",
+          "human_alignment_score": 1
+        },
+        "parameters": {
+          "value": "The experiments set the max turn (maximal number of tool calls) in Search-R1 to 4 and in ToRL to 3, with a smooth constant c set as corresponding max turns or maximal tool limits, and α set as 1.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We set the max turn (maximal number of tool calls) in Search-R1 (ToRL) to 4 (3) to better study the effects of our methods with multiple tool calls are allowed. We set c as corresponding max turns or maximal tool limits, α as 1.",
+          "provenance": {
+            "section_header": "Implementation Details",
+            "page": null
+          },
+          "notes": "",
+          "human_alignment_score": 1
+        },
+        "resources": {
+          "value": "The experiments are conducted on 8 A100-80G GPUs.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We conduct our experiments on 8 A100-80G GPU and re-produce the results of Search-R1 and ToRL independently due to the different value of maximal tool calls in their original setting.",
+          "provenance": {
+            "section_header": "Implementation Details",
+            "page": null
+          },
+          "notes": "",
+          "human_alignment_score": 1
+        }
+      },
+      "experimental_results": {
+        "search_tool_results": {
+          "value": "OTC-PO achieves significant improvement in terms of tool call reduction and tool productivity compared with Search-R1, with up to a 73.1% reduction in tool calls and a 229.4% increase in tool productivity.",
+          "type": "string",
+          "unit": null,
+          "evidence": "OTC-PPO achieves significant improvement in terms of TC and TP compared with Search-R1, and OTC-GRPO can further boost the performance due to more accurate approximation, resulting in up to a 73.1% reduction in TC and a 229.4% increase in TP.",
+          "provenance": {
+            "section_header": "Main Results",
+            "page": null
+          },
+          "notes": "",
+          "human_alignment_score": 0
+        },
+        "code_tool_results": {
+          "value": "Preliminary results show similar findings as in the search tasks, with OTC-PO demonstrating improvements in tool call efficiency and productivity.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Table 2 shows the results for code. We already observe similar findings as mentioned above and will release more results soon.",
+          "provenance": {
+            "section_header": "Main Results",
+            "page": null
+          },
+          "notes": "",
+          "human_alignment_score": 0
+        },
+        "behavior_analysis": {
+          "value": "OTC-PO enables faster and more efficient training optimization by achieving comparable results with fewer tool calls and shorter responses, significantly reducing the time and cost associated with real-time tool interactions during training.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Our method not only achieves comparable results with fewer tool calls and shorter responses, but also enables faster and more efficient training optimization. This is particularly important, as it significantly reduces the time and cost associated with real-time tool interactions during training, both in terms of financial expenses and computational overhead.",
+          "provenance": {
+            "section_header": "Tool Use Behavior Analysis",
+            "page": null
+          },
+          "notes": "",
+          "human_alignment_score": 0
+        }
+      }
+    }
+  }
+}

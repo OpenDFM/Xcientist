@@ -1,0 +1,151 @@
+{
+    "schema_proposal": {
+        "title": {
+            "data_type": "string",
+            "description": "Paper title",
+            "rationale": "Canonical identifier for the research work."
+        },
+        "authors": {
+            "data_type": "list",
+            "description": "List of authors with affiliations",
+            "rationale": "Essential for credit and identification of contributors."
+        },
+        "year": {
+            "data_type": "integer",
+            "description": "Year of publication",
+            "rationale": "Contextualizes the research within a timeline."
+        },
+        "abstract": {
+            "data_type": "string",
+            "description": "Summary of the paper's content",
+            "rationale": "Provides a concise overview of the research focus and findings."
+        },
+        "doi": {
+            "data_type": "string",
+            "description": "Digital Object Identifier",
+            "rationale": "Facilitates easy access and citation of the paper."
+        },
+        "venue": {
+            "data_type": "string",
+            "description": "Conference or journal name",
+            "rationale": "Indicates the platform where the research is published."
+        },
+        "problem_statement": {
+            "data_type": "string",
+            "description": "Description of the problem being addressed",
+            "rationale": "Clarifies the motivation behind the research."
+        },
+        "methodology": {
+            "data_type": "object",
+            "description": "Overview of the methods used in the study",
+            "rationale": "Provides insights into the approach taken to solve the problem.",
+            "sub_keys": {
+                "method_type": {
+                    "data_type": "string",
+                    "description": "Type of method used (e.g., deep learning, retrieval-based)",
+                    "rationale": "Categorizes the methodological approach."
+                },
+                "architecture": {
+                    "data_type": "list",
+                    "description": "List of architectures employed",
+                    "rationale": "Details the specific frameworks or models utilized."
+                },
+                "data_sources": {
+                    "data_type": "list",
+                    "description": "Datasets used for training and evaluation",
+                    "rationale": "Indicates the foundation of the experiments conducted."
+                }
+            }
+        },
+        "experiments": {
+            "data_type": "object",
+            "description": "Details of experiments conducted",
+            "rationale": "Shows the empirical basis for the results presented.",
+            "sub_keys": {
+                "experiment_design": {
+                    "data_type": "string",
+                    "description": "Description of the experimental setup",
+                    "rationale": "Clarifies how the experiments were structured."
+                },
+                "evaluation_metrics": {
+                    "data_type": "list",
+                    "description": "Metrics used to evaluate the results",
+                    "rationale": "Defines how the performance of the methods was assessed."
+                },
+                "results": {
+                    "data_type": "object",
+                    "description": "Summary of results obtained from experiments",
+                    "rationale": "Presents the findings that support the conclusions.",
+                    "sub_keys": {
+                        "performance_scores": {
+                            "data_type": "object",
+                            "description": "Quantitative scores of the results",
+                            "rationale": "Offers a numerical representation of the findings.",
+                            "sub_keys": {
+                                "accuracy": {
+                                    "data_type": "float",
+                                    "description": "Accuracy of the model",
+                                    "rationale": "Indicates the correctness of the predictions."
+                                },
+                                "precision": {
+                                    "data_type": "float",
+                                    "description": "Precision of the model",
+                                    "rationale": "Measures the relevance of the predicted outputs."
+                                },
+                                "recall": {
+                                    "data_type": "float",
+                                    "description": "Recall of the model",
+                                    "rationale": "Measures the model's ability to find all relevant instances."
+                                }
+                            }
+                        },
+                        "qualitative_results": {
+                            "data_type": "list",
+                            "description": "Examples of generated outputs or findings",
+                            "rationale": "Provides illustrative instances of the model's performance."
+                        }
+                    }
+                }
+            }
+        },
+        "discussion": {
+            "data_type": "object",
+            "description": "Discussion of the results and implications",
+            "rationale": "Interprets the findings and their significance.",
+            "sub_keys": {
+                "limitations": {
+                    "data_type": "list",
+                    "description": "Limitations of the study",
+                    "rationale": "Acknowledges potential weaknesses in the research."
+                },
+                "future_work": {
+                    "data_type": "list",
+                    "description": "Suggestions for future research directions",
+                    "rationale": "Identifies areas for further investigation."
+                }
+            }
+        },
+        "reproducibility_metadata": {
+            "data_type": "object",
+            "description": "Information to support reproducibility of the research",
+            "rationale": "Ensures that other researchers can replicate the study.",
+            "sub_keys": {
+                "code_repository": {
+                    "data_type": "string",
+                    "description": "Link to the code repository used in the study",
+                    "rationale": "Facilitates access to the implementation."
+                },
+                "dataset_links": {
+                    "data_type": "list",
+                    "description": "Links to datasets used in the research",
+                    "rationale": "Allows others to obtain the same data for validation."
+                },
+                "environment_details": {
+                    "data_type": "string",
+                    "description": "Details of the computational environment",
+                    "rationale": "Specifies hardware and software used for experiments."
+                }
+            }
+        }
+    }
+}

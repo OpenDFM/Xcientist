@@ -1,0 +1,1887 @@
+[
+    {
+        "type": "text",
+        "text": "Retrieval-Augmented Generation of Ontologies from Relational Databases ",
+        "text_level": 1,
+        "bbox": [
+            235,
+            141,
+            767,
+            184
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Mojtaba Nayyer $^ { 1 }$ , Athish A Yogi $\\bot$ , Nadeen Fathallah $\\cdot ^ { 1 }$ , Ratan Bahadur Thapa $\\cdot ^ { 1 }$ , Hans-Michael Tautenhahn $^ 3$ , Anton Schnurpel $\\cdot ^ { 3 }$ , and Steffen Staab $^ { 1 , 2 }$ $^ { 1 }$ Institute for Artificial Intelligence, University of Stuttgart, Stuttgart, Germany 2 University of Southampton, Southampton, UK 3 Universitätsklinikum Leipzig, Leipzig, Germany mojtaba.nayyeri@ki.uni-stuttgart.de ",
+        "bbox": [
+            228,
+            212,
+            774,
+            243
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            232,
+            255,
+            771,
+            310
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Abstract. Transforming relational databases into knowledge graphs with enriched ontologies enhances semantic interoperability and unlocks advanced graph-based learning and reasoning over data. However, previous approaches either demand significant manual effort to derive an ontology from a database schema or produce only a basic ontology. We present RIGOR—Retrieval-augmented Iterative Generation of RDB Ontologies—an LLM-driven approach that turns relational schemas into rich OWL ontologies with minimal human effort. RIGOR combines three sources via RAG—the database schema and its documentation, a repository of domain ontologies, and a growing core ontology—to prompt a generative LLM for producing successive, provenance-tagged “delta ontology” fragments. Each fragment is refined by a judge-LLM before being merged into the core ontology, and the process iterates table-by-table following foreign key constraints until coverage is complete. Applied to real-world databases, our approach outputs ontologies that score highly on standard quality dimensions such as accuracy, completeness, conciseness, adaptability, clarity, and consistency, while substantially reducing manual effort. ",
+        "bbox": [
+            264,
+            352,
+            740,
+            599
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Keywords: Relational database · Ontology · Large language models. ",
+        "bbox": [
+            264,
+            613,
+            725,
+            627
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1 Introduction ",
+        "text_level": 1,
+        "bbox": [
+            220,
+            654,
+            372,
+            671
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Relational databases [49] are crucial in data management due to their structured framework, offering a robust, flexible, and user-friendly method for querying and manipulating data. They are particularly adept at handling complex queries efficiently and remain the backbone of enterprise applications in healthcare, finance, e-commerce, government, and other sectors. ",
+        "bbox": [
+            220,
+            688,
+            784,
+            763
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "However, it is difficult to pose semantic queries [49] to access database content and integrate relational databases. Transforming a relational database into a knowledge graph (KG) [39] with a well-defined and enriched ontology can promote data sharing and integration [67] and enhance learning [56] and reasoning capabilities [17,69]. ",
+        "bbox": [
+            218,
+            765,
+            784,
+            840
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/89738c070a8286095566dde0680696f01f217484cace9176e43f653bd2e8feea.jpg",
+        "image_caption": [
+            "Fig. 1: Overview of our proposed iterative pipeline: (a) traverse tables following foreign key constraints; (b) retrieve relevant concepts from the core ontology using RAG; (c) retrieve related textual descriptions using RAG; (d) retrieve related concepts and properties from an ontology repository using RAG; (e) construct a prompt; (f) generate a delta-ontology using Gen-LLM ; (g) refine the delta-ontology with either a human expert or a Judge-LLM ; (h) integrate the refined delta-ontology into the core ontology to expand its coverage. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            223,
+            164,
+            810,
+            311
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Creating ontologies from databases has required significant manual effort by domain experts or the use of semi-automated tools. These approaches rely on database schema (e.g., table and column names) only and lack access to external knowledge. As a result, they produce basic ontologies that fail to align with existing vocabularies or human-defined semantics [9]. Consequently, the resulting knowledge graphs may syntactically represent the data but lack the representative vocabulary and precise axiomatic definitions required for effective use by humans and machine reasoners. ",
+        "bbox": [
+            218,
+            463,
+            784,
+            584
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Large language models (LLMs) [71] have recently shown a remarkable ability to comprehend text, capture and encode conceptual knowledge [70], perform algorithmic reasoning [72], and generate structured outputs by following instructions [36,35]. Models such as OpenAI’s ChatGPT (GPT-4) [57] and open-source models like Meta AI’s LLaMA 3 [20] and DeepSeek-V3 [24] have shown nearhuman performance on many knowledge-intensive tasks. LLMs have recently been used for ontology generation from text [6,54,44,47,33], but to the best of our knowledge, no work has yet explored the use of LLMs for ontology generation from relational databases. ",
+        "bbox": [
+            218,
+            590,
+            785,
+            727
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "We introduce RIGOR, an iterative Retrieval-Augmented Generation (RAG) pipeline that utilizes LLMs to systematically convert relational databases into OWL ontologies (see Figure 1). RIGOR incrementally processes the database schema table-by-table, guided by foreign-key relationships. Iteratively, it retrieves a table schema and relevant textual documentation—natural language descriptions of that table’s column names. It also retrieves associated concepts, object properties, and data properties from both an expanding core ontology and external domain ontologies (e.g., BioPortal $^ 4$ containing over 1000 ontologies and 15 million medical-domain classes). Using the retrieved context, a generative LLM (Gen-LLM ) produces small ontology fragments (delta ontologies) for the given table schema, consisting of classes, objects, data properties, and attributes that extend or align with the core ontology. Each fragment is validated and refined through feedback from either human reviewers or an auxiliary Judge$L L M$ [23] before it is integrated into the core ontology. By selectively retrieving only the most relevant schema and ontology context at each step, RIGOR limits unnecessary information, reducing hallucinations and ensuring the resulting ontology remains accurate and semantically aligned with the original database. ",
+        "bbox": [
+            218,
+            733,
+            784,
+            839
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            218,
+            145,
+            784,
+            296
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "We evaluate our approach through a comprehensive set of experiments on real-world medical relational databases, comparing our RIGOR pipeline against baseline and non-iterative ontology generation methods. We evaluate ontology quality using various methods, such as logical consistency checks semantic similarity analysis, and expert judgment, either human or via an independent judgeLLM. Our results show that RIGOR consistently outperforms competing methods, achieving significantly higher scores in accuracy, completeness, conciseness, adaptability, clarity, consistency, as well as semantic alignment with the underlying database schemas. ",
+        "bbox": [
+            218,
+            297,
+            784,
+            433
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "2 Related Work ",
+        "text_level": 1,
+        "bbox": [
+            220,
+            452,
+            385,
+            469
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "2.1 Ontology Extraction from Relational Databases. ",
+        "text_level": 1,
+        "bbox": [
+            217,
+            479,
+            656,
+            494
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "The semantic web and data integration communities have a long history of converting relational data to semantic representations [65,29,42,5]. The relationalto-ontology mapping problem was formalized in early work with the goal of developing an ontology that faithfully reflects the database content [5]. ",
+        "bbox": [
+            220,
+            501,
+            785,
+            561
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "The W3C Direct Mapping and R2RML standards treat each table row as an RDF resource, providing a baseline knowledge graph that mirrors the physical schema and lacks higher-level abstraction or domain alignment [60,4,13]. BootOX automates relational-to-OWL mappings (table class, foreign key object property, etc.) and can invoke LogMap to align the resulting ontology with a chosen domain vocabulary, thereby accelerating ontology-based data-access solutions [26]. ",
+        "bbox": [
+            218,
+            563,
+            784,
+            667
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Other tools and approaches (e.g., Karma [28], IncMap [51], MIRROR [41], D2RQ [64]) have been evaluated in a benchmark for automatic relational-toontology mapping generation called RODI [50]. The RODI benchmark [50] evaluates how well systems like BootOX generate mappings that support correct query answering across domains (e.g., conference, geography, oil and gas). While effective for simple cases, results showed that complex scenarios with significant schema-ontology mismatches remain challenging. ",
+        "bbox": [
+            218,
+            667,
+            784,
+            772
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Unlike prior works based on heuristics or string matching, our approach uses RAG-LLMs for semantic understanding and reasoning [70,72] to bridge the gap between database schemas and ontologies via contextualized semantic mapping. ",
+        "bbox": [
+            218,
+            773,
+            784,
+            818
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Ontology learning from databases using machine learning or additional metadata has been the subject of more recent studies [39]. For example, [9] suggests a technique for learning ontologies from RDBs that uses metrics for factual (ABox) and conceptual (TBox) quality to assess the approach. It introduces new heuristics to extract taxonomy and part-whole relations from the analysis of foreign keys and data patterns. They and others emphasize how crucial it is to assess the generated ontologies’ instance correctness and schema coverage. These efforts have a number of shortcomings, including a) relying on a static predefined mapping rule, which restricts generalization; b) assuming pre-cleared and normalized data while disregarding unstructured data; and c) lacking alignment with external ontologies or reuse. We refer to these surveys [49,46,49,39] for a comprehensive overview of other related works. ",
+        "bbox": [
+            218,
+            146,
+            784,
+            327
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "2.2 LLMs for Ontology and KG Generation. ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            348,
+            593,
+            363
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Recent studies show that LLMs can perform automated knowledge engineering, including extracting structured knowledge and assisting in ontology generation from text [38,1,37,63,7,45,62,48,34,58,8,11,30,61,59,14,16]. [7] explored zero-shot LLMs for ontology learning tasks—term typing, taxonomy discovery, and relation extraction—finding limited success without fine-tuning. However, their approach relied on basic prompting, without advanced techniques like chain-ofthought or RAG. OntoKGen [1] addressed this by using GPT-4 with iterative, user-in-the-loop prompting to assist experts in building ontologies from technical documents, demonstrating LLMs’ potential in suggesting ontology elements while preserving human oversight. ",
+        "bbox": [
+            218,
+            372,
+            784,
+            522
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Parallel to these, benchmarks like Text2KGBench [44] and OntoLLMBench [43] have been introduced to systematically evaluate LLMs in knowledge graph creation, fact extraction, and ontology population from text. While our work aligns with these efforts, it differs by focusing on structured inputs (database schemas) rather than unstructured text. Recent work [10] showed GPT-4 can map database schemas to semantics. We extend this with an RAG-based pipeline for formal OWL ontology generation. ",
+        "bbox": [
+            218,
+            523,
+            784,
+            628
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "2.3 Retrieval-Augmented Generation (RAG). ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            650,
+            602,
+            665
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "The idea of enhancing generative models with retrieval gained attention in opendomain QA, where RAG [32] improved factual accuracy by retrieving relevant Wikipedia passages. Later works [19] showed that providing relevant context via RAG reduces hallucinations in tasks like long-form QA, conversation, and code generation. RAG approaches can be classified into several types [19]: naive $R A G$ (simple similarity-based retrieval added to prompts), advanced $R A G$ (with query rewriting and reranking), iterative $R A G$ (multi-step retrieval and selection), recursive $R A G$ (breaking queries into sub-problems for iterative retrieval and generation), and adaptive $R A G$ (dynamically switching between iterative and recursive strategies). In addition, RAG approaches can also be categorized based on the data type, such as text-based RAG, GraphRAG, multimodal RAG, hybrid RAG (combining different types of input data), and structured data RAG (retrieving and generating based on structured data sources, such as databases or tables). In our work, we choose an advanced hybrid recursive RAG. ",
+        "bbox": [
+            218,
+            674,
+            785,
+            839
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            218,
+            146,
+            784,
+            190
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "2.4 Competency Question Generation ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            212,
+            540,
+            227
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Competency Questions (CQs) are natural language queries used to verify if an ontology captures the required domain knowledge [21]. Traditionally, formulating CQs has been manual and labor-intensive, supported by templates and controlled language patterns that still require significant expert effort [27]. Recently, LLMs have been used to automate CQ generation from ontology triples [2,55], domain texts [3], and knowledge graphs [12], showing promising results in producing contextually relevant CQs. Building on recent LLM-as-judge approaches [22,23], we use LLMs both to generate CQs and to evaluate whether the generated ontology meets these requirements. This automated evaluation helps verify consistency, coverage, and completeness, serving as a practical alternative to exhaustive human review. ",
+        "bbox": [
+            218,
+            233,
+            784,
+            398
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "3 Methodology ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            420,
+            377,
+            438
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "This section presents our novel approach called RIGOR (Retrieval Iterative Augmented Generation of RDB-Ontologies), which operates on the relationaldatabase schema (RDB-schema). RIGOR’s complete workflow is illustrated in Figure 1: RIGOR builds the ontology by iteratively traversing the tables of the source RDB-Schema one by one, following foreign keys (Figure 1-(a)) and using a generative LLM (Gen-LLM). RIGOR extracts relevant context for every table (cf. Section 3.2) from (i) the expanding core ontology (Figure 1-(b)), (ii) formal schema definition as well as natural language descriptions of columns and tables (Figure 1-(c)), and (iii) external ontology sources (Figure 1-(d)). ",
+        "bbox": [
+            218,
+            450,
+            784,
+            585
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "With the retrieved information, the system constructs a prompt that includes the schema and contextual details of the table (cf. Figure 1-(e) and Section 3.3). This prompt is then passed to a Gen-LLM to generate an ontology fragment specific to the current table, referred to as the delta-ontology (Figure 1-(f)). ",
+        "bbox": [
+            218,
+            587,
+            784,
+            646
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Before integrating this delta-ontology into the continuously expanding core ontology (Figure 1-(h) and cf. Section 3.5), it undergoes verification and refinement, either automatically (via a judge-LLM ) or manually by a domain expert (cf. Section 3.4, Figure 1-(f)). This ensures semantic consistency and correctness of the generated ontology fragments. ",
+        "bbox": [
+            218,
+            647,
+            784,
+            722
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The outcome of this iterative method is a comprehensive OWL 2 DL ontology that reflects the relational database structure, enriched by domain knowledge and aligned with ontological best practices. ",
+        "bbox": [
+            218,
+            722,
+            784,
+            767
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "3.1 Formalization of Data Structures ",
+        "text_level": 1,
+        "bbox": [
+            217,
+            786,
+            532,
+            801
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "We formalize the RIGOR pipeline’s data structures—relational databases, text descriptions, ontologies, and intermediate artifacts—summarized in Table 5. ",
+        "bbox": [
+            218,
+            809,
+            784,
+            839
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Relational Database Schema We denote the relational database schema by ${ \\boldsymbol { S } } =$ $( \\mathcal { R } , \\mathcal { K } , \\mathcal { F } )$ , where: ",
+        "bbox": [
+            218,
+            146,
+            785,
+            176
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "$- \\ \\mathcal { R }$ is the set of relations (i.e., tables) in the database.   \n$- \\kappa$ is a function that maps each relation $r \\in \\mathcal { R }$ to its set of primary key attributes: $\\kappa ( r )$ .   \n$- \\mathcal { F }$ is a function that maps each relation $r \\in \\mathcal { R }$ to its set of attributes: $\\mathcal { F } ( r )$ , where each attribute is given by its column name together with its datatype. ",
+        "bbox": [
+            227,
+            188,
+            785,
+            265
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Each relation $r \\in \\mathcal { R }$ is characterized by its name, its attribute set $\\mathcal { F } ( r )$ , its primary key $\\kappa ( r )$ , and the set of attributes that participate in foreign-key constraints ${ \\mathcal { F } } _ { k } ( r ) \\subseteq { \\mathcal { F } } ( r )$ . ",
+        "bbox": [
+            217,
+            276,
+            785,
+            321
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Textual Descriptions of Tables and Columns Many database schemata come with natural language documentation. We formalize these as follows. ",
+        "bbox": [
+            218,
+            337,
+            785,
+            366
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Let $\\mathcal { D } \\subseteq \\mathcal { T } _ { \\mathrm { D o c } }$ be the corpus of natural-language descriptions available for the database schema (e.g. comments in the DDL, a data dictionary, or README files). We define two retrieval functions that access this corpus: ",
+        "bbox": [
+            218,
+            367,
+            785,
+            411
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "– docTable : $\\mathcal { R } \\longrightarrow \\mathcal { D }$ returns the textual description of a relation $r \\in \\mathcal { R }$ : $d o c T a b l e ( r ) \\in \\mathcal { D }$ .   \n$\\_ d o c A t t r$ : $\\{ ( r , a ) \\mid r \\in { \\mathcal { R } }$ , $a \\in \\mathcal { F } ( r ) \\} \\longrightarrow \\mathcal { D }$ returns the textual description of an attribute $a$ in relation $r$ : $d o c A t t r ( r , a ) \\in \\mathcal { D }$ . ",
+        "bbox": [
+            228,
+            421,
+            785,
+            483
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Ontology Representation We adopt OWL 2 DL as our target representation language [66]. At iteration $t$ , the expanding core ontology (shown in the top part of the retrieval block in Figure 1) is denoted by $\\mathcal { O } _ { t } = ( \\mathcal { C } _ { t } , \\mathcal { P } _ { t } , \\mathcal { A } _ { t } , \\mathcal { M } _ { t } )$ , where ",
+        "bbox": [
+            220,
+            497,
+            785,
+            542
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "$- \\ C _ { t }$ is the set of class identifiers (concept names).   \n$\\mathbf { \\chi } - \\mathbf { \\nabla } \\mathcal { P } _ { t }$ is the set of properties, subdivided into object properties $\\mathcal { P } _ { t } ^ { \\mathrm { o b j } }$ and data properties Pdatat .   \n$- \\mathbf { \\partial } A _ { t }$ is the set of OWL 2 DL axioms, including class hierarchies, property domain and range assertions, and property characteristics.   \n$- \\ M _ { t }$ is the set of annotation assertions, used for non-logical metadata such as labels, comments, and provenance information. ",
+        "bbox": [
+            227,
+            554,
+            787,
+            662
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Ontology fragments produced by the Gen-LLM are expressed in OWL 2 DL using named classes, subclass axioms, existential restrictions, and property assertions. We serialize them in OWL 2 Manchester Syntax[25] because (i) its keyword-based, sentence-like format is far more readable for humans than Turtle or RDF/XML, and (ii) that same simple natural-language style makes it easier for large language models to generate and parse during prompt construction. ",
+        "bbox": [
+            218,
+            674,
+            785,
+            765
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "External Ontology Repository We leverage a repository of external ontologies to enrich the contextual information used during ontology generation. We formalize the external ontology repository as a set of $n$ ontologies $\\mathcal { E } = \\{ \\mathcal { O } ^ { ( 1 ) } , \\mathcal { O } ^ { ( 2 ) } , \\dots , \\mathcal { O } ^ { ( n ) } \\}$ where each $\\mathcal { O } ^ { ( i ) } = ( \\mathcal { C } ^ { ( i ) } , \\mathcal { P } ^ { ( i ) } , \\mathcal { A } ^ { ( i ) } , \\mathcal { M } ^ { ( i ) } )$ represents an individual ontology. ",
+        "bbox": [
+            218,
+            779,
+            787,
+            839
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Delta-Ontology Fragment For each relation $r \\in \\mathcal { R }$ , the Gen-LLM generates a delta-ontology fragment, denoted as $\\varDelta \\mathcal { O } _ { r } = ( \\mathcal { C } _ { r } , \\mathcal { P } _ { r } , \\mathcal { A } _ { r } , \\mathcal { M } _ { r } )$ , which captures the ontology elements derived from $r$ and its contextual information (schema and textual descriptions). These fragments are iteratively integrated into $O _ { t }$ . ",
+        "bbox": [
+            218,
+            146,
+            787,
+            207
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Target Output: OWL Ontology The output of the RIGOR pipeline is a consolidated ontology $\\mathcal { O } _ { \\mathrm { f i n a l } } = \\mathcal { O } _ { T }$ after processing all relations in $\\mathcal { R }$ . $\\mathcal { O } _ { \\mathrm { f i n a l } }$ must satisfy: ",
+        "bbox": [
+            218,
+            222,
+            785,
+            267
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "– Schema Coverage: Every table $r \\in \\mathcal { R }$ is represented by one or more OWL classes.   \n– Semantic Alignment: Attributes and foreign keys in $\\mathcal { F } ( r ) , \\mathcal { F } _ { k } ( r )$ are modeled as data properties/classes or object properties, respectively. Provenance Annotations: Every ontology element includes metadata referencing its source table or documentation. External Alignment: Wherever applicable, ontology elements are linked to external domain ontologies via owl:sameAs or rdfs:subClassOf. ",
+        "bbox": [
+            227,
+            277,
+            787,
+            400
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Lexical views. (1) Single ontology. For any ontology $\\mathcal { O } = ( \\mathcal { C } , \\mathcal { P } , \\mathcal { A } , \\mathcal { M } ) , \\mathcal { P } =$ $\\mathcal { P } ^ { \\mathrm { o b j } } \\cup \\mathcal { P } ^ { \\mathrm { d a t a } }$ , define its lexical view ",
+        "bbox": [
+            214,
+            414,
+            785,
+            445
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "equation",
+        "img_path": "images/5d96f50aeb609f2f3a15d4af42969c0956bbdc8952a52c97b2bf46c1d6366b59.jpg",
+        "text": "$$\n\\begin{array} { r l } & { \\mathrm { L e x } ( \\mathcal { O } ) = \\underbrace { \\left\\{ \\lambda \\mid \\exists e \\in \\mathcal { C } \\cup \\mathcal { P } ^ { \\mathrm { o b j } } \\cup \\mathcal { P } ^ { \\mathrm { d a t a } } : \\langle e , \\mathbf { r } \\mathbf { d } \\mathbf { f } \\mathbf { s } : \\mathbf { l a b e } 1 , \\lambda \\rangle \\in \\mathcal { M } \\right\\} } _ { \\mathrm { l a b e l s ~ o f ~ c l a s s e s ~ \\mathcal { E } ~ p r o p e r t i e s } } } \\\\ & { \\cup \\underbrace { \\left\\{ \\lambda \\mid \\lambda \\in \\mathcal { M } \\wedge \\lambda \\mathrm { ~ i s ~ a ~ s t r i n g ~ l i t e r a l } \\right\\} } _ { \\mathrm { . } } . } \\end{array}\n$$",
+        "text_format": "latex",
+        "bbox": [
+            267,
+            472,
+            735,
+            546
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "(2) Relational schema. ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            564,
+            403,
+            580
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "equation",
+        "img_path": "images/c595b9124c1b157df69bc5c3a3abe313da4dfc3470149bc814f8c37f03ff2326.jpg",
+        "text": "$$\n\\operatorname { L e x } ( S ) : = { \\big \\{ } n a m e ( r ) ~ | ~ r \\in { \\mathcal { R } } \\big \\}  \\cup \\{ n a m e ( a ) ~ | ~ r \\in { \\mathcal { R } } , ~ a \\in { \\mathcal { F } } ( r ) \\big \\} .\n$$",
+        "text_format": "latex",
+        "bbox": [
+            279,
+            592,
+            720,
+            611
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Universe of texts. Let $\\mathcal { E } = \\{ \\mathcal { O } ^ { ( 1 ) } , . . . , \\mathcal { O } ^ { ( n ) } \\}$ and let docTable, docAttr be the documentation functions. Then ",
+        "bbox": [
+            217,
+            623,
+            787,
+            656
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "equation",
+        "img_path": "images/b3c5109da9b8678f33c434bf606c661c11755589d0cdb81d680b1f69b7b0e46e.jpg",
+        "text": "$$\n\\mathcal X : = \\mathrm { L e x } ( \\mathcal S ) \\cup \\mathrm { L e x } ( \\mathcal O _ { t } ) \\cup \\bigcup _ { i = 1 } ^ { n } \\mathrm { L e x } \\big ( \\mathcal O ^ { ( i ) } \\big ) \\cup \\mathrm { r a n g e } ( d o c T a b l e ) \\cup \\mathrm { r a n g e } ( d o c A t t r ) ,\n$$",
+        "text_format": "latex",
+        "bbox": [
+            217,
+            680,
+            784,
+            720
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "so every $x \\in \\mathcal { X }$ is a natural-language string suitable for the embedding function, described in subsection 3.2. ",
+        "bbox": [
+            218,
+            729,
+            784,
+            761
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "3.2 Embedding-based Retrieval of Relevant Knowledge ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            782,
+            684,
+            799
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "To provide contextual knowledge about each table $r \\in \\mathcal { R }$ , our pipeline performs embedding-based retrieval over the three knowledge sources (core ontology ${ \\mathcal { O } } _ { t }$ , ",
+        "bbox": [
+            217,
+            809,
+            787,
+            840
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "description of database schema $\\mathcal { D }$ , and external ontology repository $\\mathcal { E }$ ) (Figure 2- (a), (b), (c)). ",
+        "bbox": [
+            217,
+            146,
+            784,
+            176
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Embedding function. With the pre-trained model all-mpnet-base-v2, we define ",
+        "bbox": [
+            215,
+            176,
+            784,
+            205
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "equation",
+        "img_path": "images/23711ddb8835cac0c83171944d56ba97f484f1268dac2ceaba8ff76100538451.jpg",
+        "text": "$$\n\\phi : \\mathcal { X } \\longrightarrow \\mathbb { R } ^ { d } , \\qquad \\mathbf { v } _ { x } \\ : = \\ : \\phi ( x ) \\quad \\mathrm { f o r ~ e a c h ~ } x \\in \\mathcal { X } ,\n$$",
+        "text_format": "latex",
+        "bbox": [
+            326,
+            207,
+            673,
+            223
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "where $d$ is the embedding dimension (768 for the chosen model). All relevant elements are first embedded into a unified semantic vector space. ",
+        "bbox": [
+            218,
+            229,
+            784,
+            260
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "All embeddings $\\{ \\mathbf { v } _ { x } | x \\in X \\}$ are indexed using Faiss [15] for efficient approximate nearest neighbor (ANN) search based on cosine similarity. The similarity between two vectors vx and vy is defined as sim(vx, vy) = vx·vy∥v ∥ ∥v ∥ . ",
+        "bbox": [
+            217,
+            261,
+            785,
+            306
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Given a query embedding $\\mathbf { v } _ { u } = \\phi ( u )$ for the target table $r$ or its column $a$ we retrieve the top- $k$ most relevant elements from each source by computing: ",
+        "bbox": [
+            217,
+            308,
+            784,
+            338
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "equation",
+        "img_path": "images/fb2a602fe50cc275212f0310c0a1ee810bbcafa47a0bd9ee69f31d681fc4d19d.jpg",
+        "text": "$$\n\\begin{array} { r l } & { \\mathcal { N } _ { u } ^ { \\mathcal { O } _ { t } } = \\mathrm { p r o j } _ { 1 } \\Big ( \\mathrm { T o p } _ { k } \\big \\{ \\left( x , \\sin ( { \\bf v } _ { u } , { \\bf v } _ { x } ) \\right) \\big | x \\in \\mathrm { L e x } ( \\mathcal { O } _ { t } ) \\big \\} \\Big ) , } \\\\ & { \\quad \\mathcal { N } _ { u } ^ { \\mathcal { E } } = \\mathrm { p r o j } _ { 1 } \\Big ( \\mathrm { T o p } _ { k } \\big \\{ \\left( x , \\sin ( { \\bf v } _ { u } , { \\bf v } _ { x } ) \\right) \\big | x \\in \\mathrm { L e x } ( \\mathcal { E } ) \\big \\} \\Big ) , } \\\\ & { \\mathcal { N } _ { u } ^ { \\mathrm { D o c } } = \\mathrm { p r o j } _ { 1 } \\Big ( \\mathrm { T o p } _ { k } \\big \\{ \\left( x , \\sin ( { \\bf v } _ { u } , { \\bf v } _ { x } ) \\right) \\big | } \\\\ & { \\qquad x \\in \\mathrm { r a n g e } ( d o c T a b l e ) \\cup \\mathrm { r a n g e } ( d o c A t t r ) \\big \\} \\Big ) , } \\end{array}\n$$",
+        "text_format": "latex",
+        "bbox": [
+            303,
+            347,
+            694,
+            464
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "where $p r o j _ { 1 } ( x , s c o r e )$ returns $x$ . The retrieved information $\\mathcal { N } _ { r } ^ { \\mathcal { O } _ { t } } \\cup \\{ \\mathcal { N } _ { a } ^ { \\mathcal { O } _ { t } } | a \\in$ $\\mathcal { F } ( r ) \\}$ , $\\mathcal { N } _ { r } ^ { \\varepsilon } \\cup \\{ \\mathcal { N } _ { a } ^ { \\varepsilon } | a \\in \\mathcal { F } ( r ) \\}$ , and $\\mathcal { N } _ { r } ^ { \\mathrm { { l o c } } } \\cup \\{ \\mathcal { N } _ { a } ^ { \\mathrm { { l o c } } } | a \\in \\mathcal { F } ( r ) \\}$ collectively forms the contextual foundation for constructing the Gen-LLM prompt (cf. Section 3.3). ",
+        "bbox": [
+            217,
+            473,
+            787,
+            520
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "3.3 LLM Prompt Construction and Ontology Generation ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            541,
+            699,
+            558
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Given a relation $r \\in \\mathcal { R }$ , we create a prompt, as depicted in Figure 2 and Figure 1- (e) for the Gen-LLM.The prompt includes the retrieved context (from table schema, textual documentation of the schema, external and core ontology), which we described in Section 3.2. ",
+        "bbox": [
+            218,
+            568,
+            785,
+            627
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Then, we instruct the Gen-LLM to generate an OWL ontology fragment $\\varDelta \\mathcal { O } _ { r }$ for the specified table $r$ . Our instructions include suitable object properties, data properties, OWL classes, and annotations that support the ontological modeling of the table. The prompt asks the Gen-LLM to (i) define OWL classes representing the table, (ii) define data properties for its columns, (iii) define object properties for foreign key relationships, (iv) include annotations such as provenance metadata, (v) use valid OWL syntax (e.g., one rdfs:domain and rdfs:range per property), and (vi) avoid using generic properties like “is” and encourages reuse of retrieved knowledge—by linking to or subclassing existing concepts from the core or external ontologies when appropriate. For each column $a \\in { \\mathcal { F } } ( r )$ , we instruct the Gen-LLM to either reuse an existing ontology property or generate a new property $p _ { a }$ that represents the column. We instruct the $G e n$ - $L L M$ to apply the following semantic constraints for the class $C$ representing the table: (i) Type constraint: Add a universal restriction $C \\subseteq \\forall p _ { a } . \\tau$ , where $\\tau$ ",
+        "bbox": [
+            218,
+            630,
+            785,
+            839
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Generate ontology elements with provenance annotations for database table ’{data[’table_name’]}’ based on: ",
+        "bbox": [
+            225,
+            155,
+            774,
+            176
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "[CONTEXT] ",
+        "text_level": 1,
+        "bbox": [
+            230,
+            180,
+            313,
+            190
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "- Database Schema of the database ’{data[’schema_context’]}’ - Take semantics from the Relevant Documents ’{data[’documents’]}’ - Take semantics from the Existing Ontology Knowledge ’{data[’existing_ontology’]}’ ",
+        "bbox": [
+            230,
+            190,
+            732,
+            222
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "[INSTRUCTIONS] ",
+        "text_level": 1,
+        "bbox": [
+            232,
+            231,
+            352,
+            241
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "1. Include these elements: – Classes (subclass of Thing) – Data properties with domain/range Object properties with domain/range ",
+        "bbox": [
+            232,
+            251,
+            491,
+            291
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "2. Use only one rdfs:domain and one rdfs:range per property. If multiple options exist, select the most general or create a shared superclass. ",
+        "bbox": [
+            228,
+            292,
+            772,
+            310
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "3. Do not create a property named \"is\". Use rdf:type for instance membership, rdfs:subClassOf for class hierarchies, and owl:sameAs for instance equality. ",
+        "bbox": [
+            228,
+            311,
+            772,
+            332
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "4. Use this format example: ",
+        "bbox": [
+            232,
+            332,
+            395,
+            342
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Class: ’{data[’table_name’]}’   \nAnnotations:   \nprov:wasDerivedFrom   \n<http://example.org/provenance/’{data[’table_name’]}’>   \nDataProperty:   \nhas_column_name   \ndomain ’{data[’table_name’]}’   \nrange string   \nAnnotations:   \nprov:wasDerivedFrom   \n<http://example.org/provenance/’{data[’table_name’]}’/column_name>   \nObjectProperty:   \nrelates_to_table domain ’{data[’table_name’]}’   \nrange RelatedTable   \nAnnotations:   \nprov:wasDerivedFrom   \n<http://example.org/provenance/’{data[’table_name’]}’/fk_column> ",
+        "bbox": [
+            248,
+            349,
+            578,
+            392
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            250,
+            404,
+            650,
+            476
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            250,
+            496,
+            638,
+            558
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Only output Manchester Syntax and nothing else. [OUTPUT] ",
+        "bbox": [
+            230,
+            587,
+            593,
+            598
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Fig. 2: Prompt template used for ontology generation. Fixed delimiters such as [CONTEXT], [INSTRUCTIONS], and [OUTPUT] are included verbatim in the prompt to structure the LLM’s input and guide its response. Placeholders in curly braces (e.g., {data[’table_name’]}) are dynamically replaced at runtime for each iteration with table-specific content. ",
+        "bbox": [
+            218,
+            627,
+            785,
+            696
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "is the range (either an xsd datatype or a class), (ii) Cardinality constraint: If $a$ is declared not null, unique, or a primary key, also assert $C \\subseteq \\exists p _ { a } . \\tau$ (or a qualified cardinality restriction), and (iii) Property type selection: If $a$ participates in a foreign-key constraint, declare $p _ { a }$ as an object property with range equal to the referenced class; otherwise, declare it as a datatype property with an xsd-compatible range. Working in a retrieval-augmented environment, the Gen-LLM generates a delta ontology that expands the core ontology using the provided schema and contextual information. This delta ontology includes a new class representing the table— or, in cases where the table implies several concepts, multiple classes—along with object properties that correspond to foreign keys and link to classes of referenced tables. It also includes attributes modeled as datatype properties or enumerations, as well as annotation assertions such as rdfs:comment that carry descriptive metadata. ",
+        "bbox": [
+            218,
+            733,
+            787,
+            839
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            218,
+            146,
+            785,
+            236
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "3.4 Validation and Refinement of Generated Delta Ontology ",
+        "text_level": 1,
+        "bbox": [
+            217,
+            257,
+            725,
+            272
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "To guarantee semantic soundness and compatibility with the overall schema and domain, each delta ontology $\\varDelta \\mathcal { O } _ { r }$ generated by the Gen-LLM is reviewed by a Judge-LLM (Figure 2-(g)). A prompt instructs the Judge-LLM to assess $\\varDelta \\mathcal { O } _ { r }$ based on several criteria, namely a) coherence with the current core ontology —e.g., avoiding the redefinition of concepts already introduced, such as generating a new class ChemotherapyCycle when one with the same name and semantics already exists in the core ontology, b) alignment with the input table schema (e.g., all significant columns or relationships are appropriately reflected), (c) syntactic validity and logical consistency of the delta ontology—ensuring that the OWL statements conform to the OWL 2 DL specification and can be parsed by standard reasoners (syntactic validity), and that no logical inconsistencies exist within the delta ontology. and d) clarity of class and property names and definitions, use of meaningful, self-explanatory, and domain-relevant terms with clear definitions and adequate documentation; avoid generic or ambiguous labels (e.g., “Entity1”, “PropertyA”). The Judge-LLM also confirms that all generated properties adhere to the OWL 2 DL profile, including accurate quantifiers, exactly one rdfs:domain and rdfs:range, and a consistent selection between object and datatype properties. It rejects or modifies fragments that would break the profile, introduce inconsistencies, or introduce unsatisfactory classes. ",
+        "bbox": [
+            218,
+            281,
+            784,
+            568
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "The Judge-LLM analyzes the $\\varDelta \\mathcal { O } _ { r }$ and then produces feedback, which may include qualitative assessments or ratings for each criterion, along with suggestions for improvements. If the Judge-LLM detects issues (e.g., an attribute not modeled or a class name that conflicts with an existing one), the delta ontology is updated. For high-impact ontology segments or when the automatic evaluation is unclear, a human expert may be consulted to manually examine and enhance the output. This human-in-the-loop step helps identify domain-specific details that might be outside the current scope of the Gen-LLM or guarantees adherence to established practices. After this validation step, we obtain a refined delta ontology fragment that is judged suitable in terms of correctness and quality. ",
+        "bbox": [
+            218,
+            569,
+            784,
+            719
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "3.5 Iterative Integration and Completion ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            739,
+            566,
+            756
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "After each cycle, the verified delta ontology $\\varDelta \\mathcal { O } _ { r }$ is merged into the core ontology $O _ { t }$ to form $\\mathcal { O } _ { t + 1 }$ (Figure 2-(h)). New classes, attributes, and axioms enlarge the core ontology while preserving external IRI references and reconciling duplicate concepts. The pipeline then follows foreign-key links to the next table, repeating the process until all tables, columns, and relationships have been covered. ",
+        "bbox": [
+            218,
+            763,
+            784,
+            839
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "The result is a complete OWL 2 DL ontology that mirrors the entire relational schema links entities via foreign-key constraints and incorporates external domain knowledge to meet ontology best-practice standards. ",
+        "bbox": [
+            220,
+            146,
+            784,
+            190
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "3.6 Competency Question Generation ",
+        "text_level": 1,
+        "bbox": [
+            217,
+            209,
+            542,
+            224
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "We use CQs to evaluate the quality of the generated ontologies. CQs were generated using Mistral-Small-24B-Instruct-2501 and verified by a domain expert. CQs are formulated as natural language questions and corresponding answers that reflect the type of information a specific SQL query is capable of retrieving. In our experiments, the Mistral model outperformed ChatGPT in generating high-quality CQs, as supported by prior comparative evaluations [31]. The superior performance of Mistral in this task highlights its suitability for structured-query-driven ontology validation and question-answering scenarios. We used the chain-of-thought prompt engineering technique [68] to generate these CQs, as shown in Appendix 6.2, Figure 3. ",
+        "bbox": [
+            218,
+            231,
+            785,
+            381
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "4 Experiments ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            400,
+            374,
+            416
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "4.1 Evaluation Databases ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            426,
+            439,
+            440
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Relational Database To evaluate our approach, we conduct experiments on two distinct databases: a real-world clinical database obtained from a hospital and the publicly available ICU database from PhysioNet[52]. The RealWorld Database comprises a liver cancer registry and contains 18 tables, 350 columns, and 15 foreign key relationships. Key tables include chemotherapy, clavien_dindo, and medical_history, which together capture essential information on treatment protocols, complication grading, and patient medical history. The ICU Database is sourced from Physio-Net and includes 32 tables, 559 columns, and 30 foreign keys. It models intensive care unit (ICU) admissions and includes clinically significant tables such as admission_drugs, treatment, and respiratory_care, representing pharmacological interventions, therapeutic procedures, and respiratory support, respectively. These diverse databases form a strong foundation to test our methodology’s generalizability and robustness. ",
+        "bbox": [
+            218,
+            446,
+            785,
+            642
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "4.2 External Ontology Repositories ",
+        "text_level": 1,
+        "bbox": [
+            220,
+            660,
+            521,
+            676
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "We selected four biomedical ontologies from the BioPortal repository. These ontologies vary in domain coverage and structural complexity (Table 1). For example, the International Classification of Diseases, Version 10 includes over 12,445 classes, providing broad coverage of disease categories. ",
+        "bbox": [
+            220,
+            681,
+            785,
+            741
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "4.3 Experimental Setup ",
+        "text_level": 1,
+        "bbox": [
+            220,
+            758,
+            426,
+            773
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Computational Resources Ontology generation was performed on high performance computing (HPC) infrastructure equipped with two NVIDIA A100 GPUs. The software environment was configured using Python version 3.10 to ensure compatibility with the machine learning frameworks used. ",
+        "bbox": [
+            220,
+            780,
+            785,
+            839
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "table",
+        "img_path": "images/ce8673ed941fcda5ec5d027c8bdf67a44f0c5df8a0f46e9df5ad17c07975c777.jpg",
+        "table_caption": [],
+        "table_footnote": [
+            "Table 1: Statistics of selected biomedical ontologies from BioPortal, including the number of classes, properties, and axioms. "
+        ],
+        "table_body": "<table><tr><td>Name</td><td>#Classes</td><td>#Object Prop.</td><td>#Data Prop.</td><td>#Axioms</td></tr><tr><td>Cell Ontology</td><td>17,107</td><td>255</td><td>0</td><td>243,487</td></tr><tr><td>Human Disease Ontology</td><td>19,129</td><td>47</td><td>0</td><td>194,636</td></tr><tr><td>International Classification of Diseases, Version 10]</td><td>12,445</td><td>233</td><td>1</td><td>17,139</td></tr><tr><td>Ontology for Nutritional Studies</td><td>4,735</td><td>73</td><td>3</td><td>27,326</td></tr></table>",
+        "bbox": [
+            218,
+            143,
+            785,
+            199
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Database Documentation Collection To support the ontology mapping process, we employed GPT-4o (ChatGPT-4 Omni) to generate text description documents. These documents provide natural language explanations of various medical entities, including drugs, diseases, and clinical terminologies. The generated descriptions were reviewed by medical professionals to ensure clinical accuracy and domain relevance. ",
+        "bbox": [
+            218,
+            248,
+            784,
+            338
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Large Language Models Multiple LLMs with varying quantization levels and parameter scales, accessible via the HuggingFace API, were employed to assess their efficacy in ontology generation. The models included Llama-3.1-70B, deepseek-llm-67b-chat-AWQ, and Mistral-Small-3.1-24B-Instruct-2503. Each model was evaluated on the quality and structure of its generated ontology. ",
+        "bbox": [
+            218,
+            359,
+            785,
+            435
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "4.4 Ontology Generation Methods ",
+        "text_level": 1,
+        "bbox": [
+            220,
+            463,
+            511,
+            479
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Baseline As a foundational benchmark, we evaluated a simple generation setup in which each gen-LLM received only the database schema as input. Ontologies were generated solely from schema information, without external context or retrieval augmentation. Our prompt design follows the structure proposed by [40], who used LLMs with similar zero-shot prompting to generate ontologies from natural language. In our case, we adapt their method to operate directly over structured database schemas instead of textual descriptions. This baseline serves as a reference for assessing the gains from our proposed RIGOR framework. ",
+        "bbox": [
+            218,
+            494,
+            785,
+            616
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Non-Iterative Approach This approach extended the baseline by also supplying a sample external ontology alongside the schema. The model was prompted to generate a structurally and semantically similar ontology in a single pass—without iterative refinement or feedback. ",
+        "bbox": [
+            220,
+            637,
+            790,
+            696
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "RIGOR Framework Our framework utilizes a curated corpus of domainspecific documents pertaining to the medical field. Furthermore, the framework integrates a retrieval mechanism targeting External Ontologies, which are recognized as authoritative resources within the target domain. Relevant biomedical ontologies were retrieved via BioPortal’s REST API, a comprehensive repository of biomedical ontologies. These retrieved ontologies are incorporated into the retrieval pipeline, thereby providing enriched contextual grounding and improving the relevance and quality of the generated ontologies. ",
+        "bbox": [
+            218,
+            718,
+            785,
+            839
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "4.5 Evaluation Strategies ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            146,
+            437,
+            161
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "We employed six complementary evaluation techniques to assess the quality of the generated ontologies: ",
+        "bbox": [
+            215,
+            171,
+            787,
+            202
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "1. Syntax Validity Check: Each ontology was checked in Protégé for OWL 2 DL compliance. ",
+        "bbox": [
+            215,
+            202,
+            784,
+            231
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "2. Logical Consistency Check: We performed logical consistency checks using the HermiT reasoner within the Protégé ontology editor. ",
+        "bbox": [
+            220,
+            233,
+            784,
+            262
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "3. Criteria-Based Evaluation (Modeling Pitfalls): We used the OOPS! (Ontology Pitfall Scanner) web interface to detect common modeling pitfalls in our ontologies [53,34]. OOPS! scans for 41 predefined pitfalls, categorized as critical, important, or minor based on their impact on ontology quality. ",
+        "bbox": [
+            217,
+            263,
+            785,
+            323
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "4. Structural Analysis: We report structural metrics of the generated ontologies using the Protégé ontology editor, including the number of classes, object properties, data properties, and axioms. These metrics provide a quantitative overview of the ontology’s size and complexity. ",
+        "bbox": [
+            217,
+            324,
+            784,
+            383
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "5. Semantic Coverage of Database Schema: To evaluate how well the generated ontology represents the underlying database schema, we performed a semantic similarity analysis between ontology class names and table column names. Using the all-MiniLM-L6-v2 sentence transformer, we embedded both sets and computed cosine similarity scores. We then calculated a class coverage rate, defined as the percentage of ontology classes with at least one column name above a similarity threshold of 0.55. This threshold was empirically tuned and aligns with prior work [18]. ",
+        "bbox": [
+            218,
+            383,
+            785,
+            503
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "6. Ontology Quality through CQ Performance: This strategy evaluates the quality of the generated ontologies based on their ability to answer CQs. The CQs themselves were generated using Mistral-Small-24B-Instruct-2501, as described in Section 3.6, where we outline the CQ generation pipeline and prompting engineering technique. ",
+        "bbox": [
+            218,
+            505,
+            785,
+            580
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "For evaluation, we employed a separate model, Llama-3.1-8B-Instruct (Judge-LLM ) which scored the answers derived from the ontologies on a scale from 0 to 5. Each delta ontology was evaluated independently, and scores were then aggregated to report the overall CQ performance for each generation method. Each ontology was assessed across a set of predefined quality dimensions [52]. The scoring prompt, tuned through prompt refinement, is shown in Appendix 6.2, Figure 4. The evaluation dimensions included: (a)Accuracy: Correctness of domain representation and alignment with CQs. (b) Completeness: Coverage of essential concepts and relationships. (c) Conciseness: Absence of redundancy in the generated ontology. (d) Adaptability: Extensibility of the generated ontology. (e) Clarity: Readability, clear definitions, and quality of documentation. (f) Consistency: Logical coherence, valid relations, and proper hierarchies. ",
+        "bbox": [
+            217,
+            580,
+            787,
+            761
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "4.6 Results ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            784,
+            323,
+            799
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Upon inspecting the generated outputs, baseline and non-iterative methods often failed to produce valid ontologies—frequently yielding invalid Turtle syntax or irrelevant outputs (e.g., SQL). As a result, it was not possible to merge delta ontologies or evaluate them using structural, logical, or semantic strategies. Consequently, Strategies $\\mathbf { 1 - 5 }$ report results only for RIGOR-generated outputs. In contrast, Strategy 6 (Ontology Quality through CQ Performance) was applied to all generation methods, as it evaluates each delta ontology independently without requiring ontology merging or syntactic validity. ",
+        "bbox": [
+            217,
+            809,
+            784,
+            839
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            218,
+            146,
+            785,
+            237
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "1. Syntax Validity Check: All RIGOR-generated ontologies were parsed in Protégé and conformed to the OWL 2 DL profile, ensuring syntactic validity. ",
+        "bbox": [
+            217,
+            239,
+            784,
+            270
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "2. Logical Consistency Check: All RIGOR-generated ontologies were deemed consistent by the HermiT reasoner. ",
+        "bbox": [
+            217,
+            271,
+            782,
+            301
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "3. Criteria-Based Evaluation (Modeling Pitfalls): Table 3 presents only critical and important modeling pitfalls as categorized by OOPS!, excluding low-severity pitfalls such as missing annotations. Overall, the ontologies demonstrated sound modeling practices. The most frequent issue was (P19) (Multiple domains or ranges), which may arise in auto-generated ontologies when property reuse is not well defined in the prompt. A few cases of (P34) (Untyped class) and (P12/P30) (missing equivalence declarations) were detected, but these reflect refinement opportunities rather than structural errors. The absence of critical pitfalls—such as defining wrong relations (P05, P27, P28, P29, P31) or cycles in hierarchies (P06)—indicates that the generated ontologies adhere to core principles of formal ontology modeling. ",
+        "bbox": [
+            218,
+            304,
+            785,
+            469
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "4. Structural Analysis: We compared structural metrics across ontologies generated by different Gen-LLMs under the RIGOR framework. As shown in Table 4, DeepSeek consistently produced the most structurally rich ontologies, with the highest counts of classes and axioms. Mistral generated the smallest ontologies in terms of class count, though it occasionally had high data property counts, especially in the ICU domain. Overall, Ontologies from the ICU database were structurally more complex than those from the real-world database, indicating a correlation between database size and the number of classes, properties, and axioms, consistent with the ICU database’s larger schema in Section 4.1. ",
+        "bbox": [
+            218,
+            473,
+            785,
+            608
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "5. Semantic Coverage of Database Schema: This analysis was performed on the chemotherapy ontology—one of the delta ontologies generated using the RIGOR framework and LLaMA 3.1 using the real-world database. In total, 21 out of 29 ontology classes were matched to column names, yielding a class coverage of $7 2 . 4 \\%$ , indicating strong semantic alignment and showing how well the local features of the database table are represented in the corresponding delta ontology. Figure 5 visualizes the chemotherapy ontology and shows the heatmap of class-to-column alignment. Unmatched table columns (e.g., patient_id) refer to concepts modeled in other delta ontologies within the full ontology; for instance, patient_id appears in the patient ontology and is omitted from the chemotherapy ontology by the LLM to avoid redundancy. Unmatched ontology classes (e.g., TreatmentPlan) were derived from external ontology repositories or retrieved documentation as part of our RAG pipeline. ",
+        "bbox": [
+            218,
+            611,
+            785,
+            806
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "6. Ontology Quality through CQ Performance: Table 2 shows that the RIGOR method consistently outperformed Baseline and Non-Iterative approaches across all models and databases. Detailed scores across all dimensions are reported in Tables 6–7. The highest CQ scores were achieved by DeepSeek 67B on the real-world database $( 4 . 6 \\pm 0 . 1 1 )$ ) and Llama 3.1 on ICU $( 4 . 6 \\pm 0 . 1 2 )$ . Mistral 3.1 performed slightly lower but still benefitted from RIGOR. ",
+        "bbox": [
+            218,
+            809,
+            784,
+            839
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "table",
+        "img_path": "images/ebc4b9672890508b81a43775fe4ddf0d6d3891c8d7c0d13d20c85e197ba0ee3f.jpg",
+        "table_caption": [],
+        "table_footnote": [
+            "Table 2: Average scores (0–5) across six ontology quality dimensions (accuracy, completeness, conciseness, adaptability, clarity, and consistency) for each gen-LLM and generation method on two databases. Values indicate mean $\\pm$ standard deviation. Higher scores indicate better performance. "
+        ],
+        "table_body": "<table><tr><td rowspan=2 colspan=1>gen-LLM</td><td rowspan=1 colspan=3>Real-world database</td><td rowspan=1 colspan=3>ICU database from PhysioNet</td></tr><tr><td rowspan=1 colspan=1>Baseline</td><td rowspan=1 colspan=1>Non-Iterative</td><td rowspan=1 colspan=1>RIGOR</td><td rowspan=1 colspan=1>Baseline</td><td rowspan=1 colspan=1>Non-Iterative</td><td rowspan=1 colspan=1>RIGOR</td></tr><tr><td rowspan=1 colspan=1>Llama 3.1</td><td rowspan=1 colspan=1>1.5 ± .31</td><td rowspan=1 colspan=1>3.5 ± .31</td><td rowspan=1 colspan=1>4.5 ± .20</td><td rowspan=1 colspan=1>1.6 ± .34</td><td rowspan=1 colspan=1>3.7 ± .51</td><td rowspan=1 colspan=1>4.6 ± .12</td></tr><tr><td rowspan=1 colspan=1>Mistral 3.1</td><td rowspan=1 colspan=1>1.6 ± .23</td><td rowspan=1 colspan=1>3.4 ± .67</td><td rowspan=1 colspan=1>4.2 ± .22</td><td rowspan=1 colspan=1>1.3 ± .41</td><td rowspan=1 colspan=1>3.7 ± .36</td><td rowspan=1 colspan=1>4.3 ± .15</td></tr><tr><td rowspan=1 colspan=1>DeepSeek 67B</td><td rowspan=1 colspan=1>1.4 ± .31</td><td rowspan=1 colspan=1>3.3 ± .38</td><td rowspan=1 colspan=1>4.6 ± .11</td><td rowspan=1 colspan=1>1.5 ± .15</td><td rowspan=1 colspan=1>3.5 ± .27</td><td rowspan=1 colspan=1>4.5 ± .13</td></tr></table>",
+        "bbox": [
+            222,
+            143,
+            781,
+            223
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "table",
+        "img_path": "images/0243747b2d271f9f0de0973e61db742463013009cacda00afb58666794abdf87.jpg",
+        "table_caption": [],
+        "table_footnote": [
+            "Table 3: Pitfalls detected by OOPS! in RIGOR-generated ontologies using three gen-LLMs across two databases. "
+        ],
+        "table_body": "<table><tr><td rowspan=\"2\">Code</td><td rowspan=\"2\">Pitfall Description</td><td colspan=\"3\">Real-world database</td><td colspan=\"3\">ICU database from PhysioNet</td></tr><tr><td></td><td>Llama 3.1 Mistral 3.1</td><td>DeepSeek 67B</td><td></td><td>Llama 3.1 Mistral 3.1</td><td>DeepSeek 67B</td></tr><tr><td>[P03</td><td>Creating the relationship &quot;is&quot;</td><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr><tr><td>[P10</td><td>Missing disjointness</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr><tr><td>[P12</td><td>Equivalent properties not declared</td><td>0</td><td>1</td><td>0</td><td>6</td><td>10</td><td>4</td></tr><tr><td>|P19</td><td>Multiple domains or ranges</td><td>23</td><td>11</td><td>25</td><td>31</td><td>22</td><td>54</td></tr><tr><td>[P30</td><td>Equivalent classes not declared</td><td>3</td><td>0</td><td>4</td><td>0</td><td>0</td><td>2</td></tr><tr><td>[P34</td><td>Untyped class</td><td>3</td><td>2</td><td>21</td><td>7</td><td>7</td><td>17</td></tr><tr><td>[P41</td><td>No license declared</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr></table>",
+        "bbox": [
+            222,
+            270,
+            782,
+            369
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "table",
+        "img_path": "images/d50922e90bab6ef52885fa4ecc73eb4eadcae1d814d85d0b89a21e1bdc842548.jpg",
+        "table_caption": [],
+        "table_footnote": [
+            "Table 4: Statistics of RIGOR-generated ontologies using three gen-LLMs across two databases, including the number of classes, properties, and axioms. "
+        ],
+        "table_body": "<table><tr><td rowspan=\"2\">gen-LLM</td><td colspan=\"4\">Real-world database</td><td colspan=\"3\">ICU database from PhysioNet</td></tr><tr><td>#Classes #Object Prop. #Data Prop. #Axioms</td><td></td><td></td><td></td><td>#Classes #Object Prop. #Data Prop. #Axioms</td><td></td><td></td></tr><tr><td>Llama 3.1</td><td>284</td><td>76</td><td>145</td><td>1,390</td><td>359 89</td><td>182</td><td>1,946</td></tr><tr><td>Mistral 3.1</td><td>30</td><td>10</td><td>115</td><td>600</td><td>70 18</td><td>339</td><td>1,666</td></tr><tr><td>DeepSeek 67B</td><td>287</td><td>68</td><td>522</td><td>1,584</td><td>389 120</td><td>171</td><td>2,070</td></tr></table>",
+        "bbox": [
+            220,
+            406,
+            785,
+            463
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            218,
+            515,
+            785,
+            575
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "5 Conclusions ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            611,
+            366,
+            628
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "We presented RIGOR, an iterative hybrid–recursive RAG pipeline that converts relational schemas into provenance-rich OWL 2 DL ontologies with minimal human effort. By combining dense retrieval from the evolving core ontology, textual documentation, and large external ontology repositories with a GenLLM /Judge-LLM loop, RIGOR produces table-level delta ontologies that are validated, refined, and incrementally merged. ",
+        "bbox": [
+            220,
+            655,
+            784,
+            746
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Experiments on a real-world liver-cancer registry and the public ICU database show that RIGOR consistently surpasses baseline and non-iterative variants, achieving mean CQ scores above 4.5/5, yielding logically consistent ontologies, and exhibiting few critical modeling pitfalls. These results show that retrievalguided LLMs can generate semantically rich, standards-compliant ontologies that faithfully mirror complex relational schemas. ",
+        "bbox": [
+            218,
+            750,
+            784,
+            839
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Acknowledgement ",
+        "text_level": 1,
+        "bbox": [
+            220,
+            143,
+            392,
+            161
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Mojtaba Nayyeri gratefully acknowledges support from the ATLAS project, funded by the German Federal Ministry of Education and Research (Bundesministerium für Bildung und Forschung, BMBF). The authors gratefully acknowledge the computing time provided on the HPC HoreKa by the National HPC Center at KIT (NHR@KIT). This center is jointly supported by the Federal Ministry of Education and Research and the Ministry of Science, Research, and the Arts of Baden-Württemberg as part of the National High-Performance Computing (NHR) joint funding program (https://www.nhr-verein.de/en/our-partners). HoreKa is partly funded by the German Research Foundation (DFG). ",
+        "bbox": [
+            218,
+            180,
+            784,
+            315
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Supplemental Material Statement ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            343,
+            544,
+            361
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Source code is available in \"RIGOR.zip\", including core ontologies, RAG documents, appendix, external ontologies, SQL schemas, generated CQs, experimental results, and specific scripts for the RIGOR framework, baseline, \"noniterative\" approach, requirements, and semantic evaluation. ",
+        "bbox": [
+            220,
+            378,
+            784,
+            439
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "References ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            467,
+            321,
+            483
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "1. Abolhasani, M.S., Pan, R.: Leveraging llm for automated ontology extraction and knowledge graph generation. arXiv preprint arXiv:2412.00608 (2024)   \n2. Alharbi, R., Tamma, V., Grasso, F., Payne, T.R.: An experiment in retrofitting competency questions for existing ontologies. In: Hong, J., Park, J.W. (eds.) Proceedings of the 39th ACM/SIGAPP Symposium on Applied Computing, SAC 2024, Avila, Spain, April 8-12, 2024. pp. 1650–1658. ACM (2024). https://doi.org/10. 1145/3605098.3636053, https://doi.org/10.1145/3605098.3636053   \n3. Antia, M., Keet, C.M.: Automating the generation of competency questions for ontologies with agocqs. In: Ortiz-Rodríguez, F., Villazón-Terrazas, B., Tiwari, S., Bobed, C. (eds.) Knowledge Graphs and Semantic Web - 5th Iberoamerican Conference and 4th Indo-American Conference, KGSWC 2023, Zaragoza, Spain, November 13-15, 2023, Proceedings. Lecture Notes in Computer Science, vol. 14382, pp. 213–227. Springer (2023). https://doi.org/10.1007/978-3-031-47745-4_ 16, https://doi.org/10.1007/978-3-031-47745-4_16   \n4. Arenas, M., Bertails, A., Prud’hommeaux, E., Sequeda, J., et al.: A direct mapping of relational data to rdf. W3C recommendation 27, 1–11 (2012)   \n5. Astrova, I.: Reverse engineering of relational databases to ontologies. In: European Semantic Web Symposium. pp. 327–341. Springer (2004)   \n6. Babaei Giglou, H., D’Souza, J., Auer, S.: Llms4ol: Large language models for ontology learning. In: International Semantic Web Conference. pp. 408–427. Springer (2023)   \n7. Babaei Giglou, H., D’Souza, J., Auer, S.: Llms4ol: Large language models for ontology learning. In: International Semantic Web Conference. pp. 408–427. Springer (2023)   \n8. Bakker, R.M., Di Scala, D.L., de Boer, M.H.: Ontology learning from text: an analysis on llm performance. In: Proceedings of the 3rd NLP4KGC International Workshop on Natural Language Processing for Knowledge Graph Creation, colocated with Semantics. pp. 17–19 (2024)   \n9. Ben Mahria, B., Chaker, I., Zahi, A.: A novel approach for learning ontology from relational database: from the construction to the evaluation. Journal of Big Data 8(1), 25 (2021)   \n10. Câmara, V., Mendonca-Neto, R., Silva, A., Cordovil, L.: A large language model approach to sql-to-text generation. In: 2024 IEEE International Conference on Consumer Electronics (ICCE). pp. 1–4. IEEE (2024)   \n11. Caufield, J.H., Hegde, H., Emonet, V., Harris, N.L., Joachimiak, M.P., Matentzoglu, N., Kim, H., Moxon, S., Reese, J.T., Haendel, M.A., et al.: Structured prompt interrogation and recursive extraction of semantics (spires): A method for populating knowledge bases using zero-shot learning. Bioinformatics 40(3), btae104 (2024)   \n12. Ciroku, F., de Berardinis, J., Kim, J., Meroño-Peñuela, A., Presutti, V., Simperl, E.: Revont: Reverse engineering of competency questions from knowledge graphs via language models. J. Web Semant. 82, 100822 (2024). https://doi.org/10.1016/J.WEBSEM.2024.100822, https://doi.org/10.1016/ j.websem.2024.100822   \n13. Consortium, W.W.W., et al.: R2rml: Rdb to rdf mapping language. WWW (2012)   \n14. Doumanas, D., Soularidis, A., Spiliotopoulos, D., Vassilakis, C., Kotis, K.: Finetuning large language models for ontology engineering: A comparative analysis of gpt-4 and mistral. Applied Sciences 15(4), 2146 (2025)   \n15. Douze, M., Guzhva, A., Deng, C., Johnson, J., Szilvasy, G., Mazaré, P.E., Lomeli, M., Hosseini, L., Jégou, H.: The faiss library. arXiv preprint arXiv:2401.08281 (2024)   \n16. Fathallah, N., Das, A., Giorgis, S.D., Poltronieri, A., Haase, P., Kovriguina, L.: Neon-gpt: a large language model-powered pipeline for ontology learning. In: European Semantic Web Conference. pp. 36–50. Springer (2024)   \n17. Galkin, M., Yuan, X., Mostafa, H., Tang, J., Zhu, Z.: Towards foundation models for knowledge graph reasoning. In: The Twelfth International Conference on Learning Representations (2024)   \n18. Galli, C., Donos, N., Calciolari, E.: Performance of 4 pre-trained sentence transformer models in the semantic query of a systematic review dataset on periimplantitis. Information 15(2), 68 (2024)   \n19. Gao, Y., Xiong, Y., Gao, X., Jia, K., Pan, J., Bi, Y., Dai, Y., Sun, J., Wang, M., Wang, H.: Retrieval-augmented generation for large language models: A survey. arXiv preprint arXiv:2312.10997 (2023)   \n20. Grattafiori, A., Dubey, A., Jauhri, A., Pandey, A., Kadian, A., Al-Dahle, A., Letman, A., Mathur, A., Schelten, A., Vaughan, A., et al.: The llama 3 herd of models. arXiv preprint arXiv:2407.21783 (2024)   \n21. Gruninger, M.: Methodology for the design and evaluation of ontologies. In: Proc. IJCAI’95, Workshop on Basic Ontological Issues in Knowledge Sharing (1995)   \n22. Gu, J., Jiang, X., Shi, Z., Tan, H., Zhai, X., Xu, C., Li, W., Shen, Y., Ma, S., Liu, H., Wang, Y., Guo, J.: A survey on llm-as-a-judge. CoRR abs/2411.15594 (2024). https://doi.org/10.48550/ARXIV.2411.15594, https://doi.org/10. 48550/arXiv.2411.15594   \n23. Gu, J., Jiang, X., Shi, Z., Tan, H., Zhai, X., Xu, C., Li, W., Shen, Y., Ma, S., Liu, H., et al.: A survey on llm-as-a-judge. arXiv preprint arXiv:2411.15594 (2024)   \n24. Guo, D., Yang, D., Zhang, H., Song, J., Zhang, R., Xu, R., Zhu, Q., Ma, S., Wang, P., Bi, X., et al.: Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning. arXiv preprint arXiv:2501.12948 (2025)   \n25. Horridge, M., Patel-Schneider, P.F.: Owl 2 web ontology language manchester syntax. https://www.w3.org/TR/owl2-manchester-syntax/ (2012)   \n26. Jiménez-Ruiz, E., Kharlamov, E., Zheleznyakov, D., Horrocks, I., Pinkel, C., Skjæveland, M.G., Thorstensen, E., Mora, J.: Bootox: Practical mapping of rdbs to owl 2. In: The Semantic Web-ISWC 2015: 14th International Semantic Web Conference, Bethlehem, PA, USA, October 11-15, 2015, Proceedings, Part II 14. pp. 113–132. Springer (2015)   \n27. Keet, C.M., Mahlaza, Z., Antia, M.: Claro: A controlled language for authoring competency questions. In: Garoufallou, E., Fallucchi, F., Luca, E.W.D. (eds.) Metadata and Semantic Research - 13th International Conference, MTSR 2019, Rome, Italy, October 28-31, 2019, Revised Selected Papers. Communications in Computer and Information Science, vol. 1057, pp. 3–15. Springer (2019). https://doi.org/10.1007/978-3-030-36599-8_1, https://doi.org/10. 1007/978-3-030-36599-8_1   \n28. Knoblock, C.A., Szekely, P., Ambite, J.L., Goel, A., Gupta, S., Lerman, K., Muslea, M., Taheriyan, M., Mallick, P.: Semi-automatically mapping structured sources into the semantic web. In: Extended semantic web conference. pp. 375– 390. Springer (2012)   \n29. Kohler, J., Lange, M., Hofestadt, R., Schulze-Kremer, S.: Logical and semantic database integration. In: Proceedings IEEE International Symposium on BioInformatics and Biomedical Engineering. pp. 77–80. IEEE (2000)   \n30. Kommineni, V.K., König-Ries, B., Samuel, S.: Towards the automation of knowledge graph construction using large language models. Journal Name (2024)   \n31. Kommineni, V.K., König-Ries, B., Samuel, S.: From human experts to machines: An llm supported approach to ontology and knowledge graph construction (2024), https://arxiv.org/abs/2403.08345   \n32. Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V., Goyal, N., Küttler, H., Lewis, M., Yih, W.t., Rocktäschel, T., et al.: Retrieval-augmented generation for knowledge-intensive nlp tasks. Advances in neural information processing systems 33, 9459–9474 (2020)   \n33. Lippolis, A.S., Saeedizade, M.J., Keskisärkkä, R., Zuppiroli, S., Ceriani, M., Gangemi, A., Blomqvist, E., Nuzzolese, A.G.: Ontology generation using large language models. arXiv preprint arXiv:2503.05388 (2025)   \n34. Lippolis, A.S., Saeedizade, M.J., Keskisärkkä, R., Zuppiroli, S., Ceriani, M., Gangemi, A., Blomqvist, E., Nuzzolese, A.G.: Ontology generation using large language models. arXiv preprint arXiv:2503.05388 (2025)   \n35. Liu, M.X., Liu, F., Fiannaca, A.J., Koo, T., Dixon, L., Terry, M., Cai, C.J.: \" we need structured output\": Towards user-centered constraints on large language model output. In: Extended Abstracts of the CHI Conference on Human Factors in Computing Systems. pp. 1–9 (2024)   \n36. Liu, Y., Li, D., Wang, K., Xiong, Z., Shi, F., Wang, J., Li, B., Hang, B.: Are llms good at structured outputs? a benchmark for evaluating structured output capabilities in llms. Information Processing & Management 61(5), 103809 (2024)   \n37. Liu, Z., Gan, C., Wang, J., Zhang, Y., Bo, Z., Sun, M., Chen, H., Zhang, W.: Ontotune: Ontology-driven self-training for aligning large language models. In: THE WEB CONFERENCE 2025 (2025)   \n38. Lo, A., Jiang, A.Q., Li, W., Jamnik, M.: End-to-end ontology learning with large language models. In: The Thirty-eighth Annual Conference on Neural Information Processing Systems (2024)   \n39. Ma, C., Molnár, B.: Ontology learning from relational database: Opportunities for semantic information integration. Vietnam Journal of Computer Science 9(01), 31–57 (2022)   \n40. Mateiu, P., Groza, A.: Ontology engineering with large language models. In: 2023 25th International Symposium on Symbolic and Numeric Algorithms for Scientific Computing (SYNASC). pp. 226–229. IEEE (2023)   \n41. de Medeiros, L.F., Priyatna, F., Corcho, O.: Mirror: Automatic r2rml mapping generation from relational databases. In: International conference on web engineering. pp. 326–343. Springer (2015)   \n42. Meersman, R.: Ontologies and databases: More than a fleeting resemblance. In: A. d’Atri and M. Missikoff (eds), Proceedings of the OES/SEO 2001 Rome Workshop, LUISS Publications, Rome (2001) (2001)   \n43. Meyer, L.P., Frey, J., Junghanns, K., Brei, F., Bulert, K., Gründer-Fahrer, S., Martin, M.: Developing a scalable benchmark for assessing large language models in knowledge graph engineering. arXiv preprint arXiv:2308.16622 (2023)   \n44. Mihindukulasooriya, N., Tiwari, S., Enguix, C.F., Lata, K.: Text2kgbench: A benchmark for ontology-driven knowledge graph generation from text. In: International semantic web conference. pp. 247–265. Springer (2023)   \n45. Mihindukulasooriya, N., Tiwari, S., Enguix, C.F., Lata, K.: Text2kgbench: A benchmark for ontology-driven knowledge graph generation from text. In: International semantic web conference. pp. 247–265. Springer (2023)   \n46. Motik, B., Horrocks, I., Sattler, U.: Bridging the gap between owl and relational databases. In: Proceedings of the 16th international conference on World Wide Web. pp. 807–816 (2007)   \n47. Norouzi, S.S., Barua, A., Christou, A., Gautam, N., Eells, A., Hitzler, P., Shimizu, C.: Ontology population using llms. In: Handbook on Neurosymbolic AI and Knowledge Graphs, pp. 421–438. IOS Press (2025)   \n48. Norouzi, S.S., Barua, A., Christou, A., Gautam, N., Eells, A., Hitzler, P., Shimizu, C.: Ontology population using llms. In: Handbook on Neurosymbolic AI and Knowledge Graphs, pp. 421–438. IOS Press (2025)   \n49. Passant, A., Gandon, F., Alani, H., Spanos, D.E., Stavrou, P., Mitrou, N.: Bringing relational databases into the semantic web: A survey. Semantic Web 3(2), 169–209 (2012)   \n50. Pinkel, C., Binnig, C., Jiménez-Ruiz, E., Kharlamov, E., May, W., Nikolov, A., Sasa Bastinos, A., Skjæveland, M.G., Solimando, A., Taheriyan, M., et al.: Rodi: Benchmarking relational-to-ontology mapping generation quality. Semantic Web 9(1), 25–52 (2017)   \n51. Pinkel, C., Binnig, C., Jiménez-Ruiz, E., Kharlamov, E., Nikolov, A., Schwarte, A., Heupel, C., Kraska, T.: Incmap: A journey towards ontology-based data integration. Lecture Notes in Informatics (LNI), Proceedings-Series of the Gesellschaft fur Informatik (GI) 265, 145–164 (2017)   \n52. Pollard, T., Johnson, A., Raffa, J., Celi, L., Mark, R., Badawi, O.: The eicu collaborative research database, a freely available multi-center database for critical care research. Scientific Data 5, 180178 (09 2018). https://doi.org/10.1038/sdata. 2018.178   \n53. Poveda-Villalón, M., Gómez-Pérez, A., Suárez-Figueroa, M.C.: Oops! (ontology pitfall scanner!): An on-line tool for ontology evaluation. International Journal on Semantic Web and Information Systems (IJSWIS) 10(2), 7– 34 (2014). https://doi.org/10.4018/IJSWIS.2014040102, https://doi.org/10. 4018/ijswis.2014040102   \n54. Qiang, Z., Wang, W., Taylor, K.: Agent-om: Leveraging llm agents for ontology matching. arXiv preprint arXiv:2312.00326 (2023)   \n55. Rebboud, Y., Tailhardat, L., Lisena, P., Troncy, R.: Can llms generate competency questions? In: Meroño-Peñuela, A., Corcho, Ó., Groth, P., Simperl, E., Tamma, V., Nuzzolese, A.G., Poveda-Villalón, M., Sabou, M., Presutti, V., Celino, I., Revenko, A., Raad, J., Sartini, B., Lisena, P. (eds.) The Semantic Web: ESWC 2024 Satellite Events - Hersonissos, Crete, Greece, May 26-30, 2024, Proceedings, Part I. Lecture Notes in Computer Science, vol. 15344, pp. 71–80. Springer (2024). https://doi.org/10.1007/978-3-031-78952-6_7, https://doi.org/10. 1007/978-3-031-78952-6_7   \n56. Robinson, J., Ranjan, R., Hu, W., Huang, K., Han, J., Dobles, A., Fey, M., Lenssen, J.E., Yuan, Y., Zhang, Z., et al.: Relbench: A benchmark for deep learning on relational databases. Advances in Neural Information Processing Systems 37, 21330– 21341 (2024)   \n57. Roumeliotis, K.I., Tselikas, N.D.: Chatgpt and open-ai models: A preliminary review. Future Internet 15(6), 192 (2023)   \n58. Sadruddin, S., D’Souza, J., Poupaki, E., Watkins, A., Giglou, H.B., Rula, A., Karasulu, B., Auer, S., Mackus, A., Kessels, E.: Llms4schemadiscovery: A human-inthe-loop workflow for scientific schema mining with large language models. arXiv preprint arXiv:2504.00752 (2025)   \n59. Saeedizade, M.J., Blomqvist, E.: Navigating ontology development with large language models. In: European Semantic Web Conference. pp. 143–161. Springer (2024)   \n60. Sequeda, J.F., Arenas, M., Miranker, D.P.: On directly mapping relational databases to rdf and owl. In: Proceedings of the 21st international conference on World Wide Web. pp. 649–658 (2012)   \n61. Sharma, K., Kumar, P., Li, Y.: Og-rag: Ontology-grounded retrieval-augmented generation for large language models. arXiv preprint arXiv:2412.15235 (2024)   \n62. Shimizu, C., Hitzler, P.: Accelerating knowledge graph and ontology engineering with large language models. Journal of Web Semantics p. 100862 (2025)   \n63. Val-Calvo, M., Aranguren, M.E., Mulero-Hernández, J., Almagro-Hernández, G., Deshmukh, P., Bernabé-Díaz, J.A., Espinoza-Arias, P., Sánchez-Fernández, J.L., Mueller, J., Fernández-Breis, J.T.: Ontogenix: Leveraging large language models for enhanced ontology engineering from datasets. Information Processing & Management 62(3), 104042 (2025)   \n64. Vergoulis, A., et al.: Data governance in the era of the web of data: generate, manage, preserve, share and protect resources in the web of data. Tech. rep., Technical Report (2014)   \n65. Volz, R., Handschuh, S., Staab, S., Stojanovic, L., Stojanovic, N.: Unveiling the hidden bride: deep annotation for mapping and migrating legacy data to the semantic web. J. Web Semant. 1(2), 187–206 (2004). https://doi.org/10.1016/J. WEBSEM.2003.11.005, https://doi.org/10.1016/j.websem.2003.11.005   \n66. W3C OWL Working Group: Owl 2 web ontology language profiles (second edition). http://www.w3.org/TR/owl2-profiles/ (2012), w3C Recommendation   \n67. Wache, H., Voegele, T., Visser, U., Stuckenschmidt, H., Schuster, G., Neumann, H., Hübner, S.: Ontology-based integration of information-a survey of existing approaches. In: Ois@ ijcai (2001)   \n68. Wei, J., Wang, X., Schuurmans, D., Bosma, M., Ichter, B., Xia, F., Chi, E.H., Le, Q.V., Zhou, D.: Chain-of-thought prompting elicits reasoning in large language models. In: Koyejo, S., Mohamed, S., Agarwal, A., Belgrave, D., Cho, K., Oh, A. (eds.) Advances in Neural Information Processing Systems 35: Annual Conference on Neural Information Processing Systems 2022, NeurIPS 2022, New Orleans, LA, USA, November 28 - December 9, 2022 (2022), http://papers.nips.cc/paper_files/paper/2022/hash/ 9d5609613524ecf4f15af0f7b31abca4-Abstract-Conference.html   \n69. Wu, Z., Pan, S., Chen, F., Long, G., Zhang, C., Yu, P.S.: A comprehensive survey on graph neural networks. IEEE transactions on neural networks and learning systems 32(1), 4–24 (2020)   \n70. Xiong, B., Staab, S.: From tokens to lattices: Emergent lattice structures in language models. In: The Thirteenth International Conference on Learning Representations (2025), https://openreview.net/forum?id=md9qolJwLl   \n71. Zhao, W.X., Zhou, K., Li, J., Tang, T., Wang, X., Hou, Y., Min, Y., Zhang, B., Zhang, J., Dong, Z., et al.: A survey of large language models. arXiv preprint arXiv:2303.18223 (2023)   \n72. Zhou, H., Nova, A., Larochelle, H., Courville, A., Neyshabur, B., Sedghi, H.: Teaching algorithmic reasoning via in-context learning. arXiv preprint arXiv:2211.09066 (2022) ",
+        "bbox": [
+            223,
+            502,
+            785,
+            839
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            217,
+            148,
+            787,
+            847
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            215,
+            148,
+            787,
+            838
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            215,
+            148,
+            787,
+            845
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            215,
+            143,
+            787,
+            840
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            217,
+            146,
+            785,
+            425
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "6 Appendix ",
+        "text_level": 1,
+        "bbox": [
+            217,
+            143,
+            346,
+            161
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "This appendix provides supplementary material supporting the methods, evaluation, and implementation described in the main paper. It is organized as follows: ",
+        "bbox": [
+            217,
+            202,
+            785,
+            233
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "6.1 Summary of Symbols ",
+        "text_level": 1,
+        "bbox": [
+            217,
+            281,
+            437,
+            296
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Table 5 summarizes the key formal symbols used throughout the paper to describe database schemas, ontology structures, and transformation steps. This section serves as a reference for interpreting the technical framework introduced in the methodology. ",
+        "bbox": [
+            218,
+            332,
+            785,
+            393
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "table",
+        "img_path": "images/675de272992f8bf66bdd5946ebfe16e8e0fb7a9fbfc7852648dac6debdf5814d.jpg",
+        "table_caption": [],
+        "table_footnote": [
+            "Table 5: Formalization of relational database, textual descriptions, and ontology structures. "
+        ],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>Symbol</td><td rowspan=1 colspan=1>Definition</td></tr><tr><td rowspan=1 colspan=1>S = (R, K, F)</td><td rowspan=1 colspan=1>Relational database schema</td></tr><tr><td rowspan=1 colspan=1>R</td><td rowspan=1 colspan=1>Set of relations (tables) in the database</td></tr><tr><td rowspan=1 colspan=1>K(r)</td><td rowspan=1 colspan=1>Primary key attributes of relation r</td></tr><tr><td rowspan=1 colspan=1>Fk(r)</td><td rowspan=1 colspan=1>Foreign key attributes of relation r</td></tr><tr><td rowspan=1 colspan=1>F(r)</td><td rowspan=1 colspan=1>Attributes (columns) of relation r</td></tr><tr><td rowspan=1 colspan=1>DocTable(r)</td><td rowspan=1 colspan=1>Textual description of table r</td></tr><tr><td rowspan=1 colspan=1>DocCol(r, f )</td><td rowspan=1 colspan=1>Textual description of attribute f in table r</td></tr><tr><td rowspan=1 colspan=1>Ot = (Ct, Pt, At)|(</td><td rowspan=1 colspan=1>Core ontology at iteration t</td></tr><tr><td rowspan=1 colspan=1>Ct</td><td rowspan=1 colspan=1>Set of OWL classes defined so far</td></tr><tr><td rowspan=1 colspan=1>Pt</td><td rowspan=1 colspan=1>Set of OWL properties (object and data)</td></tr><tr><td rowspan=1 colspan=1>At</td><td rowspan=1 colspan=1>Set of OWL axioms and annotations</td></tr><tr><td rowspan=1 colspan=1>∆Or</td><td rowspan=1 colspan=1>Delta-ontology fragment generated for relation r</td></tr><tr><td rowspan=1 colspan=1>Ofinal</td><td rowspan=1 colspan=1>Final integrated OWL ontology after processing all relations</td></tr></table>",
+        "bbox": [
+            240,
+            431,
+            763,
+            672
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "6.2 Prompts ",
+        "text_level": 1,
+        "bbox": [
+            217,
+            728,
+            333,
+            743
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "This section presents the prompts used in two core stages of our pipeline: (a) generating CQs from relational tables, and (b) evaluating ontology fragments based on those questions using an LLM-based scoring mechanism. ",
+        "bbox": [
+            218,
+            779,
+            785,
+            824
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "image",
+        "img_path": "images/78ba7f0e14714e946d1e7516c984b6648b2008ea325fb67b6ddd34220689f735.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            223,
+            151,
+            750,
+            309
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "Fig. 3: (a) The CQs Generation prompt: The prompt used to guide the LLM in generating CQs relevant to each database table. It was refined through empirical tuning of prompt engineering techniques to encourage structured, ontology-aligned outputs. Fixed delimiters such as $^ { * * } 1$ . [Question]\\*\\* and $^ { * * } \\mathrm { A n s w e r } ^ { * * }$ : are included verbatim to structure the LLM’s response as paired CQs and explanations. The placeholder ’{table_name}’ is dynamically substituted at runtime for each table to guide the model toward schema-relevant, ontology-aligned question generation. ",
+        "bbox": [
+            217,
+            335,
+            785,
+            433
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "image",
+        "img_path": "images/5f7d1788435f566028580199c0127fbc3f1132f22e03c33b1448f0dc0ee4e4ca.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            220,
+            488,
+            784,
+            622
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "Fig. 4: (b) Ontology quality evaluation through CQ performance prompt: The prompt used to evaluate the quality of ontology fragments with respect to specific metrics (e.g., accuracy, completeness). The Judge-LLM receives the CQs, ontology fragment, and corresponding table schema, and returns a numeric score (0–5) based on a specified evaluation criterion. Placeholders like ’{context[’questions’]}’ are dynamically replaced at runtime with evaluation-specific content. ",
+        "bbox": [
+            217,
+            640,
+            787,
+            723
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "6.3 Implementation Details: ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            755,
+            460,
+            770
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "Provides code-level information used to run Huggingface models in our experiments, including model setup, decoding parameters, and inference configuration. ",
+        "bbox": [
+            215,
+            777,
+            784,
+            808
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "image",
+        "img_path": "images/b65eb148d91dd59295b63a9b3524df2ff2432060a3dc8903e26e5ac2290401e8.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            228,
+            148,
+            784,
+            305
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "6.4 Detailed Evaluation Results ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            330,
+            490,
+            347
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "This section presents both quantitative and structural evaluation results supporting the main findings of the paper. ",
+        "bbox": [
+            217,
+            356,
+            784,
+            386
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "(a) Judge-LLM Evaluation Details: Tables 6-7 reports detailed CQ performance scores across six evaluation dimensions—accuracy, completeness, conciseness, adaptability, clarity, and consistency—for each gen-LLM and generation strategy on the real-world and ICU databases, respectively. These scores were generated using the Judge-LLM, which evaluated each delta ontology fragment in its local context. The reported values represent aggregated scores across all delta ontologies within each database. ",
+        "bbox": [
+            218,
+            386,
+            785,
+            492
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "table",
+        "img_path": "images/7d31f7e8cff6a3d66f7c0e55b7f316c6bd50a76e90e82af4431ef377a5442aab.jpg",
+        "table_caption": [],
+        "table_footnote": [
+            "Table 6: CQ Performance comparison of gen-LLMs across Baseline, Non-Iterative, and RIGOR methods on real-world database across various metrics. "
+        ],
+        "table_body": "<table><tr><td>gen-LLMs</td><td>Accuracy</td><td>Completeness</td><td>Conciseness</td><td>Adaptability</td><td>Clarity</td><td>Consistency</td><td>Overall</td></tr><tr><td>LLama</td><td>4.08</td><td>4.52</td><td>4.5</td><td>4.53</td><td>4.5</td><td>4.78</td><td>4.4</td></tr><tr><td>Mistral</td><td>4.12</td><td>4.35</td><td>4.23</td><td>4.15</td><td>4.21</td><td>4.14</td><td>4.2</td></tr><tr><td>Deepseek</td><td>4.49</td><td>4.5</td><td>4.5</td><td>4.5</td><td>4.5</td><td>4.79</td><td>4.6</td></tr></table>",
+        "bbox": [
+            220,
+            517,
+            782,
+            565
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "table",
+        "img_path": "images/2401cbc26764b84fbb564523ce5e1fb441e67974449aea2c96c1395ec091d140.jpg",
+        "table_caption": [],
+        "table_footnote": [
+            "Table 7: CQ Performance comparison of gen-LLMs across Baseline, Non-Iterative, and RIGOR methods on ICU database across various metrics. "
+        ],
+        "table_body": "<table><tr><td>gen-LLMs</td><td>Accuracy</td><td>Completeness</td><td>Conciseness</td><td>Adaptability</td><td>Clarity</td><td>Consistency</td><td>Overall</td></tr><tr><td>LLama</td><td>4.5</td><td>4.54</td><td>4.33</td><td>4.5</td><td>4.43</td><td>4.73</td><td>4.5</td></tr><tr><td>Mistral</td><td>4.2</td><td>4.23</td><td>4.24</td><td>4.19</td><td>4.12</td><td>4.11</td><td>4.2</td></tr><tr><td>Deepseek</td><td>4.5</td><td>4.53</td><td>4.33</td><td>4.5</td><td>4.41</td><td>4.73</td><td>4.5</td></tr></table>",
+        "bbox": [
+            220,
+            638,
+            782,
+            686
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "(b) Delta Ontology Visualization and Semantic Alignment: Figure 5 complements this analysis by illustrating a specific delta ontology (chemotherapy ontology— generated using the RIGOR framework and LLaMA 3.1 on the Realworld database) and its semantic alignment with the database schema. Part (a) visualizes the structure of the ontology. Part (b) shows the semantic similarity heatmap between ontology class names and column names of the corresponding table, highlighting the ontology’s schema-level coverage. ",
+        "bbox": [
+            218,
+            733,
+            785,
+            839
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "image",
+        "img_path": "images/b35700aa72e1d26cefee43fa337c77f69734bfb01bb7ce0d515b4a745b5bc503.jpg",
+        "image_caption": [
+            "Fig. 5: (a) Visual representation of the chemotherapy delta ontology structure generated by Llama 3.1 from RIGOR from real-world database, generated using WebVOWL 1.1.7. (b) Semantic alignment between ontology classes and database table column names based on embedding-based similarity. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            266,
+            154,
+            741,
+            898
+        ],
+        "page_idx": 24
+    }
+]

@@ -1,0 +1,124 @@
+{
+    "schema_proposal": {
+        "title": {
+            "data_type": "string",
+            "description": "Paper title",
+            "rationale": "Canonical identifier for the paper."
+        },
+        "authors": {
+            "data_type": "list",
+            "description": "List of authors",
+            "rationale": "Credit and disambiguation of contributions."
+        },
+        "year": {
+            "data_type": "integer",
+            "description": "Year of publication",
+            "rationale": "Provides context for the research timeline."
+        },
+        "abstract": {
+            "data_type": "string",
+            "description": "Summary of the paper's content",
+            "rationale": "Gives a brief overview of the research focus and findings."
+        },
+        "doi": {
+            "data_type": "string",
+            "description": "Digital Object Identifier",
+            "rationale": "Unique identifier for locating the paper online."
+        },
+        "venue": {
+            "data_type": "string",
+            "description": "Conference or journal where the paper was published",
+            "rationale": "Indicates the context and audience for the research."
+        },
+        "problem_statement": {
+            "data_type": "string",
+            "description": "Description of the main problem addressed",
+            "rationale": "Clarifies the research gap and motivation for the study."
+        },
+        "methodology": {
+            "data_type": "object",
+            "description": "Overview of the research methods used",
+            "rationale": "Details the approach taken to address the problem.",
+            "sub_keys": {
+                "survey_details": {
+                    "data_type": "object",
+                    "description": "Information about the survey conducted",
+                    "rationale": "Provides context on data collection methods.",
+                    "sub_keys": {
+                        "participants": {
+                            "data_type": "list",
+                            "description": "Demographics of survey participants",
+                            "rationale": "Understanding the sample population is crucial for interpretation."
+                        },
+                        "questions": {
+                            "data_type": "list",
+                            "description": "List of topics covered in the survey",
+                            "rationale": "Highlights the focus areas of the survey."
+                        }
+                    }
+                },
+                "analysis_method": {
+                    "data_type": "string",
+                    "description": "Type of analysis performed on survey data",
+                    "rationale": "Clarifies how the data was interpreted."
+                }
+            }
+        },
+        "results": {
+            "data_type": "object",
+            "description": "Key findings from the research",
+            "rationale": "Summarizes the outcomes of the study.",
+            "sub_keys": {
+                "barriers_identified": {
+                    "data_type": "list",
+                    "description": "List of barriers to error analysis reported by participants",
+                    "rationale": "Identifies challenges faced in the field."
+                },
+                "enabling_factors": {
+                    "data_type": "list",
+                    "description": "List of factors that could facilitate error analysis",
+                    "rationale": "Highlights potential solutions to the identified barriers."
+                },
+                "participant_feedback": {
+                    "data_type": "string",
+                    "description": "General sentiment from participants regarding error analysis",
+                    "rationale": "Provides insight into the community's view on the practice."
+                }
+            }
+        },
+        "discussion": {
+            "data_type": "object",
+            "description": "Interpretation of results and implications for the field",
+            "rationale": "Contextualizes findings within broader research trends.",
+            "sub_keys": {
+                "cultural_incentives": {
+                    "data_type": "string",
+                    "description": "Discussion on the cultural aspects affecting error analysis adoption",
+                    "rationale": "Explores how community norms influence research practices."
+                },
+                "future_directions": {
+                    "data_type": "list",
+                    "description": "Proposed future research directions based on findings",
+                    "rationale": "Suggests areas for further investigation and improvement."
+                }
+            }
+        },
+        "reproducibility_metadata": {
+            "data_type": "object",
+            "description": "Information supporting the reproducibility of the study",
+            "rationale": "Ensures that others can replicate the research.",
+            "sub_keys": {
+                "data_access": {
+                    "data_type": "string",
+                    "description": "Link or reference to the data used in the study",
+                    "rationale": "Facilitates access to the underlying data."
+                },
+                "code_access": {
+                    "data_type": "string",
+                    "description": "Link or reference to the code used for analysis",
+                    "rationale": "Allows others to verify the analysis process."
+                }
+            }
+        }
+    }
+}

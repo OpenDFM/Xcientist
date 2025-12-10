@@ -1,0 +1,15 @@
+v1.0: 
+original version
+
+v1.1: 
+Notice that human extraction tend to add keynotes/example besides the target content, so we modify the prompt to align the contents.
+
+v1.2: 
+Notice that LLM do not always follow the suggestion to add keynotes and example.
+so: you are encouraged to -> you should
+Set "provide insights" as a main task in the overall statement of LLM task
+
+v1.3:
+Even 4o do not follow the instruction well.
+should -> must
+move the value rule to the front of normalization rule

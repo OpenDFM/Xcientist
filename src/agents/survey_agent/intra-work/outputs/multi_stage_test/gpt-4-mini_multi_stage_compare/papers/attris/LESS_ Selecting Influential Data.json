@@ -1,0 +1,258 @@
+{
+    "from": null,
+    "scholar_id": null,
+    "detail_id": null,
+    "title": "LESS: Selecting Influential Data",
+    "bib_name": "LESS:Selec1",
+    "attri": {
+        "extraction": {
+            "title": {
+                "value": "LESS: Selecting Influential Data for Targeted Instruction Tuning",
+                "type": "string",
+                "unit": null,
+                "evidence": "# LESS: Selecting Influential Data for Targeted Instruction Tuning",
+                "provenance": {
+                    "section_header": "Title",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "authors": {
+                "value": [
+                    "Mengzhou Xia",
+                    "Sadhika Malladi",
+                    "Suchin Gururangan",
+                    "Sanjeev Arora",
+                    "Danqi Chen"
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "*Equal contribution 1Princeton Language and Intelligence (PLI), Princeton University, USA 2Department of Computer Science, University of Washington, USA.",
+                "provenance": {
+                    "section_header": "Title",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "year": {
+                "value": 2024,
+                "type": "integer",
+                "unit": null,
+                "evidence": "Proceedings of the  $41^{st}$  International Conference on Machine Learning, Vienna, Austria. PMLR 235, 2024.",
+                "provenance": {
+                    "section_header": "Title",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "abstract": {
+                "value": "Instruction tuning has unlocked powerful capabilities in large language models (LLMs), using combined datasets to develop general-purpose chatbots. However, real-world applications often require a specialized suite of skills (e.g., reasoning). The challenge lies in identifying the most relevant data from these extensive datasets to effectively develop specific capabilities, a setting we frame as targeted instruction tuning. We propose LESS, an optimizer-aware and practically efficient algorithm to estimate data influences and perform Low-rank gradEnt Similarity Search for instruction data selection. Crucially, LESS adapts existing influence formulations to work with the Adam optimizer and variable-length instruction data. LESS first constructs a highly reusable and transferable gradient datastore with low-dimensional gradient features and then selects examples based on their similarity to few-shot examples embodying a specific capability. Experiments show that training on a LESS-selected 5% of the data can often outperform training on the full dataset across diverse downstream tasks. Furthermore, the selected data is highly transferable: smaller models can be leveraged to select useful data for larger models and models from different families. Our qualitative analysis shows that our method goes beyond surface form cues to identify data that exemplifies the necessary reasoning skills for the intended downstream application. To facilitate future work, we release code and data at princeton.nlp/LESS.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Instruction tuning has unlocked powerful capabilities in large language models (LLMs), using combined datasets to develop general-purpose chatbots. However, real-world applications often require a specialized suite of skills (e.g., reasoning). ...",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "doi": {
+                "value": null,
+                "type": "string",
+                "unit": null,
+                "evidence": null,
+                "provenance": {
+                    "section_header": null,
+                    "page": null
+                },
+                "notes": "DOI not provided in the paper."
+            },
+            "venue": {
+                "value": "Proceedings of the 41st International Conference on Machine Learning",
+                "type": "string",
+                "unit": null,
+                "evidence": "Proceedings of the  $41^{st}$  International Conference on Machine Learning, Vienna, Austria.",
+                "provenance": {
+                    "section_header": "Title",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "problem_statement": {
+                "value": "The challenge lies in identifying the most relevant data from these extensive datasets to effectively develop specific capabilities, a setting we frame as targeted instruction tuning.",
+                "type": "string",
+                "unit": null,
+                "evidence": "The challenge lies in identifying the most relevant data from these extensive datasets to effectively develop specific capabilities, a setting we frame as targeted instruction tuning.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "methodology": {
+                "algorithm": {
+                    "value": "LESS",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "We propose LESS, an optimizer-aware and practically efficient algorithm to estimate data influences and perform Low-rank gradEnt Similarity Search for instruction data selection.",
+                    "provenance": {
+                        "section_header": "Abstract",
+                        "page": 1
+                    },
+                    "notes": ""
+                },
+                "features": {
+                    "value": [
+                        "optimizer-aware",
+                        "efficient",
+                        "low-dimensional gradient features",
+                        "transferable"
+                    ],
+                    "type": "list",
+                    "unit": null,
+                    "evidence": "LESS adapts existing influence formulations to work with the Adam optimizer and variable-length instruction data. LESS first constructs a highly reusable and transferable gradient datastore with low-dimensional gradient features...",
+                    "provenance": {
+                        "section_header": "Abstract",
+                        "page": 1
+                    },
+                    "notes": ""
+                },
+                "adaptations": {
+                    "value": [
+                        "adapts influence formulations for Adam optimizer",
+                        "uses low-rank gradient features"
+                    ],
+                    "type": "list",
+                    "unit": null,
+                    "evidence": "LESS adapts existing influence formulations to work with the Adam optimizer and variable-length instruction data.",
+                    "provenance": {
+                        "section_header": "Abstract",
+                        "page": 1
+                    },
+                    "notes": ""
+                }
+            },
+            "experiments": {
+                "datasets": {
+                    "value": [
+                        "MMLU",
+                        "TYDIQA",
+                        "BBH"
+                    ],
+                    "type": "list",
+                    "unit": null,
+                    "evidence": "We evaluate our approach on three diverse downstream datasets\u2014MMLU (Hendrycks et al., 2020), TYDIQA (Clark et al., 2020), and BBH (Suzgun et al., 2023)\u2014each containing distinct subtasks...",
+                    "provenance": {
+                        "section_header": "Introduction",
+                        "page": 1
+                    },
+                    "notes": ""
+                },
+                "metrics": {
+                    "value": [
+                        "accuracy",
+                        "performance"
+                    ],
+                    "type": "list",
+                    "unit": null,
+                    "evidence": "Results show that LESS often selects a small subset of the data (5%) that outperforms training on the full dataset...",
+                    "provenance": {
+                        "section_header": "Introduction",
+                        "page": 1
+                    },
+                    "notes": ""
+                },
+                "results": {
+                    "performance": {
+                        "value": [
+                            50.2,
+                            54.0,
+                            41.5
+                        ],
+                        "type": "list",
+                        "unit": null,
+                        "evidence": "Table 2: Results of LESS (selected with target model's gradient store) and LESS-T (selected with LLAMA-2-7B's gradient store) on LLAMA-2-7B, LLAMA-2-13B and MISTRAL-7B.",
+                        "provenance": {
+                            "section_header": "Results",
+                            "page": 1
+                        },
+                        "notes": "Performance metrics from Table 2."
+                    },
+                    "comparisons": {
+                        "value": [
+                            "random selection",
+                            "BM25",
+                            "DSIR",
+                            "RDS"
+                        ],
+                        "type": "list",
+                        "unit": null,
+                        "evidence": "We compare LESS with several baselines...",
+                        "provenance": {
+                            "section_header": "Experiments",
+                            "page": 1
+                        },
+                        "notes": ""
+                    }
+                }
+            },
+            "conclusions": {
+                "value": "Our findings suggest that instruction data calls for a refined definition of similarity between data points (i.e., the influence formulation in Definition 3.1).",
+                "type": "string",
+                "unit": null,
+                "evidence": "Our findings suggest that instruction data calls for a refined definition of similarity between data points...",
+                "provenance": {
+                    "section_header": "Conclusions",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "future_work": {
+                "value": "LESS could be effectively used for test-time adaptation, allowing the model to adapt on data selected based on the context and demonstrations provided by the users.",
+                "type": "string",
+                "unit": null,
+                "evidence": "In the future, LESS could be effectively used for test-time adaptation, allowing the model to adapt on data selected based on the context and demonstrations provided by the users.",
+                "provenance": {
+                    "section_header": "Discussion and Future Work",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "reproducibility_metadata": {
+                "code_url": {
+                    "value": "princeton.nlp/LESS",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "To facilitate future work, we release code and data at princeton.nlp/LESS.",
+                    "provenance": {
+                        "section_header": "Abstract",
+                        "page": 1
+                    },
+                    "notes": ""
+                },
+                "data_url": {
+                    "value": null,
+                    "type": "string",
+                    "unit": null,
+                    "evidence": null,
+                    "provenance": {
+                        "section_header": null,
+                        "page": null
+                    },
+                    "notes": "No specific data URL provided."
+                },
+                "environment": {
+                    "value": "LLAMA-2-7B",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "We test LESS with three base models: LLAMA-2-7B (Touvron et al., 2023), LLAMA-2-13B (Touvron et al., 2023), and MISTRAL-7B (Jiang et al., 2023).",
+                    "provenance": {
+                        "section_header": "Experiments",
+                        "page": 1
+                    },
+                    "notes": ""
+                }
+            }
+        }
+    }
+}

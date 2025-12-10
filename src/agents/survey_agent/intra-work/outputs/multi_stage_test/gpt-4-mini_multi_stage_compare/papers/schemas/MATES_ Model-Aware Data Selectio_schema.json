@@ -1,0 +1,165 @@
+{
+    "schema_proposal": {
+        "title": {
+            "data_type": "string",
+            "description": "Paper title",
+            "rationale": "Canonical identifier of the research work."
+        },
+        "authors": {
+            "data_type": "list",
+            "description": "List of authors",
+            "rationale": "Acknowledges contributions and facilitates disambiguation."
+        },
+        "year": {
+            "data_type": "integer",
+            "description": "Year of publication",
+            "rationale": "Provides context for the research timeline."
+        },
+        "abstract": {
+            "data_type": "string",
+            "description": "Summary of the paper",
+            "rationale": "Gives a concise overview of the research objectives and findings."
+        },
+        "doi": {
+            "data_type": "string",
+            "description": "Digital Object Identifier",
+            "rationale": "Unique identifier for accessing the paper online."
+        },
+        "venue": {
+            "data_type": "string",
+            "description": "Conference or journal name",
+            "rationale": "Indicates where the research was published."
+        },
+        "problem_statement": {
+            "data_type": "string",
+            "description": "Research problem addressed",
+            "rationale": "Clarifies the specific issue the paper aims to solve."
+        },
+        "methodology": {
+            "data_type": "object",
+            "description": "Research methods used in the study",
+            "rationale": "Details the approach taken to address the research problem.",
+            "sub_keys": {
+                "method_name": {
+                    "data_type": "string",
+                    "description": "Name of the method used",
+                    "rationale": "Identifies the specific technique applied."
+                },
+                "method_description": {
+                    "data_type": "string",
+                    "description": "Description of the methodology",
+                    "rationale": "Explains how the method works in detail."
+                },
+                "data_influence_model": {
+                    "data_type": "object",
+                    "description": "Details about the data influence model",
+                    "rationale": "Describes the specific model used to assess data influence.",
+                    "sub_keys": {
+                        "model_type": {
+                            "data_type": "string",
+                            "description": "Type of data influence model",
+                            "rationale": "Specifies the architecture or framework used."
+                        },
+                        "training_method": {
+                            "data_type": "string",
+                            "description": "Training method for the model",
+                            "rationale": "Indicates how the model was trained."
+                        }
+                    }
+                }
+            }
+        },
+        "experiments": {
+            "data_type": "list",
+            "description": "List of experiments conducted",
+            "rationale": "Details the various tests performed to validate the method.",
+            "sub_keys": {
+                "experiment_name": {
+                    "data_type": "string",
+                    "description": "Name of the experiment",
+                    "rationale": "Identifies the specific test conducted."
+                },
+                "results": {
+                    "data_type": "object",
+                    "description": "Results of the experiment",
+                    "rationale": "Summarizes the findings of the experiment.",
+                    "sub_keys": {
+                        "accuracy": {
+                            "data_type": "float",
+                            "description": "Accuracy achieved in the experiment",
+                            "rationale": "Quantifies the performance of the method."
+                        },
+                        "flops": {
+                            "data_type": "float",
+                            "description": "Total FLOPs used",
+                            "rationale": "Indicates the computational cost of the experiment."
+                        }
+                    }
+                }
+            }
+        },
+        "results": {
+            "data_type": "object",
+            "description": "Overall results of the research",
+            "rationale": "Summarizes key findings and their implications.",
+            "sub_keys": {
+                "performance_gain": {
+                    "data_type": "float",
+                    "description": "Performance improvement over baseline",
+                    "rationale": "Indicates how much better the proposed method performs."
+                },
+                "comparison": {
+                    "data_type": "object",
+                    "description": "Comparison with existing methods",
+                    "rationale": "Highlights how the new method stacks against previous approaches.",
+                    "sub_keys": {
+                        "baseline_method": {
+                            "data_type": "string",
+                            "description": "Name of the baseline method",
+                            "rationale": "Identifies the method used for comparison."
+                        },
+                        "baseline_performance": {
+                            "data_type": "float",
+                            "description": "Performance of the baseline method",
+                            "rationale": "Provides a reference for evaluating the new method."
+                        }
+                    }
+                }
+            }
+        },
+        "reproducibility_metadata": {
+            "data_type": "object",
+            "description": "Information for reproducing the study",
+            "rationale": "Facilitates validation and replication of the research.",
+            "sub_keys": {
+                "code_link": {
+                    "data_type": "string",
+                    "description": "Link to the source code",
+                    "rationale": "Provides access to the implementation of the method."
+                },
+                "data_link": {
+                    "data_type": "string",
+                    "description": "Link to the dataset used",
+                    "rationale": "Enables access to the data for further research."
+                },
+                "hyperparameters": {
+                    "data_type": "object",
+                    "description": "Hyperparameters used in the experiments",
+                    "rationale": "Details the settings for the experiments.",
+                    "sub_keys": {
+                        "learning_rate": {
+                            "data_type": "float",
+                            "description": "Learning rate used",
+                            "rationale": "Critical for understanding model training dynamics."
+                        },
+                        "batch_size": {
+                            "data_type": "integer",
+                            "description": "Batch size during training",
+                            "rationale": "Influences training efficiency and model performance."
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

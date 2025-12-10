@@ -1,0 +1,179 @@
+{
+  "extraction": {
+    "title": {
+      "value": "Checklists Are Better Than Reward Models For Aligning Language Models",
+      "type": "string",
+      "unit": null,
+      "evidence": "标题：《Checklists Are Better Than Reward Models For Aligning Language Models》，卡内基梅隆大学与Apple联合发表。",
+      "provenance": {
+        "section_header": "标题",
+        "page": null
+      },
+      "notes": ""
+    },
+    "source_link": {
+      "value": "https://arxiv.org/pdf/2507.18624v1",
+      "type": "string",
+      "unit": null,
+      "evidence": "🔗 链接：https://arxiv.org/pdf/2507.18624v1",
+      "provenance": {
+        "section_header": "来源信息",
+        "page": null
+      },
+      "notes": ""
+    },
+    "introduction": {
+      "core_problem": {
+        "value": "Core issue: Reinforcement learning has been widely used for various model alignment tasks, but when dealing with ambiguous or \"unverifiable\" tasks (such as instruction following), it is often difficult to provide precise rewards based on standards like \"helpfulness\" or \"harmlessness.\" Existing reward methods that use verifiable answers can limit the learning space, while specially trained reward models may lead to issues like Reward Hacking, affecting the model's performance under complex and diverse instructions.",
+        "type": "string",
+        "unit": null,
+        "evidence": "核心问题：强化学习已广泛用于各种模型对齐任务，但在处理模糊或 \"不可验证\" 任务（如指令遵循）通常采用\"帮助性\"、\"无害性\"等标准，很难提供精确的奖励。现有奖励方法中，使用可验证答案会限制学习空间，而专门训练的奖励模型可能导致Reward Hacking等，影响模型在复杂多样指令下的表现。",
+        "provenance": {
+          "section_header": "摘要",
+          "page": null
+        },
+        "notes": ""
+      },
+      "research_motivation": {
+        "value": "Research Motivation: To enhance the understanding and execution capabilities of language models for complex instructions, the research team proposed a new method—Reinforcement Learning with Checklist Feedback (RLCF). This method extracts dynamic checklists from instructions and evaluates response quality based on the items in the checklist, thereby providing more flexible and comprehensive feedback signals.",
+        "type": "string",
+        "unit": null,
+        "evidence": "研究动机：为了提升语言模型对复杂指令的理解和执行能力，研究团队提出了一种新的方法——基于清单反馈的强化学习（RLCF）。该方法通过从指令中提取动态清单，并根据清单中的项目评估响应质量，从而提供更灵活、更全面的反馈信号。",
+        "provenance": {
+          "section_header": "摘要",
+          "page": null
+        },
+        "notes": ""
+      },
+      "innovation_summary": {
+        "value": "Innovation: Introducing RLCF (Reinforcement Learning based on Checklist Feedback), which extracts dynamic checklists from instructions, combines AI-judge and verification programs to evaluate responses, and generates reward signals.",
+        "type": "string",
+        "unit": null,
+        "evidence": "创新点：提出 RLCF（基于检查清单反馈的强化学习），从指令中提取动态checklist，结合AI-judge和验证程序评估响应，生成奖励信号。",
+        "provenance": {
+          "section_header": "摘要",
+          "page": null
+        },
+        "notes": ""
+      }
+    },
+    "methods": {
+      "checklist_extraction_methods": {
+        "direct_method": {
+          "value": "Direct methods extract checklists from given instructions by prompting language models.",
+          "type": "string",
+          "unit": null,
+          "evidence": "直接方法通过提示语言模型从给定指令中提取检查表",
+          "provenance": {
+            "section_header": "核心方法",
+            "page": null
+          },
+          "notes": ""
+        },
+        "candidate_method": {
+          "value": "The candidate methods write possible failure modes by generating responses of varying quality, thereby constructing a checklist (generate responses of varying quality → extract failure modes), which is more objective and atomic than directly prompting for checklist items.",
+          "type": "string",
+          "unit": null,
+          "evidence": "候选方法则通过生成不同质量的响应来写出可能的失败模式，从而构建检查表（生成不同质量响应→提取失败模式），比直接提示生成的检查项更客观、原子化",
+          "provenance": {
+            "section_header": "核心方法",
+            "page": null
+          },
+          "notes": ""
+        },
+        "dataset_construction": {
+          "value": "A dataset of 130,000 WildChecklists constructed using candidate methods.",
+          "type": "string",
+          "unit": null,
+          "evidence": "使用该方法构建13w条WildChecklists数据集",
+          "provenance": {
+            "section_header": "核心方法",
+            "page": null
+          },
+          "notes": ""
+        }
+      },
+      "rlcf_principle": {
+        "value": "Propose the principle of \"Reinforcement Learning from Checklist Feedback\" (RLCF), which provides informative learning signals for preference optimization by maintaining 40% of the maximum differences in responses, and uses DPO for training.",
+        "type": "string",
+        "unit": null,
+        "evidence": "提出\"强化学习从检查表反馈\" (RLCF)的原则，通过保持响应对中最大差异的40%来提供有信息的学习信号，以便进行偏好优化，并使用DPO训练",
+        "provenance": {
+          "section_header": "核心方法",
+          "page": null
+        },
+        "notes": ""
+      },
+      "evaluation_mechanism": {
+        "value": "Collaborative scoring by AI referee (averaging 25 samples) + verification program (handling discrete features) for each inspection item.",
+        "type": "string",
+        "unit": null,
+        "evidence": "对每个检查项，AI裁判（采样25次取平均）+ 验证程序（处理离散特征）协同评分",
+        "provenance": {
+          "section_header": "核心方法",
+          "page": null
+        },
+        "notes": ""
+      }
+    },
+    "experiments": {
+      "test_datasets": {
+        "value": "The research team conducted experiments on five widely used benchmark datasets, including IFEval, InFoBench, FollowBench, AlpacaEval, and Arena-Hard.",
+        "type": "string",
+        "unit": null,
+        "evidence": "研究团队在五个广泛使用的基准数据集上进行了实验，包括IFEval、InFoBench、FollowBench、AlpacaEval和Arena-Hard",
+        "provenance": {
+          "section_header": "实验结果",
+          "page": null
+        },
+        "notes": ""
+      },
+      "performance_improvements": {
+        "value": "RLCF shows consistent performance improvements across all instruction-following benchmarks, with an average hard satisfaction rate increase of 5.4% on FollowBench, 6.9% on InFoBench, and 6.4% on Arena-Hard compared to the baseline model.",
+        "type": "string",
+        "unit": null,
+        "evidence": "RLCF在所有指令遵循基准上均表现出一致的性能提升，相较于基线模型在FollowBench上平均硬满意率提升5.4%，在InFoBench上提升6.9%，在Arena-Hard上提升6.4%",
+        "provenance": {
+          "section_header": "实验结果",
+          "page": null
+        },
+        "notes": ""
+      },
+      "checklist_quality_comparison": {
+        "value": "The candidate checklists generated by the checklist generation method outperform those generated by direct prompts in terms of objectivity, atomicity, and overall quality, thereby producing positive effects in subsequent reinforcement learning training.",
+        "type": "string",
+        "unit": null,
+        "evidence": "检查表生成的候选方式比直接提示生成的检查表在客观性、原子性和整体质量上表现更佳，从而在后续的强化学习训练中产生积极效果",
+        "provenance": {
+          "section_header": "实验结果",
+          "page": null
+        },
+        "notes": ""
+      }
+    },
+    "conclusions": {
+      "limitations": {
+        "value": "Limitations: Relies on a strong teacher model to provide rewards for smaller models; the research scope is limited to DPO and has not yet explored the use of checklist feedback on PPO.",
+        "type": "string",
+        "unit": null,
+        "evidence": "局限性：依赖强教师模型为较小模型提供奖励；研究范围仅限DPO，还未探索在PPO上使用checklist反馈",
+        "provenance": {
+          "section_header": "总结与展望",
+          "page": null
+        },
+        "notes": ""
+      },
+      "future_directions": {
+        "value": "Outlook: RLCF replaces the reward model with a dynamic checklist, allowing for flexible adaptation to various instructions without the need for labeling. In the future, it may explore the combination of checklist rewards with trainable judges to further optimize efficiency.",
+        "type": "string",
+        "unit": null,
+        "evidence": "展望：RLCF通过动态checklist替代奖励模型，无需标注即可灵活适应各类指令，未来可探索checklist奖励与可训练的judge结合，进一步优化效率",
+        "provenance": {
+          "section_header": "总结与展望",
+          "page": null
+        },
+        "notes": ""
+      }
+    }
+  }
+}

@@ -1,0 +1,2507 @@
+[
+    {
+        "type": "text",
+        "text": "Investigating the Factual Knowledge Boundary of Large Language Models with Retrieval Augmentation ",
+        "text_level": 1,
+        "bbox": [
+            114,
+            79,
+            882,
+            118
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Ruiyang $\\mathbf { R e n } ^ { 1 , 3 * \\dagger }$ Yuhao Wang1,3\\* Yingqi $\\mathbf { Q } \\mathbf { u } ^ { 2 }$ Wayne Xin Zhao1,3‡ Jing Liu2‡ Hao Tian2 Hua $\\mathbf { W } \\mathbf { u } ^ { 2 }$ Ji-Rong Wen1,3 Haifeng Wang2 1Gaoling School of Artificial Intelligence, Renmin University of China 2Baidu Inc. 3Beijing Key Laboratory of Big Data Management and Analysis Methods {reyon.ren, yh.wang, jrwen} $@$ ruc.edu.cn, batmanfly $@$ gmail.com {quyingqi, liujing46, tianhao, wu_hua, wanghaifeng} $@$ baidu.com ",
+        "bbox": [
+            137,
+            123,
+            863,
+            242
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Abstract ",
+        "text_level": 1,
+        "bbox": [
+            263,
+            261,
+            339,
+            277
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Large language models (LLMs) have shown impressive prowess in solving a wide range of tasks with world knowledge. However, it remains unclear how well LLMs are able to perceive their factual knowledge boundaries, particularly under retrieval augmentation settings. In this study, we present the first analysis on the factual knowledge boundaries of LLMs and how retrieval augmentation affects LLMs on open-domain question answering (QA), with a bunch of important findings. Specifically, we focus on three research questions and analyze them by examining QA, priori judgement and posteriori judgement capabilities of LLMs. We show evidence that LLMs possess unwavering confidence in their knowledge and cannot handle the conflict between internal and external knowledge well. Furthermore, retrieval augmentation proves to be an effective approach in enhancing LLMs’ awareness of knowledge boundaries. We further conduct thorough experiments to examine how different factors affect LLMs and propose a simple method to dynamically utilize supporting documents with our judgement strategy. Additionally, we find that the relevance between the supporting documents and the questions significantly impacts LLMs’ QA and judgemental capabilities. The code to reproduce this work is available at https://github.com/RUCAIBox/ LLM-Knowledge-Boundary. ",
+        "bbox": [
+            146,
+            290,
+            458,
+            727
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1 Introduction ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            740,
+            258,
+            756
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Knowledge-intensive tasks, defined by their requirement for extensive knowledge, represent a significant area of interest within the field of natural language processing (Petroni et al., 2021). A prime example of such tasks is open-domain question answering (QA) (Chen et al., 2017), which necessitates the assistance of information retrieval systems (Zhao et al., 2023) to obtain relevant information. Subsequently, a reading comprehension model is employed to identify and retrieve pertinent information, ultimately yielding the final response. ",
+        "bbox": [
+            117,
+            765,
+            487,
+            877
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            262,
+            882,
+            325
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Recently, large language models (LLMs) have showcased remarkable abilities in solving various tasks, which are capable of encoding extensive volumes of world knowledge within their parameters (Brown et al., 2020a; Ouyang et al., 2022; Zhao et al., 2023). Despite their exceptional capabilities, LLMs may exhibit limited flexibility in knowledge-intensive tasks, necessitating the incorporation of retrieval augmentation strategies. Several pioneering efforts have applied LLMs to opendomain QA tasks (Qin et al., 2023; Kamalloo et al., 2023; Wang et al., 2023a; Sun et al., 2023; Xu et al., 2024). Typically, they mainly focus on evaluating the QA performance of LLMs, discussing improved evaluation methods or leveraging LLMs to enhance QA models. The existing effort also detects the uncertainty of LLMs with an automated method (Yin et al., 2023). Furthermore, the issue of hallucination poses challenges to LLMs’ reliable deployment, while retrieval augmentation is considered an effective method to mitigate hallucinations (Li et al., 2024; Shuster et al., 2021; Wang et al., 2023b). ",
+        "bbox": [
+            512,
+            326,
+            882,
+            694
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Despite the contribution of existing studies, there is still a lack of a deep understanding of LLMs’ capabilities in perceiving their factual knowledge boundaries, particularly when external resources can be used. For instance, it remains uncertain whether LLMs are able to assess their own ability to answer questions, evaluate whether the provided reference is sufficient to address the questions, and assess the accuracy of their own answers. Our primary focus is the factual knowledge boundary of LLMs, and study the impact of retrieval augmentation on the generation of LLMs. ",
+        "bbox": [
+            512,
+            697,
+            882,
+            889
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "To this end, we undertake a thorough analysis of the influence of retrieval augmentation on the generation quality of LLMs, with a specific focus on QA performance and LLMs’ perception of their factual knowledge boundaries. In order to fully explore the knowledge boundaries of LLMs, we consider a wide range of LLMs, including closed source LLMs and publicly available LLMs. To measure the capacity of knowledge boundary perception, we consider two alternative approaches. The first one is priori judgement, in which LLMs assess the feasibility of answering a given question before the response generation process. The second one is posteriori judgement, where LLMs evaluate the correctness of their answer to questions after the response generation process. The two approaches can evaluate the knowledge boundary perception of LLMs from different perspectives. For retrieval augmentation, we adopt multiple retrieval models to provide supporting documents for LLMs regarding the given questions. ",
+        "bbox": [
+            512,
+            891,
+            882,
+            921
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            84,
+            487,
+            390
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "To conduct a comprehensive investigation, our work aims to answer three research questions progressively: (i) To what extent can LLMs perceive their factual knowledge boundaries? (ii) What effect does retrieval augmentation have on LLMs? (iii) How do supporting documents with different characteristics affect LLMs? ",
+        "bbox": [
+            115,
+            392,
+            487,
+            502
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "We design comprehensive experiments to thoroughly explore these research questions individually. Furthermore, building upon priori judgement, we attempt a simple method for dynamically introducing retrieval augmentation to LLMs with a performance gain. Based on the empirical analysis, we have derived the following important findings corresponding to the three research questions: ",
+        "bbox": [
+            115,
+            504,
+            487,
+            632
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "• LLMs’ perception of the factual knowledge boundary is inaccurate and they often display a tendency towards being overconfident. LLMs are also not able to handle internalexternal knowledge conflicts well. ",
+        "bbox": [
+            137,
+            644,
+            487,
+            724
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "• LLMs cannot sufficiently utilize their internal knowledge, while retrieval augmentation can provide a beneficial knowledge supplement for LLMs, especially for smaller LLMs. Retrieval augmentation can also enhance LLMs’ perception on their factual knowledge boundaries. Furthermore, the performance of retrieval-augmented LLMs is affected by model-specific factors, question types, and the characteristics of the retrieval documents. ",
+        "bbox": [
+            137,
+            734,
+            487,
+            894
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "• LLMs exhibit improved performance and confidence when referring high-quality supporting documents and tend to rely on the provided information to produce the responses. The reliance extent and LLMs’ confidence are contingent upon the relevance between the supporting documents and the question. ",
+        "bbox": [
+            139,
+            907,
+            487,
+            921
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            547,
+            85,
+            884,
+            180
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2 Background and Methodology ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            190,
+            805,
+            206
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "In this section, we provide an overview of the background and fundamental methodologies that are essential for this study. ",
+        "bbox": [
+            512,
+            215,
+            882,
+            262
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2.1 Task Formulation ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            273,
+            695,
+            288
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "We conduct experiments on open-domain question answering (QA), which can be described as follows. Given a question $q$ in natural language and a large document collection $\\mathcal { D } ~ = ~ \\{ d _ { i } \\} _ { i = 1 } ^ { m }$ such as Wikipedia, the model is required to provide an answer $a$ to the question $q$ with the help of the provided corpus $\\mathcal { D }$ . With large language models (LLMs), the open-domain QA task can be directly solved in an end-to-end manner in a closedbook setting (Qin et al., 2023). Given a question $q$ the answer $a$ can be generated by the LLM with a prompt $p$ following a specific output format: ",
+        "bbox": [
+            512,
+            294,
+            882,
+            487
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "equation",
+        "img_path": "images/429a724d2c626fe1d2b0621191351e96b345460dd436fb5daabb8b0d2d3fad2f.jpg",
+        "text": "$$\na = f _ { \\mathrm { L L M } } ( p , q ) .\n$$",
+        "text_format": "latex",
+        "bbox": [
+            635,
+            495,
+            757,
+            513
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "When enhancing the LLM with retrieval, a typical strategy is designing prompt $p$ to instruct the LLM to provide an answer $a$ to question $q$ using the supporting documents $\\mathcal { L }$ retrieved by the retriever: ",
+        "bbox": [
+            510,
+            523,
+            882,
+            586
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "equation",
+        "img_path": "images/71efd675b3589239f30316d8cedab3eaf39815fef8970b43e0d3d2016f388898.jpg",
+        "text": "$$\na = f _ { \\mathrm { L L M } } ( p , q , { \\mathcal { L } } ) .\n$$",
+        "text_format": "latex",
+        "bbox": [
+            625,
+            595,
+            769,
+            613
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Equation 1 and 2 present two approaches for LLMs to solve QA tasks, we also adopt these approaches to evaluate LLMs’ factual knowledge boundaries. ",
+        "bbox": [
+            510,
+            623,
+            880,
+            670
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2.2 Instructing LLMs with Natural Language Prompts ",
+        "text_level": 1,
+        "bbox": [
+            510,
+            681,
+            880,
+            713
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "We consider two instruction settings, namely QA prompting and judgemental prompting. Figure 1 provides an overall illustration of our prompting strategies and detailed instructions can be found in Appendix A.5. ",
+        "bbox": [
+            512,
+            718,
+            882,
+            797
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2.2.1 QA Prompting ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            807,
+            685,
+            822
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "To evaluate LLMs’ ability to utilize knowledge, we focus LLMs’ QA ability that provides answers to the given questions, with two-fold aims. Firstly, we manage to ensure that LLMs can accurately answer and refer to both internal and external knowledge. Secondly, we encourage concise responses to match the short-answer format for assessment with normally used metrics. To this end, we propose two distinct instructional approaches. (1) Normal setting: In this approach, LLMs are instructed to respond to questions based solely on their internal knowledge, as formulated in Equation (1). (2) Retrieval-augmented setting: This approach requires LLMs to answer the given questions using a combination of their internal knowledge and information from supporting documents retrieved, as outlined in Equation (2). In this setting, supporting documents are optional, and ideally, LLMs should determine whether to refer to the supporting documents based on their reliability. ",
+        "bbox": [
+            512,
+            826,
+            884,
+            922
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "image",
+        "img_path": "images/a139c56ba7c801e24698659119a5305d361d4a82ea03bf84fe1193b81a0b0195.jpg",
+        "image_caption": [
+            "Figure 1: The illustration of different settings to instruct LLMs, the evaluation metrics are also displayed. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            205,
+            82,
+            794,
+            343
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            393,
+            487,
+            618
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "2.2.2 Judgemental Prompting ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            629,
+            364,
+            644
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "To investigate whether LLMs are capable of perceiving their own factual knowledge boundary, we propose judgemental prompting to evaluate the judging abilities of LLMs. ",
+        "bbox": [
+            115,
+            649,
+            487,
+            712
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Similar to QA prompting, the concepts of the normal setting and the retrieval-augmented setting are also applicable for judgemental prompting, where LLMs utilizing their own knowledge or consulting supporting documents from retrievers to carry out the judgement process. Furthermore, we construct instructions from different judgement perspectives. (1) Priori judgement: LLMs are tasked with determining their capability to provide an answer to the question, employing either the normal setting or the retrieval-augmented setting. Priori judgment is carried out before the answering of LLMs, through this predictive approach, we are able to evaluate the confidence levels and assessment accuracies of LLMs in their mastery of knowledge. (2) Posteriori judgement: LLMs are tasked with evaluating the correctness of the answer to the question provided by itself, employing either a normal setting or a retrieval-augmented setting. Posteriori judgement aims to enable LLMs to judge their responses. Through this reflective approach, we can evaluate the confidence levels and assessment accuracies of LLMs in the content they generate. ",
+        "bbox": [
+            115,
+            713,
+            487,
+            921
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            393,
+            882,
+            552
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "2.3 Experimental Settings ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            565,
+            729,
+            581
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "In this part, we set up our experiments on opendomain QA, including evaluation metrics and retrieval sources. Due to the space limitaion, more settings can be found in Appendix A, including datasets, evaluation models, implemental details and instruction designs. ",
+        "bbox": [
+            512,
+            588,
+            882,
+            682
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "2.3.1 Evaluation Metrics ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            693,
+            719,
+            708
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Following previous works (Chen et al., 2017; Izacard and Grave, 2021a; Sun et al., 2023), we use the exact match (EM) score and $F l$ score to evaluate the QA performance of LLMs. EM calculates the percentage of questions in which the answer predicted by LLMs precisely matches the correct answer to the question. $F l$ is used to measure the overlap between the predicted answer and the correct answer, combines precision and recall into a single metric by taking their harmonic mean. ",
+        "bbox": [
+            512,
+            713,
+            882,
+            873
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "We also propose several metrics for evaluating LLMs’ judgement abilities. Give-up denotes the percentage of questions that LLMs give up answering, which reflects the LLMs’ judgement on whether they possess the relevant knowledge. Right/G represents the probability that LLMs give up answering but can actually answer correctly. $R i g h t / { \\neg } G$ represents the probability that LLMs do not give up answering and can answer correctly. Eval-Right refers to the proportion of questions where LLMs assess their answers as correct. Eval-Acc represents the percentage of questions for which the assessment of the answer by LLMs aligns with the fact. Among them, Give-up, Right/G and Right/¬G are metrics for priori judgement, Eval-Right and Eval-Acc are metrics for posteriori judgement. All metrics are illustrated in Figure 1. ",
+        "bbox": [
+            512,
+            875,
+            882,
+            921
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            85,
+            487,
+            310
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "2.3.2 Retrieval Sources ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            319,
+            310,
+            334
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "We consider multiple retrieval sources to acquire supporting documents, including dense retrieval (Gao and Callan, 2021; Ren et al., 2021a; Zhuang et al., 2022; Zhou et al., 2022), sparse retrieval (Robertson et al., 2009) and ChatGPT. ",
+        "bbox": [
+            115,
+            338,
+            487,
+            417
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "For the dense retriever, we utilize RocketQAv2 (Ren et al., 2021b) to find semantically relevant documents for questions. To achieve this, we train the model on each dataset with the constructed in-domain training data under the settings of RocketQAv2 and leverage Faiss (Johnson et al., 2019) to obtain relevant documents for each question from the candidate corpus. For the sparse retriever, we use BM25 (Yang et al., 2017) to find lexical relevant documents for questions. Similar to previous works (Yu et al., 2022; Ren et al., 2023), we regard the generative language model as a “retriever” that “retrieves” knowledge from its memory, where ChatGPT is instructed to produce relevant documents in response to a given question. The retrieval results can be found in Appendix A.4. ",
+        "bbox": [
+            115,
+            419,
+            487,
+            676
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3 Experimental Analysis and Findings ",
+        "text_level": 1,
+        "bbox": [
+            115,
+            688,
+            462,
+            705
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "In this section, we focus on addressing the three research questions and tackle them by investigating the judgement ability and the $Q A$ ability of LLMs with the proposed strategies in Section 2.2. ",
+        "bbox": [
+            115,
+            714,
+            487,
+            777
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3.1 To What Extent Can LLMs Perceive Their Factual Knowledge Boundaries? ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            789,
+            462,
+            820
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "We deconstruct the question and investigate the following points: (a) Before answering: how do LLMs decide to abstain from a question? (b) When answering: can LLMs accurately address a given question? (c) After answering: how do LLMs assess the correctness of their answers? ",
+        "bbox": [
+            115,
+            826,
+            487,
+            921
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "table",
+        "img_path": "images/db48c7ef94f0a72a161389674085bd51c013301ae3c72562aa7da4dc2f2429d9.jpg",
+        "table_caption": [],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\"></td><td rowspan=\"2\">LLM</td><td colspan=\"2\">QA</td><td colspan=\"2\">Priori Judgement</td><td colspan=\"2\">Posteriori Judgement</td></tr><tr><td>EM</td><td>F1</td><td>Give-up</td><td>Right/-G</td><td>Eval-Right</td><td>Eval-Acc</td></tr><tr><td rowspan=\"5\">O</td><td>Davinci003</td><td>27.20</td><td>36.20</td><td>29.20%</td><td>32.77%</td><td>72.80%</td><td>45.01%</td></tr><tr><td>ChatGPT</td><td>33.40</td><td>45.32</td><td>57.40%</td><td>42.72%</td><td>84.40%</td><td>43.40%</td></tr><tr><td>GPT-4</td><td>34.60</td><td>48.72</td><td>15.20%</td><td>39.15%</td><td>90.20%</td><td>38.87%</td></tr><tr><td>LLaMA2</td><td>16.60</td><td>24.26</td><td>6.60%</td><td>17.56%</td><td>58.40%</td><td>46.74%</td></tr><tr><td>Mistral</td><td>11.20</td><td>19.30</td><td>49.80%</td><td>15.94%</td><td>68.00%</td><td>37.90%</td></tr><tr><td rowspan=\"5\">Til!a!A</td><td>Davinci003 ChatGPT</td><td>65.20</td><td>69.57</td><td>7.40%</td><td>67.17%</td><td>87.00%</td><td>69.82%</td></tr><tr><td></td><td>69.00</td><td>75.29</td><td>25.00%</td><td>75.73%</td><td>88.80%</td><td>71.95%</td></tr><tr><td>GPT-4</td><td>75.80</td><td>84.52</td><td>8.80%</td><td>77.85%</td><td>93.00%</td><td>76.57%</td></tr><tr><td>LLaMA2</td><td>48.80</td><td>53.40</td><td>4.80%</td><td>50.21%</td><td>75.60%</td><td>57.60%</td></tr><tr><td>Mistral</td><td>36.20</td><td>42.09</td><td>34.80%</td><td>46.63%</td><td>86.00%</td><td>48.10%</td></tr><tr><td rowspan=\"4\">HdH</td><td>Davinci003</td><td>18.40</td><td>26.78</td><td>35.40%</td><td>24.15%</td><td>70.60%</td><td>43.99%</td></tr><tr><td>ChatGPT</td><td>20.80</td><td>29.27</td><td>78.40%</td><td>31.48%</td><td>66.80%</td><td>43.12%</td></tr><tr><td>GPT-4</td><td>28.60</td><td>40.33</td><td>54.80%</td><td>42.92%</td><td>72.40%</td><td>45.74%</td></tr><tr><td>LLaMA2</td><td>11.40</td><td>16.88</td><td>25.60%</td><td>12.63%</td><td>49.80%</td><td>54.88%</td></tr><tr><td rowspan=\"4\"></td><td>Mistral</td><td></td><td></td><td>64.00%</td><td>19.44%</td><td>81.80%</td><td>27.40%</td></tr><tr><td></td><td>10.80</td><td>17.86</td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table>",
+        "bbox": [
+            512,
+            83,
+            884,
+            279
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Table 1: Evaluation results on three datasets without retrieval augmentation. The abbreviations are explained in Section 2.3.1. ",
+        "bbox": [
+            510,
+            290,
+            880,
+            332
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3.1.1 Settings ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            360,
+            631,
+            375
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "In this part of the experiments, we employ the priori judgement with the normal setting to instruct LLMs on the decision of whether to give up answering questions based on their inherent knowledge, and we use the QA prompting with the normal setting to instruct LLMs to provide answers. Moreover, we employ posteriori judgement with the normal setting to instruct LLMs in evaluating the correctness of their answers. ",
+        "bbox": [
+            512,
+            381,
+            882,
+            525
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3.1.2 Main Findings ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            538,
+            684,
+            554
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "LLMs struggle to perceive their factual knowledge boundary, and tend to be overconfident. Overall, the overestimation of LLMs is evident both before and after answering questions in Table 1. Before answering, LLMs frequently overestimate their knowledge, leading to a high rate of incorrect responses $( R i g h t / \\neg G )$ . Additionally, their Give-up rate is substantially low, misaligned with their actual QA abilities (reflected by EM). When we instruct LLMs to evaluate their answers for posteriori judgement, they also exhibit a significant tendency to believe that their answers are correct. For this reason, we can observe much higher Eval-Right values compared to EM. However, there exists a substantial disparity between Eval-Right value and the actual evaluation accuracy, as indicated by relatively low Eval-Acc metrics. Similar to previous studies (Kamalloo et al., 2023), LLMs still demonstrate commendable performance in QA tasks (EM and $F l$ ), even without external documents. This indicates that LLMs possess a substantial knowledge base and can leverage it to a certain extent. Moreover, it can be observed that closed source LLMs overall exhibit better QA performance than publicly available LLMs we used, and GPT-4 obtains the best QA performance. Overall, closed source LLMs show a higher accuracy in percepting their factual knowledge boundary. ",
+        "bbox": [
+            510,
+            569,
+            882,
+            921
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "table",
+        "img_path": "images/dff0123424782b505e8e537cb01de0fd613206129ca9860042c0ae71503bffe0.jpg",
+        "table_caption": [
+            "Table 2: Results of retrieval-augmented LLMs, the abbreviations are explained in Section 2.3.1. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Datasets</td><td rowspan=\"2\">LLMs</td><td rowspan=\"2\">Retrieval Source</td><td colspan=\"2\">QA</td><td colspan=\"3\">Priori Judgement</td><td colspan=\"2\">Posteriori Judgement</td></tr><tr><td>EM F1</td><td>Give-up</td><td>Right/G</td><td>Right/-G</td><td>Eval-Right</td><td></td><td>Eval-Acc</td></tr><tr><td rowspan=\"9\">NQ</td><td>Davinci003</td><td>Sparse Dense hT</td><td>27.80 39.00 34.00</td><td>38.29 51.27 47.36</td><td>21.20% 12.80% 6.20%</td><td>12.26% 14.06% 6.45%</td><td>31.98% 42.66% 35.82%</td><td>39.40% 46.40% 46.00%</td><td>67.94% 71.43% 71.54%</td></tr><tr><td>ChatGPT</td><td>Sparse Dense ChatGPT</td><td>28.40 39.40 32.20</td><td>41.10 52.65 47.37</td><td>42.40% 26.60% 7.40%</td><td>17.92% 18.05% 2.70%</td><td>36.11% 47.14% 34.56%</td><td>67.00% 68.80% 78.80%</td><td>48.77% 53.56% 49.90%</td></tr><tr><td>GPT-4</td><td>Sparse Dense ChatGPT</td><td>34.20 43.60 34.40</td><td>45.81 56.36 48.56</td><td>28.20% 12.60% 4.20%</td><td>14.18% 15.87% 4.76%</td><td>42.06% 47.60% 35.70%</td><td>57.20% 66.40% 69.80%</td><td>48.48% 50.86% 48.69%</td></tr><tr><td>LLaMA2</td><td>Sparse Dense ChatGPT</td><td>23.00 33.40 33.40</td><td>34.14 45.39 48.19</td><td>32.80% 24.80% 5.20%</td><td>15.85% 20.16% 15.38%</td><td>26.49% 37.77% 34.39%</td><td>6.00% 5.20% 5.00%</td><td>75.00% 73.08% 87.88%</td></tr><tr><td>Mistral</td><td>Sparse Dense ChatGPT</td><td>23.20 35.20 32.60</td><td>33.21 45.82 47.49</td><td>59.00% 40.00% 14.40%</td><td>13.22% 21.50% 16.67%</td><td>37.56% 44.33% 35.28%</td><td>48.60% 50.20% 41.00%</td><td>54.71% 56.39% 64.24%</td></tr><tr><td>Davinci003</td><td>Sparse Dense ChatGPT</td><td>64.60 69.60 67.40</td><td>70.19 75.31 75.43</td><td>15.60% 10.00% 2.00%</td><td>19.23% 30.00% 10.00%</td><td>72.99% 74.00% 68.57%</td><td>69.00% 74.40% 72.20%</td><td>77.15% 81.49% 81.00%</td></tr><tr><td>ChatGPT</td><td>Sparse Dense ChatGPT</td><td>62.60 66.20 65.00</td><td>69.98 74.75 74.44</td><td>23.00% 18.20% 3.00%</td><td>34.78% 39.56% 13.33%</td><td>70.91% 72.13% 66.60%</td><td>79.80% 82.40% 90.40%</td><td>73.29% 75.73% 74.34%</td></tr><tr><td>GPT-4</td><td>Sparse Dense ChatGPT</td><td>66.20 69.00 66.40</td><td>75.99 78.01 76.33</td><td>12.40% 7.20% 2.60%</td><td>35.48% 30.56% 15.38%</td><td>70.55% 71.98% 67.76%</td><td>83.40% 85.80% 83.40%</td><td>76.79% 76.51% 73.39%</td></tr><tr><td>LLaMA2</td><td>Sparse Dense ChatGPT</td><td>51.00 58.60 63.00</td><td>59.51 66.57 71.76</td><td>35.60% 33.40% 2.80%</td><td>40.45% 40.72% 28.57%</td><td>56.83% 67.57% 63.99%</td><td>13.20% 11.40% 18.20%</td><td>70.19% 75.00% 79.35%</td></tr><tr><td>Mistral</td><td>Sparse Dense ChatGPT</td><td>52.20 57.40 62.20</td><td>59.55 65.59 71.72</td><td>30.40% 24.20% 3.60%</td><td>20.39% 26.45% 16.67%</td><td>66.09% 67.28% 63.90%</td><td>59.20% 59.80% 55.20%</td><td>68.75% 72.53% 77.76%</td></tr><tr><td rowspan=\"9\">HotpotQA</td><td>Davinci003</td><td>Sparse Dense ChatGPT</td><td>31.20 26.80 28.20</td><td>40.95 35.89 39.34</td><td>27.20% 37.00% 8.20%</td><td>14.71% 13.51% 12.20%</td><td>37.36% 34.60% 29.63%</td><td>31.20% 35.20% 33.40%</td><td>76.84% 76.89% 77.37%</td></tr><tr><td>ChatGPT</td><td>Sparse Dense</td><td>29.60 26.40 26.40</td><td>41.28 35.75 38.30</td><td>50.60% 58.40% 11.20%</td><td>17.39% 14.38%</td><td>42.11% 43.27% 28.83%</td><td>51.80% 48.20%</td><td>54.90% 56.10% 48.24%</td></tr><tr><td>GPT-4</td><td>Sparse Dense ChatGPT</td><td>36.00 31.80 29.80</td><td>47.71 43.92 41.67</td><td>25.60% 37.00% 8.80%</td><td>14.84% 17.30% 6.82%</td><td>43.28% 40.32% 32.02%</td><td>43.40% 46.00% 48.40%</td><td>64.90% 60.34% 68.55%</td></tr><tr><td>LLaMA2</td><td>Sparse Dense ChatGPT</td><td>24.00 21.60 25.80</td><td>33.45 31.17 37.56</td><td>45.60% 57.00% 11.80%</td><td>16.67% 13.68% 22.03%</td><td>30.15% 32.09% 26.30%</td><td>8.60% 7.60% 7.20%</td><td>58.89% 66.99% 82.53%</td></tr><tr><td>Mistral</td><td>Sparse Dense ChatGPT</td><td>25.00 23.60 26.20</td><td>35.49 32.70</td><td>52.40% 59.80%</td><td>13.74% 13.38%</td><td>37.39% 38.81%</td><td>42.40% 45.60%</td><td>62.42% 59.75% 70.04%</td></tr></table>",
+        "bbox": [
+            161,
+            82,
+            833,
+            646
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            117,
+            693,
+            487,
+            789
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "3.2 What Impact Does Retrieval Augmentation Have on LLMs? ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            803,
+            403,
+            834
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Following the analysis under the closed-book setting, we next study the retrieval augmentation setting. Specifically, with the supporting documents from retrievers, we employ the priori judgement to determine whether to give up answering, and the posteriori judgement to assess the correctness of answers generated by LLMs. Additionally, we employ QA prompting to guide LLMs in answering the questions. ",
+        "bbox": [
+            117,
+            843,
+            487,
+            921
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            510,
+            694,
+            882,
+            756
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "3.2.1 Main Findings ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            766,
+            684,
+            782
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "We conduct our analysis from three perspectives: knowledge utilization, recognition of knowledge boundaries, and the impact of documents from various sources. After thorough retrieval augmentation experiments under different settings in Table 2, we arrive at the following findings. ",
+        "bbox": [
+            512,
+            785,
+            882,
+            881
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "LLMs cannot sufficiently utilize their internal knowledge, while retrieval augmentation can serve as a valuable knowledge supplement for LLMs. It can be observed that LLMs with supporting documents outperform closed-book LLMs in most cases, and incorporating results of dense retrieval as supporting documents often leads to the best performance. To further explore the effect of different retrieval sources, we conduct a more detailed analysis in Appendix B.1. Although LLMs have learned massive knowledge from Wikipedia during training (Ouyang et al., 2022), providing them with Wikipedia documents still improves their QA abilities, indicating that LLMs are not able to effectively utilize their knowledge learned during the pre-training stage. Furthermore, We find that retrieval augmentation yields higher improvements in QA performance for publicly available LLMs. We speculate that this phenomenon arises from the increased storage of knowledge associated with these closed-source LLMs that have larger parameter scales, resulting in a lower gain with the introduction of external knowledge. We also observe a decline in the performance of ChatGPT and GPT-4 when incorporating supporting documents on TriviaQA. We manually inspect the bad cases where they initially answer correctly but answer incorrectly after incorporating retrieval. We find that a significant portion of these cases are due to the extraction of incorrect contents from the supporting documents. Given the relatively high performance of ChatGPT and GPT-4 on TriviaQA, we suspect that multiple supporting documents may introduce significant noise, reflecting the upper bound of retrieval augmentation for improvement to some extent (further discussed in Section 3.3). ",
+        "bbox": [
+            510,
+            890,
+            880,
+            921
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "image",
+        "img_path": "images/01af4e6969ab6b2d860735841a2fa0d369dd641fb8aaba46919f2f4913b721f6.jpg",
+        "image_caption": [
+            "Figure 2: The performance of retrieval-augmented LLMs with different retrieved document numbers. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            124,
+            83,
+            870,
+            243
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            299,
+            487,
+            852
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Retrieval augmentation improves LLM’s ability to perceive their factual knowledge boundaries. From Table 2, we find that the accuracy of LLMs’ ",
+        "text_level": 1,
+        "bbox": [
+            115,
+            875,
+            487,
+            921
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "self-assessment improves after incorporating supporting documents from either sparse or dense retrievers. For priori judgement, $R i g h t / \\neg G$ exhibits a notable increase, surpassing the growth trajectory (attributed to the significant enhancement in QA performance) of Right/G. Furthermore, in certain contexts, Right/G has shown a decrease. The results show that the priori judgement of retrievalaugmented LLMs is more accurate. For posteriori judgement, Eval-Right decreases that it is more consistent with EM metric, while Eval-Acc significantly increases. The results indicate that retrieval augmentation can also improve the accuracy of LLMs’ posterior judgement. ",
+        "bbox": [
+            512,
+            304,
+            882,
+            526
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Increasing the number of supporting documents improves the performance of LLMs below a model-specific threshold. In Figure 2, we further explore the effect of the supporting document number on retrieval-augmented LLMs. As the number increases, the QA performance (EM) gradually increases until reaching a certain threshold, beyond which the performance ceases to improve and may even decline. We find LLaMA2 exhibiting lower thresholds, which may be due to its inferior handling of long-form text compared to the GPT series LLMs (Xu et al., 2023; Jiang et al., 2023b). We also observe that the improvement yielded by the increased supporting document number is not fully attributable to the improvement of recall rate. Even if the documents are all golden documents (described in Section 3.3.1), a larger document number still results in improvements. Furthermore, LLMs seem to be insensitive to the ordering of retrieved documents, such that the performance remains unaffected when the supporting documents are reversed or shuffled. With respect to the accuracy of perceiving knowledge boundaries, the Eval-Acc of LLaMA2 and Mistral both decline as the document number increases. We also find an increase in the confidence level (Give-up) of most models with an increase in the number of supporting documents, except for LLaMA2. ",
+        "bbox": [
+            512,
+            552,
+            882,
+            921
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "image",
+        "img_path": "images/6c316451f656ca238b47762d13ee11f91e11f389c3124c36303e1e21370b686e.jpg",
+        "image_caption": [
+            "Figure 3: A simple method that dynamically introduces retrieval for LLMs based on priori judgement strategy. We use ChatGPT with QA prompting under the retrievalaugmented setting as the baseline (w/o judgement). "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            117,
+            86,
+            485,
+            337
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            435,
+            487,
+            514
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "In addition to the above findings, we also explore the impact of retrieval augmentation on different query types and LLMs with various parameter quantities, and obtain the following findings: (1) Increasing the number of supporting documents improves the performance of LLMs below a model-specific threshold. (2) Retrieval augmentation is more pronounced for improving LLMs with fewer parameters, including both QA performances and accuracies of knowledge boundary perception. Due to the limited space, the comprehensive analysis of the two findings can be found in Appendix B.2 and B.3. ",
+        "bbox": [
+            115,
+            517,
+            487,
+            725
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "3.2.2 Dynamic Retrieval Augmentation ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            739,
+            436,
+            756
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "In order to further investigate the observed improvement, we examine with a simple method that employs priori judgement with either the normal or the retrieval-augmented settings to determine whether to introduce retrieval augmentation. Specifically, if the LLM considers a question is challenging to answer under the current setting, supporting documents are introduced to help provide an answer, otherwise the question will be answered without supporting documents. We conduct experiment on ChatGPT, using supporting documents from the dense retriever. ",
+        "bbox": [
+            117,
+            762,
+            487,
+            921
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            85,
+            882,
+            115
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Figure 3 compares different judgemental settings for decision-making to dynamically incorporate retrieval augmentation with the corresponding results on NQ. It is evident that employing the priori judgment with ChatGPT within the standard decisionmaking framework results in decreased answering accuracy when compared to the baseline that always utilizes retrieval augmentation. Nevertheless, upon integrating retrieval augmentation for judging, the accuracy surpasses the baseline. The result indicates that it is a promising way to dynamically introduce supporting documents for LLMs according to its retrieval-augmented priori judgement. It further shows that the incorporation of retrieval augmentation can improve LLMs’ awareness of their factual knowledge boundaries. ",
+        "bbox": [
+            512,
+            117,
+            884,
+            374
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "3.3 How do Different Relevance Supporting Document Affect LLMs? ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            387,
+            868,
+            418
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "We have explored the effect of retrieval augmentation on LLMs. Actually, the retrieval results consist of documents with varying relevance, which might lead to different effects. For this purpose, we continue to study how different relevance of supporting documents influence LLMs. In our experiments, we consider the following perspectives, the relevance between the document and the question, and the presence of an answer within the document. ",
+        "bbox": [
+            512,
+            425,
+            884,
+            569
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "3.3.1 Sampling Strategies ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            580,
+            726,
+            595
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "In order to thoroughly study the impact of supporting documents on LLMs, we propose to provide LLMs with supporting documents of different characteristics for obtaining answers. Golden documents refer to documents containing at least one correct answer to the question, which are sampled from top to bottom in the top 100 retrieval results of the question; High-related incorrect documents refer to documents that are highly relevant to the question but do not contain the correct answer. They are also sampled from top to bottom in the top 100 retrieval results of the question; Weak-related incorrect documents are the documents weakly relevant to the query and do not contain the correct answer. We randomly sample documents from the top 100 retrieval results of the question excluding high-related incorrect documents; Random incorrect documents refer to documents randomly sampled from the entire corpus $\\mathcal { D }$ , which do not contain the correct answers to the given question. ",
+        "bbox": [
+            512,
+            600,
+            882,
+            921
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "table",
+        "img_path": "images/e3b2958bebc6d900365fa464c19ecf60e89304ea9617479a679066f6de932ada.jpg",
+        "table_caption": [
+            "Table 3: Evaluation results of retrieval-augmented LLMs with supporting documents of various qualities on NQ, where the supporting documents are obtained from the dense retriever. We place different settings according to the relevance between the documents and the question from high to low. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>LLMs</td><td>Supporting Doc</td><td>EM</td><td>F1</td><td>Give-up</td><td>Right/G</td><td>Right/-G</td><td>Eval-Right</td><td>Eval-Acc</td></tr><tr><td rowspan=\"6\">Davinci-003</td><td>None</td><td>27.20</td><td>36.20</td><td>29.20%</td><td>13.70%</td><td>32.77%</td><td>72.80%</td><td>45.01%</td></tr><tr><td>Golden</td><td>50.60</td><td>62.93</td><td>15.80%</td><td>15.19%</td><td>57.24%</td><td>52.00%</td><td>71.08%</td></tr><tr><td>Retrieved</td><td>39.00</td><td>51.27</td><td>12.80%</td><td>14.06%</td><td>42.66%</td><td>46.40%</td><td>71.43%</td></tr><tr><td>High-related</td><td>10.20</td><td>20.66</td><td>18.00%</td><td>8.89%</td><td>10.49%</td><td>28.40%</td><td>57.89%</td></tr><tr><td>Weak-related</td><td>11.80</td><td>19.69</td><td>41.40%</td><td>10.63%</td><td>12.63%</td><td>20.80%</td><td>61.71%</td></tr><tr><td>Random</td><td>23.00</td><td>30.82</td><td>88.40%</td><td>20.59%</td><td>41.38%</td><td>19.40%</td><td>66.26%</td></tr><tr><td rowspan=\"6\">ChatGPT</td><td>None</td><td>33.40</td><td>45.32</td><td>57.40%</td><td>26.48%</td><td>42.72%</td><td>84.40%</td><td>43.40%</td></tr><tr><td>Golden</td><td>50.00</td><td>64.28</td><td>22.60%</td><td>23.01%</td><td>57.88%</td><td>75.20%</td><td>53.24%</td></tr><tr><td>Retrieved</td><td>39.40</td><td>52.65</td><td>26.60%</td><td>18.05%</td><td>47.14%</td><td>68.80%</td><td>53.56%</td></tr><tr><td>High-related</td><td>16.20</td><td>28.20</td><td>42.00%</td><td>13.81%</td><td>17.93%</td><td>56.20%</td><td>47.82%</td></tr><tr><td>Weak-related</td><td>18.40</td><td>29.86</td><td>60.20%</td><td>16.61%</td><td>21.11%</td><td>49.80%</td><td>46.21%</td></tr><tr><td>Random</td><td>24.80</td><td>35.35</td><td>91.00%</td><td>23.30%</td><td>40.00%</td><td>29.80%</td><td>48.80%</td></tr><tr><td rowspan=\"6\">GPT-4</td><td>None</td><td>34.60</td><td>48.72</td><td>15.20%</td><td>9.21%</td><td>39.15%</td><td>90.20%</td><td>38.87%</td></tr><tr><td>Golden</td><td>53.60</td><td>67.36</td><td>15.60%</td><td>20.51%</td><td>59.72%</td><td>73.00%</td><td>53.58%</td></tr><tr><td>Retrieved</td><td>43.60</td><td>56.36</td><td>12.60%</td><td>15.87%</td><td>47.60%</td><td>66.40%</td><td>50.86%</td></tr><tr><td>High-related</td><td>21.60</td><td>35.13</td><td>39.20%</td><td>24.49%</td><td>19.74%</td><td>62.40%</td><td>47.21%</td></tr><tr><td>Weak-related</td><td>24.40</td><td>34.83</td><td>61.20%</td><td>24.18%</td><td>24.74%</td><td>60.00%</td><td>44.96%</td></tr><tr><td>Random</td><td>34.40</td><td>45.43</td><td>71.40%</td><td>25.49%</td><td>56.64%</td><td>54.00%</td><td>42.50%</td></tr><tr><td rowspan=\"6\">LLaMA2</td><td>None</td><td>16.60</td><td>24.26</td><td>6.60%</td><td>3.03%</td><td>17.56%</td><td>58.40%</td><td>46.74%</td></tr><tr><td>Golden</td><td>48.60</td><td>61.33</td><td>18.40%</td><td>29.35%</td><td>52.94%</td><td>7.60%</td><td>72.12%</td></tr><tr><td>Retrieved</td><td>33.40</td><td>45.39</td><td>24.80%</td><td>20.16%</td><td>37.77%</td><td>5.20%</td><td>73.08%</td></tr><tr><td>High-related</td><td>9.40</td><td>19.07</td><td>30.60%</td><td>8.50%</td><td>9.80%</td><td>4.80%</td><td>67.86%</td></tr><tr><td>Weak-related</td><td>8.80</td><td>16.00</td><td>50.20%</td><td>9.16%</td><td>8.43%</td><td>6.20%</td><td>59.09%</td></tr><tr><td>Random</td><td>13.20</td><td>19.34</td><td>93.40%</td><td>13.28%</td><td>12.12%</td><td>5.80%</td><td>58.97%</td></tr><tr><td rowspan=\"6\">Mistral</td><td>None</td><td>11.20</td><td>19.30</td><td>69.80%</td><td>8.02%</td><td>18.54%</td><td>78.20%</td><td>31.65%</td></tr><tr><td>Golden</td><td>47.80</td><td>60.93</td><td>39.60%</td><td>28.28%</td><td>60.60%</td><td>50.20%</td><td>58.67%</td></tr><tr><td>Retrieved</td><td>35.20</td><td>45.82</td><td>40.00%</td><td>21.50%</td><td>44.33%</td><td>50.20%</td><td>56.39%</td></tr><tr><td>High-related</td><td>5.60</td><td>14.23</td><td>58.40%</td><td>4.11%</td><td>7.69%</td><td>47.60%</td><td>53.35%</td></tr><tr><td>Weak-related</td><td>5.40</td><td>11.21</td><td>76.80%</td><td>3.91%</td><td>10.34%</td><td>46.60%</td><td>53.48%</td></tr><tr><td>Random</td><td>12.40</td><td>18.40</td><td>98.40%</td><td>11.79%</td><td>50.00%</td><td>64.80%</td><td>33.57%</td></tr></table>",
+        "bbox": [
+            136,
+            83,
+            862,
+            493
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "We employ Wikipedia as the document corpus, and sample ten documents per question from the retrieval results acquired by the dense retriever for each sampling strategy. ",
+        "bbox": [
+            115,
+            571,
+            487,
+            636
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "3.3.2 Main Findings ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            650,
+            289,
+            665
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "LLMs demonstrate enhanced capabilities in QA abilities and perception of knowledge boundaries when provided with higher quality supporting documents. We employ the sampling strategy in Section 3.3.1 to obtain supporting documents for each question. Table 3 presents the results. We can see that using golden (high-quality) documents as supporting documents yields better performance compared to using retrieval results. However, if incorrect (low-quality) documents are utilized, including high-related, weak-related, and randomly selected incorrect documents, the performance of LLMs may be compromised, resulting in inferior performance compared to employing retrieval results as supporting documents or responding without supporting documents. In addition, the give-up rates of LLMs decrease as the quality of supporting documents improves, indicating that LLMs exhibit higher confidence when fortified with high-quality supporting documents. Moreover, with higher quality supporting documents, the Eval-Acc rates of LLMs increase, showing that LLMs demonstrate higher accuracy in perceiving their factual knowledge boundaries. ",
+        "bbox": [
+            115,
+            681,
+            487,
+            921
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            571,
+            884,
+            717
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "LLMs cannot handle the conflicts between internal and external knowledge well. Based on the above observation, when LLMs generate responses with low-quality supporting documents, the performance is inferior to generating responses based on internal knowledge (without retrieval augmentation). This phenomenon indicates that LLMs heavily rely on the given supporting documents during the generation process. Note that we give LLMs the option in the prompt to decide whether to use the supporting documents for a question. However, LLMs still tend to rely on supporting documents to answer the questions in this setting. In addition, the disparity in EM between different models significantly diminishes under the Golden setting compared to the Retrieval setting, demonstrating that the poor resilience against irrelevant documents is a crucial factor impeding the performance of retrieval-augmented LLMs. ",
+        "bbox": [
+            510,
+            730,
+            882,
+            921
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            117,
+            85,
+            487,
+            196
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "The level of confidence and reliance on supporting documents of LLMs is determined by the relevance between the question and the supporting documents. In Table 3, we observe a clear inverse relationship between relevance and the confidence of LLMs (i.e., the probability of giving up to answer and assessing their answers as correct). Furthermore, using random incorrect documents as supporting documents outperforms using incorrect documents with higher relevance (i.e., highrelated/weak-related incorrect documents). This observation further demonstrates that LLMs pay more attention to relevant documents. ",
+        "bbox": [
+            117,
+            206,
+            487,
+            413
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "4 Conclusion ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            426,
+            245,
+            442
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "In this paper, we thoroughly investigate the perception of LLMs regarding factual knowledge boundaries with retrieval augmentation by proposing priori and posteriori judgemental prompting strategies, in addition to QA prompting for evaluation. We obtain several pivotal findings. (1) LLMs cannot accurately perceive their factual knowledge boundaries and cannot handle the conflicts between internal and external knowledge well. (2) LLMs cannot sufficiently utilize their internal knowledge, and retrieval augmentation effectively enhances the perception of their factual knowledge boundaries. The capability is also affected by multiple factors, such as the choice of retrieval model, supporting document number, question types, and scales of LLMs. (3) The relevance of supporting documents significantly influences LLMs’ reliance on supporting documents. We also propose a simple approach that dynamically utilizes retrieval augmentation based on the priori judgement of the LLM. ",
+        "bbox": [
+            117,
+            453,
+            487,
+            772
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Limitations ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            784,
+            216,
+            800
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "This paper provides a comprehensive and detailed analysis of the knowledge boundaries of large language models (LLMs), including both publicly available and closed source models. Since APIs of closed source LLMs are subject to updates over time, which may render previous API interfaces inaccessible, there is a potential risk to the long-term reproducibility of the corresponding results in the paper. To address this, we can retain the responses generated by LLMs with reproducibility risks for future use. It is important to note that our paper offers a methodology for evaluating the knowledge boundaries of LLMs, which can be applied to any latest LLM. Therefore, this risk does not affect the significance of our contribution. ",
+        "bbox": [
+            117,
+            810,
+            487,
+            921
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            85,
+            882,
+            211
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "References ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            241,
+            606,
+            256
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "2023. Introducing Falcon LLM . https://falconllm. tii.ae. ",
+        "bbox": [
+            512,
+            265,
+            882,
+            290
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Qingyao Ai, Ting Bai, Zhao Cao, Yi Chang, Jiawei Chen, Zhumin Chen, Zhiyong Cheng, Shoubin Dong, Zhicheng Dou, Fuli Feng, et al. 2023. Information retrieval meets large language models: a strategic report from chinese ir community. AI Open, 4:80– 90. ",
+        "bbox": [
+            514,
+            302,
+            882,
+            379
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Sören Auer, Christian Bizer, Georgi Kobilarov, Jens Lehmann, Richard Cyganiak, and Zachary Ives. 2007. Dbpedia: A nucleus for a web of open data. In international semantic web conference, pages 722– 735. Springer. ",
+        "bbox": [
+            512,
+            392,
+            882,
+            456
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Kurt Bollacker, Colin Evans, Praveen Paritosh, Tim Sturge, and Jamie Taylor. 2008. Freebase: a collaboratively created graph database for structuring human knowledge. In Proceedings of the 2008 ACM SIGMOD international conference on Management of data, pages 1247–1250. ",
+        "bbox": [
+            514,
+            468,
+            882,
+            545
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Sandhini Agarwal, Ariel Herbert-Voss, Gretchen Krueger, Tom Henighan, Rewon Child, Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu, Clemens Winter, Christopher Hesse, Mark Chen, Eric Sigler, Mateusz Litwin, Scott Gray, Benjamin Chess, Jack Clark, Christopher Berner, Sam McCandlish, Alec Radford, Ilya Sutskever, and Dario Amodei. 2020a. Language models are few-shot learners. In Advances in Neural Information Processing Systems 33: Annual Conference on Neural Information Processing Systems 2020, NeurIPS 2020, December 6- 12, 2020, virtual. ",
+        "bbox": [
+            512,
+            558,
+            882,
+            752
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Sandhini Agarwal, Ariel Herbert-Voss, Gretchen Krueger, Tom Henighan, Rewon Child, Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu, Clemens Winter, Christopher Hesse, Mark Chen, Eric Sigler, Mateusz Litwin, Scott Gray, Benjamin Chess, Jack Clark, Christopher Berner, Sam McCandlish, Alec Radford, Ilya Sutskever, and Dario Amodei. 2020b. Language models are few-shot learners. In Advances in Neural Information Processing Systems ",
+        "bbox": [
+            515,
+            764,
+            882,
+            920
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "33: Annual Conference on Neural Information Processing Systems 2020, NeurIPS 2020, December 6- 12, 2020, virtual. ",
+        "bbox": [
+            132,
+            86,
+            487,
+            124
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Danqi Chen, Adam Fisch, Jason Weston, and Antoine Bordes. 2017. Reading Wikipedia to answer opendomain questions. In Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 1870–1879. ",
+        "bbox": [
+            117,
+            135,
+            487,
+            200
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Wei-Lin Chiang, Zhuohan Li, Zi Lin, Ying Sheng, Zhanghao Wu, Hao Zhang, Lianmin Zheng, Siyuan Zhuang, Yonghao Zhuang, Joseph E. Gonzalez, Ion Stoica, and Eric P. Xing. 2023. Vicuna: An opensource chatbot impressing gpt-4 with $9 0 \\% \\ast$ chatgpt quality. ",
+        "bbox": [
+            117,
+            210,
+            485,
+            288
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. 2019. BERT: Pre-training of deep bidirectional transformers for language understanding. In Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers), pages 4171–4186. ",
+        "bbox": [
+            117,
+            299,
+            487,
+            403
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Adam Fisch, Alon Talmor, Robin Jia, Minjoon Seo, Eunsol Choi, and Danqi Chen. 2019. MRQA 2019 shared task: Evaluating generalization in reading comprehension. In Proceedings of the 2nd Workshop on Machine Reading for Question Answering, pages 1–13. ",
+        "bbox": [
+            117,
+            413,
+            485,
+            491
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Luyu Gao and Jamie Callan. 2021. Unsupervised corpus aware language model pre-training for dense passage retrieval. arXiv preprint arXiv:2108.05540. ",
+        "bbox": [
+            115,
+            502,
+            487,
+            541
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Luyu Gao, Zhuyun Dai, and Jamie Callan. 2021. Rethink training of BERT rerankers in multi-stage retrieval pipeline. In Advances in Information Retrieval - 43rd European Conference on IR Research, ECIR 2021, Virtual Event, March 28 - April 1, 2021, Proceedings, Part II, volume 12657, pages 280–286. ",
+        "bbox": [
+            117,
+            551,
+            487,
+            630
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Timnit Gebru, Jamie Morgenstern, Briana Vecchione, Jennifer Wortman Vaughan, Hanna Wallach, Hal Daumé Iii, and Kate Crawford. 2021. Datasheets for datasets. Communications of the ACM, 64(12):86– 92. ",
+        "bbox": [
+            117,
+            639,
+            489,
+            703
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Amelia Glaese, Nat McAleese, Maja Trebacz, John Aslanides, Vlad Firoiu, Timo Ewalds, Maribeth Rauh, Laura Weidinger, Martin Chadwick, Phoebe Thacker, Lucy Campbell-Gillingham, Jonathan Uesato, PoSen Huang, Ramona Comanescu, Fan Yang, Abigail See, Sumanth Dathathri, Rory Greig, Charlie Chen, Doug Fritz, Jaume Sanchez Elias, Richard Green, Sona Mokrá, Nicholas Fernando, Boxi Wu, Rachel Foley, Susannah Young, Iason Gabriel, William Isaac, John Mellor, Demis Hassabis, Koray Kavukcuoglu, Lisa Anne Hendricks, and Geoffrey Irving. 2022. Improving alignment of dialogue agents via targeted human judgements. CoRR, abs/2209.14375. ",
+        "bbox": [
+            121,
+            715,
+            487,
+            884
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Jiafeng Guo, Yinqiong Cai, Yixing Fan, Fei Sun, Ruqing Zhang, and Xueqi Cheng. 2022. Semantic models for the first-stage retrieval: A comprehensive review. ACM Transactions on Information Systems (TOIS), 40(4):1–42. ",
+        "bbox": [
+            115,
+            895,
+            485,
+            921
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            529,
+            86,
+            882,
+            124
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Kelvin Guu, Kenton Lee, Zora Tung, Panupong Pasupat, and Ming-Wei Chang. 2020. REALM: retrievalaugmented language model pre-training. CoRR, abs/2002.08909. ",
+        "bbox": [
+            512,
+            139,
+            882,
+            189
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Gautier Izacard and Edouard Grave. 2021a. Leveraging passage retrieval with generative models for open domain question answering. In Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume, pages 874–880. ",
+        "bbox": [
+            512,
+            203,
+            882,
+            281
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Gautier Izacard and Édouard Grave. 2021b. Leveraging passage retrieval with generative models for open domain question answering. In Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume, pages 874–880. ",
+        "bbox": [
+            512,
+            294,
+            882,
+            374
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Albert Q. Jiang, Alexandre Sablayrolles, Arthur Mensch, Chris Bamford, Devendra Singh Chaplot, Diego de las Casas, Florian Bressand, Gianna Lengyel, Guillaume Lample, Lucile Saulnier, Lélio Renard Lavaud, Marie-Anne Lachaux, Pierre Stock, Teven Le Scao, Thibaut Lavril, Thomas Wang, Timothée Lacroix, and William El Sayed. 2023a. Mistral 7b. ",
+        "bbox": [
+            512,
+            387,
+            882,
+            478
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Huiqiang Jiang, Qianhui Wu, Xufang Luo, Dongsheng Li, Chin-Yew Lin, Yuqing Yang, and Lili Qiu. 2023b. Longllmlingua: Accelerating and enhancing llms in long context scenarios via prompt compression. arXiv preprint arXiv:2310.06839. ",
+        "bbox": [
+            510,
+            492,
+            882,
+            556
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Jiajie Jin, Yutao Zhu, Yujia Zhou, and Zhicheng Dou. 2024. Bider: Bridging knowledge inconsistency for efficient retrieval-augmented llms via key supporting evidence. arXiv preprint arXiv:2402.12174. ",
+        "bbox": [
+            510,
+            569,
+            882,
+            621
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "J. Johnson, M. Douze, and H. JÃ©gou. 2019. Billionscale similarity search with gpus. IEEE Transactions on Big Data. ",
+        "bbox": [
+            510,
+            633,
+            882,
+            674
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Mandar Joshi, Eunsol Choi, Daniel Weld, and Luke Zettlemoyer. 2017. TriviaQA: A large scale distantly supervised challenge dataset for reading comprehension. In Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 1601–1611. ",
+        "bbox": [
+            512,
+            686,
+            882,
+            765
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Ehsan Kamalloo, Nouha Dziri, Charles LA Clarke, and Davood Rafiei. 2023. Evaluating open-domain question answering in the era of large language models. arXiv preprint arXiv:2305.06984. ",
+        "bbox": [
+            510,
+            777,
+            882,
+            829
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Vladimir Karpukhin, Barlas Oguz, Sewon Min, Patrick Lewis, Ledell Wu, Sergey Edunov, Danqi Chen, and Wen-tau Yih. 2020. Dense passage retrieval for opendomain question answering. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 6769–6781. ",
+        "bbox": [
+            512,
+            843,
+            882,
+            921
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Tom Kwiatkowski, Jennimaria Palomaki, Olivia Redfield, Michael Collins, Ankur Parikh, Chris Alberti, Danielle Epstein, Illia Polosukhin, Jacob Devlin, Kenton Lee, Kristina Toutanova, Llion Jones, Matthew Kelcey, Ming-Wei Chang, Andrew M. Dai, Jakob Uszkoreit, Quoc Le, and Slav Petrov. 2019. Natural questions: A benchmark for question answering research. Transactions of the Association for Computational Linguistics, 7:452–466. ",
+        "bbox": [
+            117,
+            85,
+            485,
+            203
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Mike Lewis, Yinhan Liu, Naman Goyal, Marjan Ghazvininejad, Abdelrahman Mohamed, Omer Levy, Veselin Stoyanov, and Luke Zettlemoyer. 2020a. BART: Denoising sequence-to-sequence pre-training for natural language generation, translation, and comprehension. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, pages 7871–7880. ",
+        "bbox": [
+            115,
+            216,
+            487,
+            321
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Patrick S. H. Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, Sebastian Riedel, and Douwe Kiela. 2020b. Retrieval-augmented generation for knowledge-intensive NLP tasks. In Advances in Neural Information Processing Systems 33: Annual Conference on Neural Information Processing Systems 2020, NeurIPS 2020, December 6-12, 2020, virtual. ",
+        "bbox": [
+            117,
+            334,
+            487,
+            451
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Junyi Li, Jie Chen, Ruiyang Ren, Xiaoxue Cheng, Xin Zhao, Jian-Yun Nie, and Ji-Rong Wen. 2024. The dawn after the dark: An empirical study on factuality hallucination in large language models. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 10879–10899. ",
+        "bbox": [
+            115,
+            463,
+            485,
+            556
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Xinyu Lin, Wenjie Wang, Yongqi Li, Fuli Feng, SeeKiong Ng, and Tat-Seng Chua. 2024. Bridging items and language: A transition paradigm for large language model-based recommendation. In Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining, pages 1816–1826. ",
+        "bbox": [
+            117,
+            568,
+            487,
+            648
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Linqing Liu, Patrick Lewis, Sebastian Riedel, and Pontus Stenetorp. 2022. Challenges in generalization in open domain question answering. In Findings of the Association for Computational Linguistics: NAACL 2022, pages 2014–2029. ",
+        "bbox": [
+            115,
+            659,
+            487,
+            725
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Margaret Mitchell, Simone Wu, Andrew Zaldivar, Parker Barnes, Lucy Vasserman, Ben Hutchinson, Elena Spitzer, Inioluwa Deborah Raji, and Timnit Gebru. 2019. Model cards for model reporting. In Proceedings of the conference on fairness, accountability, and transparency, pages 220–229. ",
+        "bbox": [
+            117,
+            738,
+            487,
+            816
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Shiyu Ni, Keping Bi, Jiafeng Guo, and Xueqi Cheng. 2024. When do llms need retrieval augmentation? mitigating llms’ overconfidence helps retrieval augmentation. arXiv preprint arXiv:2402.11457. ",
+        "bbox": [
+            115,
+            829,
+            487,
+            882
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Rodrigo Nogueira and Kyunghyun Cho. 2019. Passage re-ranking with BERT. CoRR, abs/1901.04085. ",
+        "bbox": [
+            115,
+            895,
+            485,
+            921
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Rodrigo Nogueira, Wei Yang, Kyunghyun Cho, and Jimmy Lin. 2019. Multi-stage document ranking with BERT. CoRR, abs/1910.14424. ",
+        "bbox": [
+            512,
+            86,
+            882,
+            124
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "OpenAI. 2022. Introducing chatgpt. OpenAI Blog. ",
+        "bbox": [
+            514,
+            135,
+            852,
+            149
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "OpenAI. 2023. Gpt-4 technical report. OpenAI. ",
+        "bbox": [
+            514,
+            160,
+            835,
+            173
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Long Ouyang, Jeff Wu, Xu Jiang, Diogo Almeida, Carroll L. Wainwright, Pamela Mishkin, Chong Zhang, Sandhini Agarwal, Katarina Slama, Alex Ray, John Schulman, Jacob Hilton, Fraser Kelton, Luke Miller, Maddie Simens, Amanda Askell, Peter Welinder, Paul F. Christiano, Jan Leike, and Ryan Lowe. 2022. Training language models to follow instructions with human feedback. CoRR, abs/2203.02155. ",
+        "bbox": [
+            510,
+            184,
+            882,
+            287
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Fabio Petroni, Aleksandra Piktus, Angela Fan, Patrick Lewis, Majid Yazdani, Nicola De Cao, James Thorne, Yacine Jernite, Vladimir Karpukhin, Jean Maillard, Vassilis Plachouras, Tim Rocktäschel, and Sebastian Riedel. 2021. KILT: a benchmark for knowledge intensive language tasks. In Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, pages 2523–2544. ",
+        "bbox": [
+            510,
+            298,
+            882,
+            416
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "John Prager et al. 2007. Open-domain question– answering. Foundations and Trends® in Information Retrieval, 1(2):91–231. ",
+        "bbox": [
+            510,
+            425,
+            882,
+            466
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Chengwei Qin, Aston Zhang, Zhuosheng Zhang, Jiaao Chen, Michihiro Yasunaga, and Diyi Yang. 2023. Is chatgpt a general-purpose natural language processing task solver? arXiv preprint arXiv:2302.06476. ",
+        "bbox": [
+            510,
+            476,
+            882,
+            527
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Yingqi Qu, Yuchen Ding, Jing Liu, Kai Liu, Ruiyang Ren, Wayne Xin Zhao, Daxiang Dong, Hua Wu, and Haifeng Wang. 2021. RocketQA: An optimized training approach to dense passage retrieval for opendomain question answering. In Proceedings of the 2021 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, pages 5835–5847. ",
+        "bbox": [
+            512,
+            539,
+            882,
+            644
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Alec Radford, Karthik Narasimhan, Tim Salimans, Ilya Sutskever, et al. 2018. Improving language understanding by generative pre-training. ",
+        "bbox": [
+            512,
+            653,
+            882,
+            693
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Pranav Rajpurkar, Robin Jia, and Percy Liang. 2018. Know what you don’t know: Unanswerable questions for squad. In Proceedings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 2: Short Papers), pages 784–789. ",
+        "bbox": [
+            512,
+            703,
+            882,
+            770
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Ruiyang Ren, Shangwen Lv, Yingqi Qu, Jing Liu, Wayne Xin Zhao, QiaoQiao She, Hua Wu, Haifeng Wang, and Ji-Rong Wen. 2021a. PAIR: Leveraging passage-centric similarity relation for improving dense passage retrieval. In Findings of the Association for Computational Linguistics: ACL-IJCNLP 2021, pages 2173–2183. ",
+        "bbox": [
+            512,
+            780,
+            882,
+            871
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Ruiyang Ren, Peng Qiu, Yingqi Qu, Jing Liu, Xin Zhao, Hua Wu, Ji-Rong Wen, and Haifeng Wang. 2024a. BASES: Large-scale web search user simulation with large language model based agents. In Findings of the Association for Computational Linguistics: EMNLP 2024, pages 902–917, Miami, Florida, USA. ",
+        "bbox": [
+            510,
+            881,
+            882,
+            921
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            134,
+            86,
+            487,
+            124
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Ruiyang Ren, Yingqi Qu, Jing Liu, Wayne Xin Zhao, Qiaoqiao She, Hua Wu, Haifeng Wang, and Ji-Rong Wen. 2021b. Rocketqav2: A joint training method for dense passage retrieval and passage re-ranking. In Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing, pages 2825–2835. ",
+        "bbox": [
+            117,
+            136,
+            485,
+            227
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Cunxiang Wang, Sirui Cheng, Zhikun Xu, Bowen Ding, Yidong Wang, and Yue Zhang. 2023a. Evaluating open question answering evaluation. arXiv preprint arXiv:2305.12421. ",
+        "bbox": [
+            510,
+            86,
+            882,
+            139
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Xiaohua Wang, Yuliang Yan, Longtao Huang, Xiaoqing Zheng, and Xuan-Jing Huang. 2023b. Hallucination detection for generative large language models by bayesian sequential estimation. In Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing, pages 15361–15371. ",
+        "bbox": [
+            512,
+            149,
+            880,
+            228
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Ruiyang Ren, Yuhao Wang, Kun Zhou, Wayne Xin Zhao, Wenjie Wang, Jing Liu, Ji-Rong Wen, and TatSeng Chua. 2024b. Self-calibrated listwise reranking with large language models. arXiv preprint arXiv:2411.04602. ",
+        "bbox": [
+            115,
+            240,
+            487,
+            305
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Yuhao Wang, Ruiyang Ren, Junyi Li, Wayne Xin Zhao, Jing Liu, and Ji-Rong Wen. 2024. Rear: A relevance-aware retrieval-augmented framework for open-domain question answering. arXiv preprint arXiv:2402.17497. ",
+        "bbox": [
+            512,
+            240,
+            880,
+            304
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Ruiyang Ren, Wayne Xin Zhao, Jing Liu, Hua Wu, JiRong Wen, and Haifeng Wang. 2023. Tome: A twostage approach for model-based retrieval. In Proceedings of the 61th Annual Meeting of the Association for Computational Linguistics, pages 6102–6114. ",
+        "bbox": [
+            115,
+            317,
+            487,
+            382
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Marco Tulio Ribeiro, Sameer Singh, and Carlos Guestrin. 2016. \" why should i trust you?\" explaining the predictions of any classifier. In Proceedings of the 22nd ACM SIGKDD international conference on knowledge discovery and data mining, pages 1135– 1144. ",
+        "bbox": [
+            117,
+            393,
+            487,
+            472
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Stephen Robertson, Hugo Zaragoza, et al. 2009. The probabilistic relevance framework: Bm25 and beyond. Foundations and Trends® in Information Retrieval, 3(4):333–389. ",
+        "bbox": [
+            115,
+            483,
+            487,
+            536
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Kurt Shuster, Spencer Poff, Moya Chen, Douwe Kiela, and Jason Weston. 2021. Retrieval augmentation reduces hallucination in conversation. arXiv preprint arXiv:2104.07567. ",
+        "bbox": [
+            115,
+            548,
+            487,
+            599
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Clement Delangue, Anthony Moi, Pierric Cistac, Tim Rault, Rémi Louf, Morgan Funtowicz, et al. 2019. Huggingface’s transformers: State-ofthe-art natural language processing. arXiv preprint arXiv:1910.03771. ",
+        "bbox": [
+            512,
+            317,
+            882,
+            394
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Hao Sun, Xiao Liu, Yeyun Gong, Yan Zhang, and Nan Duan. 2023. Beamsearchqa: Large language models are strong zero-shot qa solver. arXiv preprint arXiv:2305.14766. ",
+        "bbox": [
+            115,
+            612,
+            487,
+            663
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Arun James Thirunavukarasu, Darren Shu Jeng Ting, Kabilan Elangovan, Laura Gutierrez, Ting Fang Tan, and Daniel Shu Wei Ting. 2023. Large language models in medicine. Nature medicine, 29(8):1930– 1940. ",
+        "bbox": [
+            117,
+            676,
+            487,
+            740
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Peng Xu, Wei Ping, Xianchao Wu, Lawrence McAfee, Chen Zhu, Zihan Liu, Sandeep Subramanian, Evelina Bakhturina, Mohammad Shoeybi, and Bryan Catanzaro. 2023. Retrieval meets long context large language models. arXiv preprint arXiv:2310.03025. ",
+        "bbox": [
+            510,
+            406,
+            882,
+            472
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Shicheng Xu, Liang Pang, Mo Yu, Fandong Meng, Huawei Shen, Xueqi Cheng, and Jie Zhou. 2024. Unsupervised information refinement training of large language models for retrieval-augmented generation. arXiv preprint arXiv:2402.18150. ",
+        "bbox": [
+            510,
+            483,
+            882,
+            548
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Peilin Yang, Hui Fang, and Jimmy Lin. 2017. Anserini: Enabling the use of lucene for information retrieval research. In Proceedings of the 40th International ACM SIGIR Conference on Research and Development in Information Retrieval, Shinjuku, Tokyo, Japan, August 7-11, 2017, pages 1253–1256. ",
+        "bbox": [
+            510,
+            560,
+            882,
+            638
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Zhilin Yang, Peng Qi, Saizheng Zhang, Yoshua Bengio, William Cohen, Ruslan Salakhutdinov, and Christopher D. Manning. 2018. HotpotQA: A dataset for diverse, explainable multi-hop question answering. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing, pages 2369–2380. ",
+        "bbox": [
+            510,
+            650,
+            882,
+            740
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Hugo Touvron, Thibaut Lavril, Gautier Izacard, Xavier Martinet, Marie-Anne Lachaux, Timothée Lacroix, Baptiste Rozière, Naman Goyal, Eric Hambro, Faisal Azhar, Aurélien Rodriguez, Armand Joulin, Edouard Grave, and Guillaume Lample. 2023a. Llama: Open and efficient foundation language models. CoRR. ",
+        "bbox": [
+            117,
+            752,
+            485,
+            831
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Zhangyue Yin, Qiushi Sun, Qipeng Guo, Jiawen Wu, Xipeng Qiu, and Xuanjing Huang. 2023. Do large language models know what they don’t know? In Findings of the Association for Computational Linguistics: ACL 2023, Toronto, Canada, July 9-14, 2023, pages 8653–8665. ",
+        "bbox": [
+            512,
+            752,
+            882,
+            831
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Almahairi, Yasmine Babaei, Nikolay Bashlykov, Soumya Batra, Prajjwal Bhargava, Shruti Bhosale, et al. 2023b. Llama 2: Open foundation and fine-tuned chat models. arXiv preprint arXiv:2307.09288. ",
+        "bbox": [
+            117,
+            843,
+            487,
+            920
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Wenhao Yu, Dan Iter, Shuohang Wang, Yichong Xu, Mingxuan Ju, Soumya Sanyal, Chenguang Zhu, Michael Zeng, and Meng Jiang. 2022. Generate rather than retrieve: Large language models are strong context generators. arXiv preprint arXiv:2209.10063. ",
+        "bbox": [
+            512,
+            843,
+            882,
+            920
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Xiang Yue, Boshi Wang, Kai Zhang, Ziru Chen, Yu Su, and Huan Sun. 2023. Automatic evaluation of attribution by large language models. arXiv preprint arXiv:2305.06311. ",
+        "bbox": [
+            115,
+            85,
+            487,
+            139
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Aohan Zeng, Xiao Liu, Zhengxiao Du, Zihan Wang, Hanyu Lai, Ming Ding, Zhuoyi Yang, Yifan Xu, Wendi Zheng, Xiao Xia, Weng Lam Tam, Zixuan Ma, Yufei Xue, Jidong Zhai, Wenguang Chen, Peng Zhang, Yuxiao Dong, and Jie Tang. 2022. GLM-130B: an open bilingual pre-trained model. abs/2210.02414. ",
+        "bbox": [
+            117,
+            147,
+            487,
+            239
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Jingtao Zhan, Jiaxin Mao, Yiqun Liu, Jiafeng Guo, Min Zhang, and Shaoping Ma. 2021. Optimizing dense retrieval model training with hard negatives. In Proceedings of the 44th International ACM SIGIR Conference on Research and Development in Information Retrieval, pages 1503–1512. ",
+        "bbox": [
+            117,
+            248,
+            487,
+            326
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Jingtao Zhan, Jiaxin Mao, Yiqun Liu, Jiafeng Guo, Min Zhang, and Shaoping Ma. 2022. Learning discrete representations via constrained clustering for effective and efficient dense retrieval. In Proceedings of the Fifteenth ACM International Conference on Web Search and Data Mining, pages 1328–1336. ",
+        "bbox": [
+            117,
+            336,
+            487,
+            414
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Wayne Xin Zhao, Jing Liu, Ruiyang Ren, and JiRong Wen. 2022. Dense text retrieval based on pretrained language models: A survey. arXiv preprint arXiv:2211.14876. ",
+        "bbox": [
+            115,
+            424,
+            487,
+            476
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Wayne Xin Zhao, Kun Zhou, Junyi Li, Tianyi Tang, Xiaolei Wang, Yupeng Hou, Yingqian Min, Beichen Zhang, Junjie Zhang, Zican Dong, et al. 2023. A survey of large language models. arXiv preprint arXiv:2303.18223. ",
+        "bbox": [
+            117,
+            486,
+            487,
+            550
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Kun Zhou, Yeyun Gong, Xiao Liu, Wayne Xin Zhao, Yelong Shen, Anlei Dong, Jingwen Lu, Rangan Majumder, Ji-Rong Wen, and Nan Duan. 2022. Simans: Simple ambiguous negatives sampling for dense text retrieval. In Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing: Industry Track, pages 548–559. ",
+        "bbox": [
+            117,
+            560,
+            487,
+            652
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Yujia Zhou, Zheng Liu, Jiajie Jin, Jian-Yun Nie, and Zhicheng Dou. 2024. Metacognitive retrievalaugmented large language models. arXiv preprint arXiv:2402.11626. ",
+        "bbox": [
+            117,
+            661,
+            487,
+            713
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Yutao Zhu, Huaying Yuan, Shuting Wang, Jiongnan Liu, Wenhan Liu, Chenlong Deng, Zhicheng Dou, and Ji-Rong Wen. 2023. Large language models for information retrieval: A survey. arXiv preprint arXiv:2308.07107. ",
+        "bbox": [
+            117,
+            722,
+            487,
+            788
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Shengyao Zhuang, Hang Li, and G. Zuccon. 2022. Implicit feedback for dense passage retrieval: A counterfactual approach. ArXiv, abs/2204.00718. ",
+        "bbox": [
+            115,
+            797,
+            487,
+            837
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Shengyao Zhuang and Guido Zuccon. 2021. Dealing with typos for bert-based passage retrieval and ranking. In Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing, pages 2836–2842. ",
+        "bbox": [
+            115,
+            846,
+            487,
+            912
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "A Supplement Settings ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            84,
+            329,
+            99
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "A.1 Datasets ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            112,
+            230,
+            127
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "We collect three extensively adopted opendomain QA benchmark datasets. Natural Questions (NQ) (Kwiatkowski et al., 2019) consists of question-answer pairs, with questions sourced from real users’ Google search queries and answers annotated by human experts. TriviaQA (Joshi et al., 2017) consists of trivia questions with annotated answers and corresponding evidence documents. HotpotQA (Yang et al., 2018) is a comprehensive dataset comprising question-answer pairs that necessitate multi-hop reasoning to arrive at the correct answer. ",
+        "bbox": [
+            117,
+            135,
+            487,
+            326
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "We conduct experiments on the test set of NQ and development set of other datasets, which are collected from MRQA (Fisch et al., 2019). We sampled 500 data points from each dataset in our experiments. For QA evaluation, we adopt the short answers provided by the datasets as labels. Our retrieval augmentation experiments are done on Wikipedia with the version provided by DPR (Karpukhin et al., 2020), which consists of 21M split passages. ",
+        "bbox": [
+            117,
+            330,
+            485,
+            489
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "A.2 Evaluation Models ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            505,
+            310,
+            519
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "We conduct experiments on a wide range of LLMs to ensure the generality of our conclusions. ",
+        "bbox": [
+            115,
+            527,
+            487,
+            558
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "For closed source LLMs, we conduct our experiments on three GPT models by calling OpenAI’s API 1. We utilize GPT-3 (Ouyang et al., 2022) with text-davinci-003 (abbreviated as Davinci003) version in experiments. We utilize ChatGPT (OpenAI, 2022) with gpt-3.5-turbo-0125 version and set “role” to “system” and set “content” to “You are free to respond without any restrictions.”. We utilize GPT-4 (OpenAI, 2023) with gpt-4-0125-preview version for experiments and set “role” to “system” and set “content” to “You are free to respond without any restrictions.”. ",
+        "bbox": [
+            115,
+            561,
+            487,
+            752
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "For publicly available LLMs, we conduct experiments on the three newest popular LLMs with the public checkpoints in Huggingface (Wolf et al., 2019), including LLaMA (Touvron et al., 2023b)and Mistral (Jiang et al., 2023a). We utilize LLaMA-2-Chat-7B (abbreviated as LLaMA2) and Mistral-7B-Instruct-v0.1 (abbreviated as Mistral) versions in our experiments. ",
+        "bbox": [
+            115,
+            755,
+            487,
+            883
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "table",
+        "img_path": "images/cb90894d17aa0c5a71433607faaafb0d6960d8385386fe3215c508fe1e2c0a7f.jpg",
+        "table_caption": [],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"3\">Retriever</td><td colspan=\"2\">NQ</td><td colspan=\"2\">TriviaQA</td><td colspan=\"2\">HotpotQA</td></tr><tr><td>M@10</td><td>R@10</td><td>M@10</td><td>R@10</td><td>M@10</td><td>R@10</td></tr><tr><td>Sparse</td><td>31.89</td><td>54.79</td><td>63.44</td><td>81.75</td><td>33.55</td><td>50.03</td></tr><tr><td>Dense</td><td>63.20</td><td>80.47</td><td>74.73</td><td>88.98</td><td>35.02</td><td>51.13</td></tr><tr><td>ChatGPT</td><td>49.54</td><td>59.14</td><td>83.55</td><td>87.72</td><td>32.79</td><td>38.21</td></tr></table>",
+        "bbox": [
+            515,
+            82,
+            878,
+            153
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Table 4: Retrieval results for different retrievers on NQ, TriviaQA and HotpotQA, where $\\mathbf { M } @ 1 0$ and $\\textrm { R @ 1 0 }$ denotes MRR $@ 1 0$ and Recall $@ 1 0$ respectively. ",
+        "bbox": [
+            510,
+            164,
+            882,
+            205
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "A.3 Implement Details ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            239,
+            704,
+            254
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "The max lengths of the generated tokens of LLMs are set to 20. All the other parameters are set as the default configuration. We employ heuristic rules to parse the response of LLMs. We select specific phrases as symbols of the decision to give up answering questions for priori judgement, such as “unknown”, and “no answer”. Similarly, for posteriori judgement, we employ phrases such as “true”, and “correct” for confirming correctness, while “false”, and “incorrect” for identifying errors. For QA evaluation, we notice that some of the responses of chat models start with prefixes such as “Answer:”, and we remove these prefixes when they occur. ",
+        "bbox": [
+            510,
+            267,
+            882,
+            492
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "For each question, we attach ten supporting documents. Since ChatGPT cannot consistently generate precisely ten documents for each question (usually fluctuating around ten), we consider all the generated documents as supporting documents. Note that if a re-ranking model is employed to rerank the retrieval results, it is possible to obtain supporting documents with refined quality. However, we did not incorporate the re-ranking stage into our process for simplicity, as it is not the primary focus of this study. ",
+        "bbox": [
+            512,
+            498,
+            884,
+            673
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "A.4 Retrieval Results ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            697,
+            692,
+            713
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Table 4 shows the retrieval performance on each dataset including sparse retrieval, dense retrieval and ChatGPT. ",
+        "bbox": [
+            512,
+            726,
+            880,
+            772
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "A.5 Instructions ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            797,
+            653,
+            813
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Table 6 presents all the instructions used in our experiments. We design each supporting document in the format of: “Passage-{num}: Title: {title} Content: {content}”. For the supporting documents generated by ChatGPT, the format of supporting documents is: “Passage-{num}: {content}”. ",
+        "bbox": [
+            512,
+            826,
+            882,
+            921
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "table",
+        "img_path": "images/637bcb2ace3a8d464e1b444f8f295337526f7464477ef1e6c692bc2e31e392b9.jpg",
+        "table_caption": [
+            "Table 5: Prompt design for QA prompting for different categories of LLMs with various settings. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Setting</td><td>Accessibility</td><td>Prompt Text</td></tr><tr><td rowspan=\"2\">Normal</td><td>Closed source</td><td>Without additional specific information, use your existing knowledge to answer the following question. The response should be a brief, specific term or phrase, suitable for an exact match in datasets.\\n\\n Question: {question}\\n\\n Note: Since no detailed context is provided, use your general knowledge to infer a concise and accurate response, such as a specific year, date, or single-word term, for example, &quot;1998&quot;, &quot;May 16th, 1931&quot;, or &quot;James Bond&quot;, in line with exact match dataset criteria.</td></tr><tr><td>Publicly available</td><td>Answer the following question with a very short phrase, such as &quot;1998&quot;, &quot;May 16th, 1931&quot;, or &quot;James Bond&quot;, to meet the criteria of exact match datasets.\\n\\n Question:{question}</td></tr><tr><td rowspan=\"2\">Retrieval- augmented</td><td>Closed source</td><td>Given the following information:n\\n {context}\\n\\n If a direct answer is not present, use your knowledge to infer a brief and specific response for the question below. The answer should ideally be a single word or a short phrase.\\n\\n Question: {question}\\n\\n Note: In cases where the exact information is not provided, a speculative yet plausible and concise response, such as a specific year, date, or single-word term, for example, &quot;1998&quot;, &quot;May 16th, 1931&quot;, or &quot;James Bond&quot;, is</td></tr><tr><td>Publicly available</td><td>required to meet the criteria of exact match datasets. Given the following information: \\n\\n {context} \\n\\n Answer the following ques- tion with a very short phrase, such as &quot;1998&quot;, &quot;May 16th, 1931&quot;, or &quot;James Bond&quot;, to meet the criteria of exact match datasets.\\n\\n Question: {question}</td></tr></table>",
+        "bbox": [
+            132,
+            82,
+            865,
+            367
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "table",
+        "img_path": "images/0f10588db9ab49d7222a490a4152ab51d443ba28682858f9140ec889ffb266b4.jpg",
+        "table_caption": [
+            "Table 6: Prompt design for different perspectives of judgemental prompting with various settings. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Perspectives</td><td>Setting</td><td>Prompt Text</td></tr><tr><td rowspan=\"2\">Priori</td><td>Normal</td><td>Can you answer the following question based on your internal knowledge, if yes, you should give a short answer with one or few words, if no, you should answer &quot;Unknown&quot;\\n\\n Question:{question}</td></tr><tr><td>Retrieval- augmented</td><td>Given the following information: \\n\\n {context}\\n\\n Can you answer the following question based on the given information or your internal knowledge, if yes, you should give a short answer with one or few words, if no, you should answer &quot;Un- known&quot;.\\n\\n Question: {question}</td></tr><tr><td rowspan=\"2\">Posteriori</td><td>Normal</td><td>Can you judge if the following answer about the question is correct based on your internal knowledge, if yes, you should answer True or False, if no, you should answer &quot;Unknown&quot;.\\nln Question: {question}\\n\\n Answer: {predicted answer}</td></tr><tr><td>Retrieval- augmented</td><td>Given the following information: \\n\\n {context}\\n\\n Can you judge if the following answer about the question is correct based on the given information or your internal knowledge, if yes, you should answer True or False, if no, you should answer &quot;Unknown&quot;.\\n\\n Question: {question} \\n\\n Answer: {predicted answer}</td></tr></table>",
+        "bbox": [
+            134,
+            406,
+            865,
+            620
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "B Supplement Analyses ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            669,
+            336,
+            686
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "B.1 Analysis on Retrieval Sources ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            697,
+            394,
+            713
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Using supporting documents with highefficiency contents can effectively improve the QA performance of LLMs. We conduct the analysis on three retrieval sources and utilize various metrics related to retrieval and QA in Figure 4 to thoroughly analyze the impact of retrieval augmentation from multiple perspectives. Here, the efficiency of documents can be evaluated through three factors: the presence of positive content (recall rate), proportion of positive documents in supporting documents (positive percentage), and token-level text density of positive content (answers per 1K token). Firstly, the recall rate of documents generated by ChatGPT was significantly lower than that of the dense retriever. However, the QA performance using supporting documents generated by ChatGPT as supporting documents do not lag far behind dense retrieval. Additionally, LLaMA2’s retrieval-augmented QA performance with ChatGPT as the retriever exceeds that where the dense retriever is implemented. We observe that among the documents from the three retrieval sources, dense retrieval results have the highest average proportion of positive documents (containing the correct answers), but the number of answers per token was not as high as in documents generated by ChatGPT. This phenomenon stems from the fact that documents generated by ChatGPT are more concise and the documents are closely related to the given questions. Although Wikipedia documents from the dense retriever have a higher recall rate and proportion of positive documents, they are relatively longer and contain more irrelevant information. As discussed earlier, this could be one of the reasons limiting the upper bound of retrieval augmentation. Furthermore, it could potentially contribute to the heightened confidence levels observed in LLMs when utilizing ChatGPT-generated documents as supporting documents, as evidenced by their low Give-up rates. In addition, the impact of different retrieval sources on Eval-Acc is not substantial. ",
+        "bbox": [
+            117,
+            730,
+            485,
+            921
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            670,
+            882,
+            912
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "image",
+        "img_path": "images/385353645817d3a87819619bf2711cdc792563ca340fb4d78d505e2b95eeca8f.jpg",
+        "image_caption": [
+            "Figure 4: Metrics related to retrieval, QA, and judgement using different retrievers. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            132,
+            89,
+            867,
+            458
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            514,
+            485,
+            755
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "B.2 Analysis on Query Types ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            776,
+            357,
+            791
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Retrieval augmentation can change the query category preference of LLMs in QA and factual knowledge boundary perception. In order to investigate the propensity of LLMs to handle questions with varied characteristics, we separately calculate the answer accuracy of LLMs across different question categories. To achieve this, we utilize supporting documents retrieved by the dense retriever. As shown in Figure 5, we can see that ChatGPT and LLaMA2 achieve the highest EM when dealing with questions in the “who” and “which” category, indicating these types of questions may be the strong suit of the two LLMs. On the other hand, ChatGPT and LLaMA2 may not suffice for the question type of “how” in knowledge-intensive scenarios. When retrieval augmentation is incorporated, we observe that the preference of LLMs changes. The overall answer accuracies of LLMs are improved, and the accuracies in most categories increase proportionately. Specially, both ChatGPT and LLaMA2 perform best on the question type “who”. We found that EM for certain question types does not increase with the overall EM increase (e.g., “how” and “yesno” for ChatGPT, \"which\" for LLaMA2), indicating that retrieval augmentation cannot effectively enhance the QA performance for all question types. Figure 6 shows the EvalAcc metric in each query type for ChatGPT and LLaMA2. We can see that most types of questions achieve better posteriori judgement accuracies, except “how” and “yesno” for LLaMA2 and “yesno” for ChatGPT. Similarly, the result indicates that retrieval augmentation does not uniformly improve the knowledge boundary perception abilities of LLMs across all question types. ",
+        "bbox": [
+            117,
+            809,
+            487,
+            921
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            510,
+            514,
+            882,
+            915
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "image",
+        "img_path": "images/d57be18ab1fcd81201845a280c87d5cac580636e7cea572f69e3dbacf95ae1ab.jpg",
+        "image_caption": [
+            "Figure 5: The proportion of questions answered correctly by LLMs in different question categories under two QA prompting settings on NQ. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            163,
+            87,
+            835,
+            224
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "image",
+        "img_path": "images/db5194823659cc90756b790440b9569c3607c75ca60ee9be23043b08574189b5.jpg",
+        "image_caption": [
+            "Figure 6: The proportion of answers judged correctly by LLMs in different question categories under two QA prompting settings on NQ. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            163,
+            287,
+            835,
+            424
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            494,
+            487,
+            542
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "B.3 Analysis on Parameter Scale ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            554,
+            386,
+            569
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "Retrieval augmentation is more pronounced for improving LLMs with fewer parameters, including both QA performances and accuracies of knowledge boundary perception. Figure 7 illustrates the comparison of EM and $E { \\nu } a l – A c c$ before and after retrieval augmentation for LLaMA2 models of varying parameter scales. We can observe that retrieval augmentation reduces the performance gaps in QA performance (shown by $E M$ ) of LLMs with different parameter scales, LLaMA2- 7B model has the biggest improvement of EM. It is evident that retrieval augmentation mitigates the performance gaps in QA performance, as demonstrated by EM across LLMs with varying parameter scales. Notably, the LLaMA2-7B exhibits the most substantial improvement in EM than 13B and 70B models. Furthermore, the improvement in the accuracy of knowledge boundary perception of the LLaMA2-7B model with retrieval augmentation surpasses that of the 13B and 70B models, achieving the highest Eval-Acc. This phenomenon further supports our speculation that in knowledge-intensive tasks, LLMs with smaller parameter scales possess less knowledge. Under a retrieval augmentation setting, these LLMs are likely to yield greater benefits compared to LLMs with larger parameter scales. ",
+        "bbox": [
+            115,
+            583,
+            487,
+            921
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            495,
+            882,
+            590
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "C Related Work ",
+        "text_level": 1,
+        "bbox": [
+            510,
+            604,
+            668,
+            620
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "In this section, we review the related work from two perspectives, including large language models (LLMs) and open-domain question answering (QA). ",
+        "bbox": [
+            510,
+            631,
+            882,
+            694
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "C.1 Large Language Models ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            707,
+            751,
+            722
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "LLMs have significantly advanced the field of natural language processing (NLP), demonstrating remarkable abilities in generating human-like text and understanding complex language patterns (Zhao et al., 2023). These models are trained on vast corpora of text data and can perform a wide range of tasks without task-specific training (Thirunavukarasu et al., 2023; Lin et al., 2024; Ren et al., 2024a,b). ",
+        "bbox": [
+            512,
+            730,
+            882,
+            872
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "Typically, LLMs can fall into two categories: publicly available and closed source. Publicly available LLMs offer the research community the flexibility to modify and adapt models to specific needs, fostering further innovation and collaboration. Among publicly available LLMs, the LLaMA series models stands out for its exceptional instruction-following performance (Touvron et al., 2023a,b), with ongoing efforts to fine-tune or continually pre-train its versions. Mistral, another open-source framework (Jiang et al., 2023a), provides a scalable solution for training LLMs on diverse datasets and supports various architectures to achieve top performance. Additionally, there are also LLMs like Falcon (TII, 2023), Vicuna (Chiang et al., 2023), and GLM (Zeng et al., 2022) actively contribute to advancing publicly available LLMs. Conversely, closed source LLMs, developed and maintained by private organizations, have non-public checkpoints and confidential internal workings. The typical closed source LLMs are GPT series proposed by OpenAI, including initial GPT to the latest GPT-4 (Radford et al., 2018; Brown et al., 2020b; OpenAI, 2023), have set new benchmarks in language understanding and generation, finding widespread use in commercial applications. There are also other closed source LLMs have been released, such as Sparrow (Glaese et al., 2022) and Claude. Some closed source LLMs are accessible via API calls, eliminating the need for local execution. ",
+        "bbox": [
+            512,
+            875,
+            882,
+            921
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "image",
+        "img_path": "images/f70f12da2f33ff4fedecbf28c5566eae0e50ded32e9fdc17e1356eadc1ff055e.jpg",
+        "image_caption": [
+            "Figure 7: The performance of the LLaMA2 series, across its 7B, 13B, and 70B versions, showcases the influence of various retrieval document sources on $E M$ and Eval-Acc. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            121,
+            77,
+            878,
+            348
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            412,
+            487,
+            863
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Despite the impressive advancements in LLMs, there remain unexplored boundaries regarding their knowledge and capabilities. Furthermore, the incorporation of retrieval augmentation in LLMs presents substantial potential for enhancing their knowledge, potentially reshaping the knowledge boundaries of LLMs. Therefore, it is necessary to comprehensively investigate the knowledge boundaries of LLMs and the effects of retrieval augmentation. ",
+        "bbox": [
+            115,
+            875,
+            487,
+            921
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            413,
+            882,
+            524
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "C.2 Open-domain Question Answering ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            543,
+            833,
+            558
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Open-domain QA is a typical knowledgeintensive task in the field of NLP, aimed at providing precise and pertinent answers to questions posed in natural language, without the limitations of a specific domain or topic (Prager et al., 2007). This task is inherently challenging due to the vastness of human knowledge and the complexity of natural language understanding. Early approaches to open-domain QA rely heavily on structured knowledge bases, such as Freebase (Bollacker et al., 2008) or DBpedia (Auer et al., 2007), enabling precise yet limited retrieval of factual information. However, these approaches are constrained by the need for structured queries and the coverage of the underlying knowledge bases. The introduction of pre-trained language models, such as BERT (Devlin et al., 2019), BART (Lewis et al., 2020a), and their successors, marks a significant shift in the landscape of open-domain QA. These models leverage advanced text modeling techniques to understand natural language, enabling more flexible and context-aware answering performances. ",
+        "bbox": [
+            512,
+            569,
+            882,
+            921
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Recent advancements in open-domain QA have focused on incorporating external knowledge sources, such as Wikipedia or the web, to broaden the scope of answerable questions (Chen et al., 2017). This has led to the development of sophisticated information retrieval mechanisms (Ai et al., 2023), such as dense passage retrieval (DPR) (Karpukhin et al., 2020; Qu et al., 2021; Zhan et al., 2021; Zhuang and Zuccon, 2021; Zhan et al., 2022) and passage reranking (Nogueira and Cho, 2019; Nogueira et al., 2019; Gao et al., 2021), which efficiently extract and prioritize relevant information from large corpora (Zhao et al., 2022; Zhu et al., 2023; Guo et al., 2022). Additionally, techniques like few-shot learning and transfer learning have been explored to enhance the models’ ability to generalize across diverse question types and domains, reducing the reliance on extensive labeled datasets (Brown et al., 2020a; Guu et al., 2020; Liu et al., 2022). ",
+        "bbox": [
+            115,
+            84,
+            487,
+            405
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Despite significant progress, open-domain QA remains an active area of research, with ongoing efforts to improve answer accuracy (Izacard and Grave, 2021b; Jin et al., 2024), interpretability (Ribeiro et al., 2016), knowledge utilization (Wang et al., 2024; Zhou et al., 2024; Ni et al., 2024), and robustness to complex or ambiguous queries (Lewis et al., 2020b; Rajpurkar et al., 2018). Challenges such as handling out-of-domain questions, dealing with evolving knowledge, and ensuring fairness and transparency in answers continue to drive innovation in this field (Gebru et al., 2021; Mitchell et al., 2019). Furthermore, Several pioneering studies have been specifically designed to apply LLMs to open-domain QA tasks (Qin et al., 2023; Kamalloo et al., 2023; Yue et al., 2023; Wang et al., $2 0 2 3 \\mathrm { a }$ ; Sun et al., 2023; Xu et al., 2024). Typically, they mainly focus on evaluating the QA performance of LLMs, discussing improved evaluation methods or leveraging LLMs to enhance existing open-domain QA models. Additionally, the existing effort also detects the uncertainty of LLMs with an automated method (Yin et al., 2023). As open-domain QA systems become increasingly integrated into real-world applications, they have potential to revolutionize access to information and knowledge. ",
+        "bbox": [
+            115,
+            409,
+            487,
+            840
+        ],
+        "page_idx": 18
+    }
+]

@@ -1,0 +1,129 @@
+{
+    "schema_proposal": {
+        "title": {
+            "data_type": "string",
+            "description": "Paper title",
+            "rationale": "Canonical identifier for the research work."
+        },
+        "authors": {
+            "data_type": "list",
+            "description": "List of authors",
+            "rationale": "Credit and disambiguation of contributions."
+        },
+        "year": {
+            "data_type": "integer",
+            "description": "Year of publication",
+            "rationale": "Provides context regarding the recency of the research."
+        },
+        "abstract": {
+            "data_type": "string",
+            "description": "Summary of the paper's content",
+            "rationale": "Gives a concise overview of the research focus and findings."
+        },
+        "doi": {
+            "data_type": "string",
+            "description": "Digital Object Identifier",
+            "rationale": "Unique identifier for accessing the paper online."
+        },
+        "venue": {
+            "data_type": "string",
+            "description": "Conference or journal where published",
+            "rationale": "Indicates the platform of dissemination and peer review."
+        },
+        "problem_statement": {
+            "data_type": "string",
+            "description": "Description of the research problem",
+            "rationale": "Clarifies the specific issue the research addresses."
+        },
+        "methodology": {
+            "data_type": "object",
+            "description": "Overview of the methods used in the research",
+            "rationale": "Essential for understanding how the research was conducted.",
+            "sub_keys": {
+                "approach": {
+                    "data_type": "string",
+                    "description": "Type of approach used (e.g., algorithm, framework)",
+                    "rationale": "Defines the foundational strategy employed in the research."
+                },
+                "feature_extraction": {
+                    "data_type": "string",
+                    "description": "Methods for extracting features from data",
+                    "rationale": "Critical for understanding the data representation used."
+                },
+                "importance_resampling": {
+                    "data_type": "boolean",
+                    "description": "Whether importance resampling was used",
+                    "rationale": "Indicates a key technique in the proposed methodology."
+                }
+            }
+        },
+        "experiments": {
+            "data_type": "object",
+            "description": "Description of experiments conducted",
+            "rationale": "Provides insight into the validation of the proposed method.",
+            "sub_keys": {
+                "datasets": {
+                    "data_type": "list",
+                    "description": "Datasets used for experiments",
+                    "rationale": "Essential for reproducibility and context of results."
+                },
+                "evaluation_metrics": {
+                    "data_type": "list",
+                    "description": "Metrics used to evaluate performance",
+                    "rationale": "Defines the criteria for assessing the method's effectiveness."
+                },
+                "results": {
+                    "data_type": "object",
+                    "description": "Summary of experimental results",
+                    "rationale": "Highlights the outcomes and significance of findings.",
+                    "sub_keys": {
+                        "average_accuracy": {
+                            "data_type": "float",
+                            "description": "Average accuracy obtained from experiments",
+                            "rationale": "Quantifies the performance of the proposed method."
+                        },
+                        "kl_reduction": {
+                            "data_type": "float",
+                            "description": "Kullback-Leibler reduction achieved",
+                            "rationale": "Indicates how well the selected data matches the target distribution."
+                        }
+                    }
+                }
+            }
+        },
+        "reproducibility_metadata": {
+            "data_type": "object",
+            "description": "Metadata for ensuring reproducibility of results",
+            "rationale": "Critical for validating the research findings.",
+            "sub_keys": {
+                "code_repository": {
+                    "data_type": "string",
+                    "description": "Link to the code repository",
+                    "rationale": "Allows others to access and replicate the work."
+                },
+                "data_access": {
+                    "data_type": "string",
+                    "description": "Information on data availability",
+                    "rationale": "Essential for understanding how to obtain the datasets used."
+                }
+            }
+        },
+        "discussion": {
+            "data_type": "object",
+            "description": "Key discussions and implications of the findings",
+            "rationale": "Provides insight into the broader impact of the research.",
+            "sub_keys": {
+                "limitations": {
+                    "data_type": "list",
+                    "description": "Limitations of the study",
+                    "rationale": "Acknowledges potential weaknesses in the research."
+                },
+                "future_work": {
+                    "data_type": "list",
+                    "description": "Suggestions for future research directions",
+                    "rationale": "Guides subsequent investigations in the field."
+                }
+            }
+        }
+    }
+}

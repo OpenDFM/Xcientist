@@ -1,0 +1,251 @@
+{
+    "extraction": {
+        "title": {
+            "value": "A survey on automatic generation of medical imaging reports based on deep learning",
+            "type": "string",
+            "unit": null,
+            "evidence": "A survey on automatic generation of medical imaging reports based on deep learning",
+            "provenance": {
+                "section_header": "Title",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "authors": {
+            "value": [
+                "Ting Pang",
+                "Peigao Li",
+                "Lijie Zhao"
+            ],
+            "type": "list",
+            "unit": null,
+            "evidence": "Ting Pang1*, Peigao Li1 and Lijie Zhao1",
+            "provenance": {
+                "section_header": "Author list",
+                "page": 1
+            },
+            "notes": "Corresponding author: Ting Pang"
+        },
+        "year": {
+            "value": 2023,
+            "type": "integer",
+            "unit": null,
+            "evidence": "Received: 19 February 2023 Accepted: 9 May 2023 Published online: 18 May 2023",
+            "provenance": {
+                "section_header": "Declarations",
+                "page": null
+            },
+            "notes": ""
+        },
+        "abstract": {
+            "value": "Recent advances in deep learning have shown great potential for the automatic generation of medical imaging reports. Deep learning techniques, inspired by image captioning, have made significant progress in the field of diagnostic report generation. This paper provides a comprehensive overview of recent research efforts in deep learning-based medical imaging report generation and proposes future directions in this field. First, we summarize and analyze the data set, architecture, application, and evaluation of deep learning-based medical imaging report generation. Specially, we survey the deep learning architectures used in diagnostic report generation, including hierarchical RNN-based frameworks, attention-based frameworks, and reinforcement learning-based frameworks. In addition, we identify potential challenges and suggest future research directions to support clinical applications and decision-making using medical imaging report generation systems.",
+            "type": "string",
+            "unit": null,
+            "evidence": "Recent advances in deep learning have shown great potential for the automatic generation of medical imaging reports...",
+            "provenance": {
+                "section_header": "Abstract",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "doi": {
+            "value": null,
+            "type": "string",
+            "unit": null,
+            "evidence": null,
+            "provenance": {
+                "section_header": null,
+                "page": null
+            },
+            "notes": "DOI not provided in the paper."
+        },
+        "venue": {
+            "value": null,
+            "type": "string",
+            "unit": null,
+            "evidence": null,
+            "provenance": {
+                "section_header": null,
+                "page": null
+            },
+            "notes": "Venue not specified in the paper."
+        },
+        "research_focus": {
+            "automatic_generation": {
+                "value": true,
+                "type": "boolean",
+                "unit": null,
+                "evidence": "The primary aim of this manuscript is to present a systematic review of studies on deep learning-based medical imaging reports generation.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 2
+                },
+                "notes": ""
+            },
+            "deep_learning": {
+                "value": true,
+                "type": "boolean",
+                "unit": null,
+                "evidence": "Recent advances in deep learning have shown great potential for the automatic generation of medical imaging reports.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            }
+        },
+        "methodology": {
+            "architectures": {
+                "value": [
+                    "Hierarchical RNN-based frameworks",
+                    "Attention-based frameworks",
+                    "Reinforcement learning-based frameworks"
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "we survey the deep learning architectures used in diagnostic report generation, including hierarchical RNN-based frameworks, attention-based frameworks, and reinforcement learning-based frameworks.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": "These architectures represent the current state-of-the-art in medical imaging report generation."
+            },
+            "data_sets": {
+                "value": [
+                    {
+                        "name": "Indiana University Chest X-Ray (IU X-Ray)",
+                        "description": "Chest X-ray images paired with their corresponding diagnostic reports.",
+                        "size": "7470 images, 3955 reports",
+                        "link": "http://openi.nlm.nih.gov/"
+                    },
+                    {
+                        "name": "ChestX-ray14",
+                        "description": "14 kinds of lung diseases.",
+                        "size": "112,120 images",
+                        "link": "https://nihcc.app.box.com/v/Chest Xray-NIHCC"
+                    },
+                    {
+                        "name": "CheXpert",
+                        "description": "Chest radiographs of 65,240 patients with lung diseases.",
+                        "link": "https://stanfordmlgroup.github.io/competitions/chexpert/"
+                    },
+                    {
+                        "name": "MIMIC-CXR",
+                        "description": "Chest radiographs in DICOM format with free-text radiology reports.",
+                        "size": "377,110 images",
+                        "link": "https://physionet.org/content/mimic-cxr/2.0.0/"
+                    },
+                    {
+                        "name": "PadChest",
+                        "description": "Chest X-ray data set obtained from 67,000 patients.",
+                        "link": "https://bimcv.cipf.es/bimcv-projects/padchest/"
+                    }
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "The current public data sets have greatly contributed to the development of deep learning for medical imaging report generation.",
+                "provenance": {
+                    "section_header": "Data sets",
+                    "page": 6
+                },
+                "notes": "These datasets are essential for training deep learning models in medical imaging."
+            }
+        },
+        "experiments": {
+            "evaluation_metrics": {
+                "value": [
+                    "BLEU",
+                    "ROUGE",
+                    "METEOR",
+                    "CIDER"
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "BLEU, ROUGE, METEOR, and CIDER are commonly used evaluation metrics for medical image report generation.",
+                "provenance": {
+                    "section_header": "Evaluations",
+                    "page": 14
+                },
+                "notes": "These metrics are adapted from machine translation and text summarization."
+            },
+            "results": {
+                "performance": {
+                    "value": "Significant progress in the automatic generation of medical imaging reports has been achieved.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Automatic generation of medical reports using deep learning is still an emerging area with many challenges.",
+                    "provenance": {
+                        "section_header": "Discussion and future",
+                        "page": 15
+                    },
+                    "notes": "The paper highlights the advancements and ongoing challenges in the field."
+                },
+                "challenges": {
+                    "value": [
+                        "Imbalanced datasets",
+                        "Lack of standardized evaluation metrics",
+                        "Data privacy concerns"
+                    ],
+                    "type": "list",
+                    "unit": null,
+                    "evidence": "Despite the significant progress made in medical imaging report generation based on deep learning, this section aims to highlight the unresolved issues...",
+                    "provenance": {
+                        "section_header": "Discussion and future",
+                        "page": 15
+                    },
+                    "notes": "These challenges need to be addressed for further advancements."
+                }
+            }
+        },
+        "future_work": {
+            "value": "Establish public databases with a variety of image modalities and develop private datasets to address the limitations of medical images and complex annotations.",
+            "type": "string",
+            "unit": null,
+            "evidence": "To address these challenges, we need to establish public databases with a variety of image modalities...",
+            "provenance": {
+                "section_header": "Discussion and future",
+                "page": 15
+            },
+            "notes": "Future research should focus on enhancing dataset diversity and improving annotation processes."
+        },
+        "contributions": {
+            "value": [
+                "Focus on the clinical value of deep learning-based diagnostic report generation.",
+                "Organizes and explains current works in detail.",
+                "Identifies new trends for researchers in the field."
+            ],
+            "type": "list",
+            "unit": null,
+            "evidence": "To summarize, this work contributes in three ways: (1) it focuses on the clinical value of deep learning-based diagnostic reports generation...",
+            "provenance": {
+                "section_header": "Introduction",
+                "page": 2
+            },
+            "notes": "These contributions provide a comprehensive understanding of the field."
+        },
+        "availability": {
+            "data_availability": {
+                "value": "Not applicable.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Not applicable.",
+                "provenance": {
+                    "section_header": "Availability of data and materials",
+                    "page": 19
+                },
+                "notes": "No specific data availability mentioned."
+            },
+            "material_availability": {
+                "value": "Not applicable.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Not applicable.",
+                "provenance": {
+                    "section_header": "Availability of data and materials",
+                    "page": 19
+                },
+                "notes": "No supplementary materials mentioned."
+            }
+        }
+    }
+}

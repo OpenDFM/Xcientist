@@ -1,0 +1,192 @@
+{
+  "extraction": {
+    "title": {
+      "value": "SurveyX: Academic Survey Automation via Large Language Models",
+      "type": "string",
+      "unit": null,
+      "evidence": "SurveyX: Academic Survey Automation via Large Language Models",
+      "provenance": {
+        "section_header": "Title",
+        "page": 1
+      },
+      "notes": "",
+      "score": {
+        "consistency": 5,
+        "insight": 5,
+        "integrity": 5
+      }
+    },
+    "insights": {
+      "value": [
+        "SurveyX significantly enhances the efficacy of survey composition by introducing a structured two-phase process.",
+        "The system outperforms existing automated survey generation systems in content quality and citation quality, approaching human expert performance.",
+        "Innovative methods like online reference retrieval and the AttributeTree pre-processing method contribute to improved information density and context utilization."
+      ],
+      "type": "list",
+      "unit": null,
+      "evidence": "Experimental evaluation results show that SurveyX outperforms existing automated survey generation systems in content quality (0.259 improvement) and citation quality (1.76 enhancement), approaching human expert performance across multiple evaluation dimensions.",
+      "provenance": {
+        "section_header": "Abstract",
+        "page": 1
+      },
+      "notes": "",
+      "score": {
+        "consistency": 5,
+        "insight": 5,
+        "integrity": 5
+      }
+    },
+    "article_introduction": {
+      "research_background": {
+        "value": "The exponential growth of literature has made it increasingly challenging for researchers to comprehend technological evolution in specific subfields, necessitating efficient systems for automated survey generation.",
+        "type": "string",
+        "unit": null,
+        "evidence": "However, the exponential growth of literature has made it increasingly challenging for researchers attempting to comprehend the technological evolution and developmental trajectories of specific subfields from the ground up.",
+        "provenance": {
+          "section_header": "1 INTRODUCTION",
+          "page": 2
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "main_contributions": {
+        "value": "SurveyX introduces a two-phase system for automated survey generation, incorporating innovative retrieval algorithms, the AttributeTree method for reference pre-processing, and an enhanced evaluation framework.",
+        "type": "string",
+        "unit": null,
+        "evidence": "To address these deficiencies, we propose SurveyX, an efficient and well organized system for automated survey generation. SurveyX divides the composing process of surveys into two phases: the Preparation Phase and the Generation Phase.",
+        "provenance": {
+          "section_header": "1 INTRODUCTION",
+          "page": 3
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 5,
+          "integrity": 5
+        }
+      },
+      "core_approach": {
+        "value": "SurveyX decomposes the survey composing process into Preparation and Generation phases, utilizing reference retrieval and pre-processing methods to enhance content generation.",
+        "type": "string",
+        "unit": null,
+        "evidence": "By innovatively introducing online reference retrieval, a pre-processing method called AttributeTree, and a re-polishing process, SurveyX significantly enhances the efficacy of survey composition.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": 1
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 5,
+          "integrity": 5
+        }
+      }
+    },
+    "methods": {
+      "preparation_stage": {
+        "reference_acquisition": {
+          "value": "SurveyX employs a module for acquiring references from both offline and online sources, utilizing a self-developed crawler system based on Google Scholar.",
+          "type": "string",
+          "unit": null,
+          "evidence": "The retrieval data source includes both offline and online data sources. The offline data source consists of 2,632,189 available papers downloaded from the arXiv.org, with new papers added daily. The online data source is a self-developed crawler system based on Google Scholar.",
+          "provenance": {
+            "section_header": "3.1 Preparation Phase",
+            "page": 6
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        },
+        "retrieval_algorithms": {
+          "value": "The retrieval algorithm consists of a Keyword Expansion Algorithm and a two-step filtration process to ensure high relevance of selected references.",
+          "type": "string",
+          "unit": null,
+          "evidence": "To achieve (1), we design a 2-step filtration algorithm... The first step uses an embedding model to calculate the semantic relevance between the topic and abstracts of references, selecting the Top-K references most relevant to the topic.",
+          "provenance": {
+            "section_header": "3.1 Preparation Phase",
+            "page": 6
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        },
+        "reference_preprocessing": {
+          "value": "The AttributeTree method is designed to efficiently extract key information from references, significantly increasing the information density and context utilization.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We design a reference pre-processing method called AttributeTree. This method significantly increases the information density of the reference materials and efficiently utilizes the context window of LLMs.",
+          "provenance": {
+            "section_header": "3.1 Preparation Phase",
+            "page": 8
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        }
+      },
+      "generation_stage": {
+        "outline_generation": {
+          "value": "Outline Optimization is employed to generate a structured outline based on hints derived from the attribute tree, ensuring logical coherence.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We designed an outline generation method named Outline Optimization, which generates outlines based on hints and employs a 'separate-then-reorganize' step to eliminate redundancy.",
+          "provenance": {
+            "section_header": "3.2 Generation Phase",
+            "page": 9
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        },
+        "content_generation": {
+          "value": "Content generation utilizes hints from the secondary outline to guide the creation of the main body, ensuring consistency across sections.",
+          "type": "string",
+          "unit": null,
+          "evidence": "During the content generation stage, inspired by the human writing process for surveys, we continue to use the hint-based method... LLMs will generate the main body content on a subsection basis using these hints.",
+          "provenance": {
+            "section_header": "3.2 Generation Phase",
+            "page": 10
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        },
+        "post_optimization": {
+          "value": "The post refinement stage enhances content quality through RAG-based rewriting and incorporates figures and tables to improve presentation.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We have constructed a comprehensive and systematic post refinement stage that significantly enhances the overall quality of the generated survey while expanding its expressive format.",
+          "provenance": {
+            "section_header": "3.2 Generation Phase",
+            "page": 11
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1234 @@
+[
+    {
+        "type": "text",
+        "text": "RAFT: Adapting Language Model to Domain Specific RAG ",
+        "text_level": 1,
+        "bbox": [
+            169,
+            98,
+            805,
+            121
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Tianjun Zhang ∗   \nDepartment of Computer Science   \nUC Berkeley   \nBerkeley, CA 94720, USA   \n{tianjunz}@berkeley.edu   \nShishir G. Patil, Naman Jain, Sheng Shen   \nDepartment of Computer Science   \nUC Berkeley   \nBerkeley, CA 94720, USA   \n{shishirpatil,naman_jain,sheng.s}@berkeley.edu ",
+        "bbox": [
+            184,
+            147,
+            426,
+            218
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            444,
+            147,
+            839,
+            218
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Matei Zaharia, Ion Stoica, Joseph E. Gonzalez ",
+        "bbox": [
+            184,
+            238,
+            524,
+            253
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Department of Computer Science   \nUC Berkeley   \nBerkeley, CA 94720, USA   \n{matei,istoica,jegonzal}@berkeley.edu ",
+        "bbox": [
+            184,
+            253,
+            501,
+            308
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Abstract ",
+        "text_level": 1,
+        "bbox": [
+            462,
+            344,
+            537,
+            361
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Pretraining Large Language Models (LLMs) on large corpora of textual data is now a standard paradigm. When using these LLMs for many downstream applications, it is common to additionally incorporate new information into the pretrained model either through RAG-based-prompting, or finetuning. However, the best methodology to incorporate information remains an open question. In this paper, we present Retrieval Augmented Fine Tuning (RAFT), a training recipe which improves the model’s ability to answer questions in \"open-book\" in-domain settings. In training RAFT, given a question, and a set of retrieved documents, we train the model to ignore those documents that don’t help in answering the question, which we call, distractor documents. RAFT accomplishes this by citing verbatim the right sequence from the relevant document to help answer the question. This coupled with RAFT’s chain-of-thought-style response helps improve the model’s ability to reason. In domain specific RAG, RAFT consistently improves the model’s performance across PubMed, HotpotQA, and Gorilla datasets, presenting a post-training recipe to improve pre-trained LLMs to in-domain RAG. ",
+        "bbox": [
+            233,
+            377,
+            766,
+            613
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1 Introduction ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            642,
+            316,
+            659
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Trained on vast quantities of public data, Large Language Models LLMs have achieved significant advances in a wide range of general knowledge reasoning tasks Brown et al. (2020); Wei et al. (2022). However, increasingly LLMs are being employed in specialized domains to support tasks ranging from code completion for specific software frameworks to question answering on specific document collections (e.g., legal or medical documents). In these settings, general knowledge reasoning is less critical and instead the primary goal is to maximize accuracy based on a given set of documents. Indeed, adapting LLMs to the specialized domains (e.g., recent news, enterprise private documents, or program resources constructed after the training cutoff) is essential to many emerging applications (Vu et al., 2023; Lazaridou et al., 2022) and is the focus of this work. ",
+        "bbox": [
+            174,
+            674,
+            825,
+            814
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "This paper studies the following question – How do we adapt pre-trained LLMs for Retrieval Augmented Generation (RAG) in specialized domains? ",
+        "bbox": [
+            176,
+            820,
+            821,
+            849
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "When it comes to adapting LLMs to specialized domains, we consider the following two candidates: in-context learning through Retrieval-Augmented Generation (RAG) and supervised fine-tuning. RAG based methods allow the LLM to reference the documents when answering questions. However, RAG based in-context learning methods fail to leverage the learning opportunity afforded by the fixed domain setting and early access to the test documents. Alternatively, supervised fine-tuning offers the opportunity to learn more general patterns in the documents and better align to end tasks and user preferences Zhou et al. (2023). However, existing fine-tuning based approaches either fail to leverage the documents at test time (don’t incorporate RAG) or fail to account for the imperfections in retrieval process during training. ",
+        "bbox": [
+            176,
+            856,
+            825,
+            898
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/a29cb0f0955064957cc70b1b705ac8e14848270882b026aa181c30297768a840.jpg",
+        "image_caption": [
+            "Figure 1: How best to prepare for an Exam?(a) Fine-tuning based approaches implement \"studying\" by either directly \"memorizing\" the input documents or answering practice QA without referencing the documents. (b) Alternatively, in-context retrieval methods fail to leverage the learning opportunity afforded by the fixed domain and are equivalent to taking an open-book exam without studying. In contrast, our approach (c) RAFT leverages fine-tuning with question-answer pairs while referencing the documents in a simulated imperfect retrieval setting — thereby effectively preparing for the open-book exam setting. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            174,
+            102,
+            820,
+            191
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            329,
+            825,
+            428
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "We can draw an analogy to an open-book exam. Existing in-context retrieval methods are equivalent to taking an open-book exam without studying. Alternatively, existing finetuning based approaches implement “studying\" by either directly “memorizing\" Xiong et al. (2023) the input documents or answering practice questions Wang et al. (2022) without referencing the documents. While these approaches leverage in-domain learning they fail to prepare for the open-book nature of the test setting. ",
+        "bbox": [
+            174,
+            434,
+            825,
+            518
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "In this paper, we study how to combine instruction fine-tuning (IFT) with retrieval augmented generation (RAG). We propose a novel adaptation strategy – Retrieval-Augmented Fine Tuning (RAFT). RAFT specifically addresses the challenge of fine-tuning LLMs to both incorporate domain knowledge while also improving in-domain RAG performance. RAFT aims to not only enable models to learn domain-specific knowledge through fine-tuning, but also to ensure robustness against distracting retrieved information. This is achieved by training the models to understand the dynamics between the question (prompt), the domain-specific documents retrieved, and the right answer. Going back to our analogy to the open book exam, our approach is analogous to studying for an open-book exam by recognizing relevant, and irrelevant retrieved documents. ",
+        "bbox": [
+            174,
+            523,
+            825,
+            664
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "In RAFT, we train the model to answer the question (Q) from Document(s) $( \\mathrm { D ^ { * } } )$ to generate answer $( \\mathrm { A } ^ { * } )$ , where $\\mathsf { A } ^ { * }$ includes chain-of-thought reasoning Wei et al. (2022); Anthropic (2023), and in the presence of distractor documents $( D _ { k } )$ . We explain the methodology in Section 3 and analyze the sensitivity to the number of distractor documents $( k )$ at train- and test- time in Section 5. RAFT consistently outperforms Supervised-finetuning both withand without- RAG across PubMed Dernoncourt & Lee (2017), HotPot QA Yang et al. (2018), and HuggingFace Hub, Torch Hub, and Tensorflow Hub Gorilla datasets Patil et al. (2023), presenting a novel, yet simple technique to improve pre-trained LLMs for in-domain RAG. Our code is available at https://github.com/ShishirPatil/gorilla. ",
+        "bbox": [
+            173,
+            670,
+            826,
+            796
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2 LLMs for Open-Book Exam ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            816,
+            449,
+            834
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "To understand our goal better, we expand on our analogy between training an LLM with the real-world setting of prepararing for an exam. ",
+        "bbox": [
+            174,
+            849,
+            823,
+            878
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Closed-Book Exam A closed book exam often refers to the scenario where the LLMs do not have access to any additional documents or references to answer the questions during the exam. For LLMs, this is equivalent to the scenario, for example, in which the LLM is used as a chatbot. In this scenario the LLM draws from the knowledge baked in during pre-training and supervised-finetuning to respond to the users’ prompt. ",
+        "bbox": [
+            174,
+            895,
+            823,
+            924
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "image",
+        "img_path": "images/4c1790e4bbd5493f6f11b826a2fda87819962f0736138d2cc16c77c52a3a6350.jpg",
+        "image_caption": [
+            "Figure 2: Overview of our RAFT method. The top-left figure depicts our approach of adapting LLMs to reading solution from a set of positive and distractor documents in contrast to standard RAG setup where models are trained based on the retriever outputs, which is a mixture of both memorization and reading. At test time, all methods follow the standard RAG setting, provided with a top-k retrieved documents in the context. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            238,
+            102,
+            759,
+            250
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            176,
+            358,
+            825,
+            401
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Open Book Exam In contrast, we liken the open-book exam setting to the scenario in which the LLM can refer to external sources of information (e.g., a website or a book chapter). In such scenarios, typically, the LLM is paired with retriever which retrieves $^ { \\prime } \\mathbf { k } ^ { \\prime }$ documents (or specific segments of the document) which are appended to the users’ prompt. It is only through these documents retrieved that the LLM gains access to “domain-specific information”. As a result, we argue that the LLM’s performance in these settings, where it is trained as a general-purpose LLM is largely dependent on the quality of the retriever and how accurately the retriever can identify the most relevant piece of information. ",
+        "bbox": [
+            174,
+            417,
+            825,
+            530
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Domain-Specific Open-Book Exam In this paper, we focus on the narrower but increasingly popular domain than the general open book exam, which we call the domain-specific open-book exam. Here, we know apriori the domain in which the LLM will be tested. The LLM can respond to the users’ prompt using use any and all information from this specific domain, which it has been fine-tuned on. Examples of domain specific examples include enterprise documents, code repositories belonging to an organization, etc. In all these scenarios, the LLM will be used to respond to the questions, whose answers can be found within a collection of documents. The retrieval technique itself has little to no-impact on the mechanism (though it may impact the accuracy). This paper studies the domain-specific open-book setting and how to adapt a pretrained LLM to this specific domain, including how to make it more robust to a varying number of retrieved documents and distractors. ",
+        "bbox": [
+            174,
+            546,
+            825,
+            700
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3 RAFT ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            722,
+            258,
+            738
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "In this section, we present RAFT, a novel way of training LLMs for domain-specific openbook exams. We first introduce the classical technique of supervised fine-tuning, followed with the key takeaways from our experiments. Then, we introduce RAFT , a modified version of general instruction tuning. Lastly, we provide an overview of the experiments to expect in the later sections. ",
+        "bbox": [
+            174,
+            755,
+            825,
+            825
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Supervised Finetuning ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            832,
+            348,
+            848
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Consider the supervised fine-tuning (SFT) setting for a Question-Answer dataset. The formulation consists of the Dataset $( \\bar { D } )$ from which a set of Question (Q) and corresponding answer $( A )$ pairs are derived or already available. In the classical SFT setting, the model is trained to improve it’s ability to answer the questions based on it’s knowledge - obtained either during pre-training, or during the SFT training phase. The model so trained can also be used at test-time with Retrieval Augmented Generation (RAG) setting, where additional documents can be introduced in the prompt to help the model answer the question. This can be represented as follows: ",
+        "bbox": [
+            174,
+            853,
+            823,
+            924
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            176,
+            103,
+            823,
+            146
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "{Train: $\\mathbf Q \\to \\mathbf A _ { 1 }$ }, {0-shot Inference: $\\mathbf Q \\to \\mathbf A \\mathbf j$ , {RAG Inference: $\\mathbf { Q } + \\mathbf { D }  \\mathbf { A } \\}$ ",
+        "bbox": [
+            173,
+            151,
+            696,
+            167
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "RAFT: Retrieval Augmented Fine-Tuning (RAFT), presents a novel recipe to prepare finetuning data to tailor the models for domain-specific open-book setting, equivalent to indomain RAG In RAFT, we prepare the training data such that each data point contains a question $( Q )$ , a set of documents $( D _ { k } )$ , and a corresponding Chain-of-though style answer $( { \\bar { A } } ^ { * } )$ generated from one of the document $( D ^ { * } )$ . We differentiate between two types of documents: ‘golden’ documents $( D * )$ i.e. the documents from which the answer to the question can be deduced, and ‘distractor’ documents $( D _ { i } )$ that do not contain answerrelevant information. As an implementation detail, the ‘golden’ document doesn’t need to be a single document, but can be more than one document, as is the case in HotpotQA Yang et al. (2018). Then, for $P$ fraction of the questions $( q _ { i } )$ in the dataset, we retain the golden document $( d _ { i } ^ { * } )$ along with distractor documents $( d _ { k - 1 } )$ . For $( 1 - P )$ fraction of the questions $( q _ { i } )$ in the dataset, we include no golden document and only include distractor documents $( \\dot { d } _ { k } )$ . We then fine-tune the language model using standard supervised training (SFT) technique, training it to generate answers from the provided documents and question. Fig. 2 illustrates the high-level design principal for RAFT . ",
+        "bbox": [
+            174,
+            172,
+            826,
+            382
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "We demonstrate that our RAG approach trains the model to perform better RAG on the set of documents it is trained on i.e., in-domain. By removing the golden documents in some instances, we are compelling the model to memorize answers instead of deriving them from the context. The training data for RAFT is as follows, and an example training data can be seen in Fig. 3: ",
+        "bbox": [
+            173,
+            388,
+            825,
+            460
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "$\\mathbf { P } \\%$ of data: $\\mathbf { Q } + \\mathbf { D } ^ { * } + \\mathbf { D } _ { 1 } + \\mathbf { D } _ { 2 } + \\ldots + \\mathbf { D } _ { k }  \\mathbf { A } *$ $( 1 - \\mathbf { P } ) \\%$ of data: $\\mathbf { Q } + \\mathbf { D } _ { 1 } + \\mathbf { D } _ { 2 } + \\ldots + \\mathbf { D } _ { k }  \\mathbf { A } *$ ",
+        "bbox": [
+            174,
+            465,
+            522,
+            481
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            486,
+            522,
+            502
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Subsequently, for the test scenario, the model is provided with the Q and top-k documents retrieved by the RAG pipeline. Note that RAFT is independent of the retriever used. ",
+        "bbox": [
+            173,
+            508,
+            823,
+            537
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "A key factor in enhancing training quality is the generation of a reasoning process, such as Chain-of-Thought, to explain the provided answers. RAFT approach is similar: we demonstrate that creating a full reasoning chain and in-addition, clearly citing sources enhances the model’s accuracy in answering questions. In Fig. 3, we illustrate this setup. Generating the training data in this fashion, involves presenting the model with a question, context, and verified answers, and then requesting it to form a reasoning chain that appropriately references the original context. ",
+        "bbox": [
+            173,
+            544,
+            825,
+            642
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "For all the datasets in our experiments, we generate the answers using the technique described above. Note that the Gorilla APIBench dataset, already includes reasoning in the answers. We provide an example of the generation step in Fig. 3, the detailed reasoning answer includes a citation from the original context inside ##begin_quote## and ##end_quote## as well as the detailed explanation on how to reach the conclusion based on the citations. We demonstrate that adding detailed reasoning paragraphs can help boost the model’s performance in our experiment section. ",
+        "bbox": [
+            174,
+            648,
+            825,
+            746
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "4 Evaluation ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            784,
+            300,
+            800
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "We design our experiments to study how well RAFT performs compared to various baselines. We find that the RAFT-7B model (a finetuned version of LlaMA-2) is better at reading and extracting information from in-domain documents, than domain-specific finetuned model, and general-purpose model with RAG. As an ablation, we also demonstrate how important it is for the model to learn with Chain-of-Thought responses. In this section, we will first introduce all the datasets we used in the experiments, then all the baseline model/fine-tuning techniques that we benchmark against. ",
+        "bbox": [
+            174,
+            825,
+            825,
+            924
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "image",
+        "img_path": "images/70f59e746d3c9eb1f0628dcf5a557438285156bafbae388cffb5b3d6f3fe01f1.jpg",
+        "image_caption": [],
+        "image_footnote": [],
+        "bbox": [
+            186,
+            108,
+            852,
+            409
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Figure 3: RAFT prompt to help LLM evaluate its own generated reasoning and answers, contrasting them with the correct reasoning and answers. The LLM is prompted to identify errors in its reasoning and extract key insights for improvement. This figure specifically represents the ‘GenerateExplanation‘ step in the RAFT algorithm (Section 3). ",
+        "bbox": [
+            174,
+            434,
+            826,
+            491
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "table",
+        "img_path": "images/2c9e84836b98efe479d87bec5d0dffc852c852f47b56bb08be2f3d5ff11e5738.jpg",
+        "table_caption": [
+            "Table 1: RAFT improves RAG performance for all specialized domains: Across PubMed, HotPot, HuggingFace, Torch Hub, and Tensorflow Hub, we see that Domain-specific Finetuning improves significantly of the performance of the base model, RAFT consistently outperforms the existing domain-specific finetuning method with or without RAG. This suggests the need to train the model with context. We compare our model with LLaMA finetuning receipes, and provide GPT-3.5 for reference. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td></td><td>PubMed</td><td>HotPot</td><td>HuggingFace</td><td>Torch Hub</td><td>TensorFlow</td></tr><tr><td>GPT-3.5 + RAG</td><td>71.60</td><td>41.5</td><td>29.08</td><td>60.21</td><td>65.59</td></tr><tr><td>LLaMA2-7B</td><td>56.5</td><td>0.54</td><td>0.22</td><td>0</td><td>0</td></tr><tr><td>LLaMA2-7B + RAG</td><td>58.8</td><td>0.03</td><td>26.43</td><td>08.60</td><td>43.06</td></tr><tr><td>DSF</td><td>59.7</td><td>6.38</td><td>61.06</td><td>84.94</td><td>86.56</td></tr><tr><td>DSF + RAG</td><td>71.6</td><td>4.41</td><td>42.59</td><td>82.80</td><td>60.29</td></tr><tr><td>RAFT (LLaMA2-7B)</td><td>73.30</td><td>35.28</td><td>74.00</td><td>84.95</td><td>86.86</td></tr></table>",
+        "bbox": [
+            173,
+            613,
+            825,
+            732
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Datasets In our experiments, we use the following datasets to evaluate our model and all baselines. We selected these datasets to represent both popular and diverse domains including Wikipedia, Coding/API documents, and question-answering on medical documents. Natural Questions (NQ) Kwiatkowski et al. (2019), Trivia QA Joshi et al. (2017) and HotpotQA Yang et al. (2018) are the open-domain question-answers based on Wikipedia, mainly focused on common knowledge (e.g., movies, sports, etc). HuggingFace, Torch Hub, and TensorFlow Hub are from the APIBench Patil et al. (2023) proposed in the Gorilla paper. These benchmarks measure how to generate the correct, functional, and executable API calls based on the documentation. PubMed QA Jin et al. (2019) is a question-answering dataset tailored only for biomedical-research question-answering. It mainly focuses on answering medical and biology questions based on a given set of documents. We would like to highlight that (NQ, Trivia QA, and HotpotQA) are relatively general domain whereas the latter two domains are on domain-specific documents. ",
+        "bbox": [
+            173,
+            770,
+            826,
+            924
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            173,
+            103,
+            823,
+            132
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Baselines We consider the following baselines for our experiments: ",
+        "bbox": [
+            174,
+            147,
+            671,
+            162
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "• LlaMA2-7B-chat model with 0-shot prompting: this is the commonly used instruction-finetuned model for QA tasks, where we provide clearly written instructions, but no reference documentation. LlaMA2-7B-chat model with RAG (Llama2 + RAG): similar to the previous setting, except here we include reference documents. This is a popular technique when dealing with domain-specific QA tasks.   \n• Domain-Specific Finetuning with 0-shot prompting (DSF): Standard supervisedfinetuning, without documents in context. We find that its mostly useful to align the answering style of the model as well as get familiar with the domain context.   \n• Domain-Specific Finetuning with RAG $( \\mathrm { D S F } + \\mathrm { R A G } )$ ): Equip a domain-specific finetuned-model with external knowledge using RAG. So, for the “knowledge” the model does not know, it can still refer to the context. ",
+        "bbox": [
+            215,
+            172,
+            826,
+            354
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "4.1 Results ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            372,
+            266,
+            386
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Using the above datasets and baselines, we evaluate our model RAFT and demonstrate the effectiveness of RAFT in Tab. 1. We see that RAFT consistently and significantly outperforms the baselines. Compared with the base Llama-2 instruction-tuned model, RAFT with RAG does much better in terms of extracting information as well as being robust towards distractors. The gain can be as big as $3 5 . 2 5 \\%$ on Hotpot QA and $7 6 . 3 5 \\%$ on Torch Hub evaluation. Compared with DSF on the specific dataset, our model does better at relying on the provided context to solve the problem. RAFT does much better on the tasks like Hotpot and HuggingFace datasets $( 3 0 . { \\bar { 8 } } 7 \\%$ on Hotpot and $3 1 . 4 1 \\%$ on HuggingFace). Note that for PubMed QA, since it is a binary yes/no question, we don’t observe significant gains when we compare our model with $\\mathrm { D } \\mathbf { \\dot { S } } \\mathbf { \\dot { F } } + \\mathbf { R } \\mathbf { A } \\mathbf { G }$ . Even compared with a much larger and better model GPT-3.5, RAFT demonstrates significant advantages. ",
+        "bbox": [
+            174,
+            397,
+            825,
+            551
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Overall, the LLaMA-7B model, both with and without the RAG, performs poorly due to its answering style not aligning with the ground truth. By applying domain-specific tuning, we significantly enhance its performance. This process enables the model to learn and adopt the appropriate style of answering. However, introducing RAG to a domain-specifically fine-tuned (DSF) model doesn’t invariably lead to better outcomes. This might indicate that the model lacks training in context processing and extracting useful information from it. By incorporating our method, RAFT , we train the model not only to match its answering style with that required but also to improve its document processing capabilities. Consequently, our approach outperforms all others. ",
+        "bbox": [
+            174,
+            558,
+            825,
+            683
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "4.2 Effect of CoT ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            700,
+            305,
+            715
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "We also conduct an analysis to evaluate the effectiveness of the Chain-of-Thought approach in enhancing the model’s performance. As indicated in Table 2, simply providing the answer to a question may not always be adequate. This approach can lead to a rapid decrease in loss, resulting in the model beginning to overfit. Incorporating a reasoning chain that not only guides the model to the answer but also enriches the model’s understanding can improve the overall accuracy and prevent overfitting to concise answers. In our experiments, integrating the Chain-of-Thought significantly enhances training robustness. We employ GPT-4-1106 to generate our Chain-of-Thought prompts and include an example of the prompt we used in Figure 3. ",
+        "bbox": [
+            174,
+            727,
+            825,
+            852
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "4.3 Qualitative Analysis ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            869,
+            361,
+            883
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "To illustrate the potential advantages of RAFT over the domain-specifically fine-tuned (DSF) approach, we present a comparative example in Figure 4. This example qualitatively demonstrates a scenario where the DSF model becomes confused by a question asking for the identity of a screenwriter. Instead of providing the correct name, it mistakenly cites one of the films written by the screenwriter. In contrast, the RAFT model accurately answers the question. This discrepancy suggests that training a model solely with question-answer pairs may impair its ability to derive relevant context from provided documents. The comparison underscores the importance of incorporating both standard instructional tuning and context comprehension into the training dataset to preserve and enhance the model’s ability to process text effectively. ",
+        "bbox": [
+            174,
+            895,
+            823,
+            924
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "table",
+        "img_path": "images/156fcf81ec6099c5e118111e311d9f892fa2eb2548b7817a28302ff44c819785.jpg",
+        "table_caption": [
+            "Table 2: Ablation on Chain-of-Thought: The numbers of RAFT and RAFT without CoT. Results on various datasets show that adding CoT can significantly improve the performance of the finetuned model. With a gains of $9 . 6 6 \\%$ and $1 \\bar { 4 } . 9 3 \\%$ in the Hotpot QA and HuggingFace datasets respectively. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td></td><td>PubMed</td><td>HotpotQA</td><td>HuggingFace</td><td>Torch Hub</td><td>TensorFlow</td></tr><tr><td>RAFT w.o CoT</td><td>68.30</td><td>25.62</td><td>59.07</td><td>86.56</td><td>83.21</td></tr><tr><td>RAFT</td><td>73.30</td><td>35.28</td><td>74.00</td><td>84.95</td><td>86.86</td></tr></table>",
+        "bbox": [
+            173,
+            167,
+            826,
+            223
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            173,
+            255,
+            825,
+            367
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "HotPot QA ",
+        "text_level": 1,
+        "bbox": [
+            192,
+            393,
+            277,
+            407
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Question: What screenwriter with credits for “Evolution”[0/1879]e a film starring Nicolas Cage and Téa Leoni? ",
+        "bbox": [
+            189,
+            424,
+            808,
+            454
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Documents: . . . David Weissman is a screenwriter and director. His film credits include “The Family Man” (2000), “Evolution” (2001), and “When in Rome” (2010). ",
+        "bbox": [
+            191,
+            454,
+            805,
+            486
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "The Family Man is a 2000 American romantic comedy-drama film directed by Brett Ratner, written by David Diamond and David Weissman, and starring Nicolas Cage and Téa Leoni. ",
+        "bbox": [
+            192,
+            497,
+            807,
+            545
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "4.4 Should we train the LLM always with the golden context for RAG? ",
+        "bbox": [
+            174,
+            782,
+            694,
+            799
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "In our exploration of whether large language models (LLMs) should always be trained with the golden context for Retrieval-Augmented Generation (RAG), we address a key question: what proportion $( \\mathrm { p \\% ) }$ of the training data should include golden documents? Intuitively, one might assume that for effective training in reading and extracting information from context (e.g., RAG tasks), the golden document should always be included during training $( \\mathrm { P } = 1 0 0 \\%$ ). However, our findings challenge this assumption: incorporating a portion of the training data without the golden document in the context $\\mathrm { ( P = 8 0 \\% }$ ) appears to enhance the model’s performance on RAG tasks. ",
+        "bbox": [
+            174,
+            811,
+            825,
+            924
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "image",
+        "img_path": "images/744fed8489293331c020174a03a50c98f760fa373a1b87da5e0da21ce81a6877.jpg",
+        "image_caption": [
+            "Figure 5: How many golden documents to involve? We study the hyperparameter $\\mathrm { P \\% }$ where it indicates how much portion of training data is with golden document. Results on NQ, TQA and HotpotQA suggest that mixing some amount of data that the golden document is not put in the context is helpful for in-domain RAG. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            174,
+            101,
+            823,
+            217
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Figure 5 presents our investigation into the hyperparameter $\\mathrm { P \\% }$ , which represents the percentage of training instances that should include golden documents. We find that the optimal proportion varies across datasets, with $\\mathrm { P \\% }$ ranging from $4 0 \\%$ , $6 0 \\%$ , and $1 0 0 \\%$ . This indicates that training your LLM without the correct corresponding context at times can be beneficial for the downstream task of answering questions related to the documents. In our training setup, we include four distractor documents alongside the golden document, and at test time, we maintain this format by providing the golden document with four distractors. Our findings suggest that, for domain-specific RAG tasks, including a certain percentage of training data without the golden documents in the context proves to be advantageous. ",
+        "bbox": [
+            173,
+            313,
+            825,
+            440
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "5 RAFT Generalizes to Top-K RAG ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            460,
+            503,
+            478
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "We now study another important problem: How does the number of distractor documents in RAFT affect the model’s performance when augmented with top-k RAG results during evaluation? Previous research has highlighted the vulnerability of LLMs to irrelevant text (see studies (Shi et al., 2023a; Weston & Sukhbaatar, 2023; Liu et al., 2023)). This issue is particularly critical for LLMs $^ +$ RAG since top-k RAG is frequently employed at test time to ensure high recall. Such a scenario necessitates the model to have the ability to discern and disregard irrelevant content, focusing solely on pertinent information. ",
+        "bbox": [
+            173,
+            494,
+            825,
+            593
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "5.1 Making Model Robust to top-K RAG ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            611,
+            478,
+            626
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "To tackle the challenge of enhancing large language models’ (LLMs) ability to sift through irrelevant text within the retrieval pipeline, our analysis revealed that training solely with golden (highly relevant) documents can inadvertently diminish the model’s ability to discern and disregard irrelevant information. To address this, our algorithm, RAFT , adopts a strategy that integrates golden documents with a mix of irrelevant ones. This methodology prompts us to investigate the ideal fraction of distractor (irrelevant) documents to incorporate throughout the training process and to assess how well this training approach adapts to different volumes of documents encountered by the Retrieval-Augmented Generation (RAG) during the test phase. Our aim is to refine the balance between relevant and irrelevant information to strenghten the model’s efficiency in identifying and utilizing pertinent content. Notice that Sec 4.4 looked what what $\\mathrm { P \\% }$ of training data should include distractors, while in this section, we study test-time scenarios. ",
+        "bbox": [
+            174,
+            637,
+            825,
+            805
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Training with Distractor Documents To enhance the robustness of LLMs against irrelevant text in retrieved documents, we adopted a finetuning approach that incorporates both golden (highly relevant) documents and distractor (irrelevant) documents. The model was trained with varying numbers of distractor documents, but consistently evaluated using the top-3 documents obtained from the retriever - not to be confused with $p$ . Our findings, detailed in Fig. 6, reveal that finetuning with only the golden document frequently results in inferior performance compared to configurations that include a greater number of distractor documents. As we can see in the figure, the better performance for Natural Questions is training with $D ^ { * } + 3 D$ and it is $D ^ { * } + 1 D$ documents with Hotpot QA. This insight has been particularly beneficial for our algorithm, RAFT . In our experiments, we consistently employ a training setup consisting of one golden document alongside four distractor documents. ",
+        "bbox": [
+            174,
+            811,
+            825,
+            924
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "image",
+        "img_path": "images/c2c8170212057ef971b304ebf42cd3cc82a829224e5d1c0e52678825abbd9c52.jpg",
+        "image_caption": [
+            "Figure 6: Test-Time Documents Varying: To analyze how robust RAFT is to varying number of test-time documents, we study three domains $- \\mathrm { N Q } ,$ Trivia QA and HotPot QA. In ${ \\mathrm { N Q } } ,$ we find that training with 4 documents leads to optimal performance, and this changes to 3 and 2 for for Trivia QA and HotPot QA respectively. However, we see that training with only golden documents leads to poor performance. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            235,
+            102,
+            763,
+            241
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            349,
+            825,
+            392
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Generalization to a variable number of test-time documents. We extended our research to examine the impact of different quantities of test-time documents on the model’s performance. Specifically, our experiments focused on assessing how models, trained with varying numbers of distractor documents, respond to changes in the number of documents presented at test time. The results, illustrated in Fig. 6, confirm that the inclusion of distractor documents during training indeed makes the model more resilient to fluctuations in the number of documents encountered during testing. This ability to maintain consistent performance despite variations in test-time document numbers further validates the robustness of our approach, RAFT . This finding underscores the importance of a well-calibrated training environment to prepare the model for a range of scenarios it may encounter in real-world. ",
+        "bbox": [
+            174,
+            398,
+            825,
+            537
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "6 Related Works ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            558,
+            334,
+            574
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Retrieval-Augmented Language Models Retrieval-Augmented Language Models (RALMs) enhance LLMs by integrating a retrieval module that sources relevant information from external knowledge bases, significantly improving performance across various NLP tasks, including language modeling (Guu et al., 2020; Borgeaud et al., 2022; Khandelwal et al., 2019; Shi et al., 2023d; Lin et al., 2023b; Shi et al., 2023c; Asai et al., 2023; Xu et al., 2023; Wang et al., 2023) and open-domain question answering (Izacard et al., 2023; Lewis et al., 2020). For instance, Atlas (Izacard et al., 2023) fine-tunes T5 models with the retriever, treating documents as latent variables, while RETRO (Borgeaud et al., 2022) modifies the decoder-only architecture to include retrieved texts and conducts pre-training from scratch. kNN-LM (Khandelwal et al., 2019) interpolates between the LM’s next token distribution and distributions computed from retrieved tokens at inference. (Shi et al., 2023d; Ram et al., 2023) assume black-box access to an LLM, combining it with either off-the-shelf or fine-tuned retriever. ",
+        "bbox": [
+            173,
+            589,
+            826,
+            770
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Memorization A key question around large neural language models is whether they truly “understand” text (Feldman, 2020; Power et al., 2022) or simply rely on surface pattern memorization (Carlini et al., 2019; Tänzer et al., 2022). (Feldman, 2020; Carlini et al., 2019; 2022) develop methodologies to quantify the extent of memorization in neural models. (Brown et al., 2020; Power et al., 2022; Liu et al., 2022) further explored how memorization impacts the models’ generalization capabilities. (Carlini et al., 2021; Shi et al., 2023b) demonstrated the ability of language models to memorize and regurgitate training data, raising significant privacy concerns (Kandpal et al., 2022; Pan et al., 2020). ",
+        "bbox": [
+            173,
+            776,
+            826,
+            888
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Finetuning for RAG More recently, several papers have been exploring the idea of finetuning a pretrained LLM to be better at RAG tasks (Lin et al., 2023a; Wang et al., 2023; Xu et al., 2023; Liu et al., 2024). These works focus on constructing a combination of finetuning dataset for RAG and train a model to perform well on these tasks. In particular, in their settings, at test time, the domain or documents can be different than the training time; whereas our paper studies a slightly opposite scenario where we only care about testing the LLM on the same set of documents. ",
+        "bbox": [
+            174,
+            895,
+            823,
+            924
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            103,
+            825,
+            172
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "7 Conclusion ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            194,
+            307,
+            212
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "RAFT is a training strategy designed to enhance the model’s performance in answering questions within a specific domain, in \"open-book\" settings. We highlight several crucial design decisions, such as training the model alongside distractor documents, organizing the dataset so a portion lacks golden documents in their context, and formulating answers in a chain-of-thought manner with direct quotations from the relevant text. Our evaluations on PubMed, HotpotQA, and Gorilla API Bench underline RAFT’s significant potential. ",
+        "bbox": [
+            174,
+            228,
+            825,
+            311
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "References ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            333,
+            274,
+            349
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Anthropic. Prompt engineering for claude’s long context window. 2023. ",
+        "bbox": [
+            176,
+            358,
+            694,
+            373
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Asai, A., Wu, Z., Wang, Y., Sil, A., and Hajishirzi, H. Self-rag: Learning to retrieve, generate, and critique through self-reflection. arXiv preprint arXiv:2310.11511, 2023. ",
+        "bbox": [
+            173,
+            383,
+            823,
+            414
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Borgeaud, S., Mensch, A., Hoffmann, J., Cai, T., Rutherford, E., Millican, K., Van Den Driessche, G. B., Lespiau, J.-B., Damoc, B., Clark, A., et al. Improving language models by retrieving from trillions of tokens. In International conference on machine learning, pp. 2206–2240. PMLR, 2022. ",
+        "bbox": [
+            173,
+            422,
+            826,
+            479
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Brown, T., Mann, B., Ryder, N., Subbiah, M., Kaplan, J. D., Dhariwal, P., Neelakantan, A., Shyam, P., Sastry, G., Askell, A., et al. Language models are few-shot learners. Advances in neural information processing systems, 33:1877–1901, 2020. ",
+        "bbox": [
+            174,
+            491,
+            823,
+            535
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Carlini, N., Liu, C., Erlingsson, Ú., Kos, J., and Song, D. The secret sharer: Evaluating and testing unintended memorization in neural networks. In 28th USENIX Security Symposium (USENIX Security 19), pp. 267–284, 2019. ",
+        "bbox": [
+            173,
+            546,
+            823,
+            590
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Carlini, N., Tramer, F., Wallace, E., Jagielski, M., Herbert-Voss, A., Lee, K., Roberts, A., Brown, T., Song, D., Erlingsson, U., et al. Extracting training data from large language models. In 30th USENIX Security Symposium (USENIX Security 21), pp. 2633–2650, 2021. ",
+        "bbox": [
+            176,
+            601,
+            825,
+            645
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Carlini, N., Ippolito, D., Jagielski, M., Lee, K., Tramer, F., and Zhang, C. Quantifying memorization across neural language models. In The Eleventh International Conference on Learning Representations, 2022. ",
+        "bbox": [
+            176,
+            654,
+            823,
+            698
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Dernoncourt, F. and Lee, J. Y. Pubmed 200k rct: a dataset for sequential sentence classification in medical abstracts. arXiv preprint arXiv:1710.06071, 2017. ",
+        "bbox": [
+            171,
+            708,
+            823,
+            738
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Feldman, V. Does learning require memorization? a short tale about a long tail. In Proceedings of the 52nd Annual ACM SIGACT Symposium on Theory of Computing, pp. 954–959, 2020. ",
+        "bbox": [
+            173,
+            747,
+            823,
+            777
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Guu, K., Lee, K., Tung, Z., Pasupat, P., and Chang, M. Retrieval augmented language model pre-training. In International conference on machine learning, pp. 3929–3938. PMLR, 2020. ",
+        "bbox": [
+            173,
+            786,
+            825,
+            818
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Izacard, G., Lewis, P., Lomeli, M., Hosseini, L., Petroni, F., Schick, T., Dwivedi-Yu, J., Joulin, A., Riedel, S., and Grave, E. Atlas: Few-shot learning with retrieval augmented language models. Journal of Machine Learning Research, 24(251):1–43, 2023. URL http: //jmlr.org/papers/v24/23-0037.html. ",
+        "bbox": [
+            173,
+            827,
+            826,
+            883
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Jin, Q., Dhingra, B., Liu, Z., Cohen, W. W., and Lu, X. Pubmedqa: A dataset for biomedical research question answering. arXiv preprint arXiv:1909.06146, 2019. ",
+        "bbox": [
+            171,
+            895,
+            821,
+            924
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Joshi, M., Choi, E., Weld, D. S., and Zettlemoyer, L. Triviaqa: A large scale distantly supervised challenge dataset for reading comprehension. arXiv preprint arXiv:1705.03551, 2017. ",
+        "bbox": [
+            173,
+            103,
+            823,
+            146
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Kandpal, N., Wallace, E., and Raffel, C. Deduplicating training data mitigates privacy risks in language models. In International Conference on Machine Learning, pp. 10697–10707. PMLR, 2022. ",
+        "bbox": [
+            174,
+            154,
+            823,
+            196
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Khandelwal, U., Levy, O., Jurafsky, D., Zettlemoyer, L., and Lewis, M. Generalization through memorization: Nearest neighbor language models. arXiv preprint arXiv:1911.00172, 2019. ",
+        "bbox": [
+            173,
+            205,
+            823,
+            248
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Kwiatkowski, T., Palomaki, J., Redfield, O., Collins, M., Parikh, A., Alberti, C., Epstein, D., Polosukhin, I., Devlin, J., Lee, K., et al. Natural questions: a benchmark for question answering research. Transactions of the Association for Computational Linguistics, 7:453–466, 2019. ",
+        "bbox": [
+            173,
+            256,
+            826,
+            313
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Lazaridou, A., Gribovskaya, E., Stokowiec, W., and Grigorev, N. Internet-augmented language models through few-shot prompting for open-domain question answering. arXiv preprint arXiv:2203.05115, 2022. ",
+        "bbox": [
+            173,
+            320,
+            823,
+            364
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V., Goyal, N., Küttler, H., Lewis, M., Yih, W.-t., Rocktäschel, T., et al. Retrieval-augmented generation for knowledge-intensive nlp tasks. Advances in Neural Information Processing Systems, 33:9459–9474, 2020. ",
+        "bbox": [
+            174,
+            372,
+            823,
+            416
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Lin, X. V., Chen, X., Chen, M., Shi, W., Lomeli, M., James, R., Rodriguez, P., Kahn, J., Szilvasy, G., Lewis, M., et al. Ra-dit: Retrieval-augmented dual instruction tuning. arXiv preprint arXiv:2310.01352, 2023a. ",
+        "bbox": [
+            173,
+            424,
+            823,
+            467
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Lin, X. V., Chen, X., Chen, M., Shi, W., Lomeli, M., James, R., Rodriguez, P., Kahn, J., Szilvasy, G., Lewis, M., et al. Ra-dit: Retrieval-augmented dual instruction tuning. arXiv preprint arXiv:2310.01352, 2023b. ",
+        "bbox": [
+            173,
+            474,
+            823,
+            518
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Liu, N. F., Lin, K., Hewitt, J., Paranjape, A., Bevilacqua, M., Petroni, F., and Liang, P. Lost in the middle: How language models use long contexts. arXiv preprint arXiv:2307.03172, 2023. ",
+        "bbox": [
+            174,
+            526,
+            825,
+            569
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Liu, Z., Kitouni, O., Nolte, N. S., Michaud, E., Tegmark, M., and Williams, M. Towards understanding grokking: An effective theory of representation learning. Advances in Neural Information Processing Systems, 35:34651–34663, 2022. ",
+        "bbox": [
+            174,
+            577,
+            823,
+            621
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Liu, Z., Ping, W., Roy, R., Xu, P., Shoeybi, M., and Catanzaro, B. Chatqa: Building gpt-4 level conversational qa models. arXiv preprint arXiv:2401.10225, 2024. ",
+        "bbox": [
+            169,
+            628,
+            823,
+            659
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Pan, X., Zhang, M., Ji, S., and Yang, M. Privacy risks of general-purpose language models. In 2020 IEEE Symposium on Security and Privacy (SP), pp. 1314–1331. IEEE, 2020. ",
+        "bbox": [
+            173,
+            666,
+            825,
+            696
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Patil, S. G., Zhang, T., Wang, X., and Gonzalez, J. E. Gorilla: Large language model connected with massive apis. arXiv preprint arXiv:2305.15334, 2023. ",
+        "bbox": [
+            171,
+            704,
+            823,
+            733
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Power, A., Burda, Y., Edwards, H., Babuschkin, I., and Misra, V. Grokking: Generalization beyond overfitting on small algorithmic datasets. arXiv preprint arXiv:2201.02177, 2022. ",
+        "bbox": [
+            171,
+            741,
+            823,
+            771
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Ram, O., Levine, Y., Dalmedigos, I., Muhlgay, D., Shashua, A., Leyton-Brown, K., and Shoham, Y. In-context retrieval-augmented language models. arXiv preprint arXiv:2302.00083, 2023. ",
+        "bbox": [
+            173,
+            779,
+            825,
+            821
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Shi, F., Chen, X., Misra, K., Scales, N., Dohan, D., Chi, E. H., Schärli, N., and Zhou, D. Large language models can be easily distracted by irrelevant context. In International Conference on Machine Learning, pp. 31210–31227. PMLR, 2023a. ",
+        "bbox": [
+            173,
+            829,
+            823,
+            873
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Shi, W., Ajith, A., Xia, M., Huang, Y., Liu, D., Blevins, T., Chen, D., and Zettlemoyer, L. Detecting pretraining data from large language models. arXiv preprint arXiv:2310.16789, 2023b. ",
+        "bbox": [
+            174,
+            881,
+            826,
+            924
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Shi, W., Min, S., Lomeli, M., Zhou, C., Li, M., Lin, V., Smith, N. A., Zettlemoyer, L., Yih, S., and Lewis, M. In-context pretraining: Language modeling beyond document boundaries. arXiv preprint arXiv:2310.10638, 2023c.   \nShi, W., Min, S., Yasunaga, M., Seo, M., James, R., Lewis, M., Zettlemoyer, L., and Yih, W.-t. Replug: Retrieval-augmented black-box language models. arXiv preprint arXiv:2301.12652, 2023d.   \nTänzer, M., Ruder, S., and Rei, M. Memorisation versus generalisation in pre-trained language models. In Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pp. 7564–7578, 2022.   \nVu, T., Iyyer, M., Wang, X., Constant, N., Wei, J., Wei, J., Tar, C., Sung, Y.-H., Zhou, D., Le, Q., et al. Freshllms: Refreshing large language models with search engine augmentation. arXiv preprint arXiv:2310.03214, 2023.   \nWang, B., Ping, W., McAfee, L., Xu, P., Li, B., Shoeybi, M., and Catanzaro, B. Instructretro: Instruction tuning post retrieval-augmented pretraining. arXiv preprint arXiv:2310.07713, 2023.   \nWang, Y., Kordi, Y., Mishra, S., Liu, A., Smith, N. A., Khashabi, D., and Hajishirzi, H. Self-instruct: Aligning language models with self-generated instructions. arXiv preprint arXiv:2212.10560, 2022.   \nWei, J., Wang, X., Schuurmans, D., Bosma, M., Xia, F., Chi, E., Le, Q. V., Zhou, D., et al. Chain-of-thought prompting elicits reasoning in large language models. Advances in Neural Information Processing Systems, 35:24824–24837, 2022.   \nWeston, J. and Sukhbaatar, S. System 2 attention (is something you might need too). arXiv preprint arXiv:2311.11829, 2023.   \nXiong, W., Liu, J., Molybog, I., Zhang, H., Bhargava, P., Hou, R., Martin, L., Rungta, R., Sankararaman, K. A., Oguz, B., et al. Effective long-context scaling of foundation models. arXiv preprint arXiv:2309.16039, 2023.   \nXu, P., Ping, W., Wu, X., McAfee, L., Zhu, C., Liu, Z., Subramanian, S., Bakhturina, E., Shoeybi, M., and Catanzaro, B. Retrieval meets long context large language models. arXiv preprint arXiv:2310.03025, 2023.   \nYang, Z., Qi, P., Zhang, S., Bengio, Y., Cohen, W. W., Salakhutdinov, R., and Manning, C. D. Hotpotqa: A dataset for diverse, explainable multi-hop question answering. arXiv preprint arXiv:1809.09600, 2018.   \nZhou, C., Liu, P., Xu, P., Iyer, S., Sun, J., Mao, Y., Ma, X., Efrat, A., Yu, P., Yu, L., et al. Lima: Less is more for alignment. arXiv preprint arXiv:2305.11206, 2023. ",
+        "bbox": [
+            171,
+            97,
+            828,
+            686
+        ],
+        "page_idx": 11
+    }
+]

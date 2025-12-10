@@ -1,0 +1,310 @@
+{
+    "extraction": {
+        "title": {
+            "value": "StepSearch: Igniting LLMs Search Ability via Step-Wise Proximal Policy Optimization",
+            "type": "string",
+            "unit": null,
+            "evidence": "StepSearch: Igniting LLMs Search Ability via Step-Wise Proximal Policy Optimization",
+            "provenance": {
+                "section_header": "Title",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "problem_analysis": {
+            "multihop_reasoning_challenge": {
+                "value": "Efficient multi-hop reasoning requires Large Language Models (LLMs) based agents to acquire high-value external knowledge iteratively.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Efficient multi-hop reasoning requires Large Language Models (LLMs) based agents to acquire high-value external knowledge iteratively.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "traditional_method_limitations": {
+                "sparse_reward_problem": {
+                    "value": "The sparse rewards from global signal only lead to underperformance on complex, multi-hop QA.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Previous work has explored reinforcement learning (RL) to train LLMs to perform search-based document retrieval, achieving notable improvements in QA performance, but underperform on complex, multi-hop QA resulting from the sparse rewards from global signal only.",
+                    "provenance": {
+                        "section_header": "Abstract",
+                        "page": 1
+                    },
+                    "notes": ""
+                },
+                "search_efficiency_problem": {
+                    "value": "Existing RL-based search agents depend on coarse global rewards, lacking fine-grained supervision of intermediate queries and multi-step retrievals.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "However, existing RL-based search agents depend on coarse global rewards, lacking fine-grained supervision of intermediate queries and multi-step retrievals\u2014an approach inadequate for the dependencies inherent in complex multi-hop reasoning.",
+                    "provenance": {
+                        "section_header": "Introduction",
+                        "page": 3
+                    },
+                    "notes": ""
+                },
+                "existing_method_performance": {
+                    "value": "Existing methods exhibit poor out-of-domain generalization and performance degradation on complex tasks.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Supervised fine-tuning (SFT) frameworks\u2014such as ToolFormer, ToolKengPT, and related efforts\u2014substantially boost performance in specialized, knowledge-intensive tasks but suffer from poor out-of-domain generalization.",
+                    "provenance": {
+                        "section_header": "Introduction",
+                        "page": 3
+                    },
+                    "notes": ""
+                }
+            }
+        },
+        "proposed_framework": {
+            "framework_overview": {
+                "value": "StepSearch is a framework for search LLMs that trained with step-wise proximal policy optimization method, consisting of richer intermediate search rewards and token-level process supervision.",
+                "type": "string",
+                "unit": null,
+                "evidence": "To address this gap in existing research, we introduce StepSearch, a framework for search LLMs that trained with step-wise proximal policy optimization method. It consists of richer and more detailed intermediate search rewards and token-level process supervision based on information gain and redundancy penalties to better guide each search step.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "data_generation_pipeline": {
+                "subproblem_decomposition": {
+                    "value": "We construct a multi-turn Q&A dataset with subquestion-level search trajectories.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "In this pilot study, we construct a multi-turn Q&A dataset with subquestion-level search trajectories.",
+                    "provenance": {
+                        "section_header": "Methodology",
+                        "page": 4
+                    },
+                    "notes": ""
+                },
+                "search_keyword_generation": {
+                    "value": "Each enhanced step question is reformulated into a set of N search queries to facilitate information retrieval.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Each enhanced step question is then reformulated into a set of N search queries to facilitate information retrieval.",
+                    "provenance": {
+                        "section_header": "Methodology",
+                        "page": 4
+                    },
+                    "notes": ""
+                },
+                "cross_engine_validation": {
+                    "value": "Queries are issued to M sources, and only those returning valid results in at least \u2308M / 2\u2309 sources are retained.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Queries are issued to M sources (e.g., Google, Bing, Wiki-18), and only those returning valid results in at least \u2308M / 2\u2309 sources are retained.",
+                    "provenance": {
+                        "section_header": "Methodology",
+                        "page": 4
+                    },
+                    "notes": ""
+                },
+                "dataset_scale": {
+                    "value": "We developed a novel MuSiQue-based pipeline, contributing 60k filtered sub-question search keywords that generalize across retrieval datasets.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "We develop a novel MuSiQue-based pipeline, contributing 60k filtered sub-question search keywords that generalize across retrieval datasets.",
+                    "provenance": {
+                        "section_header": "Introduction",
+                        "page": 3
+                    },
+                    "notes": ""
+                }
+            },
+            "reward_mechanism": {
+                "global_rewards": {
+                    "value": "The global reward is based on final answer accuracy and keyword hit rate.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "The global reward is set at the last position of the output, while the step-wise reward is set at the last token of each round of search behavior.",
+                    "provenance": {
+                        "section_header": "Methodology",
+                        "page": 7
+                    },
+                    "notes": ""
+                },
+                "step_rewards": {
+                    "value": "The step-wise reward is expressed as information gain minus redundancy penalty.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "The step-wise reward r_{step}^{t} of each round of search behaviour can be expressed as information gain G^{t} minus redundancy penalty P^{t}.",
+                    "provenance": {
+                        "section_header": "Methodology",
+                        "page": 8
+                    },
+                    "notes": ""
+                }
+            },
+            "optimization_algorithm": {
+                "algorithm_basis": {
+                    "value": "Our optimization algorithm combines the above-mentioned Search Steps supervision reward based on the currently widely used actor-critic approach PPO.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Our optimization algorithm combines the above-mentioned Search Steps supervision reward based on the currently widely used actor-critic approach PPO.",
+                    "provenance": {
+                        "section_header": "Methodology",
+                        "page": 8
+                    },
+                    "notes": ""
+                },
+                "core_mechanism": {
+                    "value": "StepSearch augments PPO with token-level rewards that combine information gain and redundancy penalties.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "By augmenting PPO with token-level rewards that combine information gain and redundancy penalties, StepSearch boosts policy convergence and improves retrieval fidelity and QA accuracy.",
+                    "provenance": {
+                        "section_header": "Introduction",
+                        "page": 3
+                    },
+                    "notes": ""
+                },
+                "mathematical_formulation": {
+                    "value": "The policy \u03c0_{\u03b8} is optimized with the reference policy \u03c0_{\u03b8_{ref}} by maximizing the expected value based on the advantage A_{t}.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "For each sample input x \u223c D, obtain output o from the old policy \u03c0_{\u03b8_{old}}, let I(y_{t}) be the token-loss masking indicator, it equals 1 when o_{t} is generated by actor LLM else 0 for retrieved tokens. Then optimize the policy \u03c0_{\u03b8} with the reference policy \u03c0_{\u03b8_{ref}} by maximizing the following objective.",
+                    "provenance": {
+                        "section_header": "Methodology",
+                        "page": 8
+                    },
+                    "notes": ""
+                }
+            }
+        },
+        "experimental_results": {
+            "performance_improvements": {
+                "value": "StepSearch significantly outperforms global-reward baselines, achieving 11.2% and 4.2% absolute improvements for 3B and 7B models.",
+                "type": "string",
+                "unit": null,
+                "evidence": "On standard multi-hop QA benchmarks, it significantly outperforms global-reward baselines, achieving 11.2% and 4.2% absolute improvements for 3B and 7B models over various search with RL baselines using only 19k training data.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "data_efficiency": {
+                "value": "Using only 19k training data, StepSearch shows significant performance improvements.",
+                "type": "string",
+                "unit": null,
+                "evidence": "demonstrating the effectiveness of fine-grained, stepwise supervision in optimizing deep search LLMs.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "generalization_capability": {
+                "value": "StepSearch shows higher adaptability to out-of-domain knowledge bases.",
+                "type": "string",
+                "unit": null,
+                "evidence": "StepSearch shows higher adaptability to out-of-domain knowledge bases.",
+                "provenance": {
+                    "section_header": "Main Results",
+                    "page": 10
+                },
+                "notes": ""
+            },
+            "ablation_study_findings": {
+                "value": "The step-wise token-level reward mechanism has more obvious advantages and stability compared to the global reward.",
+                "type": "string",
+                "unit": null,
+                "evidence": "The step-wise token-level reward mechanism (ow-ss) has more obvious advantages and stability compared to the global reward of search process (ow-skr).",
+                "provenance": {
+                    "section_header": "Ablation Study",
+                    "page": 12
+                },
+                "notes": ""
+            }
+        },
+        "comparative_analysis": {
+            "key_innovations": {
+                "value": "StepSearch integrates iterative retrieval with explicit step-wise supervision for search LLMs.",
+                "type": "string",
+                "unit": null,
+                "evidence": "To address these shortcomings, We propose StepSearch, a reinforcement learning framework that integrates iterative retrieval with explicit step-wise supervision for search LLMs.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 3
+                },
+                "notes": ""
+            },
+            "method_comparison": {
+                "value": "StepSearch consistently outperforms strong baseline Search-RL methods.",
+                "type": "string",
+                "unit": null,
+                "evidence": "StepSearch consistently outperforms strong baseline Search-RL methods.",
+                "provenance": {
+                    "section_header": "Main Results",
+                    "page": 10
+                },
+                "notes": ""
+            },
+            "case_study_example": {
+                "value": "In case studies, the model's performance improved significantly with the proposed framework.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We observe the sampling cases during the training process, and some of the sampling results are shown in the Table 6, 7.",
+                "provenance": {
+                    "section_header": "Case Study",
+                    "page": 14
+                },
+                "notes": ""
+            }
+        },
+        "limitations_and_future_work": {
+            "current_limitations": {
+                "value": "StepSearch is limited to text-only question answering and small parameter scales.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Evaluation has been restricted to text-only question answering, leaving open the question of how well the approach generalizes to multimodal inputs.",
+                "provenance": {
+                    "section_header": "Limitations",
+                    "page": 15
+                },
+                "notes": ""
+            },
+            "future_research_directions": {
+                "value": "Future work will need to address gaps to realize a truly generalizable, robust, and scalable retrieval-augmented agent.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Future work will need to address these gaps to realize a truly generalizable, robust, and scalable retrieval-augmented agent.",
+                "provenance": {
+                    "section_header": "Future Work",
+                    "page": 15
+                },
+                "notes": ""
+            }
+        },
+        "conclusion": {
+            "key_contribution": {
+                "value": "The core contribution lies in the development of StepSearch with dual rewards and improved performance on multi-hop QA.",
+                "type": "string",
+                "unit": null,
+                "evidence": "In general, our core contribution lies in: StepSearch: Step-wise RL with dual rewards.",
+                "provenance": {
+                    "section_header": "Conclusion",
+                    "page": 15
+                },
+                "notes": ""
+            },
+            "broader_implications": {
+                "value": "This research impacts AI systems' development by enhancing retrieval-augmented reasoning capabilities.",
+                "type": "string",
+                "unit": null,
+                "evidence": "This research impacts AI systems' development by enhancing retrieval-augmented reasoning capabilities.",
+                "provenance": {
+                    "section_header": "Conclusion",
+                    "page": 15
+                },
+                "notes": ""
+            }
+        }
+    }
+}

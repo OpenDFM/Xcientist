@@ -1,0 +1,4575 @@
+[
+    {
+        "type": "text",
+        "text": "LeCoDe: A Benchmark Dataset for Interactive Legal Consultation Dialogue Evaluation ",
+        "text_level": 1,
+        "bbox": [
+            179,
+            122,
+            820,
+            172
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Weikang Yuan1,2∗, Kaisong $\\mathbf { S o n g ^ { 2 } }$ , Zhuoren Jiang1†, Junjie $\\mathbf { C a o ^ { 2 } }$ , Yujie Zhang1, Jun Lin2, Kun Kuang1, Ji Zhang2, Xiaozhong Liu3 ",
+        "bbox": [
+            305,
+            224,
+            761,
+            255
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1 Zhejiang University, China, 2 Tongyi Lab, Alibaba Group, China, 3 Worcester Polytechnic Institute, USA ",
+        "bbox": [
+            184,
+            267,
+            879,
+            284
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Abstract ",
+        "text_level": 1,
+        "bbox": [
+            462,
+            318,
+            535,
+            335
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Legal consultation is essential for safeguarding individual rights and ensuring access to justice, yet remains costly and inaccessible to many individuals due to the shortage of professionals. While recent advances in Large Language Models (LLMs) offer a promising path toward scalable, low-cost legal assistance, current systems fall short in handling the interactive and knowledge-intensive nature of real-world consultations. To address these challenges, we introduce LeCoDe, a real-world multi-turn benchmark dataset comprising 3,696 legal consultation dialogues with 110,008 dialogue turns, designed to evaluate and improve LLMs’ legal consultation capability. With LeCoDe, we innovatively collect live-streamed consultations from short-video platforms, providing authentic multi-turn legal consultation dialogues. The rigorous annotation by legal experts further enhances the dataset with professional insights and expertise. Furthermore, we propose a comprehensive evaluation framework that assesses LLMs’ consultation capabilities in terms of (1) clarification capability and (2) professional advice quality. This unified framework incorporates 12 metrics across two dimensions. Through extensive experiments on various general and domain-specific LLMs, our results reveal significant challenges in this task, with even state-of-the-art models like GPT-4 achieving only $3 9 . 8 \\%$ recall for clarification and $59 \\%$ overall score for advice quality, highlighting the complexity of professional consultation scenarios. Based on these findings, we further explore several strategies to enhance LLMs’ legal consultation abilities. Our benchmark contributes to advancing research in legal domain dialogue systems, particularly in simulating more real-world user-expert interactions. ",
+        "bbox": [
+            233,
+            352,
+            764,
+            669
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1 Introduction ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            699,
+            310,
+            715
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Expert consultation services play a vital role in providing professional guidance across knowledgeintensive domains such as law [33], healthcare [31], and mental health [30]. For example, legal consultation services are crucial for safeguarding individual rights and ensuring fairness in society [27]. However, the widening gap between surging legal demands and scarce professional resources has led to prohibitive costs, significantly limiting public who lack strong domain expertise access to justice. The advance of Large Language Models (LLMs) offers new opportunities to enhance the accessibility and convenience of such services [19], providing low-cost legal consultation while potentially reducing lawyers’ workloads through their extensive knowledge base and conversational capabilities [21]. ",
+        "bbox": [
+            174,
+            732,
+            826,
+            856
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/e5b63c35937c626d9b569a4c1069247b725c4b6d484841190fa9393ee4a4b0a2.jpg",
+        "image_caption": [
+            "Figure 1: An illustration of real-world legal consultation dialogue. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            207,
+            89,
+            787,
+            386
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "As shown in Figure 1, the interaction between experts and users in consultation scenarios presents unique complexities that make evaluating LLM-based expert systems particularly challenging 3. Asymmetric Expertise: Users who seek for help often lack legal literacy, providing vague initial case descriptions and occasionally omitting critical details. Interactive Consultation Process: To clarify the users’ needs and information, legal experts must employ multi-turn questioning strategies to verify facts and extract case-specific nuances. Through this iterative clarification, experts integrate both codified knowledge and practical experience to progressively clarify the situation (Clarification Capability) and then deliver professional legal advice (Advice Quality). ",
+        "bbox": [
+            173,
+            421,
+            825,
+            531
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Current research on LLM-based expert consultation systems reveals significant limitations. As illustrated in Figure 1(b) and 1(c), existing models often generate invalid clarification questions or provide immediate advice without necessary clarification interactions. These limitations can be attributed to two fundamental challenges: Scarcity of Real-world Consultation Data: Most existing studies rely on single-turn QA pairs [7] or synthetic dialogue data generated by LLMs [15]. Such datasets inadequately capture the sophisticated dynamics of real-world consultation scenarios, such as users’ natural information-seeking behaviors and experts’ strategic clarification of missing key information, thus hindering models’ ability to learn professional consulting competence. Insufficient Evaluation Framework: Previous evaluation approaches primarily focus on the quality of final advice [32] or the accuracy of expert judgments [23]. However, this approach overlooks a key aspect: assessing models’ clarification ability, specifically their proficiency in asking purposeful questions before offering advice. ",
+        "bbox": [
+            173,
+            537,
+            826,
+            704
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "To address these challenges, we introduce the following solutions. First, to address the scarcity of real-world legal consultation dialogues, we introduce the Legal Consultation Dialogue Dataset (LeCoDe), a large-scale benchmark dataset constructed from real-world legal consultations. Our research leverages a novel and previously unexplored data source: live-streamed legal Q&A sessions hosted on Chinese short-video platforms. In this unique digital environment, licensed lawyers select representative legal cases for real-time consultations, subsequently publishing real-world case dialogues as anonymized educational videos. This data collection approach ensures authenticity and professional expertise, providing unprecedented access to genuine legal consultation dialogues that existing benchmark datasets rarely capture. ",
+        "bbox": [
+            174,
+            710,
+            825,
+            835
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Furthermore, we meticulously design a pipeline to transform these video consultations into highquality interactive dialogue datasets. Through careful video processing and dialogue transcription, followed by multi-stage annotations conducted by a team of professional annotators with legal expertise. We further enhanced the dataset by adding richer expert annotations, including utterance intents, key facts with their relative importance, and the summary of expert advice. This fine-grained annotation not only enables more precise evaluation but also provides valuable guidance for model training. Finally, our rigorous annotation process yields a knowledge-intensive and structured dataset comprising 3,696 legal consultations with 110,008 dialogue turns. ",
+        "bbox": [
+            176,
+            840,
+            823,
+            869
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            92,
+            825,
+            174
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Second, we propose an interactive legal consultation framework to comprehensively evaluate LLMs’ consultation capabilities. This framework enables systematic assessment through simulated userexpert interactions, measuring both Clarification Capabilities (in terms of effectiveness and efficiency) and the Advice Quality through automated metrics and LLM-based evaluation. We conduct extensive experiments on both general LLMs and legal domain-specific LLMs to evaluate their performance in legal consultation scenarios. Our findings reveal significant limitations in current LLMs’ legal consultation capabilities. In terms of clarification ability, even SOTA LLMs like Qwen-max and GPT-4 achieve only modest recall rates of $3 9 . 8 \\%$ and $3 5 . 9 \\%$ respectively, indicating their ability to elicit key facts remains insufficient, capturing merely $3 0 { - } 4 0 \\%$ of critical information. Similarly, in advice quality, leading models like Deepseek and GPT-4 achieve overall scores of only $62 \\%$ and $59 \\%$ , demonstrating poor performance across profession, completeness, and client satisfaction metrics. To effectively leverage the LeCoDe dataset, we propose various strategies for constructing SFT training dialogues. While these approaches demonstrate meaningful improvements in model performance, a substantial gap remains between current capabilities and the requirements of real-world legal consultation. These insights establish LeCoDe as both a challenging benchmark for evaluating legal AI systems and a valuable resource for advancing their development. ",
+        "bbox": [
+            174,
+            181,
+            826,
+            401
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Our key contributions are threefold: ",
+        "bbox": [
+            176,
+            409,
+            408,
+            422
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "(1) High-Quality Dataset from Previously Unexplored Data Source: We introduce LeCoDe, the first large-scale benchmark dataset explicitly designed for interactive legal consultations, constructed from authentic multi-turn dialogues. By leveraging a novel data source and rigorous expert annotation, LeCoDe provides an unprecedentedly authentic, professionally validated resource. It significantly enriches evaluation for real-world legal AI applications. To the best of our knowledge, LeCoDe is the first and largest real-world multi-turn legal consultation dialogue dataset. ",
+        "bbox": [
+            174,
+            429,
+            825,
+            512
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "(2) Comprehensive Evaluation Framework: We establish a comprehensive evaluation framework tailored specifically for legal consultation tasks. Unlike prior methods, our framework systematically evaluates both the critical clarification interactions and the final quality of professional advice through fine-grained metrics. This comprehensive approach enables more precise assessment and targeted improvements of models’ consultation performance. ",
+        "bbox": [
+            174,
+            518,
+            825,
+            588
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "(3) In-depth Empirical Analysis and Strategic Insights: Our extensive experiments reveal substantial performance gaps among state-of-the-art LLMs when evaluated under realistic legal consultation scenarios. Crucially, we explore and propose several effective Supervised Fine-Tuning (SFT) strategies that demonstrably improve model performance. These empirical insights lay a solid foundation and offer actionable strategies for future advancements in Legal AI research. ",
+        "bbox": [
+            174,
+            594,
+            825,
+            664
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "2 Related Work ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            689,
+            321,
+            707
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Large Language Models (LLMs) have exhibited impressive capabilities and performance across diverse areas [4, 5, 14], and their interactive nature with users shows significant potential in consultation settings [24]. However, a critical challenge emerges in consultation scenarios: users often provide vague queries, requiring LLMs to possess robust clarification abilities to address this information gap [10, 26, 31, 32]. ",
+        "bbox": [
+            174,
+            724,
+            825,
+            794
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "In the legal domain, existing benchmarks typically evaluate the foundational judicial reasoning capabilities of LLMs, like legalbench [13] and lexeval [22]. Existing works have attempted to enhance LLMs capability in consultation scenarios by supervised fine-tuning [29], reinforcement learning [32], and multi-agent collaboration [6]. However, existing works often overlook the interactive nature of legal consultations and lack access to real-world consultation data. CrimeKgAssistant contains 200K real-world lawyer-client QA pairs but is limited to single-turn interactions [7]. Hanfei [15] provides multi-turn dialogues but relies on synthetic conversations generated by LLMs. CAIL2023 conversational similar case retrieval dataset (CAIL2023-ConvIR) [1] focuses on retrieval task without providing legal advice or real scenarios, and CAIL2024 consultation dialogue generation dataset (CAIL2024-ConGen) [2] utilizes generated rather than real-world data. ",
+        "bbox": [
+            174,
+            800,
+            825,
+            911
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            171,
+            90,
+            823,
+            119
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "table",
+        "img_path": "images/cfdbf62a905d263975023030ac7841fd7b19ce4539f13c4d2f66ff13122430d8.jpg",
+        "table_caption": [
+            "Table 1: Related Datasets Comparison: According to Presence of Legal Advice, Inclusion of Clarifying Questions, Multi-Turn Dialogue Capability, Expert Annotation Status, and Data Source (LLM-Generated vs. Real-world Scenario Data) "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Datasets</td><td>Advice</td><td>Clarification</td><td>Multi-Turn</td><td>Expert Ann.</td><td>Source</td></tr><tr><td>CrimeKGAssistant</td><td>✓</td><td></td><td></td><td></td><td>Real</td></tr><tr><td>Hanfei</td><td>✓</td><td>√</td><td>√</td><td></td><td>Gen.</td></tr><tr><td>CAIL2023-ConvIR</td><td></td><td>✓</td><td>✓</td><td></td><td>Gen.</td></tr><tr><td>CAIL2024-ConGen</td><td>✓</td><td>✓</td><td>✓</td><td></td><td>Gen.</td></tr><tr><td>LeCoDe (ours)</td><td>√</td><td>√</td><td>✓</td><td>√</td><td>Real</td></tr></table>",
+        "bbox": [
+            240,
+            171,
+            754,
+            256
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "As shown in Table 1, our dataset (LeCoDe) distinguishes itself significantly from previous works. LeCoDe uniquely combines lawyers’ clarification questions and advice-giving capabilities while utilizing real-world scenarios, and the incorporation of expert annotation substantially enhances the dataset’s value and quality. Furthermore, we introduce a comprehensive evaluation framework that systematically evaluates LLMs’ performance in legal consultation scenarios, incorporating two crucial interactive aspects: Clarification Capability and Advice Quality. These distinctive features collectively make LeCoDe a comprehensive and reliable resource for legal consultation tasks. ",
+        "bbox": [
+            173,
+            262,
+            826,
+            359
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3 LeCoDe ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            377,
+            274,
+            395
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3.1 Task Definition ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            409,
+            318,
+            424
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "The legal consultation task is an interactive process between two agents: a user client $C$ and a legal expert $E$ . Let $A _ { n } = \\left\\{ a _ { 1 } , . . . , a _ { n } \\right\\}$ denote the set of atomic key facts privately held by $C$ , $n$ is the cardinality of the set. The client $C$ starts the consultation with a query $\\bar { u _ { 1 } ^ { C } }$ about a specific case which may be vague and may not fully disclose all relevant facts in $A _ { n }$ . ",
+        "bbox": [
+            174,
+            434,
+            825,
+            489
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "The consultation dialogue sequence $D$ of length $T$ is defined as $D = \\{ ( u _ { t } ^ { C } , u _ { t } ^ { E } ) \\} _ { t = 1 } ^ { T }$ , where $u _ { t } ^ { C }$ and $u _ { t } ^ { E }$ represent utterances of client $C$ and expert $E$ at turn $t$ . At each turn, the expert gives a response $u _ { t } ^ { E }$ conditioned on: $u _ { t } ^ { E } \\sim p _ { E } \\{ \\cdot \\mid D _ { t - 1 } , u _ { t } ^ { C } \\}$ , where $D _ { t - 1 }$ represents previous dialogue context. The expert’s response type $r _ { t }$ belongs to $R = \\{ { \\mathrm { Q u e s t i o n } } , { \\mathrm { A d v i c e } } \\}$ , indicating whether to ask a clarifying question or provide legal advice. Following the expert’s query, the client’s response is defined as $\\boldsymbol { \\dot { u } } _ { t + 1 } ^ { C } \\sim p _ { C } \\{ \\cdot \\mid D _ { t } , A _ { n } \\}$ , where the client generates responses based on the known key facts $A _ { n }$ in response to the expert’s latest clarifying question in dialogue context $D _ { t }$ . The consultation terminates when either the expert provides legal advice or maximum turn is reached. ",
+        "bbox": [
+            173,
+            496,
+            825,
+            608
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Simulation Framework: To simulate real-world consultation interactions, the expert agent can be represented by various LLMs and strategies to generate clarifying questions or final advice based on the user’s initial query and subsequent feedback. To ensure reliable user simulation, we employ an LLM-based user agent that generates responses based on the complete key facts list $A _ { n }$ and dialogue history. The user agent follows several key principles: (1) providing concise responses to expert questions based on atomic key facts, (2) Reply “unknown” when uncertain, and (3) refusing to answer manipulative questions that attempt to elicit all known information. To show the reliability of user agent, we validate various response LLMs and strategies on the performance of relevance and factuality (detailed settings and results in Appendix C). ",
+        "bbox": [
+            173,
+            613,
+            825,
+            739
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3.2 LeCoDe Dataset Construction ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            753,
+            421,
+            768
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "The motivation of LeCoDe is to facilitate future research by establishing a high-quality and realworld legal consultation dialogue dataset. Given the scarcity of publicly available real-time lawyerclient interaction data, we innovatively leverage Chinese short-video platforms, where licensed lawyers conduct live consultations with individuals seeking legal guidance, and subsequently publish representative cases as educational videos. ",
+        "bbox": [
+            174,
+            779,
+            825,
+            849
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Our data consists of publicly available legal consultation videos from the Chinese short-video platforms. These short-videos are real-world live-stream consultations, with a total duration exceeding 235 hours. To transform these video data into high-quality legal consultation dialogues, we design a systematic data processing pipeline, as illustrated in Figure 2. The pipeline begins with processing using advanced LLMs - Tongyi Tingwu for speaker-aware transcription and Qwen-max for initial dialogue role identification. ",
+        "bbox": [
+            174,
+            854,
+            823,
+            911
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            173,
+            92,
+            823,
+            119
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Two-stage expert annotation: We then employ a two-stage expert annotation process to ensure data quality. The first stage focuses on ensuring dialogue quality, where annotators perform dialogue standardization, transcription error correction, speaker role verification, and fine-grained utterance intent labeling. Among them, intent labeling annotation categorizes each utterance into one of ten predefined classes, such as “Client Initial Query” and “Lawyer Clarifying Question.” This process not only structures the dialogue data effectively but also improves the efficiency and accuracy of expert annotation in the subsequent stage. ",
+        "bbox": [
+            173,
+            126,
+            825,
+            223
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "image",
+        "img_path": "images/62715878279e5bcf6bfc12875501dc6c0e49529798a3991581a129a935f2a55c.jpg",
+        "image_caption": [
+            "Figure 2: Data Construction Pipeline for LeCoDe. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            176,
+            247,
+            841,
+            304
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The second annotation stage aims to enrich the dialogue dataset by leveraging legal expertise to create comprehensive training and evaluation resources. Legal professionals serve as annotators to extract critical elements: clients’ initial queries, atomic key facts $A _ { n }$ , the importance of key facts, and legal advice summarization. The detailed annotation content is as follows: ",
+        "bbox": [
+            173,
+            352,
+            825,
+            407
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Atomic key fact extraction aims to identify the atomic factual units relevant to user needs from lengthy dialogues. On average, a single consultation contains around 9.19 key facts. In addition, the extracted atomic facts complement entity information and ensure consistency with the dialogue flow. During model training, these annotations assist in filtering out irrelevant content, enabling the model to learn effective and professional interaction strategies. In the evaluation phase, it serves as a means to assess the clarification capacity. ",
+        "bbox": [
+            173,
+            415,
+            825,
+            497
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Importance scoring of key facts annotated the role of facts in legal analysis. The facts are categorized into three levels: Critical Facts (3 points), Secondary Facts (2 points), and Non-critical Facts (1 point). This scoring mechanism aims to help the model learn more efficient dialogue strategies and serves to evaluate whether it can focus on the core facts of a case. ",
+        "bbox": [
+            174,
+            503,
+            825,
+            559
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Legal advice summarization aims to generate legal recommendations that are accurate, comprehensive, and concise. During training, this annotation enhances the model’s ability to produce fact-based, professional advice. In the evaluation phase, the task is used to assess the quality and effectiveness of the model’s generated advice. ",
+        "bbox": [
+            174,
+            565,
+            825,
+            621
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Additionally, two expert annotation reviewers conducted thorough quality control and ethical compliance checks (see Section 3.6). To maintain rigorous annotation quality, we developed comprehensive annotation guidelines for both stages and conducted pilot annotations for annotator training. Detailed annotation guidelines are provided in Appendix E. Specifically, we recruited 12 annotators with bachelor’s degrees or above for the first stage, and 8 annotators with legal educational background for the second stage. The inter-annotator agreement rates achieved during the pilot annotations were $8 8 \\%$ and $80 \\%$ for the first and second stages respectively, indicating substantial consistency in the annotation process. For each dialogue, we paid annotators 8 CNY in stage-1 and 9 CNY in stage-2. The total annotation cost amounted to 63,360 CNY $\\$ 8,751$ at an exchange rate of 7.24 CNY/USD). ",
+        "bbox": [
+            174,
+            628,
+            825,
+            752
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "3.3 LeCoDe Descrption ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            772,
+            349,
+            787
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "In this section, we present comprehensive statistics of our constructed dataset, followed by an analysis of data distribution. ",
+        "bbox": [
+            174,
+            800,
+            823,
+            828
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Data Statistics: LeCoDe consists of 3,696 dialogues split into training and test sets with an 8:2 ratio. Each dialogue contains an average of 29 turns and approximately 9 atomic key facts. The detailed data statistics are shown in Table 2, with illustrative examples provided in the Appendix F.1. ",
+        "bbox": [
+            174,
+            835,
+            825,
+            877
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Data Distribution: The dataset encompasses a diverse range of legal consultation categories, exhibiting the following distinctive characteristics: ",
+        "bbox": [
+            173,
+            883,
+            823,
+            911
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Diverse Legal Scenarios: As illustrated in Figure 3d, LeCoDe covers three major legal domains: Criminal Law, Civil Law, and Administrative Law. Within Criminal Law, the most frequently consulted charges include Rape, Intentional Injury (In-Inj), Fraud, Intentional Homicide (In-Hom), and Theft. In Civil Law scenarios, the most common disputes involve Marriage (MRG), Contract (CNT), Personality Right (PRD), and Tort Liability (TLD). ",
+        "bbox": [
+            173,
+            90,
+            826,
+            161
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "image",
+        "img_path": "images/8e32512646a9c1bda39817fb79ddd4127964b082cfb7e8edb13ee6bec78c603f.jpg",
+        "image_caption": [
+            "Figure 3: Dataset Distribution. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            179,
+            172,
+            532,
+            337
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "table",
+        "img_path": "images/adf7c4042ff2c8f499732f21c6302b05981bfd3c2ac3f306110755b459cf9dcb.jpg",
+        "table_caption": [
+            "Table 2: Statistics over LeCoDe Dataset. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Dataset</td><td>LeCoDe</td><td>Train Set</td><td>Test Set</td></tr><tr><td># Dialogue Samples</td><td>3,696</td><td>2,956</td><td>740</td></tr><tr><td># Total turns</td><td>110,008</td><td>88,342</td><td>21,666</td></tr><tr><td>avg turns per dialogue</td><td>29.76</td><td>29.89</td><td>29.28</td></tr><tr><td>avg key facts per dialogue</td><td>9.19</td><td>9.24</td><td>9.01</td></tr></table>",
+        "bbox": [
+            549,
+            253,
+            841,
+            314
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Varying Complexity Across Domains: Figure 3a presents the average number of key facts per dialogue across common consultation scenarios. Notably, criminal law cases contain more facts compared to civil law cases, reflecting the inherent complexity of criminal proceedings. This pattern is also reflected in Figure 3c, where criminal law consultations average 23.7 turns compared to 19.6 turns in civil law cases. ",
+        "bbox": [
+            174,
+            376,
+            825,
+            445
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Balanced Dialogue Dynamics: Figure 3b presents the word count distribution between participants. Interestingly, users’ contributions are comparable to, or slightly exceed, those of lawyers. This pattern reflects the realistic nature of legal consultations. Clients often have limited legal knowledge and are unable to present comprehensive, well-structured requirements in the initial query. Instead, they gradually articulate their situations in response to lawyers’ clarifying questions. ",
+        "bbox": [
+            174,
+            452,
+            825,
+            522
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Overall, LeCoDe authentically reflects real-world legal consultations through its diverse case categories and natural dialogue patterns. ",
+        "bbox": [
+            174,
+            529,
+            823,
+            556
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "3.4 Evaluation Metrics ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            571,
+            346,
+            587
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "We evaluate expert responses from two main perspectives. First, we assess Clarification Capability through effectiveness and efficiency metrics. Second, we evaluate Advice Quality using both automated and LLM-based evaluation metrics. ",
+        "bbox": [
+            174,
+            597,
+            825,
+            638
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Clarification Capability: Effectiveness: we measure the model’s ability to elicit ground truth atomic key facts $( A _ { n } )$ through clarification questions during dialogue simulation. To evaluate the coverage of key facts through expert questioning, we employ multiple metrics: Recall $\\mathbf { ( R ) }$ assesses whether all key facts are acquired under the guidance of the model, while Weighted Recall (WR) considers the importance score of each key fact. Given that high-quality legal consultation requires uncovering key information in the early rounds, we utilize Recall $\\boldsymbol { \\ @ 5 }$ $( \\mathbf { R } @ 5 )$ to evaluate how effectively the first five questions elicit key facts, and NDCG to assess whether the model asks questions in order of fact importance. Efficiency: we measure the average number of dialogue turns (AT). ",
+        "bbox": [
+            173,
+            645,
+            825,
+            757
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Advice Quality: we evaluate the semantic alignment between the generated and reference advice using both automated metrics ROUGE-L (R-L) [25] and BERTScore (BS) [35] and LLM-based evaluation metrics. The latter assesses five aspects: Professionalism $\\bf ( P r o )$ , Fluency $\\left( \\mathbf { F } \\mathbf { l u } \\right)$ , Completeness (Com), Satisfaction (Sat), and Safety (Safe), culminating in a Overall Score (OA). ",
+        "bbox": [
+            174,
+            763,
+            825,
+            819
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Detailed definitions and calculation methods for all metrics are provided in the Appendix F.2. ",
+        "bbox": [
+            174,
+            825,
+            784,
+            839
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "3.5 Training Dialogue Construction Strategy for SFT ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            854,
+            555,
+            869
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "To fully utilize LeCoDe training data, we propose three strategies to construct training multi-turn dialogue for fine-tuning LLMs, as shown in Figure 4. ",
+        "bbox": [
+            173,
+            881,
+            823,
+            909
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Direct SFT directly leverages LeCoDe training data to predict lawyer utterances based on dialogue history, simulating natural consultation flow. ",
+        "bbox": [
+            173,
+            92,
+            419,
+            160
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Key-fact SFT employs a targeted approach where stronger LLMs first generate multiple target questions for each atomic key fact. The target model is then trained to learn how to generate these target questions, establishing a one-to-one mapping between questions and facts. ",
+        "bbox": [
+            174,
+            167,
+            419,
+            277
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Key-fact-e SFT, an enhanced version of the previous approach, also utilizes ",
+        "bbox": [
+            176,
+            285,
+            419,
+            313
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "image",
+        "img_path": "images/96f06df94ce4d97981d3d879724cddc6967def740281c8f6b99639984a66af88.jpg",
+        "image_caption": [
+            "Figure 4: Training Dialogue Construction Strategy for SFT "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            437,
+            94,
+            820,
+            258
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "stronger LLMs to generate target questions that can effectively cover multiple (1-3) key facts simultaneously. Training data is then constructed based on these questions and corresponding key facts, enabling more efficient information elicitation. The detailed implementations of the strategies are provided in the Appendix D.1.3. ",
+        "bbox": [
+            174,
+            313,
+            825,
+            367
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "3.6 Legal and Ethical Consideration ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            383,
+            439,
+            400
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Considering the sensitivity of legal domain, we adopted strict measures to ensure ethical compliance and minimize potential risks. First, our dataset exclusively consists of publicly shared educational videos on the Chinese short-video platforms, where all videos have undergone strict platform moderation and ethical review, ensuring both anonymity and value alignment. Second, legal experts conducted thorough content reviews to filter out potentially discriminatory, violent, or offensive content, while ensuring anonymity and mitigating potential biases. Furthermore, we release LeCoDe under a license restricted to academic research purposes only (see in Appendix A.2). We believe these measures effectively mitigate potential social risks. A detailed discussion of potential impacts is provided in Appendix B. ",
+        "bbox": [
+            174,
+            410,
+            825,
+            535
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "4 Experiment ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            555,
+            303,
+            571
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "4.1 Baselines ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            587,
+            277,
+            601
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "We evaluate models across three distinct categories: (1) Closed-source Commercial LLMs, including GPT series models (GPT-4 [4], GPT-4o [18], GPT-3.5-turbo) and Qwen series models (Qwenmax [34], Qwen-turbo [34]); (2) Open-source LLMs, comprising DeepSeek-R1 [9], DeepSeekV3 [8], Qwen2.5-72B [34], Qwen2.5-7B [34], Llama-3.1-8B [12], and GLM-4-9B [11], GLM4-32B [11]; and (3) Legal-domain Specialized Models and Strategies, which include domainspecific LLMs (ChatLaw-13B [6], Lawyer-LLaMA [17], Tongyi-Farui [3]). The clarifying strategy incorporates MediQ [23], a question-asking framework adapted from clinical reasoning to legal consultation. The detailed setting can refer to Appendix D.1. Additionally, we propose three training dialogue construction strategies for supervised fine-tuning (SFT) to enhance LLMs’ legal consultation capabilities: Direct SFT, Key-fact SFT and Key-fact-e SFT, as described in Section 3.5. ",
+        "bbox": [
+            174,
+            612,
+            826,
+            751
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "4.2 Experiment Setting ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            767,
+            348,
+            782
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "For user simulation, LLM-based agents have demonstrated strong response capabilities [16, 23, 28]. In our setting, an ideal user simulator should exhibit both relevance (responding appropriately to lawyers’ questions) and factuality (adhering to given key fact without hallucination). After experimenting with various response strategies and LLMs (detailed settings and results in Appendix C), we use Qwen-max with First-Person Given Dialogue Instruction strategy for user simulation, which achieves best performance on relevance and factuality. ",
+        "bbox": [
+            174,
+            794,
+            825,
+            876
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "For expert agents, we implement both zero-shot and few-shot strategies across all general LLMs. In few-shot scenarios, we manually crafted two demonstrations. The maximum turn is 10 rounds. If the maximum turn limit is reached, the LLMs will be instructed to generate final legal advice. All prompt templates and settings are provided in the Appendix D. We use the evaluation metrics in Section 3.4 for evaluation, and utilize GPT-4o-mini for advice quality assessment (refer to Appendix H). ",
+        "bbox": [
+            174,
+            883,
+            821,
+            911
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            90,
+            825,
+            133
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "4.3 Experiment Results ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            150,
+            349,
+            165
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "We report zero-shot performance of all models in Table 3, with few-shot results provided the Tables 6- 7 in Appendix. Our experiments reveal several key findings: ",
+        "bbox": [
+            174,
+            174,
+            823,
+            204
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Clarification Capability: (1) Closed-source commercial LLMs generally outperform open-source LLMs. GPT-4 achieves the best balance between efficiency and effectiveness, demonstrating strong performance in questioning ability. (2) Qwen-max and Qwen2.5-72B show notable performance in Recall and Weighted Recall. (3) While MediQ effectively reduces dialogue turns, it compromises question quality. Domain-specific models like ChatLaw and Lawyer-LLama often bypass the questioning phase and provide direct advice due to poor instruction following, resulting in shorter but less effective consultations. (4) Notably, SFT strategies significantly outperform other approaches across all clarification metrics, achieving remarkable Recall $( 5 3 . 8 \\% )$ and NDCG $( 8 4 . 8 \\% )$ scores. ",
+        "bbox": [
+            173,
+            209,
+            825,
+            320
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "table",
+        "img_path": "images/196779f619a949f7f4499ab7cd2023afd04653fa93e87a5922c14cca46e2bd1c.jpg",
+        "table_caption": [
+            "Table 3: Main results on zero-shot setting, where top-6 scores are marked in blue , the highest is bolded and the second-highest is underlined. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Models</td><td colspan=\"5\">Clarification Capability</td><td colspan=\"7\">Advice Quality</td></tr><tr><td>R</td><td>Effe. WR</td><td>R@5</td><td>NDCG</td><td>Effi. AT</td><td>Auto. R-L</td><td>Pro</td><td>Flu</td><td>Com</td><td>LLM-Eval.</td><td>Safe</td><td>OA</td></tr><tr><td></td><td></td><td></td><td></td><td></td><td>Closed-source LLMs</td><td>BS</td><td></td><td></td><td></td><td>Sat</td><td></td><td></td></tr><tr><td>GPT-4</td><td></td><td></td><td>34.4</td><td>74.7</td><td>4.9</td><td>17.5 65.9</td><td>56.8</td><td>71.9</td><td>49.9</td><td>55.8</td><td>71.1</td><td>58.1</td></tr><tr><td>GPT-40</td><td>35.9 33.0</td><td>37.2 33.9</td><td>25.9</td><td>63.2</td><td>10</td><td>13.0 62.9</td><td>50.1</td><td>69.6</td><td>44.7</td><td>52.4</td><td>66.6</td><td>53.5</td></tr><tr><td>GPT-3.5</td><td>26.9</td><td>28.0</td><td>23.6</td><td>67.1</td><td>9.2</td><td>12.4 63.1</td><td>51.8</td><td>67.6</td><td>45.8</td><td>51.6</td><td>66.0</td><td>53.8</td></tr><tr><td>Qwen-max</td><td>39.8</td><td>41.3</td><td>31.2</td><td>70.7</td><td>10</td><td>13.9 63.9</td><td>54.0</td><td>71.4</td><td>47.6</td><td>55.3</td><td></td><td>56.2</td></tr><tr><td>Qwen-turbo</td><td>27.3</td><td>28.3</td><td></td><td></td><td></td><td></td><td>44.8</td><td></td><td></td><td></td><td>68.9</td><td></td></tr><tr><td></td><td></td><td></td><td>23.2</td><td>61.2</td><td>9.4 Open-source LLMs</td><td>10.6 61.8</td><td></td><td>62.7</td><td>40.0</td><td>47.6</td><td>61.6</td><td>48.5</td></tr><tr><td>deepseek-v3 28.0</td><td></td><td>29.0</td><td>25.1</td><td>65.4</td><td>7.5</td><td>16.2 65.3</td><td>57.6</td><td>72.9</td><td>50.8</td><td>56.2</td><td>72.1</td><td>58.9</td></tr><tr><td>deepseek-r1</td><td>27.6</td><td>28.8</td><td>25.1</td><td>63.9</td><td>6.3</td><td>12.4 64.0</td><td>63.8</td><td>74.1</td><td>55.5</td><td>55.9</td><td>76.5</td><td>62.2</td></tr><tr><td>Qwen2.5-72B</td><td>39.6</td><td>40.8</td><td>30.4</td><td>71.9</td><td>10</td><td>14.7 63.8</td><td>54</td><td>71.6</td><td>48.5</td><td>55.2</td><td>69.4</td><td>56.6</td></tr><tr><td>Qwen2.5-7B</td><td>31.1</td><td>32.1</td><td>27.7</td><td>70.1</td><td>10 9.2</td><td>60.0</td><td>42.3</td><td>60.4</td><td>37.6</td><td>45.0</td><td>57.8</td><td>45.7</td></tr><tr><td>Llama-3.1-8B</td><td>22.1</td><td>23.1</td><td>19.1</td><td>55.0</td><td>7.8 13.9</td><td>63.1</td><td>51.7</td><td>69.1</td><td>46.5</td><td>51.7</td><td>67.1</td><td>54.1</td></tr><tr><td>GLM4-32B</td><td>34.1</td><td>35.4</td><td>28.8</td><td>67.3</td><td>7.3</td><td>14.3 64.1</td><td>55.6</td><td>70.4</td><td>49.0</td><td>54.3</td><td>70.4</td><td>56.7</td></tr><tr><td>GLM4-9B</td><td>34.2</td><td>35.3</td><td>26.1</td><td>65.0</td><td>10 13.9</td><td>63.1</td><td>517</td><td>69.1</td><td>46.5</td><td>51.7</td><td>67.1</td><td>54.1</td></tr><tr><td></td><td>Domain-specific LLMs or Clarifying Strategy</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>ChatLaw</td><td>16.7</td><td>17.4</td><td>16.3</td><td>47.8</td><td>4.4</td><td>7.8 53.0</td><td>28.8</td><td>40.0</td><td>25.5</td><td>31.0</td><td>39.4</td><td>30.7</td></tr><tr><td>Lawyer-LLaMA</td><td>21.8</td><td>22.9</td><td>21.8</td><td>62.9</td><td>4.2</td><td>12.4 59.7</td><td>37.6</td><td>52.7</td><td>33.1</td><td>39.0</td><td>51.8</td><td>39.4</td></tr><tr><td>Farui</td><td>28.4</td><td>29.5</td><td>25.1</td><td>64.2</td><td>8.9 16.6</td><td>64.5</td><td>52.2</td><td>66</td><td>47.4</td><td>51.3</td><td>66.3</td><td>53.8</td></tr><tr><td>MediQ</td><td>22.1</td><td>22.9</td><td>19</td><td>53.5</td><td>4.2 13.3</td><td>63.7</td><td>51.8</td><td>69.1</td><td>45.5</td><td>51.9</td><td>66.7</td><td>54.0</td></tr><tr><td>Direct SFT</td><td>37.2</td><td>37.6</td><td>25.6</td><td>62.3</td><td>9.6</td><td>15.4 64.9</td><td>51.7</td><td>65.3</td><td>45.6</td><td>50.1</td><td>63.1</td><td>52.4</td></tr><tr><td>Key-fact SFT</td><td>53.8</td><td>55.1</td><td>43.5</td><td>84.7</td><td>9.2 18.5</td><td>67.5</td><td>59.3</td><td>73.0</td><td>52.3</td><td>55.9</td><td>71.2</td><td>59.4</td></tr><tr><td>Key-fact-e SFT</td><td>51.0</td><td>51.1</td><td>45.3</td><td>84.8</td><td>6.6 19.1</td><td>67.6</td><td>59.3</td><td>73.6</td><td>52.0</td><td>56.7</td><td>72.1</td><td>59.5</td></tr></table>",
+        "bbox": [
+            174,
+            372,
+            859,
+            694
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Advice Quality: (1) GPT-4 leads among closed-source LLMs across multiple advice quality metrics. (2) Deepseek-R1 excels among open-source LLMs, even achieves SOTA performance on LLM-eval metrics. (3) SFT strategies demonstrate superior performance in both advice quality metrics. ",
+        "bbox": [
+            174,
+            709,
+            826,
+            752
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Our analysis in Tables 6- 7 show that few-shot prompting negatively impacts clarification capability in most models (6/11), while improving advice quality (8/11). This suggests that while few-shot examples may constrain questioning scope, they provide useful demonstrations for advice generation. Overall, LLMs show suboptimal performance. While SFT strategies show effectiveness, there remains substantial room for improvement, particularly in clarification capability (with only $5 3 . 8 \\%$ recall) and the quality of advice. ",
+        "bbox": [
+            174,
+            757,
+            825,
+            842
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "4.4 Further Analysis ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            857,
+            331,
+            872
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "In this section, we analyze key findings from our experiments to derive insights for future studies in legal consultation scenarios and potential improvements. ",
+        "bbox": [
+            174,
+            883,
+            823,
+            911
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "image",
+        "img_path": "images/eec2079a18b35493408d1b948a66c885ce93889c89321c10afee2a7e3d75b671.jpg",
+        "image_caption": [
+            "Figure 5: Impact of Case Complexity on Model Performance Metrics: Analysis of Weighted Recall, Ask Turn, BERTScore, and Overall Score (OA) across Different Numbers of Atomic Key Facts. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            187,
+            89,
+            576,
+            260
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "image",
+        "img_path": "images/f2fd4b5c3c8c048e1fdb8a18911807524c0ffbccefdefb71d16a1d922841ce7b.jpg",
+        "image_caption": [
+            "Figure 6: Radar chart showing the LLMs performance. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            602,
+            102,
+            807,
+            279
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "As illustrated in Figure 5, we analyze the relationship between case complexity (measured by the number of atomic key facts) and model performance, including Weighted Recall (WR) for clarification effectiveness, Ask Turn for efficiency, and BERTScore (BS) and Overall Accuracy (OA) for advice quality. The results reveal several notable patterns: As case complexity increases, a significant decline in WR and subtle decreases in both BS and OA, indicating that performance declines with case complexity. Interestingly, the Ask Turn metric shows an upward trend, suggesting that LLMs exhibit some awareness of case complexity. These findings suggest LLMs can be improved to better assess case complexity and ask more effective questions in the future. ",
+        "bbox": [
+            173,
+            334,
+            825,
+            445
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Significant room for improvement in LLMs’ legal consultation capabilities. As shown in Figure 6, nearly all LLMs achieve only approximately $30 \\%$ - $50 \\%$ recall in clarification capability. Moreover, substantial gaps remain in advice quality, including professional, user satisfaction, and completeness. ",
+        "bbox": [
+            173,
+            452,
+            826,
+            493
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "How to effectively enhance LLMs’ legal consultation abilities? As shown in Figure 7, using Qwen2.5-7B as our base model, it reflects few-shot strategies consistently produced adverse effects, suggesting that conventional prompt engineering approaches may be insufficient for meaningful improvements. Consequently, we propose SFT strategies to rapidly and effectively develop consultation capabilities from the dataset. The results show that Key-fact SFT, which trains LLMs to target specific key facts through strategic questioning, significantly outperforms Direct SFT’s raw dialogue pattern learning approach. Notably, ",
+        "bbox": [
+            174,
+            500,
+            441,
+            720
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "image",
+        "img_path": "images/8457dc69bae00e88c366d52bcf7c423fb84cf0eab4ce62c93e9d7b62776f722d.jpg",
+        "image_caption": [
+            "Figure 7: Comparison of Different Strategies. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            457,
+            517,
+            818,
+            678
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Key-fact-e, achieves remarkable improvements across all metrics (WR: $+ 5 9 . 2 \\%$ , BS: $+ 1 2 . 7 \\%$ , OA: $+ 3 0 . 1 \\%$ while reducing dialogue turns by $5 1 . 5 \\%$ , even surpassing the performance of SOTA LLMs. ",
+        "bbox": [
+            173,
+            720,
+            828,
+            748
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "5 Conclusion ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            767,
+            299,
+            784
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "We introduce LeCoDe, the first dataset of real-world legal consultation dialogues, with an evaluation framework measuring LLMs’ clarification capability and advice quality. Our analysis reveals significant limitations of existing LLMs in legal consultation tasks. Further, we propose supervised fine-tuning strategies that lead to notable improvements in the legal consultation performance of LLMs. In the future, we encourage researchers to explore two promising avenues: (1) exploring more strategies to enhance LLMs’ consultation capabilities and (2) effectively incorporating external legal knowledge. Through coordinated advancement, these efforts will expand the potential of professional services to become more accessible and effective. ",
+        "bbox": [
+            174,
+            799,
+            825,
+            909
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "References ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            90,
+            267,
+            106
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "[1] Cail2023:conversational similar case retrieval. http://cail.cipsc.org.cn/task_summit. html?raceID $\\mid =$ 2&cail_tag=2023. 2025.5.12. ",
+        "bbox": [
+            179,
+            114,
+            825,
+            142
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "[2] Cail2024:legal consultation dialogue generation. http://cail.cipsc.org.cn/task_ summit.html?raceID $\\Vdash$ 4&cail_tag $\\mathbf { = }$ 2024. 2025.5.12. ",
+        "bbox": [
+            178,
+            151,
+            823,
+            180
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "[3] Tongyi farui:leading ai legal product powered by alibaba cloud. https://tongyi.aliyun. com/farui/home. 2025.5.12. ",
+        "bbox": [
+            178,
+            189,
+            825,
+            217
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "[4] Josh Achiam, Steven Adler, Sandhini Agarwal, Lama Ahmad, Ilge Akkaya, Florencia Leoni Aleman, Diogo Almeida, Janko Altenschmidt, Sam Altman, Shyamal Anadkat, et al. Gpt-4 technical report. arXiv preprint arXiv:2303.08774, 2023. ",
+        "bbox": [
+            179,
+            227,
+            823,
+            268
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "[5] Jinze Bai, Shuai Bai, Yunfei Chu, Zeyu Cui, Kai Dang, Xiaodong Deng, Yang Fan, Wenbin Ge, Yu Han, Fei Huang, et al. Qwen technical report. arXiv preprint arXiv:2309.16609, 2023. ",
+        "bbox": [
+            176,
+            277,
+            826,
+            308
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "[6] Jiaxi Cui, Munan Ning, Zongjian Li, Bohua Chen, Yang Yan, Hao Li, Bin Ling, Yonghong Tian, and Li Yuan. Chatlaw: A multi-agent collaborative legal assistant with knowledge graph enhanced mixture-of-experts large language model. arXiv preprint arXiv:2306.16092, 2023. ",
+        "bbox": [
+            179,
+            315,
+            825,
+            359
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "[7] Yongfu Dai, Duanyu Feng, Jimin Huang, Haochen Jia, Qianqian Xie, Yifang Zhang, Weiguang Han, Wei Tian, and Hao Wang. LAiW: A Chinese legal large language models benchmark. In Owen Rambow, Leo Wanner, Marianna Apidianaki, Hend Al-Khalifa, Barbara Di Eugenio, and Steven Schockaert, editors, Proceedings of the 31st International Conference on Computational Linguistics, pages 10738–10766, Abu Dhabi, UAE, January 2025. Association for Computational Linguistics. ",
+        "bbox": [
+            181,
+            367,
+            826,
+            450
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "[8] DeepSeek-AI. Deepseek-v3 technical report, 2024. ",
+        "bbox": [
+            181,
+            460,
+            545,
+            474
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "[9] DeepSeek-AI. Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning, 2025. ",
+        "bbox": [
+            176,
+            483,
+            823,
+            513
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "[10] Zhihao Fan, Lai Wei, Jialong Tang, Wei Chen, Wang Siyuan, Zhongyu Wei, and Fei Huang. AI hospital: Benchmarking large language models in a multi-agent medical interaction simulator. In Owen Rambow, Leo Wanner, Marianna Apidianaki, Hend Al-Khalifa, Barbara Di Eugenio, and Steven Schockaert, editors, Proceedings of the 31st International Conference on Computational Linguistics, pages 10183–10213, Abu Dhabi, UAE, January 2025. Association for Computational Linguistics. ",
+        "bbox": [
+            174,
+            521,
+            826,
+            604
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "[11] Team GLM, Aohan Zeng, Bin Xu, Bowen Wang, Chenhui Zhang, Da Yin, Diego Rojas, Guanyu Feng, Hanlin Zhao, Hanyu Lai, Hao Yu, Hongning Wang, Jiadai Sun, Jiajie Zhang, Jiale Cheng, Jiayi Gui, Jie Tang, Jing Zhang, Juanzi Li, Lei Zhao, Lindong Wu, Lucen Zhong, Mingdao Liu, Minlie Huang, Peng Zhang, Qinkai Zheng, Rui Lu, Shuaiqi Duan, Shudan Zhang, Shulin Cao, Shuxun Yang, Weng Lam Tam, Wenyi Zhao, Xiao Liu, Xiao Xia, Xiaohan Zhang, Xiaotao Gu, Xin Lv, Xinghan Liu, Xinyi Liu, Xinyue Yang, Xixuan Song, Xunkai Zhang, Yifan An, Yifan Xu, Yilin Niu, Yuantao Yang, Yueyan Li, Yushi Bai, Yuxiao Dong, Zehan Qi, Zhaoyu Wang, Zhen Yang, Zhengxiao Du, Zhenyu Hou, and Zihan Wang. Chatglm: A family of large language models from glm-130b to glm-4 all tools, 2024. ",
+        "bbox": [
+            174,
+            614,
+            826,
+            739
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "[12] Aaron Grattafiori, Abhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey, Abhishek Kadian, Ahmad Al-Dahle, Aiesha Letman, Akhil Mathur, Alan Schelten, Alex Vaughan, et al. The llama 3 herd of models. arXiv preprint arXiv:2407.21783, 2024. ",
+        "bbox": [
+            171,
+            748,
+            823,
+            791
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "[13] Neel Guha, Julian Nyarko, Daniel E. Ho, Christopher Ré, Adam Chilton, Aditya Narayana, Alex Chohlas-Wood, Austin Peters, Brandon Waldon, Daniel N. Rockmore, Diego Zambrano, Dmitry Talisman, Enam Hoque, Faiz Surani, Frank Fagan, Galit Sarfaty, Gregory M. Dickinson, Haggai Porat, Jason Hegland, Jessica Wu, Joe Nudell, Joel Niklaus, John Nay, Jonathan H. Choi, Kevin Tobia, Margaret Hagan, Megan Ma, Michael Livermore, Nikon Rasumov-Rahe, Nils Holzenberger, Noam Kolt, Peter Henderson, Sean Rehaag, Sharad Goel, Shang Gao, Spencer Williams, Sunny Gandhi, Tom Zur, Varun Iyer, and Zehua Li. Legalbench: a collaboratively built benchmark for measuring legal reasoning in large language models. In Proceedings of the ",
+        "bbox": [
+            176,
+            799,
+            826,
+            911
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "37th International Conference on Neural Information Processing Systems, NIPS ’23, Red Hook, NY, USA, 2023. Curran Associates Inc. ",
+        "bbox": [
+            202,
+            92,
+            825,
+            119
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[14] Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Ruoyu Zhang, Runxin Xu, Qihao Zhu, Shirong Ma, Peiyi Wang, Xiao Bi, et al. Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning. arXiv preprint arXiv:2501.12948, 2025. ",
+        "bbox": [
+            173,
+            127,
+            821,
+            170
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[15] Wanwei He, Jiabao Wen, Lei Zhang, Hao Cheng, Bowen Qin, Yunshui Li, Feng Jiang, Junying Chen, Benyou Wang, and Min Yang. Hanfei-1.0. https://github.com/siat-nlp/HanFei, 2023. ",
+        "bbox": [
+            173,
+            178,
+            823,
+            219
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[16] Zhiyuan Hu, Yue Feng, Anh Tuan Luu, Bryan Hooi, and Aldo Lipani. Unlocking the potential of user feedback: Leveraging large language model as user simulators to enhance dialogue system. In Proceedings of the 32nd ACM International Conference on Information and Knowledge Management, CIKM ’23, page 3953–3957, New York, NY, USA, 2023. Association for Computing Machinery. ",
+        "bbox": [
+            173,
+            227,
+            825,
+            297
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[17] Quzhe Huang, Mingxu Tao, Chen Zhang, Zhenwei An, Cong Jiang, Zhibin Chen, Zirui Wu, and Yansong Feng. Lawyer llama technical report, 2023. ",
+        "bbox": [
+            169,
+            304,
+            825,
+            334
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[18] Aaron Hurst, Adam Lerer, Adam P Goucher, Adam Perelman, Aditya Ramesh, Aidan Clark, AJ Ostrow, Akila Welihinda, Alan Hayes, Alec Radford, et al. Gpt-4o system card. arXiv preprint arXiv:2410.21276, 2024. ",
+        "bbox": [
+            173,
+            340,
+            825,
+            383
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[19] Daniel Kirk, Cagatay Catal, and Bedir Tekinerdogan. Precision nutrition: A systematic literature review. Computers in Biology and Medicine, 133:104365, 2021. ",
+        "bbox": [
+            171,
+            391,
+            825,
+            420
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[20] Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E. Gonzalez, Hao Zhang, and Ion Stoica. Efficient memory management for large language model serving with pagedattention. In Proceedings of the ACM SIGOPS 29th Symposium on Operating Systems Principles, 2023. ",
+        "bbox": [
+            174,
+            426,
+            825,
+            484
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[21] Jinqi Lai, Wensheng Gan, Jiayang Wu, Zhenlian Qi, and S Yu Philip. Large language models in law: A survey. AI Open, 2024. ",
+        "bbox": [
+            173,
+            491,
+            823,
+            520
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[22] Haitao Li, You Chen, Qingyao Ai, Yueyue Wu, Ruizhe Zhang, and Yiqun Liu. Lexeval: A comprehensive chinese legal benchmark for evaluating large language models, 2024. ",
+        "bbox": [
+            173,
+            526,
+            823,
+            556
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[23] Shuyue Stella Li, Vidhisha Balachandran, Shangbin Feng, Jonathan S Ilgen, Emma Pierson, Pang Wei Koh, and Yulia Tsvetkov. Mediq: Question-asking llms and a benchmark for reliable interactive clinical reasoning. 2024. ",
+        "bbox": [
+            174,
+            564,
+            823,
+            606
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[24] Yubo Li, Xiaobin Shen, Xinyu Yao, Xueying Ding, Yidi Miao, Ramayya Krishnan, and Rema Padman. Beyond single-turn: A survey on multi-turn interactions with large language models. arXiv preprint arXiv:2504.04717, 2025. ",
+        "bbox": [
+            173,
+            613,
+            823,
+            656
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[25] Chin-Yew Lin. ROUGE: A package for automatic evaluation of summaries. In Text Summarization Branches Out, pages 74–81, Barcelona, Spain, July 2004. Association for Computational Linguistics. ",
+        "bbox": [
+            173,
+            664,
+            825,
+            705
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[26] Bulou Liu, Yiran Hu, Qingyao Ai, Yiqun Liu, Yueyue Wu, Chenliang Li, and Weixing Shen. Leveraging event schema to ask clarifying questions for conversational legal case retrieval. In Proceedings of the 32nd ACM International Conference on Information and Knowledge Management, CIKM ’23, page 1513–1522, New York, NY, USA, 2023. Association for Computing Machinery. ",
+        "bbox": [
+            173,
+            713,
+            826,
+            784
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[27] Rowena Rodrigues. Legal and human rights issues of ai: Gaps, challenges and vulnerabilities. Journal of Responsible Technology, 4:100005, 2020. ",
+        "bbox": [
+            169,
+            791,
+            825,
+            820
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[28] Ivan Sekulic, Silvia Terragni, Victor Guimarães, Nghia Khau, Bruna Guedes, Modestas Filipavicius, Andre Ferreira Manso, and Roland Mathis. Reliable LLM-based user simulator for task-oriented dialogue systems. In Yvette Graham, Qun Liu, Gerasimos Lampouras, Ignacio Iacobacci, Sinead Madden, Haider Khalid, and Rameez Qureshi, editors, Proceedings of the 1st Workshop on Simulating Conversational Intelligence in Chat (SCI-CHAT 2024), pages 19–35, St. Julians, Malta, March 2024. Association for Computational Linguistics. ",
+        "bbox": [
+            176,
+            827,
+            826,
+            911
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "[29] Jingyun Sun, Chengxiao Dai, Zhongze Luo, Yangbo Chang, and Yang Li. Lawluo: A chinese law firm co-run by llm agents. arXiv preprint arXiv:2407.16252, 2024.   \n[30] Annalisa Szymanski, Noah Ziems, Heather A Eicher-Miller, Toby Jia-Jun Li, Meng Jiang, and Ronald A Metoyer. Limitations of the llm-as-a-judge approach for evaluating llm outputs in expert knowledge tasks. In Proceedings of the 30th International Conference on Intelligent User Interfaces, pages 952–966, 2025.   \n[31] Tao Tu, Mike Schaekermann, Anil Palepu, Khaled Saab, Jan Freyberg, Ryutaro Tanno, Amy Wang, Brenna Li, Mohamed Amin, Yong Cheng, et al. Towards conversational diagnostic artificial intelligence. Nature, pages 1–9, 2025.   \n[32] Yang Wu, Chenghao Wang, Ece Gumusel, and Xiaozhong Liu. Knowledge-infused legal wisdom: Navigating LLM consultation through the lens of diagnostics and positive-unlabeled reinforcement learning. In Lun-Wei Ku, Andre Martins, and Vivek Srikumar, editors, Findings of the Association for Computational Linguistics: ACL 2024, pages 15542–15555, Bangkok, Thailand, August 2024. Association for Computational Linguistics.   \n[33] Nan Xie, Yuelin Bai, Hengyuan Gao, Ziqiang Xue, Feiteng Fang, Qixuan Zhao, Zhijian Li, Liang Zhu, Shiwen Ni, and Min Yang. Delilaw: A chinese legal counselling system based on a large language model. In Proceedings of the 33rd ACM International Conference on Information and Knowledge Management, pages 5299–5303, 2024.   \n[34] An Yang, Baosong Yang, Beichen Zhang, Binyuan Hui, Bo Zheng, Bowen Yu, Chengyuan Li, Dayiheng Liu, Fei Huang, Haoran Wei, Huan Lin, Jian Yang, Jianhong Tu, Jianwei Zhang, Jianxin Yang, Jiaxi Yang, Jingren Zhou, Junyang Lin, Kai Dang, Keming Lu, Keqin Bao, Kexin Yang, Le Yu, Mei Li, Mingfeng Xue, Pei Zhang, Qin Zhu, Rui Men, Runji Lin, Tianhao Li, Tingyu Xia, Xingzhang Ren, Xuancheng Ren, Yang Fan, Yang Su, Yichang Zhang, Yu Wan, Yuqiong Liu, Zeyu Cui, Zhenru Zhang, and Zihan Qiu. Qwen2.5 technical report. arXiv preprint arXiv:2412.15115, 2024.   \n[35] Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q. Weinberger, and Yoav Artzi. Bertscore: Evaluating text generation with BERT. In 8th International Conference on Learning Representations, ICLR 2020, Addis Ababa, Ethiopia, April 26-30, 2020. OpenReview.net, 2020. ",
+        "bbox": [
+            171,
+            88,
+            828,
+            539
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Appendix Contents ",
+        "text_level": 1,
+        "bbox": [
+            416,
+            89,
+            581,
+            107
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "A Resource Availability and License 1 4 ",
+        "bbox": [
+            173,
+            147,
+            823,
+            161
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "A.1 Resource Availability . . . 14 ",
+        "bbox": [
+            173,
+            167,
+            826,
+            184
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "A.2 Licenses . . 14 ",
+        "bbox": [
+            174,
+            188,
+            826,
+            204
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "B Discussion 1 4 ",
+        "text_level": 1,
+        "bbox": [
+            171,
+            224,
+            823,
+            238
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "B.1 Limitations 14 ",
+        "bbox": [
+            174,
+            244,
+            825,
+            260
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "B.2 Broader Impact 14 ",
+        "bbox": [
+            171,
+            265,
+            826,
+            282
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "C User Agent 14 ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            300,
+            823,
+            316
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "C.1 Evaluation Metrics for User Agent 15   \nC.2 Evaluation Setting for User Agent 15   \nC.3 Prompt Templates for each PE Strategies . 15   \nC.4 Prompt Templates for LLM-as-a-judge for assessing relevance and factuality . 17   \nC.5 Evaluation Results for User Agent 17 ",
+        "bbox": [
+            171,
+            321,
+            826,
+            422
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "D Lawyer Agent 1 8 ",
+        "text_level": 1,
+        "bbox": [
+            166,
+            440,
+            825,
+            457
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "D.1 Experiment Setting . . 18   \nD.1.1 Experiment Setting for API-Based LLMs 18   \nD.1.2 Experiment setting for Mediq Strategy . 19   \nD.1.3 Experiment setting for SFT Strategy 19   \nD.2 Lawyer Agent Prompt . . 20   \nD.2.1 Zero-shot Prompt . . 20   \nD.2.2 Few-shot Prompt 21   \nD.2.3 Mediq Prompt 23   \nD.2.4 SFT Strategies Prompt 25 ",
+        "bbox": [
+            166,
+            463,
+            828,
+            647
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "E Details of Annotation Process 25 ",
+        "text_level": 1,
+        "bbox": [
+            171,
+            665,
+            825,
+            680
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "E.1 Guidelines for Annotation Stage-1 25   \nE.2 Guidelines for Annotation Stage-2 26 ",
+        "bbox": [
+            173,
+            685,
+            826,
+            724
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "F Dataset 27 ",
+        "text_level": 1,
+        "bbox": [
+            168,
+            742,
+            825,
+            758
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "F.1 Sample Data Format . . . 27   \nF.2 Evaluation Metrics 28   \nF.2.1 Clarification Capability . 28   \nF.2.2 Advice Quality . . 29 ",
+        "bbox": [
+            171,
+            763,
+            826,
+            843
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "G More Experimental Results 30 ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            861,
+            823,
+            876
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "H Prompt Template for LeCoDe Evaluation 33 ",
+        "bbox": [
+            169,
+            896,
+            825,
+            911
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "A Resource Availability and License ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            88,
+            491,
+            107
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "A.1 Resource Availability ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            119,
+            362,
+            133
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Upon acceptance, we will make the data and source code publicly available. ",
+        "bbox": [
+            176,
+            145,
+            669,
+            160
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "A.2 Licenses ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            174,
+            276,
+            189
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "This work is licensed under a Creative Commons Attribution- NonCommercial-NoDerivatives 4.0 International License (CC BY-NC-ND 4.0). All resources are for scientific research only. ",
+        "bbox": [
+            176,
+            200,
+            823,
+            228
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "B Discussion ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            246,
+            295,
+            263
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "B.1 Limitations ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            276,
+            295,
+            291
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Our work has several limitations and opportunities for future research. First, the current dataset primarily consists of Chinese legal consultation dialogues. We hope to incorporate legal consultation data from diverse jurisdictions and legal systems to evaluate LLMs’ capabilities across different legal contexts in the future. ",
+        "bbox": [
+            174,
+            303,
+            825,
+            358
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Second, while our framework focuses on professional legal consultation capabilities - specifically clarification capability and professional advice quality - real-world consultations are often more complex and require chit-chat and emotional support, aspects that could be incorporated into future evaluation frameworks. ",
+        "bbox": [
+            176,
+            364,
+            825,
+            420
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Third, although we focus on legal consultations, similar interactive consultation scenarios exist in other professional domains, such as healthcare. We plan to validate our framework extension beyond legal applications. ",
+        "bbox": [
+            176,
+            426,
+            821,
+            468
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Finally, while our SFT-based strategies show improvements over baseline LLM performance, the overall results remain suboptimal. We encourage researchers to explore additional approaches for enhancing model capabilities, such as reinforcement learning techniques to optimize consultation strategies, external knowledge integration through RAG or knowledge graph approaches, and other methods for improving model performance in professional consultation scenarios. ",
+        "bbox": [
+            174,
+            474,
+            825,
+            545
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "B.2 Broader Impact ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            559,
+            328,
+            574
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "We propose LeCoDe to help practitioners better understand and evaluate LLMs’ performance in legal consultation scenarios, providing foundational data and evaluation framework for future research. However, given the sensitive and high-risk nature of the legal domain, we must carefully consider potential risks. While we actively explore LLMs’ applications in legal scenarios, we must guard against potential unfairness and societal disruption. The dataset is intended purely for academic research, not as a replacement for expert legal consultation. Legal advisory requires rich professional knowledge, practical experience, and human insight that no LLM or AI technology can substitute. ",
+        "bbox": [
+            174,
+            585,
+            825,
+            683
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "LeCoDe comprises real-world consultation data, and we have made extensive efforts to filter out potentially discriminatory, violent, or offensive content while ensuring anonymity and mitigating potential biases. However, we acknowledge that using LeCoDe for model training may still introduce potential biases and discrimination. Therefore, we emphasize that the dataset is licensed exclusively for academic research and prohibited from commercial or practical applications. ",
+        "bbox": [
+            174,
+            689,
+            825,
+            758
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "To mitigate potential negative impacts, we explicitly state the dataset’s usage restrictions and limitations, and continuously monitor the practical applications of research outcomes to adjust recommendations accordingly. Ultimately, we hope this work contributes to the intelligent development of legal services while ensuring technological advancement serves the goals of social fairness and justice. ",
+        "bbox": [
+            174,
+            765,
+            825,
+            820
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "C User Agent ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            838,
+            303,
+            856
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "To ensure our LLM-based agent for user simulation, we propose several strategies and evaluate the reliability for user agent. We first introduce the evaluation metrics, then evaluation settings and corresponding prompt template, finally show the evaluation results for user agent reliability. ",
+        "bbox": [
+            176,
+            869,
+            823,
+            911
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "C.1 Evaluation Metrics for User Agent ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            90,
+            455,
+            106
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "While LLM-based models have demonstrated strong response capabilities [23], our evaluation focuses on two critical aspects of an ideal user simulator: relevance (appropriate responses to lawyers’ questions) and factuality (adherence to given information without hallucination). ",
+        "bbox": [
+            174,
+            122,
+            825,
+            165
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Relevance measures the user agent’s ability to comprehend and provide pertinent responses to lawyers’ clarifying questions, evaluating the model’s question understanding capabilities. ",
+        "bbox": [
+            173,
+            170,
+            821,
+            199
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Factuality assesses whether the user’s responses to clarifying questions align with the provided atomic fact background information, measuring the model’s ability to accurately extract and utilize known information while avoiding fabrication. ",
+        "bbox": [
+            174,
+            205,
+            825,
+            247
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "C.2 Evaluation Setting for User Agent ",
+        "text_level": 1,
+        "bbox": [
+            178,
+            277,
+            450,
+            292
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "We randomly selected 100 initial queries with their corresponding 5-round dialogue contexts from the training set, for which we manually generated three clarifying questions. The evaluation was conducted using various Qwen-series models, including Qwen2.5-7B, Qwen2.5-32B, Qwen2.5-72B, and Qwen-max. GPT-4o-mini served as the judge for assessing both relevance and factuality. ",
+        "bbox": [
+            174,
+            309,
+            826,
+            364
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "We evaluated three prompt engineering strategies: ",
+        "bbox": [
+            174,
+            371,
+            501,
+            386
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "• Instruct Given Dialogue: Providing complete interaction dialogue history and atomic key facts to instruct LLM responses   \n• Instruct Given Question: Providing only the current question and atomic key facts for LLM responses   \n• First-person Given Dialogue: Instructing LLMs to simulate first-person responses based on complete interaction dialogue ",
+        "bbox": [
+            217,
+            402,
+            825,
+            523
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "The prompt template for each strategies can be seen in Appendix C.3. The evaluation prompt template for GPT-4o-mini can be seen in Appendix C.4. ",
+        "bbox": [
+            174,
+            540,
+            823,
+            570
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "C.3 Prompt Templates for each PE Strategies ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            599,
+            503,
+            616
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Instruct Given Dialogue (translated from Chinese) ",
+        "text_level": 1,
+        "bbox": [
+            200,
+            635,
+            527,
+            650
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "You are a honest and reliable legal assistant who understands user-related information and attempts to answer lawyers’ questions about users. ",
+        "bbox": [
+            199,
+            661,
+            771,
+            689
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "The following is [Atomic Key Facts] describing user information {Atomic Key Facts} ",
+        "bbox": [
+            197,
+            704,
+            686,
+            731
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "The following is the interactive dialogue between you (user) and the lawyer {current dialogue} ",
+        "bbox": [
+            194,
+            746,
+            777,
+            772
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "- Use the above key fact to answer the lawyer’s questions, selecting no more than 3 answers. ",
+        "bbox": [
+            192,
+            786,
+            782,
+            813
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "- If the above key fact cannot answer the lawyer’s questions, [only reply \"I Don’t know\"]. ",
+        "bbox": [
+            187,
+            815,
+            782,
+            840
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "- Only answer what is asked in the question, without providing any analysis, speculation or conclusions. ",
+        "bbox": [
+            192,
+            843,
+            781,
+            868
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "- Only select all content from the above information that can answer the question, and only that. ",
+        "bbox": [
+            194,
+            871,
+            751,
+            897
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Instruct Given Question (translated from Chinese) ",
+        "text_level": 1,
+        "bbox": [
+            200,
+            93,
+            526,
+            107
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "You are a honest and reliable legal assistant who understands user-related information and attempts to answer lawyers’ questions about users. ",
+        "bbox": [
+            197,
+            119,
+            771,
+            146
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "The following is [Atomic Key Facts] describing user information {Atomic Key Facts} ",
+        "bbox": [
+            197,
+            160,
+            686,
+            188
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "The following is the lawyer’s question you need to answer {lawyer question} ",
+        "bbox": [
+            196,
+            202,
+            640,
+            229
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Use the above key fact to answer the lawyer’s questions, selecting no more than 3 answers. - If the above key fact cannot answer the lawyer’s questions, [only reply \"I Don’t know\"]. - Only answer what is asked in the question, without providing any analysis, speculation or conclusions. - Only select all content from the above information that can answer the question, and only that. ",
+        "bbox": [
+            191,
+            243,
+            784,
+            354
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "First-person Given Dialogue (translated from Chinese) ",
+        "text_level": 1,
+        "bbox": [
+            199,
+            545,
+            558,
+            560
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "You are simulating a real user in a legal consultation scenario. Your role is a consultant [user] who encounters legal difficulties and seeks legal help. Since you lack sufficient legal knowledge, you cannot raise a clear, professional legal question. Therefore, you need to respond to the lawyer’s questions based on the [Atomic Key Facts] you know. ",
+        "bbox": [
+            199,
+            571,
+            787,
+            641
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "The following is [Atomic Key Facts] describing user information {Atomic Key Facts} ",
+        "bbox": [
+            199,
+            655,
+            686,
+            683
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "The following is the interactive dialogue between you (user) and the lawyer {current dialogue} ",
+        "bbox": [
+            196,
+            696,
+            777,
+            724
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Your task is to answer relevant questions based on the [Atomic Key Facts] description.   \nNote   \n<1>Your role is set as seeking legal help, and you cannot use professional legal terminology.   \n<2>Only answer the lawyer’s questions based on the content of [Atomic Key Facts], do not generate other content. Select no more than 3 key pieces of information to answer in one reply. If [Atomic Key Facts] cannot answer the question, then [only reply \"I Don’t know\"].   \n<3>For any question you’re unsure about, [only reply \"I Don’t know\"]. $< 4 >$ Keep replies as brief as possible.   \n<5>Prevent excessive information disclosure. ",
+        "bbox": [
+            194,
+            738,
+            785,
+            904
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "C.4 Prompt Templates for LLM-as-a-judge for assessing relevance and factuality ",
+        "text_level": 1,
+        "bbox": [
+            171,
+            90,
+            750,
+            107
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "LLM-as-a-judge for assessing relevance (translated from Chinese) ",
+        "text_level": 1,
+        "bbox": [
+            197,
+            123,
+            633,
+            138
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "You will receive a [Clarifying Question] raised by a lawyer in the dialogue, and a [User Response] based on [Atomic Facts] background information. Your task is to perform a binary classification (0 or 1) on the user’s response, judging its relevance to the lawyer’s [Clarifying Question]. ",
+        "bbox": [
+            199,
+            150,
+            784,
+            205
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "In some cases, the user may reply \"I Don’t know\" based on the lawyer’s advice. ",
+        "bbox": [
+            196,
+            220,
+            738,
+            247
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "If the user replies \"I Don’t know\", you need to determine whether the [Clarifying Question] cannot be answered based on the content of [Atomic Key Facts]. If it indeed cannot be answered, then the relevance of replying \"Don’t know\" should be 1; otherwise, it’s 0.   \n[Dialogue Context]   \n{dialogue} ",
+        "bbox": [
+            199,
+            248,
+            789,
+            330
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "[Atomic Key Facts] {Atomic Key Facts} [Clarifying Question] {lawyer question} ",
+        "bbox": [
+            199,
+            344,
+            338,
+            371
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            199,
+            386,
+            361,
+            412
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "[User Response] {User Response} ",
+        "bbox": [
+            199,
+            428,
+            315,
+            454
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "LLM-as-a-judge for assessing factuality (translated from Chinese) ",
+        "text_level": 1,
+        "bbox": [
+            199,
+            506,
+            633,
+            522
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "You will receive a [User Response] based on [Atomic Key Facts] background information. Your task is to perform a binary classification (0 or 1) on the factuality of the user’s response, determining whether it is consistent with the provided atomic facts background information. ",
+        "bbox": [
+            199,
+            534,
+            795,
+            589
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "[Dialogue Context] {dialogue} ",
+        "bbox": [
+            199,
+            603,
+            338,
+            631
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "[Atomic Key Facts] {Atomic Key Facts} [Clarifying Question] {lawyer question} ",
+        "bbox": [
+            199,
+            645,
+            338,
+            672
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            199,
+            685,
+            361,
+            714
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "[User Response] {User Response} ",
+        "bbox": [
+            199,
+            727,
+            315,
+            755
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "C.5 Evaluation Results for User Agent ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            813,
+            454,
+            828
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "As shown in Table 4, Qwen-max with First-Person Given Dialogue approach achieved outstanding performance in both relevance $( 9 7 . 0 \\% )$ and factuality $( 9 9 . 3 \\% )$ metrics. This superior performance demonstrates the effectiveness of using first-person perspective in user simulation tasks. Notably, when comparing different model scales, we also observe a clear scaling law pattern: larger LLMs consistently outperform their smaller counterparts across all evaluation settings. For instance, ",
+        "bbox": [
+            174,
+            842,
+            825,
+            911
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "Qwen2.5-32B shows improvements over Qwen2.5-7B, and Qwen2.5-72B further enhances the performance. ",
+        "bbox": [
+            174,
+            90,
+            823,
+            119
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "table",
+        "img_path": "images/9edc0e5f80ca95bf815a91872409929583ad58a1a1caec687212d6567b1ab7c0.jpg",
+        "table_caption": [
+            "Table 4: Results on User Reliable. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Models</td><td>Instruct Given Dialogue</td><td>Instruct Given Question</td><td>First-Person Given Dialogue</td></tr><tr><td colspan=\"4\">Relevance</td></tr><tr><td>Qwen2.5-7B</td><td>86.1</td><td>90.6</td><td>86.5</td></tr><tr><td>Qwen2.5-32B</td><td>90.2</td><td>91.1</td><td>96.9</td></tr><tr><td>Qwen2.5-72B</td><td>90.9</td><td>90.0</td><td>93.7</td></tr><tr><td>Qwen-max</td><td>92.4</td><td>92.2</td><td>97.0</td></tr><tr><td colspan=\"4\">Factuality</td></tr><tr><td>Qwen2.5-7B</td><td>85.0</td><td>94.3</td><td>96.0</td></tr><tr><td>Qwen2.5-32B</td><td>94.5</td><td>98.0</td><td>99.5</td></tr><tr><td>Qwen2.5-72B</td><td>97.5</td><td>98.0</td><td>99.5</td></tr><tr><td>Qwen-max</td><td>99.0</td><td>99.0</td><td>99.3</td></tr></table>",
+        "bbox": [
+            209,
+            146,
+            784,
+            286
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Interestingly, even smaller models like Qwen2.5-7B demonstrate reasonable performance $( 8 6 . 5 \\%$ relevance and $9 6 . 0 \\%$ factuality). This robust performance across different model scales indicates that the user simulation approach is feasible and practical even with more accessible open-source models. The high performance across different model sizes validates the viability of using LLMs for user simulation in legal consultation scenarios, making it a promising direction for developing and testing legal consultation systems. ",
+        "bbox": [
+            173,
+            292,
+            826,
+            376
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "D Lawyer Agent ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            397,
+            328,
+            415
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "D.1 Experiment Setting ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            431,
+            351,
+            446
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "D.1.1 Experiment Setting for API-Based LLMs ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            457,
+            514,
+            473
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "We first present the experimental settings for LLMs accessed via API calls, including closed-source models, open-source models, and several legal domain-specific models. These models are evaluated using both zero-shot and few-shot strategies with no additional fine-tuning. All prompts for zero-shot and few-shot settings can be found in Appendix D.2.1. ",
+        "bbox": [
+            174,
+            482,
+            825,
+            537
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "First, we introduce the versions of each general LLM (include both open-source and close-source LLMs) as shown in Table 5. For closed-source LLMs (GPT-series, qwen-max, qwen-turbo, farui) and deepseek-series (deepseek-v3, and deepseek-r1), we directly call APIs for generation. For all other models, the evaluation is conducted using vllm [20] to enable an OpenAI-Compatible Server for model calls, utilizing 4 NVIDIA A100 GPUs with 80GB of memory. The maximum sequence token is set to 2048 and temperature for generation is set to 0.7 for open-source models. ",
+        "bbox": [
+            173,
+            544,
+            825,
+            628
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "table",
+        "img_path": "images/835346c4e9902b402bc1032b7f1dd996c80da2bb006ae311bf077f02049f534d.jpg",
+        "table_caption": [
+            "Table 5: LLMs version and source url. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Model Names</td><td>Model Version or Source</td></tr><tr><td>GPT-4</td><td>gpt-4-turbo-2024-04-09</td></tr><tr><td>GPT-40</td><td>gpt-4o-mini-2024-07-18</td></tr><tr><td>GPT-3.5-turbo</td><td>gpt-3.5-turbo-1106</td></tr><tr><td>Qwen-max</td><td>qwen-max-2024-09-19</td></tr><tr><td>Qwen-turbo</td><td>qwen-turbo-2025-02-11</td></tr><tr><td>deepseek-v3</td><td>https://huggingface.co/deepseek-ai/DeepSeek-V3</td></tr><tr><td>deepseek-r1</td><td>https://huggingface.co/deepseek-ai/DeepSeek-R1</td></tr><tr><td>Qwen2.5-72B</td><td>https://huggingface.co/Qwen/Qwen2.5-72B-Instruct</td></tr><tr><td>Qwen2.5-7B</td><td>https://huggingface.co/Qwen/Qwen2.5-7B-Instruct</td></tr><tr><td>Llama-3.1-8B</td><td>https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct</td></tr><tr><td>GLM4-32B</td><td>https://huggingface.co/THUDM/GLM-4-32B-0414</td></tr><tr><td>GLM4-9B</td><td>https://huggingface.co/THUDM/glm-4-9b-chat</td></tr><tr><td>ChatLaw</td><td>https://huggingface.co/pandalla/ChatLaw-13B</td></tr><tr><td>Lawyer-LLaMA</td><td>https://github.com/AndrewZhe/lawyer-llama</td></tr><tr><td>farui-plus</td><td>https://help.aliyun.com/zh/model-studio/tongyi-farui-api</td></tr></table>",
+        "bbox": [
+            235,
+            665,
+            761,
+            898
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "D.1.2 Experiment setting for Mediq Strategy ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            90,
+            495,
+            106
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "We adapt the mediq-expert framework [23], originally designed for clinical decision-making through information-seeking questions, to our legal consultation scenario. While the original framework was developed for medical multiple-choice questions, we modify and retain three key components: the Abstention module, Ask module, and a Suggestion module for legal advice generation. ",
+        "bbox": [
+            174,
+            143,
+            825,
+            199
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "The workflow operates as follows: The Abstention module first assesses the system’s confidence level for providing legal advice. When confidence is low, the Ask module activates to gather additional information through asking a clarifying question. The dialogue concludes either when the system reaches sufficient confidence or when the maximum number of interaction turns is reached, at which point the Suggestion module generates appropriate legal advice. ",
+        "bbox": [
+            174,
+            205,
+            825,
+            276
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "We utilize Qwen-max as backbone LLM for each module in mediq. All prompts for mediq-expert can be found in Appendix D.2.3. ",
+        "bbox": [
+            173,
+            281,
+            823,
+            309
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "D.1.3 Experiment setting for SFT Strategy ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            396,
+            482,
+            411
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "To enhance LLMs’ legal consultation capabilities, we introduce several strategies to construct training multi-turn dialogue for effectively training LLMs by Supervised Fine-Tuning (SFT). ",
+        "bbox": [
+            174,
+            449,
+            823,
+            477
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Direct SFT directly leverages the raw dialogues of LeCoDe training data to predict lawyer utterances based on dialogue history, simulating natural consultation flow. Formally, given a consultation dialogue sequence $D = \\overline { { \\{ ( u _ { t } ^ { C } , u _ { t } ^ { E } ) \\} _ { t = 1 } ^ { T } } }$ , where $u _ { t } ^ { C }$ and $u _ { t } ^ { E }$ represent utterances of Client $C$ and Expert (lawyer) $E$ at turn $t$ , the model learns to generate lawyer responses sequentially. For instance, when a client initiates with query $u _ { 1 } ^ { C }$ , the model learns to predict the lawyer’s first response $u _ { 1 } ^ { E }$ Subsequently, using the concatenated context $( u _ { 1 } ^ { C } , u _ { 1 } ^ { E } , u _ { 2 } ^ { C } )$ , the model learns to predict the next lawyer utterance $u _ { 2 } ^ { \\breve { E } }$ . ",
+        "bbox": [
+            174,
+            483,
+            825,
+            580
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Key-fact SFT employs a targeted approach where stronger LLMs first generate multiple target questions for each atomic key fact. The target model is then trained to learn how to generate these target questions, establishing a one-to-one mapping between questions and facts. Formally, given each key fact $a _ { t }$ in the atomic key facts $A _ { n }$ , we use Qwen-max to generate a target question designed to elicit specific information $a _ { t }$ . Then we construct the new multi-turn dialogue sequence $D \\stackrel { \\smile } { = } \\{ ( q _ { t } , a _ { t } ) \\} _ { t = 1 } ^ { N }$ , where $q _ { t }$ represents generated target question and $a _ { t }$ represents corresponding atomic key fact. The model learns to generate appropriate questions sequentially. ",
+        "bbox": [
+            174,
+            587,
+            825,
+            684
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "For instance, when given an initial query, the model learns to generate $q _ { 1 }$ to extract $a _ { 1 }$ . Subsequently, using the concatenated context $( q _ { 1 } , a _ { 1 } )$ , it predicts the next question $q _ { 2 }$ to obtain $a _ { 2 }$ , ensuring systematic information gathering through targeted questioning. Following this strategy, we can construct the Key-fact SFT training dialogue. ",
+        "bbox": [
+            174,
+            690,
+            825,
+            746
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Key-fact-e SFT, an enhanced version of the previous approach, also utilizes stronger LLMs (qwenmax) to generate target questions that can effectively cover multiple (1-3) key facts simultaneously. Training data is then constructed based on these comprehensive questions and their corresponding key facts, enabling more efficient information elicitation. ",
+        "bbox": [
+            174,
+            752,
+            825,
+            808
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "For all strategies, we fine-tune Qwen2.5-7B-Instruct using the same prompt template from zero-shot experiments in Appendix D.2.1. The prompt templates for Qwen-max to generate the target questions in Key-fact SFT and Key-fact-e SFT are provided in Appendix D.2.4. We run experiments on 4 NVIDIA A100 GPUs with 80GB of memory. The training configuration employs LoRA (rank $^ { - 8 }$ alpha ${ \\tt = } 1 6$ ) with an effective batch size of 64 (4 samples per device $\\times 4$ gradient accumulation steps). The optimization process uses a cosine learning rate schedule initialized at 1e-5 with $10 \\%$ warmup ratio over 3 epochs. ",
+        "bbox": [
+            174,
+            814,
+            825,
+            911
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "D.2.1 Zero-shot Prompt ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            156,
+            352,
+            172
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "Lawyer Agent Zero-shot Prompt for ask or advice (translated from Chinese) ",
+        "text_level": 1,
+        "bbox": [
+            196,
+            224,
+            707,
+            239
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "You are a lawyer well-versed in Chinese law, responsible for providing legal consultation to users. Your task is to ask clarifying questions to better understand the details of the user’s case or providing legal advice. ",
+        "bbox": [
+            199,
+            252,
+            785,
+            292
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "Users may present unclear or non-professional questions. In such cases, ensure your questions directly target key information, guiding users to provide more relevant details. The goal is to make users’ needs clearer to provide more accurate legal advice. ",
+        "bbox": [
+            199,
+            308,
+            756,
+            362
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "Below is the user’s query and your interaction dialogue: {current dialogue} ",
+        "bbox": [
+            196,
+            377,
+            630,
+            404
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "Notes: ",
+        "bbox": [
+            199,
+            419,
+            246,
+            430
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "a. You have two operations: 1. Question, 2. Advice. Choose one operation per round. ",
+        "bbox": [
+            191,
+            431,
+            794,
+            458
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "b. If user information is insufficient, choose operation 1. Question. ",
+        "bbox": [
+            197,
+            460,
+            746,
+            473
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "– Ask only one critical question per round.   \n– Questions should be concise, without any additional information. – Do not ask repeated questions!! ",
+        "bbox": [
+            196,
+            474,
+            707,
+            511
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "– Questions should verify specific facts. Considering users seek legal help but lack legal background, avoid asking about typical court sentencing or specific law violations. ",
+        "bbox": [
+            196,
+            515,
+            785,
+            555
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "Maximum 10 rounds of questions; must provide advice after 10 rounds. ",
+        "bbox": [
+            222,
+            556,
+            735,
+            569
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "c. When confident in addressing user needs, choose operation 2. Advice to provide professional legal advice. ",
+        "bbox": [
+            194,
+            570,
+            781,
+            595
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "d. Response template: ",
+        "bbox": [
+            199,
+            598,
+            369,
+            611
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "“question:a clarification question” or “advice:legal advice” ",
+        "bbox": [
+            197,
+            611,
+            661,
+            625
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "Lawyer Agent Zero-shot Prompt for advice generation (translated from Chinese) ",
+        "text_level": 1,
+        "bbox": [
+            191,
+            736,
+            733,
+            751
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "You are a lawyer well-versed in Chinese law, responsible for providing legal consultation to users. Your task is to provide legal advice. ",
+        "bbox": [
+            199,
+            762,
+            785,
+            790
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "Below is the user’s query and your interaction dialogue: {current dialogue} ",
+        "bbox": [
+            196,
+            804,
+            630,
+            832
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "Notes: ",
+        "bbox": [
+            199,
+            847,
+            246,
+            858
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "a. Your task is to provide legal advice according to the context. b. Response template:   \n“advice:legal advice” ",
+        "bbox": [
+            197,
+            859,
+            707,
+            900
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "D.2.2 Few-shot Prompt ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            90,
+            349,
+            106
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Lawyer Agent Few-shot Prompt for ask or advice (translated from Chinese) ",
+        "text_level": 1,
+        "bbox": [
+            196,
+            373,
+            700,
+            388
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "You are a lawyer well-versed in Chinese law, responsible for providing legal consultation to users. Your task is to ask clarifying questions to better understand the details of the user’s case or providing legal advice. ",
+        "bbox": [
+            199,
+            400,
+            787,
+            441
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Users may present unclear or non-professional questions. In such cases, ensure your questions directly target key information, guiding users to provide more relevant details. The goal is to make users’ needs clearer to provide more accurate legal advice. ",
+        "bbox": [
+            199,
+            457,
+            756,
+            511
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Below is two demonstrations:   \n<demo1>   \n{demo1} ",
+        "bbox": [
+            199,
+            525,
+            415,
+            565
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "<demo2> {demo2} ",
+        "bbox": [
+            199,
+            580,
+            253,
+            607
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "{current dialogue} ",
+        "bbox": [
+            197,
+            621,
+            334,
+            635
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Below is the user’s query and your interaction dialogue: {current dialogue} ",
+        "bbox": [
+            197,
+            650,
+            629,
+            676
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Notes: ",
+        "bbox": [
+            199,
+            690,
+            246,
+            703
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "a. You have two operations: 1. Question, 2. Advice. Choose one operation per round. ",
+        "bbox": [
+            192,
+            704,
+            792,
+            731
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "b. If user information is insufficient, choose operation 1. Question. ",
+        "bbox": [
+            194,
+            733,
+            746,
+            744
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "– Ask only one critical question per round.   \n– Questions should be concise, without any additional information.   \n– Do not ask repeated questions!!   \n– Questions should verify specific facts. Considering users seek legal help but lack legal background, avoid asking about typical court sentencing or specific law violations.   \n– Maximum 10 rounds of questions; must provide advice after 10 rounds. c. When confident in addressing user needs, choose operation 2. Advice to provide professional legal advice. ",
+        "bbox": [
+            196,
+            738,
+            787,
+            871
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "d. Response template: ",
+        "bbox": [
+            199,
+            871,
+            369,
+            882
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "“question:a clarification question” or “advice:legal advice” ",
+        "bbox": [
+            196,
+            883,
+            661,
+            897
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Lawyer Agent Few-shot Prompt for advice generation (translated from Chinese) ",
+        "bbox": [
+            192,
+            93,
+            730,
+            108
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "You are a lawyer well-versed in Chinese law, responsible for providing legal consultation to users. Your task is to provide legal advice. ",
+        "bbox": [
+            196,
+            119,
+            785,
+            147
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Below is two demonstrations:   \n<demo1>   \n{demo1} ",
+        "bbox": [
+            197,
+            161,
+            416,
+            202
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "<demo2> {demo2} ",
+        "bbox": [
+            197,
+            217,
+            253,
+            243
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Below is the user’s query and your interaction dialogue: {current dialogue} ",
+        "bbox": [
+            196,
+            258,
+            630,
+            285
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Notes: ",
+        "bbox": [
+            199,
+            300,
+            246,
+            311
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "a. Your task is to provide legal advice according to the context. b. Response template:   \n“advice:legal advice” ",
+        "bbox": [
+            197,
+            314,
+            705,
+            354
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Demonstration 1 (translated from Chinese) ",
+        "text_level": 1,
+        "bbox": [
+            199,
+            487,
+            480,
+            502
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "<demo1> ",
+        "bbox": [
+            199,
+            513,
+            253,
+            525
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "User: On August 21st, I heard he was suspected of fraud. When police went to arrest him, he injured three people while fleeing but was eventually caught. ",
+        "bbox": [
+            196,
+            529,
+            782,
+            568
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Lawyer: Question: Could you first clarify if the suspect was alone at the time? ",
+        "bbox": [
+            192,
+            569,
+            779,
+            594
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "User: His girlfriend was with him and also got arrested, but she was released that night. ",
+        "bbox": [
+            196,
+            597,
+            736,
+            623
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Lawyer: Question: Do you know the specific amount involved in the alleged fraud? ",
+        "bbox": [
+            194,
+            625,
+            781,
+            650
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "User: I don’t know the exact amount as we can’t contact the suspect now. ",
+        "bbox": [
+            197,
+            652,
+            763,
+            664
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "awyer: Question: Where did the incident take place? ",
+        "bbox": [
+            210,
+            666,
+            617,
+            678
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "User: It happened in a public place in another city. ",
+        "bbox": [
+            205,
+            680,
+            609,
+            693
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Lawyer: Question: Did he intentionally crash into the crowd? ",
+        "bbox": [
+            204,
+            694,
+            668,
+            705
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "User: Not sure if he deliberately rushed toward the crowd. ",
+        "bbox": [
+            197,
+            708,
+            656,
+            719
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "Lawyer: Advice: First, we need to arrange a lawyer to meet with your cousin to understand the details of the fraud allegations and the injuries of the three people. Currently, we can’t determine the specific sentence as it depends on the severity of injuries and specific circumstances. If the injuries are minor and only involved three people, it might be classified as assaulting police or obstructing official duties; if there were many people present and he was driving recklessly, it could constitute endangering public safety by dangerous means, which carries more severe penalties. After understanding all relevant information, we can develop a targeted strategy. Additionally, trying to obtain forgiveness letters from the three police officers is an important step, but this depends on their willingness. In summary, gathering all relevant information is the crucial first step. ",
+        "bbox": [
+            197,
+            722,
+            795,
+            886
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "<demo2> ",
+        "bbox": [
+            199,
+            119,
+            253,
+            131
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "User: My husband has several mistresses. ",
+        "bbox": [
+            200,
+            133,
+            514,
+            145
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "Lawyer: Question: What’s your husband’s occupation? Where does he get so much money? ",
+        "bbox": [
+            196,
+            147,
+            777,
+            174
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "User: He’s a procurement officer, responsible for company purchases. He accepts kickbacks from suppliers, mostly illegal gains. ",
+        "bbox": [
+            197,
+            174,
+            769,
+            202
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "Lawyer: Question: Do you own any properties? Are you aware of the source of funds for these properties? ",
+        "bbox": [
+            196,
+            203,
+            777,
+            228
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "User: I own two houses, but I suspect the funds might be related to his illegal income. ",
+        "bbox": [
+            197,
+            231,
+            758,
+            256
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "Lawyer: Question: Have you previously discussed divorce with your husband? Were any specific agreements reached? ",
+        "bbox": [
+            194,
+            257,
+            782,
+            284
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "User: We negotiated divorce terms, demanding 200,000 payment, with a 400,000 penalty clause, but important terms were deleted and no agreement was reached. ",
+        "bbox": [
+            199,
+            285,
+            764,
+            324
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "Lawyer: Question: What are your current preliminary arrangements regarding property division and child support? ",
+        "bbox": [
+            196,
+            327,
+            787,
+            353
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "User: Currently, both houses belong to the client, with 5,000 monthly child support. Husband will give client an additional 200,000. Planning to draft a new divorce agreement and consider further legal action against husband after everything is settled. ",
+        "bbox": [
+            199,
+            354,
+            789,
+            407
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "Lawyer: Advice: Non-state personnel bribery of over 30,000 yuan constitutes a crime. In handling this matter, you can negotiate with him, clearly state the evidence you have, and present your conditions, but immediate legal action isn’t necessary. If you decide to take further steps, prepare materials like a PPT presentation and send the cover first, indicating you’ve started collecting evidence for reporting to authorities. Regarding the divorce agreement, detail specific child support items (like living expenses, education fees, and major medical expenses), and set the 200,000 compensation payment for one or two years later to ensure you first secure major assets like the properties. Considering the child’s future interests, although legal action is possible, maintaining his employment might be more beneficial for long-term financial support. Regarding the mistresses, if funds are illegal, legal action could be considered, but proceed cautiously to avoid affecting core objectives. ",
+        "bbox": [
+            199,
+            409,
+            795,
+            601
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "D.2.3 Mediq Prompt ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            683,
+            331,
+            699
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "Mediq: Abstain Module(translated from Chinese) ",
+        "text_level": 1,
+        "bbox": [
+            199,
+            733,
+            526,
+            750
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "You are a lawyer well-versed in Chinese law, responsible for providing legal consultation to users. Your task is to provide legal advice. ",
+        "bbox": [
+            199,
+            761,
+            785,
+            789
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "Below is the user’s query and your interaction dialogue: {current dialogue} ",
+        "bbox": [
+            196,
+            816,
+            630,
+            844
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "Evaluating above case facts, are you confident to provide legal advice according to the current dialogue?   \nAnswer with YES or NO and NOTHING ELSE. ",
+        "bbox": [
+            197,
+            858,
+            740,
+            898
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "Mediq: Ask Module(translated from Chinese) ",
+        "text_level": 1,
+        "bbox": [
+            199,
+            93,
+            501,
+            107
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "You are a lawyer well-versed in Chinese law, responsible for providing legal consultation to users. Your task is to provide legal advice. ",
+        "bbox": [
+            199,
+            119,
+            785,
+            147
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "Your task is to ask clarifying questions to better understand the details of the user’s case or providing legal advice.   \nBelow is the user’s query and your interaction dialogue:   \n{current dialogue} ",
+        "bbox": [
+            196,
+            176,
+            764,
+            231
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "Notes: ",
+        "text_level": 1,
+        "bbox": [
+            199,
+            244,
+            246,
+            256
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "a. You have ask a clarifying question.   \nb. If user information is insufficient, choose operation 1. Question. – Ask only one critical question per round.   \n– Questions should be concise, without any additional information.   \n– Do not ask repeated questions!!   \n– Questions should verify specific facts. Considering users seek legal help but lack legal background, avoid asking about typical court sentencing or specific law violations.   \n– Maximum 10 rounds of questions; must provide advice after 10 rounds. b. Response template:   \n“question:a clarification question” ",
+        "bbox": [
+            194,
+            258,
+            785,
+            409
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "Mediq: Suggestion Module(translated from Chinese) ",
+        "text_level": 1,
+        "bbox": [
+            199,
+            736,
+            549,
+            751
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "You are a lawyer well-versed in Chinese law, responsible for providing legal consultation to users. Your task is to provide legal advice. ",
+        "bbox": [
+            199,
+            762,
+            784,
+            790
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "Below is the user’s query and your interaction dialogue: {current dialogue} ",
+        "bbox": [
+            196,
+            804,
+            630,
+            832
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "Notes: ",
+        "bbox": [
+            199,
+            847,
+            246,
+            858
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "a. Your task is to provide legal advice according to the context. b. Response template:   \n“advice:legal advice” ",
+        "bbox": [
+            197,
+            859,
+            705,
+            901
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "D.2.4 SFT Strategies Prompt ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            90,
+            390,
+            106
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "Key-Fact SFT to generate a target question (translated from Chinese) ",
+        "text_level": 1,
+        "bbox": [
+            197,
+            119,
+            653,
+            135
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "You are a lawyer well-versed in Chinese law, responsible for providing legal consultation to users. ",
+        "bbox": [
+            196,
+            146,
+            785,
+            172
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "I will provide a list of key information points that need to be obtained from clients but are currently unknown. Please design professional, guiding questions for each information point to effectively elicit these details. [Atomic Key Facts]   \n{Atomic Key Facts} ",
+        "bbox": [
+            199,
+            202,
+            789,
+            270
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "Requirements: ",
+        "bbox": [
+            199,
+            286,
+            299,
+            297
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "1. Return a dictionary mapping each key information index to a corresponding question ",
+        "bbox": [
+            196,
+            299,
+            794,
+            325
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "2. Each question should:   \n-Use neutral, professional terminology   \n-Avoid leading language   \n-Be easily understood by clients   \n-Naturally elicit the target information   \n-Be concise ",
+        "bbox": [
+            196,
+            327,
+            504,
+            409
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "Key-Fact-e SFT to generate target questions (translated from Chinese) ",
+        "text_level": 1,
+        "bbox": [
+            199,
+            444,
+            661,
+            458
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "You are a lawyer well-versed in Chinese law, responsible for providing legal consultation to users. ",
+        "bbox": [
+            197,
+            469,
+            784,
+            497
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "I will provide a list of key information points that need to be obtained from clients but are currently unknown. Please design a series of professional, guiding questions that efficiently cover these information points.   \n[Atomic Key Facts]   \n{Atomic Key Facts} ",
+        "bbox": [
+            199,
+            525,
+            797,
+            594
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "Requirements: ",
+        "bbox": [
+            199,
+            609,
+            299,
+            621
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "1. Return a dictionary where:   \n- Each key is a question - Each value is a list of indices indicating which   \nkey information points the question covers 2. Each question should:   \n-Use neutral, professional terminology   \n-Avoid leading language   \n-Be easily understood by clients   \n-Naturally elicit the target information   \n-Be concise ",
+        "bbox": [
+            196,
+            622,
+            776,
+            733
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "E Details of Annotation Process ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            775,
+            454,
+            792
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "E.1 Guidelines for Annotation Stage-1 ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            808,
+            452,
+            824
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "This annotation process consists of two steps: (1) Dialogue Standardization: quality checking of legal consultation dialogues to correctly identify speaker roles, correct typos, and identify coded language; (2) Dialogue Intent Annotation: labeling dialogue intents. ",
+        "bbox": [
+            174,
+            835,
+            826,
+            877
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "1. Dialogue Standardization The dialogues are from live legal consultation scenarios, involving conversations between (1) clients and (2) lawyers. Clients present legal inquiries, and lawyers address these through questioning, confirmation, and advice. Since the data is transcribed by large language models, there may be errors in role assignments and speech recognition. This phase aims to check and correct dialogue quality. ",
+        "bbox": [
+            169,
+            882,
+            826,
+            911
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            90,
+            825,
+            133
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "Specific steps include: ",
+        "bbox": [
+            173,
+            140,
+            321,
+            155
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "1. Verify correct role assignment between lawyer and client: ",
+        "bbox": [
+            173,
+            160,
+            566,
+            175
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "• Case 1: All role assignments are incorrect - Fix all roles accordingly • Case 2: Individual statement roles are incorrect - Identify and adjust misattributed statements • Case 3: Single statements containing multiple speakers - Separate into distinct turns ",
+        "bbox": [
+            217,
+            184,
+            825,
+            237
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "2. Jargon and Euphemism Detection: Identify and convert substitute terms used to bypass platform filters into standard text. Example: \"hat uncle\" \"police officer\" Note: All potential euphemisms and substitute terms will be listed for further assessment. ",
+        "bbox": [
+            178,
+            247,
+            825,
+            290
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "3. Correct transcription errors, including typos and homophone mistakes. ",
+        "bbox": [
+            176,
+            296,
+            653,
+            310
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "4. Ensure dialogue format: ",
+        "bbox": [
+            173,
+            316,
+            349,
+            330
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "• Combine consecutive statements by the same speaker • Ensure the dialogue begins with client’s initial query and ends with lawyer’s advice • Remove greeting/farewell phrases like \"hello,\" \"thanks,\" \"goodbye\" ",
+        "bbox": [
+            218,
+            342,
+            779,
+            393
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "2. Dialogue Intent Annotation Based on quality-checked dialogue data, label each utterance with one of these intent categories: ",
+        "bbox": [
+            171,
+            404,
+            823,
+            433
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "1. \"Client Initial Query\": Client’s opening question (typically first statement)   \n2. \"Client Response\": Client’s answers to lawyer’s clarifying questions   \n3. \"Client Information Addition\": Client’s voluntary provision of additional key information   \n4. \"Client Need Extension\": Client’s new questions/needs arising during consultation   \n5. \"Lawyer Clarifying Question\": Lawyer’s clarifying questions to gather more case informa  \ntion   \n6. \"Lawyer Information Verification\": Lawyer’s repeated confirmation of crucial points   \n7. \"Lawyer Legal Advice\": Lawyer’s legal recommendations based on case understanding   \n8. \"Lawyer Emotional Support\": Lawyer’s emotional encouragement or comfort to client   \n9. \"Invalid Exchange\": Irrelevant dialogue not affecting final legal advice   \n10. \"Other\": Miscellaneous categories not covered above ",
+        "bbox": [
+            210,
+            443,
+            826,
+            640
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "E.2 Guidelines for Annotation Stage-2 ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            655,
+            452,
+            670
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "Stage 2 annotation primarily involves (1) labeling atomic key facts information and (2) summarizing lawyer’s advice. ",
+        "bbox": [
+            173,
+            680,
+            823,
+            708
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "1. Atomic Key Facts Information Labeling Since clients’ initial inquiries often lack complete information, based on the Q&A process between clients and lawyers, Qwen-max has preliminarily extracted Atomic Key Facts List. Further extraction and verification are needed to compile a complete list of critical information that informed the lawyer’s legal advice. ",
+        "bbox": [
+            174,
+            715,
+            825,
+            771
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "Requirements: ",
+        "bbox": [
+            174,
+            777,
+            269,
+            791
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "1. Extract key information points from client-lawyer dialogue. Keep expressions consistent with original text where possible.   \n2. Cross-check Atomic Key Facts List against dialogue points for completeness. Add missing information as needed.   \n3. Merge similar key fact information points to avoid redundancy. Atomic Key Fact Points should be atomic-level: Example:   \n- [\"Client\", \"They had a banquet that evening.\", \"Client Response\"],   \n- [\"Lawyer\", \"What kind of banquet at friend A’s house?\", \"Lawyer Clarifying   \nQuestion\"],   \n- [\"Client\", \"It was their child’s first birthday.\", \"Client Response\"],   \n- [\"Lawyer\", \"First birthday banquet. I see.\", \"Invalid Exchange\"],   \n- [\"Client\", \"Then got very drunk that night.\", \"Client Information Addition\"],   \n- [\"Lawyer\", \"A got drunk.\", \"Lawyer Information Verification\"],   \n- [\"Client\", \"Yes, intoxicated.\", \"Client Response\"]   \nCorresponding key fact information point:   \n\"Friend A hosted child’s first birthday banquet that evening, A got heavily intoxi  \ncated\" ",
+        "bbox": [
+            212,
+            801,
+            825,
+            911
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            261,
+            90,
+            794,
+            252
+        ],
+        "page_idx": 26
+    },
+    {
+        "type": "text",
+        "text": "4. Supplement missing entity information (e.g., specific roles or event descriptions). Example: Change \"was detained\" to \"Defendant A was detained\" ",
+        "bbox": [
+            207,
+            257,
+            823,
+            285
+        ],
+        "page_idx": 26
+    },
+    {
+        "type": "text",
+        "text": "5. Maintain chronological order of atomic facts consistent with dialogue flow. ",
+        "bbox": [
+            214,
+            289,
+            727,
+            303
+        ],
+        "page_idx": 26
+    },
+    {
+        "type": "text",
+        "text": "6. Ensure extracted information comes from client statements only, excluding lawyer’s advice. However, combine lawyer questions with client answers when relevant. ",
+        "bbox": [
+            210,
+            308,
+            823,
+            335
+        ],
+        "page_idx": 26
+    },
+    {
+        "type": "text",
+        "text": "7. Rate importance of each atomic fact: ",
+        "bbox": [
+            214,
+            340,
+            475,
+            354
+        ],
+        "page_idx": 26
+    },
+    {
+        "type": "text",
+        "text": "• Critical Facts (3 points): Directly affects case classification, liability distribution, or rebuts prosecution’s charges   \n• Secondary Facts (2 points): Provides background or supporting information with moderate case impact   \n• Non-critical Facts (1 point): Subjective opinions or procedural descriptions with no direct impact on fact-finding ",
+        "bbox": [
+            251,
+            358,
+            825,
+            446
+        ],
+        "page_idx": 26
+    },
+    {
+        "type": "text",
+        "text": "2. Lawyer Advice Summary Legal advice may be scattered throughout the dialogue. Consolidate all advice while: ",
+        "bbox": [
+            166,
+            457,
+            825,
+            484
+        ],
+        "page_idx": 26
+    },
+    {
+        "type": "text",
+        "text": "• Filtering out meaningless information • Preserving lawyer’s original key terminology to maintain accuracy and completeness • Avoiding alterations to lawyer’s original intent and critical information ",
+        "bbox": [
+            218,
+            496,
+            789,
+            547
+        ],
+        "page_idx": 26
+    },
+    {
+        "type": "text",
+        "text": "F Dataset ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            566,
+            271,
+            583
+        ],
+        "page_idx": 26
+    },
+    {
+        "type": "text",
+        "text": "F.1 Sample Data Format ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            597,
+            357,
+            612
+        ],
+        "page_idx": 26
+    },
+    {
+        "type": "text",
+        "text": "Below is an example of our annotated legal consultation data structure: ",
+        "bbox": [
+            173,
+            622,
+            638,
+            637
+        ],
+        "page_idx": 26
+    },
+    {
+        "type": "text",
+        "text": "{ ’id’: ’xxx’, ’dialogue’: [ [’user’, \"xxx\"], [’lawyer’, \"xxx\"], ], ’initial_query’: ’X’, ’suggestion’: ’suggestion.’, ’key_fact_dict_hard_version’: { ’atomic_facts’: { ’0’: ’a’, ’1’: ’B’, ’2’: ’c’, ’3’: ’D’, ’4’: ’e’, ’5’: ’f’, ’6’: ’xx’, ’7’: ’xxx’, ",
+        "bbox": [
+            174,
+            648,
+            477,
+            911
+        ],
+        "page_idx": 26
+    },
+    {
+        "type": "text",
+        "text": "’8’: ’xxx’, ’9’: ’xx’ }, ’importance_scores’: { ’0’: 2.0, # Secondary fact ’1’: 1.0, # Non-critical fact ’2’: 3.0, # Critical fact ’3’: 2.0, # Secondary fact ’4’: 3.0, # Critical fact ’5’: 3.0, # Critical fact ’6’: 3.0, # Critical fact ’7’: 2.0, # Secondary fact ’8’: 3.0, # Critical fact ’9’: 1.0 # Non-critical fact } }, ’case_type’: [’Criminal’], # [’Criminal’,’Civil’,’Administative’] ’charge_type’: [’Intentional Homicide’], ’intention_annotation’: [ [’Client’, ’B was working as a hotel receptionist when B, C, and D were forcibly taken into a room.’, ’[1] Client Initial Query’], ] ",
+        "bbox": [
+            184,
+            90,
+            848,
+            449
+        ],
+        "page_idx": 27
+    },
+    {
+        "type": "text",
+        "text": "Note: Names have been anonymized (A, B, C, etc.) for privacy protection. The importance scores are categorized as: 3.0 (Critical fact), 2.0 (Secondary fact), and 1.0 (Non-critical fact). ",
+        "bbox": [
+            173,
+            463,
+            823,
+            492
+        ],
+        "page_idx": 27
+    },
+    {
+        "type": "text",
+        "text": "F.2 Evaluation Metrics ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            508,
+            348,
+            523
+        ],
+        "page_idx": 27
+    },
+    {
+        "type": "text",
+        "text": "We evaluate expert responses from two main perspectives. First, we assess Clarification Capability through effectiveness and efficiency metrics. Second, we evaluate Advice Quality using both automated and LLM-based evaluation metrics. ",
+        "bbox": [
+            174,
+            535,
+            825,
+            577
+        ],
+        "page_idx": 27
+    },
+    {
+        "type": "text",
+        "text": "F.2.1 Clarification Capability ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            592,
+            390,
+            608
+        ],
+        "page_idx": 27
+    },
+    {
+        "type": "text",
+        "text": "Effectiveness ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            617,
+            267,
+            631
+        ],
+        "page_idx": 27
+    },
+    {
+        "type": "text",
+        "text": "Given ground truth atomic key facts list $A _ { n }$ and simulation dialogue, we use qwen-max to match how many key facts from $A _ { n }$ are mentioned in the user-lawyer consultation dialogue. The extraction prompt template is shown in Table 8. ",
+        "bbox": [
+            174,
+            637,
+            825,
+            679
+        ],
+        "page_idx": 27
+    },
+    {
+        "type": "text",
+        "text": "We designed four metrics to evaluate clarification capability: ",
+        "bbox": [
+            173,
+            685,
+            571,
+            700
+        ],
+        "page_idx": 27
+    },
+    {
+        "type": "text",
+        "text": "1. Recall (Rec.): measures the comprehensiveness of key fact coverage, defined as: ",
+        "bbox": [
+            173,
+            705,
+            717,
+            722
+        ],
+        "page_idx": 27
+    },
+    {
+        "type": "equation",
+        "img_path": "images/16dfcfdec5af33c3179962c04f7f77b5b8bc47d724f8141cdee7cbdfd9299384.jpg",
+        "text": "$$\n\\mathrm { R e c . } = \\frac { 1 } { | N | } \\sum _ { i = 1 } ^ { N } { \\frac { | \\mathcal { P } _ { i } \\cap A _ { i } | } { | A _ { i } | } }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            408,
+            738,
+            588,
+            781
+        ],
+        "page_idx": 27
+    },
+    {
+        "type": "text",
+        "text": "where $\\mathcal { P } _ { i }$ represents the predicted key facts set for the $i$ -th dialogue, $A _ { i }$ denotes the corresponding ground truth set, and $N$ is the total number of dialogues in the evaluation set. ",
+        "bbox": [
+            169,
+            791,
+            825,
+            820
+        ],
+        "page_idx": 27
+    },
+    {
+        "type": "text",
+        "text": "2. Weighted Recall (Weighted Rec.): incorporates the significance of each key fact through importance weights, defined as: ",
+        "bbox": [
+            169,
+            827,
+            823,
+            856
+        ],
+        "page_idx": 27
+    },
+    {
+        "type": "equation",
+        "img_path": "images/2c66548c1b9624531b30133cc9d52babb756ef9b61edb03bcb01b2e9ed31194d.jpg",
+        "text": "$$\n{ \\mathrm { W e i g h t e d R e c . } } = { \\frac { 1 } { | N | } } \\sum _ { i = 1 } ^ { N } { \\frac { \\sum _ { j \\in { \\mathcal { P } } _ { i } \\cap A _ { i } } w _ { j } } { \\sum _ { k \\in A _ { i } } w _ { k } } }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            361,
+            872,
+            637,
+            916
+        ],
+        "page_idx": 27
+    },
+    {
+        "type": "text",
+        "text": "where $w _ { j } \\in \\{ 1 , 2 , 3 \\}$ denotes the importance weight assigned to each key fact $j$ , $\\mathcal { P } _ { i }$ represents the predicted key facts set for the $i$ -th dialogue, and $A _ { i }$ denotes the corresponding ground truth set. The weights reflect the relative significance of each key fact in the legal consultation context. ",
+        "bbox": [
+            174,
+            90,
+            823,
+            133
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "3. Recall $\\boldsymbol { @ 5 }$ $( \\mathbf { R e c } @ 5 )$ : evaluates how effectively the first five questions elicit key facts, defined as: ",
+        "bbox": [
+            173,
+            138,
+            821,
+            155
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "equation",
+        "img_path": "images/938d206d6d439ad827af5d8a84200ec943775d635ec2e3afe6ff8eb7c284a353.jpg",
+        "text": "$$\n\\mathsf { R @ 5 } = \\frac { 1 } { | N | } \\sum _ { i = 1 } ^ { N } \\frac { | \\mathcal { P } _ { i } ^ { 5 } \\cap A _ { i } | } { | A _ { i } | }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            405,
+            170,
+            591,
+            213
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "where $\\mathcal { P } _ { i } ^ { 5 }$ represents the set of key facts identified in the first five questions of the $i$ -th dialogue, and $A _ { i }$ denotes the complete ground truth set. This metric specifically assesses the model’s ability to efficiently extract crucial information in the early stages of the consultation. ",
+        "bbox": [
+            174,
+            222,
+            825,
+            266
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "4. Normalized Discounted Cumulative Gain (NDCG): evaluates the effectiveness of question ordering by considering both the importance of key facts and their position in the dialogue sequence, defined as: ",
+        "bbox": [
+            173,
+            271,
+            825,
+            314
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "equation",
+        "img_path": "images/e3758b996b44b2fe2f2222e88d59428c742bc3c0beadde8858e1af614a475369.jpg",
+        "text": "$$\n\\mathrm { N D C G } = { \\frac { \\mathrm { D C G } } { \\mathrm { I D C G } } }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            439,
+            328,
+            557,
+            361
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "where DCG (Discounted Cumulative Gain) is calculated as: ",
+        "bbox": [
+            173,
+            367,
+            566,
+            383
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "equation",
+        "img_path": "images/4e3d9ea72d72293ffe452920e68eadaae5b019582fae8a29c601b2c08c04f92d.jpg",
+        "text": "$$\n\\mathrm { D C G } = \\sum _ { i = 1 } ^ { n } { \\frac { r e l _ { i } } { \\log _ { 2 } ( i + 1 ) } }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            415,
+            397,
+            581,
+            439
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "and IDCG (Ideal DCG) is: ",
+        "bbox": [
+            174,
+            448,
+            349,
+            463
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "equation",
+        "img_path": "images/e90f3d70fc33b3594e1e21d9bf01ebe4a4b3094d720fb149900acaf035f8863c.jpg",
+        "text": "$$\n\\mathrm { I D C G } = \\sum _ { i = 1 } ^ { n } \\frac { r e l _ { i } ^ { * } } { \\log _ { 2 } ( i + 1 ) }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            413,
+            478,
+            584,
+            520
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "Here, $r e l _ { i }$ represents the importance score of a key fact discovered at position $i$ , and $r e l _ { i } ^ { * }$ denotes the importance scores sorted in descending order for the ideal sequence. Each key fact is counted only once at its first appearance in the dialogue, with importance scores ranging from 1 to 3. ",
+        "bbox": [
+            174,
+            527,
+            825,
+            571
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "Efficiency ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            577,
+            245,
+            590
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "We measure the average number of dialogue turn rounds (AVG T). ",
+        "bbox": [
+            173,
+            597,
+            611,
+            612
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "equation",
+        "img_path": "images/09a8121c875a0fa19d6726027cdf912298f9f0c5172ca44e1e6709327db123da.jpg",
+        "text": "$$\n\\operatorname { A V G T } = \\frac { 1 } { | N | } \\sum _ { i = 1 } ^ { N } | T _ { i } |\n$$",
+        "text_format": "latex",
+        "bbox": [
+            421,
+            627,
+            576,
+            671
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "where $\\left| T _ { i } \\right|$ represents the number of turns in the $i$ -th dialogue, and $N$ is the total number of dialogues in the evaluation set. A turn $T$ is defined as one complete question-answer pair between the lawyer and user, excluding the initial user query and the final legal advice. This metric specifically measures the efficiency of the lawyer’s clarification process during the consultation. ",
+        "bbox": [
+            174,
+            680,
+            825,
+            737
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "F.2.2 Advice Quality ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            751,
+            330,
+            766
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "We evaluate the semantic alignment between the generated and reference advice through both automated metrics and LLM-based evaluation. ",
+        "bbox": [
+            176,
+            773,
+            825,
+            803
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "Automated Metrics We employ two standard metrics: ",
+        "bbox": [
+            174,
+            816,
+            545,
+            832
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "• ROUGE-L: We calculate ROUGE-L [25] between reference and generated advice after Chinese word segmentation using jieba package 4. • BERTScore: Leverages BERT contextual embeddings to compute semantic similarity [35]. ",
+        "bbox": [
+            214,
+            843,
+            825,
+            891
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "LLM-based Evaluation We assess five dimensions on a scale of 1-10: ",
+        "bbox": [
+            173,
+            90,
+            650,
+            106
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "text",
+        "text": "• Professionalism (Pro.): ",
+        "text_level": 1,
+        "bbox": [
+            220,
+            117,
+            392,
+            131
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "text",
+        "text": "– Accurate understanding and relevant solutions – Clear explanation of complex legal concepts – Actionable recommendations ",
+        "bbox": [
+            246,
+            136,
+            568,
+            183
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "text",
+        "text": "• Fluency (Flu.): ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            188,
+            336,
+            202
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "text",
+        "text": "– Semantic coherence without logical errors – Consistency in style and content – Friendly and engaging response tone ",
+        "bbox": [
+            246,
+            207,
+            542,
+            253
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "text",
+        "text": "• Completeness (Com.): ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            257,
+            387,
+            272
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "text",
+        "text": "– Sufficient information and details – Coverage of essential recommendations ",
+        "bbox": [
+            246,
+            276,
+            527,
+            306
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "text",
+        "text": "• Satisfaction (Sat.): ",
+        "text_level": 1,
+        "bbox": [
+            218,
+            311,
+            362,
+            325
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "text",
+        "text": "– Targeted and personalized solutions – Accessible language and expression – Empathy and respect for client concerns ",
+        "bbox": [
+            248,
+            330,
+            531,
+            377
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "text",
+        "text": "• Safety (Safe.): ",
+        "bbox": [
+            218,
+            382,
+            331,
+            396
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "text",
+        "text": "– Scientific and accurate legal knowledge – Prevention of potentially harmful advice – Adherence to professional ethics and non-discriminatory content ",
+        "bbox": [
+            246,
+            400,
+            689,
+            448
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "text",
+        "text": "These five dimensions are aggregated into an Overall Score (OA) on a scale of 1-10, reflecting the comprehensive quality of the legal advice. ",
+        "bbox": [
+            176,
+            458,
+            823,
+            487
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "text",
+        "text": "We employ GPT-4-mini as an automated judge to evaluate the generated legal advice across five dimensions (1-10 scale). The specific prompting strategy for LLM-as-a-judge evaluation is detailed in Table 9. ",
+        "bbox": [
+            173,
+            493,
+            825,
+            535
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "text",
+        "text": "G More Experimental Results ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            554,
+            441,
+            571
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "table",
+        "img_path": "images/eb3507ee47806fb426016ca6ed6e2c654f1b1f2b6e19c4bcba69fc8cd793c272.jpg",
+        "table_caption": [
+            "Table 6: The results on Clarification Capability, comparing few-shot (FS) and zero-shot (ZS) strategies. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Models</td><td rowspan=\"2\"></td><td colspan=\"4\">Effectiveness</td></tr><tr><td>Rec.(%) Weighted Rec.(%)</td><td>Rec@5(%)</td><td>NDCG(%)</td><td>Efficiency Avg T ↓</td></tr><tr><td colspan=\"7\">Closed-source LLMs</td></tr><tr><td>GPT-4</td><td>NK</td><td>35.9</td><td>37.2 34.4</td><td>74.7</td><td></td><td>4.9</td></tr><tr><td rowspan=\"2\">GPT-40</td><td></td><td>32.5</td><td>33.6</td><td>31.9</td><td>71.4</td><td>4.3</td></tr><tr><td></td><td>33.0</td><td>33.9</td><td>25.9</td><td>63.2</td><td>10</td></tr><tr><td></td><td>FS</td><td>33.6</td><td>34.2</td><td>27.9</td><td>65.6</td><td>10</td></tr><tr><td rowspan=\"2\">Qwen-max</td><td>ZS</td><td>39.8</td><td>41.3</td><td>31.2</td><td>70.7</td><td>10</td></tr><tr><td>FS</td><td>40.0</td><td>41.2</td><td>30.8</td><td>70.5</td><td>10</td></tr><tr><td>Qwen-turbo</td><td>ZS</td><td>27.3</td><td>28.3</td><td>23.2</td><td>61.2</td><td>9.4</td></tr><tr><td></td><td>FS</td><td>25.7</td><td>26.8</td><td>22.7</td><td>63.5</td><td>9.8</td></tr><tr><td colspan=\"7\">Open-source LLMs</td></tr><tr><td>deepseek-v3</td><td>ZS</td><td>28.0</td><td>29.0</td><td>25.1</td><td>65.4</td><td>7.5</td></tr><tr><td rowspan=\"2\">deepseek-r1</td><td>FS</td><td>32.3</td><td>33.4</td><td>27.1</td><td>65.3</td><td>9.1</td></tr><tr><td>ZS</td><td>27.6</td><td>28.8</td><td>25.1</td><td>63.9</td><td>6.3</td></tr><tr><td rowspan=\"2\">Qwen2.5-72B</td><td>FS</td><td>32.0</td><td>33.2</td><td>26.2</td><td>64.1</td><td>8.4</td></tr><tr><td>ZS</td><td>39.6</td><td>40.8</td><td>30.4</td><td>71.9</td><td>10</td></tr><tr><td rowspan=\"2\">Qwen2.5-7B</td><td>FS</td><td>17.2</td><td>17.7</td><td>13.3</td><td>33.7</td><td>7.6</td></tr><tr><td>ZS</td><td>31.1</td><td>32.1</td><td>27.7</td><td>70.1</td><td>10</td></tr><tr><td rowspan=\"2\">Llama-3.1-8B</td><td>FS</td><td>24.7</td><td>25.4</td><td>22.7</td><td>64.1</td><td>10</td></tr><tr><td>ZS</td><td>22.1</td><td>23.1</td><td>19.1</td><td>55</td><td>7.8</td></tr><tr><td rowspan=\"2\">GLM4-32B</td><td>FS</td><td>21.3</td><td>22</td><td>18.7</td><td>56.4</td><td>9.6</td></tr><tr><td>ZS</td><td>34.1</td><td>35.4</td><td>28.8</td><td>67.3</td><td>7.3</td></tr><tr><td rowspan=\"2\">GLM4-9B</td><td>FS</td><td>38.5</td><td>39.8</td><td>30.1</td><td>68.2</td><td>8.6</td></tr><tr><td>ZS</td><td>34.2</td><td>35.3</td><td>26.1</td><td>65.0</td><td>10</td></tr><tr><td></td><td>FS</td><td>30.9</td><td>31.9</td><td>24.9</td><td>64.0</td><td>10</td></tr><tr><td colspan=\"7\">Domain-specific LLMs or Clarifying Strategy</td></tr><tr><td>ChatLaw</td><td></td><td>16.7</td><td>17.4</td><td>16.3</td><td>47.8</td><td>4.4</td></tr><tr><td>Lawyer-LLaMA</td><td>ZS</td><td>21.8</td><td>22.9</td><td>21.8</td><td>62.9</td><td>4.2</td></tr><tr><td>Farui</td><td>ZS</td><td>28.4</td><td>29.5</td><td>25.1</td><td>64.2</td><td>8.9</td></tr><tr><td>MediQ</td><td>zs</td><td>22.1</td><td>22.9</td><td>19.0</td><td>53.5</td><td>4.2</td></tr><tr><td>Direct SFT</td><td>ZS</td><td>37.2</td><td>37.6</td><td>25.6</td><td>62.3</td><td>9.6</td></tr><tr><td>Key-fact SFT</td><td>ZS</td><td>53.8</td><td>55.1</td><td>43.5</td><td>84.7</td><td>9.2</td></tr><tr><td>Key-fact-e SFT</td><td>ZS</td><td>51.0</td><td>51.1</td><td>45.3</td><td>84.8</td><td>6.6</td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table>",
+        "bbox": [
+            171,
+            270,
+            830,
+            761
+        ],
+        "page_idx": 30
+    },
+    {
+        "type": "table",
+        "img_path": "images/25b24fce180e547481465e99b1eb4513942cab182524ae706d4288b955ddb4c3.jpg",
+        "table_caption": [
+            "Table 7: The results on Advice Quality, comparing few-shot (FS) and zero-shot (ZS) strategies. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Models</td><td colspan=\"3\">Automated Metrics</td><td colspan=\"5\">LLM-Evaluaion Metrics</td><td rowspan=\"2\">OA</td></tr><tr><td colspan=\"3\">Rouge-L BERTSscore</td><td>Pro. Flu.</td><td>Com.</td><td></td><td>Sat.</td><td>Safe.</td></tr><tr><td colspan=\"10\">Closed-source LLMs</td></tr><tr><td rowspan=\"2\">GPT-4</td><td></td><td>17.5</td><td>65.9</td><td>56.8</td><td>71.9</td><td>49.9</td><td>55.8</td><td>71.1</td><td>58.1</td></tr><tr><td>FS</td><td>17.4</td><td>66.1</td><td>59.2</td><td>72.5</td><td>52.5</td><td>58.2</td><td>72.1</td><td>59.9</td></tr><tr><td rowspan=\"2\">GPT-40</td><td>ZS</td><td>13.0</td><td>62.9</td><td>50.1</td><td>69.6</td><td>44.7</td><td>52.4</td><td>66.6</td><td>53.5</td></tr><tr><td>FS</td><td>16</td><td>64.6</td><td>54.8</td><td>72.7</td><td>49.4</td><td>56.3</td><td>69.9</td><td>57.5</td></tr><tr><td rowspan=\"2\">Qwen-max</td><td>ZS</td><td>13.9</td><td>63.9</td><td>54.0</td><td>71.4</td><td>47.6</td><td>55.3</td><td>68.9</td><td>56.2</td></tr><tr><td>FS</td><td>16.1</td><td>65.4</td><td>56.5</td><td>72.9</td><td>50.6</td><td>56.9</td><td>71.7</td><td>58.5</td></tr><tr><td rowspan=\"2\">Qwen-turbo</td><td>ZS</td><td>10.6</td><td>61.8</td><td>44.8</td><td>62.7</td><td>40.0</td><td>47.6</td><td>61.6</td><td>48.5</td></tr><tr><td>FS</td><td>13.5</td><td>63.6</td><td>53.3</td><td>70.1</td><td>47.1</td><td>53.4</td><td>69</td><td>55.3</td></tr><tr><td colspan=\"2\"></td><td colspan=\"8\">Open-source LLMs</td></tr><tr><td rowspan=\"2\">deepseek-v3</td><td>ZS</td><td>16.2</td><td>65.3</td><td>57.6</td><td>72.9</td><td>50.8</td><td>56.2</td><td>72.1</td><td>58.9</td></tr><tr><td>FS</td><td>16.5</td><td>65.6</td><td>58.7</td><td>73.7</td><td>51.9</td><td>57.5</td><td>72.9</td><td>59.7</td></tr><tr><td rowspan=\"2\">deepseek-r1</td><td>ZS</td><td>12.4</td><td>64</td><td>63.8</td><td>74.1</td><td>55.5</td><td>55.9</td><td>76.5</td><td>62.2</td></tr><tr><td>FS</td><td>13.4</td><td>64.8</td><td>66.7</td><td>75</td><td>58.8</td><td>58.2</td><td>78.3</td><td>64.6</td></tr><tr><td rowspan=\"2\">Qwen2.5-72B</td><td>ZS</td><td>14.7</td><td>63.8</td><td>54</td><td>71.6</td><td>48.5</td><td>55.2</td><td>69.4</td><td>56.6</td></tr><tr><td>FS</td><td>10.1</td><td>57.7</td><td>33.6</td><td>42.7</td><td>30.4</td><td>33.8</td><td>42.5</td><td>34.7</td></tr><tr><td rowspan=\"2\">Qwen2.5-7B</td><td>ZS</td><td>9.2</td><td>60.0</td><td>42.3</td><td>60.4</td><td>37.6</td><td>45.0</td><td>57.8</td><td>45.7</td></tr><tr><td>FS</td><td>9.2</td><td>59.1</td><td>40.1</td><td>57</td><td>34.9</td><td>42.3</td><td>55.3</td><td>42.9</td></tr><tr><td rowspan=\"2\">Llama-3.1-8B</td><td>ZS</td><td>13.9</td><td>63.1</td><td>51.7</td><td>69.1</td><td>46.5</td><td>51.7</td><td>67.1</td><td>54.1</td></tr><tr><td>FS</td><td>7.8</td><td>54.8</td><td>32.6</td><td>44.2</td><td>29.8</td><td>34.3</td><td>45.3</td><td>34.4</td></tr><tr><td rowspan=\"2\">GLM4-32B</td><td>ZS</td><td>14.3</td><td>64.1</td><td>55.6</td><td>70.4</td><td>49.0</td><td>54.3</td><td>70.4</td><td>56.7</td></tr><tr><td>FS</td><td>14.8</td><td>64.7</td><td>57.6</td><td>72.4</td><td>51</td><td>56.1</td><td>72.3</td><td>58.8</td></tr><tr><td rowspan=\"2\">GLM4-9B</td><td>ZS</td><td>13.9</td><td>63.1</td><td>51.7</td><td>69.1</td><td>46.5</td><td>51.7</td><td>67.1</td><td>54.1</td></tr><tr><td>FS</td><td>14.1</td><td>63.1</td><td>52.2</td><td>69.9</td><td>47.3</td><td>53.1</td><td>68</td><td>54.7</td></tr><tr><td colspan=\"10\">Domain-specific LLMs or Clarifying Strategy</td></tr><tr><td>ChatLaw</td><td></td><td>7.8</td><td>53.0</td><td>28.8</td><td>40.0</td><td>25.5</td><td>31.0</td><td>39.4</td><td>30.7</td></tr><tr><td>Lawyer-LLaMA</td><td>ZS</td><td>12.4</td><td>59.7</td><td>37.6</td><td>52.7</td><td>33.1</td><td>39.0</td><td>51.8</td><td>39.4</td></tr><tr><td>Farui</td><td>KKK</td><td>16.6</td><td>64.5</td><td>52.2</td><td>66</td><td>47.4</td><td>51.3</td><td>66.3</td><td>53.8</td></tr><tr><td>MediQ</td><td></td><td>13.3</td><td>63.7</td><td>51.8</td><td>69.1</td><td>45.5</td><td>51.9</td><td>66.7</td><td>54.0</td></tr><tr><td>Direct SFT</td><td></td><td>15.4</td><td>64.9</td><td>51.7</td><td>65.3</td><td>45.6</td><td>50.1</td><td>63.1</td><td>52.4</td></tr><tr><td>Key-fact SFT</td><td>zS</td><td>18.5</td><td>67.5</td><td>59.3</td><td>73.0</td><td>52.3</td><td>55.9</td><td>71.2</td><td>59.4</td></tr><tr><td>Key-fact-e SFT</td><td>ZS</td><td>19.1</td><td>67.6</td><td>59.3</td><td>73.6</td><td>52.0</td><td>56.7</td><td>72.1</td><td>59.5</td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table>",
+        "bbox": [
+            171,
+            267,
+            826,
+            752
+        ],
+        "page_idx": 31
+    },
+    {
+        "type": "text",
+        "text": "H Prompt Template for LeCoDe Evaluation ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            89,
+            557,
+            106
+        ],
+        "page_idx": 32
+    },
+    {
+        "type": "text",
+        "text": "Table 8: The Instruction Template for extraction matching key fact from simulated dialogue, to evaluate Clarification Capability (translated from Chinese). ",
+        "bbox": [
+            174,
+            109,
+            828,
+            137
+        ],
+        "page_idx": 32
+    },
+    {
+        "type": "table",
+        "img_path": "images/5c03b5baed74f3a8fa43a110d38f50c5a52d26c65787c364cccc773e5cee5654.jpg",
+        "table_caption": [],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>ardate Clarhcation Capabity (translated hron Chese).</td></tr><tr><td>Instruction Template used to extract matching key fact from simulated dialogue. Analyze key information mentioned in user-lawyer consultation dialogues and match them with a</td></tr><tr><td>given list of Atomic Key Facts. Input data:</td></tr><tr><td>1. User-Lawyer Dialogue (user lawyer dialogue): - Format: Dialogue ID: &#x27;q&#x27;: question, &#x27;a&#x27;: answer - Each dialogue includes lawyer&#x27;s question and user&#x27;s response</td></tr><tr><td>2. Atomic Key Facts List (Atomic Key Facts li): - Format: index: information content - Index starts from 0</td></tr><tr><td>Task requirements:</td></tr><tr><td>1. Identify Atomic Key Facts mentioned in the dialogues 2. Match identified information with items in the Atomic Key Facts list 3. Record the index numbers of matching information</td></tr><tr><td>Output format requirements:</td></tr><tr><td>- Output should be a Python dictionary - Keys: Dialogue ID (e.g., &quot;QA0&quot;, &quot;QA1&quot;...)</td></tr><tr><td>- Values: List of Atomic Key Facts indices mentioned in that dialogue - If no Atomic Key Facts is mentioned, return an empty dictionary</td></tr><tr><td>- Example format: python</td></tr><tr><td>{&quot;QA0&quot;:[0,1],&quot;QA1&quot;:2,..}</td></tr><tr><td>Below are the consultation dialogue and Atomic Key Facts list:</td></tr></table>",
+        "bbox": [
+            173,
+            131,
+            854,
+            626
+        ],
+        "page_idx": 32
+    },
+    {
+        "type": "table",
+        "img_path": "images/a7b797f8d5b07c48327caa98a2347bac6c4e5a0e99e9a9d76aa84bf204356684.jpg",
+        "table_caption": [
+            "Table 9: The Instruction Template for Legal Advice Quality Evaluation, to evaluate Advice Quality (translated from Chinese). "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Instruction Template used in Legal Advice Quality Evaluation, to evaluate Advice Quality.</td></tr><tr><td>You are an experienced legal expert, specializing in evaluating the quality of legal advice in consul- tations. Please act as a fair and rigorous evaluator to objectively assess the quality of legal advice provided by the AI assistant. In your assessment, please analyze and score based on the following five key dimensions:</td></tr><tr><td>1. Professionalism - Accurately understand client&#x27;s issues and provide relevant answers - Clearly explain complex legal knowledge</td></tr><tr><td>- Actionability of advice 2. Fluency - Ensure semantic coherence without logical errors or irrelevant information</td></tr><tr><td>- Maintain consistency in style and content - Maintain friendly and enthusiastic response attitude</td></tr><tr><td>3. Completeness - Provide sufficient information and details</td></tr><tr><td>- No omission of important advice</td></tr><tr><td>4. Satisfaction - Targeted responses, providing personalized solutions</td></tr><tr><td>- Use approachable expressions, language affinity - Focus on client experience and feelings, empathy and respect for client needs 5. Safety</td></tr></table>",
+        "bbox": [
+            181,
+            131,
+            751,
+            438
+        ],
+        "page_idx": 33
+    },
+    {
+        "type": "text",
+        "text": "We will provide the following materials: high-quality reference answers and legal advice written by the AI assistant. When starting the evaluation, you need to follow these reasoning steps: ",
+        "bbox": [
+            189,
+            449,
+            740,
+            473
+        ],
+        "page_idx": 33
+    },
+    {
+        "type": "text",
+        "text": "1. Compare the AI assistant’s legal advice with the reference answer, point out deficiencies in the AI’s answer, and explain in detail   \n2. Evaluate the AI assistant’s legal advice according to the above dimensions, scoring 1-10 for each dimension   \n3. Based on the scores of each dimension, derive a comprehensive score (1-10) for the AI assistant 4. Your scoring should be as strict as possible and must follow these scoring rules: higher quality responses receive higher scores ",
+        "bbox": [
+            189,
+            483,
+            743,
+            566
+        ],
+        "page_idx": 33
+    },
+    {
+        "type": "text",
+        "text": "Scoring criteria: ",
+        "bbox": [
+            189,
+            578,
+            281,
+            589
+        ],
+        "page_idx": 33
+    },
+    {
+        "type": "text",
+        "text": "1-2 points: Advice contains irrelevant content, serious errors, unverified or false information, or potentially harmful content ",
+        "bbox": [
+            192,
+            590,
+            740,
+            612
+        ],
+        "page_idx": 33
+    },
+    {
+        "type": "text",
+        "text": "3-4 points: No major errors but clear deficiencies in legal relationship definition or key point responses, poor logical reasoning, lacks specificity, advice too general, fails to meet basic consultation requirements ",
+        "bbox": [
+            191,
+            613,
+            740,
+            647
+        ],
+        "page_idx": 33
+    },
+    {
+        "type": "text",
+        "text": "5-6 points: Basically meets consultation requirements, accurate legal analysis but average logical completeness, addresses main points but lacks deep analysis, overall performance is moderate 7-8 points: Quality approaches reference answer, provides practical solutions, excellent performance in all evaluation dimensions, no obvious defects   \n9-10 points: Quality significantly exceeds reference answer, near-perfect performance in all dimensions, provides extremely valuable solutions ",
+        "bbox": [
+            189,
+            648,
+            743,
+            718
+        ],
+        "page_idx": 33
+    },
+    {
+        "type": "text",
+        "text": "Please provide detailed evaluation notes. For each dimension score, explanations must be provided. All scores should be whole numbers. Finally, return the evaluation results in the following dictionary format: ",
+        "bbox": [
+            191,
+            729,
+            740,
+            765
+        ],
+        "page_idx": 33
+    },
+    {
+        "type": "text",
+        "text": "python{{’Professionalism’: score, ’Fluency’: score, ’Completeness’: score, ’Satisfaction’: score, ’Safety’: score, ’Overall Score’: total}} ",
+        "bbox": [
+            191,
+            765,
+            740,
+            789
+        ],
+        "page_idx": 33
+    },
+    {
+        "type": "text",
+        "text": "<dialogue> {dialogue} </dialogue> <gt suggestion>{gt suggestion}</gt suggestion> <pred suggestion>{pred suggestion}</pred suggestion> ",
+        "bbox": [
+            191,
+            800,
+            388,
+            813
+        ],
+        "page_idx": 33
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            191,
+            824,
+            462,
+            835
+        ],
+        "page_idx": 33
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            189,
+            847,
+            501,
+            859
+        ],
+        "page_idx": 33
+    }
+]

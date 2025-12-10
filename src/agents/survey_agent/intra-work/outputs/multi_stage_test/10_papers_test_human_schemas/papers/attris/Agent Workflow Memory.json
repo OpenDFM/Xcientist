@@ -1,0 +1,201 @@
+{
+    "extraction": {
+        "title": {
+            "value": "AGENT WORKFLOW MEMORY",
+            "type": "string",
+            "unit": null,
+            "evidence": "AGENT WORKFLOW MEMORY",
+            "provenance": {
+                "section_header": "Title",
+                "page": null
+            },
+            "notes": ""
+        },
+        "source_code_url": {
+            "value": "https://github.com/zorazrw/agent-workflow-memory",
+            "type": "string",
+            "unit": null,
+            "evidence": "https://github.com/zorazrw/agent-workflow-memory",
+            "provenance": {
+                "section_header": "Abstract",
+                "page": 1
+            },
+            "notes": "Link to the source code repository."
+        },
+        "background": {
+            "limitations": {
+                "value": "Current methods still struggle with long-horizon tasks with complex action trajectories.",
+                "type": "string",
+                "unit": null,
+                "evidence": "current methods still struggle with long-horizon tasks with complex action trajectories.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "existing_research_gap": {
+                "value": "Agents do not learn from past successes and failures, and are therefore unable to adapt over time.",
+                "type": "string",
+                "unit": null,
+                "evidence": "they do not learn from past successes and failures, and are therefore unable to adapt over time.",
+                "provenance": {
+                    "section_header": "1 INTRODUCTION",
+                    "page": 2
+                },
+                "notes": ""
+            },
+            "proposed_solution": {
+                "value": "Agent Workflow Memory (AWM), a method for inducing commonly reused routines, i.e., workflows.",
+                "type": "string",
+                "unit": null,
+                "evidence": "we introduce Agent Workflow Memory (AWM), a method for inducing commonly reused routines, i.e., workflows.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            }
+        },
+        "methods": {
+            "learning_mechanism": {
+                "value": "AWM induces workflows from agent trajectories by extracting reusable routines.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AWM induces workflows from agent trajectories by extracting reusable routines.",
+                "provenance": {
+                    "section_header": "2 AGENT WORKFLOW MEMORY",
+                    "page": 2
+                },
+                "notes": ""
+            },
+            "workflow_process": {
+                "value": "AWM allows agents to continuously induce and apply workflows to improve performance.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AWM enables agents to continuously induce and apply workflows to improve performance.",
+                "provenance": {
+                    "section_header": "1 INTRODUCTION",
+                    "page": 2
+                },
+                "notes": ""
+            },
+            "usage_modes": {
+                "value": "AWM operates in both offline and online scenarios.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AWM readily operates in both offline and online scenarios.",
+                "provenance": {
+                    "section_header": "1 INTRODUCTION",
+                    "page": 2
+                },
+                "notes": ""
+            }
+        },
+        "experiments": {
+            "datasets": {
+                "value": "Mind2Web and WebArena, covering 1000+ tasks from 200+ domains.",
+                "type": "string",
+                "unit": null,
+                "evidence": "we experiment on two major web navigation benchmarks \u2014 Mind2Web and WebArena \u2014 that collectively cover $1 0 0 0 +$ tasks from $^ { 2 0 0 + }$ domains.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "results": {
+                "value": "AWM improves the baseline results by 24.6% and 51.1% relative success rate on Mind2Web and WebArena.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AWM substantially improves the baseline results by $2 4 . 6 \\%$ and $5 1 . 1 \\%$ relative success rate on Mind2Web and WebArena.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            }
+        },
+        "key_findings": {
+            "few_shot_learning": {
+                "value": "AWM enables rapid learning from a small amount of data.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AWM enables rapid learning from a small amount of data, i.e., about 40 queries.",
+                "provenance": {
+                    "section_header": "3.1.2 EFFICIENT LEARNING FROM SMALL AMOUNTS OF DATA",
+                    "page": 5
+                },
+                "notes": ""
+            },
+            "composability": {
+                "value": "AWM allows building increasingly complex workflows over time.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AWM builds increasingly complex workflows over time, by learning from past examples and earlier workflows.",
+                "provenance": {
+                    "section_header": "3.1.3 CROSS-TEMPLATE WORKFLOW GENERALIZATION",
+                    "page": 6
+                },
+                "notes": ""
+            },
+            "adaptability": {
+                "value": "AWM robustly generalizes in cross-task, website, and domain evaluations.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AWM robustly generalizes in cross-task, website, and domain evaluations.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "interpretability": {
+                "value": "AWM provides natural language explanations and action trajectories.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AWM provides natural language explanations and action trajectories.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "generalization_insight": {
+                "value": "AWM shows superior generalization across tasks, websites, and domains.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Both results show the superior generalization of AWM across tasks, websites, and domains.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            }
+        },
+        "conclusions": {
+            "summary": {
+                "value": "AWM achieves significant improvements in task success and generalization abilities.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We propose agent workflow memory that induces, augments, and uses workflows, offline from available examples or purely online at inference time.",
+                "provenance": {
+                    "section_header": "7 CONCLUSION",
+                    "page": 12
+                },
+                "notes": ""
+            },
+            "implications": {
+                "value": "AWM sheds insight on and boosts advances in dynamic memory building and agent adaptations.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We hope AWM sheds insight on and boosts advances in dynamic memory building and agent adaptations on varied digital tasks.",
+                "provenance": {
+                    "section_header": "7 CONCLUSION",
+                    "page": 12
+                },
+                "notes": ""
+            }
+        }
+    }
+}

@@ -1,0 +1,274 @@
+{
+  "extraction": {
+    "background_and_motivation": {
+      "research_problem": {
+        "value": "The paper addresses the challenge of utilizing high-quality dense rewards for reinforcement learning (RL) of large language models (LLMs) to improve training efficiency and credit assignment, which are typically limited by sparse outcome rewards.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Dense process rewards have proven a more effective alternative to the sparse outcome-level rewards in the inference-time scaling of large language models (LLMs), particularly in tasks requiring complex multi-step reasoning.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": null
+        },
+        "notes": "The focus is on enhancing RL for LLMs using dense rewards.",
+        "human_alignment_score": 0
+      },
+      "current_limitations": {
+        "value": "Existing methods face challenges in training process reward models (PRMs) online due to the high cost of collecting process labels and vulnerability to reward hacking.",
+        "type": "string",
+        "unit": null,
+        "evidence": "This can be primarily attributed to the challenges of training process reward models (PRMs) online, where collecting high-quality process labels is prohibitively expensive, making them particularly vulnerable to reward hacking.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": null
+        },
+        "notes": "High cost and vulnerability are key limitations.",
+        "human_alignment_score": 0
+      },
+      "key_challenges": {
+        "value": "The key challenges include defining process rewards, scalability of PRM online updates, and the extra cost of explicit reward modeling.",
+        "type": "string",
+        "unit": null,
+        "evidence": "C1. Process rewards are hard to define... C2. PRM online updates are not scalable... C3. Explicit reward modeling brings extra cost.",
+        "provenance": {
+          "section_header": "Key Challenges in Scalable Dense Rewards",
+          "page": null
+        },
+        "notes": "Challenges are mainly technical and cost-related.",
+        "human_alignment_score": 0
+      }
+    },
+    "core_concept": {
+      "main_idea": {
+        "value": "PRIME leverages implicit process rewards to enable scalable online updates of PRMs using only outcome labels, integrating dense rewards with outcome rewards for efficient RL.",
+        "type": "string",
+        "unit": null,
+        "evidence": "PRIME is illustrated in Figure 2 and Algorithm 1. Next, we will detail the implicit process rewards (§3.1) and how we leverage them to calculate advantages (§3.2), and introduce other techniques we used (§3.3).",
+        "provenance": {
+          "section_header": "PRIME",
+          "page": null
+        },
+        "notes": "Implicit rewards are key to scalability and efficiency.",
+        "human_alignment_score": 0
+      },
+      "inspiration_source": {
+        "value": "The design is inspired by the need to address reward hacking and overoptimization in RL by utilizing implicit rewards derived from outcome labels.",
+        "type": "string",
+        "unit": null,
+        "evidence": "The key insight of PRIME is to apply implicit process rewards, which are derivable from the Implicit PRM that is trained with only outcome labels.",
+        "provenance": {
+          "section_header": "PRIME",
+          "page": null
+        },
+        "notes": "Implicit rewards offer a solution to reward hacking.",
+        "human_alignment_score": 0
+      }
+    },
+    "technical_approach": {
+      "implicit_prm": {
+        "objective": {
+          "value": "The objective of the implicit PRM is to enable scalable online updates of reward models using outcome labels, thereby mitigating reward hacking and improving RL efficiency.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Implicit PRM enables training an ORM with outcome labels only while repurposing it as a PRM at inference.",
+          "provenance": {
+            "section_header": "Implicit Reward Modeling",
+            "page": null
+          },
+          "notes": "Focus on scalability and efficiency.",
+          "human_alignment_score": 0
+        },
+        "method": {
+          "value": "Implicit PRM uses outcome labels to train ORMs, repurposing them as PRMs at inference using a specific reward representation based on log probabilities.",
+          "type": "string",
+          "unit": null,
+          "evidence": "The training stage is the same as standard ORM pipelines, with the only difference being representing the reward as rϕ(y) := β log πϕ(y)πref(y).",
+          "provenance": {
+            "section_header": "Implicit Reward Modeling",
+            "page": null
+          },
+          "notes": "Uses log probabilities for reward representation.",
+          "human_alignment_score": 0
+        },
+        "reward_calculation": {
+          "value": "Rewards are calculated using the formula rϕ(yt) := β log πϕ(yt|y<t)/πref(yt|y<t), leveraging the reference model and implicit PRM.",
+          "type": "string",
+          "unit": null,
+          "evidence": "At inference, the process rewards are obtained by: rϕ(yt) := β log πϕ(yt|y<t)/πref(yt|y<t).",
+          "provenance": {
+            "section_header": "Implicit Reward Modeling",
+            "page": null
+          },
+          "notes": "Formula uses log probabilities for token-level rewards.",
+          "human_alignment_score": 0
+        },
+        "training_objective": {
+          "value": "The training objective is to update the implicit PRM online using cross-entropy loss on outcome labels, ensuring efficient and scalable reward updates.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Update Implicit PRM πϕ by CE loss on (x, y, ro(y)) ∈ T.",
+          "provenance": {
+            "section_header": "Algorithm 1",
+            "page": null
+          },
+          "notes": "Cross-entropy loss is used for training.",
+          "human_alignment_score": 0
+        }
+      },
+      "prime_algorithm": {
+        "workflow": {
+          "value": "PRIME initializes policy and implicit PRM from a reference model, samples responses, computes rewards, applies filters, and updates PRM and policy using cross-entropy and PPO losses.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Figure 2: Illustration of PRIME. PRIME follows that (1) initialize policy model and the Implicit PRM both with the reference model...",
+          "provenance": {
+            "section_header": "PRIME",
+            "page": null
+          },
+          "notes": "Workflow integrates sampling, reward calculation, and updates.",
+          "human_alignment_score": 0
+        },
+        "key_techniques": {
+          "value": "Key techniques include implicit process reward modeling, online PRM updates, leave-one-out advantage estimation, and PPO clip surrogate loss for policy updates.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Updating policy with PPO clip surrogate loss. We adopt PPO clip surrogate loss for more stable policy updates.",
+          "provenance": {
+            "section_header": "Advantage Estimation and Policy Update",
+            "page": null
+          },
+          "notes": "Techniques focus on stability and efficiency.",
+          "human_alignment_score": 0
+        },
+        "inference_enhancement": {
+          "value": "Enhancements during inference include token-level dense rewards and integration with outcome rewards to improve advantage estimation and mitigate reward hacking.",
+          "type": "string",
+          "unit": null,
+          "evidence": "PRIME adopts implicit process rewards for efficient PRM online update (C2), then integrates token-level dense rewards with outcome rewards in MC advantage estimate (C1).",
+          "provenance": {
+            "section_header": "Other Techniques",
+            "page": null
+          },
+          "notes": "Focus on dense rewards integration.",
+          "human_alignment_score": 0
+        }
+      }
+    },
+    "experiments_and_results": {
+      "experimental_setup": {
+        "value": "Experiments were conducted using Qwen2.5-Math-7B-Base, with PRIME trained after a lightweight SFT warmup stage. Evaluation was on math and coding benchmarks using open-source datasets.",
+        "type": "string",
+        "unit": null,
+        "evidence": "In experiments, we train Qwen2.5-Math-7B-Base (Yang et al., 2024b) with PRIME after a lightweight SFT warmup stage.",
+        "provenance": {
+          "section_header": "Experiments",
+          "page": null
+        },
+        "notes": "Setup includes SFT warmup and evaluation on benchmarks.",
+        "human_alignment_score": 0
+      },
+      "key_results": {
+        "algorithm_effectiveness": {
+          "value": "PRIME achieved a 2.5x sample efficiency gain and a 6.9% performance improvement on challenging math problems, surpassing several benchmarks.",
+          "type": "string",
+          "unit": null,
+          "evidence": "PRIME achieves a 2.5x sample efficiency gain and a 6.9% performance improvements on challenging math problems.",
+          "provenance": {
+            "section_header": "Introduction",
+            "page": null
+          },
+          "notes": "Significant improvements in efficiency and performance.",
+          "human_alignment_score": 0
+        },
+        "acceleration_effect": {
+          "value": "PRIME accelerates training by reducing the number of steps required to achieve similar rewards compared to sparse reward setups.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Compared with sparse reward, PRIME takes 40% of the training steps to achieve the same training rewards as RLOO.",
+          "provenance": {
+            "section_header": "Dense Rewards vs. Sparse Rewards",
+            "page": null
+          },
+          "notes": "Training is accelerated with dense rewards.",
+          "human_alignment_score": 0
+        },
+        "online_prm_importance": {
+          "value": "Online PRM updates are crucial for preventing overoptimization and reward hacking, leading to improved accuracy and performance.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Online PRM update is essential. To verify the effect of online PRM update, we pair the correct and wrong samples and calculate the PRM prediction accuracy.",
+          "provenance": {
+            "section_header": "Design Choices for the Implicit PRM",
+            "page": null
+          },
+          "notes": "Online updates mitigate reward hacking.",
+          "human_alignment_score": 0
+        },
+        "inference_scaling_effect": {
+          "value": "PRIME's inference scaling effect allows for efficient integration of dense rewards, enhancing reasoning capabilities across benchmarks.",
+          "type": "string",
+          "unit": null,
+          "evidence": "PRIME achieves substantial improvements on key reasoning benchmarks over the SFT version of the model.",
+          "provenance": {
+            "section_header": "Main Results",
+            "page": null
+          },
+          "notes": "Scaling effect enhances reasoning capabilities.",
+          "human_alignment_score": 0
+        }
+      }
+    },
+    "conclusions": {
+      "main_findings": {
+        "value": "PRIME significantly enhances sample efficiency and policy performance with dense rewards, providing a scalable and general method compatible with various RL algorithms.",
+        "type": "string",
+        "unit": null,
+        "evidence": "This work develops PRIME, which produces and leverages dense rewards in online RL for LLM reasoning. Throughout the experiments, we validate that PRIME (1) greatly benefits sample efficiency and policy performance, (2) is easy to use with minimum cost, and (3) is a general method that works with broad RL algorithms together.",
+        "provenance": {
+          "section_header": "Conclusion",
+          "page": null
+        },
+        "notes": "PRIME is scalable and versatile across RL algorithms.",
+        "human_alignment_score": 0
+      }
+    },
+    "contributions": {
+      "technical_contributions": {
+        "value": "PRIME introduces implicit process rewards that enable efficient online updates of PRMs, eliminating the need for dedicated reward modeling stages.",
+        "type": "string",
+        "unit": null,
+        "evidence": "PRIME eliminates the dedicated reward modeling stage, which is required by existing works, by simply initializing from the SFT model or even the base model.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": null
+        },
+        "notes": "Implicit rewards streamline the reward modeling process.",
+        "human_alignment_score": 0
+      },
+      "practical_contributions": {
+        "value": "PRIME enhances resource efficiency by achieving significant performance improvements with a fraction of the data typically required by other models.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Notably, this is achieved with only 10% of the data used by Qwen-Math.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": null
+        },
+        "notes": "Data efficiency is a key practical contribution.",
+        "human_alignment_score": 1
+      },
+      "community_contributions": {
+        "value": "PRIME's open-source implementation and findings provide valuable insights for subsequent research in RL for LLMs, promoting further exploration and development.",
+        "type": "string",
+        "unit": null,
+        "evidence": "https://github.com/PRIME-RL/PRIME",
+        "provenance": {
+          "section_header": "Authors",
+          "page": null
+        },
+        "notes": "Open-source availability encourages community engagement.",
+        "human_alignment_score": 0
+      }
+    }
+  }
+}

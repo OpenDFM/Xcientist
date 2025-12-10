@@ -1,0 +1,179 @@
+{
+    "extraction": {
+        "title": {
+            "value": "Checklists Are Better Than Reward Models For Aligning Language Models",
+            "type": "string",
+            "unit": null,
+            "evidence": "Checklists Are Better Than Reward Models For Aligning Language Models",
+            "provenance": {
+                "section_header": "Title",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "source_link": {
+            "value": null,
+            "type": "string",
+            "unit": null,
+            "evidence": null,
+            "provenance": {
+                "section_header": null,
+                "page": null
+            },
+            "notes": "No source link provided in the paper."
+        },
+        "introduction": {
+            "core_problem": {
+                "value": "Existing reinforcement learning methods for language models often rely on rigid and potentially misleading reward models, which can lead to suboptimal instruction following.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Unlike 'verifiable' tasks where reinforcement learning is a workhorse, reinforcement learning remains difficult to utilize for ambiguous or 'non-verifiable' tasks, such as instruction following.",
+                "provenance": {
+                    "section_header": "1 Introduction",
+                    "page": 2
+                },
+                "notes": ""
+            },
+            "research_motivation": {
+                "value": "To enhance instruction-following capabilities of language models by developing a more flexible and effective reinforcement learning approach that utilizes checklist feedback.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We ask: 'how can we grade responses to instructions in a manner that is automatic, flexible, intuitive, and applicable to any instruction or response, to enable more effective use of RL in language model alignment?'",
+                "provenance": {
+                    "section_header": "1 Introduction",
+                    "page": 3
+                },
+                "notes": ""
+            },
+            "innovation_summary": {
+                "value": "The paper introduces Reinforcement Learning from Checklist Feedback (RLCF), a novel method that automatically generates checklists from instructions to create flexible and dynamic evaluation criteria for language model responses.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We propose extracting dynamic checklists from instructions \u2013 an approach we term Reinforcement Learning from Checklist Feedback (RLCF).",
+                "provenance": {
+                    "section_header": "1 Introduction",
+                    "page": 3
+                },
+                "notes": ""
+            }
+        },
+        "methods": {
+            "checklist_extraction_methods": {
+                "direct_method": {
+                    "value": "Prompting a language model (LM) to extract a checklist directly from a given instruction.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "We simply prompt an LM to extract a checklist from a given instruction.",
+                    "provenance": {
+                        "section_header": "2 Checklist Generation",
+                        "page": 5
+                    },
+                    "notes": ""
+                },
+                "candidate_method": {
+                    "value": "Generating candidate responses of varying quality and prompting an LM to write a checklist of all their possible failure modes.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "We propose a two-stage approach: produce responses of varying quality, then prompt an LM to write a checklist of all their possible failure modes.",
+                    "provenance": {
+                        "section_header": "2 Checklist Generation",
+                        "page": 5
+                    },
+                    "notes": ""
+                },
+                "dataset_construction": {
+                    "value": "The WildChecklists dataset was constructed with 130,000 instructions and corresponding checklists, generated synthetically from WildChat.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "We construct WildChecklists, a dataset consisting of 130,000 instructions and corresponding checklists (generated synthetically).",
+                    "provenance": {
+                        "section_header": "1 Introduction",
+                        "page": 3
+                    },
+                    "notes": "Dataset will be released for future study."
+                }
+            },
+            "rlcf_principle": {
+                "value": "RLCF uses checklist-based feedback to generate rewards for reinforcement learning, which are aligned with specific user instructions and response quality.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We propose 'Reinforcement Learning from Checklist Feedback' (RLCF). From instructions, we extract checklists and evaluate how well responses satisfy each item.",
+                "provenance": {
+                    "section_header": "1 Introduction",
+                    "page": 2
+                },
+                "notes": ""
+            },
+            "evaluation_mechanism": {
+                "value": "A combination of AI judges and verification programs is utilized to score responses based on checklist items, providing a dynamic and robust evaluation mechanism.",
+                "type": "string",
+                "unit": null,
+                "evidence": "For each checklist item, the judge model generates a numerical score between 0 and 100.",
+                "provenance": {
+                    "section_header": "3 Reinforcement Learning from Checklist Feedback",
+                    "page": 8
+                },
+                "notes": ""
+            }
+        },
+        "experiments": {
+            "test_datasets": {
+                "value": "The experiments utilized five benchmarks: IFEval, InFoBench, FollowBench, AlpacaEval, and Arena-Hard.",
+                "type": "string",
+                "unit": null,
+                "evidence": "On 5 benchmarks covering both constrained instruction-following and general conversational assistance, we find that RLCF provides benefits on all instruction following benchmarks.",
+                "provenance": {
+                    "section_header": "4 Experimental Setup and Results",
+                    "page": 9
+                },
+                "notes": ""
+            },
+            "performance_improvements": {
+                "value": "RLCF improved performance on all benchmarks, with notable gains including a 4-point boost on FollowBench and a 6-point increase on InFoBench.",
+                "type": "string",
+                "unit": null,
+                "evidence": "RLCF is the only method to improve performance on every benchmark, including a 4-point boost in hard satisfaction rate on FollowBench.",
+                "provenance": {
+                    "section_header": "1 Introduction",
+                    "page": 2
+                },
+                "notes": ""
+            },
+            "checklist_quality_comparison": {
+                "value": "RLCF outperforms traditional reward models, showing better correlation with human preferences and leading to significant improvements in instruction following.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Checklist-based rewards are well-correlated to human preference judgments while providing a stronger learning signal than alternatives.",
+                "provenance": {
+                    "section_header": "1 Introduction",
+                    "page": 3
+                },
+                "notes": ""
+            }
+        },
+        "conclusions": {
+            "limitations": {
+                "value": "RLCF relies on a larger teacher model for grading, which is computationally expensive and may not be feasible for all practitioners.",
+                "type": "string",
+                "unit": null,
+                "evidence": "The AI judge method we describe is computationally expensive \u2013 grading response pairs on each requirement for 130k instructions takes roughly 4 days on eight H100 GPUs.",
+                "provenance": {
+                    "section_header": "7 Limitations",
+                    "page": 14
+                },
+                "notes": ""
+            },
+            "future_directions": {
+                "value": "Future research could explore combining checklist feedback with trainable judges to enhance the flexibility and effectiveness of language model alignment.",
+                "type": "string",
+                "unit": null,
+                "evidence": "One exciting future direction to emerge from this work is: how can we combine checklist-style feedback with trainable judges?",
+                "provenance": {
+                    "section_header": "8 Conclusion",
+                    "page": 16
+                },
+                "notes": ""
+            }
+        }
+    }
+}

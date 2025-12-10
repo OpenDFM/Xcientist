@@ -1,0 +1,124 @@
+{
+    "schema_proposal": {
+      "title": {
+        "data_type": "string",
+        "description": "论文标题和会议信息",
+        "rationale": "标识论文的核心主题和发表场合"
+      },
+      "source_code_url": {
+        "data_type": "string",
+        "description": "源代码仓库链接",
+        "rationale": "提供开源实现的访问地址"
+      },
+      "background": {
+        "data_type": "object",
+        "description": "研究背景和问题陈述",
+        "rationale": "理解研究的动机和现有方法的局限性",
+        "sub_keys": {
+          "limitations": {
+            "data_type": "string",
+            "description": "当前方法局限性",
+            "rationale": "记录现有智能体在复杂任务中的挑战"
+          },
+          "existing_research_gap": {
+            "data_type": "string",
+            "description": "研究空白",
+            "rationale": "提取现有方法缺乏抽象理解的问题"
+          },
+          "proposed_solution": {
+            "data_type": "string",
+            "description": "提出的解决方案",
+            "rationale": "记录AWM方法的核心目标和优势"
+          }
+        }
+      },
+      "methods": {
+        "data_type": "object",
+        "description": "核心方法AWM的详细描述",
+        "rationale": "记录方法的工作原理和关键创新",
+        "sub_keys": {
+          "learning_mechanism": {
+            "data_type": "string",
+            "description": "学习机制",
+            "rationale": "提取AWM模仿人类学习的方式"
+          },
+          "workflow_process": {
+            "data_type": "string",
+            "description": "工作流程",
+            "rationale": "记录归纳、存储、应用的具体过程"
+          },
+          "usage_modes": {
+            "data_type": "string",
+            "description": "使用模式",
+            "rationale": "提取离线和在线两种运行模式"
+          }
+        }
+      },
+      "experiments": {
+        "data_type": "object",
+        "description": "实验评估和结果",
+        "rationale": "记录数据集、基准测试和性能表现",
+        "sub_keys": {
+          "datasets": {
+            "data_type": "string",
+            "description": "数据集信息",
+            "rationale": "记录使用的基准数据集及其特点"
+          },
+          "results": {
+            "data_type": "string",
+            "description": "性能结果",
+            "rationale": "提取在数据集上的具体性能提升"
+          }
+        }
+      },
+      "key_findings": {
+        "data_type": "object",
+        "description": "实验亮点和关键发现",
+        "rationale": "记录方法的优势和独特特性",
+        "sub_keys": {
+          "few_shot_learning": {
+            "data_type": "string",
+            "description": "小样本学习能力",
+            "rationale": "记录快速归纳工作流的能力"
+          },
+          "composability": {
+            "data_type": "string",
+            "description": "可组合性",
+            "rationale": "提取工作流拼接构建复杂任务的能力"
+          },
+          "adaptability": {
+            "data_type": "string",
+            "description": "广泛适应性",
+            "rationale": "记录跨领域和跨网站的泛化性能"
+          },
+          "interpretability": {
+            "data_type": "string",
+            "description": "可解释性",
+            "rationale": "提取自然语言说明和轨迹的优势"
+          },
+          "generalization_insight": {
+            "data_type": "string",
+            "description": "泛化洞察",
+            "rationale": "记录抽象学习优于具体示例的发现"
+          }
+        }
+      },
+      "conclusions": {
+        "data_type": "object",
+        "description": "研究结论和意义",
+        "rationale": "总结方法的核心贡献和未来影响",
+        "sub_keys": {
+          "summary": {
+            "data_type": "string",
+            "description": "总结",
+            "rationale": "记录方法的核心理念突破"
+          },
+          "implications": {
+            "data_type": "string",
+            "description": "启示",
+            "rationale": "提取对未来智能体研究的指导意义"
+          }
+        }
+      }
+    }
+  }

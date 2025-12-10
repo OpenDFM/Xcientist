@@ -1,0 +1,1228 @@
+[
+    {
+        "type": "text",
+        "text": "Legal Evalutions and Challenges of Large Language Models ",
+        "text_level": 1,
+        "bbox": [
+            80,
+            70,
+            918,
+            136
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Jiaqi Wang∗, Huan Zhao∗, Zhenyuan Yang, Peng Shu, Junhao Chen, Haobo Sun, Ruixi Liang, Shixin Li, Pengcheng Shi, Longjun Ma, Zongjia Liu, Zhengliang Liu, Tianyang Zhong, Yutong Zhang, Chong Ma, Xin Zhang, Tuo Zhang, Tianli Ding, Yudan Ren, Tianming Liu†, Xi Jiang†, Shu Zhang† ",
+        "bbox": [
+            96,
+            147,
+            901,
+            198
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Abstract—In this paper, we review legal testing methods based on Large Language Models (LLMs), using the OPENAI o1 model as a case study to evaluate the performance of large models in applying legal provisions. We compare current state-of-the-art LLMs, including open-source, closed-source, and legal-specific models trained specifically for the legal domain. Systematic tests are conducted on English and Chinese legal cases, and the results are analyzed in depth. Through systematic testing of legal cases from common law systems and China, this paper explores the strengths and weaknesses of LLMs in understanding and applying legal texts, reasoning through legal issues, and predicting judgments. The experimental results highlight both the potential and limitations of LLMs in legal applications, particularly in terms of challenges related to the interpretation of legal language and the accuracy of legal reasoning. Finally, the paper provides a comprehensive analysis of the advantages and disadvantages of various types of models, offering valuable insights and references for the future application of AI in the legal field. ",
+        "bbox": [
+            78,
+            252,
+            490,
+            491
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Index Terms—Legal, LLMs, Legal AI, Legal Testing ",
+        "bbox": [
+            94,
+            497,
+            431,
+            511
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "I. INTRODUCTION ",
+        "text_level": 1,
+        "bbox": [
+            220,
+            535,
+            348,
+            549
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "In recent years, the breakthrough of deep learning technology in natural language processing (NLP), particularly the rapid advancement of Transformer technology, has led to the flourishing of LLMs [1]. Models like OpenAI’s GPT series have demonstrated exceptional capabilities in NLP, excelling not only in traditional NLP tasks such as machine translation and Question Answering, but also in some multimodal tasks, such as image-to-text translation, speech recognition, and subtitle generation [2], [3], [4], [5]. These models are capable of accurately understanding relationships between various data forms and enabling cross-modal information transformation, significantly enhancing automation and efficiency across these fields. ",
+        "bbox": [
+            78,
+            556,
+            490,
+            751
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "In the legal field, LLMs are seen as a transformative force with the potential to revolutionize traditional legal services, owing to their comprehensive legal knowledge base and exceptional capabilities in natural language understanding and generation [6]. Some studies have explored the application of LLMs in the analysis and generation of legal texts, evaluating their performance in tasks such as legal reasoning, case retrieval, and legal question answering, and investigating their potential to improve the efficiency and accuracy of legal work [7]. Meanwhile, other researchers have focused on developing LLMs specifically tailored for legal domains, enabling these models to better understand legal terminology, apply legal provisions accurately, and adapt to the nuances of different legal systems. This specialization aims to increase the practical value of LLMs in legal practice [8], [9], [10]. However, effectively evaluating the performance of LLMs across various legal systems and linguistic environments remains a significant challenge. Additionally, addressing the technical and ethical concerns associated with their application is an urgent issue that requires further attention and resolution. ",
+        "bbox": [
+            78,
+            753,
+            490,
+            827
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            508,
+            251,
+            919,
+            474
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "The application of LLMs in the legal field also faces numerous challenges and issues. First, legal language is highly specialized and precise, making it crucial to ensure the accuracy and legality of the content generated by these models [11], [12]. Second, LLMs may absorb biases and inaccuracies from their training data, which can have serious repercussions when applied in the legal context [13], [14], [15]. Additionally, the automation of legal decision-making processes could lead to ethical concerns and disputes over legal accountability [16], [17]. ",
+        "bbox": [
+            508,
+            477,
+            919,
+            627
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "As shown in Fig 1 Based on this background, this work aims to provide a comprehensive overview of the performance of LLMs in the legal field, offering valuable insights for both the academic community and legal practitioners. The study is structured as follows: ",
+        "bbox": [
+            508,
+            628,
+            919,
+            702
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Section 1: This Section explains the background, purpose, and significance of the study, outlining the motivations and objectives behind the research. ",
+        "bbox": [
+            508,
+            704,
+            919,
+            747
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Section 2: This Section provides a detailed analysis of legislation related to large models on a global scale, exploring the similarities and differences in policies and regulations across various countries. ",
+        "bbox": [
+            508,
+            748,
+            919,
+            808
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Section 3: The focus is on models specifically tailored to the legal domain, examining their technical features and evaluating their potential applications in legal practice. ",
+        "bbox": [
+            508,
+            809,
+            919,
+            853
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Section 4: This Section presents a comprehensive assessment of the models discussed in Section 3 using thirteen Chinese and thirteen English legal cases. The cases were selected to include a complete set of four components: judgment, background, analysis and conclusion. The Section systematically evaluates the performance and applicability of each model through a comparative analysis of results and quantitative metrics. ",
+        "bbox": [
+            508,
+            854,
+            918,
+            944
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/4fb615fbf78a316f69cc645c544196a18098504774f7165c28fbd2fd5b199e78.jpg",
+        "image_caption": [
+            "Fig. 1. Overview of the study "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            80,
+            69,
+            926,
+            296
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            78,
+            357,
+            488,
+            386
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Section 5: This Section discusses key issues related to the use of LLMs in the legal field, including data privacy, legal liability, ethical considerations, and technical limitations. ",
+        "bbox": [
+            78,
+            388,
+            488,
+            431
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Section 6: The final Section summarizes the findings of the study and provides an outlook on future research directions. ",
+        "bbox": [
+            76,
+            434,
+            490,
+            463
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Through this study, we aim to provide in-depth insights into the application of LLMs in the legal area, fostering their rational and sustainable integration into legal practice. This will not only contribute to improving the efficiency and quality of legal services but also lay a solid foundation for future innovations in legal technology. ",
+        "bbox": [
+            78,
+            464,
+            490,
+            554
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "II. REVIEW OF LLMS IN THE LEGAL FIELD ",
+        "text_level": 1,
+        "bbox": [
+            135,
+            575,
+            433,
+            589
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "The rapid advancement of LLMs has catalyzed significant breakthroughs in NLP and across sectors like medical healthcare [18], [19], [20], education [21], [22], [23]. Encouraged by these successes, researchers are increasingly exploring LLM applications in the legal domain. LLMs hold substantial potential to assist legal professionals in tasks such as summarization, drafting (e.g., contract clauses or initial document drafts), and legal research [24]. Summarization tasks can range from generating concise contract summaries [25], summarizing complex litigation filings in case dockets [26], to producing automatic summaries of judicial opinions [27]. In drafting, LLMs can review and suggest language improvements in documents and contracts [28], as well as enrich drafting options [29]—for example, modifying clauses to switch between singular and plural forms or appending additional elements [29]. Legal research applications leverage LLMs to provide plain language responses to legal queries, synthesizing case law and offering clear, accessible answers to intricate legal questions, including those related to securities law [30]. Furthermore, LLMs can generate tailored research memoranda in response to specific queries [31] and facilitate the development of chatbots capable of answering questions on Supreme Court rulings. These capabilities underscore LLMs’ transformative role in enhancing efficiency, precision, and accessibility in legal practice. ",
+        "bbox": [
+            78,
+            598,
+            490,
+            943
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            508,
+            358,
+            918,
+            387
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Research has increasingly focused on assessing the capabilities of LLMs in the legal domain. For instance, [9] investigated the zero-shot performance of GPT-3.5 Turbo on the LexGLUE benchmark [32], utilizing a templated, instruction-based approach. Their findings indicate that while ChatGPT achieves an average micro-F1 score of $4 9 . 0 \\%$ across LexGLUE tasks—surpassing baseline guessing rates—it still demonstrates overall poor performance in legal text classification, suggesting limitations in handling nuanced legal language. ",
+        "bbox": [
+            508,
+            387,
+            919,
+            537
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Extending these evaluations, [33] examined the potential of LLMs for generating abstractive summaries of case judgements, applying both domain-specific and general-domain models to Indian court rulings. Their results indicate that while these models can generate coherent summaries, neither pretrained abstractive summarization models nor general-purpose LLMs are yet suitable for fully automated case judgement summarization, due to quality inconsistencies and domainspecific limitations. ",
+        "bbox": [
+            508,
+            537,
+            919,
+            672
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Similarly, [34] assessed GPT-4’s performance in generating precise, relevant explanations for legal terminology, specifically within legislation. Although initial impressions of GPT4’s output were favorable, closer analysis revealed inaccuracies, highlighting current limitations in factual precision within legal text generation. Further research on structured improvements may thus be needed before deploying LLMs for critical, domain-specific tasks like case summarization and legislative interpretation. ",
+        "bbox": [
+            508,
+            674,
+            919,
+            808
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "To explore broader capabilities, [35] leveraged the commonsense reasoning abilities of LLMs for zero-shot crime detection based on descriptive summaries of surveillance videos. Their study underscores that, given accurate textual descriptions, LLMs achieve state-of-the-art results in crime detection and classification through zero-shot reasoning. However, they identify that the accuracy of video-to-text conversion remains a significant obstacle to practical deployment. ",
+        "bbox": [
+            508,
+            809,
+            918,
+            929
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "These aforementioned models have been applied extensively to legal tasks. However, their performance is often constrained when relying on zero-shot settings, which limits their ability to fully leverage domain-specific knowledge. To address this limitation, various efforts have focused on developing advanced legal LLMs by utilizing large-scale legal data for continuous pre-training and supervised fine-tuning. ",
+        "bbox": [
+            522,
+            930,
+            918,
+            944
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            78,
+            69,
+            490,
+            159
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "For example, LAWGPT-zh is an open-source Chinese legal language model based on ChatGLM-6B and fine-tuned through 16-bit LoRA instruction. This model incorporates a substantial legal question-and-answer dataset, built from both legal articles and practical case studies, aimed at enhancing legal consultation capabilities [10]. Similarly, LAWGPT [8] represents one of the first open-source models tailored for Chinese legal applications, which leverages large-scale Chinese legal documents for domain-specific pre-training. This approach enables the model to incorporate legal knowledge and improve its performance across various downstream tasks by creating a knowledge-driven, supervised fine-tuning dataset. ",
+        "bbox": [
+            78,
+            161,
+            490,
+            340
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Other models such as Lawyer-LLama [36], [37] have also emerged, with a focus on mastering Chinese legal knowledge and providing accessible explanations for legal concepts. This model spans areas such as marriage, lending, maritime, and criminal law, aiming to deliver essential legal consultation. LexiLaw [38] is similarly based on ChatGLM-6B architecture but is fine-tuned specifically to enhance legal consultation and support through targeted legal datasets. ",
+        "bbox": [
+            78,
+            342,
+            490,
+            462
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "LexGPT 0.1 [39], developed using GPT-J and pre-trained with Pile of Law, allows legal professionals to customize LLMs for downstream legal tasks with minimal technical requirements. Meanwhile, ChatLaw [40] has been designed to reduce hallucination risks during legal data retrieval by combining vector database and keyword-based retrieval, thus improving the reliability of reference data. ",
+        "bbox": [
+            78,
+            463,
+            490,
+            568
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "DISC-LawLLM [41] takes a comprehensive approach by integrating legal syllogism-based reasoning to enhance its understanding of Chinese legal knowledge, while also incorporating a retrieval module to further support background knowledge adherence. KL3M [42], the Kelvin Legal LLM, represents a pioneering ”from-scratch” model for legal, regulatory, and financial applications in enterprise settings, built on clean, permissible data for enhanced utility and compliance. ",
+        "bbox": [
+            78,
+            569,
+            490,
+            688
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "In addition to these models, there are numerous other legal LLMs trained on extensive legal datasets [43], [44], [45], [46], each leveraging specialized pre-training and fine-tuning strategies to maximize their applicability and accuracy within legal contexts. These advancements illustrate the trajectory of LLM development in the legal domain, with increasing focus on domain-specific optimization, reduced hallucination, and reliable consultation capabilities. ",
+        "bbox": [
+            78,
+            689,
+            490,
+            809
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "III. OVERVIEW OF LEADING LANGUAGE MODELS ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            830,
+            452,
+            842
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "A. Overview of leading non-open source LLMs ",
+        "text_level": 1,
+        "bbox": [
+            76,
+            849,
+            397,
+            863
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "In recent years, with the advancement of computing power and the accumulation of massive amounts of data, LLMs have demonstrated immense potential in the field of artificial intelligence. They have made significant strides in various domains such as natural language processing and computer vision, capable of handling complex tasks like text generation, image recognition, and machine translation. Closed-source models like OpenAI’s GPT-4 [47], with their massive parameter counts and high-quality training data, have showcased exceptional abilities in understanding and generating human language, setting new benchmarks for AI technology. However, their capabilities in legal case adjudication remain to be explored. ",
+        "bbox": [
+            78,
+            869,
+            488,
+            944
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            508,
+            69,
+            919,
+            174
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "GPT-4[47] is the fourth iteration of the Generative Pretrained Transformer (GPT) series developed by OpenAI. With a colossal 1.8 trillion parameters, it significantly surpasses its predecessors. GPT-4 employs 16 mixed-expert models, each consisting of 1.11 trillion parameters. Trained on massive amounts of multimodal data, GPT-4 exhibits exceptional performance in tasks such as text generation and image understanding. Notably, GPT-4 possesses emergent abilities, enabling it to learn complex patterns from data without explicit programming, leading to more flexible and powerful task handling. GPT-4o, an optimized version of GPT-4, builds upon its predecessor’s strengths and introduces technical improvements to significantly enhance efficiency and cost-effectiveness in specific scenarios, making it more suitable for practical applications. ",
+        "bbox": [
+            508,
+            175,
+            919,
+            400
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Gemini, a multimodal LLM developed by Google AI, demonstrates exceptional performance in processing text, images, and other modalities. By directly mixing different modalities during pre-training, Gemini [48] establishes a deep understanding of the relationships between them. Gemini 1.5 further enhances its capabilities by supporting ultra-long contexts of up to millions of tokens. To improve efficiency and scalability, Gemini 1.5 [49] leverages a Mixture-of-Experts (MoE) architecture and is trained on Google’s TPU v5e chips. This design enables the model to handle complex tasks efficiently and accurately. Gemini represents a significant advancement in the field of AI, paving the way for new applications and possibilities. ",
+        "bbox": [
+            508,
+            401,
+            919,
+            595
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Claude 3.5 Sonnet[50], developed by Anthropic, is a powerful language model that strikes a balance between speed and performance. Positioned as an intermediate model in the Claude 3 series, it offers exceptional coding and visual processing capabilities while maintaining efficiency. With an ultra-long context window of 200K tokens, the model can handle complex and lengthy legal texts and has outperformed its peers in various benchmarks. Its unique ability to ”control a computer” gives it a distinct advantage in legal case analysis, enabling it to interact with computers like a human and process cases involving multimodal information such as images and diagrams. Moreover, the model has been carefully designed with security in mind, meeting the confidentiality requirements of legal case analysis. The emergence of Claude 3.5 Sonnet opens up new possibilities in legal AI, promising to play a significant role in legal text analysis, contract review, and case law retrieval. ",
+        "bbox": [
+            508,
+            598,
+            919,
+            853
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Yi-Large[51] is a LLM designed to handle multimodal data, including text and images. It incorporates Vision Transformer (ViT) and text encoders to achieve deep fusion of visual and textual features, enabling the model to understand and reason about multimodal information. With a context window of 200K tokens, Yi-Large can process long sequences effectively. To improve efficiency and performance, Yi-Large adopts grouped query attention and a three-stage training strategy. Experimental results show that Yi-Large outperforms state-of-the-art models on various multimodal tasks, including visual question answering and image generation. ",
+        "bbox": [
+            508,
+            854,
+            918,
+            944
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            78,
+            69,
+            488,
+            143
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "B. Overview of leading open source LLMs ",
+        "text_level": 1,
+        "bbox": [
+            80,
+            169,
+            364,
+            183
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "While closed-source models like OpenAI’s GPT-4 have demonstrated exceptional performance in the realm of LLMs, the contributions from the open-source community are equally noteworthy. Open-source LLMs, such as Meta’s Llama 3[52] and models from Mistral AI[53], have provided researchers and developers with vast opportunities for innovation due to their openness and accessibility. These models excel in various tasks including text generation and translation, and in some cases, their performance is on par with closed-source models. In the legal domain, open-source models have also shown immense potential. By learning from massive amounts of legal text, these models can provide strong support for legal research and practice. To thoroughly evaluate the application prospects of these models in the legal field, we have conducted in-depth research on the current mainstream open-source models. ",
+        "bbox": [
+            78,
+            189,
+            490,
+            415
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Meta’s newly released Llama 3 LLM[52] marks a significant advancement in the field of AI. Built upon the auto-regressive Transformer architecture, Llama 3 incorporates optimizations in tokenization, attention mechanisms, and other key components. Through techniques such as supervised fine-tuning and reinforcement learning from human feedback, Llama 3 has achieved notable improvements in both performance and safety. Capable of handling multiple languages, long-form text, and complex reasoning, Llama 3 excels in tasks ranging from mathematical problem-solving to legal text analysis. Its opensource nature fosters innovation by empowering developers to customize the model for specific applications. By demonstrating state-of-the-art performance across various benchmarks, Llama 3 solidifies Meta’s position as a leader in AI research. Moreover, Meta’s commitment to responsible AI development is exemplified by the safety measures integrated into Llama 3. With its potential to revolutionize fields such as legal research, contract analysis, and case law retrieval, Llama 3 represents a promising step forward in the evolution of LLMs. ",
+        "bbox": [
+            78,
+            415,
+            490,
+            702
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Mistral AI, a burgeoning AI startup founded by former employees of DeepMind and Meta, has made significant strides in the field of LLMs. Within a year of its inception, Mistral AI unveiled its inaugural model, Mistral 7B[53], which promptly outperformed all other open-source models of the same parameter scale. Remarkably, it even surpassed larger models, demonstrating superior performance in tasks such as reasoning, mathematics, and code generation. Subsequent iterations, including Mistral ${ } ^ { 8 \\mathrm { x } 7 \\mathrm { B } }$ and Mistral Large 240B, have continued to push the boundaries of LLM capabilities, closing the gap with industry benchmarks like GPT-4. These models leverage advanced techniques such as GQA, RoPE, and SWA to enhance their ability to process long texts, perform complex reasoning, and generate code. The rapid growth and exceptional performance of Mistral AI have garnered significant attention within the AI community. By pioneering innovative approaches to LLMs, Mistral AI is shaping the future of natural language processing. ",
+        "bbox": [
+            78,
+            704,
+            490,
+            943
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            508,
+            69,
+            918,
+            98
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Gemma[54] is an open-source family of models based on Google’s Gemini model, inheriting its strong generalization, understanding, and reasoning abilities. Trained on a massive dataset of up to 6 trillion tokens, the Gemma family achieves remarkable results in text generation, understanding, and reasoning. The series offers two model sizes, 7 billion and 20 billion parameters, to cater to various computational resources and application scenarios. Gemma 2[55], the latest addition to the series, adopts a decoder-only architecture and introduces several innovative techniques such as sliding window attention, soft-max, RMSNorm normalization, and grouped query attention, further enhancing the model’s performance and efficiency. These innovations enable Gemma 2 to handle longer context windows while maintaining powerful language capabilities and improving training stability. The open-source nature of the Gemma models provides researchers and developers with a powerful tool, driving advancements in natural language processing. ",
+        "bbox": [
+            508,
+            99,
+            919,
+            369
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Microsoft’s newly released open-source Phi-3.5 series[56] of AI models have achieved significant breakthroughs in performance and functionality. Among them, Phi-3.5-miniinstruct, designed for resource-constrained environments, excels in code generation and mathematical reasoning. Phi-3.5- MoE-instruct adopts a Mixture-of-Experts (MoE) architecture, ensuring efficient computation while handling complex tasks. Phi-3.5-vision-instruct combines text and image processing capabilities, demonstrating superior performance on multi-modal tasks. This model series has surpassed competing products in multiple benchmarks, setting new performance standards. ",
+        "bbox": [
+            508,
+            372,
+            919,
+            536
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Qwen2[57] is a family of LLMs encompassing a wide range of parameter sizes, from 0.5B to 72B. This series excels in multilingual support, handling extra-long contexts, and computational efficiency. Built upon the Transformer architecture, Qwen2 incorporates techniques such as SwiGLU activation, QKV bias, and a mixture of SWA and Full Attention to enhance performance. Supporting 29 languages including Chinese and English, the model can process up to 128K tokens. Additionally, all models in the Qwen2 series employ the Grouped Query Attention (GQA) mechanism to reduce computational complexity and improve efficiency. These features make Qwen2 highly suitable for natural language processing tasks that require multilingual support, long-text processing, and complex reasoning. ",
+        "bbox": [
+            508,
+            537,
+            919,
+            747
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "The GLM-4 series[58], developed by Zhipu AI, is a state-ofthe-art family of pre-trained language models, offering various parameter sizes to cater to diverse application needs. This series excels in multilingual support, extra-long context processing, and multi-modal capabilities. GLM-4-9B and its dialogue variant, GLM-4-9B-Chat, outperform their counterparts in semantics, mathematics, reasoning, coding, and knowledge. GLM-4-9B-Chat further offers advanced functionalities such as web browsing, code execution, and custom tool calling. To address the need for extremely long context processing, we have introduced GLM-4-9B-Chat-1M, which supports a context length of up to 1 million tokens. Additionally, GLM4V-9B, the multi-modal variant, demonstrates superior performance in bilingual (Chinese and English) multi-turn dialogue and image understanding, surpassing competitors including GPT-4-turbo. The open-source nature of the GLM-4 series makes it highly promising for both academic and industrial applications. ",
+        "bbox": [
+            508,
+            750,
+            919,
+            944
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            78,
+            69,
+            490,
+            143
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "C. Overview of legal-specific LLMs ",
+        "text_level": 1,
+        "bbox": [
+            81,
+            176,
+            318,
+            190
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The legal domain demands a high degree of specialization from its models. Beyond general-purpose LLMs, we have evaluated models specifically tailored for legal tasks. These models, fine-tuned on extensive legal corpora, exhibit superior capabilities in understanding legal concepts, conducting legal reasoning, and generating legal text. Evaluating these models not only helps us assess their potential applications in the legal field but also provides valuable insights for advancing the development of legal artificial intelligence. ",
+        "bbox": [
+            78,
+            200,
+            490,
+            335
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "LexNLP[59] is an open-source natural language processing toolkit specifically designed for legal text. It offers a comprehensive suite of text analysis capabilities, including text cleaning, tokenization, feature extraction, entity recognition, and text classification, enabling deep understanding of complex legal terminology and structures. Its modular design and flexible API allow users to customize functionalities based on their specific needs and seamlessly integrate it into various legal applications. LexNLP’s strength lies in its profound understanding of legal text and its efficient information extraction capabilities, making it a valuable tool for legal research, contract analysis, and regulatory compliance. ",
+        "bbox": [
+            78,
+            338,
+            490,
+            518
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Designed as a versatile legal language model, LawGPT[8] is fine-tuned on ChatGLM-6B LoRA 16-bit instructions and trained on a substantial corpus of Chinese legal text. The model has been enhanced with ChatGPT to refine and expand its training data, enabling it to provide comprehensive and accurate responses to complex legal inquiries. Moreover, LawGPT is being developed with a specialized legal knowledge base and a reliable self-instruction method to ensure the highest quality of legal advice. Distinguished by its exceptional performance in the Chinese legal domain, LawGPT offers a deeper understanding of Chinese legal nuances and provides more precise legal recommendations compared to other models. ",
+        "bbox": [
+            78,
+            521,
+            488,
+            715
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "ChatLaw[40] is a cutting-edge legal AI assistant that combines knowledge graphs, mixed expert models, and multiagent systems to provide comprehensive legal services. The ChatLaw model family includes a diverse range of models, from the BERT-based ChatLaw-Text2Vec to the large-scale pre-trained models ChatLaw-13B and ChatLaw-33B. Through extensive training on high-quality legal datasets, ChatLaw has developed exceptional capabilities in addressing complex legal questions and conducting in-depth legal reasoning. The ChatLaw2-MOE model, in particular, leverages a mixtureof-experts approach and a multi-agent system to enhance accuracy and reliability, surpassing other models including GPT-4 in various legal benchmarks. ChatLaw is particularly well-suited for the Chinese legal landscape, offering users tailored and expert legal advice. ",
+        "bbox": [
+            78,
+            718,
+            488,
+            944
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "IV. EVALUATION OF LLMS ON LEGAL CASES ",
+        "text_level": 1,
+        "bbox": [
+            557,
+            70,
+            870,
+            83
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "A. Scope of the Study and Used Datasets ",
+        "text_level": 1,
+        "bbox": [
+            509,
+            113,
+            787,
+            127
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "This study selected 26 representative legal cases as research subjects, with 13 from China and 13 from the United States, respectively using Chinese and English. To ensure the objectivity and fairness of the research, we strictly anonymized all personal privacy information in the cases. ",
+        "bbox": [
+            508,
+            147,
+            918,
+            222
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The Chinese case dataset was constructed based on the Chinese Judgments Online database, covering civil, criminal, and administrative cases, and including a variety of judicial documents such as first-instance judgments, second-instance judgments, and rulings. The establishment of this dataset aims to comprehensively present the application of laws, judicial standards, and standardized expressions of judicial documents in various types of cases in Chinese judicial practice. Each case in the dataset contains detailed information, including basic information such as case number, court, trial date, and party identity, as well as the background, disputed issues, court’s interpretation of legal provisions, evidence review, and final judgment with reasons for the case. Through this dataset, we can gain a deep understanding of the operation of the Chinese judicial system and provide rich data support for the study of Chinese law. ",
+        "bbox": [
+            508,
+            228,
+            919,
+            467
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The US case dataset is sourced from the well-known Court Listener legal database, which collects a large number of judgment documents from federal and state courts in the United States. We carefully selected 13 representative cases from this vast database, covering multiple important legal areas such as immigration, criminal law, and administrative law. Each case provides rich and detailed information, including the social and legal background of the case, the focal issues that have attracted public attention, the core legal issues disputed by both parties, the final judgment of the court and detailed reasons for the judgment. If the case involves an appeal, we will also describe in detail the appeal process and the judgment of the higher court. In addition, the judgment provides related laws, regulations, precedents, and scholarly opinions to enable readers to conduct more in-depth research and understanding of these cases. Through this dataset, we can comprehensively understand the practices and basis of the US judicial system in handling different types of cases. ",
+        "bbox": [
+            508,
+            473,
+            919,
+            743
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "By comparing and studying the legal cases of China and the United States, we can not only deeply examine the large model’s understanding and application capabilities in different legal systems but also deeply understand the similarities and differences between the two countries in terms of legislative concepts, judicial practices, and legal culture, and analyze the convergence and divergence of different legal systems in facing common legal issues in a globalized context. This research provides valuable experience for the application of large models in the legal field and can also provide rich first-hand data for legal scholars, judges, lawyers, and others, thereby promoting the continuous improvement of legal theory research and judicial practice. ",
+        "bbox": [
+            508,
+            748,
+            919,
+            944
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "table",
+        "img_path": "images/6dd72f6672dd31da74a5a7a596f7de24ca4c6deb3bbcd5fd35385f7382f13855.jpg",
+        "table_caption": [
+            "TABLE I PERFORMANCE OF LLMS ON CHINESE LEGAL TEXTS "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>Model</td><td rowspan=1 colspan=1>Chinese_ROUGE-1</td><td rowspan=1 colspan=1>Chinese_ROUGE-2</td><td rowspan=1 colspan=1>Chinese_ROUGE-L</td><td rowspan=1 colspan=1>Chinese_BLEU</td><td rowspan=1 colspan=1>Chinese_Evaluation</td></tr><tr><td rowspan=1 colspan=1>Gemma2-9B</td><td rowspan=1 colspan=1>0.39</td><td rowspan=1 colspan=1>0.15</td><td rowspan=1 colspan=1>0.39</td><td rowspan=1 colspan=1>0.03</td><td rowspan=1 colspan=1>3.00</td></tr><tr><td rowspan=1 colspan=1>GLM-4-9B-chat</td><td rowspan=1 colspan=1>0.29</td><td rowspan=1 colspan=1>0.16</td><td rowspan=1 colspan=1>0.24</td><td rowspan=1 colspan=1>0.00</td><td rowspan=1 colspan=1>3.15</td></tr><tr><td rowspan=1 colspan=1>GPT-4o</td><td rowspan=1 colspan=1>0.13</td><td rowspan=1 colspan=1>0.01</td><td rowspan=1 colspan=1>0.10</td><td rowspan=1 colspan=1>0.00</td><td rowspan=1 colspan=1>3.85</td></tr><tr><td rowspan=1 colspan=1>LawGPT_zh</td><td rowspan=1 colspan=1>0.27</td><td rowspan=1 colspan=1>0.08</td><td rowspan=1 colspan=1>0.16</td><td rowspan=1 colspan=1>0.04</td><td rowspan=1 colspan=1>1.85</td></tr><tr><td rowspan=1 colspan=1>lawyer-llama-13b-v2</td><td rowspan=1 colspan=1>0.32</td><td rowspan=1 colspan=1>0.19</td><td rowspan=1 colspan=1>0.32</td><td rowspan=1 colspan=1>0.05</td><td rowspan=1 colspan=1>2.92</td></tr><tr><td rowspan=1 colspan=1>llama3.2-3B-instruct</td><td rowspan=1 colspan=1>0.30</td><td rowspan=1 colspan=1>0.11</td><td rowspan=1 colspan=1>0.15</td><td rowspan=1 colspan=1>0.04</td><td rowspan=1 colspan=1>1.62</td></tr><tr><td rowspan=1 colspan=1>Mistral-7B-instruct-v0.3</td><td rowspan=1 colspan=1>0.38</td><td rowspan=1 colspan=1>0.15</td><td rowspan=1 colspan=1>0.20</td><td rowspan=1 colspan=1>0.07</td><td rowspan=1 colspan=1>2.54</td></tr><tr><td rowspan=1 colspan=1>O1-preview</td><td rowspan=1 colspan=1>0.13</td><td rowspan=1 colspan=1>0.02</td><td rowspan=1 colspan=1>0.09</td><td rowspan=1 colspan=1>0.00</td><td rowspan=1 colspan=1>3.85</td></tr><tr><td rowspan=1 colspan=1>Phi-3.5-mini-instruct</td><td rowspan=1 colspan=1>0.38</td><td rowspan=1 colspan=1>0.13</td><td rowspan=1 colspan=1>0.38</td><td rowspan=1 colspan=1>0.03</td><td rowspan=1 colspan=1>2.15</td></tr><tr><td rowspan=1 colspan=1>Qwen2-7B-Instruct</td><td rowspan=1 colspan=1>0.27</td><td rowspan=1 colspan=1>0.16</td><td rowspan=1 colspan=1>0.23</td><td rowspan=1 colspan=1>0.00</td><td rowspan=1 colspan=1>3.85</td></tr></table>",
+        "bbox": [
+            109,
+            103,
+            887,
+            237
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "B. Results and Analysis ",
+        "text_level": 1,
+        "bbox": [
+            78,
+            262,
+            240,
+            277
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "In this section, we evaluate the performance of various LLMs (LLMs) on legal case judgment tasks, using both algorithmic and human evaluation metrics. We tested stateof-the-art models, including open-source, closed-source, and legal domain-specific models, across Chinese and English legal texts. For each model, the performance is assessed using the following metrics: ",
+        "bbox": [
+            78,
+            282,
+            490,
+            386
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "ROUGE and BLEU Scores: Algorithmic metrics like ROUGE and BLEU scores, both ranging from 0 to 1, are commonly used to evaluate text similarity between generated and reference outputs. ROUGE measures the overlap of ngrams between the model’s output and a reference legal text, while BLEU calculates a modified form of precision for the generated output in comparison with human-generated text. Higher scores indicate closer alignment with reference cases, suggesting better model accuracy in generating relevant legal content. ",
+        "bbox": [
+            78,
+            387,
+            490,
+            536
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Human Evaluation Score: To supplement automated metrics, we conducted a human evaluation to assess the quality of the model-generated judgments against actual case judgments made by legal professionals. Law students, trained in legal analysis, scored each model’s decision output on a scale from 1 to 5, with 5 representing a high degree of alignment with the legal reasoning and outcomes in real-world cases. Human scores offer insight into how well model outputs mimic human judgment in complex legal scenarios. ",
+        "bbox": [
+            78,
+            537,
+            490,
+            672
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "In the results tables, scores are reported for each model across Chinese, English, and All cases, representing performance in Chinese and English texts as well as an overall average. ",
+        "bbox": [
+            78,
+            674,
+            488,
+            733
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "1) Performance on Chinese Legal Texts: We evaluated the performance of various LLMs on Chinese legal texts using the metrics ROUGE-1, ROUGE-2, ROUGE-L, BLEU, and human evaluation scores. The results are summarized in Table I. ",
+        "bbox": [
+            76,
+            734,
+            490,
+            792
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Human Evaluation Results: The $\\mathsf { G P T - 4 o }$ Qwen2-7B-Instruct, and O1-preview models received the highest human evaluation scores of 3.85, suggesting a high degree of alignment between their generated judgments and the legal reasoning in actual case outcomes. Notably, despite achieving only modest scores on automated metrics (with ROUGE-1 scores around 0.13 and BLEU scores of 0.00), these models demonstrate an ability to produce coherent and contextually appropriate responses in legal contexts, as perceived by human evaluators. This underscores the potential of these models to offer valuable insights in complex legal scenarios, even when their textual similarity to reference judgments is limited. ",
+        "bbox": [
+            78,
+            794,
+            490,
+            944
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            506,
+            262,
+            918,
+            308
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Automated Evaluation Results: Examining the ROUGE and BLEU scores reveals a different dimension of model performance. Gemma2-9B, Phi-3.5-mini-instruct, and Mistral-7B-instruct-v0.3 achieved the highest scores on ROUGE-1 (0.39, 0.38, and 0.38 respectively), indicating strong overlap with n-grams in reference texts. However, their BLEU scores remain relatively low (around 0.03 to 0.07), suggesting that while these models generate segments similar to reference texts, they may lack fluency or consistency throughout the entire output. Interestingly, lawyer-llama-13b-v2 scored the highest on ROUGE-2 (0.19) and achieved a BLEU score of 0.05, reflecting slightly better cohesion in the generated text. ",
+        "bbox": [
+            508,
+            309,
+            919,
+            503
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Among the evaluated models, GPT-4o, Qwen2-7B-Instruct, and O1-preview are distinguished by their high human evaluation scores, suggesting a better understanding of legal case nuances. On the other hand, models like Gemma2-9B and lawyer-llama-13b-v2 exhibit superior ROUGE scores, indicating precise lexical overlap but possibly lacking in broader contextual accuracy as judged by human evaluators. These results suggest that while algorithmic scores provide useful benchmarks, human assessments are essential to evaluate the actual applicability of LLMs in the legal domain, where interpretative accuracy is critical. ",
+        "bbox": [
+            508,
+            506,
+            919,
+            685
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "2) Performance on English Legal Texts: The performance of each model on English legal texts was assessed using ROUGE-1, ROUGE-2, ROUGE-L, BLEU, and human evaluation scores. Below, we discuss the findings, emphasizing both algorithmic and human evaluation outcomes. ",
+        "bbox": [
+            508,
+            688,
+            919,
+            762
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Human Evaluation Results: The highest human evaluation score of 4.08 was achieved by O1-preview in the English legal text analysis, with Qwen2-7B-Instruct following closely at 3.85, and several models (Gemma2-9B, GLM-4-9B-chat, and $\\mathsf { G P T } \\mathrm { - } 4 \\mathsf { o } )$ each scoring 3.54. These high scores indicate that these models are capable of producing judgments that align closely with human reasoning in real case scenarios, especially in English. Notably, O1-preview also achieved the highest human evaluation score for Chinese legal texts, tying with $\\mathsf { G P T - 4 o }$ and Qwen2-7B-Instruct at 3.85, which highlights its robustness across both languages. ",
+        "bbox": [
+            508,
+            763,
+            919,
+            934
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "However, a comparison reveals that overall, models tended to receive higher human evaluation scores on English texts. For example, $\\mathtt { G e m m a 2 - 9 B }$ scored 3.54 on English texts but only 3.00 on Chinese, suggesting that it may perform better in English when assessing legal judgment accuracy. Similarly, $\\mathtt { l a w y e r - l 1 a m a - 1 3 b - v 2 }$ received a noticeably lower score of 2.92 on Chinese texts compared to its English score of 2.23. The high scores of O1-preview across both languages are particularly notable, as they suggest that it consistently generates outputs deemed accurate and contextually appropriate in both Chinese and English legal domains. ",
+        "bbox": [
+            521,
+            930,
+            918,
+            944
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "table",
+        "img_path": "images/f49d77fa438e8b58980d25e2388f485edebfbe5197cb463e18db3cc73aac0f18.jpg",
+        "table_caption": [
+            "TABLE II PERFORMANCE OF LLMS ON ENGLISH LEGAL TEXTS "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>Model</td><td rowspan=1 colspan=1>English_ROUGE-1</td><td rowspan=1 colspan=1>English_ROUGE-2</td><td rowspan=1 colspan=1>English_ROUGE-L</td><td rowspan=1 colspan=1>English_BLEU</td><td rowspan=1 colspan=1>English_Evaluation</td></tr><tr><td rowspan=1 colspan=1>Gemma2-9B</td><td rowspan=1 colspan=1>0.38</td><td rowspan=1 colspan=1>0.36</td><td rowspan=1 colspan=1>0.38</td><td rowspan=1 colspan=1>0.02</td><td rowspan=1 colspan=1>3.54</td></tr><tr><td rowspan=1 colspan=1>GLM-4-9B-chat</td><td rowspan=1 colspan=1>0.34</td><td rowspan=1 colspan=1>0.14</td><td rowspan=1 colspan=1>0.16</td><td rowspan=1 colspan=1>0.00</td><td rowspan=1 colspan=1>3.54</td></tr><tr><td rowspan=1 colspan=1>GPT-4o</td><td rowspan=1 colspan=1>0.23</td><td rowspan=1 colspan=1>0.07</td><td rowspan=1 colspan=1>0.21</td><td rowspan=1 colspan=1>0.01</td><td rowspan=1 colspan=1>3.54</td></tr><tr><td rowspan=1 colspan=1>LawGPT_zh</td><td rowspan=1 colspan=1>0.17</td><td rowspan=1 colspan=1>0.05</td><td rowspan=1 colspan=1>0.09</td><td rowspan=1 colspan=1>0.00</td><td rowspan=1 colspan=1>2.15</td></tr><tr><td rowspan=1 colspan=1>lawyer-llama-13b-v2</td><td rowspan=1 colspan=1>0.42</td><td rowspan=1 colspan=1>0.38</td><td rowspan=1 colspan=1>0.42</td><td rowspan=1 colspan=1>0.05</td><td rowspan=1 colspan=1>2.23</td></tr><tr><td rowspan=1 colspan=1>1lama3.2-3B-instruct</td><td rowspan=1 colspan=1>0.25</td><td rowspan=1 colspan=1>0.10</td><td rowspan=1 colspan=1>0.17</td><td rowspan=1 colspan=1>0.06</td><td rowspan=1 colspan=1>2.38</td></tr><tr><td rowspan=1 colspan=1>Mistral-7B-instruct-v0.3</td><td rowspan=1 colspan=1>0.27</td><td rowspan=1 colspan=1>0.12</td><td rowspan=1 colspan=1>0.15</td><td rowspan=1 colspan=1>0.04</td><td rowspan=1 colspan=1>3.62</td></tr><tr><td rowspan=1 colspan=1>O1-preview</td><td rowspan=1 colspan=1>0.31</td><td rowspan=1 colspan=1>0.13</td><td rowspan=1 colspan=1>0.29</td><td rowspan=1 colspan=1>0.07</td><td rowspan=1 colspan=1>4.08</td></tr><tr><td rowspan=1 colspan=1>Phi-3.5-mini-instruct</td><td rowspan=1 colspan=1>0.44</td><td rowspan=1 colspan=1>0.41</td><td rowspan=1 colspan=1>0.44</td><td rowspan=1 colspan=1>0.04</td><td rowspan=1 colspan=1>3.08</td></tr><tr><td rowspan=1 colspan=1>Qwen2-7B-Instruct</td><td rowspan=1 colspan=1>0.31</td><td rowspan=1 colspan=1>0.13</td><td rowspan=1 colspan=1>0.14</td><td rowspan=1 colspan=1>0.00</td><td rowspan=1 colspan=1>3.85</td></tr></table>",
+        "bbox": [
+            114,
+            103,
+            882,
+            236
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            78,
+            262,
+            490,
+            412
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Automated Evaluation Results: In terms of algorithmic metrics, Phi-3.5-mini-instruct and lawyer-llama-13b-v2 emerged as top performers, with ROUGE-1 scores of 0.44 and 0.42, respectively. Additionally, Phi-3.5-mini-instruct had the highest ROUGE-2 and ROUGE-L scores (0.41 and 0.44), indicating substantial n-gram overlap with reference texts, which suggests a high degree of lexical similarity to the ground truth legal judgments. However, these models’ BLEU scores remain relatively low (0.04 to 0.05), suggesting limitations in generating fluent and coherent sequences across the entire output, particularly for complex legal language. ",
+        "bbox": [
+            78,
+            415,
+            490,
+            594
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "For English legal texts, O1-preview and Qwen2-7B-Instruct were particularly notable for their high human evaluation scores, highlighting their potential for generating legally relevant and contextually accurate judgments. However, models such as Phi-3.5-mini-instruct and $\\mathtt { l a w y e r - l 1 a m a - 1 3 b - v 2 }$ demonstrated superior ROUGE performance, reflecting strong lexical similarity but a possible lack of comprehensive contextual understanding, as reflected in their lower human scores. ",
+        "bbox": [
+            78,
+            597,
+            490,
+            746
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "3) Overall Performance: To provide a comprehensive view of the models’ performance across both Chinese and English legal texts, we calculated the overall scores for ROUGE-1, ROUGE-2, ROUGE-L, BLEU, and human evaluation. The results are summarized in Table III. ",
+        "bbox": [
+            78,
+            747,
+            490,
+            821
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Across both languages, the O1-preview model achieved the highest overall human evaluation score of 3.96, demonstrating strong alignment with human judgment across diverse legal cases. This performance suggests that O1-preview is particularly capable of producing contextually appropriate and legally relevant outputs, which makes it a standout model in terms of general applicability. ",
+        "bbox": [
+            78,
+            824,
+            490,
+            929
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Automated metrics, such as ROUGE and BLEU, indicate mixed outcomes across models. For instance, Phi-3.5-mini-instruct scored the highest in terms of ROUGE-1 and ROUGE-L (0.41), suggesting its ability to capture relevant content from case data. However, its relatively modest human evaluation score of 2.62 implies that the content generated may lack some critical human-judgment nuances despite high lexical overlap. Similarly, $\\mathtt { l a w y e r - l 1 a m a - 1 3 b - v 2 }$ achieved a strong automated score with ROUGE-2 and ROUGE-L scores of 0.28 and 0.37, respectively, but had a lower human score (2.58), suggesting that while it generates content with high lexical precision, its alignment with human interpretive depth in legal cases might be limited. ",
+        "bbox": [
+            93,
+            930,
+            490,
+            944
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            508,
+            263,
+            919,
+            457
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "In general, models such as Gemma2-9B and Qwen2-7B-Instruct demonstrated moderate performance across both automated and human evaluations, while models like LawGPT_zh and llama3.2-3B-instruct exhibited lower scores in both areas, indicating potential areas for improvement, particularly in complex legal judgment contexts. The analysis underscores that while automated metrics provide insights into model accuracy, human evaluations remain essential for understanding the practical utility of these models in nuanced legal applications. ",
+        "bbox": [
+            508,
+            460,
+            919,
+            609
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "V. CHALLENGES ",
+        "text_level": 1,
+        "bbox": [
+            655,
+            627,
+            772,
+            640
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "A. Data privacy ",
+        "text_level": 1,
+        "bbox": [
+            508,
+            646,
+            617,
+            660
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Cases in the legal domain often involve individuals’ sensitive information, including personal identity, financial status, and medical records. When using this data for model training, there is a risk that the model may unintentionally expose people’ sensitive information during content generation, potentially leading to data leakage. To effectively safeguard data privacy, the design and training processes of the model must prioritize the protection of data. It is essential to ensure that the output results do not disclose personal information. Additionally, the research and development team should implement a rigorous data processing and review mechanism for the model’s outputs. This will help minimize risks and ensure compliance and security in the application of LLMs in the legal field. ",
+        "bbox": [
+            508,
+            665,
+            919,
+            875
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "B. The definition of legal liability ",
+        "text_level": 1,
+        "bbox": [
+            509,
+            895,
+            735,
+            910
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "The delineation of legal liability when utilizing LLMs for legal advice and decision-making remains unclear. Although developers typically emphasize the limitations and potential risks of their models upon release and strive to mitigate legal issues during the training process, unintended consequences can still arise. When a model provides advice or analysis that leads to undesirable outcomes, the question of liability arises: who should be held accountable? Is it the developer, the user, or the model itself? There is currently no consensus on whether users should be liable for decisions made based on model outputs, highlighting the need for further policy discussions and the establishment of a comprehensive legal framework. Such measures are urgently required to ensure the sustainability and security of LLMs in legal practice. ",
+        "bbox": [
+            508,
+            915,
+            919,
+            944
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "table",
+        "img_path": "images/532f7cb366ee874c80bff77dac845cd2e015f50ab21af183bfbe6f95334d5cb2.jpg",
+        "table_caption": [
+            "TABLE III OVERALL PERFORMANCE OF LLMS "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>Model</td><td rowspan=1 colspan=1>Overall_ROUGE-1</td><td rowspan=1 colspan=1>Overall_ROUGE-2</td><td rowspan=1 colspan=1>Overall_ROUGE-L</td><td rowspan=1 colspan=1>Overall_BLEU</td><td rowspan=1 colspan=1>Overall_Evaluation</td></tr><tr><td rowspan=1 colspan=1>Gemma2-9B</td><td rowspan=1 colspan=1>0.39</td><td rowspan=1 colspan=1>0.26</td><td rowspan=1 colspan=1>0.39</td><td rowspan=1 colspan=1>0.03</td><td rowspan=1 colspan=1>3.27</td></tr><tr><td rowspan=1 colspan=1>GLM-4-9B-chat</td><td rowspan=1 colspan=1>0.31</td><td rowspan=1 colspan=1>0.15</td><td rowspan=1 colspan=1>0.20</td><td rowspan=1 colspan=1>0.00</td><td rowspan=1 colspan=1>3.35</td></tr><tr><td rowspan=1 colspan=1>GPT-4o</td><td rowspan=1 colspan=1>0.18</td><td rowspan=1 colspan=1>0.04</td><td rowspan=1 colspan=1>0.15</td><td rowspan=1 colspan=1>0.01</td><td rowspan=1 colspan=1>3.69</td></tr><tr><td rowspan=1 colspan=1>LawGPT_zh</td><td rowspan=1 colspan=1>0.22</td><td rowspan=1 colspan=1>0.07</td><td rowspan=1 colspan=1>0.12</td><td rowspan=1 colspan=1>0.02</td><td rowspan=1 colspan=1>2.00</td></tr><tr><td rowspan=1 colspan=1>lawyer-llama-13b-v2</td><td rowspan=1 colspan=1>0.37</td><td rowspan=1 colspan=1>0.28</td><td rowspan=1 colspan=1>0.37</td><td rowspan=1 colspan=1>0.05</td><td rowspan=1 colspan=1>2.58</td></tr><tr><td rowspan=1 colspan=1>1lama3.2-3B-instruct</td><td rowspan=1 colspan=1>0.28</td><td rowspan=1 colspan=1>0.10</td><td rowspan=1 colspan=1>0.16</td><td rowspan=1 colspan=1>0.05</td><td rowspan=1 colspan=1>2.00</td></tr><tr><td rowspan=1 colspan=1>Mistral-7B-instruct-v0.3</td><td rowspan=1 colspan=1>0.32</td><td rowspan=1 colspan=1>0.13</td><td rowspan=1 colspan=1>0.17</td><td rowspan=1 colspan=1>0.06</td><td rowspan=1 colspan=1>3.08</td></tr><tr><td rowspan=1 colspan=1>O1-preview</td><td rowspan=1 colspan=1>0.22</td><td rowspan=1 colspan=1>0.07</td><td rowspan=1 colspan=1>0.19</td><td rowspan=1 colspan=1>0.04</td><td rowspan=1 colspan=1>3.96</td></tr><tr><td rowspan=1 colspan=1>Phi-3.5-mini-instruct</td><td rowspan=1 colspan=1>0.41</td><td rowspan=1 colspan=1>0.27</td><td rowspan=1 colspan=1>0.41</td><td rowspan=1 colspan=1>0.03</td><td rowspan=1 colspan=1>2.62</td></tr><tr><td rowspan=1 colspan=1>Qwen2-7B-Instruct</td><td rowspan=1 colspan=1>0.29</td><td rowspan=1 colspan=1>0.15</td><td rowspan=1 colspan=1>0.19</td><td rowspan=1 colspan=1>0.00</td><td rowspan=1 colspan=1>3.85</td></tr></table>",
+        "bbox": [
+            114,
+            103,
+            882,
+            237
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            78,
+            263,
+            490,
+            443
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "C. Ethical and moral issues ",
+        "text_level": 1,
+        "bbox": [
+            78,
+            464,
+            267,
+            478
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Due to the diverse sources of data, these models can introduce biases, which may result in unfair outputs. In the legal field, where fairness and impartiality are crucial, ensuring that models remain neutral during case analysis and preventing potential discrimination and injustice is an urgent concern. Moreover, the lack of transparency in model-generated results complicates users’ ability to assess their reliability. This highlights the need for a robust ethical review mechanism in the legal domain to ensure that model outputs adhere to relevant laws, regulations, and ethical standards. By implementing such a mechanism, we can help ensure that the use of LLMs aligns with the principles of justice and accountability in legal practice. ",
+        "bbox": [
+            78,
+            483,
+            490,
+            678
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "D. Technical limitations ",
+        "text_level": 1,
+        "bbox": [
+            78,
+            699,
+            241,
+            713
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Although LLMs have demonstrated impressive capabilities in language processing and information analysis, their application in the legal domain still faces significant technical limitations. For instance, these models can struggle with understanding legal terminology, grasping the context of cases, and analyzing complex legal scenarios, which may lead to errors. Additionally, their lack of interpretability creates uncertainty for legal practitioners who rely on their recommendations. This uncertainty can adversely affect the quality of legal decisions and undermine the reliability of legal practice. To address these challenges, it is crucial to develop more interpretable models and to incorporate human expertise in the decision-making process. By combining the strengths of these models with the nuanced judgment of legal professionals, we can enhance the accuracy and reliability of legal applications. ",
+        "bbox": [
+            78,
+            718,
+            490,
+            944
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "E. Legislative differences ",
+        "text_level": 1,
+        "bbox": [
+            508,
+            262,
+            678,
+            277
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "As LLMs are adopted globally, differences in regulatory policies across countries may lead to inconsistencies in legal practice. Some countries may have stricter requirements for data privacy protection, while others may focus more on technological innovation and industrial development. Such policy differences can create compliance risks and inconveniences in the application of LLMs in legal services, challenging their widespread adoption and use. Therefore, when using LLMs in law-related fields, it is essential to fully consider the application context. It is important to address how to avoid situations where the model produces correct results but has an inaccurate scope of application, or where it complies with local laws and regulations but generates erroneous outputs. This not only affects the effectiveness and reliability of legal services but also directly impacts the fairness of legal practice. Additionally, the ongoing updates to legal systems impose higher requirements on these models, necessitating continuous attention from relevant professionals. ",
+        "bbox": [
+            508,
+            281,
+            919,
+            553
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "VI. DISCUSSION ",
+        "text_level": 1,
+        "bbox": [
+            655,
+            566,
+            774,
+            580
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "In conclusion, while LLMs show considerable potential in assisting with the understanding and processing of legal texts, their limitations in accurately interpreting complex legal language and reasoning remain clear. These models struggle to fully grasp the subtle nuances of legal concepts and their application in specific cases, indicating a need for improvements in training methodologies—particularly in integrating domain-specific legal knowledge and strengthening reasoning capabilities. To fully realize the potential of LLMs in supporting legal professionals, further research and development are necessary. ",
+        "bbox": [
+            508,
+            587,
+            919,
+            751
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "VII. ACKNOWLEDGEMENTS ",
+        "text_level": 1,
+        "bbox": [
+            616,
+            765,
+            813,
+            780
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "This should be a simple paragraph before the bibliography to thank those individuals and institutions who have supported your work on this article. ",
+        "bbox": [
+            508,
+            785,
+            919,
+            828
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "REFERENCES ",
+        "text_level": 1,
+        "bbox": [
+            668,
+            844,
+            759,
+            857
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "[1] J. Wang, Z. Liu, L. Zhao, Z. Wu, C. Ma, S. Yu, H. Dai, Q. Yang, Y. Liu, S. Zhang et al., “Review of large vision models and visual prompt engineering,” Meta-Radiology, p. 100047, 2023.   \n[2] J. Wang, H. Jiang, Y. Liu, C. Ma, X. Zhang, Y. Pan, M. Liu, P. Gu, S. Xia, W. Li et al., “A comprehensive review of multimodal large language models: Performance and challenges across different tasks,” arXiv preprint arXiv:2408.01319, 2024.   \n[3] T. B. Brown, “Language models are few-shot learners,” arXiv preprint arXiv:2005.14165, 2020.   \n[4] A. Vaswani, “Attention is all you need,” Advances in Neural Information Processing Systems, 2017.   \n[5] A. Radford, “Improving language understanding by generative pretraining,” 2018.   \n[6] J. Lai, W. Gan, J. Wu, Z. Qi, and S. Y. Philip, “Large language models in law: A survey,” AI Open, 2024.   \n[7] B. Chaudhary, P. Covarrubia, and G. Y. Ng, “The judge, the ai, and the crown: a collusive network,” Information & Communications Technology Law, vol. 33, no. 3, pp. 330–367, 2024.   \n[8] Z. Zhou, J.-X. Shi, P.-X. Song, X.-W. Yang, Y.-X. Jin, L.-Z. Guo, and Y.-F. Li, “Lawgpt: A chinese legal knowledge-enhanced large language model,” arXiv preprint arXiv:2406.04614, 2024.   \n[9] I. Chalkidis, “Chatgpt may pass the bar exam soon, but has a long way to go for the lexglue benchmark,” arXiv preprint arXiv:2304.12202, 2023.   \n[10] L. Hongcheng, L. Yusheng, M. Yutong, and Y. Wang, “Xiezhi: Chinese law large language model,” https://github.com/LiuHC0428/LAW GPT, 2023.   \n[11] B. Danet, “Language in the legal process,” Law & Society Review, vol. 14, no. 3, pp. 445–564, 1980.   \n[12] N. Guha, J. Nyarko, D. Ho, C. Re, A. Chilton, A. Chohlas-Wood, ´ A. Peters, B. Waldon, D. Rockmore, D. Zambrano et al., “Legalbench: A collaboratively built benchmark for measuring legal reasoning in large language models,” Advances in Neural Information Processing Systems, vol. 36, 2024.   \n[13] M. U. Hadi, Q. Al Tashi, A. Shah, R. Qureshi, A. Muneer, M. Irfan, A. Zafar, M. B. Shaikh, N. Akhtar, J. Wu et al., “Large language models: a comprehensive survey of its applications, challenges, limitations, and future prospects,” Authorea Preprints, 2024.   \n[14] P. P. Ray, “Chatgpt: A comprehensive review on background, applications, key challenges, bias, ethics, limitations and future scope,” Internet of Things and Cyber-Physical Systems, vol. 3, pp. 121–154, 2023.   \n[15] I. Cheong, A. Caliskan, and T. Kohno, “Safeguarding human values: rethinking us law for generative ai’s societal impacts,” AI and Ethics, pp. 1–27, 2024.   \n[16] F. Osasona, O. O. Amoo, A. Atadoga, T. O. Abrahams, O. A. Farayola, and B. S. Ayinla, “Reviewing the ethical implications of ai in decision making processes,” International Journal of Management & Entrepreneurship Research, vol. 6, no. 2, pp. 322–335, 2024.   \n[17] C. U. Akpuokwe, A. O. Adeniyi, and S. S. Bakare, “Legal challenges of artificial intelligence and robotics: a comprehensive review,” Computer Science & IT Research Journal, vol. 5, no. 3, pp. 544–561, 2024.   \n[18] Y. Pan, H. Jiang, J. Chen, Y. Li, H. Zhao, Y. Zhou, P. Shu, Z. Wu, Z. Liu, D. Zhu et al., “Eg-spikeformer: Eye-gaze guided transformer on spiking neural networks for medical image analysis,” arXiv preprint arXiv:2410.09674, 2024.   \n[19] Y. Li, S. Kim, Z. Wu, H. Jiang, Y. Pan, P. Jin, S. Song, Y. Shi, T. Yang, T. Liu et al., “Echopulse: Ecg controlled echocardio-grams video generation,” arXiv preprint arXiv:2410.03143, 2024.   \n[20] Y. Shi, P. Shu, Z. Liu, Z. Wu, Q. Li, and X. Li, “Mgh radiology llama: A llama 3 70b model for radiology,” arXiv preprint arXiv:2408.11848, 2024.   \n[21] P. Shu, H. Zhao, H. Jiang, Y. Li, S. Xu, Y. Pan, Z. Wu, Z. Liu, G. Lu, L. Guan et al., “Llms for coding and robotics education,” arXiv preprint arXiv:2402.06116, 2024.   \n[22] J. Tian, J. Hou, Z. Wu, P. Shu, Z. Liu, Y. Xiang, B. Gu, N. Filla, Y. Li, N. Liu et al., “Assessing large language models in mechanical engineering education: A study on mechanics-focused conceptual understanding,” arXiv preprint arXiv:2401.12983, 2024.   \n[23] G.-G. Lee, L. Shi, E. Latif, Y. Gao, A. Bewersdorff, M. Nyaaba, S. Guo, Z. Wu, Z. Liu, H. Wang et al., “Multimodality of ai for education: Towards artificial general intelligence,” arXiv preprint arXiv:2312.06037, 2023.   \n[24] N. Shaver, “The use of large language models in legaltech,” 2023, accessed: 2024-10-27. [Online]. Available: https://www.legaltechnologyhub.com/contents/ the-use-of-large-language-models-in-legaltech/   \n[25] T. Dunlop, “Summize uses openai to supercharge contract summaries with gpt-3.5,” 2023, accessed: 2024-10-27. [Online]. Available: https://www.summize.com/resources/summize-and-chatgpt   \n[26] S. Wilkins, “Docket alarm incorporates gpt-3.5 to auto-summarize pdf litigation filings in complex dockets,” 2023, accessed: 2024-10-27. [Online]. Available: https://tinyurl.com/5n7yvtzd   \n[27] L. M. D. Droit, “Docket alarm incorporates gpt-3.5 to auto-summarize pdf litigation filings in complex dockets,” 2023, accessed: 2024- 10-27. [Online]. Available: https://www.lemondedudroit.fr/professions/ 337-legaltech/85951-chatgpt-predictice-integremoteur-recherche.html   \n[28] T. Hassonjee, “Navigating ai for legal documents: Tips & tricks,” 2024, accessed: 2024-10-27. [Online]. Available: https://www.docdraft. ai/blogs/navigating-ai-for-legal-documents-tips-tricks   \n[29] Henchman, “Lexisnexis to acquire henchman: A new chapter in legal drafting,” 2024, accessed: 2024-10-27. [Online]. Available: https://henchman.io/blog/lexisnexis-announcement   \n[30] G. Lambert, “Colin lachance on jurisage’s myjr and how he’s looking at ai to assist in the synthesis and reading of legal cases,” 2023, accessed: 2024-10-27. [Online]. Available: https://tinyurl.com/4tnd29uv   \n[31] B. J, “Ask blue j enhances user experience through gpt-4 and conversational,” 2023, accessed: 2024-10-27. [Online]. Available: https://www.bluej.com/blog/ask-blue-j-enhances-user-experience   \n[32] I. Chalkidis, A. Jana, D. Hartung, M. Bommarito, I. Androutsopoulos, D. M. Katz, and N. Aletras, “Lexglue: A benchmark dataset for legal language understanding in english,” arXiv preprint arXiv:2110.00976, 2021.   \n[33] A. Deroy, K. Ghosh, and S. Ghosh, “How ready are pre-trained abstractive models and llms for legal case judgement summarization?” arXiv preprint arXiv:2306.01248, 2023.   \n[34] J. Savelka, K. D. Ashley, M. A. Gray, H. Westermann, and H. Xu, “Explaining legal concepts with augmented large language models (gpt4),” arXiv preprint arXiv:2306.09525, 2023.   \n[35] A. Simmons and R. Vasa, “Garbage in, garbage out: Zero-shot detection of crime using large language models,” arXiv preprint arXiv:2307.06844, 2023.   \n[36] Q. Huang, M. Tao, C. Zhang, Z. An, C. Jiang, Z. Chen, Z. Wu, and Y. Feng, “Lawyer llama technical report,” 2023.   \n[37] “Lawyer llama,” https://github.com/AndrewZhe/lawyer-llama, 2023.   \n[38] LexiLaw, “Lexilaw: a chinese legal large language model,” 2023, accessed: 2024-10-27. [Online]. Available: https://github.com/CSHaitao/ LexiLaw?tab=readme-ov-file#readme   \n[39] J.-S. Lee, “Lexgpt 0.1: pre-trained gpt-j models with pile of law,” arXiv preprint arXiv:2306.05431, 2023.   \n[40] J. Cui, Z. Li, Y. Yan, B. Chen, and L. Yuan, “Chatlaw: Open-source legal large language model with integrated external knowledge bases,” arXiv preprint arXiv:2306.16092, 2023.   \n[41] S. Yue, W. Chen, S. Wang, B. Li, C. Shen, S. Liu, Y. Zhou, Y. Xiao, S. Yun, X. Huang et al., “Disc-lawllm: Fine-tuning large language models for intelligent legal services,” arXiv preprint arXiv:2309.11325, 2023.   \n[42] KL3M, “Meet kl3m: the first legal large language model,” 2024, accessed: 2024-10-27. [Online]. Available: https://273ventures.com/ kl3m-the-first-legal-large-language-model/#note1   \n[43] Z. Fei, S. Zhang, X. Shen, D. Zhu, X. Wang, M. Cao, F. Zhou, Y. Li, W. Zhang, D. Lin et al., “Internlm-law: An open source chinese legal large language model,” arXiv preprint arXiv:2406.14887, 2024.   \n[44] P. Colombo, T. Pires, M. Boudiaf, R. Melo, D. Culver, S. Morgado, E. Malaboeuf, G. Hautreux, J. Charpentier, and M. Desa, “Saullm-54b & saullm-141b: Scaling up domain adaptation for the legal domain,” arXiv preprint arXiv:2407.19584, 2024.   \n[45] Y. Wu, Y. Liu, Y. Liu, A. Li, S. Zhou, and K. Kuang, “wisdominterrogatory,” 2024, accessed: 2024-10-27. [Online]. Available: https://github.com/zhihaiLLM/wisdomInterrogatory   \n[46] W. Deng, J. Pei, K. Kong, Z. Chen, F. Wei, Y. Li, Z. Ren, Z. Chen, and P. Ren, “Syllogistic reasoning for legal judgment analysis,” in Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing, H. Bouamor, J. Pino, and K. Bali, Eds. Singapore: Association for Computational Linguistics, Dec. 2023, pp. 13 997–14 009. [Online]. Available: https://aclanthology.org/2023.emnlp-main.864   \n[47] J. Achiam, S. Adler, S. Agarwal, L. Ahmad, I. Akkaya, F. L. Aleman, D. Almeida, J. Altenschmidt, S. Altman, S. Anadkat et al., “Gpt-4 technical report,” arXiv preprint arXiv:2303.08774, 2023.   \n[48] G. Team, R. Anil, S. Borgeaud, J.-B. Alayrac, J. Yu, R. Soricut, J. Schalkwyk, A. M. Dai, A. Hauth, K. Millican et al., “Gemini: a family of highly capable multimodal models,” arXiv preprint arXiv:2312.11805, 2023.   \n[49] G. Team, P. Georgiev, V. I. Lei, R. Burnell, L. Bai, A. Gulati, G. Tanzer, D. Vincent, Z. Pan, S. Wang et al., “Gemini 1.5: Unlocking multimodal understanding across millions of tokens of context,” arXiv preprint arXiv:2403.05530, 2024.   \n[50] A. Anthropic, “Claude 3.5 sonnet model card addendum,” Claude-3.5 Model Card, 2024.   \n[51] A. Young, B. Chen, C. Li, C. Huang, G. Zhang, G. Zhang, H. Li, J. Zhu, J. Chen, J. Chang et al., “Yi: Open foundation models by 01. ai,” arXiv preprint arXiv:2403.04652, 2024.   \n[52] A. Dubey, A. Jauhri, A. Pandey, A. Kadian, A. Al-Dahle, A. Letman, A. Mathur, A. Schelten, A. Yang, A. Fan et al., “The llama 3 herd of models,” arXiv preprint arXiv:2407.21783, 2024.   \n[53] A. Q. Jiang, A. Sablayrolles, A. Mensch, C. Bamford, D. S. Chaplot, D. d. l. Casas, F. Bressand, G. Lengyel, G. Lample, L. Saulnier et al., “Mistral 7b,” arXiv preprint arXiv:2310.06825, 2023.   \n[54] G. Team, T. Mesnard, C. Hardin, R. Dadashi, S. Bhupatiraju, S. Pathak, L. Sifre, M. Riviere, M. S. Kale, J. Love \\` et al., “Gemma: Open models based on gemini research and technology,” arXiv preprint arXiv:2403.08295, 2024.   \n[55] G. Team, M. Riviere, S. Pathak, P. G. Sessa, C. Hardin, S. Bhupatiraju, L. Hussenot, T. Mesnard, B. Shahriari, A. Rame´ et al., “Gemma 2: Improving open language models at a practical size,” arXiv preprint arXiv:2408.00118, 2024.   \n[56] M. Abdin, J. Aneja, H. Awadalla, A. Awadallah, A. A. Awan, N. Bach, A. Bahree, A. Bakhtiari, J. Bao, H. Behl et al., “Phi-3 technical report: A highly capable language model locally on your phone,” arXiv preprint arXiv:2404.14219, 2024.   \n[57] A. Yang, B. Yang, B. Hui, B. Zheng, B. Yu, C. Zhou, C. Li, C. Li, D. Liu, F. Huang et al., “Qwen2 technical report,” arXiv preprint arXiv:2407.10671, 2024.   \n[58] T. GLM, A. Zeng, B. Xu, B. Wang, C. Zhang, D. Yin, D. Zhang, D. Rojas, G. Feng, H. Zhao et al., “Chatglm: A family of large language models from glm-130b to glm-4 all tools,” arXiv preprint arXiv:2406.12793, 2024.   \n[59] M. J. Bommarito II, D. M. Katz, and E. M. Detterman, “Lexnlp: Natural language processing and information extraction for legal and regulatory texts,” in Research handbook on big data law. Edward Elgar Publishing, 2021, pp. 216–227. ",
+        "bbox": [
+            514,
+            863,
+            919,
+            943
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            76,
+            68,
+            491,
+            945
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            504,
+            63,
+            921,
+            939
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            76,
+            71,
+            491,
+            434
+        ],
+        "page_idx": 9
+    }
+]

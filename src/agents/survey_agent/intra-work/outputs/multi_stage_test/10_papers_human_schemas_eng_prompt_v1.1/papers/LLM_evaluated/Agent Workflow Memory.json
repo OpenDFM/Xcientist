@@ -1,0 +1,286 @@
+{
+  "extraction": {
+    "title": {
+      "value": "AGENT WORKFLOW MEMORY",
+      "type": "string",
+      "unit": null,
+      "evidence": "# AGENT WORKFLOW MEMORY",
+      "provenance": {
+        "section_header": "Title",
+        "page": 1
+      },
+      "notes": "",
+      "score": {
+        "consistency": 5,
+        "insight": 3,
+        "integrity": 5
+      }
+    },
+    "source_code_url": {
+      "value": "https://github.com/zorazrw/agent-workflow-memory",
+      "type": "string",
+      "unit": null,
+      "evidence": "https://github.com/zorazrw/agent-workflow-memory",
+      "provenance": {
+        "section_header": "Abstract",
+        "page": 1
+      },
+      "notes": "Link to the open-source implementation of AWM.",
+      "score": {
+        "consistency": 5,
+        "insight": 1,
+        "integrity": 5
+      }
+    },
+    "background": {
+      "limitations": {
+        "value": "Current methods struggle with long-horizon tasks with complex action trajectories, lacking robustness to changes in task contexts or environments.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Despite the potential of language model-based agents to solve real-world tasks such as web navigation, current methods still struggle with long-horizon tasks with complex action trajectories.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": 1
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "existing_research_gap": {
+        "value": "Insufficient abstract understanding in existing methods prevents agents from adapting over time.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Moreover, as agents solve each task separately, they do not learn from past successes and failures, and are therefore unable to adapt over time.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": 2
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "proposed_solution": {
+        "value": "Agent Workflow Memory (AWM) induces reusable workflows from past experiences to guide future task-solving processes.",
+        "type": "string",
+        "unit": null,
+        "evidence": "To build agents that can similarly benefit from this process, we introduce Agent Workflow Memory (AWM), a method for inducing commonly reused routines, i.e., workflows, and selectively providing workflows to the agent to guide subsequent generations.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": 1
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 5,
+          "integrity": 5
+        }
+      }
+    },
+    "methods": {
+      "learning_mechanism": {
+        "value": "AWM mimics human learning by inducing workflows from agent trajectories and integrating them into memory for future tasks.",
+        "type": "string",
+        "unit": null,
+        "evidence": "AWM induces workflows from agent trajectories by extracting reusable routines, and then integrates these workflows into agent memory to guide future task-solving processes.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": 2
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "workflow_process": {
+        "value": "AWM records, summarizes, stores, and applies workflows to enhance agent performance.",
+        "type": "string",
+        "unit": null,
+        "evidence": "AWM starts with a basic set of built-in actions and solves new tasks in a streaming manner, continuously inducing workflows from the task at hand.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": 2
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "usage_modes": {
+        "value": "AWM operates in both offline and online scenarios, adapting to the availability of training examples.",
+        "type": "string",
+        "unit": null,
+        "evidence": "AWM readily operates in both offline and online scenarios, where annotated examples are either available or non-existent.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": 2
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      }
+    },
+    "experiments": {
+      "datasets": {
+        "value": "WebArena and Mind2Web benchmarks for evaluating AWM's performance.",
+        "type": "string",
+        "unit": null,
+        "evidence": "We evaluate AWM on two agent web navigation benchmarks: WebArena, which provides rigorous execution-based evaluation, and Mind2Web, which emphasizes broad tasks and domain coverage.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": 3
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 3,
+          "integrity": 5
+        }
+      },
+      "results": {
+        "value": "AWM shows a 51.1% and 24.6% relative increase in success rates on WebArena and Mind2Web, respectively.",
+        "type": "string",
+        "unit": null,
+        "evidence": "AWM improves over the top published autonomous method by 51.1% relative success rate, and effectively improves the cross-task results by 24.6% in relative step-wise success rate.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": 3
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      }
+    },
+    "key_findings": {
+      "few_shot_learning": {
+        "value": "AWM demonstrates efficient learning from a small number of examples, rapidly improving task success rates.",
+        "type": "string",
+        "unit": null,
+        "evidence": "AWM enables rapid learning from a small amount of data, i.e., about 40 queries.",
+        "provenance": {
+          "section_header": "Experiments",
+          "page": 3
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "composability": {
+        "value": "AWM can build complex workflows by integrating newly learned workflows with existing ones.",
+        "type": "string",
+        "unit": null,
+        "evidence": "AWM agent learns to adopt the first few steps to find locations by following the existing workflow, and then conducts further steps to obtain the zip code of the place found.",
+        "provenance": {
+          "section_header": "Experiments",
+          "page": 3
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "adaptability": {
+        "value": "AWM generalizes effectively across different tasks, websites, and domains.",
+        "type": "string",
+        "unit": null,
+        "evidence": "AWM still consistently surpasses all baseline approaches, demonstrating its reliable cross-task workflow adaptability.",
+        "provenance": {
+          "section_header": "Experiments",
+          "page": 3
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "interpretability": {
+        "value": "AWM's workflows provide natural language descriptions that enhance understanding of agent actions.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Each workflow represents a goal with a common routine extracted from available action trajectories, which allows it to effectively capture the most essential and reusable skills agents need to acquire.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": 2
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "generalization_insight": {
+        "value": "AWM's abstract learning approach outperforms methods relying on concrete examples.",
+        "type": "string",
+        "unit": null,
+        "evidence": "The discovery that abstract learning is superior to concrete examples.",
+        "provenance": {
+          "section_header": "Experiments",
+          "page": 3
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      }
+    },
+    "conclusions": {
+      "summary": {
+        "value": "AWM significantly enhances agent performance in web navigation tasks through workflow induction and memory integration.",
+        "type": "string",
+        "unit": null,
+        "evidence": "We propose agent workflow memory that induces, augments, and uses workflows, offline from available examples or purely online at inference time.",
+        "provenance": {
+          "section_header": "Conclusion",
+          "page": 7
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "implications": {
+        "value": "AWM provides insights for future research on dynamic memory building and agent adaptations across various tasks.",
+        "type": "string",
+        "unit": null,
+        "evidence": "We hope AWM sheds insight on and boosts advances in dynamic memory building and agent adaptations on varied digital tasks.",
+        "provenance": {
+          "section_header": "Conclusion",
+          "page": 7
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      }
+    }
+  }
+}

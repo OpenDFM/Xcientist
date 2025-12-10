@@ -1,0 +1,32 @@
+[STATS] Agent Workflow Memory.json averages -> 
+consistency: 5.000, insight: 4.000, integrity: 5.000
+
+[STATS] AutoSurvey: Large Language Models Can Automatically Write Surveys.json averages -> 
+consistency: 5.000, insight: 4.412, integrity: 5.000
+
+[STATS] Checklists Are Better Than Reward Models For Aligning Language Models.json averages -> 
+consistency: 4.667, insight: 4.467, integrity: 4.600
+
+[STATS] Do NOT Think That Much for 2+3=? On the Overthinking of  o1-Like LLMs.json averages -> 
+consistency: 5.000, insight: 3.960, integrity: 5.000
+
+[STATS] OTC: Optimal Tool Calls via Reinforcement Learning.json averages -> 
+consistency: 5.000, insight: 3.760, integrity: 5.000
+
+[STATS] Process Reinforcement through Implicit Rewards.json averages -> 
+consistency: 5.000, insight: 4.000, integrity: 5.000
+
+[STATS] StepSearch: Igniting LLMs Search Ability via Step-Wise Proximal Policy Optimization.json averages -> 
+consistency: 5.000, insight: 4.192, integrity: 5.000
+
+[STATS] Stop Overthinking: A Survey on Efficient Reasoning for Large Language Models.json averages -> 
+consistency: 4.167, insight: 3.667, integrity: 4.167
+
+[STATS] SurveyForge: On the Outline Heuristics, Memory-Driven Generation, and Multi-dimensional Evaluation for Automated Survey Writing.json averages -> 
+consistency: 5.000, insight: 3.913, integrity: 5.000
+
+[STATS] SurveyX: Academic Survey Automation via Large Language Models.json averages -> 
+consistency: 5.000, insight: 4.636, integrity: 5.000
+
+[STATS] OVERALL averages -> 
+consistency: 4.883, insight: 4.101, integrity: 4.877

@@ -1,0 +1,273 @@
+{
+    "extraction": {
+        "code_url": {
+            "value": "https://github.com/Alpha-Innovator/SurveyForge",
+            "type": "string",
+            "unit": null,
+            "evidence": "https://github.com/Alpha-Innovator/SurveyForge",
+            "provenance": {
+                "section_header": "Title",
+                "page": null
+            },
+            "notes": ""
+        },
+        "dataset_url": {
+            "value": "https://huggingface.co/datasets/U4R/SurveyBench",
+            "type": "string",
+            "unit": null,
+            "evidence": "https://huggingface.co/datasets/U4R/SurveyBench",
+            "provenance": {
+                "section_header": "Title",
+                "page": null
+            },
+            "notes": ""
+        },
+        "introduction": {
+            "problem_statement": {
+                "value": "The rapid growth of scientific literature makes it difficult for researchers to keep up-to-date with advancements, and AI-generated surveys face challenges such as lack of coherent logic and citation accuracy.",
+                "type": "string",
+                "unit": null,
+                "evidence": "The rapid growth of the literature makes it increasingly difficult for researchers to gain in-depth knowledge of a specific scientific field. Survey papers, which systematically integrate existing studies and provide comprehensive developments and trends in the specific domain, have become a vital starting point of the scientific research cycle. However, traditional human-driven survey writing requires researchers to review a vast number of articles which is time-consuming and makes it challenging to keep up-to-date with the latest advancements in the field.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": "Highlights the difficulty in keeping up with scientific literature growth and challenges in AI-generated surveys."
+            },
+            "proposed_solution": {
+                "value": "SURVEYFORGE is an automated framework for survey generation that includes heuristic outline generation and memory-driven content generation stages. It uses a scholar navigation agent to retrieve high-quality literature and constructs SurveyBench for comprehensive evaluation.",
+                "type": "string",
+                "unit": null,
+                "evidence": "To address the aforementioned challenges, we propose an automated framework for generating survey papers, namely SURVEYFORGE which contains two stages: Outline Generation and Content Generation. In the first stage, SURVEYFORGE employs a heuristic learning approach to leverage topic-relevant literature and structural patterns from human-written surveys, generating semantically comprehensive and well-organized outlines. In the second stage, a memory-driven scholar navigation agent, with a temporal-aware reranking engine, retrieves high-quality literature for each subsection. Then, the content for each section is combined and refined into a coherent and comprehensive survey.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": "Describes the two-stage process of SURVEYFORGE and its components."
+            },
+            "key_contributions": {
+                "value": "SURVEYFORGE introduces an innovative framework for automated survey generation, including heuristic outline generation and memory-driven content generation. It establishes SurveyBench for objective evaluation, significantly improving outline quality, reference accuracy, and content coherence compared to previous methods.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Our contribution can be summarized as follows.\n\u2022 We propose SURVEYFORGE, a novel automated framework for generating high-quality academic survey papers.\n\u2022 We propose a heuristic outline generation method and a memory-driven scholar navigation agent, which together ensure a wellstructured survey framework and high-quality content generation.\n\u2022 To facilitate objective evaluation, we establish SurveyBench, a comprehensive benchmark featuring quantifiable metrics for assessing outline quality, reference quality, and content quality.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": "Summarizes the key innovations and contributions of SURVEYFORGE."
+            }
+        },
+        "motivation": {
+            "outline_quality_issues": {
+                "value": "AI-generated surveys often lack coherent logic and organization, resulting in structural imbalance and inadequate coverage of key topics.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Firstly, the structure of AI-generated surveys often lacks coherent logic and is often poorly-organized. For example, as shown in Fig. 1, existing works may suffer from structural imbalance in both width and depth, such as overly detailed sectioning or inadequate coverage of key topics.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": "Highlights the structural issues in AI-generated surveys."
+            },
+            "reference_quality_issues": {
+                "value": "AI-generated surveys frequently fail to reference key influential literature, reducing the overall depth and value of surveys.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Secondly, AI-generated surveys often fail to reference key influential literature, reducing the overall depth and value of surveys.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": "Discusses the citation inadequacies in AI-generated surveys."
+            },
+            "evaluation_system_gaps": {
+                "value": "Current evaluation methods for AI-generated surveys rely heavily on LLMs and lack fine-grained analysis of critical aspects such as outline quality, reference relevance, and structural coherence.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Lastly, the evaluation of AI-generated surveys mainly relies on LLMs, focusing on the overall quality of the long-form content. This approach lacks fine-grained analysis of critical aspects such as outline quality, reference relevance, and structural coherence.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": "Identifies limitations in current evaluation methods for AI-generated surveys."
+            }
+        },
+        "methods": {
+            "framework_overview": {
+                "value": "SURVEYFORGE consists of two main stages: heuristic outline generation and memory-driven content generation. The first stage uses heuristic learning to generate outlines by leveraging topic-relevant literature and structural patterns from existing surveys. The second stage involves a scholar navigation agent with temporal-aware reranking for literature retrieval, followed by content synthesis and refinement.",
+                "type": "string",
+                "unit": null,
+                "evidence": "In this section, we propose SURVEYFORGE, a novel framework based on LLMs for automatically retrieving relevant literature and generating comprehensive survey papers. As shown in Fig. 2, our framework consists of two main stages: outline generation stage and content writing stage. The outline generation stage leverages both research papers and existing survey structures through a heuristic learning mechanism, producing academically structured outlines. The content generation stage employs a memory-driven scholar navigation agent with key paper retrieval strategy to synthesize the content of the survey.",
+                "provenance": {
+                    "section_header": "Method",
+                    "page": null
+                },
+                "notes": "Describes the two-stage framework of SURVEYFORGE."
+            },
+            "heuristic_outline_generation": {
+                "knowledge_fusion": {
+                    "value": "SURVEYFORGE retrieves relevant papers and outlines from a Research Paper Database and a Survey Outline Database, identifying key thematic areas and generating a first-level outline augmented with semantic queries.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "As shown in Algorithm 1, the framework begins with crossdatabase knowledge fusion, retrieving relevant papers and outlines for the given topic $T$ from $\\mathcal { D } _ { R }$ and $\\mathcal { D } _ { S }$ . This process identifies key thematic areas and their interrelations, generating the first-level outline $\\mathcal { O } _ { i }$ augmented with semantic queries $Q _ { i }$ that specify the scope and focus of each heading.",
+                    "provenance": {
+                        "section_header": "Heuristic Outline Generation",
+                        "page": null
+                    },
+                    "notes": "Describes the knowledge fusion process for outline generation."
+                },
+                "hierarchical_generation": {
+                    "value": "SURVEYFORGE generates second-level outlines with sub-queries for each section, recursively retrieving relevant materials and constructing a rigorous survey outline.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "For each section $\\mathcal { O } _ { i }$ , we recursively retrieves relevant materials $( \\mathcal { P } _ { R _ { i } } , \\mathcal { P } _ { S _ { i } } )$ and generates second-level outlines $\\mathcal { O } _ { i j }$ with sub-queries $q _ { i j }$ . Finally, these headings and their associated queries are systematically merged to construct a academically rigorous and comprehensive survey outline, serving as a foundation for subsequent content generation.",
+                    "provenance": {
+                        "section_header": "Heuristic Outline Generation",
+                        "page": null
+                    },
+                    "notes": "Details the hierarchical generation process for outlines."
+                },
+                "memory_construction": {
+                    "value": "Literature retrieved during outline generation is stored as memory, facilitating the content generation phase by providing contextual information and thematic coherence.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Store PRiasmemory Mi; Store PR as overall memory M;",
+                    "provenance": {
+                        "section_header": "Heuristic Outline Generation",
+                        "page": null
+                    },
+                    "notes": "Explains how memory is constructed for content generation."
+                }
+            },
+            "memory_driven_content_generation": {
+                "sana_module": {
+                    "value": "SANA includes Memory for Sub-query, Memory for Retrieval, and a Temporal-aware Reranking Engine to enhance literature retrieval and ensure high-quality references.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "The SANA includes three modules: Memory for Sub-query (MS), Memory for Retrieval (MR), Temporal-aware Reranking Engine (TRE).",
+                    "provenance": {
+                        "section_header": "SANA: Scholar Navigation Agent",
+                        "page": null
+                    },
+                    "notes": "Describes the components of the SANA module for content generation."
+                },
+                "query_decomposition": {
+                    "value": "Query decomposition involves breaking down complex queries into sub-queries using memory, enhancing retrieval precision and thematic alignment.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "To achieve query decomposition, $q _ { i j }$ and $M _ { i }$ are used together as part of the instruction to prompt the LLM to decompose $q _ { i j }$ into multiple subqueries $q _ { i j k }$ :",
+                    "provenance": {
+                        "section_header": "Memory-driven Content Generation",
+                        "page": null
+                    },
+                    "notes": "Explains the query decomposition process using memory."
+                },
+                "temporal_aware_reranking": {
+                    "value": "The Temporal-aware Reranking Engine integrates textual relevance, citation impact, and publication recency to select high-quality literature.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "To address both the limitations of pure semantic matching and the temporal bias in different quality indicators, we propose a temporalaware reranking engine that integrates textual relevance, citation impact, and publication recency.",
+                    "provenance": {
+                        "section_header": "Memory-driven Content Generation",
+                        "page": null
+                    },
+                    "notes": "Describes the reranking engine's role in ensuring literature quality."
+                },
+                "parallel_generation_refinement": {
+                    "value": "Content for each section is generated in parallel to reduce time, followed by a refinement stage to address redundancy and ensure coherence.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Due to the constraints of maximum context length and inference speed of LLMs, the content of each section is generated in parallel to reduce the generation time and ensure the length of the generated survey. However, due to the independent generation processes of each section in parallel, there may be repetition or redundancy among the contents of different section. Therefore, we employ LLMs to implement the refinement stage, which is aimed at refining the raw survey obtained by concatenating the contents of each section generated in parallel.",
+                    "provenance": {
+                        "section_header": "Parallel Generation and Refinement",
+                        "page": null
+                    },
+                    "notes": "Explains parallel generation and refinement processes."
+                }
+            },
+            "evaluation_framework": {
+                "survey_bench": {
+                    "value": "SurveyBench consists of 100 human-written survey papers for win-rate comparison, assessing AI-generated surveys across reference, outline, and content quality dimensions.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Moreover, to achieve a comprehensive evaluation, we construct SurveyBench, which includes 100 human-written survey papers for win-rate comparison and assesses AI-generated survey papers across three dimensions: reference, outline, and content quality.",
+                    "provenance": {
+                        "section_header": "Abstract",
+                        "page": null
+                    },
+                    "notes": "Describes the composition and purpose of SurveyBench."
+                },
+                "sam_metrics": {
+                    "value": "SAM metrics evaluate AI-generated surveys using reference quality (SAM-R), outline quality (SAM-O), and content quality (SAM-C) across structure, relevance, and coverage dimensions.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "The SAM series integrate objective metrics, expert knowledge, and multi-dimensional criteria through three core components:\n\nSAM-R: Reference Quality Evaluation.\n\nSAM-O: Outline Quality Evaluation.\n\nSAM-C: Content Quality Evaluation.",
+                    "provenance": {
+                        "section_header": "Multi-dimensional Evaluation Benchmark",
+                        "page": null
+                    },
+                    "notes": "Details the components of SAM metrics for survey evaluation."
+                }
+            }
+        },
+        "experimental_results": {
+            "outline_quality_comparison": {
+                "value": "SURVEYFORGE achieves higher outline quality scores compared to AutoSurvey, with improvements driven by heuristic learning and domain-specific structural guidance.",
+                "type": "string",
+                "unit": null,
+                "evidence": "For outline quality, the results show that SURVEYFORGE generates outlines that are more logical, comprehensive, and closer to human-level performance compared to AutoSurvey (Wang et al., 2024c). Using Claude3-Haiku, the outline quality score increases from 82.25 to 86.58, while GPT-4o mini achieves a similar improvement from 83.10 to 86.62.",
+                "provenance": {
+                    "section_header": "Main Results",
+                    "page": null
+                },
+                "notes": "Highlights improvements in outline quality due to heuristic learning."
+            },
+            "evaluation_win_rate": {
+                "value": "SURVEYFORGE achieves a higher win rate in automatic and human evaluations for outline and content quality compared to AutoSurvey, indicating robust performance.",
+                "type": "string",
+                "unit": null,
+                "evidence": "As shown in Table 2, for outline quality, the automated system achieves a Score Win Rate of $7 3 . 0 0 \\%$ and a Comparative Win Rate of $7 5 . 0 0 \\%$ , closely matching the human evaluation rate of $7 4 . 0 0 \\%$ . This consistency confirms the system\u2019s robust scoring logic. For content quality, the automated system\u2019s Score Win Rate for SURVEYFORGE is $6 9 . 0 0 \\%$ , aligning closely with the human expert rate of $7 0 . 0 0 \\%$ .",
+                "provenance": {
+                    "section_header": "Comparison with Human Evaluation",
+                    "page": null
+                },
+                "notes": "Indicates strong alignment with human evaluations."
+            }
+        },
+        "conclusions": {
+            "technical_contribution": {
+                "value": "SURVEYFORGE introduces a novel automated framework with heuristic outline generation and memory-driven content generation, significantly improving survey quality across multiple dimensions.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We have introduced SURVEYFORGE, an automated framework leveraging a heuristic outline generation and a memory-driven content generation to generate high-quality surveys.",
+                "provenance": {
+                    "section_header": "Conclusion and Outlook",
+                    "page": null
+                },
+                "notes": "Summarizes the technical innovations of SURVEYFORGE."
+            },
+            "evaluation_contribution": {
+                "value": "SURVEYFORGE establishes SurveyBench and SAM metrics for comprehensive evaluation, providing objective benchmarks for assessing AI-generated surveys.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We introduce a multidimensional evaluation benchmark to comprehensively assess the quality of surveys.",
+                "provenance": {
+                    "section_header": "Conclusion and Outlook",
+                    "page": null
+                },
+                "notes": "Highlights the establishment of evaluation metrics and benchmarks."
+            },
+            "application_value": {
+                "value": "SURVEYFORGE aims to reduce the learning curve for researchers, promoting cross-disciplinary integration and development through efficient survey generation.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We hope to reduce the learning curve for researchers venturing into unfamiliar fields, providing convenience and thereby promoting the integration and development of cross-disciplinary and cross-domain knowledge.",
+                "provenance": {
+                    "section_header": "Conclusion and Outlook",
+                    "page": null
+                },
+                "notes": "Describes the practical significance of SURVEYFORGE."
+            }
+        }
+    }
+}

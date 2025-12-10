@@ -1,0 +1,1784 @@
+[
+    {
+        "type": "text",
+        "text": "Stop Overthinking: A Survey on Efficient Reasoning for Large Language Models ",
+        "text_level": 1,
+        "bbox": [
+            209,
+            122,
+            789,
+            172
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Yang $\\mathbf { S u i } ^ { 1 }$ Yu-Neng Chuang1 Guanchu Wang1 Jiamu Zhang1 Tianyi Zhang1 Jiayi Yuan1 Hongyi Liu1 Andrew Wen1 Shaochen Zhong1 Na Zou2 Hanjie Chen1 Xia $\\mathbf { H } \\bar { \\mathbf { u } } ^ { 1 }$ ",
+        "text_level": 1,
+        "bbox": [
+            181,
+            224,
+            839,
+            255
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1Rice University 2University of Houston yang.sui@rice.edu, xia.hu@rice.edu ",
+        "bbox": [
+            369,
+            256,
+            660,
+            282
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Project Website: https://github.com/Eclipsess/Awesome-Efficient-Reasoning-LLMs ",
+        "bbox": [
+            240,
+            296,
+            784,
+            310
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Abstract ",
+        "text_level": 1,
+        "bbox": [
+            462,
+            345,
+            535,
+            363
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Large Language Models (LLMs) have demonstrated remarkable capabilities in complex tasks. Recent advancements in Large Reasoning Models (LRMs), such as OpenAI o1 and DeepSeek-R1, have further improved performance in System-2 reasoning domains like mathematics and programming by harnessing supervised fine-tuning (SFT) and reinforcement learning (RL) techniques to enhance the Chainof-Thought (CoT) reasoning. However, while longer CoT reasoning sequences improve performance, they also introduce significant computational overhead due to verbose and redundant outputs, known as the “overthinking phenomenon”. ",
+        "bbox": [
+            233,
+            378,
+            766,
+            491
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Efficient Reasoning, which seeks to optimize reasoning length while preserving reasoning capabilities, offers practical benefits such as reduced computational costs and improved responsiveness for real-world applications. Despite its potential, efficient reasoning remains in the early stages of research. ",
+        "bbox": [
+            232,
+            493,
+            766,
+            549
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "In this paper, we provide the first structured survey to systematically investigate and explore the current progress toward achieving efficient reasoning in LLMs. Overall, relying on the inherent mechanism of LLMs, we categorize existing works into several key directions: (1) model-based efficient reasoning, which considers optimizing full-length reasoning models into more concise reasoning models or directly training efficient reasoning models; (2) reasoning output-based efficient reasoning, which aims to dynamically reduce reasoning steps and length during inference; (3) input prompts-based efficient reasoning, which seeks to enhance reasoning efficiency based on input prompt properties such as difficulty or length control. Additionally, we introduce the use of efficient data for training reasoning models, explore the reasoning capabilities of small language models, and discuss evaluation methods and benchmarking. We maintain a public repository to continuously track and update the latest research in this promising area. ",
+        "bbox": [
+            232,
+            553,
+            766,
+            732
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1 Introduction ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            767,
+            310,
+            785
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Large Language Models (LLMs) have emerged as exceptionally powerful AI tools, demonstrating advanced capabilities in natural language understanding and complex reasoning. Recently, the rise of reasoning-focused LLMs, also referred to as reasoning-capable models or Large Reasoning Models (LRMs) [202] such as OpenAI o1 [137] and DeepSeek-R1 [56], has significantly improved performance in System-2 reasoning domains [97], particularly in challenging mathematics [26, 64] and programming tasks [11, 27]. Evolving from foundational pretrained models (e.g., LLaMA [55, 174]) trained with next-token prediction [35], these models typically leverage Chain-of-Thought (CoT) [190] reasoning chains to generate explicit, step-by-step reasoning sequences before arriving at a final answer, significantly improving their effectiveness in reasoning-intensive tasks. ",
+        "bbox": [
+            174,
+            801,
+            823,
+            898
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/ccd8d8e134b5b23a7b69ae6a360849678785a8da408dfeaf9a449858c99edbf7.jpg",
+        "image_caption": [
+            "Figure 1: The pipeline of developing efficient reasoning for LLMs. A reasoning model can be trained on the base model using SFT, RL, or a combination of both. While reasoning models demonstrate strong reasoning capabilities, they often suffer from the “overthinking phenomenon”, generating unnecessarily lengthy reasoning steps. To improve efficiency, various methods can be applied to reduce redundant steps while maintaining accuracy, or to fine-tune non-reasoning models to incorporate efficient reasoning capabilities. This approach enables the model to answer questions with concise and effective reasoning steps. In this paper, we explore the latest progress in efficient reasoning for LLMs, aiming to provide insights that can guide future research and the development of reasoning-driven applications across various domains. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            173,
+            88,
+            795,
+            238
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            421,
+            823,
+            450
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Such reasoning abilities in LLMs are typically developed through supervised fine-tuning (SFT) and reinforcement learning (RL), which promote iterative and systematic problem-solving abilities. For instance, DeepSeek-R1 [56] undergoes multiple rounds of SFT and RL training, emphasizing structured thinking templates and rule-based reward mechanisms. In particular, the rule-based rewards provides precise and explicit feedback signals during training, effectively enhancing the general reasoning capabilities beyond the pretrained LLM. ",
+        "bbox": [
+            174,
+            455,
+            825,
+            540
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "However, while long CoT reasoning significantly boosts accuracy, step-by-step thinking mechanisms also lead to lengthy output responses, resulting in substantial computational overhead and increased reasoning time. For instance, the \"overthinking problem\" arises when answering a simple question [16] like, \"what is the answer of 2 plus 3?\" Some reasoning models, especially smaller ones, can generate reasoning sequences spanning thousands of tokens. This verbosity significantly increases both inference costs and latency, limiting the practical application of reasoning models in computation-sensitive real-world scenarios, such as real-time autonomous driving systems, interactive conversational assistants, precision robotic control tasks, and large-scale online search engines. ",
+        "bbox": [
+            174,
+            545,
+            825,
+            656
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Efficient reasoning, particularly the reduction of reasoning length, offers significant benefits in such regards, providing direct cost reduction and improved feasibility for real-world deployments. Recently, numerous studies [58, 60, 127, 130, 217] have explored ways to develop more concise reasoning paths, making efficient reasoning a rapidly evolving research area. ",
+        "bbox": [
+            174,
+            662,
+            825,
+            718
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "In this paper, we present the first structured survey systematically exploring the progress in efficient reasoning for LLMs. As illustrated in Figure 2, we categorize existing work into three key directions: (1) Model-based efficient reasoning, which focuses on optimizing full-length reasoning models into more concise variants or directly training efficient reasoning models. (2) Reasoning outputbased efficient reasoning, which dynamically reduces reasoning steps and length during inference. (3) Input prompts-based efficient reasoning, which enhances reasoning efficiency based on input properties such as difficulty or length control. Unlike model compression techniques such as quantization [49,102,197] or KV cache compression [59,120,156,227,241], which focus on reducing model size for lightweight inference, efficient reasoning in LLMs emphasizes smart and concise reasoning by optimizing the length of generated reasoning sequences and reducing unnecessary thinking steps. ",
+        "bbox": [
+            173,
+            724,
+            825,
+            877
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Overall, we provide a summary of the current key approaches to efficient reasoning, organizing them into the following categories: ",
+        "bbox": [
+            173,
+            883,
+            821,
+            911
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "image",
+        "img_path": "images/1e45d7ea1203f1bb23d0d570e171d048bf40de2129e9ac0f87d26a72ae59736c.jpg",
+        "image_caption": [
+            "Figure 2: Overview of efficient reasoning methods, which can be summarized as model-oriented (Left: $I , I I )$ and reasoning output-oriented (Middle: III, $I V _ { \\mathbf { \\Omega } }$ ), and input prompts-oriented (Right: V, $V I$ ) methods. Specifically, (I) Reinforcement Learning with Length Reward Design (Section 3.1); (II) Supervised Fine-Tuning with Variable-Length CoT Data (Section 3.2); (III) Compressing Reasoning Steps into Fewer Latent Representation (Section 4.1); (IV) Dynamic Reasoning Paradigm during Inference (Section 4.2); (V) Prompt-guided Efficient Reasoning (Section 5.1); (VI) Routing Prompts to Optimize Reasoning Efficiency (Section 5.2); "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            179,
+            87,
+            813,
+            251
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "• Reinforcement Learning with Length-Based Reward Design (Section 3.1) • Supervised Fine-Tuning with Variable-Length CoT Data (Section 3.2) • Compressing Reasoning Steps into Fewer Latent Representations (Section 4.1) • Dynamic Reasoning Paradigms During Inference (Section 4.2) • Prompt-Guided Efficient Reasoning (Section 5.1) • Routing Prompts to Optimize Reasoning Efficiency (Section 5.2) ",
+        "bbox": [
+            217,
+            406,
+            751,
+            535
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Additionally, we explore other relevant topics, including: ",
+        "bbox": [
+            173,
+            549,
+            547,
+            564
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "• Training Reasoning Models with Efficient Data (Section 6.1) • Reasoning Abilities of Small Language Models and Model Compression (Section 6.2) • Evaluation and Benchmarking of Efficient Reasoning Models (Section 7) ",
+        "bbox": [
+            218,
+            578,
+            799,
+            638
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "2 Background: Long CoT Reasoning Models and Overthinking Phenomenon ",
+        "text_level": 1,
+        "bbox": [
+            171,
+            670,
+            821,
+            688
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "2.1 Chain-of-Thought (CoT) Reasoning ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            704,
+            462,
+            719
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Chain-of-Thought (CoT) reasoning [190] is a key approach that has been purposefully introduced in LLMs to enhance their reasoning capabilities. In this setting, models are typically prompted to generate a structured reasoning chain before arriving at a final answer. Techniques in this domain have been shown to improve overall accuracy [190] since a higher-quality generation context often leads to more consistent and reliable final results. Several notable CoT variants have been developed: SelfConsistency CoT [186] replaces the standard greedy decoding approach by sampling diverse reasoning paths and selecting the most consistent answer through marginalization and aggregation. Tree-ofThought (ToT) prompting [215] further structures the reasoning process as a tree with backtracking, significantly improving efficiency in solving parallelizable subtasks. Graph-of-Thoughts (GoT) prompting [9] extends this concept by structuring thoughts into a graph, allowing iterative refinement of individual reasoning steps. While many CoT variants exist, they generally involve different prompting techniques to guide the behavior of models, sometimes incorporating controller-like mechanisms to manage thought progression and usage. ",
+        "bbox": [
+            174,
+            731,
+            826,
+            911
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "image",
+        "img_path": "images/8abb0af0fdbaf85b2c06c84b91237b8b01904b507fe5584a2000c9e727a8083d.jpg",
+        "image_caption": [
+            "Figure 3: Taxonomy of existing literature on efficient reasoning for LLMs. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            171,
+            82,
+            825,
+            645
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "2.2 The Mechanism Behind Large Reasoning Models ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            695,
+            555,
+            710
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Multi-step reasoning refers to the ability of LLMs ability to generate structured reasoning steps before committing to a final answer. This capability is particularly beneficial for logic-intensive tasks such as mathematics and programming. More broadly, reasoning-capable models are often favored by human users over their non-reasoning counterparts, as evidenced by rankings in the Chatbot Arena LLM Leaderboard.1 ",
+        "bbox": [
+            174,
+            723,
+            825,
+            791
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Recent reasoning models, such as DeepSeek-R1 [56] and OpenAI o1 [137], are known or believed to have internalized reasoning behaviors, reducing reliance on explicit test-time augmentations. These models generate detailed CoT reasoning by iteratively producing intermediate steps and refining solutions sequentially until reaching a final answer. Unlike traditional CoT approaches, which rely on prompting, these reasoning models internalize their reasoning capability through extensive training. ",
+        "bbox": [
+            174,
+            797,
+            825,
+            867
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "image",
+        "img_path": "images/704e87705de97f26136fe8194960db2e158f3b43748fa4776fdc8673fe2ad6f5.jpg",
+        "image_caption": [
+            "Figure 4: An example of the “overthinking phenomenon”: when asked “Which is larger, 0.9 or $\\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta } \\mathbf { \\delta }$ , the reasoning model takes an unnecessarily long time (e.g., 19 seconds for QwQ-32B [172] and 42 seconds for DeepSeek-R1 [56]) to arrive at the correct answer. This example was tested in March 2025. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            176,
+            87,
+            816,
+            295
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The OpenAI o1 model is speculated to employ a tree-based search approach, such as Monte Carlo Tree Search (MCTS) [28, 80], combined with a Process Reward Model (PRM) to explore reasoning paths and determine optimal solutions through guided simulations.2 DeepSeek-R1, on the other hand, explicitly learns its reasoning capability through supervised fine-tuning and reinforcement learning, with a particular emphasis on rule-based rewards for math and coding tasks. These models are trained to generate reasoning steps in a predefined format before arriving at their final answers. ",
+        "bbox": [
+            173,
+            393,
+            825,
+            477
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "2.3 The Overthinking Problem in Long CoT Reasoning Models ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            494,
+            625,
+            510
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The “overthinking phenomenon” [16, 171] in long CoT reasoning models refers to situations where LLMs generate excessively detailed or unnecessarily elaborate reasoning steps, ultimately reducing their problem-solving efficiency. In particular, many modern reasoning models, especially those with smaller parameter scales, tend to produce verbose reasoning or redundant intermediate steps, making them unable to provide answers within the user-defined token budget. In worse cases, excessive reasoning steps introduce errors or obscure logical clarity, leading to incorrect answers. ",
+        "bbox": [
+            173,
+            520,
+            825,
+            604
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Figure 4 illustrates an example of overthinking. Even though the model arrives at the correct answer early in its reasoning process, it continues generating unnecessary intermediate steps, leading to inefficiencies. Given the substantial resource costs associated with LLM inference (e.g., OpenAI o1 costs $\\$ 60$ per 1M generated tokens), such behavior is highly undesirable. Moreover, the problem becomes even worse if longer reasoning leads to wrong answers. In contrast, efficient reasoning models would use fewer reasoning steps to obtain correct answers while reducing inference costs. ",
+        "bbox": [
+            174,
+            609,
+            825,
+            694
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Addressing this challenge is particularly difficult because the pretraining recipes for reasoning-capable models often explicitly encourage generating extended reasoning steps to improve accuracy. For example, DeepSeek-R1-Zero, a more or less a development prototype of DeepSeek-R1, exhibits a direct correlation between increased training duration with longer response lengths and improved benchmark performance [56]. These trends are often viewed as proxies for successful reasoning training. Consequently, improving inference efficiency requires working against certain pretraining objectives, making it a non-trivial challenge. ",
+        "bbox": [
+            174,
+            700,
+            825,
+            797
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "This paper aims to systematically summarize various approaches and methodologies toward achieving the challenging yet valuable goal of developing reasoning models with high efficiency and strong reasoning capabilities. ",
+        "bbox": [
+            176,
+            804,
+            821,
+            845
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "table",
+        "img_path": "images/34d4634313e2b4505961e9a9743074c4aac7255bb49c60f2dd743851991ca065.jpg",
+        "table_caption": [
+            "Table 1: Comparison of different length reward-based RL methods. $L ( \\cdot )$ denotes the way of calculating the prediction length. $r _ { 0 } ^ { c } / r _ { 0 } ^ { w }$ denotes reward (correct/wrong) for $\\scriptstyle \\dot { L } ( \\cdot ) = 0 . \\ r _ { L } ^ { c } / r _ { L } ^ { w }$ Reward (correct/wrong) for $L ( \\cdot ) = L _ { \\mathrm { m a x } } ( \\cdot )$ . $r _ { e }$ is the exceed length penalty. $y _ { \\mathrm { G T } }$ represents the ground truth answer of input data $x$ . $\\pi _ { \\mathrm { r e f } }$ is the policy of reference model. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=2>Method         RL</td><td rowspan=1 colspan=1>Length Constraint Reward</td><td rowspan=1 colspan=1>Data</td><td rowspan=1 colspan=1>Model</td></tr><tr><td rowspan=1 colspan=1>O1-Pruner [127]</td><td rowspan=1 colspan=1>PPO</td><td rowspan=1 colspan=1>Ex~DE万efL（yre） -[L（ypred)]</td><td rowspan=1 colspan=1>GSM8KGaoKaoMATH-500</td><td rowspan=1 colspan=1>Marco-o1-7BQwQ-32B-Preview</td></tr><tr><td rowspan=1 colspan=1>Demystifying [217]</td><td rowspan=1 colspan=1>PPO</td><td rowspan=1 colspan=1>r6+0.5×(r-r）（1+os(L)） if correct,，r+0.5×(r-r)(1+cos(Lmaxif wrong(re,                          if L(ypred) = Lmax;</td><td rowspan=1 colspan=1>MATH-500AIME-2024TheoremQAMMLU-Pro-1k</td><td rowspan=1 colspan=1>LLaMA-3.1-8BQwen2.5-7B-Math</td></tr><tr><td rowspan=1 colspan=1>L1 [2]</td><td rowspan=1 colspan=1>GRPO</td><td rowspan=1 colspan=1>Tnew =CONCAT(x,“Think for N tokens.&quot;),r(y,yGT,L(yGT))=I(ypred =yGT)-α·|L(yGT)-L(ypred)l</td><td rowspan=1 colspan=1>AMCGPQALASTMMLUMATH-500AIME-2024Olympiad-Bench</td><td rowspan=1 colspan=1>DeepSeek-R1-Distill-Qwen-1.5B</td></tr><tr><td rowspan=1 colspan=1>DAST [154]</td><td rowspan=1 colspan=1>SimPO</td><td rowspan=1 colspan=1>Trained with constructed length preference data</td><td rowspan=1 colspan=1>MATH-500AIME-2024</td><td rowspan=1 colspan=1>DeepSeek-R1-Distill-Qwen-7BDeepSeek-R1-Distill-Qwen-32B</td></tr><tr><td rowspan=1 colspan=1>Training [5]</td><td rowspan=1 colspan=1>PG</td><td rowspan=1 colspan=1>Ex~D[1{ypred = yGr}(1-αf(L(ypred))]</td><td rowspan=1 colspan=1>GSM8KMATH-500AIME-2024</td><td rowspan=1 colspan=1>DeepSeek-R1-Distill-Qwen-1.5BDeepSeek-R1-Distill-Qwen-7B</td></tr></table>",
+        "bbox": [
+            176,
+            151,
+            823,
+            349
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "table",
+        "img_path": "images/5b2f02989b1c7418f752014cebc57398dbdebdfb0b181b6c9b086946207cb674.jpg",
+        "table_caption": [
+            "Table 2: Comparison of different policy optimization methods in CoT length controls. $\\hat { R } _ { t }$ represents the reward model. $\\pi _ { \\mathrm { r e f } }$ is the policy of reference model. $\\gamma$ is a target reward margin term for SimPO. $\\lambda$ is a clipping-related hyper-parameter. The $y _ { w }$ is for winning responses, and $y _ { l }$ is for losing responses, where some with $G$ on superscript denote the outputs of different sampled groups. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Method</td><td colspan=\"6\">Optimization Objective</td></tr><tr><td>Policy Gradient (PG)</td><td colspan=\"6\"></td></tr><tr><td>PPO [150]</td><td colspan=\"2\"></td><td>E</td><td colspan=\"2\">[min π(yt|xt) (ref(tt）</td></tr><tr><td>SimPO [131]</td><td></td><td></td><td>E[logg </td><td>((y,1-6,1）) g</td></tr><tr><td>GRPO [151]</td><td>E</td><td colspan=\"6\">min π（yxt） R，clip （ref（）</td></tr></table>",
+        "bbox": [
+            197,
+            429,
+            799,
+            558
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "3 Model-based Efficient Reasoning ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            582,
+            482,
+            601
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "From the model perspective, these works focus on fine-tuning LLMs to improve their intrinsic ability to reason concisely and efficiently. ",
+        "bbox": [
+            174,
+            614,
+            823,
+            643
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "3.1 RL with Length Reward Design ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            660,
+            434,
+            676
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Most reasoning models are trained using RL-based methods (e.g., DeepSeek-R1 [56], DeepSeekR1-Zero [56], OpenAI o1 [137], QwQ-32B-Preview [172]) which focus on the accuracy reward and format rewards [56]. To enhance reasoning-length efficiency, some studies propose integrating a length reward into the RL framework, which effectively shortens the reasoning process (as shown in Table 5). In principle, the length reward assigns higher scores to short, correct answers while penalizing lengthy or incorrect ones, thereby optimizing the length of the reasoning path. ",
+        "bbox": [
+            174,
+            686,
+            825,
+            771
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "The key question is: How to formulate the length reward in RL? ",
+        "bbox": [
+            220,
+            795,
+            655,
+            810
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Existing works leverage traditional RL optimization techniques combined with explicit length-based reward to control the length of CoT reasoning. Some detailed length rewards are shown in Table 1. The work [5] proposes utilizing length-based rewards conditioned on correctness, where shorter correct answers receive higher rewards. They then apply traditional policy gradient methods guided by this reward scheme to encourage LLMs to produce concise reasoning steps. Expanding from the policy gradient, the following discussed work is primarily built upon proximal policy optimization (PPO) [150] with CoT length penalty. Demystifying [217] presents empirical findings from RL experiments examining how reasoning capability is influenced by length. They demonstrate that RL does not consistently or reliably increase the length and complexity of CoT reasoning, emphasizing the necessity of controlling CoT length growth to ensure stable performance. To mitigate these issues, they proposed a Cosine Reward based on a Dirichlet function of concise reward formula [121] and the proposed “exceed length penalty” scores. Due to the performance impact of CoT length, Kimi k1.5 [171] incorporates a length penalty into its policy optimization (a variant of online policy mirror decent [173]) to improve long CoT activations and facilitate effective model merging. Besides optimizing with length penalty reward, L1 [2] modify the training data with the designated length constraint instruction (i.e., Think for $N$ tokens) before launching the policy optimization with pre-trained reasoning LLMs. O1-Pruner [127] introduces the Length-Harmonizing Reward, combined with a PPO-style loss, to optimize reasoning LLMs by effectively shortening the CoT length. Specifically, the Length-Harmonizing Reward is computed based on the ratio of CoT lengths between the reference model output and the predicted results. Additionally, this reward incorporates accuracy-based constraints comparing predictions to the reference model outputs, ensuring that shortening the reasoning process does not degrade task performance. Without relying on a reference model, DAST [154] employs SimPO [131] to fine-tune reasoning LLMs using a constructed lengthpreference dataset. This dataset is generated based on a self-defined token-length budget measurement $L _ { \\mathrm { b u d g e t } }$ , defined as a linear combination of the average token length of correct responses and the maximum allowed generation length. ",
+        "bbox": [
+            174,
+            827,
+            825,
+            911
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "image",
+        "img_path": "images/fb62fc4d6537fb9613047e9fa8dfc8cd6ef105262b2bbd0b15a5abf28acc28ca.jpg",
+        "image_caption": [
+            "Figure 5: Illustration of the method for RL fine-tuning with length reward designs. In principle, the length reward assigns higher rewards to short, correct answers and penalizes lengthy or wrong answers to achieve efficient reasoning LLMs. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            178,
+            90,
+            812,
+            161
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            244,
+            826,
+            523
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "These RL-based methods enable the mitigation of overthinking in reasoning-capable LLMs, where overthinking refers to unnecessarily extended reasoning processes, leading to longer inference times and exceeding computational budgets. By achieving nearly lossless alignment with the original reasoning capabilities of LLMs, these budget-efficient RL strategies democratize the deployment of reasoning LLMs in resource-constrained scenarios. ",
+        "bbox": [
+            174,
+            529,
+            825,
+            598
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "3.2 SFT with Variable-Length CoT Data ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            616,
+            468,
+            631
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Fine-tuning LLMs with variable-length CoT data is an effective way to improve the efficiency of reasoning. As shown in Figure 6, this series of works typically involves: (1) Constructing variablelength CoT reasoning datasets via various methods, and (2) Applying SFT with collected data on reasoning models to enable LLMs to learn compact reasoning chains that encapsulate effective knowledge. Note that this method is not limited to RL-trained reasoning models; it can also directly enhance reasoning models by injecting efficient reasoning capabilities, similar to those used in distilled reasoning models.(e.g., DeepSeek-R1-Distill-Qwen [56]). ",
+        "bbox": [
+            174,
+            642,
+            825,
+            739
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "The key question is: How to collect variable-length CoT reasoning data, especially for short CoT data? ",
+        "bbox": [
+            197,
+            763,
+            799,
+            791
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "3.2.1 Constructing Variable-Length CoT Reasoning Datasets ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            816,
+            609,
+            833
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Variable-length CoT reasoning datasets refer to datasets of long/short reasoning steps that could guide LLMs to achieve correct answers. Existing works typically gather long CoT data by prompting pre-trained reasoning models with questions. Based on the long CoT data, the key challenge is: How to collect short CoT data? Overall, variable-length CoT reasoning datasets can be created via either post-reasoning or during-reasoning. We list some detailed approaches in Table 3. ",
+        "bbox": [
+            174,
+            842,
+            825,
+            911
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "image",
+        "img_path": "images/c02484eb202a1c51b7d68d80a74b5b4139d3a42fccb50c94f1f8997d14c5fd85.jpg",
+        "image_caption": [
+            "Figure 6: Illustration of methods for utilizing SFT with variable-length CoT reasoning datasets. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            179,
+            92,
+            820,
+            172
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "table",
+        "img_path": "images/20993ed3eb71e6213376db8804bfa8a44aa707bfe314f1d668d8fbb2b5ff2b36.jpg",
+        "table_caption": [
+            "Table 3: Comparison of various approaches that utilize SFT with variable-length CoT reasoning datasets. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Method</td><td>Source Data</td><td>Reasoning Pruning</td><td>SFT</td><td>LLMs</td></tr><tr><td>Self-Training [133]</td><td>GSM8K MATH</td><td>Sampling N reasoning then select the shortest one</td><td>Standard</td><td>Llama-3.2-{1B,3B} Llama-3.1-8B</td></tr><tr><td>TokenSkip [194]</td><td>GSM8K MATH</td><td>Skip tokens according to semantic importance</td><td>Standard</td><td>LLaMA-3.1-8B-Instruct Qwen2.5-Instruct</td></tr><tr><td>C3oT[78]</td><td>GSM8K MathQA ECQA</td><td>GPT-4 as compressor to make concise reasoning</td><td>Standard</td><td>Llama-2-chat-{7B,13B}</td></tr><tr><td>Distilling2-1 [219]</td><td>StrategyQA OASST2</td><td>Removing reasoning</td><td>Standard</td><td>Llama-2-70B-chat</td></tr><tr><td>Token-Budget [58]</td><td>GSM8K GSM8K-Z MathBench</td><td>Persuing an optimal token budget for LLMs to complete the reasoning</td><td>Standard</td><td>Llama-3.1-8B-Instruct</td></tr><tr><td>CoT-Valve [130]</td><td>GSM8K PRM800k</td><td>Merging parameters of non-reasoning and long reasoning LLMs</td><td>Progressive</td><td>QwQ-32B-Preview DeepSeek-R1-Distill-Llama-8B LLaMA-3.1-8B LLaMA-3.2-1B Qwen32B-Instruct</td></tr><tr><td>LearmSkip [115]</td><td>Analog of Algebra Multi-digit Addition Directional Reasoning</td><td>Stage 1: Manually skipping Stage 2: Prompting LLMs for shorter reasoning</td><td>Standard &amp; Progressive</td><td>Llama-2-7B Phi-3-mini (3.8B)</td></tr></table>",
+        "bbox": [
+            174,
+            251,
+            823,
+            535
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Post-reasoning CoT Compression. This approach collects short CoT data by reducing redundant reasoning steps after full-length reasoning, either by heuristic criterion or LLMs, as proposed in [219], [78], and [194]. Specifically, [219] uses reasoning-capable LLMs to generate the reasoning and answers. After generating full-length CoT data, they discard the reasoning process, only using the questions and answers to distill system-1 LLMs. Another work C3oT improves the reasoning efficiency by compressing the reasoning process [78]. The long CoT reasoning steps were generated by explicitly prompting LLMs. Then, it employs GPT-4 as a compressor to reduce the length of the reasoning process while ensuring the compressed reasoning retains all key information and removes redundant words. In addition, TokenSkip reduce the reasoning steps driven by interpretation [194]. It estimates the semantic importance of each reasoning part to the final answer and reduces the reasoning tokens. The important parts preserve the key reasoning steps that could improve the accuracy of the final answer. The advantage of post-reasoning CoT compression is that it can achieve a higher reduction rate of the reasoning steps, which advances more efficient reasoning. ",
+        "bbox": [
+            173,
+            561,
+            825,
+            742
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Obtaining Compressed CoT Data during Reasoning. This approach collects short CoT data by prompting LLMs to generate short reasoning steps during inference and reasoning, as proposed in [115], [133], [58], and [130]. Specifically, [115] proposes a human-like step-skipping method for generating shorter reasoning steps. In the first stage, based on the original training datasets, they manually create solutions by skipping steps, either guided by human expertise or by randomly merging or removing steps. Further, these concise data are labeled with prompts such as “Solve it in $n$ steps.”. After SFT, the model is able to generate shorter reasoning paths. In the second stage, they prompt this model to solve problems by intrinsically skipping or compressing steps during reasoning. The generated concise reasoning steps with questions and answers are collected as datasets, which are then used in SFT to make LLMs solve problems with fewer steps. Moreover, Token-Budget [58] has an important insight: an optimal token budget helps LLMs actively follow the token constraint to complete the reasoning process. Motivated by this insight, it proposes a binary search-based method to achieve the optimal token budgets, and follow these budgets to generate short reasoning steps. In addition, [133] proposes a sampling-based method to improve reasoning efficiency. Specifically, it examines the distribution of reasoning lengths and finds that shorter solutions appear more frequently than the typical reasoning length. Driven by this finding, it proposes a Best-of-N (BoN) Sampling at test time, which generates $N$ paths of reasoning and selects the shortest one. These short reasoning paths are collected as the dataset. Finally, CoT-Valve [130] controls the reasoning length by mix-up the parameters of long reasoning and non-reasoning LLMs for generating variable-length reasoning steps. The advantage of CoT compression during reasoning is that the naturally generated reasoning steps align with the intrinsic knowledge of LLMs, which advances more effective learning of LLMs. ",
+        "bbox": [
+            174,
+            758,
+            825,
+            911
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            90,
+            825,
+            229
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "3.2.2 Fine-Tuning Approaches ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            247,
+            398,
+            262
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "After collecting variable-length CoT data, existing works fine-tune LLMs to achieve efficient reasoning in several ways, which include standard fine-tuning (e.g., parameter-efficient fine-tuning such as LoRA [67] or full fine-tuning) and progressive fine-tuning. ",
+        "bbox": [
+            174,
+            271,
+            825,
+            314
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Standard Fine-tuning. Most of the work adopts standard methods to fine-tune LLMs [58, 78, 115, 133, 194, 219]. Specifically, these approaches adopt LoRA [67] or full fine-tuning [78] to minimize the perplexity loss function or DPO loss function [58] on the reasoning-efficient datasets. The LoRA enables LLMs to adapt to short reasoning steps with less than $1 \\%$ of the parameters tuned. In addition, [115] observed the growing reasoning efficiency can generalize to out-of-domains beyond the collected datasets. ",
+        "bbox": [
+            174,
+            332,
+            825,
+            414
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Progressive Fine-tuning. Progressive fine-tuning aims to smoothly reduce the reasoning steps during fine-tuning [115, 130]. One way is to progressively reduce the reasoning steps of data during fine-tuning LLMs, as employed in [115]. Another effective way is to progressively adjust the generation of reasoning steps, as proposed by CoT-Valve [130]. Specifically, it first learns LoRA adaptor $\\Delta \\theta _ { \\mathrm { N } }$ and $\\theta _ { \\mathrm { { L } } }$ , where LLMs with $\\Delta \\theta _ { \\mathrm { N } }$ have no reasoning steps, and that with $\\Delta \\theta _ { \\mathrm { L } }$ have long reasoning. Then, it mix-up $\\Delta \\theta _ { \\mathrm { N } }$ and $\\Delta \\theta _ { \\mathrm { l o n g } }$ by $\\alpha \\Delta \\theta _ { \\mathrm { N } } + ( 1 - \\alpha ) \\Delta \\theta _ { \\mathrm { L } }$ to generate a dataset reasoning with variable length. Here $0 < \\alpha < 1$ controls the parameter to shift from $\\Delta \\theta _ { \\mathrm { N } }$ to $\\Delta \\theta _ { \\mathrm { L } }$ , controlling the reasoning length generated by LLMs. Finally, it fine-tunes LLMs on the generated data while progressively reducing $\\alpha$ from 1 to 0. In this way, reasoning efficiency is progressively improved during fine-tuning. ",
+        "bbox": [
+            174,
+            433,
+            825,
+            570
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Model Merging. Beyond fine-tuning reasoning models using the above CoT data, several works have explored model merging to improve reasoning efficiency in LLMs. Kimi $\\mathrm { k } 1 . 5$ [171] investigates merging strategies [211] that transform models producing lengthy CoT traces into ones that generate shorter, more concise reasoning outputs. Unlocking [192] conducts an empirical study on model merging for efficient reasoning with various methods, including task-vector-based, SVD-based, and activation-informed merging. ",
+        "bbox": [
+            174,
+            588,
+            825,
+            671
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "4 Reasoning Output-based Efficient Reasoning ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            693,
+            580,
+            712
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "From the perspective of reasoning steps in the output, these works focus on modifying the output paradigm to enhance the ability of LLMs to reason concisely and efficiently. ",
+        "bbox": [
+            171,
+            727,
+            823,
+            755
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "4.1 Compressing Reasoning Steps into Fewer Latent Representation ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            773,
+            660,
+            789
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Although standard CoT methods improve LLM performance by explicitly writing reasoning steps, recent work [34] has shown that simply adding intermediate “thinking” tokens, or even meaningless filler (e.g., “......”) [141], can also increase performance. [53] scales up deeper reasoning through recurrent expansions in the hidden space rather than verbose text. These findings highlight that the benefit often lies in more hidden computation rather than purely textual decompositions. Building on the insight that latent reasoning can allow LLMs to reason more efficiently and flexibly, with fewer (or no) explicit textual intermediate steps, several new methods focus on compressing or replacing explicit CoT with more compact latent representations. ",
+        "bbox": [
+            174,
+            800,
+            825,
+            911
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "image",
+        "img_path": "images/025bc006ae4c9d3c6bdd6b60cae949d7a79d53e19ec0d849419071e79c271f48.jpg",
+        "image_caption": [
+            "Figure 7: Comparison of methods of compressing reasoning steps into fewer latent representations. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            169,
+            85,
+            821,
+            308
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "In general, these methods can be categorized into two types: training LLMs to inference using latent representations or using an auxiliary model. A visualized comparison of some of these approaches is presented in Figure 7. ",
+        "bbox": [
+            174,
+            349,
+            825,
+            392
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Training LLMs to Leverage Latent Representations. Among the first explorations, Coconut (Chain of Continuous Thought) [60] treats the final-layer hidden states of an LLM as “continuous thought” to replace traditional discrete tokens. It then reuses these hidden states as the next input embeddings. Trained step by step, Coconut gradually adds these latent CoT tokens. The results suggest that compressing tokens into latent representations improves both accuracy and efficiency by reducing the number of intermediate “thinking” tokens. CODI [155] leverages a different training process compared to Coconut, which learns the continuous latent CoT via self-distillation. In CODI, the model serves both teacher and student, jointly learning explicit and implicit CoT while aligning hidden activations on the token, generating the final answer. This self-distillation process enables LLMs to perform reasoning internally without generating explicit CoT tokens. Similarly, CCOT [20] condenses long CoT reasoning into short contentful and continuous contemplation tokens. First, it precomputes the full CoT for a query and selects the most important hidden states as a gold standard for compression. The CCOT module (a LoRA) is trained to predict these key tokens. Then, the DECODE module (another LoRA) is trained on the query plus compressed tokens. During inference, CCOT generates compressed tokens, which DECODE uses to produce concise reasoning steps. Another type of work, summarization-based dynamic reasoning, as mentioned in Section 4.2 explores compressing and summarizing reasoning steps in discrete space during inference, which is similar to the introduction of “contemplation token”. ",
+        "bbox": [
+            174,
+            407,
+            825,
+            655
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Another work, Heima [153], inspired by Coconut [60], brings latent reasoning into Multimodal Large Langue Models (MLLMs). Instead of always using full, lengthy reasoning explanations, Heima replaces each stage of detailed reasoning with a single “thinking token”. With this change, the training data is updated. Instead of long textual explanations, each reasoning stage is just one of these thinking tokens. Then, they continue fine-tuning the model to achieve efficient reasoning. Token Assorted [163] adopts a hybrid approach. During training, part of the CoT is replaced by discrete latent tokens learned via a VQ-VAE [177], and then the LLM is trained with a partial and high-level abstract of the reasoning steps. The authors show that mixing text tokens with latent tokens can facilitate training and inference by representing some reasoning steps in a compact latent form. Other than explicitly compressing the discrete tokens into latent space, [149] demonstrates that looping a $k$ -layer transformer $L$ times can emulate the performance of a $k L$ -layer model. This looping mechanism effectively increases the depth of the model depth without adding parameters, enabling iterative reasoning processes within the latent space. The study reveals that looped models implicitly generate latent thoughts, allowing them to simulate multiple steps of CoT reasoning through successive loops. ",
+        "bbox": [
+            173,
+            661,
+            825,
+            868
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Training Auxiliary Modules while Keeping LLMs Frozen. While most methods for continuousspace reasoning fine-tune the pre-trained LLM, SoftCoT [206] keeps the underlying LLM frozen. ",
+        "bbox": [
+            176,
+            883,
+            823,
+            911
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "A lightweight auxiliary model generates instance-specific soft thought tokens projected into the embedding space of the frozen LLM. Experiments show that SoftCoT consistently boosts performance, demonstrating the viability of augmenting LLMs with external latent reasoning tokens. ",
+        "bbox": [
+            173,
+            92,
+            825,
+            133
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "These methods hint at a broader move toward latent reasoning, where critical thinking occurs in compressed, non-textual forms. Such approaches can unlock improved speed, adaptive inference, parallel backtracking, and new ways to interpret or partially reveal the model reasoning. As LLMs grow larger and tasks become more complex, balancing thorough reasoning with computational efficiency is greatly beneficial from these flexible and compact latent CoT paradigms. ",
+        "bbox": [
+            174,
+            140,
+            825,
+            209
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "4.2 Dynamic Reasoning Paradigm during Inference ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            226,
+            545,
+            242
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Existing works focus on modifying the reasoning paradigm for more efficient inference. The key during inference is choosing the proper criterion to guide the reasoning strategy. Current training-free approaches explore dynamic reasoning using various criteria, such as reward-guided, confidencebased, and consistency-based selective reasoning. Additionally, a summarization-based dynamic reasoning method intrinsically integrates the output summarization paradigm of LLMs during training. ",
+        "bbox": [
+            174,
+            252,
+            825,
+            321
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "The key question is: Which criterion to guide the inference? What is the appropriate fficient inference paradigm? ",
+        "bbox": [
+            210,
+            345,
+            799,
+            375
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "4.2.1 Dynamic Reasoning via Explicit Criteria ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            400,
+            508,
+            416
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Train-time scaling with RL [56] can significantly enhance the reasoning ability of LLMs. However, it requires substantial computational resources to scale up the model training, making it prohibitively expensive [56]. As an alternative, researchers have explored test-time reasoning, also known as test-time scaling [158]. Instead of relying on training to learn CoT reasoning steps, test-time scaling leverages various inference strategies that allow models to “think longer and broader” on complex problems. This approach consistently improves performance on challenging math and code problems that require reasoning by increasing the computational resources allocated during inference [8, 158]. ",
+        "bbox": [
+            173,
+            425,
+            825,
+            522
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Test-time scaling utilizes various inference strategies to generate longer and higher-quality CoT responses. There are several ways to scale up the inference. (1) Best-of-N sampling [165, 188] involves generating multiple responses for a given prompt, expanding the search space to identify better solutions. After generation, the best response is selected using either majority voting, where the most frequently occurring response is chosen; or by a reward model, which evaluates response quality based on pre-defined criteria. This method has been shown to significantly enhance the reasoning capabilities of LLMs [8]. (2) Beam-based searching [8, 38, 50], which differs from Best-of-N by structuring generation into multiple steps. Instead of generating an entire response in one pass, beam search selects the most promising intermediate outputs with process reward model [176] at each step, while discarding less the optimal ones. This enables a more fine-grained optimization of both response generation and evaluation. (3) Monte Carlo Tree Search (MCTS) [89], where multiple solution paths are explored in parallel. MCTS generates partial responses along different branches of a solution tree, evaluates them, and back-propagates reward values to earlier nodes. The model then selects the branch with the highest cumulative reward, ensuring a more refined selection process compared to traditional beam search. ",
+        "bbox": [
+            174,
+            530,
+            825,
+            736
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Although test-time scaling can significantly reduce train-time scaling up overhead [8], the large number of generated responses still makes inference computationally expensive. To address this, recent works have been exploring methods to optimize test-time scaling. ",
+        "bbox": [
+            176,
+            742,
+            821,
+            785
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Reward-guided Efficient Reasoning. Speculative Rejection [165] is an efficient inference-time reasoning algorithm that optimizes Best-of-N (BoN) decoding by dynamically reducing computational overhead (as shown in Figure 8, left). It generates multiple responses until memory limits are nearly reached, then discards low-quality outputs based on evaluation by a reward model. This adaptive filtering substantially reduces inference costs compared to vanilla BoN. On the other hand, Reward-Guided Speculative Decoding (RSD) [100] enhances the efficiency of speculative decoding specifically for multi-step reasoning tasks. Unlike traditional speculative decoding methods, which strictly require exact token matching between the draft model and target model, RSD leverages a ",
+        "bbox": [
+            174,
+            800,
+            825,
+            911
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "table",
+        "img_path": "images/832f59e4bab8b7910cf421536580c901c61a70e599cfc79b7d9583ada3f14238.jpg",
+        "table_caption": [
+            "Table 4: Comparison of different methods of dynamic reasoning paradigm of test time compute during inference. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Category</td><td>Method</td><td></td><td>Training- free?</td><td>Baseline and Its Drawbacks</td><td>Method Description</td></tr><tr><td>Reward-guided Efficient Reason- tion [165] ing</td><td>Speculative Rejec-</td><td></td><td>Yes</td><td>Best-of-N (BoN) Decoding: underutilizes GPU memory and computational resources during the early stages,leading to lower final rewards.</td><td>Starts BoN with a large initial batch size and rejects unpromising sequences peri- odically,efficiently achieving higher re- wards.</td></tr><tr><td></td><td>Reward-Guided Speculative Decod- ing (RSD)[100]</td><td></td><td>Yes</td><td>Speculative Decoding: strictly enforces unbiasedness,discard- ing useful intermediate outputs and leading to computational inefficiency.</td><td>Aspeculative decoding method that lever- ages a reward model (PRM) to selec- tively accept high-quality outputs from a lightweight draft model, reducing com- putation while preserving accuracy.</td></tr><tr><td>Confidence/ Certainty-based Adaptive Reason- ing</td><td>Dynamic Tree Search [38]</td><td>Parallel</td><td>Yes</td><td>Tree-of-Thoughts:difficult to parallelize due to frequent switching of reasoning focus, and inefficient because of re- dundant exploration of subopti- mal solutions</td><td>Dynamicallyparallelizes node expansion through adaptive batching and imple- ments a search-and-transition mechanism (including Early Stop and Deep Seek) to prune unpromising paths early.</td></tr><tr><td></td><td>Dynasor (Certaindex-based Scheduling) [50]</td><td>Yes</td><td>Serving systems with uni- form resource allocation: al- locate compute uniformly, lead- ing to inefficient resource us-</td><td>age and unmet latency targets straints.</td><td>Dynamically allocates compute for rea- soning queries based on Certaindex,a sta- tistical measure of reasoning progress,to maximize accuracy within resource con-</td></tr><tr><td></td><td>FastMCTS [89]</td><td>Yes</td><td></td><td>Rejection Sampling:inef- ficient,discards intermediate steps,and fails to balance prob- lem difficulty</td><td>An MCTS-inspired sampling strategy that efficiently generates high-quality multi-step reasoning data, providing step- level evaluation signals and balanced sam- pling across problem difficulties.</td></tr><tr><td></td><td>Length-filtered Vote [193]</td><td>Yes</td><td>Majority Voting:ignores rea- soning quality, includes subop- timal CoT lengths,and suffers</td><td>from noisy predictions paths.</td><td>A voting strategy that selects answers with the optimal CoT length by filtering out excessively short or long reasoning</td></tr><tr><td>Consistency- based Selective Reasoning</td><td>Self-Truncation Best-of-N</td><td>(ST-</td><td>Yes</td><td>Best-of-N Sampling:fully generates all samples and relies on costly reward models</td><td>Estimates the most promising sample early via internal embedding consistency, truncatinginferior samples prematurely.</td></tr><tr><td>Summarization- based Dynamic Reasoning</td><td>LightThinker [231]</td><td></td><td>No</td><td>Chain-of-Thought (CoT): high memory and computa- tional overhead due to the generation of an excessive number of tokens</td><td>Trains LLMs to learn when and how to compress intermediate thoughts,condens- ing long reasoning chains into gist to- kens,and uses a sparse-patterned atten- tion mask during inference to enhance computational efficiency.</td></tr><tr><td></td><td>InftyThink [209]</td><td></td><td>No</td><td>Monolithic Reasoning: rea- soning output is verbose,and can quickly exceed the context window limit of the LLM, re-</td><td>An iterative reasoning paradigm that inter- leaves reasoning steps with intermediate summarization,enabling unbounded rea- soning depth without architectural modi- fications.</td></tr></table>",
+        "bbox": [
+            187,
+            121,
+            808,
+            651
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Process Reward Model (PRM) to dynamically evaluate intermediate outputs from the smaller, more efficient draft model. Outputs with high reward scores are directly accepted, while those with lower scores are further refined by a larger, more capable target model. ",
+        "bbox": [
+            176,
+            675,
+            825,
+            717
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Confidence/Certainty-based Adaptive Reasoning. Dynamic Parallel Tree Search (DPTS) [38] optimizes tree-based reasoning in LLMs by addressing two main inefficiencies by introducing: (1) Parallelism Streamline optimizes memory and compute by storing only incremental KV cache updates and dynamically adjusting the number of extended nodes based on available GPU memory, (2) Search and Transition Mechanism balances exploration and exploitation using confidence-based criteria. Overall, during inference, the system cuts off uncertain paths to save time. FastMCTS [89] is another confidence-based method that aims to optimize multi-step reasoning data synthesis. Traditional rejection sampling generates multiple candidate responses independently, selecting only the correct ones, but it is often inefficient and struggles with imbalanced sampling. Inspired by MCTS, FastMCTS prioritizes high-confidence traces for deep reasoning. Additionally, it adjusts tree expansion based on problem complexity, improving both efficiency and reasoning diversity. Another line of research leverages certainty or uncertainty measures to guide adaptive reasoning. Certaindex [50], a certainty metric, quantifies the confidence of LLMs throughout reasoning using semantic entropy, reward model scores, or a combination of both. A higher certaindex indicates that further reasoning steps are unlikely to change the final answer, allowing early termination to free resources for more challenging queries. Dynasor, an inference system built on this principle, optimizes compute scheduling by dynamically tracking reasoning progress instead of allocating resources uniformly. Dynasor-CoT [51] uses a probing scheme to exit early if the model is confident enough. Length-filtered Vote [193] is another work that leverages uncertainty to improve CoT reasoning. The study finds that longer reasoning chains do not always improve accuracy; instead, performance initially improves but eventually declines due to error accumulation. The authors provide a mathematical analysis proving the existence of an optimal CoT length, determined by model capability and task difficulty. To exploit this, they propose Length-filtered Voting, a length-aware majority voting method that groups answers by CoT length and selects the most reliable group based on prediction uncertainty. Self-Calib [70] introduces confidence-driven adaptive scaling strategies at test time to efficiently address queries with differing complexity levels, including Early-Stopping mechanisms for Best-of-N sampling and confidence-calibrated Self-Consistency approaches. CISC [170] implements a weighted majority voting scheme utilizing model-derived confidence scores. By emphasizing reasoning paths with higher confidence, it efficiently determines the correct response with substantially fewer samples. ",
+        "bbox": [
+            174,
+            731,
+            825,
+            911
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "image",
+        "img_path": "images/a75f30f4ac080f4ed3fcb13ac64b5ef4e29236cedda4a3177293eafc9dc0b540.jpg",
+        "image_caption": [
+            "Figure 8: Examples of efficient Best-of-N sampling methods. (Left) Speculative Rejection [165] uses a reward model to estimate partial generation quality. It then early stops the sampled sequence with lower scores. (Right) ST-BoN [188] evaluates the latent embedding of the early generation. The latent embedding of each thinking path will be used to calculate pairwise consistency between other tokens. The sequence with the highest consistency is more likely to arrive at the correct answer. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            171,
+            88,
+            820,
+            199
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            332,
+            825,
+            551
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Consistency-based Selective Reasoning. Self-Truncation Best-of-N (ST-BoN) [188] enhances BoN sampling efficiency by introducing early termination (as shown in Figure 8, right), similar to Speculative Rejection [165]. However, unlike Speculative Rejection using reward models, STBoN leverages consistency as the metric to measure the importance. Specifically, it leverages the consistency of latent embeddings to evaluate response quality. The core insight is that “the closer a sample is to others, the more likely its path will lead to the correct answer”. Then, ST-BoN selects the most consistent Chain-of-Embedding (CoE) to others and regards it as the optimal sample. ",
+        "bbox": [
+            174,
+            590,
+            825,
+            689
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "4.2.2 Summarization-based Dynamic Reasoning ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            726,
+            521,
+            741
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Some existing methods choose to optimize reasoning efficiency by training LLMs to summarize intermediate thinking steps. LightThinker [231] proposes to train LLMs to learn when and how to compress intermediate reasoning steps. Instead of storing long thought chains, LightThinker compresses verbose reasoning into compact “gist tokens” to reduce memory and computational costs. Implementing this summarization paradigm requires a sparse-patterned attention mask, ensuring the model focuses only on essential compressed representations. InftyThink [209] introduces an iterative reasoning method that enables essentially infinite reasoning chains while maintaining strong accuracy without surpassing the context window limit. It achieves this by iteratively generating a thought, summarizing it, and discarding previous thoughts and summaries, retaining only the most recent summary. Additionally, InftyThink provides a technique for converting existing reasoning datasets into an iterative format for training models under this paradigm. ",
+        "bbox": [
+            174,
+            758,
+            825,
+            911
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "table",
+        "img_path": "images/2b6fdc1f3b68e6ca6ff298fd58d9e7e814ef697fbfabadbeea1b2c21d0d4ecc4.jpg",
+        "table_caption": [
+            "Table 5: A summary of prompts used with reasoning models to generate concise reasoning outputs. For further details, refer to Section 5.1. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Method</td><td>Prompt</td></tr><tr><td>TALE-EP [58]</td><td>Budget Estimation: (..） Task: Analyze the given question and estimate the min- imum number of tokens required to generate a complete and accurate response. Please give the response by strictly following this format: [budget], for example, Budget: [12]]. Token-budget-aware CoT: Please answer the above question. Let&#x27;s think step by</td></tr><tr><td>CoD [204]</td><td>step and use less than &lt;Token-Budget&gt; tokens. Think step by step, but only keep a minimum draft for each thinking step,with 5</td></tr><tr><td>CCoT[147]</td><td>words at most. Return the answer at the end of the response after a separator ####. Be concise.</td></tr><tr><td>Token Complexity [83]</td><td>BulletPoints (...) only use bullet points. OnlyNumbers (..) only use numbers or equations. NoSpaces (...) do not use any spaces or line breaks. NoProperGrammar(...) do not use proper grammar. AbbreviateWords(..）abbreviate words as much as possible. WordLimit(k)(...) use at most k words. k ∈ {1,...,100}</td></tr></table>",
+        "bbox": [
+            173,
+            123,
+            825,
+            463
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "5 Input Prompts-based Efficient Reasoning ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            486,
+            550,
+            506
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "From the perspective of input prompts and questions, these works focus on enforcing length constraints or routing LLMs based on the characteristics of input prompts to enable concise and efficient reasoning. ",
+        "bbox": [
+            174,
+            518,
+            826,
+            560
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "5.1 Prompt-guided Efficient Reasoning ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            577,
+            459,
+            592
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Prompt-guided efficient reasoning explicitly instructs LLMs to generate fewer reasoning steps, can be a straightforward and highly effective method for improving the efficiency of reasoning models. As shown in Table 5, different methods propose different prompts to ensure concise reasoning outputs from the model. ",
+        "bbox": [
+            174,
+            602,
+            825,
+            659
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "The key question is: Which prompts can accurately control the reasoning length ofLLMs? ",
+        "bbox": [
+            212,
+            681,
+            802,
+            709
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Enforcing Concise Reasoning via Varying Prompts. Token-Budget [58] proposes setting a token budget in prompts to reduce unnecessary reasoning tokens. To optimize efficiency while preserving accuracy, [58] introduced TALE-EP, a training-free, zero-shot method for budget estimation. TALEEP first estimates a reasonable token budget by prompting the LLM itself. It then incorporates this estimate into a prompt that specifies the token constraint, guiding the LLM to generate a more token-efficient yet accurate response. This work is also categorized in Section 3.2 with further SFT. CoD [204] observes that LLMs often generate excessively verbose reasoning steps, whereas humans typically record only the most essential insights. To enhance reasoning efficiency, they propose Chain-of-Draft prompting. Similar to CoT prompting, CoD encourages step-by-step reasoning but introduces policies to limit verbosity. For instance, their prompt instructs: “Think step by step, but only keep a minimum draft for each thinking step, with at most five words.” They find that this approach preserves the necessary intermediate steps while maintaining accuracy, significantly reducing token usage. [83] systematically studies the relationship between reasoning length and model accuracy across various prompts with explicit compression instructions (e.g., “use 10 words or less”). Their analysis reveals a universal trade-off between reasoning length and accuracy, showing that different prompt-based compression strategies align on the same accuracy-compression curve. They hypothesize that each task has an intrinsic token complexity, the minimum number of tokens required for successful problem-solving. By computing information-theoretic limits on the accuracycompression trade-off, they found that existing prompt-based compression methods fall far short of these limits, indicating significant room for improvement. [147] introduced Concise Chain-ofThought (CCoT) prompting, a technique that prompts LLMs to perform step-by-step reasoning while explicitly instructing them to “be concise.” MARP [13] introduces modifying prompts to limit single-step computations, effectively refining the reasoning boundary. Further, they increase the per-step computation and decrease global planning steps. ",
+        "bbox": [
+            173,
+            731,
+            826,
+            911
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            90,
+            825,
+            243
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Fine-tuning after Prompting. As noted in Section 3, some approaches collect short CoT data using prompt-based methods, then apply SFT to develop an efficient reasoning model [58]. Beyond performing direct prompt-based reasoning, these fine-tuned models often deliver more promising performance when tackling complex reasoning challenges. ",
+        "bbox": [
+            174,
+            258,
+            825,
+            315
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "5.2 Prompts Attribute-Driven Reasoning Routing ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            332,
+            531,
+            347
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "User-provided prompts can range from easy to difficult tasks. Routing strategies for efficient reasoning dynamically determine how language models handle queries based on their complexity and uncertainty. Ideally, reasoning models can automatically assign simpler queries to faster but less reasoning-capable LLMs, while directing more complicated queries to slower but stronger reasoning LLMs. ",
+        "bbox": [
+            176,
+            358,
+            825,
+            426
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "The key question is: What criterion should be used to determine the attributes (e.g., ifficulty) of prompts? ",
+        "text_level": 1,
+        "bbox": [
+            209,
+            452,
+            800,
+            479
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Unknown Criteria. Anthropic releases Claude 3.7 Sonnet [4], notable for being the first hybrid reasoning model. Claude 3.7 Sonnet was developed through RL, enabling it to allocate more time to complex reasoning tasks that require deeper analysis, ultimately producing better results. The model offers two response modes: quick answers or step-by-step thinking. Users can leverage API to manage the amount of time the model spends thinking. Although the specifics of the routing criterion remain unclear, Claude 3.7 Sonnet represents the first hybrid reasoning model, setting a foundation for subsequent routing-based large reasoning models. ",
+        "bbox": [
+            174,
+            506,
+            825,
+            603
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Training a Classifier. RouteLLM [135] trains a query router to dispatch incoming queries to suitable LLMs based on complexity. The authors utilize a substantial amount of preference data collected from Chatbot Arena as training data, enabling effective routing decisions for questionanswering and reasoning tasks. Consequently, simpler queries are directed to low-latency LLMs, while complex queries are assigned to higher-latency, more powerful LLMs, significantly accelerating overall reasoning efficiency. Sketch-of-Thought (SoT) [6] leverages routing and prompting to minimize token usage during reasoning. A lightweight DistilBERT-based router dynamically selects the most suitable paradigm based on the characteristics of the questions. Inspired by cognitive science, SoT employs three distinct paradigms: Conceptual Chaining, which connects ideas with minimal verbalization; Chunked Symbolism, which structures mathematical reasoning into concise symbolic representations; and Expert Lexicons, which adopts domain-specific shorthand used by experts. ",
+        "bbox": [
+            174,
+            618,
+            825,
+            771
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Uncertainty. Besides relying on additional routers, Self-Ref [25] enables LLMs to autonomously decide when to route by extracting intrinsic uncertainty scores as self-routing indicators. Specifically, they fine-tune uncertainty-specialized tokens within the LLMs to align uncertainty predictions with prediction correctness in both question-answering and reasoning tasks. This ensures that only uncertain or incorrect outputs trigger routing to more capable LLMs, which decreases the latency of LLM inference. Confident or Seek Stronger [24] aims to provide calibrated data for predicting and initializing routing strategies in both LLM question-answering and reasoning tasks without requiring access to user queries. This approach enables more efficient and reliable decision-making in determining whether an LLM should confidently generate an answer or escort the query to a stronger model, ultimately improving reasoning efficiency from a query-level perspective in online LLM service scenarios. ",
+        "bbox": [
+            174,
+            786,
+            825,
+            911
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            173,
+            92,
+            823,
+            119
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "6 Reasoning Abilities via Efficient Training Data and Model Compression ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            138,
+            803,
+            157
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "6.1 Training Reasoning Models with Less Data ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            171,
+            513,
+            185
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Improving the efficiency of reasoning models requires optimizing not just the model architecture but also the data used for training. Recent work has shown that carefully selecting, structuring, and leveraging training data can significantly reduce data requirements while maintaining or even improving reasoning performance. Although all approaches focus on efficient data selection, they vary in defining and utilizing efficiency. ",
+        "bbox": [
+            174,
+            196,
+            825,
+            267
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "The key question is: How to construct less but high-quality training data? ",
+        "bbox": [
+            220,
+            290,
+            717,
+            305
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Minimal but High-Impact Data Selection. LIMO [216] challenges the conventional belief that complex reasoning tasks require extensive training data. They introduce LIMO, a framework that elicits sophisticated reasoning abilities using minimal but precisely curated examples. By choosing high-quality questions based on Level of difficulty, Generality, and Knowledge Diversity and highquality solutions based on Optimal Structural Organization, Effective Cognitive Scaffolding, and Rigorous Verification, with only 817 carefully selected training samples, LIMO can outperform previous models that utilized over 100,000 examples. s1 [132] focuses on enhancing reasoning performance by controlling test-time computational resources. They curate a compact dataset based on Quality, Difficulty and Diversity, s1K, comprising 1,000 high-quality questions paired with reasoning traces. Through supervised fine-tuning on this dataset and implementing “budget forcing”, which regulates the reasoning duration during inference, s1-32B exceeds OpenAI o1-preview on MATH and AIME24, demonstrating that strategic test time scaling can effectively enhance reasoning capabilities without extensive training data. ",
+        "bbox": [
+            173,
+            330,
+            825,
+            511
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Self-Verification as a Data-Efficient Training Signal. $\\mathbb { S } ^ { 2 } \\mathbb { R }$ [128] infuse LLMs with selfverification and self-correction abilities through RL. Initially, models are fine-tuned on a curated dataset to establish these capabilities. Subsequently, RL both at the outcome level and the process level is employed to enhance these skills further. With only 3,100 initialization samples, their finetuned models consistently improve the performance on reasoning tasks among all base models. $\\mathbb { S } ^ { 2 } \\mathbb { R }$ fine-tuned Qwen2.5-Math-7B can outperform models trained on comparable amounts of long CoT distilled data on the MATH500 and GSM8K. ",
+        "bbox": [
+            173,
+            526,
+            825,
+            623
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "6.2 Reasoning Capabilities of Small Language Models via Distillation and Model Compression ",
+        "text_level": 1,
+        "bbox": [
+            173,
+            640,
+            746,
+            669
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "LLMs have demonstrated remarkable reasoning capabilities across various complex tasks, benefiting from their extensive training on diverse datasets. However, their substantial computational and memory demands pose challenges for deployment in resource-constrained environments, such as edge devices, mobile applications, and real-time systems. In scenarios where efficiency, cost, or latency is a primary concern, Small Language Models (SLMs) offer a viable alternative. The ability of SLMs to retain strong reasoning capabilities while operating under strict resource constraints is crucial for expanding the accessibility and practicality of AI-powered reasoning systems. To achieve this, two main categories of approach are explored: Distillation and Model Compression. ",
+        "bbox": [
+            173,
+            680,
+            825,
+            791
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "The key question is: How do small language models perform on reasoning tasks? What impact does model compression (e.g., quantization) have on their reasoning abilities? ",
+        "bbox": [
+            205,
+            815,
+            800,
+            844
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Distillation. Distillation is a crucial technique for transferring the reasoning capabilities of LLMs to SLMs while maintaining efficiency. However, [93] finds a phenomenon named Small Model Learnability Gap, which highlights the challenges of distilling complex reasoning processes from large model to small model, showing that SLMs struggle to emulate the reasoning depth of their larger counterparts. To address this, various approaches have been proposed. Both [93] and [23] explored mixed distillation, with [93] blending long and short CoT reasoning examples, while [23] combined CoT and PoT (Program of Thought) to improve the effectiveness of knowledge distillation from LLMs to SLMs on specific tasks. In comparison, [48] introduced counterfactual distillation, augmenting the training set by masking causal features in the original question, prompting the LLM to complete the masked text, and generating multi-view CoT (positive and negative views) of each data for enhancing the effectiveness of knowledge distillation. In addition, [248] developed a feedback-driven distillation technique that iteratively refines distillation datasets. They first prompt an LLM to generate an initial distillation dataset, then expand it by creating diverse and complex questions from existing ones, and finally, this enriched dataset is used to fine-tune SLMs. Another strategy, proposed by [245], incorporates probing and retrieval mechanisms into the distillation pipeline. It trains two complementary distilled SLMs, a probing model and a reasoning model, where the probing model retrieves relevant knowledge, which the reasoning model then uses to construct a step-by-step rationale for the answer. [15] introduced adaptive thinking during distillation, allowing the models to dynamically adjust reasoning strategies based on the complexity of the task. Furthermore, [101] proposed SKIntern, a framework that internalizes symbolic knowledge into SLM to improve CoT reasoning quality and efficiency, while [240] introduces SCORE, a pipeline that generates self-correction data from SLMs and fine-tunes the model to function as a self-correcting reasoner. These diverse distillation techniques demonstrate that efficiently transferring reasoning capabilities from LLMs to SLMs requires not only reducing the model size but also carefully and strategically structuring the knowledge transfer process to preserve logical depth and generalization. ",
+        "bbox": [
+            174,
+            869,
+            825,
+            911
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            173,
+            90,
+            825,
+            395
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "Pruning and Quantization. Beyond directly distilling knowledge from LLMs to SLMs, an alternative approach involves compressing an LLM into an SLM using techniques such as quantization and pruning. [162] conducted a comprehensive study analyzing the impact of various model compression techniques on reasoning ability. Their findings reveal that quantization, which reduces model precision to lower-bit representations, preserves reasoning performance remarkably well, allowing SLMs to maintain logical coherence and problem-solving capabilities while significantly reducing memory and computational costs. ",
+        "bbox": [
+            174,
+            410,
+            825,
+            507
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "In contrast, pruning, which removes specific weights or neurons in the model based on their importance, leads to severe degradation in reasoning quality, disrupting the model’s ability to follow multi-step logical processes. This suggests that compression-based approaches are more effective than training SLMs from scratch, as they allow models to retain reasoning structures inherited from LLMs. However, a critical challenge remains: SLMs often struggle with the instruction following, indicating that compression alone is insufficient. Additional fine-tuning or adaptation methods may be required to align compressed models with user intent and ensure they can effectively interpret and execute complex reasoning tasks. ",
+        "bbox": [
+            174,
+            512,
+            825,
+            625
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "7 Evaluation and Benchmark ",
+        "text_level": 1,
+        "bbox": [
+            176,
+            643,
+            434,
+            660
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "Recent research has introduced innovative benchmarks and evaluation frameworks to systematically assess the reasoning capabilities of LLMs. As LLMs continue to advance in their ability to perform complex reasoning tasks, the need for rigorous, standardized evaluation metrics and frameworks has become increasingly important. ",
+        "bbox": [
+            174,
+            674,
+            825,
+            731
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "Inference-time Computation. [140] develops Sys2Bench, which is a comprehensive suite designed to evaluate LLMs across five reasoning categories, including arithmetic, logical, commonsense, algorithmic, and planning tasks. This benchmark comprises eleven diverse datasets, covering various reasoning tasks. It includes GSM8K and AQuA for arithmetic problems, StrategyQA and HotPotQA for commonsense reasoning, ProntoQA for logical reasoning, Game of 24 and Bin Packing for algorithmic tasks, and BlocksWorld, Rubik’s Cube, TripPlan, and Calendar Plan for planning tasks. The study revealed that scaling inference-time computation alone has limitations, as no single technique consistently excels across all reasoning tasks, and this emphasizes the need for diverse approaches to enhance LLM reasoning capabilities. Bag of Tricks [109] examines how various commonly used strategies affect the reasoning capabilities of LLMs. Furthermore, it benchmarks multiple inference-time computation methods within a predefined budget, enabling controlled token usage through a flexible N-sample strategy. [113] investigates the impact of Test-Time Scaling (TTS) ",
+        "bbox": [
+            174,
+            744,
+            825,
+            911
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "strategies on LLM performance, focusing on how policy models, process reward models, and problem difficulty influence TTS effectiveness. Their findings indicate that compute-optimal TTS strategies are highly dependent on these factors. The paper finds that, with appropriate TTS strategies, smaller models (e.g., a 1B parameter LLM) are able to outperform significantly larger models (e.g., a 405B parameter LLM) on complex reasoning tasks like MATH-500, and this underscores the importance of tailored TTS approaches in evaluating and enhancing LLM reasoning. ",
+        "bbox": [
+            174,
+            90,
+            825,
+            174
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Evaluating Overthinking. [29] introduces a framework to systematically analyze the \"overthinking\" in LLMs, where models favor extended internal reasoning over necessary environmental interactions. By examining 4,018 trajectories in agentic tasks, the study identified patterns such as Analysis Paralysis, Rogue Actions, and Premature Disengagement. [29] also proposed a novel “overthinking score” and showed a strong correlation between higher scores and decreased task performance. Mitigation strategies such as selecting solutions with lower overthinking scores can improve performance by $30 \\%$ and at the same time reduce computational overhead by $43 \\%$ . [114] uses six comprehensive tasks from the overthinking literature to guide the design of evaluation benchmarks for testing CoT failures in LLMs. It reveals that, in many cases where humans tend to fail due to excessive deliberation, LLMs employing CoT reasoning exhibit similar failure patterns. S1-Bench [237] evaluates large reasoning models on straightforward tasks aligned with System 1 thinking, focusing on intuitive and fast reasoning rather than the more complex, deliberative processes associated with System 2. ",
+        "bbox": [
+            174,
+            190,
+            826,
+            356
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Effect of Long CoT Reasoning. [217] provides a comprehensive analysis of the mechanism underlying long CoT reasoning. In addition to presenting several key insights, they propose a reward design to enhance the stability of reasoning ability during training and reduce the CoT length, which is also shown in Section 3.1. [76] reveals a strong relationship between the length of the reasoning chain and the effectiveness of model outputs. Models tend to perform better with extended reasoning steps, suggesting the CoT length is more crucial than accuracy for effective problem-solving. CriticalThinking [85] investigates the optimal reasoning length of LLMs based on using deterministic finite automata (DFAs). MiP-Overthinking [43] discovers that when the reasoning models get questions missing key information, they tend to keep “thinking” over and over instead of admitting they fail to answer. By studying this behavior, they show that current training methods push models to generate long, repetitive reasoning steps rather than recognize unsolvable problems and stop early. ",
+        "bbox": [
+            173,
+            372,
+            825,
+            525
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Effect of Compression on Reasoning Models. CompressionReasoning [233] benchmarks compression techniques including quantization, distillation, and pruning, on reasoning tasks. The results indicate that parameter count has a greater impact on knowledge retention than on reasoning ability, and that generating shorter outputs generally leads to improved performance. QuantRM [112] provides a benchmark evaluating weight quantization, KV-cache quantization, and activation quantization across various algorithms and bit-width configurations. ",
+        "bbox": [
+            174,
+            540,
+            825,
+            623
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "8 Applications and Discussion ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            643,
+            439,
+            661
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "8.1 Applications ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            675,
+            300,
+            690
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Autonomic Driving. Efficient reasoning LLMs are able to greatly improve autonomic driving [30, 199–201] by helping them understand large amounts of sensor data in a human-like way. They make the cars better at making decisions, so the vehicles can plan for difficult driving situations and react quickly when unexpected events occur. By combining information from cameras, LiDAR, radar, and other sensors, these models help cars drive more safely, choose better routes, and assess risks as they happen. Moreover, because they can explain why they make certain decisions, both passengers and regulators feel more confident in the technology, and the cars can interact more smoothly with smart road systems. ",
+        "bbox": [
+            174,
+            700,
+            825,
+            811
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Embodied AI. Efficient reasoning LLMs make embodied AI [39] much smarter by helping robots and smart devices understand and react to the world around them. These models process lots of data from cameras, sensors, and other inputs in a way that resembles human thinking. This deep understanding means that a robot can quickly decide the best way to move, handle unexpected changes, and interact safely with people. For example, in a busy factory or a home setting, a robot using these models can navigate obstacles, adjust to new situations, and even explain its actions in simple terms. Altogether, efficient reasoning LLMs boost the reliability, safety, and usefulness of embodied AI systems in daily environments. ",
+        "bbox": [
+            174,
+            827,
+            823,
+            911
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            174,
+            92,
+            823,
+            119
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Healthcare. Efficient reasoning LLMs would improve healthcare [62] by helping doctors and researchers work with large amounts of medical data more easily. They can quickly analyze patient records, test results, and medical research to spot important trends and patterns that might be hard to see otherwise. This support can lead to faster and more accurate diagnoses, better treatment recommendations, and fewer mistakes. In addition, these models can break down complex medical information into plain language, making it easier for both medical professionals and patients to understand. Generally, efficient reasoning LLMs make healthcare processes smoother and more reliable, leading to better care and outcomes for patients. ",
+        "bbox": [
+            174,
+            140,
+            825,
+            252
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Recommender System. Efficient reasoning LLMs can greatly enhance recommender systems by enabling more accurate, personalized, and context-aware suggestions across various domains such as e-commerce, entertainment, and education. These models can reason over diverse and dynamic user behavior, preferences, and historical interactions to uncover subtle patterns and relationships that traditional models might overlook. By efficiently processing complex input data, LLMs can generate high-quality recommendations with fewer computational resources. For instance, in an online shopping platform, an efficient reasoning model can anticipate evolving user interests, adapt to seasonal trends, and explain recommendations in a user-friendly way. Overall, efficient reasoning LLMs improve the scalability, transparency, and responsiveness of recommender systems, leading to better user satisfaction and engagement. ReaRec [168] proposes a latent reasoning framework for recommender systems. Inspired by the think-before-action paradigm in LLMs, ReaRec enables implicit multi-step reasoning at inference time, significantly improving performance, particularly for long-tail users and items. ",
+        "bbox": [
+            174,
+            273,
+            825,
+            453
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "8.2 Discussion ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            476,
+            285,
+            491
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Improving Reasoning Ability. From another perspective on efficiency, improving reasoning performance is an important topic [17, 164]. To prioritize promising avenues by discarding ineffective strategies early, Meta-Reasoner [164] leverages contextual multi-armed bandits for evaluating reasoning progress and selecting the optimal strategy. In each round, the LLM produces a new reasoning step, and the meta-reasoner evaluates its output and generates a progress report, the meta-reasoner uses contextual multi-arm bandit to choose the best guidance strategy for the reasoning step. ITT [17] treats each transformer layer as a step in an internal thinking process. By dynamically allocating extra processing to difficult tokens through adaptive routing, ITT enables smaller language models to achieve performance comparable to larger models while using fewer training resources. SyzygyoT [86] introduces Minimal Free Resolution (MFR), which is inspired by algebraic geometry, to break down complex tasks into logically complete and minimal subproblems. This decomposition enhances the structural efficiency of CoT reasoning, enabling more precise and efficient problem-solving. ",
+        "bbox": [
+            174,
+            503,
+            825,
+            670
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Safety of Efficient Reasoning. Safety and efficiency in LLMs often pull in opposite directions, as optimizing one always leads to the performance degradation of the other. When enhancing safety, such as filtering harmful content, mitigating adversarial attacks, and enabling self-correction, the reasoning model typically requires additional computational resources and longer reasoning sequences, leading to increased inference costs and slower response times. Conversely, prioritizing efficiency by minimizing token usage and computational overhead may reduce the reasoning ability to self-reflect, verify its outputs, or defend against adversarial manipulations. This trade-off reflects the well-known principle that there is no “free lunch”, making it crucial to strike a careful balance between safety and efficiency. [82] investigates the robustness of safety checks in large CoT reasoning models, revealing severe security flaws in commercial systems. They introduce the maliciouseducator benchmark and demonstrate that with their hijacking Chain-of-Thought (H-CoT) attack, models can drastically reduce their refusal rates, leading to the generation of harmful content. [91] investigates the safety of long reasoning models. It is observed that while longer outputs enable self-correction and enhance safety, some attack strategies exploit extended generations. They propose a dynamic output length control via an RL-based method to maintain both reasoning quality and security. Balancing safety and efficiency in long reasoning models remains a challenging yet crucial area of investigation. [81] proposes an indirect prompt injection attack targeting reasoning LLMs applied to untrusted data sources and substantially degrades reasoning efficiency. SafeMLRM [46] provides a safety analysis of multi-modal large reasoning models (MLRMs). ",
+        "bbox": [
+            174,
+            676,
+            825,
+            911
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            173,
+            92,
+            823,
+            119
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "Efficient LLMs for Agentic AI. Efficient reasoning is essential to the advancement of agentic AI systems [108], as it directly influences their decision-making speed, resource utilization, and overall effectiveness in real-world applications. Recent research efforts have extensively investigated methods for improving agent efficiency by optimizing internal reasoning processes. Notable approaches include merging multiple planning trees to reduce computational redundancy [69], as well as consolidating and structuring memory representations to enhance efficiency and adaptability in dynamic environments [68]. CoA [139] enhances the capability of LLMs in managing complex tasks, especially in scenarios demanding real-time or domain-specific knowledge, with an efficient verification module leveraging our MRFS framework to refine LLM-generated responses using retrieved information. These innovations collectively contribute toward the development of more responsive, scalable, and practical AI agents capable of operating effectively under constrained computational resources. DOWN [42] proposes an adaptive multi-agent debate framework that only triggers debate when the initial confidence of an agent is low, then uses the confidence-weighted inputs of participating agents to collaboratively refine the final answer. ",
+        "bbox": [
+            173,
+            126,
+            825,
+            319
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "RL vs. SFT, which is better? When comparing RL (Section 3.1) and SFT (Section 3.2) for creating efficient reasoning language models, the answer is unclear as each method has its own strengths. RL allows a model to learn by trial and error, rewarding it for satisfactory decisions, which can assist it find creative ways to solve problems in new situations. However, this approach can sometimes be unpredictable and require a lot of training. On the other hand, SFT teaches the model using carefully chosen efficient CoT examples constructed by either humans or models, leading to more consistent behavior and easier control. Yet, SFT might struggle when faced with challenges that are not covered in its training data. In practice, combining both methods might be a promising direction and potentially works best because it harnesses the creativity of RL and the reliability of SFT, resulting in a model that is both adaptable and stable. ",
+        "bbox": [
+            174,
+            325,
+            825,
+            464
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "9 Conclusion ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            483,
+            299,
+            500
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "This paper provides the first structured survey of efficient reasoning in LLMs, categorizing existing approaches into three areas: model-based, reasoning output-based, and input prompts-based methods. Additionally, it discusses efficient data utilization, reasoning capabilities of smaller models, evaluation techniques, and benchmarking, accompanied by a continuously updated public repository to support future research. Crucially, efficient reasoning approaches offer significant practical benefits across various domains: reducing computational costs in healthcare diagnostics, enhancing real-time decision-making and safety in autonomous driving, boosting the reliability and usefulness of embodied AI systems, and enabling quicker, more profitable responses in financial algorithmic trading and risk assessment. These advancements highlight the broad economic and societal value of efficient reasoning in LLMs. ",
+        "bbox": [
+            174,
+            515,
+            826,
+            654
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "References ",
+        "text_level": 1,
+        "bbox": [
+            174,
+            672,
+            266,
+            689
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "[1] Aradhye Agarwal, Ayan Sengupta, and Tanmoy Chakraborty. First finish search: Efficient test-time scaling in large language models, 2025. 4   \n[2] Pranjal Aggarwal and Sean Welleck. L1: Controlling how long a reasoning model thinks with reinforcement learning. arXiv preprint arXiv:2503.04697, 2025. 4, 6, 7   \n[3] Sohyun An, Ruochen Wang, Tianyi Zhou, and Cho-Jui Hsieh. Don’t think longer, think wisely: Optimizing thinking dynamics for large reasoning models, 2025. 4   \n[4] Anthropic. Claude 3.7 sonnet, 2023. Accessed: March 10, 2025. 4, 15   \n[5] Daman Arora and Andrea Zanette. Training language models to reason efficiently. arXiv preprint arXiv:2502.04463, 2025. 4, 6   \n[6] Simon A Aytes, Jinheon Baek, and Sung Ju Hwang. Sketch-of-thought: Efficient llm reasoning with adaptive cognitive-inspired sketching. arXiv preprint arXiv:2503.05179, 2025. 4, 15   \n[7] Seyedarmin Azizi, Erfan Baghaei Potraghloo, and Massoud Pedram. Activation steering for chain-of-thought compression, 2025. 4   \n[8] Edward Beeching, Lewis Tunstall, and Sasha Rush. Scaling test-time compute with open models. 11   \n[9] Maciej Besta, Nils Blach, Ales Kubicek, Robert Gerstenberger, Michal Podstawski, Lukas Gianinazzi, Joanna Gajda, Tomasz Lehmann, Hubert Niewiadomski, Piotr Nyczyk, et al. Graph of thoughts: Solving elaborate problems with large language models. In Proceedings of the AAAI Conference on Artificial Intelligence, volume 38, pages 17682–17690, 2024. 3   \n[10] Mert Cemri, Nived Rajaraman, Rishabh Tiwari, Xiaoxuan Liu, Kurt Keutzer, Ion Stoica, Kannan Ramchandran, Ahmad Beirami, and Ziteng Sun. SPECS: Faster test-time scaling through speculative drafts, 2025. 4   \n[11] Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique Ponde De Oliveira Pinto, Jared Kaplan, Harri Edwards, Yuri Burda, Nicholas Joseph, Greg Brockman, et al. Evaluating large language models trained on code. arXiv preprint arXiv:2107.03374, 2021. 1   \n[12] Qiguang Chen, Dengyun Peng, Jinhao Liu, HuiKang Su, Jiannan Guan, Libo Qin, and Wanxiang Che. Aware first, think less: Dynamic boundary self-awareness drives extreme reasoning efficiency in large language models, 2025. 4   \n[13] Qiguang Chen, Libo Qin, Jiaqi Wang, Jingxuan Zhou, and Wanxiang Che. Unlocking the capabilities of thought: A reasoning boundary framework to quantify and optimize chain-ofthought. Advances in Neural Information Processing Systems, 37:54872–54904, 2024. 4, 15   \n[14] Runjin Chen, Zhenyu Zhang, Junyuan Hong, Souvik Kundu, and Zhangyang Wang. Seal: Steerable reasoning calibration of large language models for free. arXiv preprint arXiv:2504.07986, 2025. 4   \n[15] Xiaoshu Chen, Sihang Zhou, Ke Liang, and Xinwang Liu. Distilling reasoning ability from large language models with adaptive thinking. arXiv preprint arXiv:2404.09170, 2024. 4, 17   \n[16] Xingyu Chen, Jiahao Xu, Tian Liang, Zhiwei He, Jianhui Pang, Dian Yu, Linfeng Song, Qiuzhi Liu, Mengfei Zhou, Zhuosheng Zhang, et al. Do not think that much for $2 + 3 { = } ?$ on the overthinking of o1-like llms. arXiv preprint arXiv:2412.21187, 2024. 2, 5   \n[17] Yilong Chen, Junyuan Shang, Zhenyu Zhang, Yanxi Xie, Jiawei Sheng, Tingwen Liu, Shuohuan Wang, Yu Sun, Hua Wu, and Haifeng Wang. Inner thinking transformer: Leveraging dynamic depth scaling to foster adaptive internal thinking. arXiv preprint arXiv:2502.13842, 2025. 19   \n[18] Zhuokun Chen, Zeren Chen, Jiahao He, Mingkui Tan, Jianfei Cai, and Bohan Zhuang. R-stitch: Dynamic trajectory stitching for efficient reasoning, 2025. 4   \n[19] Zigeng Chen, Xinyin Ma, Gongfan Fang, Ruonan Yu, and Xinchao Wang. Verithinker: Learning to verify makes reasoning model efficient. arXiv preprint arXiv:2505.17941, 2025. 4   \n[20] Jeffrey Cheng and Benjamin Van Durme. Compressed chain of thought: Efficient reasoning through dense representations. arXiv preprint arXiv:2412.13171, 2024. 4, 10   \n[21] Xiaoxue Cheng, Junyi Li, Zhenduo Zhang, Xinyu Tang, Wayne Xin Zhao, Xinyu Kong, and Zhiqiang Zhang. Incentivizing dual process thinking for efficient large language model reasoning. arXiv preprint arXiv:2505.16315, 2025. 4   \n[22] Zhengxiang Cheng, Dongping Chen, Mingyang Fu, and Tianyi Zhou. Optimizing length compression in large reasoning models, 2025. 4   \n[23] Li Chenglin, Qianglong Chen, Liangyue Li, Caiyu Wang, Feng Tao, Yicheng Li, Zulong Chen, and Yin Zhang. Mixed distillation helps smaller language models reason better. In Findings of the Association for Computational Linguistics: EMNLP 2024, pages 1673–1690, 2024. 4, 17   \n[24] Yu-Neng Chuang, Leisheng Yu, Guanchu Wang, Lizhe Zhang, Zirui Liu, Xuanting Cai, Yang Sui, Vladimir Braverman, and Xia Hu. Confident or seek stronger: Exploring uncertainty-based on-device llm routing from benchmarking to generalization, 2025. 4, 15   \n[25] Yu-Neng Chuang, Helen Zhou, Prathusha Kameswara Sarma, Parikshit Gopalan, John Boccio, Sara Bolouki, and Xia Hu. Learning to route llms with confidence tokens, 2025. 4, 15   \n[26] Karl Cobbe, Vineet Kosaraju, Mohammad Bavarian, Mark Chen, Heewoo Jun, Lukasz Kaiser, Matthias Plappert, Jerry Tworek, Jacob Hilton, Reiichiro Nakano, et al. Training verifiers to solve math word problems. arXiv preprint arXiv:2110.14168, 2021. 1   \n[27] Codeforces. Codeforces - competitive programming platform, 2025. Accessed: 2025-03-18. 1   \n[28] Rémi Coulom. Efficient selectivity and backup operators in monte-carlo tree search. In International conference on computers and games, pages 72–83. Springer, 2006. 5   \n[29] Alejandro Cuadron, Dacheng Li, Wenjie Ma, Xingyao Wang, Yichuan Wang, Siyuan Zhuang, Shu Liu, Luis Gaspar Schroeder, Tian Xia, Huanzhi Mao, Nicholas Thumiger, Aditya Desai, Ion Stoica, Ana Klimovic, Graham Neubig, and Joseph E. Gonzalez. The danger of overthinking: Examining the reasoning-action dilemma in agentic tasks, 2025. 4, 18   \n[30] Can Cui, Yunsheng Ma, Xu Cao, Wenqian Ye, Yang Zhou, Kaizhao Liang, Jintai Chen, Juanwu Lu, Zichong Yang, Kuei-Da Liao, et al. A survey on multimodal large language models for autonomous driving. In Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision, pages 958–979, 2024. 18   \n[31] Yingqian Cui, Pengfei He, Jingying Zeng, Hui Liu, Xianfeng Tang, Zhenwei Dai, Yan Han, Chen Luo, Jing Huang, Zhen Li, et al. Stepwise perplexity-guided refinement for efficient chain-of-thought reasoning in large language models. arXiv preprint arXiv:2502.13260, 2025. 4   \n[32] Muzhi Dai, Shixuan Liu, and Qingyi Si. Stable reinforcement learning for efficient reasoning, 2025. 4   \n[33] Muzhi Dai, Chenxu Yang, and Qingyi Si. S-grpo: Early exit via reinforcement learning in reasoning models. arXiv preprint arXiv:2505.07686, 2025. 4   \n[34] Yuntian Deng, Yejin Choi, and Stuart Shieber. From explicit cot to implicit cot: Learning to internalize cot step by step. arXiv preprint arXiv:2405.14838, 2024. 9   \n[35] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. Bert: Pre-training of deep bidirectional transformers for language understanding. In Proceedings of the 2019 conference of the North American chapter of the association for computational linguistics: human language technologies, volume 1 (long and short papers), pages 4171–4186, 2019. 1   \n[36] Bowen Ding, Yuhan Chen, Futing Wang, Lingfeng Ming, and Tao Lin. Do thinking tokens help or trap? towards more efficient large reasoning model, 2025. 4   \n[37] Dujian Ding, Ankur Mallick, Shaokun Zhang, Chi Wang, Daniel Madrigal, Mirian Del Carmen Hipolito Garcia, Menglin Xia, Laks V. S. Lakshmanan, Qingyun Wu, and Victor Rühle. Best-route: Adaptive llm routing with test-time optimal compute, 2025. 4   \n[38] Yifu Ding, Wentao Jiang, Shunyu Liu, Yongcheng Jing, Jinyang Guo, Yingjie Wang, Jing Zhang, Zengmao Wang, Ziwei Liu, Bo Du, et al. Dynamic parallel tree search for efficient llm reasoning. arXiv preprint arXiv:2502.16235, 2025. 4, 11, 12   \n[39] Jiafei Duan, Samson Yu, Hui Li Tan, Hongyuan Zhu, and Cheston Tan. A survey of embodied ai: From simulators to research tasks. IEEE Transactions on Emerging Topics in Computational Intelligence, 6(2):230–244, 2022. 18   \n[40] Razvan-Gabriel Dumitru, Darius Peteleaza, Vikas Yadav, and Liangming Pan. Conciserl: Conciseness-guided reinforcement learning for efficient reasoning models. arXiv preprint arXiv:2505.17250, 2025. 4   \n[41] Roy Eisenstadt, Itamar Zimerman, and Lior Wolf. Overclocking llm reasoning: Monitoring and controlling thinking path lengths in llms, 2025. 4   \n[42] Sugyeong Eo, Hyeonseok Moon, Evelyn Hayoon Zi, Chanjun Park, and Heuiseok Lim. Debate only when necessary: Adaptive multiagent collaboration for efficient llm reasoning, 2025. 20   \n[43] Chenrui Fan, Ming Li, Lichao Sun, and Tianyi Zhou. Missing premise exacerbates overthinking: Are reasoning models losing critical thinking skill? arXiv preprint arXiv:2504.06514, 2025. 18   \n[44] Siqi Fan, Peng Han, Shuo Shang, Yequan Wang, and Aixin Sun. Cothink: Token-efficient reasoning via instruct models guiding reasoning models, 2025. 4   \n[45] Gongfan Fang, Xinyin Ma, and Xinchao Wang. Thinkless: Llm learns when to think, 2025. 4   \n[46] Junfeng Fang, Yukai Wang, Ruipeng Wang, Zijun Yao, Kun Wang, An Zhang, Xiang Wang, and Tat-Seng Chua. Safemlrm: Demystifying safety in multi-modal large reasoning models. arXiv preprint arXiv:2504.08813, 2025. 20 [47] Mehdi Fatemi, Banafsheh Rafiee, Mingjie Tang, and Kartik Talamadupula. Concise reasoning via reinforcement learning. arXiv preprint arXiv:2504.05185, 2025. 4 [48] Tao Feng, Yicheng Li, Li Chenglin, Hao Chen, Fei Yu, and Yin Zhang. Teaching small language models reasoning through counterfactual distillation. In Proceedings of the 2024 Conference on Empirical Methods in Natural Language Processing, pages 5831–5842, 2024.   \n4, 17 [49] Elias Frantar, Saleh Ashkboos, Torsten Hoefler, and Dan Alistarh. Gptq: Accurate post-training quantization for generative pre-trained transformers. In The Eleventh International Conference on Learning Representations. OpenReview, 2023. 2 [50] Yichao Fu, Junda Chen, Siqi Zhu, Zheyu Fu, Zhongdongming Dai, Aurick Qiao, and Hao Zhang. Efficiently serving llm reasoning programs with certaindex. arXiv preprint arXiv:2412.20993, 2024. 4, 11, 12 [51] Yichao Fu, Junda Chen, Yonghao Zhuang, Zheyu Fu, Ion Stoica, and Hao Zhang. Reasoning without self-doubt: More efficient chain-of-thought through certainty probing. In ICLR 2025 Workshop on Foundation Models in the Wild, 2025. 4, 13 [52] Jiaxuan Gao, Shu Yan, Qixin Tan, Lu Yang, Shusheng Xu, Wei Fu, Zhiyu Mei, Kaifeng Lyu, and Yi Wu. How far are we from optimal reasoning efficiency?, 2025. 4 [53] Jonas Geiping, Sean McLeish, Neel Jain, John Kirchenbauer, Siddharth Singh, Brian R Bartoldson, Bhavya Kailkhura, Abhinav Bhatele, and Tom Goldstein. Scaling up test-time compute with latent reasoning: A recurrent depth approach. arXiv preprint arXiv:2502.05171,   \n2025. 9 [54] Amirhosein Ghasemabadi, Keith G. Mills, Baochun Li, and Di Niu. Guided by gut: Efficient test-time scaling with reinforced intrinsic confidence, 2025. 4 [55] Aaron Grattafiori, Abhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey, Abhishek Kadian, Ahmad Al-Dahle, Aiesha Letman, Akhil Mathur, Alan Schelten, Alex Vaughan, et al. The llama 3 herd of models. arXiv preprint arXiv:2407.21783, 2024. 1 [56] Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Ruoyu Zhang, Runxin Xu, Qihao Zhu, Shirong Ma, Peiyi Wang, Xiao Bi, et al. Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning. arXiv preprint arXiv:2501.12948, 2025. 1, 2, 4, 5, 6, 7, 11 [57] Hasan Abed Al Kader Hammoud, Kumail Alhamoud, Abed Hammoud, Elie Bou-Zeid, Marzyeh Ghassemi, and Bernard Ghanem. Train long, think short: Curriculum learning for efficient reasoning, 2025. 4 [58] Tingxu Han, Chunrong Fang, Shiyu Zhao, Shiqing Ma, Zhenyu Chen, and Zhenting Wang. Token-budget-aware llm reasoning. arXiv preprint arXiv:2412.18547, 2024. 2, 4, 8, 9, 14, 15 [59] Jitai Hao, Yuke Zhu, Tian Wang, Jun Yu, Xin Xin, Bo Zheng, Zhaochun Ren, and Sheng Guo. Omnikv: Dynamic context selection for efficient long-context llms. In The Thirteenth International Conference on Learning Representations, 2025. 2 [60] Shibo Hao, Sainbayar Sukhbaatar, DiJia Su, Xian Li, Zhiting Hu, Jason Weston, and Yuandong Tian. Training large language models to reason in a continuous latent space. arXiv preprint arXiv:2412.06769, 2024. 2, 4, 10 [61] Michael Hassid, Gabriel Synnaeve, Yossi Adi, and Roy Schwartz. Don’t overthink it. preferring shorter thinking chains for improved llm reasoning, 2025. 4 [62] Kai He, Rui Mao, Qika Lin, Yucheng Ruan, Xiang Lan, Mengling Feng, and Erik Cambria. A survey of large language models for healthcare: from data, technology, and applications to accountability and ethics. arXiv preprint arXiv:2310.05694, 2023. 19 [63] Xingyang He, Xiao Ling, and Jie Liu. Smartthinker: Learning to compress and preserve reasoning by step-level length control, 2025. 4 [64] Dan Hendrycks, Collin Burns, Saurav Kadavath, Akul Arora, Steven Basart, Eric Tang, Dawn Song, and Jacob Steinhardt. Measuring mathematical problem solving with the math dataset. In Thirty-fifth Conference on Neural Information Processing Systems Datasets and Benchmarks Track, 2021. 1 [65] Jialiang Hong, Taihang Zhen, Kai Chen, Jiaheng Liu, Wenpeng Zhu, Jing Huo, Yang Gao, Depeng Wang, Haitao Wan, Xi Yang, Boyan Wang, and Fanyu Meng. Reconsidering overthinking: Penalizing internal and external redundancy in cot reasoning, 2025. 4   \n[66] Bairu Hou, Yang Zhang, Jiabao Ji, Yujian Liu, Kaizhi Qian, Jacob Andreas, and Shiyu Chang. Thinkprune: Pruning long chain-of-thought of llms via reinforcement learning. arXiv preprint arXiv:2504.01296, 2025. 4   \n[67] Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen, et al. Lora: Low-rank adaptation of large language models. ICLR, 1(2):3, 2022. 9   \n[68] Mengkang Hu, Tianxing Chen, Qiguang Chen, Yao Mu, Wenqi Shao, and Ping Luo. Hiagent: Hierarchical working memory management for solving long-horizon agent tasks with large language model. arXiv preprint arXiv:2408.09559, 2024. 20   \n[69] Mengkang Hu, Yao Mu, Xinmiao Yu, Mingyu Ding, Shiguang Wu, Wenqi Shao, Qiguang Chen, Bin Wang, Yu Qiao, and Ping Luo. Tree-planner: Efficient close-loop task planning with large language models. arXiv preprint arXiv:2310.08582, 2023. 20   \n[70] Chengsong Huang, Langlin Huang, Jixuan Leng, Jiacheng Liu, and Jiaxin Huang. Efficient test-time scaling via self-calibration. arXiv preprint arXiv:2503.00031, 2025. 4, 13   \n[71] Jiameng Huang, Baijiong Lin, Guhao Feng, Jierun Chen, Di He, and Lu Hou. Efficient reasoning for large reasoning language models via certainty-guided reflection suppression, 2025. 4   \n[72] Joonwon Jang, Jaehee Kim, Wonbin Kweon, Seonghyeon Lee, and Hwanjo Yu. Verbosityaware rationale reduction: Effective reduction of redundant rationale via principled criteria, 2025. 4   \n[73] Guochao Jiang, Guofeng Quan, Zepeng Ding, Ziqin Luo, Dixuan Wang, and Zheng Hu. Flashthink: An early exit method for efficient reasoning. arXiv preprint arXiv:2505.13949, 2025. 4   \n[74] Lingjie Jiang, Xun Wu, Shaohan Huang, Qingxiu Dong, Zewen Chi, Li Dong, Xingxing Zhang, Tengchao Lv, Lei Cui, and Furu Wei. Think only when you need with large hybrid-reasoning models, 2025. 4   \n[75] Yuxuan Jiang, Dawei Li, and Frank Ferraro. Drp: Distilled reasoning pruning with skill-aware step decomposition for efficient large reasoning models. arXiv preprint arXiv:2505.13975, 2025. 4   \n[76] Mingyu Jin, Qinkai Yu, Dong Shu, Haiyan Zhao, Wenyue Hua, Yanda Meng, Yongfeng Zhang, and Mengnan Du. The impact of reasoning step length on large language models. arXiv preprint arXiv:2401.04925, 2024. 4, 18   \n[77] Zhensheng Jin, Xinze Li, Yifan Ji, Chunyi Peng, Zhenghao Liu, Qi Shi, Yukun Yan, Shuo Wang, Furong Peng, and Ge Yu. Recut: Balancing reasoning length and accuracy in llms via stepwise trails and preference optimization, 2025. 4   \n[78] Yu Kang, Xianghui Sun, Liangyu Chen, and Wei Zou. C3ot: Generating shorter chain-ofthought without compromising effectiveness. arXiv preprint arXiv:2412.11664, 2024. 4, 8, 9   \n[79] Henrik Klagges, Robert Dahlke, Fabian Klemm, Benjamin Merkel, Daniel Klingmann, David A Reiss, and Dan Zecha. Assembly of experts: Linear-time construction of the chimera llm variants with emergent and adaptable behaviors. arXiv preprint arXiv:2506.14794, 2025. 4   \n[80] Levente Kocsis and Csaba Szepesvári. Bandit based monte-carlo planning. In European conference on machine learning, pages 282–293. Springer, 2006. 5   \n[81] Abhinav Kumar, Jaechul Roh, Ali Naseh, Marzena Karpinska, Mohit Iyyer, Amir Houmansadr, and Eugene Bagdasarian. Overthink: Slowdown attacks on reasoning llms. arXiv e-prints, pages arXiv–2502, 2025. 19   \n[82] Martin Kuo, Jianyi Zhang, Aolin Ding, Qinsi Wang, Louis DiValentin, Yujia Bao, Wei Wei, DaCheng Juan, Hai Li, and Yiran Chen. H-cot: Hijacking the chain-of-thought safety reasoning mechanism to jailbreak large reasoning models, including openai o1/o3, deepseek-r1, and gemini 2.0 flash thinking. arXiv preprint arXiv:2502.12893, 2025. 19   \n[83] Ayeong Lee, Ethan Che, and Tianyi Peng. How well do llms compress their own chain-ofthought? a token complexity approach. arXiv preprint arXiv:2503.01141, 2025. 4, 14   \n[84] Byeongchan Lee, Jonghoon Lee, Dongyoung Kim, Jaehyung Kim, and Jinwoo Shin. Collaborative llm inference via planning for efficient reasoning, 2025. 4   \n[85] Celine Lee, Alexander M. Rush, and Keyon Vafa. Critical thinking: Which kinds of complexity govern optimal reasoning length?, 2025. 18   \n[86] Chenghao Li, Chaoning Zhang, Yi Lu, Jiaquan Zhang, Qigan Sun, Xudong Wang, Jiwei Wei, Guoqing Wang, Yang Yang, and Heng Tao Shen. Syzygy of thoughts: Improving llm cot with the minimal free resolution. arXiv preprint arXiv:2504.09566, 2025. 19   \n[87] Gengyang Li, Yifeng Gao, Yuming Li, and Yunfang Wu. Thinkless: A training-free inferenceefficient method for reducing reasoning redundancy. arXiv preprint arXiv:2505.15684, 2025. 4   \n[88] Junyan Li, Wenshuo Zhao, Yang Zhang, and Chuang Gan. Steering llm thinking with budget guidance, 2025. 4   \n[89] Peiji Li, Kai Lv, Yunfan Shao, Yichuan Ma, Linyang Li, Xiaoqing Zheng, Xipeng Qiu, and Qipeng Guo. Fastmcts: A simple sampling strategy for data synthesis. arXiv preprint arXiv:2502.11476, 2025. 4, 11, 12   \n[90] Ruosen Li, Ziming Luo, Quan Zhang, Ruochen Li, Ben Zhou, Ali Payani, and Xinya Du. Aalc: Large language model efficient reasoning via adaptive accuracy-length control, 2025. 4   \n[91] Xuying Li, Zhuo Li, Yuji Kosuga, and Victor Bian. Output length effect on deepseek-r1’s safety in forced thinking. arXiv preprint arXiv:2503.01923, 2025. 19   \n[92] Yiwei Li, Peiwen Yuan, Shaoxiong Feng, Boyuan Pan, Xinglin Wang, Bin Sun, Heda Wang, and Kan Li. Escape sky-high cost: Early-stopping self-consistency for multi-step reasoning. In ICLR, 2024. 4   \n[93] Yuetai Li, Xiang Yue, Zhangchen Xu, Fengqing Jiang, Luyao Niu, Bill Yuchen Lin, Bhaskar Ramasubramanian, and Radha Poovendran. Small models struggle to learn from strong reasoners. arXiv preprint arXiv:2502.12143, 2025. 4, 16, 17   \n[94] Zeju Li, Jianyuan Zhong, Ziyang Zheng, Xiangyu Wen, Zhijian Xu, Yingying Cheng, Fan Zhang, and Qiang Xu. Compressing chain-of-thought in llms via step entropy, 2025. 4   \n[95] Zheng Li, Qingxiu Dong, Jingyuan Ma, Di Zhang, and Zhifang Sui. Selfbudgeter: Adaptive token allocation for efficient llm reasoning. arXiv preprint arXiv:2505.11274, 2025. 4   \n[96] Zhong-Zhi Li, Xiao Liang, Zihao Tang, Lei Ji, Peijie Wang, Haotian Xu, Xing W, Haizhen Huang, Weiwei Deng, Yeyun Gong, Zhijiang Guo, Xiao Liu, Fei Yin, and Cheng-Lin Liu. Tl;dr: Too long, do re-weighting for efficient llm reasoning compression, 2025. 4   \n[97] Zhong-Zhi Li, Duzhen Zhang, Ming-Liang Zhang, Jiaxin Zhang, Zengyan Liu, Yuxuan Yao, Haotian Xu, Junhao Zheng, Pei-Jie Wang, Xiuyi Chen, et al. From system 1 to system 2: A survey of reasoning large language models. arXiv preprint arXiv:2502.17419, 2025. 1   \n[98] Guosheng Liang, Longguang Zhong, Ziyi Yang, and Xiaojun Quan. Thinkswitcher: When to think hard, when to think fast, 2025. 4   \n[99] Baohao Liao, Hanze Dong, Yuhui Xu, Doyen Sahoo, Christof Monz, Junnan Li, and Caiming Xiong. Fractured chain-of-thought reasoning. arXiv preprint arXiv:2505.12992, 2025. 4   \n[100] Baohao Liao, Yuhui Xu, Hanze Dong, Junnan Li, Christof Monz, Silvio Savarese, Doyen Sahoo, and Caiming Xiong. Reward-guided speculative decoding for efficient llm reasoning. arXiv preprint arXiv:2501.19324, 2025. 4, 11, 12   \n[101] Huanxuan Liao, Shizhu He, Yupu Hao, Xiang Li, Yuanzhe Zhang, Jun Zhao, and Kang Liu. Skintern: Internalizing symbolic knowledge for distilling better cot capabilities into small language models. In Proceedings of the 31st International Conference on Computational Linguistics, pages 3203–3221, 2025. 4, 17   \n[102] Ji Lin, Jiaming Tang, Haotian Tang, Shang Yang, Wei-Ming Chen, Wei-Chen Wang, Guangxuan Xiao, Xingyu Dang, Chuang Gan, and Song Han. Awq: Activation-aware weight quantization for on-device llm compression and acceleration. Proceedings of Machine Learning and Systems, 6:87–100, 2024. 2   \n[103] Junhong Lin, Xinyue Zeng, Jie Zhu, Song Wang, Julian Shun, Jun Wu, and Dawei Zhou. Plan and budget: Effective and efficient test-time scaling on large language model reasoning. arXiv preprint arXiv:2505.16122, 2025. 4   \n[104] Kevin Lin, Charlie Snell, Yu Wang, Charles Packer, Sarah Wooders, Ion Stoica, and Joseph E Gonzalez. Sleep-time compute: Beyond inference scaling at test-time. arXiv preprint arXiv:2504.13171, 2025. 4   \n[105] Weizhe Lin, Xing Li, Zhiyuan Yang, Xiaojin Fu, Hui-Ling Zhen, Yaoyuan Wang, Xianzhi Yu, Wulong Liu, Xiaosong Li, and Mingxuan Yuan. Trimr: Verifier-based training-free thinking compression for efficient test-time scaling. arXiv preprint arXiv:2505.17155, 2025. 4   \n[106] Zhengkai Lin, Zhihang Fu, Ze Chen, Chao Chen, Liang Xie, Wenxiao Wang, Deng Cai, Zheng Wang, and Jieping Ye. Controlling thinking speed in reasoning models, 2025. 4   \n[107] Zehui Ling, Deshu Chen, Hongwei Zhang, Yifeng Jiao, Xin Guo, and Yuan Cheng. Fast on the easy, deep on the hard: Efficient reasoning via powered length penalty, 2025. 4   \n[108] Bang Liu, Xinfeng Li, Jiayi Zhang, Jinlin Wang, Tanjin He, Sirui Hong, Hongzhang Liu, Shaokun Zhang, Kaitao Song, Kunlun Zhu, et al. Advances and challenges in foundation agents: From brain-inspired intelligence to evolutionary, collaborative, and safe systems. arXiv preprint arXiv:2504.01990, 2025. 20   \n[109] Fan Liu, Wenshuo Chao, Naiqiang Tan, and Hao Liu. Bag of tricks for inference-time computation of llm reasoning. arXiv preprint arXiv:2502.07191, 2025. 4, 17   \n[110] Hanbing Liu, Lang Cao, Yuanyi Ren, Mengyu Zhou, Haoyu Dong, Xiaojun Ma, Shi Han, and Dongmei Zhang. Bingo: Boosting efficient reasoning of llms via dynamic and significancebased reinforcement learning. arXiv preprint arXiv:2506.08125, 2025. 4   \n[111] Kaiyuan Liu, Chen Shen, Zhanwei Zhang, Junjie Liu, Xiaosong Yuan, and Jieping ye. Efficient reasoning through suppression of self-affirmation reflections in large reasoning models, 2025. 4   \n[112] Ruikang Liu, Yuxuan Sun, Manyi Zhang, Haoli Bai, Xianzhi Yu, Tiezheng Yu, Chun Yuan, and Lu Hou. Quantization hurts reasoning? an empirical study on quantized reasoning models, 2025. 4, 18   \n[113] Runze Liu, Junqi Gao, Jian Zhao, Kaiyan Zhang, Xiu Li, Biqing Qi, Wanli Ouyang, and Bowen Zhou. Can 1b llm surpass 405b llm? rethinking compute-optimal test-time scaling, 2025. 4, 17   \n[114] Ryan Liu, Jiayi Geng, Addison J Wu, Ilia Sucholutsky, Tania Lombrozo, and Thomas L Griffiths. Mind your step (by step): Chain-of-thought can reduce performance on tasks where thinking makes humans worse. arXiv preprint arXiv:2410.21333, 2024. 18   \n[115] Tengxiao Liu, Qipeng Guo, Xiangkun Hu, Cheng Jiayang, Yue Zhang, Xipeng Qiu, and Zheng Zhang. Can language models learn to skip steps? arXiv preprint arXiv:2411.01855, 2024. 4, 8, 9   \n[116] Wei Liu, Ruochen Zhou, Yiyun Deng, Yuzhen Huang, Junteng Liu, Yuntian Deng, Yizhe Zhang, and Junxian He. Learn to reason efficiently with adaptive length-based reward shaping. arXiv preprint arXiv:2505.15612, 2025. 4   \n[117] Xin Liu and Lu Wang. Answer convergence as a signal for early stopping in reasoning, 2025. 4   \n[118] Yule Liu, Jingyi Zheng, Zhen Sun, Zifan Peng, Wenhan Dong, Zeyang Sha, Shiwen Cui, Weiqiang Wang, and Xinlei He. Thought manipulation: External thought can be efficient for large reasoning models, 2025. 4   \n[119] Yuliang Liu, Junjie Lu, Zhaoling Chen, Chaofeng Qu, Jason Klein Liu, Chonghan Liu, Zefan Cai, Yunhui Xia, Li Zhao, Jiang Bian, et al. Adaptivestep: Automatically dividing reasoning step through model confidence. arXiv preprint arXiv:2502.13943, 2025. 4   \n[120] Zirui Liu, Jiayi Yuan, Hongye Jin, Shaochen Zhong, Zhaozhuo Xu, Vladimir Braverman, Beidi Chen, and Xia Hu. Kivi: A tuning-free asymmetric 2bit quantization for kv cache. arXiv preprint arXiv:2402.02750, 2024. 2   \n[121] Ilya Loshchilov and Frank Hutter. Sgdr: Stochastic gradient descent with warm restarts. arXiv preprint arXiv:1608.03983, 2016. 7   \n[122] Chenwei Lou, Zewei Sun, Xinnian Liang, Meng Qu, Wei Shen, Wenqi Wang, Yuntao Li, Qingping Yang, and Shuangzhi Wu. Adacot: Pareto-optimal adaptive chain-of-thought triggering via reinforcement learning, 2025. 4   \n[123] Jinghui Lu, Haiyang Yu, Siliang Xu, Shiwei Ran, Guozhi Tang, Siqi Wang, Bin Shan, Teng Fu, Hao Feng, Jingqun Tang, Han Wang, and Can Huang. Prolonged reasoning is not all you need: Certainty-based adaptive routing for efficient llm/mllm reasoning, 2025. 4   \n[124] Ximing Lu, Seungju Han, David Acuna, Hyunwoo Kim, Jaehun Jung, Shrimai Prabhumoye, Niklas Muennighoff, Mostofa Patwary, Mohammad Shoeybi, Bryan Catanzaro, and Yejin Choi. Retro-search: Exploring untaken paths for deeper and efficient reasoning, 2025. 4   \n[125] Feng Luo, Yu-Neng Chuang, Guanchu Wang, Hoang Anh Duy Le, Shaochen Zhong, Hongyi Liu, Jiayi Yuan, Yang Sui, Vladimir Braverman, Vipin Chaudhary, et al. Autol2s: Auto long-short reasoning for efficient large language models. arXiv preprint arXiv:2505.22662, 2025. 4   \n[126] Haotian Luo, Haiying He, Yibo Wang, Jinluan Yang, Rui Liu, Naiqiang Tan, Xiaochun Cao, Dacheng Tao, and Li Shen. Ada-r1: Hybrid-cot via bi-level adaptive reasoning optimization. arXiv preprint arXiv:2504.21659, 2025. 4   \n[127] Haotian Luo, Li Shen, Haiying He, Yibo Wang, Shiwei Liu, Wei Li, Naiqiang Tan, Xiaochun Cao, and Dacheng Tao. O1-pruner: Length-harmonizing fine-tuning for o1-like reasoning pruning. arXiv preprint arXiv:2501.12570, 2025. 2, 4, 6, 7   \n[128] Ruotian Ma, Peisong Wang, Cheng Liu, Xingyan Liu, Jiaqi Chen, Bang Zhang, Xin Zhou, Nan Du, and Jia Li. $\\mathbf { S } ^ { 2 } \\mathbf { r }$ : Teaching llms to self-verify and self-correct via reinforcement learning, 2025. 4, 16   \n[129] Wenjie Ma, Jingxuan He, Charlie Snell, Tyler Griggs, Sewon Min, and Matei Zaharia. Reasoning models can be effective without thinking. arXiv preprint arXiv:2504.09858, 2025. 4   \n[130] Xinyin Ma, Guangnian Wan, Runpeng Yu, Gongfan Fang, and Xinchao Wang. Cot-valve: Length-compressible chain-of-thought tuning. arXiv preprint arXiv:2502.09601, 2025. 2, 4, 8, 9   \n[131] Yu Meng, Mengzhou Xia, and Danqi Chen. Simpo: Simple preference optimization with a reference-free reward. Advances in Neural Information Processing Systems, 37:124198– 124235, 2024. 6, 7   \n[132] Niklas Muennighoff, Zitong Yang, Weijia Shi, Xiang Lisa Li, Li Fei-Fei, Hannaneh Hajishirzi, Luke Zettlemoyer, Percy Liang, Emmanuel Candès, and Tatsunori Hashimoto. s1: Simple test-time scaling, 2025. 4, 16   \n[133] Tergel Munkhbat, Namgyu Ho, Seohyun Kim, Yongjin Yang, Yujin Kim, and Se-Young Yun. Self-training elicits concise reasoning in large language models. arXiv preprint arXiv:2502.20122, 2025. 4, 8, 9   \n[134] Yansong Ning, Wei Li, Jun Fang, Naiqiang Tan, and Hao Liu. Not all thoughts are generated equal: Efficient llm reasoning via multi-turn reinforcement learning. arXiv preprint arXiv:2505.11827, 2025. 4   \n[135] Isaac Ong, Amjad Almahairi, Vincent Wu, Wei-Lin Chiang, Tianhao Wu, Joseph E Gonzalez, M Waleed Kadous, and Ion Stoica. Routellm: Learning to route llms with preference data. arXiv preprint arXiv:2406.18665, 2024. 15   \n[136] Isaac Ong, Amjad Almahairi, Vincent Wu, Wei-Lin Chiang, Tianhao Wu, Joseph E. Gonzalez, M Waleed Kadous, and Ion Stoica. Routellm: Learning to route llms with preference data, 2025. 4   \n[137] OpenAI. Learning to reason with llms. urlhttps://openai.com/index/learning-to-reason-with-llms/. Accessed: 15 March 2025. 1, 4, 6   \n[138] Rui Pan, Yinwei Dai, Zhihao Zhang, Gabriele Oliaro, Zhihao Jia, and Ravi Netravali. Specreason: Fast and accurate inference-time compute via speculative reasoning. arXiv preprint arXiv:2504.07891, 2025. 4   \n[139] Zhenyu Pan, Haozheng Luo, Manling Li, and Han Liu. Chain-of-action: Faithful and multimodal question answering through large language models. arXiv preprint arXiv:2403.17359, 2024. 20   \n[140] Shubham Parashar, Blake Olson, Sambhav Khurana, Eric Li, Hongyi Ling, James Caverlee, and Shuiwang Ji. Inference-time computations for llm reasoning and planning: A benchmark and insights, 2025. 4, 17   \n[141] Jacob Pfau, William Merrill, and Samuel R Bowman. Let’s think dot by dot: Hidden computation in transformer language models. arXiv preprint arXiv:2404.15758, 2024. 9   \n[142] Soham Poddar, Paramita Koley, Janardan Misra, Sanjay Podder, Navveen Balani, Niloy Ganguly, and Saptarshi Ghosh. Brevity is the soul of sustainability: Characterizing llm response lengths, 2025. 4   \n[143] Xiao Pu, Michael Saxon, Wenyue Hua, and William Yang Wang. Thoughtterminator: Benchmarking, calibrating, and mitigating overthinking in reasoning models, 2025. 4   \n[144] Penghui Qi, Zichen Liu, Tianyu Pang, Chao Du, Wee Sun Lee, and Min Lin. Optimizing anytime reasoning via budget relative policy optimization. arXiv preprint arXiv:2505.13438, 2025. 4   \n[145] Ziqing Qiao, Yongheng Deng, Jiali Zeng, Dong Wang, Lai Wei, Fandong Meng, Jie Zhou, Ju Ren, and Yaoxue Zhang. Concise: Confidence-guided compression in step-by-step efficient reasoning. arXiv preprint arXiv:2505.04881, 2025. 4   \n[146] Yuxiao Qu, Matthew YR Yang, Amrith Setlur, Lewis Tunstall, Edward Emanuel Beeching, Ruslan Salakhutdinov, and Aviral Kumar. Optimizing test-time compute via meta reinforcement fine-tuning. arXiv preprint arXiv:2503.07572, 2025. 4   \n[147] Matthew Renze and Erhan Guven. The benefits of a concise chain of thought on problemsolving in large language models. In 2024 2nd International Conference on Foundation and Large Language Models (FLLM), pages 476–483. IEEE, 2024. 4, 14, 15   \n[148] Kusha Sareen, Morgane M Moss, Alessandro Sordoni, Rishabh Agarwal, and Arian Hosseini. Putting the value back in rl: Better test-time scaling by unifying llm reasoners with verifiers, 2025. 4   \n[149] Nikunj Saunshi, Nishanth Dikkala, Zhiyuan Li, Sanjiv Kumar, and Sashank J Reddi. Reasoning with latent thoughts: On the power of looped transformers. arXiv preprint arXiv:2502.17416, 2025. 4, 10   \n[150] John Schulman, Filip Wolski, Prafulla Dhariwal, Alec Radford, and Oleg Klimov. Proximal policy optimization algorithms. arXiv preprint arXiv:1707.06347, 2017. 6, 7   \n[151] Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang, YK Li, Y Wu, et al. Deepseekmath: Pushing the limits of mathematical reasoning in open language models. arXiv preprint arXiv:2402.03300, 2024. 6   \n[152] Jianshu She, Zhuohao Li, Zhemin Huang, Qi Li, Peiran Xu, Haonan Li, and Qirong Ho. Hawkeye:efficient reasoning with model collaboration, 2025. 4   \n[153] Xuan Shen, Yizhou Wang, Xiangxi Shi, Yanzhi Wang, Pu Zhao, and Jiuxiang Gu. Efficient reasoning with hidden thinking. arXiv preprint arXiv:2501.19201, 2025. 4, 10   \n[154] Yi Shen, Jian Zhang, Jieyun Huang, Shuming Shi, Wenjing Zhang, Jiangze Yan, Ning Wang, Kai Wang, and Shiguo Lian. Dast: Difficulty-adaptive slow-thinking for large reasoning models. arXiv preprint arXiv:2503.04472, 2025. 4, 6, 7   \n[155] Zhenyi Shen, Hanqi Yan, Linhai Zhang, Zhanghao Hu, Yali Du, and Yulan He. Codi: Compressing chain-of-thought into continuous space via self-distillation. arXiv preprint arXiv:2502.21074, 2025. 4, 10   \n[156] Luohe Shi, Hongyi Zhang, Yao Yao, Zuchao Li, and Hai Zhao. Keep the cost down: A review on methods to optimize llm’s kv-cache consumption. arXiv preprint arXiv:2407.18003, 2024. 2   \n[157] Vaishnavi Shrivastava, Ahmed Awadallah, Vidhisha Balachandran, Shivam Garg, Harkirat Behl, and Dimitris Papailiopoulos. Sample more to think less: Group filtered policy optimization for concise reasoning. arXiv preprint arXiv:2508.09726, 2025. 4   \n[158] Charlie Snell, Jaehoon Lee, Kelvin Xu, and Aviral Kumar. Scaling llm test-time compute optimally can be more effective than scaling model parameters. arXiv preprint arXiv:2408.03314, 2024. 11   \n[159] Jiwon Song, Dongwon Jo, Yulhwa Kim, and Jae-Joon Kim. Reasoning path compression: Compressing generation trajectories for efficient llm reasoning. arXiv preprint arXiv:2505.13866, 2025. 4 [160] Mingyang Song and Mao Zheng. Walk before you run! concise llm reasoning via reinforcement learning. arXiv preprint arXiv:2505.21178, 2025. 4 [161] Woomin Song, Saket Dingliwal, Sai Muralidhar Jayanthi, Bhavana Ganesh, Jinwoo Shin, Aram Galstyan, and Sravan Babu Bodapati. Accelerated test-time scaling with model-free speculative sampling. arXiv preprint arXiv:2506.04708, 2025. 4 [162] Gaurav Srivastava, Shuxiang Cao, and Xuan Wang. Towards reasoning ability of small language models. arXiv preprint arXiv:2502.11569, 2025. 4, 17 [163] DiJia Su, Hanlin Zhu, Yingchen Xu, Jiantao Jiao, Yuandong Tian, and Qinqing Zheng. Token assorted: Mixing latent and text tokens for improved language model reasoning. arXiv preprint arXiv:2502.03275, 2025. 4, 10 [164] Yuan Sui, Yufei He, Tri Cao, Simeng Han, and Bryan Hooi. Meta-reasoner: Dynamic guidance for optimized inference-time reasoning in large language models. arXiv preprint arXiv:2502.19918, 2025. 19 [165] Hanshi Sun, Momin Haider, Ruiqi Zhang, Huitao Yang, Jiahao Qiu, Ming Yin, Mengdi Wang, Peter Bartlett, and Andrea Zanette. Fast best-of-n decoding via speculative rejection. arXiv preprint arXiv:2410.20290, 2024. 4, 11, 12, 13 [166] Lin Sun, Guangxiang Zhao, Xiaoqi Jian, Yuhan Wu, Weihong Lin, Yongfu Zhu, Linglin Zhang, Jinzhu Wu, Junfeng Ran, Sai-er Hu, et al. Tinyr1-32b-preview: Boosting accuracy with branch-merge distillation. arXiv preprint arXiv:2503.04872, 2025. 4 [167] Wenhui Tan, Jiaze Li, Jianzhong Ju, Zhenbo Luo, Jian Luan, and Ruihua Song. Think silently, think fast: Dynamic latent compression of llm reasoning chains. arXiv preprint arXiv:2505.16552, 2025. 4 [168] Jiakai Tang, Sunhao Dai, Teng Shi, Jun Xu, Xu Chen, Wen Chen, Wu Jian, and Yuning Jiang. Think before recommend: Unleashing the latent reasoning power for sequential recommendation. arXiv preprint arXiv:2503.22675, 2025. 19 [169] Siao Tang, Xinyin Ma, Gongfan Fang, and Xinchao Wang. Concisehint: Boosting efficient reasoning via continuous concise hints during generation, 2025. 4 [170] Amir Taubenfeld, Tom Sheffer, Eran Ofek, Amir Feder, Ariel Goldstein, Zorik Gekhman, and Gal Yona. Confidence improves self-consistency in llms. arXiv preprint arXiv:2502.06233,   \n2025. 4, 13 [171] Kimi Team, Angang Du, Bofei Gao, Bowei Xing, Changjiu Jiang, Cheng Chen, Cheng Li, Chenjun Xiao, Chenzhuang Du, Chonghua Liao, et al. Kimi k1. 5: Scaling reinforcement learning with llms. arXiv preprint arXiv:2501.12599, 2025. 4, 5, 7, 9 [172] Qwen Team. Qwq-32b-preview. urlhttps://qwenlm.github.io/blog/qwq-32b-preview/. Accessed: 15 March 2025. 5, 6 [173] Manan Tomar, Lior Shani, Yonathan Efroni, and Mohammad Ghavamzadeh. Mirror descent policy optimization. arXiv preprint arXiv:2005.09814, 2020. 7 [174] Hugo Touvron, Thibaut Lavril, Gautier Izacard, Xavier Martinet, Marie-Anne Lachaux, Timothée Lacroix, Baptiste Rozière, Naman Goyal, Eric Hambro, Faisal Azhar, et al. Llama: Open and efficient foundation language models. arXiv preprint arXiv:2302.13971, 2023. 1 [175] Songjun Tu, Jiahao Lin, Qichao Zhang, Xiangyu Tian, Linjing Li, Xiangyuan Lan, and Dongbin Zhao. Learning when to think: Shaping adaptive reasoning in r1-style models via multi-stage rl, 2025. 4 [176] Jonathan Uesato, Nate Kushman, Ramana Kumar, Francis Song, Noah Siegel, Lisa Wang, Antonia Creswell, Geoffrey Irving, and Irina Higgins. Solving math word problems with process-and outcome-based feedback. arXiv preprint arXiv:2211.14275, 2022. 11 [177] Aaron Van Den Oord, Oriol Vinyals, et al. Neural discrete representation learning. Advances in neural information processing systems, 30, 2017. 10 [178] Guangya Wan, Yuqi Wu, Jie Chen, and Sheng Li. Reasoning aware self-consistency: Leveraging reasoning paths for efficient llm sampling. arXiv preprint arXiv:2408.17017, 2024.   \n4 [179] Xu Wan, Wei Wang, Wenyue Xu, Wotao Yin, Jie Song, and Mingyang Sun. Adapthink: Adaptive thinking preferences for reasoning language model, 2025. 4   \n[180] Chenlong Wang, Yuanning Feng, Dongping Chen, Zhaoyang Chu, Ranjay Krishna, and Tianyi Zhou. Wait, we don’t need to \"wait\"! removing thinking tokens improves reasoning efficiency, 2025. 4   \n[181] Jikai Wang, Juntao Li, Jianye Hou, Bowen Yan, Lijun Wu, and Min Zhang. Efficient reasoning for llms through speculative chain-of-thought, 2025. 4   \n[182] Junlin Wang, Shang Zhu, Jon Saad-Falcon, Ben Athiwaratkun, Qingyang Wu, Jue Wang, Shuaiwen Leon Song, Ce Zhang, Bhuwan Dhingra, and James Zou. Think deep, think fast: Investigating efficiency of verifier-free inference-time-scaling methods, 2025. 4   \n[183] Kaiwen Wang, Jin Peng Zhou, Jonathan Chang, Zhaolin Gao, Nathan Kallus, Kianté Brantley, and Wen Sun. Value-guided search for efficient chain-of-thought reasoning, 2025. 4   \n[184] Xinglin Wang, Shaoxiong Feng, Yiwei Li, Peiwen Yuan, Yueqi Zhang, Chuyi Tan, Boyuan Pan, Yao Hu, and Kan Li. Make every penny count: Difficulty-adaptive self-consistency for cost-efficient reasoning. arXiv preprint arXiv:2408.13457, 2024. 4   \n[185] Xinglin Wang, Yiwei Li, Shaoxiong Feng, Peiwen Yuan, Yueqi Zhang, Jiayi Shi, Chuyi Tan, Boyuan Pan, Yao Hu, and Kan Li. Every rollout counts: Optimal resource allocation for efficient test-time scaling, 2025. 4   \n[186] Xuezhi Wang, Jason Wei, Dale Schuurmans, Quoc V Le, Ed H Chi, Sharan Narang, Aakanksha Chowdhery, and Denny Zhou. Self-consistency improves chain of thought reasoning in language models. In The Eleventh International Conference on Learning Representations, 2023. 3   \n[187] Yibo Wang, Li Shen, Huanjin Yao, Tiansheng Huang, Rui Liu, Naiqiang Tan, Jiaxing Huang, Kai Zhang, and Dacheng Tao. R1-compress: Long chain-of-thought compression via chunk compression and search. arXiv preprint arXiv:2505.16838, 2025. 4   \n[188] Yiming Wang, Pei Zhang, Siyuan Huang, Baosong Yang, Zhuosheng Zhang, Fei Huang, and Rui Wang. Sampling-efficient test-time scaling: Self-estimating the best-of-n sampling in early decoding. arXiv preprint arXiv:2503.01422, 2025. 4, 11, 12, 13   \n[189] Zhihai Wang, Jie Wang, Jilai Pan, Xilin Xia, Huiling Zhen, Mingxuan Yuan, Jianye Hao, and Feng Wu. Accelerating large language model reasoning via speculative search, 2025. 4   \n[190] Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Fei Xia, Ed Chi, Quoc V Le, Denny Zhou, et al. Chain-of-thought prompting elicits reasoning in large language models. Advances in neural information processing systems, 35:24824–24837, 2022. 2, 3   \n[191] Liang Wen, Yunke Cai, Fenrui Xiao, Xin He, Qi An, Zhenyu Duan, Yimin Du, Junchen Liu, Lifu Tang, Xiaowei Lv, et al. Light-r1: Curriculum sft, dpo and rl for long cot from scratch and beyond. arXiv preprint arXiv:2503.10460, 2025. 4   \n[192] Han Wu, Yuxuan Yao, Shuqi Liu, Zehua Liu, Xiaojin Fu, Xiongwei Han, Xing Li, Hui-Ling Zhen, Tao Zhong, and Mingxuan Yuan. Unlocking efficient long-to-short llm reasoning with model merging, 2025. 9   \n[193] Yuyang Wu, Yifei Wang, Tianqi Du, Stefanie Jegelka, and Yisen Wang. When more is less: Understanding chain-of-thought length in llms. arXiv preprint arXiv:2502.07266, 2025. 4, 12, 13   \n[194] Heming Xia, Yongqi Li, Chak Tou Leong, Wenjie Wang, and Wenjie Li. Tokenskip: Controllable chain-of-thought compression in llms. arXiv preprint arXiv:2502.12067, 2025. 4, 8, 9   \n[195] Kun Xiang, Zhili Liu, Zihao Jiang, Yunshuang Nie, Kaixin Cai, Yiyang Yin, Runhui Huang, Haoxiang Fan, Hanhui Li, Weiran Huang, et al. Can atomic step decomposition enhance the self-structured reasoning of multimodal large models? arXiv preprint arXiv:2503.06252, 2025. 4   \n[196] Violet Xiang, Chase Blagden, Rafael Rafailov, Nathan Lile, Sang Truong, Chelsea Finn, and Nick Haber. Just enough thinking: Efficient reasoning with adaptive length penalties reinforcement learning, 2025. 4   \n[197] Guangxuan Xiao, Ji Lin, Mickael Seznec, Hao Wu, Julien Demouth, and Song Han. Smoothquant: Accurate and efficient post-training quantization for large language models. In International Conference on Machine Learning, pages 38087–38099. PMLR, 2023. 2   \n[198] Yang Xiao, Jiashuo Wang, Ruifeng Yuan, Chunpu Xu, Kaishuai Xu, Wenjie Li, and Pengfei Liu. Limopro: Reasoning refinement for efficient and effective test-time scaling. arXiv preprint arXiv:2505.19187, 2025. 4   \n[199] Shuo Xing, Hongyuan Hua, Xiangbo Gao, Shenzhe Zhu, Renjie Li, Kexin Tian, Xiaopeng Li, Heng Huang, Tianbao Yang, Zhangyang Wang, et al. Autotrust: Benchmarking trustworthiness in large vision language models for autonomous driving. arXiv preprint arXiv:2412.15206, 2024. 18   \n[200] Shuo Xing, Chengyuan Qian, Yuping Wang, Hongyuan Hua, Kexin Tian, Yang Zhou, and Zhengzhong Tu. Openemma: Open-source multimodal model for end-to-end autonomous driving. In Proceedings of the Winter Conference on Applications of Computer Vision, pages 1001–1009, 2025. 18   \n[201] Shuo Xing, Zezhou Sun, Shuangyu Xie, Kaiyuan Chen, Yanjia Huang, Yuping Wang, Jiachen Li, Dezhen Song, and Zhengzhong Tu. Can large vision language models read maps like a human? arXiv preprint arXiv:2503.14607, 2025. 18   \n[202] Fengli Xu, Qianyue Hao, Zefang Zong, Jingwei Wang, Yunke Zhang, Jingyi Wang, Xiaochong Lan, Jiahui Gong, Tianjian Ouyang, Fanjin Meng, et al. Towards large reasoning models: A survey of reinforced reasoning with large language models. arXiv preprint arXiv:2501.09686, 2025. 1   \n[203] Jingxian Xu, Mengyu Zhou, Weichang Liu, Hanbing Liu, Shi Han, and Dongmei Zhang. Twt: Thinking without tokens by habitual reasoning distillation with multi-teachers’ guidance, 2025. 4   \n[204] Silei Xu, Wenhao Xie, Lingxiao Zhao, and Pengcheng He. Chain of draft: Thinking faster by writing less. arXiv preprint arXiv:2502.18600, 2025. 4, 14   \n[205] Xiaoang Xu, Shuo Wang, Xu Han, Zhenghao Liu, Huijia Wu, Peipei Li, Zhiyuan Liu, Maosong Sun, and Zhaofeng He. $\\mathbf { A } ^ { * }$ -thought: Efficient reasoning via bidirectional compression for low-resource settings, 2025. 4   \n[206] Yige Xu, Xu Guo, Zhiwei Zeng, and Chunyan Miao. Softcot: Soft chain-of-thought for efficient reasoning with llms. arXiv preprint arXiv:2502.12134, 2025. 4, 10   \n[207] Yuhui Xu, Hanze Dong, Lei Wang, Doyen Sahoo, Junnan Li, and Caiming Xiong. Scalable chain of thoughts via elastic reasoning. arXiv preprint arXiv:2505.05315, 2025. 4   \n[208] Hang Yan, Fangzhi Xu, Rongman Xu, Yifei Li, Jian Zhang, Haoran Luo, Xiaobao Wu, Luu Anh Tuan, Haiteng Zhao, Qika Lin, and Jun Liu. Mur: Momentum uncertainty guided reasoning for large language models, 2025. 4   \n[209] Yuchen Yan, Yongliang Shen, Yang Liu, Jin Jiang, Mengdi Zhang, Jian Shao, and Yueting Zhuang. Inftythink: Breaking the length limits of long-context reasoning in large language models. arXiv preprint arXiv:2503.06692, 2025. 4, 12, 13   \n[210] Chenxu Yang, Qingyi Si, Mz Dai, Dingyu Yao, Mingyu Zheng, Minghui Chen, Zheng Lin, and Weiping Wang. Test-time prompt intervention, 2025. 4   \n[211] Enneng Yang, Li Shen, Guibing Guo, Xingwei Wang, Xiaochun Cao, Jie Zhang, and Dacheng Tao. Model merging in llms, mllms, and beyond: Methods, theories, applications and opportunities, 2024. 9   \n[212] Junjie Yang, Ke Lin, and Xing Yu. Think when you need: Self-adaptive chain-of-thought learning, 2025. 4   \n[213] Wang Yang, Xiang Yue, Vipin Chaudhary, and Xiaotian Han. Speculative thinking: Enhancing small-model reasoning with large model guidance at inference time. arXiv preprint arXiv:2504.12329, 2025. 4   \n[214] Wenkai Yang, Shuming Ma, Yankai Lin, and Furu Wei. Towards thinking-optimal scaling of test-time compute for llm reasoning, 2025. 4   \n[215] Shunyu Yao, Dian Yu, Jeffrey Zhao, Izhak Shafran, Tom Griffiths, Yuan Cao, and Karthik Narasimhan. Tree of thoughts: Deliberate problem solving with large language models. Advances in neural information processing systems, 36:11809–11822, 2023. 3   \n[216] Yixin Ye, Zhen Huang, Yang Xiao, Ethan Chern, Shijie Xia, and Pengfei Liu. Limo: Less is more for reasoning, 2025. 4, 16   \n[217] Edward Yeo, Yuxuan Tong, Morry Niu, Graham Neubig, and Xiang Yue. Demystifying long chain-of-thought reasoning in llms. arXiv preprint arXiv:2502.03373, 2025. 2, 4, 6, 7, 18   \n[218] Bin Yu, Hang Yuan, Haotian Li, Xueyin Xu, Yuliang Wei, Bailing Wang, Weizhen Qi, and Kai Chen. Long-short chain-of-thought mixture supervised fine-tuning eliciting efficient reasoning in large language models. arXiv preprint arXiv:2505.03469, 2025. 4   \n[219] Ping Yu, Jing Xu, Jason Weston, and Ilia Kulikov. Distilling system 2 into system 1. arXiv preprint arXiv:2407.06023, 2024. 4, 8, 9   \n[220] Xiangning Yu, Zhuohan Wang, Linyi Yang, Haoxuan Li, Anjie Liu, Xiao Xue, Jun Wang, and Mengyue Yang. Causal sufficiency and necessity improves chain-of-thought reasoning, 2025. 4   \n[221] Ye Yu, Yaoning Yu, and Haohan Wang. Premise: Scalable and strategic prompt optimization for efficient mathematical reasoning in large models, 2025. 4   \n[222] Zeping Yu, Yonatan Belinkov, and Sophia Ananiadou. Back attention: Understanding and enhancing multi-hop reasoning in large language models. arXiv preprint arXiv:2502.10835, 2025. 4   \n[223] Zhaojian Yu, Yinghao Wu, Yilun Zhao, Arman Cohan, and Xiao-Ping Zhang. Z1: Efficient test-time scaling with code, 2025. 4   \n[224] Zishun Yu, Tengyu Xu, Di Jin, Karthik Abinav Sankararaman, Yun He, Wenxuan Zhou, Zhouhao Zeng, Eryk Helenowski, Chen Zhu, Sinong Wang, et al. Think smarter not harder: Adaptive reasoning with inference aware optimization. arXiv preprint arXiv:2501.17974, 2025. 4   \n[225] Danlong Yuan, Tian Xie, Shaohan Huang, Zhuocheng Gong, Huishuai Zhang, Chong Luo, Furu Wei, and Dongyan Zhao. Efficient rl training for reasoning models via length-aware optimization. arXiv preprint arXiv:2505.12284, 2025. 4   \n[226] Hang Yuan, Bin Yu, Haotian Li, Shijun Yang, Christina Dan Wang, Zhou Yu, Xueyin Xu, Weizhen Qi, and Kai Chen. Not all tokens are what you need in thinking. arXiv preprint arXiv:2505.17827, 2025. 4   \n[227] Jiayi Yuan, Hongyi Liu, Shaochen Zhong, Yu-Neng Chuang, Songchen Li, Guanchu Wang, Duy Le, Hongye Jin, Vipin Chaudhary, Zhaozhuo Xu, Zirui Liu, and Xia Hu. KV cache compression, but what must we give in return? a comprehensive benchmark of long context capable approaches. In Findings of the Association for Computational Linguistics: EMNLP 2024. Association for Computational Linguistics, November 2024. 2   \n[228] Chuhuai Yue, Chengqi Dong, Yinan Gao, Hang He, Jiajun Chai, Guojun Yin, and Wei Lin. Promoting efficient reasoning with verifiable stepwise reward, 2025. 4   \n[229] Wenhao Zeng, Yaoning Wang, Chao Hu, Yuling Shi, Chengcheng Wan, Hongyu Zhang, and Xiaodong Gu. Pruning the unsurprising: Efficient code reasoning via first-token surprisal, 2025. 4   \n[230] Jiajie Zhang, Nianyi Lin, Lei Hou, Ling Feng, and Juanzi Li. Adaptthink: Reasoning models can learn when to think, 2025. 4   \n[231] Jintian Zhang, Yuqi Zhu, Mengshu Sun, Yujie Luo, Shuofei Qiao, Lun Du, Da Zheng, Huajun Chen, and Ningyu Zhang. Lightthinker: Thinking step-by-step compression. arXiv preprint arXiv:2502.15589, 2025. 4, 12, 13   \n[232] Junyu Zhang, Runpei Dong, Han Wang, Xuying Ning, Haoran Geng, Peihao Li, Xialin He, Yutong Bai, Jitendra Malik, Saurabh Gupta, et al. Alphaone: Reasoning models thinking slow and fast at test time. arXiv preprint arXiv:2505.24863, 2025. 4   \n[233] Nan Zhang, Yusen Zhang, Prasenjit Mitra, and Rui Zhang. When reasoning meets compression: Benchmarking compressed large reasoning models on complex reasoning tasks. arXiv preprint arXiv:2504.02010, 2025. 4, 18   \n[234] Ruiqi Zhang, Changyi Xiao, and Yixin Cao. Long or short cot? investigating instance-level switch of large reasoning models, 2025. 4   \n[235] Shengjia Zhang, Junjie Wu, Jiawei Chen, Changwang Zhang, Xingyu Lou, Wangchunshu Zhou, Sheng Zhou, Can Wang, and Jun Wang. Othink-r1: Intrinsic fast/slow thinking mode switching for over-reasoning mitigation, 2025. 4   \n[236] Wencheng Zhang, Shiqin Qiao, Lingjie Luo, Yinfeng Li, Chuanyang Zheng, Qian Xu, Meng Li, Yong Gui, Yijun He, Jianing Qiu, Jindong Hong, and Jiankai Sun. Synapseroute: An auto-route switching framework on dual-state large language model, 2025. 4   \n[237] Wenyuan Zhang, Shuaiyi Nie, Xinghua Zhang, Zefeng Zhang, and Tingwen Liu. S1-bench: A simple benchmark for evaluating system 1 thinking capability of large reasoning models. arXiv preprint arXiv:2504.10368, 2025. 4, 18   \n[238] Xiaoyun Zhang, Jingqing Ruan, Xing Ma, Yawen Zhu, Haodong Zhao, Hao Li, Jiansong Chen, Ke Zeng, and Xunliang Cai. When to continue thinking: Adaptive thinking mode switching for efficient reasoning, 2025. 4   \n[239] Xuechen Zhang, Zijian Huang, Chenshun Ni, Ziyang Xiong, Jiasi Chen, and Samet Oymak. Making small language models efficient reasoners: Intervention, supervision, reinforcement. arXiv preprint arXiv:2505.07961, 2025. 4   \n[240] Yunxiang Zhang, Muhammad Khalifa, Lajanugen Logeswaran, Jaekyeom Kim, Moontae Lee, Honglak Lee, and Lu Wang. Small language models need strong verifiers to self-correct reasoning. arXiv preprint arXiv:2404.17140, 2024. 17   \n[241] Zhenyu Zhang, Ying Sheng, Tianyi Zhou, Tianlong Chen, Lianmin Zheng, Ruisi Cai, Zhao Song, Yuandong Tian, Christopher Ré, Clark Barrett, et al. H2o: Heavy-hitter oracle for efficient generative inference of large language models. Advances in Neural Information Processing Systems, 36:34661–34710, 2023. 2   \n[242] Kai Zhao, Yanjun Zhao, Jiaming Song, Shien He, Lusheng Zhang, Qiang Zhang, and Tianjiao Li. Saber: Switchable and balanced training for efficient llm reasoning, 2025. 4   \n[243] Shangziqi Zhao, Jiahao Yuan, Guisong Yang, and Usman Naseem. Can pruning improve reasoning? revisiting long-cot compression with capability in mind for better reasoning. arXiv preprint arXiv:2505.14582, 2025. 4   \n[244] Weixiang Zhao, Jiahe Guo, Yang Deng, Xingyu Sui, Yulin Hu, Yanyan Zhao, Wanxiang Che, Bing Qin, Tat-Seng Chua, and Ting Liu. Exploring and exploiting the inherent efficiency within large reasoning models for self-guided efficiency enhancement, 2025. 4   \n[245] Yichun Zhao, Shuheng Zhou, and Huijia Zhu. Probe then retrieve and reason: Distilling probing and reasoning capabilities into smaller language models. In Proceedings of the 2024 Joint International Conference on Computational Linguistics, Language Resources and Evaluation (LREC-COLING 2024), pages 13026–13032, 2024. 4, 17   \n[246] Zhi Zhou, Tan Yuhao, Zenan Li, Yuan Yao, Lan-Zhe Guo, Xiaoxing Ma, and Yu-Feng Li. Bridging internal probability and self-consistency for effective and efficient llm reasoning. arXiv preprint arXiv:2502.00511, 2025. 4   \n[247] Jiace Zhu, Yingtao Shen, Jie Zhao, and An Zou. Path-consistency: Prefix enhancement for efficient inference in llm. arXiv preprint arXiv:2409.01281, 2024. 4   \n[248] Xunyu Zhu, Jian Li, Can Ma, and Weiping Wang. Improving mathematical reasoning capabilities of small language models via feedback-driven distillation. arXiv preprint arXiv:2411.14698, 2024. 4, 17   \n[249] Ren Zhuang, Ben Wang, and Shuifa Sun. Accelerating chain-of-thought reasoning: When goal-gradient importance meets dynamic skipping. arXiv preprint arXiv:2505.08392, 2025. 4   \n[250] Xialie Zhuang, Peixian Ma, Zhikai Jia, Shiwei Liu, and Zheng Cao. A technical study into 0.5b reasoning language models, 2025. 4 ",
+        "bbox": [
+            189,
+            699,
+            826,
+            911
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            179,
+            61,
+            828,
+            912
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            179,
+            42,
+            828,
+            911
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            179,
+            71,
+            828,
+            911
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            178,
+            40,
+            828,
+            915
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            173,
+            45,
+            828,
+            915
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            171,
+            50,
+            828,
+            914
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            171,
+            46,
+            828,
+            911
+        ],
+        "page_idx": 26
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            171,
+            51,
+            828,
+            914
+        ],
+        "page_idx": 27
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            171,
+            60,
+            828,
+            912
+        ],
+        "page_idx": 28
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            171,
+            60,
+            828,
+            915
+        ],
+        "page_idx": 29
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            171,
+            64,
+            828,
+            915
+        ],
+        "page_idx": 30
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            171,
+            58,
+            828,
+            912
+        ],
+        "page_idx": 31
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            171,
+            90,
+            828,
+            755
+        ],
+        "page_idx": 32
+    }
+]

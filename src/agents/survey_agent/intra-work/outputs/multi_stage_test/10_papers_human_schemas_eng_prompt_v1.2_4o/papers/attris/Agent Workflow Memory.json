@@ -1,0 +1,201 @@
+{
+    "extraction": {
+        "title": {
+            "value": "AGENT WORKFLOW MEMORY",
+            "type": "string",
+            "unit": null,
+            "evidence": "# AGENT WORKFLOW MEMORY",
+            "provenance": {
+                "section_header": "Title",
+                "page": null
+            },
+            "notes": "Title of the paper."
+        },
+        "source_code_url": {
+            "value": "https://github.com/zorazrw/agent-workflow-memory",
+            "type": "string",
+            "unit": null,
+            "evidence": "https://github.com/zorazrw/agent-workflow-memory",
+            "provenance": {
+                "section_header": "Abstract",
+                "page": null
+            },
+            "notes": "Link to the source code repository."
+        },
+        "background": {
+            "limitations": {
+                "value": "Current agents integrate fixed examples via training or in-context learning, performing well on similar sequences but lacking robustness in changing contexts and environments. They fail to learn reusable task workflows shared across tasks and environments, and do not adapt from past experiences.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Current agents mostly integrate a fixed set of given examples via training (Fu et al., 2024; Murty et al., 2024) or in-context learning (Zheng et al., 2024). This allows them to perform well on action sequences similar to those presented in these examples, but results in a lack of robustness to changes in task contexts or environments (Deng et al., 2023).",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": "Current methods struggle with adapting to varied task contexts."
+            },
+            "existing_research_gap": {
+                "value": "The issue is the lack of abstract understanding in existing methods, which prevents agents from extracting and learning reusable task workflows shared across similar tasks and environments.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Essentially, they fail to grasp the key to disentangling increasingly complex tasks \u2014 to extract and learn reusable task workflows shared across similar tasks and environments (Yu et al., 2023; Wang et al., 2024a).",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": "The gap is the inability to abstract common task routines."
+            },
+            "proposed_solution": {
+                "value": "Agent Workflow Memory (AWM) induces workflows from agent trajectories to guide future task-solving processes. AWM flexibly operates in both offline and online scenarios, allowing agents to induce workflows from training examples or test queries. It significantly improves task success rates on benchmarks like WebArena and Mind2Web.",
+                "type": "string",
+                "unit": null,
+                "evidence": "To build agents that can similarly benefit from this process, we introduce Agent Workflow Memory (AWM), a method for inducing commonly reused routines, i.e., workflows, and selectively providing workflows to the agent to guide subsequent generations.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": null
+                },
+                "notes": "AWM offers a flexible solution for inducing workflows."
+            }
+        },
+        "methods": {
+            "learning_mechanism": {
+                "value": "AWM mimics human learning by inducing workflows from agent trajectories, extracting reusable routines, and integrating them into agent memory for future task-solving. It uses LM-based workflow induction to capture reusable trajectories across tasks.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AWM induces workflows from agent trajectories by extracting reusable routines, and then integrates these workflows into agent memory to guide future task-solving processes.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": "AWM mimics human abstraction of task routines."
+            },
+            "workflow_process": {
+                "value": "AWM involves inducing workflows from past experiences, updating agent memory with these workflows, and utilizing them for task-solving. Workflows consist of textual descriptions and series of steps to finish tasks, capturing essential skills for complex tasks.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Next, we introduce the workflow representation design, workflow induction method, and agent memory update with workflows in varied setups.",
+                "provenance": {
+                    "section_header": "Agent Workflow Memory",
+                    "page": null
+                },
+                "notes": "AWM captures essential skills for complex tasks."
+            },
+            "usage_modes": {
+                "value": "AWM operates in offline mode when annotated examples are available, inducing workflows from these examples. In online mode, it functions without supervision, inducing workflows from self-generated predictions during test queries.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AWM readily operates in both offline and online scenarios, where annotated examples are either available or non-existent.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": "AWM supports both offline and online modes."
+            }
+        },
+        "experiments": {
+            "datasets": {
+                "value": "AWM is evaluated on two web navigation benchmarks: WebArena, which provides rigorous execution-based evaluation, and Mind2Web, which emphasizes broad tasks and domain coverage.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We evaluate AWM on two agent web navigation benchmarks (\u00a73): WebArena, which provides rigorous execution-based evaluation (Zhou et al., 2024), and Mind2Web, which emphasizes broad tasks and domain coverage (Deng et al., 2023).",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": "Benchmarks used for evaluation."
+            },
+            "results": {
+                "value": "On WebArena, AWM improves over the top published autonomous method by 51.1% relative success rate and outperforms methods augmented with human expert workflows by 7.9%. On Mind2Web, AWM improves cross-task results by 24.6% in relative step-wise success rate.",
+                "type": "string",
+                "unit": null,
+                "evidence": "On WebArena, AWM improves over the top published autonomous method (Drouin et al., 2024) by $5 1 . 1 \\%$ relative success rate, and even outperforms methods augmented with human expert written workflows (Sodhi et al., 2023) by $7 . 9 \\%$ . On Mind2Web, AWM effectively improves the cross-task results by $2 4 . 6 \\%$ in relative step-wise success rate.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": "AWM shows substantial improvements in task success rates."
+            }
+        },
+        "key_findings": {
+            "few_shot_learning": {
+                "value": "AWM demonstrates rapid summarization of workflows, achieving high success rates with only tens of examples. It efficiently learns essential workflows in the early phase, showcasing its capability for few-shot learning.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AWM\u2019s efficient learning process, which substantially improves performance with merely tens of examples.",
+                "provenance": {
+                    "section_header": "Efficient Learning from Small Amounts of Data",
+                    "page": null
+                },
+                "notes": "AWM enables rapid learning from limited data."
+            },
+            "composability": {
+                "value": "AWM allows agents to build increasingly complex workflows over time by learning from past examples and earlier workflows. This composability enables agents to tackle complex tasks by integrating new steps upon existing workflows.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AWM builds increasingly complex workflows over time, by learning from past examples and earlier workflows.",
+                "provenance": {
+                    "section_header": "Cross-Template Workflow Generalization",
+                    "page": null
+                },
+                "notes": "AWM supports the construction of complex workflows."
+            },
+            "adaptability": {
+                "value": "AWM demonstrates broad adaptability across tasks, websites, and domains, consistently surpassing baseline approaches. It maintains high performance even as train-test distribution gaps widen.",
+                "type": "string",
+                "unit": null,
+                "evidence": "On Mind2Web, we evaluate AWM on the cross-website and cross-domain test splits to examine its domain generality, where it scores 8.9\u201314.0 absolute points higher over baseline.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": null
+                },
+                "notes": "AWM shows strong generalization capabilities."
+            },
+            "interpretability": {
+                "value": "AWM extracts workflows in natural language descriptions, facilitating interpretability by providing clear explanations of task-solving processes.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Workflow Description To present workflows in a format where agents can learn from them properly, it is important to describe the high-level goal of the series of actions.",
+                "provenance": {
+                    "section_header": "Agent Workflow Memory",
+                    "page": null
+                },
+                "notes": "AWM enhances interpretability through natural language descriptions."
+            },
+            "generalization_insight": {
+                "value": "AWM's abstract learning approach is superior to using concrete examples, enabling agents to generalize better across varied tasks and domains.",
+                "type": "string",
+                "unit": null,
+                "evidence": "While augmenting concrete, full examples may bias agents to select elements similar to those presented in the given examples, AWM introduces less bias on element selection via its abstract representation of example-specific contexts in workflows.",
+                "provenance": {
+                    "section_header": "Main Results",
+                    "page": null
+                },
+                "notes": "AWM's abstract learning enhances generalization."
+            }
+        },
+        "conclusions": {
+            "summary": {
+                "value": "AWM represents a breakthrough in recording methods by inducing, augmenting, and utilizing workflows to improve agent performance across tasks, websites, and domains.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We propose agent workflow memory that induces, augments, and uses workflows, offline from available examples or purely online at inference time.",
+                "provenance": {
+                    "section_header": "Conclusion",
+                    "page": null
+                },
+                "notes": "AWM enhances agent adaptability and success rates."
+            },
+            "implications": {
+                "value": "AWM provides guiding significance for future agent research by demonstrating the advantages of dynamic memory building and agent adaptations on varied digital tasks.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We hope AWM sheds insight on and boosts advances in dynamic memory building and agent adaptations on varied digital tasks.",
+                "provenance": {
+                    "section_header": "Conclusion",
+                    "page": null
+                },
+                "notes": "AWM's approach influences future agent research directions."
+            }
+        }
+    }
+}

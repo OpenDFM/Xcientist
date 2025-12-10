@@ -1,0 +1,1260 @@
+[
+    {
+        "type": "text",
+        "text": "TieNet: Text-Image Embedding Network for Common Thorax Disease Classification and Reporting in Chest X-rays ",
+        "text_level": 1,
+        "bbox": [
+            133,
+            130,
+            838,
+            174
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Xiaosong Wang∗1, Yifan Peng∗2, Le Lu 1, Zhiyong Lu 2,Ronald M. Summers 1 1Department of Radiology and Imaging Sciences, Clinical Center,   \n2 National Center for Biotechnology Information, National Library of Medicine, National Institutes of Health, Bethesda, MD 20892 ",
+        "bbox": [
+            171,
+            202,
+            799,
+            273
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "{xiaosong.wang,yifan.peng,le.lu,luzh,mohammad.bagheri,rms}@nih.gov ",
+        "bbox": [
+            196,
+            277,
+            774,
+            291
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Abstract ",
+        "text_level": 1,
+        "bbox": [
+            236,
+            327,
+            310,
+            343
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Chest X-rays are one of the most common radiological examinations in daily clinical routines. Reporting thorax diseases using chest $X$ -rays is often an entry-level task for radiologist trainees. Yet, reading a chest X-ray image remains a challenging job for learning-oriented machine intelligence, due to (1) shortage of large-scale machinelearnable medical image datasets, and (2) lack of techniques that can mimic the high-level reasoning of human radiologists that requires years of knowledge accumulation and professional training. In this paper, we show the clinical free-text radiological reportscan be utilized as a priori knowledge for tackling these two key problems. We propose a novel Text-Image Embedding network (TieNet) for extracting the distinctive image and text representations. Multilevel attention models are integrated into an end-to-end trainable CNN-RNN architecture for highlighting the meaningful text words and image regions. We first apply TieNet to classify the chest $X$ -rays by using both image features and text embeddings extracted from associated reports. The proposed auto-annotation framework achieves high accuracy (over 0.9 on average in AUCs) in assigning disease labels for our hand-label evaluation dataset. Furthermore, we transform the TieNet into a chest $X \\cdot$ -ray reporting system. It simulates the reporting process and can output disease classification and a preliminary report together. The classification results are significantly improved ( $6 \\%$ increase on average in AUCs) compared to the state-of-the-art baseline on an unseen and hand-labeled dataset (OpenI). ",
+        "bbox": [
+            78,
+            359,
+            467,
+            781
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1. Introduction ",
+        "text_level": 1,
+        "bbox": [
+            80,
+            803,
+            205,
+            819
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "In the last decade, challenging tasks in computer vision have gone through different stages, from sole image classification to multi-category multi-instance classification/detection/segmentation to more complex cognitive tasks that involve understanding and describing the relationships of object instances inside the images or videos. The rapid and significant performance improvement is partly driven by publicly accessible of the large-scale image and video datasets with quality annotations, e.g., ImageNet [8], PASCAL VOC [10], MS COCO [22], and Visual Genome [18] datasets. In particular, ImageNet pretrained deep Convolutional Neural Network (CNN) models [15, 19, 21] has become an essential basis (indeed an advantage) for many higher level tasks, e.g., Recurrent Neural Network (RNN) based image captioning [34, 17, 30, 11], Visual Question Answering [36, 42, 38, 27], and instance relationship extraction [16, 14, 6]. ",
+        "bbox": [
+            80,
+            829,
+            467,
+            873
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/c6f3b8a0d1286d58917bfeb6e1e2b32d607827dcd5c85c16728341281a04a901.jpg",
+        "image_caption": [
+            "Figure 1. Overview of the proposed automated chest $\\mathrm { X }$ -ray reporting framework. A multi-level attention model is introduced. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            503,
+            325,
+            888,
+            515
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            503,
+            580,
+            890,
+            790
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "On the contrary, there are few publicly available largescale image datasets in the medical image domain. Conventional means of annotating natural images, e.g crowdsourcing, cannot be applied to medical images due to the fact that these tasks often require years of professional training and domain knowledge. On the other hand, radiological raw data (e.g., images, clinical annotations, and radiological reports) have been accumulated in many hospitals’ Picture Archiving and Communication Systems (PACS) for decades. The main challenge is how to transform those retrospective radiological data into a machine-learnable format. Accomplishing this with chest X-rays represents a major milestone in the medical-imaging community [35]. ",
+        "bbox": [
+            503,
+            795,
+            890,
+            900
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            80,
+            92,
+            467,
+            181
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Different from current deep learning models, radiologists routinely observe multiple findings when they read medical images and compile radiological reports. One main reason is that these findings are often correlated. For instance, liver metastases can spread to regional lymph nodes or other body parts. By obtaining and maintaining a holistic picture of relevant clinical findings, a radiologist will be able to make a more accurate diagnosis. To our best knowledge, developing a universal or multi-purpose CAD framework, which is capable of detecting multiple disease types in a seamless fashion, is still a challenging task. However, such a framework is a crucial part to build an automatic radiological diagnosis and reporting system. ",
+        "bbox": [
+            80,
+            184,
+            467,
+            380
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Toward this end, we investigate how free-text radiological reports can be exploited as a priori knowledge using an innovative text-image embedding network. We apply this novel system in two different scenarios. We first introduce a new framework for auto-annotation of the chest X-rays by using both images features and text embeddings extracted from associated reports. Multi-level attention models are integrated into an end-to-end trainable CNN-RNN architecture for highlighting the meaningful text words and image regions. In addition, we convert the proposed annotation framework into a chest X-ray reporting system (as shown in Figure 1). The system stimulates the real-world reporting process by outputting disease classification and generating a preliminary report spontaneously. The text embedding learned from the retrospective reports are integrated into the model as a priori knowledge and the joint learning framework boosts the performance in both tasks in comparison to previous state-of-the-art. ",
+        "bbox": [
+            80,
+            383,
+            467,
+            654
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Our contributions are in fourfold: (1) We proposed the Text-Image Embedding Network, which is a multi-purpose end-to-end trainable multi-task CNN-RNN framework; (2) We show how raw report data, together with paired image, can be utilized to produce meaningful attention-based image and text representations using the proposed TieNet. (3) We outline how the developed text and image embeddings are able to boost the auto-annotation framework and achieve extremely high accuracy for chest $\\mathbf { X }$ -ray labeling; (4) Finally, we present a novel image classification framework which takes images as the sole input, but uses the paired text-image representations from training as a prior knowledge injection, in order to produce improved classification scores and preliminary report generations. ",
+        "bbox": [
+            80,
+            657,
+            467,
+            867
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Importantly, we validate our approach on three different datasets and the TieNet improves the image classification result $6 \\%$ increase on average in area under the curve (AUC) for all disease categories) in comparison to the stateof-the-art on an unseen and hand-labeled dataset (OpenI [7]) from other institute. Our multi-task training scheme can help not only the image classification but also the report generation by producing reports with higher BLEU scores than the baseline method. ",
+        "bbox": [
+            78,
+            871,
+            465,
+            900
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            503,
+            92,
+            890,
+            195
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2. Related work ",
+        "text_level": 1,
+        "bbox": [
+            503,
+            213,
+            635,
+            228
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Computer-Aided Detection (CADe) and Diagnosis (CADx) has long been a major research focus in medical image processing [5]. In recent years, deep learning models start to outperform conventional statistical learning approaches in various tasks, such as automated classification of skin lesions [9], detection of liver lesions [4], and detection of pathological-image findings [40]. However, current CADe methods typically target one particular type of disease or lesion, such as lung nodules, colon polyps or lymph nodes [24]. ",
+        "bbox": [
+            503,
+            239,
+            890,
+            388
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Wang et al. [35] provide a recent and prominent exception, where they introduced a large scale chest X-ray dataset by processing images and their paired radiological reports (extracted from their institutional PACS database) with natural language processing (NLP) techniques. The publicly available dataset contains 112, 120 front-view chest X-ray images of 30, 805 unique patients 1. However, radiological reports contain richer information than simple disease binary labels, e.g., disease location and severity, which should be exploited in order to fully leverage existing PACS datasets. Thus, we differ from Wang et al.’s approach by leveraging this rich text information in order to produce an enhanced system for chest X-ray CADx. ",
+        "bbox": [
+            503,
+            391,
+            890,
+            585
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "In vision of visual captioning, our work is closed to [37, 33, 29, 38, 27]. Xu et al. [37] first introduced the sequence-to-sequence model and spatial attention model into the image captioning task. They conditioned the long short-term memory (LSTM) decoder on different parts of the input image during each decoding step, and the attention signal was determined by the previous hidden state and CNN features. Vinyals et al. [33] cast the syntactical parsing problem as a sequence-to-sequence learning task by linearizing the parsing tree. Pederoli et al. [29] allowed a direct association between caption words and image regions. More recently, multi-attention models [38, 27] extract salient regions and words from both image and text and then combine them together for better representations of the pair. In medical imaging domain, Shin et al.[32] proposed to correlate the entire image or saliency regions with MeSH terms. Promising results [41] are also reported in summarizing the findings in pathology images using task-oriented reports in the training. The difference between our model and theirs lies in that we employ multi-attention models with a mixture of image and text features in order to provide more salient and meaningful embeddings for the image classification and report generation task. ",
+        "bbox": [
+            503,
+            587,
+            890,
+            873
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "image",
+        "img_path": "images/480f6c357f008d5d2ee11b9a06ef5be729254b1d729c53965e37e9f306f9b053.jpg",
+        "image_caption": [
+            "Figure 2. Framework of the proposed chest X-ray auto-annotation and reporting framework. Multi-level attentions are introduced to produce saliency-encoded text and image embeddings. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            80,
+            90,
+            890,
+            420
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            80,
+            484,
+            467,
+            545
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Apart from visual attention, text-based attention has also been increasingly applied in deep learning for NLP [2, 26, 31]. It attempts to relieve one potential problem that the traditional encoder-decoder framework faces, which is that the input is long or very information-rich and selective encoding is not possible. The attention mechanism attempts to ease the above problems by allowing the decoder to refer back to the input sequence [39, 23, 25]. To this end, our work closely follows the one used in [23] where they extracted an interpretable sentence embedding by introducing self-attention. Our model paired both the attention-based image and text representation from training as a prior knowledge injection to produce improved classification scores. ",
+        "bbox": [
+            80,
+            546,
+            467,
+            755
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3. Text-Image Embedding Network ",
+        "text_level": 1,
+        "bbox": [
+            81,
+            768,
+            375,
+            786
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "The radiological report is a summary of all the clinical findings and impressions determined during examination of a radiography study. A sample report is shown in Figure 1. It usually contains richer information than just disease keywords, but also may consist of negation and uncertainty statements. In the ‘findings’ section, a list of normal and abnormal observations will be listed for each part of the body examined in the image. Attributes of the disease patterns, e.g., specific location and severity, will also be noted. Furthermore, critical diagnosis information is often presented in the ‘impression’ section by considering all findings, patient history, and previous studies. Suspicious findings may cause recommendations for additional or follow-up imaging studies. As such, reports consist of a challenging mixture of information and a key for machine learning is extracting useful parts for particular applications. ",
+        "bbox": [
+            80,
+            795,
+            467,
+            900
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            503,
+            486,
+            890,
+            621
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "In addition to mining the disease keywords [35] as a summarization of the radiological reports, we want to learn a text embedding to capture the richer information contained in raw reports. Figure 2 illustrates the proposed TextImage Embedding Network. We first introduce the foundation of TieNet, which is an end-to-end trainable CNN-RNN architecture. Afterwards we discuss two enhancements we develop and integrate, i.e., attention-encoded text embedding (AETE) and saliency weighted global average pooling (SW-GAP). Finally, we outline the joint learning loss function used to optimize the framework. ",
+        "bbox": [
+            503,
+            622,
+            890,
+            787
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3.1. End-to-End Trainable CNN-RNN Model ",
+        "text_level": 1,
+        "bbox": [
+            503,
+            800,
+            848,
+            815
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "As shown in Figure 2, our end-to-end trainable CNNRNN model takes an image $I$ and a sequence of 1-of- $V$ encoded words. ",
+        "bbox": [
+            501,
+            825,
+            888,
+            869
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "equation",
+        "img_path": "images/d577d79639c8230dc6de2e73dfcb2321ede5a5da708219e6cecf5a3a9d58fec6.jpg",
+        "text": "$$\n\\mathbf { S } = \\{ \\mathbf { w } _ { 1 } , \\mathbf { . . . } , \\mathbf { w } _ { T } \\} , \\mathbf { w } _ { t } \\in \\mathbb { R } ^ { V } ,\n$$",
+        "text_format": "latex",
+        "bbox": [
+            591,
+            882,
+            799,
+            901
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "where $\\mathbf { w } _ { t }$ is a vector standing for a $d _ { w }$ dimensional word embedding for the $t { \\cdot }$ -th word in the report, $V$ is the size of the vocabulary, and $T$ is the length of the report. The initial CNN component uses layers borrowed from ImageNet pre-trained models for image classification, e.g., ResNet-50 (from Conv1 to Res5c). The CNN component additionally includes a convolutional layer (transition layer) to manipulate the spatial grid size and feature dimension. ",
+        "bbox": [
+            80,
+            90,
+            467,
+            212
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Our RNN is based off of Xu et al.’s visual image spatial attention model [37] for image captioning. The convolutional activations from the transition layer, denoted as $\\mathbf { X }$ , initialize the RNN’s hidden state, $\\mathbf { h } _ { t }$ , where a fullyconnected embedding, $\\phi ( \\mathbf { X } )$ , maps the size $d _ { X }$ transition layer activations to the LSTM state space of dimension $d _ { h }$ . In addition, $X$ is also used as one of the RNN’s input. However, following Xu et al. [37], our sequence-to-sequence model includes a deterministic and soft visual spatial attention, $\\mathbf { a } _ { t }$ , that is multiplied element-wise to $\\mathbf { X }$ before the latter is inputted to the RNN. At each time step, the RNN also outputs the subsequent attention map, $\\mathbf { a } _ { t + 1 }$ . ",
+        "bbox": [
+            80,
+            212,
+            467,
+            392
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "In addition to the soft-weighted visual features, the RNN also accepts the current word at each time step as input. We adopt standard LSTM units [13] for the RNN. The transition to the next hidden state can then be denoted as ",
+        "bbox": [
+            78,
+            393,
+            467,
+            452
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "equation",
+        "img_path": "images/e029ebf028242d89aa2e20157b43f62f69f5888b83c25e1eb888a3a827386228.jpg",
+        "text": "$$\n\\mathbf h _ { t } = L S T M ( [ \\mathbf w _ { t } , \\mathbf a _ { t } , \\mathbf X ] , \\mathbf h _ { t - 1 } ) .\n$$",
+        "text_format": "latex",
+        "bbox": [
+            161,
+            462,
+            385,
+            479
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "The LSTM produces the report by generating one word at each time step conditioned on a context vector, i.e., the previous hidden state $\\mathbf { h } _ { t }$ , the previously generated words $\\mathbf { w } _ { t }$ and the convolutional features of $\\mathbf { X }$ whose dimension is $D \\times D \\times C$ . Here $D = 1 6$ and $C = 1 0 2 4$ denote the spatial and channel dimensions, respectively. Once the model is trained, reports for a new image can be generated by sequentially sampling $\\mathbf { w } _ { t } \\sim p ( \\mathbf { w } _ { t } | \\mathbf { h } _ { t } )$ and updating the state using Equation 2. ",
+        "bbox": [
+            80,
+            487,
+            467,
+            623
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "The end-to-end trainable CNN-RNN model provides a powerful means to process both text and images. However, our goal is also to obtain an interpretable global text and visual embedding for the purposes of classification. For this reason, we introduce two key enhancements in the form of the AETE and SW-GAP. ",
+        "bbox": [
+            80,
+            625,
+            468,
+            713
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3.2. Attention Encoded Text Embedding ",
+        "text_level": 1,
+        "bbox": [
+            80,
+            722,
+            388,
+            738
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "To compute a global text representation, we use an approach that closely follows the one used in [23]. More specifically, we use attention to combine the most salient portions of the RNN hidden states. Let $\\mathbf { H } = ( \\mathbf { h } _ { 1 } , \\dots , \\mathbf { h } _ { T } )$ be the $d _ { h } \\times T$ matrix of all the hidden states. The attention mechanism outputs a $r \\times T$ matrix of weights $\\mathbf { G }$ as ",
+        "bbox": [
+            80,
+            746,
+            467,
+            835
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "equation",
+        "img_path": "images/cbb397962675d856ee2e92b29bb7b9ad64a622bd75db15bb95ad05261dbc0de8.jpg",
+        "text": "$$\n\\mathbf { G } = s o f t m a x ( \\mathbf { W } _ { s 2 } t a n h ( \\mathbf { W } _ { s 1 } \\mathbf { H } ) ) ,\n$$",
+        "text_format": "latex",
+        "bbox": [
+            147,
+            844,
+            398,
+            862
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "where $r$ is the number of global attentions we want to extract from the sentence, and $\\mathbf { W } _ { s 1 }$ and $\\mathbf { W } _ { s 2 }$ are $s$ -by- $\\cdot d _ { h }$ and $r$ -by-s matrices, respectively. $s$ is a hyperparameter governing the dimensionality, and therefore maximum rank, of the attention-producing process. ",
+        "bbox": [
+            78,
+            871,
+            467,
+            900
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            501,
+            92,
+            890,
+            136
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "With the attention calculated, we compute an $r \\times d _ { h }$ embedding matrix, $\\mathbf { M } = \\mathbf { G } \\mathbf { H }$ , which in essence executes $r$ weighted sums across the $T$ hidden states, aggregating them together into $r$ representations. Each row of $\\mathbf { G }$ , denoted $\\mathbf { g } ^ { i }$ $( i \\in \\{ 1 \\ldots r \\} _ { }$ ), indicates how much each hidden state contributes to the final embedded representation of M. We can thus draw a heat map for each row of the embedding matrix $M$ (See Figure 10 for examples). This way of visualization gives hints on what is encoded in each part of the embedding, adding an extra layer of interpretation. ",
+        "bbox": [
+            503,
+            137,
+            890,
+            286
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "To provide a final global text embedding of the sentences in the report, the AETE executes max-over- $\\cdot r$ pooling across M, producing an embedding vector $\\hat { \\mathbf { X } } _ { A E T E }$ with size $d _ { h }$ . ",
+        "bbox": [
+            501,
+            287,
+            890,
+            333
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3.3. Saliency Weighted Global Average Pooling ",
+        "text_level": 1,
+        "bbox": [
+            503,
+            342,
+            862,
+            358
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "In addition to using attention to provide a more meaningful text embedding, our goal is also to produce improved visual embeddings for classification. For this purpose, we re-use the attention mechanism, $\\mathbf { G }$ , except that we perform a max-over- $\\cdot r$ operation, producing a sequence of saliency values, $g _ { t } ( t = 1 , . . . , T )$ , for each word, $\\mathbf { w } _ { t }$ . These saliency values are used to weight and select the spatial attention maps, $\\mathbf { a } _ { t }$ , generated at each time point: ",
+        "bbox": [
+            503,
+            366,
+            890,
+            486
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "equation",
+        "img_path": "images/9e8df58e2df3c928f7452234812f7a1d5aa0a06d7ae9994835c8aa0ca52d5eab.jpg",
+        "text": "$$\n\\mathbf { a } _ { w s } ( x , y ) = \\sum _ { t } \\mathbf { a } _ { t } ( x , y ) * g _ { t } .\n$$",
+        "text_format": "latex",
+        "bbox": [
+            596,
+            494,
+            797,
+            529
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "This map is encoded with all spatial saliency regions guided by the text attention. We use this this map to highlight the spatial regions of $\\mathbf { X }$ with more meaningful information: ",
+        "bbox": [
+            501,
+            537,
+            890,
+            583
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "equation",
+        "img_path": "images/d9fa1406a6bddeb4da382d0f38f173547cb3c25d4de3a796de657510205ce9ea.jpg",
+        "text": "$$\n\\hat { \\mathbf { X } } _ { S W - G A P } ( c ) = \\sum _ { ( x , y ) } \\mathbf { a } _ { w s } ( x , y ) * \\mathbf { X } ( x , y , c ) ,\n$$",
+        "text_format": "latex",
+        "bbox": [
+            544,
+            592,
+            848,
+            628
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "where $x , y \\in \\{ 1 . . . D \\}$ and $\\hat { \\mathbf { X } } _ { S W - G A P }$ is a 1-by-C vector representing the global visual information, guided by both text- and visual-based attention. The lower part of figure 2 illustrates an example of such pooling strategy. ",
+        "bbox": [
+            503,
+            640,
+            890,
+            702
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3.4. Joint Learning ",
+        "text_level": 1,
+        "bbox": [
+            503,
+            710,
+            650,
+            727
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "With global representations computed for both the image and report, these must be combined together to produce the final classification. To accomplish this, we concatenate the two forms of representations $\\mathbf { \\hat { X } } = [ \\hat { \\mathbf { X } } _ { A E T E } ; \\hat { \\mathbf { X } } _ { S W - G A P } ]$ and use a final fully-connected layer to produce the output for multi-label classification. The intuition behind our model is that the connection between the CNN and RNN network will benefit the training of both because the image activations can be adjusted for the text embedding task and salient image features could be extracted by pooling based on high text saliency. ",
+        "bbox": [
+            503,
+            734,
+            890,
+            900
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "In a similar fashion as Wang et al. [35], we define an $M$ -dimensional disease label vector $\\begin{array} { r l } { \\mathbf { y } } & { { } = } \\end{array}$ $[ y _ { 1 } , . . . , y _ { m } , . . . , y _ { M } ] , y _ { m } \\in \\{ 0 , 1 \\}$ for each case and $M = 1 5$ indicates the number of classes. $y _ { m }$ indicates the presence with respect to a pathology or ‘no finding’ (of listed disease categories) in the image. Here, we adopt the NLP-mined labels provided by [35] as the ‘ground-truth’ during the training. ",
+        "bbox": [
+            80,
+            92,
+            467,
+            210
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The instance numbers for different disease categories are highly unbalanced, from hundreds to dozens of thousands. In addition to the positive/negative balancing introduced in [35], we add weights to instances associated with different categories, ",
+        "bbox": [
+            81,
+            212,
+            467,
+            280
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "equation",
+        "img_path": "images/3e69225461adcad664581f672f416acc028248c3561197bbc827bd812255cd7b.jpg",
+        "text": "$$\n\\begin{array} { r l } { \\displaystyle { L _ { m } \\big ( f \\big ( I , { \\mathbf S } \\big ) , { \\mathbf y } \\big ) } = \\beta _ { P } \\sum _ { y _ { m } = 1 } - \\ln ( f ( I , { \\mathbf S } ) ) \\cdot \\lambda _ { m } } & { } \\\\ { \\displaystyle + \\beta _ { N } \\sum _ { y _ { m } = 0 } - \\ln ( 1 - f ( I , { \\mathbf S } ) ) \\cdot \\lambda _ { m } , } \\end{array}\n$$",
+        "text_format": "latex",
+        "bbox": [
+            98,
+            284,
+            431,
+            349
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "where $\\begin{array} { r } { \\beta _ { P } ~ = ~ \\frac { | N | } { | P | + | N | } } \\end{array}$ and $\\begin{array} { r } { \\beta _ { N } ~ = ~ \\frac { | P | } { | P | + | N | } } \\end{array}$ |P ||P |+|N | . |P | and |N | are the total number of images with at least one disease and with no diseases, respectively. $\\lambda _ { m } = ( Q - Q _ { m } ) / Q$ is a set of precomputed class-wised weights, where $Q$ and $Q _ { m }$ are the total number of images and the number of images that have disease label $m$ . $\\lambda _ { m }$ will be larger if the number of instances from class $m$ is small. ",
+        "bbox": [
+            81,
+            353,
+            467,
+            463
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Because the TieNet can also generate text reports, we also optimize the RNN generative model loss [37], $L _ { R }$ Thus the overall loss is composed of two parts, the sigmoid cross entropy loss $L _ { C }$ for the multi-label classification and the loss $L _ { R }$ from the RNN generative model [37], ",
+        "bbox": [
+            80,
+            464,
+            467,
+            539
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "equation",
+        "img_path": "images/1535329ca5f92b7fb1ccb6beeb93e68d854ac5c6eb92ba95b86c43f3bd4caf2b.jpg",
+        "text": "$$\nL _ { o v e r a l l } = \\alpha L _ { C } + ( 1 - \\alpha ) L _ { R }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            171,
+            545,
+            377,
+            561
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "where $\\alpha$ is added to balance the large difference between the two loss types. ",
+        "bbox": [
+            80,
+            568,
+            467,
+            598
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "3.5. Medical Image Auto-Annotation ",
+        "text_level": 1,
+        "bbox": [
+            83,
+            604,
+            361,
+            621
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "One straightforward application of the TieNet is the auto-annotation task to mine image classification labels. By omitting the generation of sequential words, we accumulate and back-propagate only the classification loss for better text-image embeddings in image classification. Here, we use the NLP-mined disease labels as ‘ground truth’ in the training. Indeed we want to learn a mapping between the input image-report pairs and the image labels. The report texts often contain more easy-to-learn features than the image side. The contribution of both sources to the final classification prediction should be balanced via either controlling the feature dimensions or drop-off partial of the ‘easy-tolearn’ data during training. ",
+        "bbox": [
+            80,
+            628,
+            467,
+            824
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "3.6. Automatic Classification and Reporting of Thorax Diseases ",
+        "text_level": 1,
+        "bbox": [
+            78,
+            832,
+            465,
+            862
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "For a more difficult but real-world scenario, we transform the image-text embedding network to serve as a unified system of image classification and report generation when only the unseen image is available. During the training, both image and report are fed and two separate losses are computed as stated above, i.e., the loss for image classification and the loss for sequence-to-sequence modeling. While testing, only the image is required as the input. The generated text contained the learned text embedding recorded in the LSTM units and later used in the final image classification task. The generative model we integrated into the text-image embedding network is the key to associate an image with its attention encoded text embedding. ",
+        "bbox": [
+            78,
+            871,
+            465,
+            900
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            503,
+            92,
+            890,
+            256
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "4. Dataset ",
+        "text_level": 1,
+        "bbox": [
+            503,
+            271,
+            586,
+            286
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "ChestX-ray14 [35] is a recently released benchmark dataset for common thorax disease classification and localization. It consists of 14 disease labels that can be observed in chest X-ray, i.e., Atelectasis, Cardiomegaly, Effusion, Infiltration, Mass, Nodule, Pneumonia, Pneumothorax, Consolidation, Edema, Emphysema, Fibrosis, Pleural Thickening, and Hernia. The NLP-mined labels are used as ‘ground truth’ for model training throughout the experiments. We adopt the patient-level data splits published with the data 2. ",
+        "bbox": [
+            503,
+            295,
+            890,
+            431
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Hand-labeled: In addition to NLP-mined labels, we randomly select 900 reports from the testing set and have two radiologists to annotate the 14 categories of findings for the evaluation purpose. A trial set of 30 reports was first used to synchronize the criterion of annotation between two annotators. Then, each report was independently annotated by two annotators. In this paper, we used the inter-rater agreement (IRA) to measure the consistency between two observers. The resulting Cohens kappa is $8 4 . 3 \\%$ . Afterwards, the final decision was adjudicated between two observers on the inconsistent cases. ",
+        "bbox": [
+            503,
+            433,
+            890,
+            597
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "OpenI [7] is a publicly available radiography dataset collected from multiple institutes by Indiana University. Using the OpenI API, we retrieved 3,851 unique radiology reports and 7,784 associated frontal/lateral images where each OpenI report was annotated with key concepts (MeSH words) including body parts, findings, and diagnoses. For consistency, we use the same 14 categories of findings as above in the experiments. In our experiments, only 3,643 unique front view images and corresponding reports are selected and evaluated. ",
+        "bbox": [
+            503,
+            598,
+            890,
+            747
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "5. Experiments ",
+        "text_level": 1,
+        "bbox": [
+            503,
+            762,
+            630,
+            779
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Report vocabulary: We use all 15,472 unique words in the training set that appear at least twice. Words that appear less frequently are replaced by a special out-of-vocabulary token, and the start and the end of the reports are marked with a special $\\langle { \\mathrm { S T A R T } } \\rangle$ and $\\langle { \\mathrm { E N D } } \\rangle$ token. The pre-trained word embedding vectors was learned on PubMed articles using the gensim word2vec implementation with the dimensionality set to 200 3. The word embedding vectors will be evolved along with other LSTM parameters. ",
+        "bbox": [
+            503,
+            787,
+            890,
+            877
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            80,
+            92,
+            467,
+            136
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Evaluation Metrics: To compare previous state-of-theart works, we choose different evaluation metrics for different tasks so as to maintain consistency with data as reported in the previous works. ",
+        "bbox": [
+            80,
+            137,
+            465,
+            196
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Receiver Operating Curves (ROC) are plotted for each disease category to measure the image classification performance and afterward, Areas Under Curve (AUC) are computed, which reflect the overall performance as a summary of different operating points. ",
+        "bbox": [
+            80,
+            198,
+            465,
+            272
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "To assess the quality of generated text report, BLEU scores [28], METEOR [3] and ROUGE-L [20] are computed between the original reports and the generated ones. Those measures reflect the word overlapping statistics between two text corpora. However, we believe their capabilities are limited for showing the actual accuracy of disease words (together with their attributes) overlapping between two text corpora. ",
+        "bbox": [
+            81,
+            273,
+            467,
+            393
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Training: The LSTM model contains a 256 dimensional cell and $s \\ = \\ 2 0 0 0$ in $\\mathbf { W } _ { s 1 }$ and $\\mathbf { W } _ { s 2 }$ for generating the attention weights $\\mathbf { G }$ . During training, we use 0.5 dropout on the MLP and 0.0001 for L2 regularization. We use the Adam optimizer with a mini-batch size of 32 and a constant learning rate of 0.001. ",
+        "bbox": [
+            80,
+            395,
+            467,
+            484
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "In addition, our self-attention LSTM has a hidden layer with 350 units. We choose the matrix embedding to have 5 rows (the $r$ ), and a coefficient of 1 for the penalization term. All the models are trained until convergence is achieved and the hyper-parameters for testing is selected according to the corresponding best validation set performance. ",
+        "bbox": [
+            80,
+            486,
+            467,
+            575
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Our text-image embedding network is implemented based on TensorFlow [1] and Tensorpack 4. The ImageNet pre-trained model, i.e., ResNet-50 [12] is obtained from the Caffe model zoo and converted into the TensorFlow compatible format. The proposed network takes the weights from the pre-trained model and fixes them during the training. Other layers in the network are trained from scratch. In a similar fashion as introduced in [35], we reduce the size of mini-batch to fit the entire model in each GPU while we accumulate the gradients for a number of iterations and also across a number of GPUs for better training performance. The DCNN models are trained using a Dev-Box Linux server with 4 Titan X GPUs. ",
+        "bbox": [
+            80,
+            577,
+            467,
+            772
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "5.1. Auto-annotation of Images ",
+        "text_level": 1,
+        "bbox": [
+            80,
+            784,
+            316,
+            797
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Figure 3 illustrates the ROC curves for the image classification performance with 3 different inputs evaluated on 3 different testing sets, i.e., ChestX-ray14 testing set (ChestX-ray14), the hand-labeled set (Hand-labeled) and the OpenI set (OpenI). Separate curves are plotted for each disease categories and ‘No finding’. Here, two different auto-annotation frameworks are trained by using different inputs, i.e., taking reports only (R) and taking image-report pairs $\\mathrm { ( I { + } R ) }$ as inputs. When only the reports are used, the framework will not have the saliency weighted global average pooling path. In such way, we can get a sense how the features from text path and image path individually contribute to the final classification prediction. ",
+        "bbox": [
+            78,
+            808,
+            467,
+            852
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            503,
+            92,
+            890,
+            241
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "We train the proposed auto-annotation framework using the training and validation sets from the ChestX-ray14 dataset and test it on all three testing sets, i.e., ChestXray14, hand-labeled and OpenI. Table 1 shows the AUC values for each class computed from the ROC curves shown in Figure 3. The auto-annotation framework achieves high performance on both ChestX-ray14 and Hand-labeled, i.e., over 0.87 in AUC with reports alone as the input and over 0.90 in AUC with image-report pairs on sample number weighted average $( \\# w A V G )$ . The combination of image and report demonstrates the supreme advantage in this task. In addition, the auto-annotation framework trained on ChestX-ray14 performed equivalently on OpenI. It indicates that the model trained on a large-scale image dataset could easily be generalized to the unseen data from other institutes. The model trained solely based on images could also be generalized well to the datasets from other sources. In this case, both the proposed method and the one in [35] are able to perform equally well on all three testing sets. ",
+        "bbox": [
+            503,
+            243,
+            890,
+            530
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "5.2. Classification and Reporting of Chest X-ray ",
+        "text_level": 1,
+        "bbox": [
+            503,
+            542,
+            869,
+            559
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "When the TieNet is switched to an automatic disease classification and reporting system, it takes a single image as the input and is capable of outputting a multilabel prediction and corresponding radiological report together. The ROC curves on the right in Figure 3 and Table 1 show the image classification performance produced by the multi-purpose reporting system. The AUCs from our TieNet $( \\mathrm { I } { + } \\mathrm { G R } )$ demonstrate the consistent improvement in AUCs $( 2 . 3 \\% - 5 . 7 \\%$ on $\\# w A V G$ for all the disease categories) across all three datasets. The multilabel classification framework [35] serves as a baseline model that also takes solely the images. Furthermore, the performance improvement achieved on the Hand-labeled and OpenI datasets (with ground truth image labels) is even larger than the performance gain on ChestX-ray14 (with NLP-mined labels). It indicates that the TieNet is able to learn more meaningful and richer text embeddings directly from the raw reports and correct the inconsistency between embedded features and erroneous mined labels. ",
+        "bbox": [
+            503,
+            566,
+            890,
+            853
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Table 2 shows that the generated reports from our proposed system obtain higher scores in all evaluation metrics in comparison to the baseline image captioning model [37]. ",
+        "bbox": [
+            501,
+            856,
+            890,
+            900
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "table",
+        "img_path": "images/27fafc125ce396d5322bf6496f3f553a5155763536d669ce7d947140c058f303.jpg",
+        "table_caption": [
+            "Table 1. Evaluation of image classification results (AUCs) on ChestX-ray14, hand-labeled and OpenI dataset. Performances are reported on four methods, i.e., multilabel classification based on Report (R), Image $^ +$ Report $( \\mathrm { I } { + } \\mathrm { R } )$ , Image [35], and Image $^ +$ Generative Report $( \\mathrm { I } { + } \\mathrm { G R } )$ . "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Disease</td><td colspan=\"3\">ChestX-ray14</td><td colspan=\"3\">Hand-labeled</td><td colspan=\"4\">OpenI</td></tr><tr><td>R / I+R /I [35] / I+GR /</td><td></td><td>#</td><td>R / I+R /I [35] /I+GR /</td><td></td><td></td><td></td><td>R / I+R / I [35] /I+GR /</td><td></td><td>#</td></tr><tr><td>Atelectasis</td><td>.983 /.993/ .700/</td><td></td><td>.732 / 3255</td><td>.886/.919/ .680/</td><td></td><td>.715 / 261</td><td>.981 / .976 /</td><td>.702/</td><td>.7747</td><td>293</td></tr><tr><td>Cardiomegaly</td><td>.978 / .994 /</td><td>.810/</td><td>.844 / 1065</td><td>.964 / .989 /</td><td>.820 /</td><td>.872 / 185</td><td>.944 / .962 /</td><td>.803/</td><td>.847/</td><td>315</td></tr><tr><td>Effusion</td><td>.984 / .995 /</td><td>.759 /</td><td>.793 / 4648</td><td>.938 / .967 /</td><td>.780 /</td><td>.823 / 257</td><td>.968 / .977 /</td><td>.890 /</td><td>.899 /</td><td>140</td></tr><tr><td>Infiltration</td><td>.960 / .986 /</td><td>.661/</td><td>.666 / 6088</td><td>.849 /.879 /</td><td>.648/</td><td>.664 / 271</td><td>.981 / .984 /</td><td>.585/</td><td>.718/</td><td>57</td></tr><tr><td>Mass</td><td>.984 / .994 /</td><td>.693 /</td><td>.725 / 1712</td><td>.935 / .943 /</td><td>.696 /</td><td>.710 / 93</td><td>.959 / .903 /</td><td>.756/</td><td>.723 /</td><td>14</td></tr><tr><td>Nodule</td><td>.981 / .994 /</td><td>.668 /</td><td>.685 / 1615</td><td>.974 / .974 /</td><td>.662 /</td><td>.684 / 130</td><td>.967 / .960 /</td><td>.647/</td><td>.658 /</td><td>102</td></tr><tr><td>Pneumonia</td><td>.947 / .969 /</td><td>.658 /</td><td>.720 / 477</td><td>.917 / .946 /</td><td>.724/</td><td>.681/ 55</td><td>.983 / .994 /</td><td>.642 /</td><td>.731/</td><td>36</td></tr><tr><td>Pneumothorax</td><td>.983 / .995 /</td><td>.799 /</td><td>.847 / 2661</td><td>.983 / .996 /</td><td>.784/</td><td>.855 / 166</td><td>.960 / .960 /</td><td>.631/</td><td>.709 /</td><td>22</td></tr><tr><td>Consolidation</td><td>.989 / .997 /</td><td>.703 /</td><td>.701 / 1815</td><td>.923 / .910 /</td><td>.609/</td><td>.631/ 60</td><td>.969 / .989 /</td><td>.790 /</td><td>.855/</td><td>28</td></tr><tr><td>Edema</td><td>.976 / .989 /</td><td>.805/</td><td>.829 / 925</td><td>.970 / .987 /</td><td>.815/</td><td>.834/ 33</td><td>.984 / .995 /</td><td>.799 /</td><td>.879 /</td><td>40</td></tr><tr><td>Emphysema</td><td>.996 / .997 /</td><td>.833 /</td><td>.865 / 1093</td><td>.980 /.981 /</td><td>.835/</td><td>.863 / 44</td><td>.849 / .868 /</td><td>.675/</td><td>.792 /</td><td>94</td></tr><tr><td>Fibrosis</td><td>.986 / .986 /</td><td>.786/</td><td>.796 / 435</td><td>.930 / .989 /</td><td>.688/</td><td>.714/ 11</td><td>.985 / .960 /</td><td>.744/</td><td>.791/</td><td>18</td></tr><tr><td>PT</td><td>.988 / .997 /</td><td>.684/</td><td>.735 / 1143</td><td>.904 / .923 /</td><td>.679 /</td><td>.776 / 41</td><td>.948 / .953 /</td><td>.691/</td><td>.749 /</td><td>52</td></tr><tr><td>Hernia</td><td>.929 / .958 /</td><td>.871/</td><td>.876/ 86</td><td>.757 / .545 /</td><td>.864/</td><td>.647 /</td><td>/</td><td>/ −1</td><td>-/</td><td>0</td></tr><tr><td>NoFinding</td><td>.920 / .985 /</td><td>−/</td><td>.701 / 9912</td><td>.889/ .908 /</td><td>−/</td><td>.666 / 85</td><td>.933 / .936 /</td><td>−1</td><td>.747 / 2789</td><td></td></tr><tr><td>AVG</td><td>.976 / .989 /</td><td>.745 /</td><td>.772 / −</td><td>.922 / .925 /</td><td>.735 /</td><td>.748 /</td><td>.960 / .965 /</td><td>.719/</td><td>.779 /</td><td>−</td></tr><tr><td>#wAVG</td><td>.978 / .992 /</td><td>.722 /</td><td>.748 /</td><td>.878 / .900 /</td><td>.687 /</td><td>.719 /</td><td>.957 / .966 /</td><td>.741/</td><td>.798 /</td><td></td></tr></table>",
+        "bbox": [
+            76,
+            88,
+            890,
+            410
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "image",
+        "img_path": "images/1f3dacfe1426feb437f90c898656d844a7c3231c907674515485b51385a496dd.jpg",
+        "image_caption": [
+            "Figure 3. A comparison of classification performance with different testing inputs, i.e. Report (R), Image $^ +$ Report $( \\mathrm { I } { + } \\mathrm { R } )$ , and Image+Generative Report $( \\mathrm { I } { + } \\mathrm { G R } )$ . "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            91,
+            462,
+            879,
+            785
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "It may be because the gradients from RNN are backpropagated to the CNN part and the adjustment of image features from Transition layer will benefit the report generation task. ",
+        "bbox": [
+            80,
+            833,
+            467,
+            877
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Figure 10 illustrates 4 sample results from the proposed automatic classification and reporting system. Please see more examples in the appendix A. Original images are shown along with the classification predications, original reports and generated reports. Text-attended words are also highlighted over the generated reports. If looking at generated reports alone, we find that they all read well. However, the described diseases may not truly appear in the images. For example, ‘Atelectasis’ is correctly recognized in sample A but ‘Effusion’ is missed. ‘Effusion’ (not too far from the negation word ‘without’) is erroneously highlighted in sample B but the system is still able to correctly classify the image as ‘No finding’. In sample D, the generated report misses ‘Mass’ while it states right about the metastasis in the lung. One promising finding is that the false predictions (‘Mass’ and ‘Consolidation’) in sample C can actually be observed in the image (verified by a radiologist) but somehow did not noted in the original report, which indicates our proposed netowrk can in some extent associate the image appearance with the text description. ",
+        "bbox": [
+            98,
+            886,
+            467,
+            900
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            501,
+            833,
+            890,
+            892
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "image",
+        "img_path": "images/1aa341ac10c720b0776c9fb0e88416d85afb2ad24d3b0f1e2504e769d7f5269d.jpg",
+        "image_caption": [
+            "Figure 4. 4 sample image Classification Predictions (P) along with original and generated reports. Text attentions are highlighted over the generated text. Correct predication is marked in green, false prediction in red and missing prediction in blue. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            80,
+            90,
+            892,
+            454
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "table",
+        "img_path": "images/9139ca6c319ca10d0ba446ea10a4ef3cc9e1ae40d52782f6d02156e0c58031be.jpg",
+        "table_caption": [
+            "A Table 2. Evaluation of generated reports in ChestX-ray14 testing set using BLEU, METEOR and ROUGE-L. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td></td><td>Captioning [37]</td><td>TieNet I+GR</td></tr><tr><td>BLEU-1</td><td>0.2391</td><td>0.2860</td></tr><tr><td>BLEU-2</td><td>0.1248</td><td>0.1597</td></tr><tr><td>BLEU-3</td><td>0.0861</td><td>0.1038</td></tr><tr><td>BLEU-4</td><td>0.0658</td><td>0.0736</td></tr><tr><td>METEOR</td><td>0.1024</td><td>0.1076</td></tr><tr><td>ROUGE-L</td><td>0.1988</td><td>0.2263</td></tr></table>",
+        "bbox": [
+            111,
+            535,
+            436,
+            657
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            80,
+            689,
+            467,
+            900
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            503,
+            512,
+            741,
+            526
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "6. Conclusion ",
+        "text_level": 1,
+        "bbox": [
+            503,
+            541,
+            617,
+            558
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Automatically extracting the machine-learnable annotation from the retrospective data remains a challenging task, among which images and reports are two main useful sources. Here, we proposed a novel text-image embedding network integrated with multi-level attention models. TieNet is implemented in an end-to-end CNN-RNN architecture for learning a blend of distinctive image and text representations. Then, we demonstrate and discuss the pros and cons of including radiological reports in both autoannotation and reporting tasks. While significant improvements have been achieved in multi-label disease classification, there is still much space to improve the quality of generated reports. For future work, we will extend TieNet to include multiple RNNs for learning not only disease words but also their attributes and further correlate them and image findings with the description in the generated reports. ",
+        "bbox": [
+            503,
+            568,
+            890,
+            809
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Acknowledgements This work was supported by the Intramural Research Programs of the NIH Clinical Center and National Library of Medicine. Thanks to Adam Harrison and Shazia Dharssi for proofreading the manuscript. We are also grateful to NVIDIA Corporation for the GPU donation. ",
+        "bbox": [
+            503,
+            810,
+            890,
+            900
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "References   \n[1] M. Abadi, A. Agarwal, P. Barham, E. Brevdo, Z. Chen, C. Citro, G. S. Corrado, A. Davis, J. Dean, M. Devin, S. Ghemawat, I. Goodfellow, A. Harp, G. Irving, M. Isard, Y. Jia, R. Jozefowicz, L. Kaiser, M. Kudlur, J. Levenberg, D. Mane, R. Monga, S. Moore, D. Murray, C. Olah, M. Schuster, J. Shlens, B. Steiner, I. Sutskever, K. Talwar, P. Tucker, V. Vanhoucke, V. Vasudevan, F. Viegas, O. Vinyals, P. Warden, M. Wattenberg, M. Wicke, Y. Yu, and X. Zheng. TensorFlow: large-scale machine learning on heterogeneous distributed systems. 2016. 6   \n[2] D. Bahdanau, K. Cho, and Y. Bengio. Neural machine translation by jointly learning to align and translate. In International Conference on Learning Representations (ICLR), pages 1–15, 2015. 3   \n[3] S. Banerjee and A. Lavie. METEOR: An automatic metric for MT evaluation with improved correlation with human judgments. In Proceedings of the ACL Workshop on Intrinsic and Extrinsic Evaluation Measures for Machine Translation and/or Summarization, pages 65–72, 2005. 6   \n[4] A. Ben-Cohen, I. Diamant, E. Klang, M. Amitai, and H. Greenspan. Fully convolutional network for liver segmentation and lesions detection. In International Workshop on Large-Scale Annotation of Biomedical Data and Expert Label Synthesis, pages 77–85, 2016. 2   \n[5] G. Chartrand, P. M. Cheng, E. Vorontsov, M. Drozdzal, S. Turcotte, C. J. Pal, S. Kadoury, and A. Tang. Deep learning: a primer for radiologists. Radiographics : a review publication of the Radiological Society of North America, Inc, 37(7):2113–2131, 2017. 2   \n[6] B. Dai, Y. Zhang, and D. Lin. Detecting visual relationships with deep relational networks. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 3076–3086, 2017. 1   \n[7] D. Demner-Fushman, M. D. Kohli, M. B. Rosenman, S. E. Shooshan, L. Rodriguez, S. Antani, G. R. Thoma, and C. J. McDonald. Preparing a collection of radiology examinations for distribution and retrieval. Journal of the American Medical Informatics Association, 23(2):304–310, 2015. 2, 5   \n[8] J. Deng, W. Dong, R. Socher, L.-J. Li, K. Li, and L. FeiFei. ImageNet: A large-scale hierarchical image database. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 248–255, 2009. 1   \n[9] A. Esteva, B. Kuprel, R. A. Novoa, J. Ko, S. M. Swetter, H. M. Blau, and S. Thrun. Dermatologist-level classification of skin cancer with deep neural networks. Nature, 542(7639):115–118, 2017. 2   \n[10] M. Everingham, S. M. A. Eslami, L. V. Gool, C. K. I. Williams, J. Winn, and A. Zisserman. The PASCAL visual object classes challenge: A retrospective. International Journal of Computer Vision, 111(1):98–136, 2015. 1   \n[11] Z. Gan, C. Gan, X. He, Y. Pu, K. Tran, J. Gao, L. Carin, and L. Deng. Semantic compositional networks for visual captioning. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 1–13, 2017. 1   \n[12] K. He, X. Zhang, S. Ren, and J. Sun. Deep residual learning for image recognition. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 770– 778, 2016. 6   \n[13] S. Hochreiter and J. Schmidhuber. Long short-term memory. Neural Computation, 9(8):1735–1780, 1997. 4   \n[14] R. Hu, M. Rohrbach, J. Andreas, T. Darrell, and K. Saenko. Modeling relationships in referential expressions with compositional modular networks. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 1115–1124, 2017. 1   \n[15] Y. Jia, E. Shelhamer, J. Donahue, S. Karayev, J. Long, R. Girshick, S. Guadarrama, and T. Darrell. Caffe: Convolutional architecture for fast feature embedding. In Proceedings of the 22nd ACM international conference on Multimedia, pages 675–678, 2014. 1   \n[16] J. Johnson, A. Karpathy, and L. Fei-Fei. Densecap: Fully convolutional localization networks for dense captioning. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 4565–4574, 2016. 1   \n[17] A. Karpathy and L. Fei-Fei. Deep visual-semantic alignments for generating image descriptions. IEEE transactions on pattern analysis and machine intelligence, 39(4):664– 676, 2017. 1   \n[18] R. Krishna, Y. Zhu, O. Groth, J. Johnson, K. Hata, J. Kravitz, S. Chen, Y. Kalantidis, L.-J. Li, D. A. Shamma, M. S. Bernstein, and F.-F. Li. Visual genome: Connecting language and vision using crowdsourced dense image annotations. 2016. 1   \n[19] A. Krizhevsky, I. Sutskever, and G. E. Hinton. ImageNet classification with deep convolutional neural networks. In Advances in neural information processing systems, pages 1097–1105, 2012. 1   \n[20] C.-Y. Lin. ROUGE: A package for automatic evaluation of summaries. In Text summarization branches out: Proceedings of the ACL-04 workshop, volume 8, pages 1–8. Barcelona, Spain, 2004. 6   \n[21] M. Lin, Q. Chen, and S. Yan. Network in network. In International Conference on Learning Representations (ICLR), pages 1–10, 2014. 1   \n[22] T.-Y. Lin, M. Maire, S. Belongie, L. Bourdev, R. Girshick, J. Hays, P. Perona, D. Ramanan, C. L. Zitnick, and P. Dollar. ´ Microsoft COCO: Common objects in context. In European Conference on Computer Vision (ECCV), pages 740–755, 2014. 1   \n[23] Z. Lin, M. Feng, C. N. dos Santos, M. Yu, B. Xiang, B. Zhou, and Y. Bengio. A structured self-attentive sentence embedding. In 5th International Conference on Learning Representations (ICLR), pages 1–15, 2017. 3, 4   \n[24] J. Liu, D. Wang, L. Lu, Z. Wei, L. Kim, E. B. Turkbey, B. Sahiner, N. Petrick, and R. M. Summers. Detection and diagnosis of colitis on computed tomography using deep convolutional neural networks. Medical Physics, 44(9):4630–4642, 2017. 2   \n[25] Y. Liu, C. Sun, L. Lin, and X. Wang. Learning natural language inference using bidirectional LSTM model and innerattention. 2016. 3   \n[26] F. Meng, Z. Lu, M. Wang, H. Li, W. Jiang, and Q. Liu. Encoding source language with convolutional neural network for machine translation. In Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint Conference on Natural Language Processing (ACL-CoNLL), pages 20–30, 2015. 3   \n[27] H. Nam, J.-W. Ha, and J. Kim. Dual attention networks for multimodal reasoning and matching. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 299–307, 2017. 1, 2   \n[28] K. Papineni, S. Roukos, T. Ward, and W.-J. Zhu. BLEU: a method for automatic evaluation of machine translation. In Proceedings of the 40th annual meeting on association for computational linguistics (ACL), pages 311–318, 2002. 6   \n[29] M. Pedersoli, T. Lucas, C. Schmid, and J. Verbeek. Areas of attention for image captioning. In International Conference on Computer Vision (ICCV), pages 1–22, 2017. 2   \n[30] B. Plummer, L. Wang, C. Cervantes, J. Caicedo, J. Hockenmaier, and S. Lazebnik. Flickr30k entities: Collecting region-to-phrase correspondences for richer image-tosentence models. In International Conference on Computer Vision (ICCV), 2015. 1   \n[31] A. M. Rush, S. Chopra, and J. Weston. A neural attention model for abstractive sentence summarization. In Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 379–389, 2015. 3   \n[32] H.-C. Shin, K. Roberts, L. Lu, D. Demner-Fushman, J. Yao, and R. M. Summers. Learning to read chest X-rays: recurrent neural cascade model for automated image annotation. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 2497–2506, 2016. 2   \n[33] O. Vinyals, M. Fortunato, and N. Jaitly. Pointer networks. In Advances in Neural Information Processing Systems, pages 2692–2700, 2015. 2   \n[34] O. Vinyals, A. Toshev, S. Bengio, and D. Erhan. Show and tell: A neural image caption generator. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 3156–3164, 2015. 1   \n[35] X. Wang, Y. Peng, L. Lu, Z. Lu, M. Bagheri, and R. M. Summers. ChestX-ray8: Hospital-scale chest x-ray database and benchmarks on weakly-supervised classification and localization of common thorax diseases. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 2097–2106, 2017. 2, 3, 5, 6, 7   \n[36] Q. Wu, P. Wang, C. Shen, A. Dick, and A. van den Hengel. Ask me anything: free-form visual question answering based on knowledge from external sources. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 1–5, 2016. 1   \n[37] K. Xu, J. Ba, R. Kiros, K. Cho, A. Courville, R. Salakhudinov, R. Zemel, and Y. Bengio. Show, attend and tell: Neural image caption generation with visual attention. In International Conference on Machine Learning (ICML), pages 2048–2057, 2015. 2, 4, 5, 6, 8   \n[38] D. Yu, J. Fu, T. Mei, and Y. Rui. Multi-level attention networks for visual question answering. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 1–9, 2017. 1, 2   \n[39] W. L. L. C.-C. Yulia, T. S. Amir, R. F. A. C. D. Alan, and W. B. I. Trancoso. Not all contexts are created equal: Better word representations with variable attention. In Proceedings of the 2015 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 1367–1372, 2015. 3   \n[40] Z. Zhang, P. Chen, M. Sapkota, and L. Yang. Tandemnet: Distilling knowledge from medical images using diagnostic reports as optional semantic references. In International Conference on Medical Image Computing and ComputerAssisted Intervention, pages 320–328. Springer, 2017. 2   \n[41] Z. Zhang, Y. Xie, F. Xing, M. McGough, and L. Yang. MDNet: a semantically and visually interpretable medical image diagnosis network. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 6428–6436, 2017. 2   \n[42] Y. Zhu, O. Groth, M. Bernstein, and L. Fei-Fei. Visual7W: Grounded question answering in images. In The IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2016. 1 ",
+        "bbox": [
+            78,
+            77,
+            468,
+            900
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            501,
+            59,
+            892,
+            900
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            78,
+            64,
+            468,
+            905
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            501,
+            92,
+            892,
+            358
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "A. More Experiment Results ",
+        "text_level": 1,
+        "bbox": [
+            503,
+            372,
+            743,
+            388
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "In this section, we present 20 more classification and reporting results (case E-X) from the proposed TieNet in addition to the four examples (case A-D) shown in the main paper. Sample images are illustrated along with associated classification Predictions (P), original and generated reports. Text attentions are highlighted with different saturation levels over the generated text. Darker red means higher weights of the text attention. Correct classification predications are marked in green, false predictions in red and missed predictions in blue. ",
+        "bbox": [
+            503,
+            398,
+            890,
+            549
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "image",
+        "img_path": "images/090031ea40c8a5173871781c220638bf37eda86d814f0ac82cba18a0d44e3708.jpg",
+        "image_caption": [
+            "Figure 5. 4 sample image Classification Predictions (P) along with original and generated reports. Text attentions are highlighted over the generated text. Correct predication is marked in green, false prediction in red and missing prediction in blue. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            153,
+            26,
+            813,
+            911
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "image",
+        "img_path": "images/ff9886ca842871e05c063399c0e41c662d2193815d0ba9d8ce521fbe058e8d28.jpg",
+        "image_caption": [
+            "Figure 6. 4 sample image Classification Predictions (P) along with original and generated reports. Text attentions are highlighted over the generated text. Correct predication is marked in green, false prediction in red and missing prediction in blue. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            161,
+            31,
+            820,
+            915
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "image",
+        "img_path": "images/d6c845754ae6cdfa87054736e5393aa5cd3797c584511f676b53ae5ad90537c3.jpg",
+        "image_caption": [
+            "Figure 7. 4 sample image Classification Predictions (P) along with original and generated reports. Text attentions are highlighted over the generated text. Correct predication is marked in green, false prediction in red and missing prediction in blue. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            183,
+            30,
+            818,
+            907
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "image",
+        "img_path": "images/6d399cb9d50e57c53d21fcca82d751a96d4a292bf46956afcabfb7de2421af34.jpg",
+        "image_caption": [
+            "Figure 8. 4 sample image Classification Predictions (P) along with original and generated reports. Text attentions are highlighted over the generated text. Correct predication is marked in green, false prediction in red and missing prediction in blue. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            151,
+            32,
+            818,
+            906
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "image",
+        "img_path": "images/e77089b8f502edefcbe7e7359326ef2c95a0397966b69fe2ae63f0513a3f6b45.jpg",
+        "image_caption": [
+            "Figure 9. 4 sample image Classification Predictions (P) along with original and generated reports. Text attentions are highlighted over the generated text. Correct predication is marked in green, false prediction in red and missing prediction in blue. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            148,
+            35,
+            816,
+            915
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "image",
+        "img_path": "images/9325105ac403bbfa485958aef679362b2701c9067081ffcb0241e929eba652ca.jpg",
+        "image_caption": [
+            "Figure 10. 4 sample image Classification Predictions (P) along with original and generated reports. Text attentions are highlighted over the generated text. Correct predication is marked in green, false prediction in red and missing prediction in blue. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            135,
+            27,
+            818,
+            910
+        ],
+        "page_idx": 15
+    }
+]

@@ -1,0 +1,1524 @@
+[
+    {
+        "type": "text",
+        "text": "AN INTEGRATED FRAMEWORK OF PROMPT ENGINEERING AND MULTIDIMENSIONAL KNOWLEDGE GRAPHS FOR LEGAL DISPUTE ANALYSIS ∗ ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            119,
+            877,
+            194
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Mingda Zhang1, Na Zhao1,2, Jianglong $\\mathbf { Q i n ^ { 1 , 2 , * } }$ School of Software, Yunnan University   \nYunnan Provincial Key Laboratory of Software Engineering Kunming 650500, China   \n{mingda.zhang, na.zhao, qinjianglong}@ynu.edu.cn ",
+        "bbox": [
+            294,
+            252,
+            705,
+            325
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Qing $\\mathbf { X } \\mathbf { u } ^ { 3 }$ , Kaiwen $\\mathbf { P a n } ^ { 1 , 2 }$ , Ting Luo1 3School of Law, Yunnan University Kunming 650091, China {qing.xu, kaiwen.pan, ting.luo}@ynu.edu.cn ",
+        "bbox": [
+            318,
+            343,
+            678,
+            402
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "ABSTRACT ",
+        "text_level": 1,
+        "bbox": [
+            452,
+            452,
+            545,
+            467
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Legal dispute analysis is crucial for intelligent legal assistance systems. However, current LLMs face significant challenges in understanding complex legal concepts, maintaining reasoning consistency, and accurately citing legal sources. This research presents a framework combining prompt engineering with multidimensional knowledge graphs to improve LLMs’ legal dispute analysis. Specifically, the framework includes a three-stage hierarchical prompt structure (task definition, knowledge background, reasoning guidance) along with a three-layer knowledge graph (legal ontology, representation, instance layers). Additionally, four supporting methods enable precise legal concept retrieval: direct code matching, semantic vector similarity, ontology path reasoning, and lexical segmentation. Through extensive testing, results show major improvements: sensitivity increased by $1 1 . 1 \\% - 1 1 . 3 \\%$ , specificity by $5 . 4 \\% - 6 . 0 \\%$ , and citation accuracy by $2 9 . 5 \\% - 3 9 . 7 \\%$ . As a result, the framework provides better legal analysis and understanding of judicial logic, thus offering a new technical method for intelligent legal assistance systems. ",
+        "bbox": [
+            173,
+            473,
+            826,
+            638
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Keywords Legal dispute analysis $\\cdot$ Prompt engineering $\\cdot$ Multidimensional knowledge graph $\\ast$ Knowledge enhancement $\\ast$ Analysis workflow ",
+        "bbox": [
+            116,
+            654,
+            841,
+            683
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1 Introduction ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            703,
+            251,
+            720
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Legal dispute analysis, as a complex cognitive task, requires legal professionals to systematically analyze conflicting claims and provide judicial solutions. Lai et al. [1] demonstrated through experimental results that these complex factors cause legal professionals to spend $30 \\%$ of their time researching applicable laws and precedents. Recent benchmarks for evaluating legal reasoning capabilities have further highlighted these challenges [2]. While large language models (LLMs) have shown potential in legal knowledge acquisition and reasoning [3], Wu et al. [4] revealed through parameter scale experiments that as models expand from 1 billion to 10 billion parameters, computational resource requirements grow exponentially while performance improvements follow a logarithmic curve, exhibiting diminishing marginal returns. Simultaneously, existing legal language models face key challenges in practical applications, including insufficient depth of legal knowledge representation and limited understanding of specialized legal concepts [5]. Various evaluation frameworks have been proposed to assess factual accuracy and reasoning capabilities of these models [6]. ",
+        "bbox": [
+            114,
+            734,
+            882,
+            875
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "To address these issues, this research proposes a framework for legal dispute analysis that achieves efficient legal reasoning by integrating prompt engineering with multidimensional knowledge graphs. The framework is based on the concept of selective knowledge node retrieval, which maintains or improves reasoning performance while reducing computational costs [7]. Unlike existing legal AI systems, this framework establishes a comprehensive knowledge-enhanced ecological framework supporting legal decision-making through precise dynamic retrieval of legal concepts, multi-level knowledge representation construction, and professional reasoning path prompt application [8]. Professional enhancement strategies can effectively address capability gaps in large language models regarding legal norm application and case analysis [9]. Large language models enhanced with feedback from legal professionals can improve legal reasoning ability, but knowledge expression and reasoning path optimization remain challenging [10]. From a legal practice regulatory perspective, legal AI systems need to balance innovation with standardization to ensure legal professionalism and ethical standards. ",
+        "bbox": [
+            116,
+            90,
+            882,
+            243
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Based on the identified challenges in legal dispute analysis and the design of this framework, this research offers two technical contributions through the integration of prompt engineering and multidimensional knowledge graphs: ",
+        "bbox": [
+            117,
+            250,
+            883,
+            279
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Legal Three-Stage Prompt Engineering Framework: Breaking the limitations of traditional flat-structure prompt engineering, this framework designs a hierarchical prompt framework consisting of task definition, knowledge background, and reasoning guidance components. Professional legal reasoning path templates have been developed for different types of legal disputes, forming structured chains of thought composed of professional analysis steps [11]. Through multi-dimensional evaluation of response quality and dynamic prompt optimization mechanisms, adaptive enhancement is achieved [12]. ",
+        "bbox": [
+            116,
+            284,
+            883,
+            367
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Multidimensional Knowledge Graph and Multidimensional Retrieval Update System: A three-layer architecture knowledge graph including legal classification ontology, legal representation, and legal instance layers has been constructed, enabling precise dynamic retrieval of legal concepts and knowledge timeliness management [13]. Through four complementary matching strategies and legal concept diversity control mechanisms, the model can consider different legal perspectives [14]. Additionally, integration with web search technology forms a comprehensive legal knowledge enhancement ecological framework [15]. ",
+        "bbox": [
+            114,
+            373,
+            882,
+            458
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2 Related Work ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            474,
+            263,
+            492
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2.1 Applications and Challenges of Large Language Models in Legal Dispute Analysis ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            506,
+            723,
+            521
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Large language models face structural deficiencies in professional legal knowledge representation and reasoning capabilities in the field of legal dispute analysis [7, 3]. Although these models are trained on extensive general text corpora, the high specialization of the legal domain, terminological precision, and jurisdictional differences constitute significant knowledge gaps. Experimental results indicate that while large language models demonstrate certain legal reasoning capabilities even in few-shot learning scenarios, their professional depth remains limited [16]. Key challenges facing legal large language models include the high specialization and relative scarcity of legal data, the rapid iteration problem of legal knowledge, and the complexity and multi-layered nature of legal reasoning chains [5]. Recent attempts at enhancing legal LLMs have focused on integrating domain-specific knowledge and improving factual grounding capabilities [17]. ",
+        "bbox": [
+            114,
+            531,
+            882,
+            656
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "To address these challenges, this research constructs an enhanced framework integrating prompt engineering with multidimensional knowledge graphs, achieving efficient legal analysis through precise dynamic retrieval of legal concepts, multi-level knowledge representation construction, and professional reasoning path prompt application, providing novel methodologies for model application in legal dispute analysis [18]. Based on the concept of selective knowledge node retrieval, this framework creates a legal decision knowledge enhancement ecological framework while reducing computational costs and maintaining or improving reasoning performance [19]. This research designs a three-stage hierarchical prompt structure, constructs a three-layer architecture legal knowledge graph, implements precise dynamic retrieval of legal concepts and knowledge timeliness management, and ensures the model considers different legal perspectives [20]. ",
+        "bbox": [
+            116,
+            661,
+            883,
+            787
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2.2 Development of Professional Domain Prompt Engineering ",
+        "text_level": 1,
+        "bbox": [
+            114,
+            801,
+            558,
+            818
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Prompt engineering, as a key technical method for optimizing large language model outputs, has shown application potential in professional domains but faces applicability limitations in the legal field [21, 11]. The \"chain of thought\" prompting method, by guiding models to explicitly demonstrate the reasoning process, has improved accuracy in complex reasoning tasks, but faces numerous challenges in the legal domain: the highly structured nature of legal reasoning, precision requirements of professional terminology, and standard requirements for legal case citations [22]. Existing research indicates that while multi-stage prompt frameworks can optimize legal document generation [23], and structured prompts integrating professional legal knowledge can improve the accuracy of legal judgment prediction [24], there is a lack of systematic prompt optimization methods specifically for legal dispute analysis tasks, particularly integration paths with multidimensional knowledge graphs [25]. ",
+        "bbox": [
+            116,
+            827,
+            883,
+            911
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            116,
+            92,
+            883,
+            133
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "The legal three-stage prompt engineering framework proposed in this research transcends the limitations of traditional prompt engineering’s flat structure, designing a hierarchical structure combining task definition, knowledge background, and reasoning guidance to provide comprehensive guidance for legal reasoning [26]. This research employs a dynamic task identification matching algorithm to precisely map user queries to predefined legal task types; constructs hierarchically structured knowledge backgrounds through legal concept relevance ranking; and provides professional legal reasoning guidance frameworks based on legal reasoning path templates [27]. Simultaneously, it designs a dynamic prompt optimization mechanism, including multi-dimensional response quality assessment and adaptive optimization components, enabling dynamic adjustment and quality improvement of prompts, demonstrating advantages in handling complex legal reasoning and multi-dimensional legal analysis. ",
+        "bbox": [
+            114,
+            140,
+            883,
+            265
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "2.3 Current Status and Challenges of Multidimensional Knowledge Graphs ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            280,
+            651,
+            295
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Multidimensional knowledge graphs, as a core technical foundation for legal knowledge representation and reasoning, face challenges including insufficient knowledge representation granularity, knowledge timeliness issues, and limitations in expressing complex legal relationships [28, 29]. Technical barriers to legal knowledge graph applications mainly focus on professional requirements for knowledge acquisition and representation, and multi-relational legal knowledge graphs also struggle to fully express complex legal arguments and reasoning chains [30]. Recent research indicates that legal knowledge graph construction is transitioning from manual to automated construction [31], but how to achieve collaborative optimization of knowledge graphs and prompt engineering in legal dispute analysis scenarios remains to be resolved. ",
+        "bbox": [
+            116,
+            306,
+            883,
+            416
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "The multidimensional knowledge graph designed in this research incorporates both traditional knowledge graph node and relationship representations and multi-granularity concept retrieval mechanisms [32]. This research constructs a three-layer architecture including legal classification ontology, legal representation, and legal instance layers, achieving comprehensive coverage from abstract legal concepts to specific case applications. This architecture conforms to the hierarchical organizational characteristics of legal knowledge and can accurately express hierarchical relationships between legal concepts. Through four complementary matching strategies including legal norm code matching, this research achieves precise dynamic retrieval of legal concepts, establishes a unified retrieval interface covering authoritative legal data sources, ensures the timeliness and reliability of retrieved information, and improves the accuracy and professionalism of legal dispute analysis [33]. ",
+        "bbox": [
+            114,
+            422,
+            883,
+            549
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3 Key Technical Design and Implementation of the Legal Dispute Analysis Framework ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            566,
+            852,
+            585
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "The legal dispute analysis framework proposed in this research integrates two collaborative core technologies: legal threestage prompt engineering and multidimensional knowledge graph. Through the integration of these two technologies, a comprehensive legal dispute analysis technical ecological framework is formed, enhancing the entire process from legal concept identification and knowledge acquisition to reasoning guidance. The overall architecture of the framework presents a dual-module collaborative system design concept, where the prompt engineering module is responsible for legal reasoning guidance, the knowledge graph module provides legal knowledge support, and the two interact and integrate at multiple levels. ",
+        "bbox": [
+            114,
+            598,
+            883,
+            695
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "As shown in Figure 1, the multidimensional knowledge graph on the left and the three-stage prompt engineering on the right constitute the dual core of the system. When a user inputs a legal dispute query, the system first identifies key legal concepts through the multi-granularity concept retrieval component, while activating the knowledge graph query module to obtain relevant legal knowledge. This knowledge is subsequently integrated by the three-stage prompt engineering module, generating structured prompts containing task definition, knowledge background, and reasoning guidance, ultimately guiding the large language model to generate professional legal responses. Figure 1 illustrates the data flow transmission paths between components, reflecting the complete processing flow from user input to system output, as well as the logical connections between functional modules. This dual-core design implements the integration of knowledge retrieval and reasoning guidance, while ensuring the robustness and adaptability of the system when facing complex legal issues. ",
+        "bbox": [
+            114,
+            702,
+            883,
+            840
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3.1 Legal Three-Stage Prompt Engineering Framework ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            857,
+            514,
+            872
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Traditional prompt engineering methods generally exhibit problems of single structure, lack of professional legal thinking paths, and insufficient reasoning depth. The three-stage prompt engineering framework proposed in this ",
+        "bbox": [
+            114,
+            882,
+            885,
+            911
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Dynamic Prompt Optimization mehaanism for Legal Dispute Diagnosis ",
+        "text_level": 1,
+        "bbox": [
+            261,
+            122,
+            648,
+            161
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "image",
+        "img_path": "images/5d2bee7dfbd9268a2a185beceb831ca7f97aabebfc0a84a9b6b3f0aeededae1b.jpg",
+        "image_caption": [
+            "Figure 1: Overall Architecture of the Legal Dispute Analysis Framework "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            236,
+            171,
+            754,
+            575
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "research transcends the limitations of flat structures, designing a hierarchical structure combining task definition, knowledge background, and reasoning guidance components to effectively guide large language models in professional legal analysis. The effectiveness of structured legal knowledge understanding frameworks has been verified in multiple studies, providing empirical support for the hierarchical prompt structure design of this research. ",
+        "bbox": [
+            114,
+            643,
+            883,
+            700
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3.1.1 Task Definition and Precise Role Positioning Mechanism ",
+        "text_level": 1,
+        "bbox": [
+            114,
+            713,
+            558,
+            729
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "The legal task identification matching algorithm implements precise mapping from queries to professional task templates through multi-dimensional matching mechanisms, with the calculation formula: ",
+        "bbox": [
+            116,
+            737,
+            883,
+            767
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "equation",
+        "img_path": "images/3553a28e03e2b4ca0283f30238665bbfb7c4fca1cbfff32c48e64182ac7ba3c6.jpg",
+        "text": "$$\nM ( Q , T _ { i } ) = \\sum _ { j = 1 } ^ { n } w _ { j } \\cdot { \\frac { Q _ { j } \\cdot T _ { i j } } { | Q _ { j } | \\cdot | T _ { i j } | } } \\cdot \\log \\left( { \\frac { N } { d f _ { j } } } \\right) \\cdot ( 1 + \\alpha \\cdot S p e c T e r m s ( j ) )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            256,
+            787,
+            741,
+            830
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "where $Q$ represents the user’s legal query text, $T _ { i }$ is the predefined $i$ -th legal task template, $n$ is the number of feature dimensions (including legal domain category, question nature, involved legal provisions, etc.), $Q _ { j }$ and $T _ { i j }$ are the representation vectors of the query and template in the $j$ -th feature dimension, $w _ { j }$ is the importance weight of the $j$ -th feature dimension, determined by legal experts using the Delphi method and satisfying the weight normalization condition, $N$ is the total number of legal documents, $d f _ { j }$ is the number of documents containing feature $j , S p e c T e r m s ( j )$ is the number of professional legal terms contained in feature $j$ , and $\\alpha$ is an adjustment parameter. This improved weighting scheme references the principles of the BM25 algorithm from the field of information retrieval. By introducing a term frequency saturation function and document length normalization on the basis of traditional TF-IDF, it is more suitable for handling the characteristics of legal texts, capable of identifying potential legal professional terms in queries and assigning them higher weights. ",
+        "bbox": [
+            114,
+            840,
+            883,
+            912
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            116,
+            90,
+            883,
+            161
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "3.1.2 Legal Knowledge Background Construction Mechanism ",
+        "text_level": 1,
+        "bbox": [
+            114,
+            175,
+            557,
+            190
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Legal knowledge background construction calculates the relevance of legal concepts to queries through multidimensional evaluation, with the formula: ",
+        "bbox": [
+            116,
+            199,
+            883,
+            228
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "equation",
+        "img_path": "images/496ca02f28212fdfbdc1a399cdc1c57c7f9e7e279f7257fc8f5053177de5afb6.jpg",
+        "text": "$$\n\\begin{array} { l } { \\displaystyle { R ( C , Q ) = \\alpha \\cdot \\left[ \\sum _ { t \\in Q \\cap C } I D F ( t ) \\cdot \\left( \\frac { f ( t , C ) \\cdot ( k _ { 1 } + 1 ) } { f ( t , C ) + k _ { 1 } \\cdot ( 1 - b + b \\cdot \\frac { | C | } { a v g d l } ) } \\right) + \\delta \\right] } } \\\\ { + \\beta \\cdot R _ { k g } ( C , Q ) + \\gamma \\cdot R _ { c a s e } ( C , Q ) + \\delta \\cdot R _ { j u r } ( C , Q ) } \\end{array}\n$$",
+        "text_format": "latex",
+        "bbox": [
+            243,
+            252,
+            754,
+            323
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "where $R _ { t e x t } ( C , Q )$ calculates text relevance using the ${ \\bf B } { \\bf M } 2 5 +$ algorithm, $f ( t , C )$ is the frequency of term $t$ in concept $C$ , $| C |$ is the document length of concept $C$ , avgdl is the average concept document length, $k _ { 1 }$ is the term frequency saturation parameter, $b$ is the document length normalization parameter, and $\\delta$ is the long document compensation factor. $R _ { k g } ( C , Q )$ calculates association based on the shortest path length between concept nodes in the knowledge graph, $R _ { c a s e } ( C , Q )$ calculates case law weight based on concept citation statistics in relevant precedents, and $R _ { j u r } ( C , Q )$ measures jurisdictional relevance through the Jaccard similarity coefficient. Weights $\\alpha , \\beta , \\gamma , \\delta$ are determined through Bayesian optimization methods based on historical query data, satisfying the weight normalization condition, implementing multi-dimensional relevance assessment of legal concepts, and providing relevant legal knowledge background for the model. ",
+        "bbox": [
+            116,
+            334,
+            883,
+            460
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "3.1.3 Legal Reasoning Guidance and Professional Path Templates ",
+        "text_level": 1,
+        "bbox": [
+            114,
+            474,
+            583,
+            491
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The legal reasoning guidance framework adopts multi-dimensional assessment of the professional level of responses, including five key dimensions: legal accuracy, content comprehensiveness, citation standardization, logical rigor, and professional expression standardization. Each dimension is assigned different weights, with the final quality score calculated through weighted computation, ensuring generated legal analyses meet professional standards. The assessment standards reference the accuracy dimension in the QUEST assessment framework, focusing on evaluating the consistency of AI system output content with legal authoritative standards. ",
+        "bbox": [
+            116,
+            498,
+            883,
+            583
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Legal accuracy assesses concept accuracy scores; content comprehensiveness measures the coverage of required legal points in the response; citation standardization evaluates the format correctness and reliability of legal citations; logical rigor is assessed through coherence scores between adjacent reasoning steps; professional expression standardization evaluates terminology accuracy, format compliance, and style appropriateness. Weights for each dimension are determined by expert Delphi method and satisfy the weight normalization condition, forming a systematic legal response quality assessment framework to guide large language models in generating legal analyses that meet professional standards. ",
+        "bbox": [
+            116,
+            589,
+            882,
+            685
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "3.1.4 Dynamic Prompt Optimization Mechanism ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            700,
+            467,
+            715
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The dynamic prompt optimization mechanism, as an adaptive component of this framework addressing the complexity of legal dispute analysis, improves legal analysis quality through continuous monitoring and feedback adjustment. This mechanism adopts a closed-loop design concept, transforming assessment feedback into prompt optimization instructions, thereby achieving the system’s adaptive learning capability. During operation, this mechanism exhibits phased characteristics, with initial generation, quality assessment, dynamic adjustment, and regeneration as core links. ",
+        "bbox": [
+            114,
+            724,
+            883,
+            795
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Figure 2 illustrates the workflow of the dynamic prompt optimization mechanism. The process begins with the user’s legal query input, where the system automatically generates an initial legal prompt based on the query content, guiding the large language model to produce preliminary legal analysis. Subsequently, the multi-dimensional response quality assessment module evaluates the generated content and makes quality judgments based on preset thresholds: if the quality meets requirements, the final legal analysis result is output directly; if the quality does not meet standards, an iterative optimization cycle is initiated. In the optimization cycle, the adaptive prompt adjustment module adjusts the prompt structure and content based on quality assessment feedback, while the legal knowledge fusion optimizer provides professional knowledge in combination with the multidimensional knowledge graph, jointly forming an ",
+        "bbox": [
+            114,
+            799,
+            882,
+            911
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Comprehensive Legal Dispute Diagnosis Framework ",
+        "text_level": 1,
+        "bbox": [
+            366,
+            196,
+            625,
+            229
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "image",
+        "img_path": "images/c5a3ecae315989580597b5e87225f02b83b07339565f2ef36be2ac3640598155.jpg",
+        "image_caption": [
+            "Figure 2: Dynamic Prompt Optimization Mechanism Workflow "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            228,
+            232,
+            776,
+            789
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "optimized prompt. The entire process constitutes a closed-loop path of \"assessment-adjustment-fusion-reassessment\" until the generated result meets preset quality standards. This mechanism is particularly applicable to handling complex cases involving intertwined legal concepts, identifying legal reasoning deficiencies in model responses and improving them through prompt optimization, achieving an evolution from \"static prompting\" to \"dynamic dialogue.\" ",
+        "bbox": [
+            114,
+            90,
+            883,
+            147
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "3.2 Design and Implementation of Multidimensional Knowledge Graph ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            162,
+            622,
+            179
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "The complexity of legal domain knowledge representation requires multi-level structural design to cover legal concepts and relationships at different abstraction levels [28]. The multidimensional knowledge graph designed in this research includes both traditional knowledge graph node and relationship representations and multi-granularity concept retrieval mechanisms, capable of dynamically locating relevant legal concepts based on queries. Legal knowledge graphs constructed based on knowledge-enhanced large language models can significantly improve the accuracy and completeness of knowledge representation, providing a reliable knowledge foundation for legal dispute analysis. ",
+        "bbox": [
+            116,
+            189,
+            883,
+            273
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "3.2.1 Three-Layer Architecture Legal Knowledge Graph ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            289,
+            521,
+            304
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "The basic architecture of the legal three-stage prompt engineering framework includes legal classification ontology layer, legal representation layer, and legal instance layer, achieving comprehensive coverage from abstract legal concepts to specific case applications [21]. This three-layer architecture design conforms to the hierarchical organizational characteristics of legal knowledge, differing from traditional flat knowledge graphs, and can accurately express hierarchical relationships between legal concepts. Structured legal prompt frameworks can effectively guide models in systematic legal analysis, especially in identifying legal meanings. The importance of multi-level knowledge representation for legal reasoning has been validated in previous research [32], providing a theoretical foundation for the three-layer architecture design of this research. ",
+        "bbox": [
+            114,
+            313,
+            883,
+            425
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "3.2.2 Multi-Granularity Legal Concept Retrieval Mechanism ",
+        "text_level": 1,
+        "bbox": [
+            114,
+            439,
+            552,
+            455
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "The multi-granularity legal concept retrieval mechanism designed in this research integrates four independent and complementary matching strategies, achieving precise dynamic retrieval of legal concepts. These four strategies independently calculate similarity scores, ultimately forming a comprehensive score through weight fusion, thereby improving the accuracy and professionalism of retrieval. ",
+        "bbox": [
+            114,
+            463,
+            883,
+            520
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "First, the direct matching method based on legal norm coding calculation formula is: ",
+        "bbox": [
+            116,
+            525,
+            669,
+            541
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "equation",
+        "img_path": "images/18857f9be2cd18eca320a9a58539f015272eb1852a2f6c33f9d9247e926ff604.jpg",
+        "text": "$$\nC M ( C , Q ) = { \\boldsymbol { \\gamma } } \\cdot E x a c t M a t c h ( c o d e ( C ) , c o d e ( Q ) ) + ( 1 - { \\boldsymbol { \\gamma } } ) \\cdot P a r t i a l M a t c h ( c o d e ( C ) , c o d e ( Q ) ) + O ( 1 ) )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            165,
+            560,
+            816,
+            579
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "where $c o d e ( C )$ and $c o d e ( Q )$ represent the standardized legal codes (such as law article numbers) of concept $C$ and query $Q$ respectively, the ExactM atch function returns a boolean value for complete matching (1 for match, 0 for no match), the P artialM atch function calculates the degree of partial matching (range [0,1]), and $\\gamma$ is a weight coefficient balancing the importance of complete and partial matching $0 { \\leq } \\gamma { \\leq } 1 \\gamma$ ). ",
+        "bbox": [
+            114,
+            588,
+            883,
+            645
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Second, the similarity calculation formula based on legal domain specialized semantic vectors is: ",
+        "bbox": [
+            116,
+            651,
+            750,
+            666
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "equation",
+        "img_path": "images/bed6bb8ec668c3bdaf43c46493c6d227ac407e11866e8a6dbe3430210f26c5ee.jpg",
+        "text": "$$\nV S ( C , Q ) = \\frac { \\vec { v } _ { C } \\cdot \\vec { v } _ { Q } } { | \\vec { v } _ { C } | \\cdot | \\vec { v } _ { Q } | }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            415,
+            683,
+            581,
+            717
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "where $\\vec { v } _ { C }$ and ${ \\vec { v } } _ { Q }$ are semantic vector representations of concept $C$ and query $Q$ generated through legal domain pre-trained models. This method can capture deeper semantic associations in legal texts, transcending the limitations of surface text matching. ",
+        "bbox": [
+            116,
+            728,
+            885,
+            770
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Third, the path reasoning score calculation formula based on legal ontology relationship graph is: ",
+        "bbox": [
+            114,
+            775,
+            751,
+            791
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "equation",
+        "img_path": "images/ab064233e513bf8fb6edf8df4472cd88caff8cd5ff40dcf0d01a24e00a38eab0.jpg",
+        "text": "$$\nP I ( C , Q ) = \\operatorname* { m a x } _ { \\substack { q \\in c o n c e p t s ( Q ) } } \\left[ \\lambda ^ { d ( C , q ) } \\cdot \\sum _ { r \\in P a t h ( C , q ) } w e i g h t ( r ) \\right]\n$$",
+        "text_format": "latex",
+        "bbox": [
+            294,
+            808,
+            702,
+            858
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "where concepts $( Q )$ is the set of legal concepts identified from query $Q$ , $d ( C , q )$ is the shortest path length from concept $C$ to concept $q$ in the legal ontology graph, $\\lambda$ is the decay factor of path length $( 0 { < } \\lambda { < } 1 )$ , $P a t h ( C , q )$ is the shortest path from $C$ to $q$ , and $w e i g h t ( r )$ is the weight of relation $r$ on the path, reflecting the importance of different relation types. ",
+        "bbox": [
+            116,
+            868,
+            883,
+            912
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Fourth, the term matching score calculation formula based on professional lexical segmentation is: ",
+        "bbox": [
+            112,
+            90,
+            759,
+            107
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "equation",
+        "img_path": "images/70bbddb300fae50e982e7b4fa960f88826074e10da7f605dce7bbbb5d5b65ce9.jpg",
+        "text": "$$\nT M ( C , Q ) = \\frac { \\sum _ { t \\in t e r m s ( C ) } w _ { t } \\cdot M a t c h ( t , Q ) \\cdot I L T ( t ) } { \\sum _ { t \\in t e r m s ( C ) } w _ { t } }\n$$",
+        "text_format": "latex",
+        "bbox": [
+            312,
+            121,
+            684,
+            162
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "where terms $( C )$ is the set of professional legal terms extracted from concept $C$ , $w _ { t }$ is the importance weight of term $t$ , $M a t c h ( t , Q )$ is the matching degree of term $t$ with query $Q$ , with the calculation formula: ",
+        "bbox": [
+            116,
+            171,
+            888,
+            202
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "equation",
+        "img_path": "images/439d2e97a89fdb7f67f16088c01206cf7d036e2f95c235e71b90c23fa25b5198.jpg",
+        "text": "$$\nM a t c h ( t , Q ) = \\alpha _ { 1 } \\cdot E x a c t M a t c h ( t , Q ) + \\alpha _ { 2 } \\cdot S t e m M a t c h ( t , Q ) + \\alpha _ { 3 } \\cdot S e m S i m ( t , Q )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            197,
+            219,
+            799,
+            238
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "where $E x a c t M a t c h ( t , Q )$ is the exact matching score, StemM atch $( t , Q )$ is the stem matching score, $S e m S i m ( t , Q )$ is the semantic similarity score, and $\\alpha _ { 1 } , \\alpha _ { 2 }$ , and $\\alpha _ { 3 }$ are weight coefficients satisfying $\\alpha _ { 1 } + \\alpha _ { 2 } + \\alpha _ { 3 } = 1$ . ",
+        "bbox": [
+            117,
+            247,
+            893,
+            277
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "The legal professional weight $I L T ( t )$ of the term is calculated as: ",
+        "bbox": [
+            114,
+            281,
+            545,
+            297
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "equation",
+        "img_path": "images/169a00affa312dd45c92346918aaecfe6e1cba6e437fdfb978dc338373d68bc1.jpg",
+        "text": "$$\nI L T ( t ) = \\log \\left( \\frac { f r e q ( t , l e g a l ) + \\sigma } { f r e q ( t , g e n e r a l ) + \\sigma } \\right) \\cdot J u r S c o p e ( t )\n$$",
+        "text_format": "latex",
+        "bbox": [
+            313,
+            314,
+            684,
+            348
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "where $f r e q ( t , l e g a l )$ is the frequency of term $t$ in the legal corpus, $f r e q ( t , g e n e r a l )$ is the frequency in the general corpus, $\\sigma$ is a smoothing factor, and $J u r S c o p e ( t )$ is the judicial application scope coefficient of term $t$ . ",
+        "bbox": [
+            119,
+            358,
+            885,
+            388
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Ultimately, this research adopts a weighted fusion method to integrate the scoring results of four independent strategies, forming a comprehensive score for legal concepts. The fusion process considers the relative importance of each matching strategy in different legal application scenarios, optimizing weight allocation through machine learning methods, ensuring the sum of weights is 1. This multi-strategy fusion mechanism utilizes the structured characteristics and semantic associations of legal texts, capable of precisely identifying legal concepts relevant to queries, providing a reliable knowledge foundation for legal dispute analysis. The system ranks retrieved legal concepts based on comprehensive score results, prioritizing the most relevant content for users, thereby improving the accuracy and professionalism of legal analysis. ",
+        "bbox": [
+            116,
+            393,
+            883,
+            505
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "3.2.3 Integration of Knowledge Graph and Web Search ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            520,
+            511,
+            535
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "The timeliness issue of legal knowledge is a critical technical challenge facing legal large language models, as traditional static knowledge representation struggles to adapt to frequent updates of laws and regulations and the dynamic evolution of judicial interpretations [29]. This framework constructs a multi-source heterogeneous legal knowledge integration mechanism, implementing the coupling of multidimensional knowledge graphs with professional legal web searches. Legal knowledge graphs, as an intermediate layer between users and large language models, can enhance the legal correctness and citation standardization of model answers. ",
+        "bbox": [
+            116,
+            542,
+            883,
+            627
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "This mechanism first establishes a unified retrieval interface covering authoritative legal data sources, ensuring retrieved legal information meets timeliness requirements through three mechanisms: jurisdictional identification, legal concept timeliness marking, and change tracking; second, it develops a legal authority assessment model, calculating authority scores based on legal source type, publishing institution hierarchy, and citation frequency, prioritizing high-authority information; finally, it implements semantic fusion of knowledge graph and dynamic retrieval results, forming a legal knowledge service system that both maintains the advantages of structured representation and has real-time update capabilities. ",
+        "bbox": [
+            116,
+            632,
+            882,
+            731
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "3.3 System Integration and Collaborative Working Mechanism ",
+        "text_level": 1,
+        "bbox": [
+            114,
+            746,
+            565,
+            762
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "The legal dispute analysis framework constructed in this research implements the integration of multidimensional knowledge graphs with prompt engineering, forming a closed-loop feedback system [10]. From a system architecture perspective, the workflow shown in Figure 1 embodies a complete information processing chain: first, the legal query input by the user undergoes preliminary analysis, and the system identifies key legal issues therein; subsequently, the system activates two parallel processing paths—the prompt engineering path and the knowledge processing path. The prompt path is responsible for constructing structured prompts including task definition and reasoning guidance levels, while the knowledge path provides professional legal knowledge support through a three-layer knowledge graph, concept retrieval, and quality assessment components. The processing results of these two paths converge at the fusion stage, jointly constituting enhanced legal prompts that guide the large language model to generate preliminary legal analysis. The system also designs a quality feedback mechanism, triggering an iterative optimization cycle including prompt optimization and knowledge fusion dimensions when analysis quality does not meet preset standards, ultimately outputting professional legal analysis results. This closed-loop design of \"input-analysis-enhancementgeneration-assessment-optimization-output\" significantly improves the overall efficiency of legal dispute analysis, achieving collaborative enhancement effects of knowledge retrieval technology and prompt engineering, providing robust technical support for intelligent analysis of complex legal issues [27]. ",
+        "bbox": [
+            116,
+            772,
+            882,
+            911
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            114,
+            90,
+            883,
+            161
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "4 Experiments and Evaluation of Legal Dispute Analysis ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            179,
+            602,
+            198
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "4.1 Experimental Setup ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            210,
+            294,
+            227
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "To evaluate the framework proposed in this research, the COLIEE legal question answering dataset and classic legal cases from important courts in multiple countries were selected as evaluation benchmarks. These precedents cover multiple legal domains including intellectual property, contract law, and tort law, from which 100 pairs of question-answer pairs related to legal disputes were randomly selected as the test set [34]. The experiment employed two representative large language models, DeepSeek-R1-Distill-Qwen-32B and Qwen/QwQ-32B, with three control configurations designed: ",
+        "bbox": [
+            116,
+            236,
+            882,
+            306
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "1. Baseline Configuration (Baseline): Original models without any legal knowledge enhancement mechanisms;   \n2. Traditional Configuration (Traditional): Applying basic legal knowledge graphs and traditional singledimension retrieval mechanisms;   \n3. Complete Configuration (Complete): The complete framework including three-stage prompt engineering and multidimensional knowledge graphs. ",
+        "bbox": [
+            151,
+            319,
+            883,
+            398
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "The LexGLUE English Legal Language Understanding Benchmark provides standardized evaluation methods, and the cross-jurisdictional legal judgment prediction benchmark enhances the diversity of evaluation [35], jointly constituting the methodological foundation for the experimental evaluation of this research. ",
+        "bbox": [
+            117,
+            411,
+            883,
+            453
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "All experiments were conducted in computing environments with identical configurations, using NVIDIA A100 (40GB) GPUs, to ensure the fairness and comparability of experimental results. ",
+        "bbox": [
+            117,
+            459,
+            877,
+            488
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "4.2 Experimental Results and Analysis ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            503,
+            397,
+            518
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "4.2.1 BLEU and ROUGE Metric Evaluation ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            529,
+            436,
+            544
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "This experiment uses BLEU and ROUGE metrics to evaluate the quality of texts generated under different configurations. BLEU (Bilingual Evaluation Underresearch) evaluates the n-gram matching degree between generated text and reference text based on precision, including BLEU-1 (word level), BLEU-2 (word pair level), and BLEU-L (longest common subsequence). ROUGE (Recall-Oriented Underresearch for Gisting Evaluation) evaluates the matching degree between generated text and reference text based on recall, including ROUGE-1, ROUGE-2, and ROUGE-L metrics. The experiment compares the generated answers for each set of legal questions with standard answers provided by legal experts, calculating average scores for each metric. ",
+        "bbox": [
+            114,
+            553,
+            883,
+            650
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "table",
+        "img_path": "images/71557918a32eac6330715fdc8703505b4320f7311e606b87937c0fbf14ce67ee.jpg",
+        "table_caption": [
+            "Table 1: Model Performance Comparison on BLEU and ROUGE Metrics "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Metric</td><td colspan=\"3\">DeepSeek-R1-Distill-Qwen-32B</td><td colspan=\"3\">Qwen/QwQ-32B</td></tr><tr><td>Baseline</td><td>Traditional</td><td>Complete</td><td>Baseline</td><td>Traditional</td><td>Complete</td></tr><tr><td>BLEU-1</td><td>0.2409</td><td>0.1124</td><td>0.2607</td><td>0.2306</td><td>0.1730</td><td>0.3998</td></tr><tr><td>BLEU-2</td><td>0.1351</td><td>0.0660</td><td>0.1474</td><td>0.1204</td><td>0.1025</td><td>0.2432</td></tr><tr><td>BLEU-L</td><td>0.1715</td><td>0.1678</td><td>0.1796</td><td>0.1893</td><td>0.1390</td><td>0.2129</td></tr><tr><td>ROUGE-1</td><td>0.2779</td><td>0.1713</td><td>0.2781</td><td>0.2705</td><td>0.2631</td><td>0.3592</td></tr><tr><td>ROUGE-2</td><td>0.0779</td><td>0.0657</td><td>0.0862</td><td>0.0823</td><td>0.0835</td><td>0.1369</td></tr><tr><td>ROUGE-L</td><td>0.2306</td><td>0.2497</td><td>0.2699</td><td>0.2432</td><td>0.2398</td><td>0.3254</td></tr></table>",
+        "bbox": [
+            114,
+            686,
+            882,
+            842
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Analysis of the data in Table 1 indicates that traditional configuration scores on BLEU and ROUGE metrics are generally lower than baseline configuration, such as DeepSeek-R1-Distill-Qwen-32B model’s BLEU-1 decreasing from baseline’s 0.2409 to 0.1124 (a $5 3 . 3 \\%$ decrease), and ROUGE-1 from 0.2779 to 0.1713 (a $3 8 . 4 \\%$ decrease). This phenomenon verifies the limitations of single prompt methods—they emphasize format standardization and citation precision but limit the model’s ability to generate multi-angle, multi-level legal reasoning. In contrast, complete configuration outperforms baseline configuration on all metrics, such as Qwen/QwQ-32B model’s BLEU-1 increasing from baseline’s 0.2306 to 0.3998 (a $7 3 . 4 \\%$ increase), and ROUGE-2 from 0.0823 to 0.1369 (a $6 6 . 3 \\%$ increase), indicating that the three-stage prompt structure provides the model with sufficient thinking space and analytical perspectives, enabling it to achieve deeper legal reasoning while maintaining professional format, resulting in a higher matching degree between generated text and legal expert standard answers. ",
+        "bbox": [
+            114,
+            856,
+            882,
+            911
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            116,
+            90,
+            882,
+            174
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "4.2.2 Key Legal Performance Indicator Evaluation ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            189,
+            480,
+            204
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "This experiment uses three indicators—sensitivity, specificity, and precision—to evaluate model performance on legal judgment tasks. Sensitivity measures the model’s ability to correctly identify legally relevant issues, calculated as true positives/(true positives $^ +$ false negatives); specificity measures the model’s ability to correctly exclude irrelevant issues, calculated as true negatives/(true negatives $^ +$ false positives); precision measures the proportion of actually relevant issues among issues judged by the model to be relevant, calculated as true positives/(true positives $^ +$ false positives). The test samples in this research were annotated by three senior legal experts as the standard for evaluation. ",
+        "bbox": [
+            114,
+            213,
+            883,
+            296
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "table",
+        "img_path": "images/bb0a81c0fb5f1ff438583889047d6983fee80c37a05c76cb82f32e8934318bab.jpg",
+        "table_caption": [
+            "Table 2: Evaluation of Legal Large Language Models on Key Performance Indicators "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Indicator</td><td colspan=\"3\">DeepSeek-R1-Distill-Qwen-32B</td><td colspan=\"3\">Qwen/QwQ-32B</td></tr><tr><td>Baseline</td><td>Traditional</td><td>Complete</td><td>Baseline</td><td>Traditional</td><td>Complete</td></tr><tr><td>Sensitivity</td><td>0.6201</td><td>0.5867</td><td>0.6892</td><td>0.6546</td><td>0.6319</td><td>0.7285</td></tr><tr><td>Specificity</td><td>0.7841</td><td>0.7532</td><td>0.8266</td><td>0.8062</td><td>0.7834</td><td>0.8547</td></tr><tr><td>Precision</td><td>0.6041</td><td>0.5638</td><td>0.6566</td><td>0.6262</td><td>0.6018</td><td>0.7047</td></tr></table>",
+        "bbox": [
+            114,
+            333,
+            882,
+            439
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "The experimental results in Table 2 reveal performance differences among different configurations in legal judgment tasks. Traditional configuration scores on all three key indicators are lower than baseline configuration, such as DeepSeek-R1-Distill-Qwen-32B model’s sensitivity decreasing from 0.6201 to 0.5867 (a $5 . 4 \\%$ decrease), specificity from 0.7841 to 0.7532 (a $3 . 9 \\%$ decrease), and precision from 0.6041 to 0.5638 (a $6 . 7 \\%$ decrease). This performance decline confirms the structural limitations of single prompts, which emphasize direct citation of legal provisions and precedents while neglecting in-depth consideration of complex relationships between legal concepts and consideration of different legal perspectives. This tendency limits the model’s judgment ability when facing cases with unclear legal boundaries and complex disputes. In contrast, complete configuration achieves significant improvements on all indicators, such as Qwen/QwQ-32B model’s sensitivity increasing from baseline’s 0.6546 to 0.7285 (an $1 1 . 3 \\%$ increase), indicating that the three-stage prompt structure and legal reasoning path templates provide the model with an analysis framework combining structured guidance with flexibility, enhancing its judgment ability in complex legal contexts. ",
+        "bbox": [
+            114,
+            453,
+            883,
+            618
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "4.2.3 Legal Content Evaluation Dimension Analysis ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            633,
+            486,
+            648
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "This experiment evaluates the quality of legal content generated by models from three dimensions: citation accuracy, reasoning rationality, and conclusion reliability. Citation accuracy measures the accuracy of model citations of legal provisions and precedents; reasoning rationality evaluates the logic and rationality of model legal reasoning; conclusion reliability measures the reliability of model conclusions. The evaluation adopts a 0-1 scoring standard, with scores averaged after independent scoring by five legal experts, ensuring the objectivity and accuracy of the evaluation. ",
+        "bbox": [
+            116,
+            657,
+            882,
+            727
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "table",
+        "img_path": "images/a2c1a4a9c192b4529410f4a05c1ae39c236c7642b0b03393b6248512393b2262.jpg",
+        "table_caption": [
+            "Table 3: Performance of Legal Large Language Models on Legal Content Evaluation Dimensions "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Dimension</td><td colspan=\"3\">DeepSeek-R1-Distill-Qwen-32B</td><td colspan=\"3\">Qwen/QwQ-32B</td></tr><tr><td>Baseline</td><td>Traditional</td><td>Complete</td><td>Baseline</td><td>Traditional</td><td>Complete</td></tr><tr><td>Citation Accuracy</td><td>0.58</td><td>0.71</td><td>0.81</td><td>0.61</td><td>0.69</td><td>0.79</td></tr><tr><td>Reasoning Rationality</td><td>0.64</td><td>0.59</td><td>0.77</td><td>0.67</td><td>0.61</td><td>0.81</td></tr><tr><td>Conclusion Reliability</td><td>0.66</td><td>0.57</td><td>0.84</td><td>0.70</td><td>0.62</td><td>0.86</td></tr></table>",
+        "bbox": [
+            114,
+            765,
+            882,
+            869
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "The legal content quality evaluation results presented in Table 3 reveal an important observation: traditional configuration shows improvement in citation accuracy, such as DeepSeek-R1-Distill-Qwen-32B model increasing from baseline’s ",
+        "bbox": [
+            114,
+            883,
+            883,
+            911
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "0.58 to 0.71 (a $2 2 . 4 \\%$ increase), but decreases in reasoning rationality and conclusion reliability, with reasoning rationality decreasing from 0.64 to 0.59 (a $7 . 8 \\%$ decrease) and conclusion reliability from 0.66 to 0.57 (a $1 3 . 6 \\%$ decrease). This \"strong citation, weak reasoning\" performance distribution validates this research’s hypothesis: single prompts emphasize format standardization and citation completeness, causing models to tend toward \"knowledge stacking\" rather than \"knowledge fusion,\" while lacking clear guidance for legal reasoning paths, hindering models from establishing complete legal analysis frameworks. In contrast, complete configuration achieves improvements in all three dimensions, such as Qwen/QwQ-32B model’s citation accuracy increasing from baseline’s 0.61 to 0.79 (a $2 9 . 5 \\%$ increase), indicating that the three-stage prompt structure achieves a transition from \"simple application\" to \"comprehensive integration,\" integrating legal knowledge acquisition and reasoning path guidance, enabling the model to conduct legal analysis and conclusion inference while maintaining citation precision, providing more comprehensive intelligent assistance for legal dispute analysis. ",
+        "bbox": [
+            116,
+            90,
+            882,
+            243
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "4.2.4 Case Research Analysis: Liebeck v. McDonald’s Hot Coffee Burn Case ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            257,
+            656,
+            272
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "To verify the effectiveness of the framework proposed in this research in handling actual legal cases, the famous Liebeck v. McDonald’s hot coffee burn case was selected as a typical test case. This case involves multiple complex legal issues such as liability determination, compensation calculation, and judicial discretion, making it an appropriate sample for evaluating the depth of legal analysis. The three configurations demonstrated different analytical capabilities when handling this case, with their differences presented in Figure 3. ",
+        "bbox": [
+            116,
+            281,
+            882,
+            352
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "The comparative analysis shown in Figure 3 demonstrates the capability differences among the three configurations when handling the Liebeck v. McDonald’s hot coffee burn case. The baseline configuration’s response is limited to basic facts and simple data presentation, providing compensation amount information $\\$ 200,000$ compensatory damages and $\\$ 2.7$ million punitive damages, later reduced by the judge to $\\$ 480,000$ ), but lacking elaboration on legal principles and reasoning processes. The traditional configuration builds on the baseline by adding liability distribution ratios (McDonald’s $80 \\%$ responsibility, Liebeck $20 \\%$ responsibility) and contextualizing the punitive damages amount (equivalent to McDonald’s two-day coffee sales), but still does not deeply analyze the legal logic chain. In contrast, the complete configuration provides comprehensive legal analysis, covering the specific application mechanisms of comparative negligence principles, legal basis for the 1:1 compensation ratio principle, inferential value of key evidence (over 700 complaint records and coffee temperature data), procedural evolution of case resolution methods, and related constitutional controversy issues. From a legal analysis structural perspective, the complete configuration’s response closely resembles the classic IRAC (Issue, Rule, Analysis, Conclusion) analysis framework in Anglo-American legal memoranda; from a content depth perspective, it reveals the critical role of customary evidence in the jury’s \"reflective balancing\" decision-making process, and the case’s evolution trajectory from \"first-order results\" (specific rulings) to \"second-order results\" (case law influence). Legal expert evaluation confirms that the complete configuration not only provides more accurate legal application analysis but also demonstrates a nuanced grasp of judicial decision-making logic, validating the effectiveness and adaptability of this research’s three-stage prompt structure and multidimensional knowledge graph fusion framework in handling complex legal cases. ",
+        "bbox": [
+            114,
+            358,
+            882,
+            607
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Legal Large Language Model Case Analysis Comparison ",
+        "text_level": 1,
+        "bbox": [
+            207,
+            118,
+            790,
+            140
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Baseline Version vs. Traditional Version vs. Complete Version ",
+        "bbox": [
+            290,
+            146,
+            710,
+            162
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Case: \"In the Liebeck v. McDonald's Restaurants hot coffee burn case, how did the jury determine the damage amount? How did the judge later modify this ruling?\" ",
+        "bbox": [
+            140,
+            185,
+            800,
+            223
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Baseline Version Answer: ",
+        "bbox": [
+            150,
+            234,
+            325,
+            250
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Traditional Version Answer: ",
+        "text_level": 1,
+        "bbox": [
+            516,
+            234,
+            700,
+            250
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "\"The plaintiff, Stella Liebeck, a 79-year-old woman, purchased coffee from a McDonald's drive-thru. After placing the cup between her knees to add cream and sugar, the coffee spilled, resulting in third-degree burns on her thighs and genital area. The case went to trial, where the jury awarded $\\$ 200,000$ in compensatory damages and $\\$ 2.7$ million in punitive damages. However, the judge later reduced the punitive damages to $\\$ 480,000$ .\" ",
+        "bbox": [
+            148,
+            257,
+            480,
+            395
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "\"In the Liebeck v. McDonald's Restaurants hot coffee burn case, the jury determined damages by finding McDonald's $80 \\%$ liable and Stella Liebeck $20 \\%$ liable. The jury awarded Liebeck $\\$ 2.7$ million in punitive damages (equivalent to about two days of McDonald's coffee sales) and $\\$ 160,000$ in compensatory damages for her severe burns. The judge later modified this ruling by reducing the punitive damages to $\\$ 480,000$ , bringing the total award to $\\$ 640,000$ , which was approximately three times the compensatory damages.\" ",
+        "bbox": [
+            514,
+            257,
+            848,
+            410
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Complete Version Answer: ",
+        "bbox": [
+            150,
+            436,
+            331,
+            452
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "\"Liebeck v McDonald's Restaurants was a personal injury case where a79-year-old woman suffered thirddegree burns from McDonald's coffee. The jury awarded $\\$ 200,000$ in compensatory damages (reduced to $\\$ 160,000$ due to $20 \\%$ comparative negligence) and $\\$ 2.7$ million in punitive damages. The judge later reduced the punitive damages to $\\$ 480,000$ , maintaining a 1:1 ratio with compensatory damages. Key factors in the jury's decision included McDonald's knowledge of $70 0 +$ prior complaints, their coffee temperature $1 8 0 - 1 9 0 ^ { \\circ } \\mathsf { F } ,$ , much hotter than home-brewed coffee at $1 3 5 { - } 1 4 0 ^ { \\circ } \\mathsf { F }$ ) and the company's failure to warn consumers despite awareness of the risk.The case ultimately settled for an undisclosed amount before appeal, avoiding a ruling on punitive damages' constitutionality.\" ",
+        "bbox": [
+            148,
+            459,
+            848,
+            568
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Expert Evaluation: ",
+        "text_level": 1,
+        "bbox": [
+            150,
+            595,
+            267,
+            609
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "The three versions demonstrate different levels of depth in legal analysis: ",
+        "bbox": [
+            150,
+            614,
+            550,
+            627
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "BVr apah TalVlalizi equivalent to two days of McDonald's coffee sales. ",
+        "bbox": [
+            165,
+            632,
+            833,
+            674
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Complete Version: Offers the most comprehensive explanation by including: ",
+        "bbox": [
+            166,
+            676,
+            593,
+            688
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "The specific application of comparative negligence principles The judge's 1:1 ratio reasoning for reducing punitive damages (ey evidence that influenced the jury's decision (prior complaints, temperature data) The ultimate resolution (settlement before appeal) The constitutional questions that remained unanswered ",
+        "bbox": [
+            192,
+            693,
+            643,
+            762
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "providing a more nuanced analysis of how damages were determined in this landmark product liability case. ",
+        "bbox": [
+            142,
+            770,
+            841,
+            797
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "image",
+        "img_path": "images/de887f28a3fd705471a89ed9e3c87bd56642ad9bd5e8c2ecfc31c101786de92e.jpg",
+        "image_caption": [
+            "Figure 3: Legal Large Language Model Case Analysis Comparison: Baseline Version vs. Traditional Version vs. Complete Version "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            120,
+            811,
+            882,
+            856
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "4.3 Manual Evaluation Results of Legal Dispute Analysis ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            90,
+            524,
+            106
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "In the manual evaluation stage, this research adopted the QUEST framework evaluation indicators, including information quality, understanding and reasoning, expression style and role, safety and harm, and trust and confidence, with each dimension using a 1-5 scoring standard. The evaluation was independently completed by 10 legal domain experts (including law professors, senior judges, and practicing lawyers), providing a comprehensive evaluation of 30 typical legal dispute cases, with the average score for each dimension as the final score. ",
+        "bbox": [
+            114,
+            116,
+            882,
+            185
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "table",
+        "img_path": "images/54b49d16adc41dade81185bb2b55068baba92d8964b8bbd7b0a222f42993296a.jpg",
+        "table_caption": [
+            "Table 4: Model Scores on Legal QUEST Framework Evaluation Indicators (1-5 points) "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Indicator</td><td colspan=\"3\">DeepSeek-R1-Distill-Qwen-32B</td><td colspan=\"3\">Qwen/QwQ-32B</td></tr><tr><td>Baseline</td><td>Traditional</td><td>Complete</td><td>Baseline</td><td>Traditional</td><td>Complete</td></tr><tr><td>Information Quality</td><td>3.6</td><td>3.2</td><td>4.1</td><td>4.1</td><td>3.7</td><td>4.4</td></tr><tr><td>Understanding &amp; Reasoning</td><td>3.3</td><td>2.9</td><td>3.8</td><td>4.0</td><td>3.6</td><td>4.4</td></tr><tr><td>Expression Style &amp; Role</td><td>3.8</td><td>3.4</td><td>4.2</td><td>4.2</td><td>3.9</td><td>4.5</td></tr><tr><td>Safety &amp; Harm</td><td>4.0</td><td>3.6</td><td>4.5</td><td>4.3</td><td>4.0</td><td>4.6</td></tr><tr><td>Trust &amp; Confidence</td><td>3.5</td><td>3.0</td><td>4.0</td><td>4.0</td><td>3.5</td><td>4.5</td></tr></table>",
+        "bbox": [
+            114,
+            223,
+            882,
+            361
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "The manual evaluation results presented in Table 4 further confirm the limitations of single prompt methods in legal dispute analysis tasks. Traditional configuration performs lower on all QUEST evaluation dimensions, such as DeepSeek-R1-Distill-Qwen-32B model scoring 2.9 in the \"Understanding & Reasoning\" dimension ( $1 2 . 1 \\%$ lower than baseline) and 3.0 in the \"Trust & Confidence\" dimension ( $1 4 . 3 \\%$ lower than baseline), indicating that single prompts limit the depth and reliability of model legal reasoning, resulting in reduced trust from legal experts in system outputs. Legal expert evaluation points out that content generated by traditional configuration, while containing legal terminology and citations, presents a \"superficially professional, substantively shallow\" characteristic when solving actual legal problems, with the limitations of single prompts emphasizing knowledge acquisition while neglecting reasoning guidance becoming more apparent in complex legal dispute cases. In contrast, complete configuration achieves significant improvements in all evaluation dimensions, demonstrating the advantages of the three-stage prompt engineering and multidimensional knowledge graph fusion framework, achieving a transition from \"legal knowledge application\" to \"legal wisdom expression,\" with generated content that is not only professionally accurate but also possesses sophisticated legal reasoning and perspective consideration, enhancing legal experts’ recognition of artificial intelligence systems in legal dispute analysis. ",
+        "bbox": [
+            114,
+            375,
+            883,
+            568
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "5 Conclusion ",
+        "text_level": 1,
+        "bbox": [
+            116,
+            587,
+            240,
+            604
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "This research proposes an enhanced framework for legal dispute analysis that integrates prompt engineering with multidimensional knowledge graphs to address fundamental limitations in legal language models. The framework establishes a three-stage hierarchical prompt structure (comprising task definition, knowledge background, and reasoning guidance components) that works synergistically with a three-layer knowledge graph architecture to form a closed-loop system for legal analysis. Experimental validation confirms the framework’s effectiveness across multiple dimensions, with the complete configuration demonstrating improvements in both automated metrics and expert evaluations. The framework achieves enhanced text generation quality, superior legal judgment capabilities (with sensitivity increasing by $7 . 3 \\mathrm { - } 1 1 . 3 \\%$ , specificity by $5 . 4 \\substack { - 6 . 0 \\% }$ , and precision by $8 . 7 \\substack { - 1 2 . 5 \\% } )$ ), as well as higher quality legal content in terms of citation accuracy, reasoning rationality, and conclusion reliability. ",
+        "bbox": [
+            114,
+            617,
+            883,
+            743
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Future research will expand this framework in three primary directions to accommodate broader legal application scenarios. First, cross-language legal dispute analysis capabilities will be developed to address multinational legal applications and jurisdictional differences. Second, integration of multimodal legal evidence analysis will enhance the system’s ability to process diverse documentation formats, including visual and audio evidence. Finally, improving legal reasoning explainability will increase the transparency and trustworthiness of the system’s analytical processes, potentially addressing artificial intelligence accountability concerns in legal contexts. ",
+        "bbox": [
+            116,
+            748,
+            883,
+            833
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Acknowledgments ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            852,
+            269,
+            869
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "This work was supported by the Special Fund for the Central Government to Guide Local Science (Grant No. 202407AB110003), the Key Research and Development Program of Yunnan Province (Grant No. 202402AA310056), the National Natural Science Foundation of China (Grant No. 62366057), and the Scientific Research Fund Project of the Yunnan Provincial Department of Education (Grant No. 2024J0024). ",
+        "bbox": [
+            116,
+            882,
+            883,
+            911
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            117,
+            90,
+            883,
+            119
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "References [1] Lai, J., Gan, W., Wu, J., et al.: Large Language Models in Law: A Survey. Information 15(2), 98–117 (2023). doi:10.3390/info15020098   \n[2] Guha, N., Nyarko, J., Ho, D.E., et al.: LegalBench: A Collaboratively Built Benchmark for Measuring Legal Reasoning in Large Language Models. Proceedings of the Conference on Neural Information Processing Systems, pp. 44123–44279 (2023). doi:10.5555/3666122.3668037   \n[3] Brown, T., Mann, B., Ryder, N., et al.: Language Models are Few-Shot Learners. Advances in Neural Information Processing Systems 33, 1877–1901 (2020). doi:10.5555/3495724.3495883   \n[4] Wu, Y., Zhou, S., Liu, Y., et al.: Precedent-Enhanced Legal Judgment Prediction with LLM and Domain-Model Collaboration. In: Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing, pp. 12060–12075 (2023). doi:10.18653/v1/2023.emnlp-main.740   \n[5] Wang, Y., Zhang, Z., Wang, H., et al.: A Survey on Evaluation of Large Language Models. ACM Transactions on Intelligent Systems and Technology 15(2), 1–43 (2024). doi:10.1145/3641289 [6] Glanzer, P., Winter, F., Schwaiger, R., et al.: FACTS Grounding: A New Benchmark for Evaluating the Factuality of Large Language Models. In: Proceedings of the 2023 Conference on Neural Information Processing Systems, pp. 26583–26597 (2023). doi:10.48550/arXiv.2311.08401 [7] Lai, J., Gan, W., Wu, J., et al.: Large Language Models in Law: A Survey. Information 15(2), 98–117 (2023). doi:10.3390/info15020098   \n[8] Zhu, T., Zeng, M., Cai, C., et al.: Intelligent Legal Document Generation System and Method Based on Knowledge Graph. In: Proceedings of the 2024 International Conference on Machine Intelligence and Digital Applications, pp. 164–168 (2024). doi:10.1145/3662739.3669909 [9] Zubaer, A.A., Granitzer, M., Mitrovic, J.: Performance analysis of large language models in the domain of legal ´ argument mining. Frontiers in Artificial Intelligence 6 (2023). doi:10.3389/frai.2023.1278796   \n[10] Sun, Z., Li, J., Wang, M., et al.: BetterLegal: A Comprehensive Approach to Enhancing Legal Knowledge in Large Language Models by Feedback from Legal Professionals. arXiv preprint arXiv:2311.15735 (2023). doi:10.48550/arXiv.2311.15735   \n[11] Wei, J., Wang, X., Schuurmans, D., et al.: Chain-of-Thought Prompting Elicits Reasoning in Large Language Models. Advances in Neural Information Processing Systems 35, 24824–24837 (2022). doi:10.5555/3600270.3602070   \n[12] Mumford, J., Atkinson, K., Bench-Capon, T.: Combining a Legal Knowledge Model with Machine Learning for Reasoning with Legal Cases. In: Proceedings of the Nineteenth International Conference on Artificial Intelligence and Law, pp. 224–233 (2023). doi:10.1145/3594536.3595158   \n[13] Hogan, A., Blomqvist, E., Cochez, M., et al.: Knowledge Graphs. ACM Computing Surveys 54(4), 1–37 (2021). doi:10.1145/3447772   \n[14] Li, L., Fan, Y., Tong, M., et al.: Text-guided Legal Knowledge Graph Reasoning. arXiv preprint arXiv:2104.02284 (2021). doi:10.48550/arXiv.2104.02284   \n[15] Wan, R., Zhang, J., Yang, L., et al.: A Method for Judicial Case Knowledge Graph Construction Based on Event Extraction. In: Proceedings of the 2024 9th International Conference on Intelligent Information Technology, pp. 156–162 (2024). doi:10.1145/3654522.3654533   \n[16] Choi, J.H.: How to Use Large Language Models for Empirical Legal Research. Journal of Institutional and Theoretical Economics (2023). doi:10.2139/ssrn.4536852   \n[17] Shi, J., Guo, Q., Liao, Y., et al.: Legal-LM: Knowledge Graph Enhanced Large Language Models for Law Consulting. In: Huang, D.S., Si, Z., Zhang, C. (eds.) Advanced Intelligent Computing Technology and Applications, pp. 138–149. Springer Nature Singapore (2024). doi:10.1007/978-981-97-5672-8_15   \n[18] Guha, N., Nyarko, J., Ho, D.E., et al.: LegalBench: A Collaboratively Built Benchmark for Measuring Legal Reasoning in Large Language Models. arXiv preprint arXiv:2308.11462 (2023). doi:10.48550/arXiv.2308.11462   \n[19] Dhani, J.S., Nimbal, P.K., Yashwanth, C.S.J., et al.: Similar Cases Recommendation using Legal Knowledge Graphs. arXiv preprint arXiv:2107.04771 (2021). doi:10.48550/arXiv.2107.04771   \n[20] Jayakumar, T., Farooqui, F., Farooqui, L.: Large Language Models are legal but they are not: Making the case for a powerful LegalLLM. In: Proceedings of the Natural Legal Language Processing Workshop, pp. 223–229 (2023). doi:10.18653/v1/2023.nllp-1.22   \n[21] Chen, B., Xu, H., Xiao, Z., et al.: Unleashing the potential of prompt engineering in Large Language Models: a comprehensive review. arXiv preprint arXiv:2310.14735 (2023). doi:10.48550/arXiv.2310.14735   \n[22] Zhang, T., Ladhak, F., Durmus, E., et al.: Benchmarking Large Language Models for News Summarization. Transactions of the Association for Computational Linguistics 12, 39–57 (2024). doi:10.1162/tacl_a_00632   \n[23] Cheng, L., Wu, F., Zhang, R., et al.: Legal Document Generation with Multi-stage Prompting. In: Proceedings of the 61st Annual Meeting of the Association for Computational Linguistics, pp. 15874–15889 (2023). doi:10.18653/v1/2023.acl-long.15874   \n[24] Zhang, K., Ziems, N., Ni, M., et al.: JudgeLM: Fine-tuned Large Language Models for Legal Judgment Prediction. arXiv preprint arXiv:2305.14688 (2023). doi:10.48550/arXiv.2305.14688   \n[25] Wang, B., Zhou, Y., Tang, X., et al.: A Legal Fact-Finding Model Based on the T5 and LexiLaw Large Language Models. In: Proceedings of the 2024 8th International Conference on Computer Science and Artificial Intelligence, pp. 208–215 (2024). doi:10.1145/3709026.3709070   \n[26] Trautmann, D., Derczynski, L., Augenstein, I.: Legal Prompt Engineering for Multilingual Legal Judgement Prediction. arXiv preprint arXiv:2212.02199 (2022). doi:10.48550/arXiv.2212.02199   \n[27] Cui, J., Li, Y., Zeng, Y., et al.: Chain-of-Law: Semantic Structure Guided Reasoning for Legal Cases Summarization with LLMs. arXiv preprint arXiv:2312.02856 (2023). doi:10.48550/arXiv.2312.02856   \n[28] Liu, P., Wang, Z., Chen, R., et al.: Construction of Legal Knowledge Graph Based on Knowledge-Enhanced Large Language Models. Information 15(3), 188 (2023). doi:10.3390/info15030188   \n[29] Li, J., Qian, L., Liu, P., Liu, T.: Construction of Legal Knowledge Graph Based on Knowledge-Enhanced Large Language Models. Information 15(11), 666 (2024). doi:10.3390/info15110666   \n[30] Pan, S., Luo, L., Wang, Y., et al.: Unifying Large Language Models and Knowledge Graphs: A Roadmap. arXiv preprint arXiv:2306.08302 (2023). doi:10.48550/arXiv.2306.08302   \n[31] Xiao, C., Zhong, H., Guo, Z., et al.: CAIL2022-LKGAC: Legal Knowledge Graph-based Advice Classification. arXiv preprint arXiv:2305.09531 (2023). doi:10.48550/arXiv.2305.09531   \n[32] Zheng, L., Guha, N., Anderson, B.R., et al.: When Does Pretraining Help? Assessing Self-Supervised Learning for Law and the CaseHOLD Dataset of $^ { 5 3 , 0 0 0 + }$ Legal Holdings. In: Proceedings of the Eighteenth International Conference on Artificial Intelligence and Law, pp. 159–168 (2021). doi:10.1145/3462757.3462761   \n[33] Yang, Y., Huang, L., Fu, L., et al.: WhatLawyers: A Legal Knowledge-Enhanced System for Legal Text Understanding. arXiv preprint arXiv:2311.08388 (2023). doi:10.48550/arXiv.2311.08388   \n[34] Chalkidis, I., Jana, A., Hartung, D., et al.: LexGLUE: A Benchmark Dataset for Legal Language Understanding in English. In: Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics, vol. 1, pp. 4310–4330 (2022). doi:10.18653/v1/2022.acl-long.297   \n[35] Niklaus, J., Chalkidis, I., Stürmer, M.: Swiss-Judgment-Prediction: A Multilingual Legal Judgment Prediction Benchmark. In: Proceedings of the Natural Legal Language Processing Workshop, pp. 19–35 (2021). doi:10.18653/v1/2021.nllp-1.3 ",
+        "bbox": [
+            109,
+            123,
+            888,
+            917
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            111,
+            77,
+            890,
+            694
+        ],
+        "page_idx": 14
+    }
+]

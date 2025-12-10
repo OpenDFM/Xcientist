@@ -1,0 +1,204 @@
+{
+    "schema_proposal": {
+      "title": {
+        "data_type": "string",
+        "description": "论文标题",
+        "rationale": "标识论文的核心主题和研究焦点"
+      },
+      "problem_analysis": {
+        "data_type": "object",
+        "description": "问题分析和现有方法局限性",
+        "rationale": "理解多跳推理面临的挑战和传统方法的不足",
+        "sub_keys": {
+          "multihop_reasoning_challenge": {
+            "data_type": "string",
+            "description": "多跳推理挑战描述",
+            "rationale": "记录多跳问答任务的基本特征和难点"
+          },
+          "traditional_method_limitations": {
+            "data_type": "object",
+            "description": "传统方法局限性",
+            "rationale": "提取现有方法的主要问题和瓶颈",
+            "sub_keys": {
+              "sparse_reward_problem": {
+                "data_type": "string",
+                "description": "奖励信号稀疏问题",
+                "rationale": "记录全局奖励无法指导中间步骤的问题"
+              },
+              "search_efficiency_problem": {
+                "data_type": "string",
+                "description": "搜索效率低下问题",
+                "rationale": "提取重复搜索和资源浪费的问题"
+              },
+              "existing_method_performance": {
+                "data_type": "string",
+                "description": "现有方法性能表现",
+                "rationale": "记录传统方法在复杂任务中的性能下降"
+              }
+            }
+          }
+        }
+      },
+      "proposed_framework": {
+        "data_type": "object",
+        "description": "提出的StepSearch框架",
+        "rationale": "记录创新框架的核心组件和技术细节",
+        "sub_keys": {
+          "framework_overview": {
+            "data_type": "string",
+            "description": "框架概述",
+            "rationale": "提取StepSearch的核心创新思想"
+          },
+          "data_generation_pipeline": {
+            "data_type": "object",
+            "description": "细粒度数据生成管道",
+            "rationale": "记录训练数据构建的具体方法",
+            "sub_keys": {
+              "subproblem_decomposition": {
+                "data_type": "string",
+                "description": "子问题分解过程",
+                "rationale": "记录如何将多跳问题拆解为子问题"
+              },
+              "search_keyword_generation": {
+                "data_type": "string",
+                "description": "搜索关键词生成",
+                "rationale": "提取候选搜索关键词的生成方法"
+              },
+              "cross_engine_validation": {
+                "data_type": "string",
+                "description": "跨引擎验证过程",
+                "rationale": "记录关键词实用性的验证机制"
+              },
+              "dataset_scale": {
+                "data_type": "string",
+                "description": "数据集规模",
+                "rationale": "记录生成的数据集大小"
+              }
+            }
+          },
+          "reward_mechanism": {
+            "data_type": "object",
+            "description": "双类型奖励机制",
+            "rationale": "记录全局奖励和分步奖励的设计",
+            "sub_keys": {
+              "global_rewards": {
+                "data_type": "string",
+                "description": "全局奖励设计",
+                "rationale": "提取答案正确性和搜索词质量的奖励"
+              },
+              "step_rewards": {
+                "data_type": "string",
+                "description": "分步奖励设计",
+                "rationale": "记录信息增益和冗余惩罚的机制"
+              }
+            }
+          },
+          "optimization_algorithm": {
+            "data_type": "object",
+            "description": "StePPO优化算法",
+            "rationale": "记录基于PPO的改进算法设计",
+            "sub_keys": {
+              "algorithm_basis": {
+                "data_type": "string",
+                "description": "算法基础",
+                "rationale": "记录算法基于PPO的改进"
+              },
+              "core_mechanism": {
+                "data_type": "string",
+                "description": "核心机制",
+                "rationale": "提取token级过程监督的实现"
+              },
+              "mathematical_formulation": {
+                "data_type": "string",
+                "description": "数学公式",
+                "rationale": "记录算法的数学表达"
+              }
+            }
+          }
+        }
+      },
+      "experimental_results": {
+        "data_type": "object",
+        "description": "实验结果和分析",
+        "rationale": "记录方法在基准测试上的性能表现",
+        "sub_keys": {
+          "performance_improvements": {
+            "data_type": "string",
+            "description": "性能提升",
+            "rationale": "提取在多个数据集上的显著改进"
+          },
+          "data_efficiency": {
+            "data_type": "string",
+            "description": "数据效率",
+            "rationale": "记录小数据实现大提升的效果"
+          },
+          "generalization_capability": {
+            "data_type": "string",
+            "description": "泛化能力",
+            "rationale": "记录在未见知识库上的表现"
+          },
+          "ablation_study_findings": {
+            "data_type": "string",
+            "description": "消融研究发现",
+            "rationale": "提取关键组件必要性的验证结果"
+          }
+        }
+      },
+      "comparative_analysis": {
+        "data_type": "object",
+        "description": "与现有方法的对比分析",
+        "rationale": "记录StepSearch与传统方法的本质区别",
+        "sub_keys": {
+          "key_innovations": {
+            "data_type": "string",
+            "description": "关键创新点",
+            "rationale": "提取方法的核心革新之处"
+          },
+          "method_comparison": {
+            "data_type": "string",
+            "description": "方法对比",
+            "rationale": "记录与RAG、Search-R1、CoT等方法的不同"
+          },
+          "case_study_example": {
+            "data_type": "string",
+            "description": "案例研究示例",
+            "rationale": "提取具体问题解决过程的对比"
+          }
+        }
+      },
+      "limitations_and_future_work": {
+        "data_type": "object",
+        "description": "局限性和未来工作",
+        "rationale": "记录方法的当前局限和未来研究方向",
+        "sub_keys": {
+          "current_limitations": {
+            "data_type": "string",
+            "description": "当前局限性",
+            "rationale": "提取方法在模态、规模、数据方面的限制"
+          },
+          "future_research_directions": {
+            "data_type": "string",
+            "description": "未来研究方向",
+            "rationale": "记录计划中的技术改进和应用扩展"
+          }
+        }
+      },
+      "conclusion": {
+        "data_type": "object",
+        "description": "研究结论和意义",
+        "rationale": "总结研究的核心价值和影响",
+        "sub_keys": {
+          "key_contribution": {
+            "data_type": "string",
+            "description": "关键贡献",
+            "rationale": "记录方法的核心创新和价值"
+          },
+          "broader_implications": {
+            "data_type": "string",
+            "description": "更广泛意义",
+            "rationale": "提取研究对AI系统发展的影响"
+          }
+        }
+      }
+    }
+  }

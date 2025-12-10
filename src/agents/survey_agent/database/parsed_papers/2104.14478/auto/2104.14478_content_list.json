@@ -1,0 +1,2176 @@
+[
+    {
+        "type": "text",
+        "text": "Experts, Errors, and Context: A Large-Scale Study of Human Evaluation for Machine Translation ",
+        "text_level": 1,
+        "bbox": [
+            147,
+            80,
+            855,
+            120
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Markus Freitag, George Foster, David Grangier, Viresh Ratnakar, Qijun Tan, Wolfgang Macherey Google Research {freitag, fosterg, grangier, vratnakar, qijuntan, wmach}@google.com ",
+        "bbox": [
+            85,
+            145,
+            922,
+            196
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Abstract ",
+        "text_level": 1,
+        "bbox": [
+            265,
+            243,
+            341,
+            259
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Human evaluation of modern high-quality machine translation systems is a difficult problem, and there is increasing evidence that inadequate evaluation procedures can lead to erroneous conclusions. While there has been considerable research on human evaluation, the field still lacks a commonlyaccepted standard procedure. As a step toward this goal, we propose an evaluation methodology grounded in explicit error analysis, based on the Multidimensional Quality Metrics (MQM) framework. We carry out the largest MQM research study to date, scoring the outputs of top systems from the WMT 2020 shared task in two language pairs using annotations provided by professional translators with access to full document context. We analyze the resulting data extensively, finding among other results a substantially different ranking of evaluated systems from the one established by the WMT crowd workers, exhibiting a clear preference for human over machine output. Surprisingly, we also find that automatic metrics based on pre-trained embeddings can outperform human crowd workers. We make our corpus publicly available for further research. ",
+        "bbox": [
+            156,
+            273,
+            450,
+            668
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1 Introduction ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            692,
+            258,
+            708
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Like many natural language generation tasks, machine translation (MT) is difficult to evaluate because the set of correct answers for each input is large and usually unknown. This limits the accuracy of automatic metrics, and necessitates costly human evaluation to provide a reliable gold standard for measuring MT quality and progress. Yet even human evaluation is problematic. For instance, we often wish to decide which of two translations is better, and by how much, but what should this take into account? If one translation sounds somewhat more natural than another, but contains a slight inaccuracy, what is the best way to quantify this? To what extent will different raters agree on their assessments? ",
+        "bbox": [
+            119,
+            718,
+            487,
+            909
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            514,
+            244,
+            882,
+            291
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "The complexities of evaluating translations— both machine and human—have been extensively studied, and there are many recommended best practices. However, due to expedience, human evaluation of MT is frequently carried out on isolated sentences by inexperienced raters with the aim of assigning a single score or ranking. When MT quality is poor, this can provide a useful signal; but as quality improves, there is a risk that the signal will become lost in rater noise or bias. Recent papers have argued that poor human evaluation practices have led to misleading results, including erroneous claims that MT has achieved human parity (Toral, 2020; Läubli et al., 2018). ",
+        "bbox": [
+            514,
+            294,
+            884,
+            519
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "This paper aims to contribute to the evolution of standard practices for human evaluation of highquality MT. Our key insight is that any scoring or ranking of translations is implicitly based on an identification of errors and other imperfections. Making such an identification explicit by enumerating errors provides a “platinum standard” from which various gold-standard scorings can be derived, depending on the importance placed on different categories of errors for different downstream tasks. This is not a new insight: it is the conceptual basis for the Multidimensional Quality Metrics (MQM) framework developed in the EU QTLaunchPad and QT21 projects (www.qt21.eu), which we endorse and adopt for our experiments. ",
+        "bbox": [
+            514,
+            523,
+            882,
+            762
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "MQM is a generic framework that provides a hierarchy of translation errors which can be tailored to specific applications. We identified a hierarchy appropriate for broad-coverage MT, and annotated outputs from 10 top-performing \"systems\" (including human references) for both the English German (EnDe) and Chinese English (ZhEn) language directions in the WMT 2020 news translation task (Barrault et al., 2020), using professional translators with access to full document context. For comparison purposes, we also collected scalar ratings on a 7-point scale from both professionals and crowd workers. ",
+        "bbox": [
+            514,
+            766,
+            882,
+            909
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            117,
+            76,
+            487,
+            137
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "We analyze the resulting data along many different dimensions: comparing the system rankings resulting from different rating methods, including the original WMT scores; characterizing the error patterns of modern neural MT systems, including profiles of difficulty across documents, and comparing them to human translations (HT); measuring MQM inter-annotator agreement; and re-evaluating the performance of automatic metrics submitted to the WMT 2020 metrics task. Our most striking finding is that MQM ratings sharply revise the original WMT ranking of translations, exhibiting a clear preference for HT over MT, and promoting some low-ranked MT systems to much higher positions. This in turn changes the conclusions about the relative performance of different automatic metrics; interestingly, we find that most metrics correlate better with MQM rankings than WMT human scores do. We hope these results will underscore and help publicize the need for more careful human evaluation, particularly in shared tasks intended to assess MT or metric performance. We release our corpus to encourage further research.1 Our main contributions are: ",
+        "bbox": [
+            119,
+            142,
+            487,
+            525
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "• A proposal for a standard MQM scoring scheme appropriate for broad-coverage MT. ",
+        "bbox": [
+            139,
+            542,
+            487,
+            573
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "• Release of a large-scale MQM corpus with annotations for over 100k HT and highquality-MT segments in two language pairs (EnDe and ZhEn) from WMT 2020. This is by far the largest study of human evaluation results released to the public. ",
+        "bbox": [
+            139,
+            588,
+            487,
+            683
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "• Re-evaluation of the performance of MT systems and automatic metrics on our corpus, showing clear distinctions between HT and MT based on MQM ratings, adding to the evidence against claims of human parity. ",
+        "bbox": [
+            139,
+            699,
+            487,
+            778
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "• Demonstration that crowd-worker evaluation has low correlation with our MQM-based evaluation, calling into question conclusions drawn on the basis of previous crowdsourced evaluations. ",
+        "bbox": [
+            139,
+            794,
+            487,
+            872
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "• Demonstration that automatic metrics based on pre-trained embeddings can outperform human crowd workers. ",
+        "bbox": [
+            534,
+            76,
+            884,
+            121
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "• Characterization of current error types in HT and MT, identifying specific MT weaknesses. ",
+        "bbox": [
+            534,
+            135,
+            882,
+            166
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "• Recommendations for the number of ratings needed to establish a reliable human benchmark, and for the most efficient way of distributing them across documents. ",
+        "bbox": [
+            534,
+            179,
+            882,
+            242
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2 Related Work ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            255,
+            665,
+            271
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "One of the earliest formal mentions of human evaluation for MT occurs in the ALPAC report (1966), which defines an evaluation methodology based on “intelligibility” (comprehensibility) and “fidelity” (adequacy). The ARPA MT Initiative (White et al., 1994) defines an overall quality score based on “adequacy”, “fluency” and “comprehension”. In 2006, the first WMT evaluation campaign (Koehn and Monz, 2006) used adequacy and fluency ratings on a 5 point scale acquired from participants as their main metric. Vilar et al. (2007) proposed a ranking-based evaluation approach which became the official metric at WMT from 2008 until 2016 (Callison-Burch et al., 2008). The ratings were still acquired from the participants of the evaluation campaign. Graham et al. (2013) compared human assessor consistency levels for judgments collected on a fivepoint interval-level scale to those collected on a 1-100 continuous scale, using machine translation fluency as a test case. They claim that the use of a continuous scale eliminates individual judge preferences, resulting in higher levels of interannotator consistency. Bojar et al. (2016) came to the conclusion that fluency evaluation is highly correlated to adequacy evaluation. As a consequence of the latter two papers, continuous direct assessment focusing on adequacy has been the official WMT metric since 2017 (Bojar et al., 2017). Due to budget constraints, WMT understandably conducts its human evaluation with researchers and/or crowd-workers. ",
+        "bbox": [
+            514,
+            279,
+            882,
+            796
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Avramidis et al. (2012) used professional translators to rate MT output on three different tasks: ranking, error classification and post-editing. Castilho et al. (2017) found that crowd workers lack knowledge of translation and, compared to professional translators, tend to be more accepting of (subtle) translation errors. Graham et al. ",
+        "bbox": [
+            514,
+            799,
+            882,
+            909
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "(2017) showed that crowd-worker evaluation has to be filtered to avoid contamination of results through the inclusion of false assessments. The quality of ratings acquired by either researchers or crowd workers has further been questioned by (Toral et al., 2018; Läubli et al., 2020), who demonstrated that professional translators can discriminate between human and machine translations where crowd-workers were not able to do so. Mathur et al. (2020) re-evaluated a subset of WMT submissions with professional translators and showed that the resulting rankings changed and were better aligned with automatic scores. Fischer and Läubli (2020) found that the number of segments with wrong terminology, omissions, and typographical problems for MT output is similar to HT. Fomicheva et al. (2017); Bentivogli et al. (2018) raised the concern that reference-based human evaluation might penalise correct translations that diverge too much from the reference. The literature mostly agrees that source-based rather than reference-based evaluation should be conducted (Läubli et al., 2020). The impact of translationese (Koppel and Ordan, 2011) on human evaluation of MT has recently received attention (Toral et al., 2018; Zhang and Toral, 2019; Freitag et al., 2019; Graham et al., 2020). These papers show that the nature of source sentences is important and that only natural source sentences should be used for human evaluation. ",
+        "bbox": [
+            117,
+            72,
+            487,
+            557
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "As alternatives to adequacy and fluency, Scarton and Specia (2016) presented reading comprehension for MT quality evaluation. Forcada et al. (2018) proposed gap-filling, where certain words are removed from reference translations and readers are asked to fill the gaps left using the machinetranslated text as a hint. Popovic´ (2020) proposed a new method for manual evaluation based on marking actual issues in the translated text. Instead of assigning a score, annotators are asked to just label problematic parts of the translations. ",
+        "bbox": [
+            117,
+            565,
+            487,
+            741
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "The Multidimensional Quality Metrics (MQM) framework was developed in the EU QTLaunchPad and QT21 projects (2012–2018) (www.qt21.eu) to address the shortcomings of previous quality evaluation methods (Lommel et al., 2014). MQM provides a generic methodology for assessing translation quality that can be adapted to a wide range of evaluation needs. Klubickaˇ et al. (2018) designed an MQM-compliant error taxonomy tailored to the relevant linguistic phenomena of Slavic languages to run a case study for 3 MT systems for English Croatian. More recently, Rei et al. (2020) used MQM labels to finetune COMET for automatic evaluation. ",
+        "bbox": [
+            117,
+            750,
+            487,
+            909
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            514,
+            76,
+            882,
+            139
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3 Human Evaluation Methodologies ",
+        "text_level": 1,
+        "bbox": [
+            515,
+            153,
+            840,
+            170
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "We compared three human evaluation techniques: the WMT 2020 baseline; ratings on a 7-point Likert-type scale which we refer to as a Scalar Quality Metric (SQM); and evaluations under the MQM framework. We describe these methodologies in the following three sections, deferring concrete experimental details about annotators and data to the subsequent section. ",
+        "bbox": [
+            514,
+            180,
+            884,
+            307
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3.1 WMT ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            322,
+            605,
+            336
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "As part of the WMT evaluation campaign (Barrault et al., 2020), WMT runs human evaluation of the primary submissions for each language pair. The organizers collect segment-level ratings with document context $\\mathrm { ( S R + D C ) }$ on a 0-100 scale using either source-based evaluation with a mix of researchers/translators (for translations out of English) or reference-based evaluation with crowdworkers (for translations into English). In addition, WMT conducts rater quality controls to remove ratings from raters that are not trustworthy. In general, for each system, only a subset of documents receive ratings, with the rated subset differing across systems. The organizers provide two different segment-level scores, averaged across one or more raters: (a) the raw score; and (b) a z-score which is standardized for each annotator. Document- and system-level scores are averages over segment-level scores. For more details, we refer the reader to the WMT findings papers. ",
+        "bbox": [
+            514,
+            343,
+            882,
+            664
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3.2 SQM ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            678,
+            600,
+            693
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Similar to the WMT setting, the Scalar Quality Metric (SQM) evaluation collects segment-level scalar ratings with document context. Different from the 0-100 assessment of translation quality used in WMT, SQM uses a 0-6 scale for translation quality assessment, with the quality levels described as follows: ",
+        "bbox": [
+            514,
+            700,
+            882,
+            812
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "6: Perfect Meaning and Grammar: The meaning of the translation is completely consistent with the source and the surrounding context (if applicable). The grammar is also correct. ",
+        "bbox": [
+            514,
+            814,
+            882,
+            877
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "4: Most Meaning Preserved and Few Grammar Mistakes: The translation retains most of the meaning of the source. It may have some grammar mistakes or minor contextual inconsistencies. ",
+        "bbox": [
+            514,
+            879,
+            882,
+            909
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            117,
+            76,
+            487,
+            105
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "2: Some Meaning Preserved: The translation preserves some of the meaning of the source but misses significant parts. The narrative is hard to follow due to fundamental errors. Grammar may be poor. ",
+        "bbox": [
+            117,
+            109,
+            487,
+            189
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "0: Nonsense/No meaning preserved: Nearly all information is lost between the translation and source. Grammar is irrelevant. ",
+        "bbox": [
+            117,
+            191,
+            489,
+            237
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "This evaluation presents each source segment and translated segment from a document in a table row, asking the rater to pick a rating from 0 through 6 (including the intermediate levels 1, 3, and 5). The rater can scroll up or down to see all the other source/translation segments from the document. Our SQM experiments used the 0-6 rating scale described above, instead of the wider, continuous scale recommended by (Graham et al., 2013), as this scale has been an established part of our existing MT evaluation ecosystem. It is possible that system rankings may be slightly sensitive to this nuance, but less so with raters who are translators rather than crowd workers, we believe. ",
+        "bbox": [
+            117,
+            241,
+            487,
+            464
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3.3 MQM ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            481,
+            211,
+            495
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "To adapt the generic MQM framework for our context, we followed the official guidelines for scientific research (MQM-usage-guidelines.pdf). For space reasons we give only the salient features of our MQM customization here, referring the reader to appendix A for a summary of MQM, and to appendix B for full details of our framework. ",
+        "bbox": [
+            117,
+            504,
+            487,
+            615
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Our annotators were instructed to identify all errors within each segment in a document, paying particular attention to document context; see Table 12 for complete annotator guidelines. Each error was highlighted in the text, and labeled with an error category from Table 10 and a severity from Table 11. To temper the effect of long segments, we imposed a maximum of five errors per segment, instructing raters to choose the five most severe errors for segments containing more errors. ",
+        "bbox": [
+            117,
+            618,
+            487,
+            778
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Our error hierarchy includes the standard toplevel categories Accuracy, Fluency, Terminology, Style, and Locale, each with a specific set of subcategories. After an initial pilot run, we introduced a special Non-translation error that can be used to tag an entire segment which is too badly garbled to permit reliable identification of individual errors. ",
+        "bbox": [
+            117,
+            781,
+            487,
+            892
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Error severities are assigned independent of category, and consist of Major, Minor, and Neutral levels, corresponding respectively to actual translation or grammatical errors, smaller imperfections, and purely subjective opinions about the translation. Many MQM schemes include an additional Critical severity which is worse than Major, but we dropped this because its definition is often context-specific. We felt that for broad coverage MT, the distinction between Major and Critical was likely to be highly subjective, while Major errors (true errors) would be easier to distinguish from Minor ones (imperfections). ",
+        "bbox": [
+            136,
+            895,
+            487,
+            910
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            514,
+            76,
+            882,
+            267
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Since we are ultimately interested in scoring segments, we require a weighting on error types. We fixed the weight on Minor errors at 1, and explored a range of Major weights from 1 to 10 (the Major weight recommended in the MQM standard). For each weight combination we examined the stability of system ranking using a resampling technique. We found that a Major weight of 5 gave the best balance between stability and ability to discriminate among systems. ",
+        "bbox": [
+            514,
+            269,
+            884,
+            429
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "These weights apply to all error categories with two exceptions. We assigned a weight of 0.1 to Minor Fluency/Punctuation errors to reflect their mostly non-linguistic nature. Decisions like the style of quotation mark to use or the spacing around punctuation affect the appearance of a text but do not change its meaning. Unlike other kinds of Minor errors, these are easy to correct algorithmically, so we assign a low weight to ensure that their main role is to distinguish between systems that are equivalent in other respects. Major Fluency/Punctuation errors, which render a text ungrammatical or change its meaning (eg, eliding the comma in “Let’s eat, grandma”), have standard weighting. The second exception is the singleton Non-translation category, with a weight of 25, equivalent to five Major errors. ",
+        "bbox": [
+            514,
+            430,
+            884,
+            702
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Table 1 summarizes our weighting scheme, in which segment-level scores can range from 0 (perfect) to 25 (worst). The final segment-level score is an average over scores from all annotators. ",
+        "bbox": [
+            514,
+            705,
+            882,
+            768
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "table",
+        "img_path": "images/fdc4e3367bd394215de779285079c1f78d749dc5d1cf5cceb621f10066a9bc60.jpg",
+        "table_caption": [
+            "Table 1: MQM error weighting. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>Severity</td><td rowspan=1 colspan=1>Category</td><td rowspan=1 colspan=1>Weight</td></tr><tr><td rowspan=1 colspan=1>Major</td><td rowspan=1 colspan=1>Non-translationall others</td><td rowspan=1 colspan=1>255</td></tr><tr><td rowspan=1 colspan=1>Minor</td><td rowspan=1 colspan=1>Fluency/Punctuationall others</td><td rowspan=1 colspan=1>0.11</td></tr><tr><td rowspan=1 colspan=1>Neutral</td><td rowspan=1 colspan=1>all</td><td rowspan=1 colspan=1>0</td></tr></table>",
+        "bbox": [
+            566,
+            780,
+            831,
+            883
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3.4 Experimental Setup ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            76,
+            319,
+            90
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "4 Results ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            74,
+            608,
+            90
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "We re-annotated the WMT 2020 English German and Chinese English test sets, comprising 1418 segments (130 documents) and 2000 segments (155 documents) respectively. For each set we chose 10 \"systems\" for annotation, including the three reference translations available for English German and the two references available for Chinese English. The MT outputs included all top-performing systems according to the WMT human evaluation, augmented with systems we selected to increase diversity. Tables 3 and 4 list all evaluated systems. ",
+        "bbox": [
+            117,
+            110,
+            487,
+            302
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Table 2 summarizes rating information for the WMT evaluation and for the additional evaluations we conducted: SQM with crowd workers (cSQM), SQM with professional translators (pSQM), and MQM. We used disjoint professional translator pools for pSQM and MQM in order to avoid bias. All members of our rater pools were native speakers of the target language. Note that the average number of ratings per segment is less than 1 for the WMT evaluations because not all ratings survived the quality control. ",
+        "bbox": [
+            117,
+            311,
+            489,
+            487
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "table",
+        "img_path": "images/38a3cd0eb9dcbf500e086fb41eb2348eb34aef01a8b62f4c6cd1108a7d9b48a6.jpg",
+        "table_caption": [
+            "Table 2: Details of all human evaluations. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td></td><td> ratings / seg</td><td>rater pool raters</td></tr><tr><td>WMT EnDe</td><td>0.47</td><td>res./trans. 100</td></tr><tr><td>WMT ZhEn</td><td>0.86</td><td>crowd 115</td></tr><tr><td>cSQM EnDe</td><td>1</td><td>crowd 276</td></tr><tr><td>cSQM ZhEn</td><td>1</td><td>crowd 70</td></tr><tr><td>pSQM</td><td>3</td><td>professional 6</td></tr><tr><td>MQM</td><td>3</td><td>professional 6</td></tr></table>",
+        "bbox": [
+            121,
+            514,
+            482,
+            650
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "To ensure maximum diversity in ratings for pSQM and MQM, we assigned documents in round-robin fashion to all 20 different sets of 3 raters from these pools. We chose an assignment order that roughly balanced the number of documents and segments per rater. Each rater was assigned a subset of documents, and annotated outputs from all 10 systems for those documents. Both documents and systems were anonymized and presented in a different random order to each rater. The number of segments per rater ranged from 6,830–7,220 for English German and from 9,860–10,210 for Chinese English. ",
+        "bbox": [
+            117,
+            701,
+            487,
+            910
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "4.1 Overall System Rankings ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            102,
+            756,
+            118
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "For each human evaluation setup, we calculate a system-level score by averaging the segmentlevel scores for each system. Results are summarized in Table 3 (English German) and Table 4 (Chinese English). The system- and segmentlevel correlations to our platinum MQM ratings are shown in Figure 1 and 2 (English German), and Figure 3 and 4 (Chinese English). Segmentlevel correlations are calculated only for segments that were evaluated by WMT. For both language pairs, we observe similar patterns when looking at the results of the different human evaluations and come to the following findings: ",
+        "bbox": [
+            514,
+            126,
+            884,
+            334
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "image",
+        "img_path": "images/1f962f7a70d9ecfe7c6415b384958847015d3e436c24cff36167caf41b47c482.jpg",
+        "image_caption": [
+            "Figure 1: English German: System correlation with the platinum ratings acquired with MQM. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            519,
+            355,
+            884,
+            507
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "image",
+        "img_path": "images/a5a6b28ac799f6c63b3be0859d173ed91e461e6d2203591f0600064b912441fc.jpg",
+        "image_caption": [
+            "Figure 2: English German: Segment correlation with the platinum ratings acquired with MQM. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            521,
+            577,
+            884,
+            731
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "(i) Human translations are underestimated by crowd workers: Already in 2016, Hassan et al. (2018) claimed human parity for news-translation for Chinese English. We confirm the findings of Toral et al. (2018); Läubli et al. (2018) that when human evaluation is conducted correctly, professional translators can discriminate between human and machine translations. All human translations are ranked first by both the pSQM and MQM evaluations for both language pairs. The gap between human translations and MT is even more visible when looking at the MQM ratings which sets the human translations first by a large margin, demonstrating that the quality difference between MT and human translation is still large. Another interesting observation is the ranking of Human-P for English German. Human-P is a reference translation generated using the paraphrasing method of (Freitag et al., 2020) which asked linguists to paraphrase existing reference translations as much as possible while also suggesting using synonyms and different sentence structures. Our results support the assumption that crowd-workers are biased to prefer literal, easy-to-rate translations and rank Human-P low. Professional translators on the other hand are able to see the correctness of the paraphrased translations and ranked them higher than any MT output. Similar to the standard human translations, the gap between Human-P and the MT systems is larger when looking at the MQM ratings. In MQM, raters have to justify their ratings by labelling the error spans which helps to avoid penalizing non-literal translations. ",
+        "bbox": [
+            514,
+            782,
+            884,
+            910
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "table",
+        "img_path": "images/f519c0a8a7c5a99994d42c24e4db277d115dc8335b28e0b0c908c8bf82f6f801.jpg",
+        "table_caption": [
+            "Table 3: English German: Different human evaluations for 10 submissions of the WMT20 evaluation campaign. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>System</td><td>WMT↑</td><td>WMT RAW↑</td><td>cSQM↑</td><td>pSQM↑</td><td>MQM ↓</td><td>Major↓</td><td>Minor↓</td><td>Fluency↓</td><td>Accuracy↓</td></tr><tr><td>Human-B</td><td>0.569(1)</td><td>90.5(1)</td><td>5.31(1)</td><td>5.16(1)</td><td>0.75(1)</td><td>0.22(1)</td><td>0.54(1)</td><td>0.28(1)</td><td>0.47(1)</td></tr><tr><td>Human-A</td><td>0.446(4)</td><td>85.7(4)</td><td>5.20(2)</td><td>4.90(2)</td><td>0.91(2)</td><td>0.28(2)</td><td>0.64(2)</td><td>0.33(2)</td><td>0.58(2)</td></tr><tr><td>Human-P</td><td>0.299(10)</td><td>84.2(9)</td><td>5.04(5)</td><td>4.32(3)</td><td>1.41(3)</td><td>0.57(3)</td><td>0.85(3)</td><td>0.50(3)</td><td>0.91(3)</td></tr><tr><td>Tohoku-AIP-NTT</td><td>0.468(3)</td><td>88.6(2)</td><td>5.11(3)</td><td>3.95(4)</td><td>2.02(4)</td><td>0.94(4)</td><td>1.14(4)</td><td>0.61(5)</td><td>1.40(4)</td></tr><tr><td>OPPO</td><td>0.495(2)</td><td>87.4(3)</td><td>5.03(6)</td><td>3.79(5)</td><td>2.25(5)</td><td>1.07(5)</td><td>1.19(6)</td><td>0.62(6)</td><td>1.63(5)</td></tr><tr><td>eTranslation</td><td>0.312(9)</td><td>82.5(10)</td><td>5.02(7)</td><td>3.68(7)</td><td>2.33(6)</td><td>1.18(7)</td><td>1.16(5)</td><td>0.56(4)</td><td>1.78(7)</td></tr><tr><td>Tencent_Translation</td><td>0.386(6)</td><td>84.3(8)</td><td>5.06(4)</td><td>3.77(6)</td><td>2.35(7)</td><td>1.15(6)</td><td>1.22(8)</td><td>0.63(7)</td><td>1.73(6)</td></tr><tr><td>Huoshan_Translate</td><td>0.326(7)</td><td>84.6(6)</td><td>5.00(8)</td><td>3.65(8)</td><td>2.45(8)</td><td>1.23(8)</td><td>1.23(9)</td><td>0.64(8)</td><td>1.80(8)</td></tr><tr><td>Online-B</td><td>0.416(5)</td><td>84.5(7)</td><td>4.95(9)</td><td>3.60(9)</td><td>2.48(9)</td><td>1.34(9)</td><td>1.20(7)</td><td>0.64(9)</td><td>1.84(9)</td></tr><tr><td>Online-A</td><td>0.322(8)</td><td>85.3(5)</td><td>4.85(10)</td><td>3.32(10)</td><td>2.99(10)</td><td>1.73(10)</td><td>1.32(10)</td><td>0.76(10)</td><td>2.23(10)</td></tr></table>",
+        "bbox": [
+            122,
+            72,
+            882,
+            222
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "table",
+        "img_path": "images/809065a6505fe251a0871a26633e0a844d80b85aa6619805ae2c535720111de4.jpg",
+        "table_caption": [],
+        "table_footnote": [
+            "Table 4: Chinese English: Different human evaluations for 10 submissions of the WMT20 evaluation campaign. "
+        ],
+        "table_body": "<table><tr><td>System</td><td>WMT↑</td><td>WMT RAW↑</td><td>cSQM↑</td><td>pSQM↑</td><td>MQM ↓</td><td>Major↓</td><td>Minor↓</td><td>Fluency↓</td><td>Accuracy↓</td></tr><tr><td>Human-A</td><td></td><td></td><td>5.09(2)</td><td>4.34(1)</td><td>3.43(1)</td><td>2.71(1)</td><td>0.74(1)</td><td>0.91(1)</td><td>2.52(1)</td></tr><tr><td>Human-B</td><td>-0.029(9)</td><td>74.8(9)</td><td>5.03(7)</td><td>4.29(2)</td><td>3.62(2)</td><td>2.81(2)</td><td>0.82(10)</td><td>0.95(2)</td><td>2.66(2)</td></tr><tr><td>VolcTrans</td><td>0.102(1)</td><td>77.47(5)</td><td>5.04(5)</td><td>4.03(3)</td><td>5.03(3)</td><td>4.26(3)</td><td>0.79(6)</td><td>1.31(7)</td><td>3.71(3)</td></tr><tr><td>WeChat_AI</td><td>0.077(3)</td><td>77.35(6)</td><td>4.99(8)</td><td>4.02(4)</td><td>5.13(4)</td><td>4.39(4)</td><td>0.76(4)</td><td>1.24(5)</td><td>3.89(4)</td></tr><tr><td>Tencent_Translation</td><td>0.063(4)</td><td>76.67(7)</td><td>5.04(6)</td><td>3.99(5)</td><td>5.19(5)</td><td>4.43(6)</td><td>0.79(8)</td><td>1.23(4)</td><td>3.96(5)</td></tr><tr><td>OPPO</td><td>0.051(7)</td><td>77.51(4)</td><td>5.07(4)</td><td>3.99(5)</td><td>5.20(6)</td><td>4.41(5)</td><td>0.81(9)</td><td>1.23(3)</td><td>3.97(6)</td></tr><tr><td>THUNLP</td><td>0.028(8)</td><td>76.48(8)</td><td>5.11(1)</td><td>3.98(7)</td><td>5.34(7)</td><td>4.61(7)</td><td>0.75(3)</td><td>1.27(6)</td><td>4.07(9)</td></tr><tr><td>DeepMind</td><td>0.051(6)</td><td>77.96(1)</td><td>5.07(3)</td><td>3.97(8)</td><td>5.41(8)</td><td>4.67(8)</td><td>0.75(2)</td><td>1.38(8)</td><td>4.02(7)</td></tr><tr><td>DiDi_NLP</td><td>0.089(2)</td><td>77.63(3)</td><td>4.91(9)</td><td>3.95(9)</td><td>5.48(9)</td><td>4.73(9)</td><td>0.77(5)</td><td>1.43(9)</td><td>4.05(8)</td></tr><tr><td>Online-B</td><td>0.06(5)</td><td>77.77(2)</td><td>4.83(10)</td><td>3.89(10)</td><td>5.85(10)</td><td>5.08(10)</td><td>0.79(7)</td><td>1.51(10)</td><td>4.34(10)</td></tr></table>",
+        "bbox": [
+            121,
+            258,
+            880,
+            407
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "image",
+        "img_path": "images/08eadd772f4fd8104d4752fffc4bfa69f91e04f293c9c404156a8137ee9a73e0.jpg",
+        "image_caption": [
+            "Figure 3: Chinese English: System-level correlation with the platinum ratings acquired with MQM. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            129,
+            448,
+            489,
+            600
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "image",
+        "img_path": "images/17f69df8541f3646fd9ea41d9bae9b60cef598cd7c8dda2b502c9f1ddba6bf73.jpg",
+        "image_caption": [
+            "Figure 4: Chinese English: Segment correlation with the platinum ratings acquired with MQM. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            124,
+            661,
+            487,
+            813
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            117,
+            878,
+            487,
+            910
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            514,
+            444,
+            884,
+            812
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "(ii) WMT has low correlation with MQM: The human evaluation in WMT was conducted by crowd-workers (Chinese English) or a mix of researchers/translators (English German) during the WMT evaluation campaign. Further, different to all other evaluations in this paper, ",
+        "bbox": [
+            514,
+            815,
+            884,
+            909
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "WMT conducted a reference-based/monolingual human evaluation for Chinese English in which the machine translation output was compared to a human-generated reference. When comparing the system ranks based on WMT for both language pairs with the ones generated by MQM, we can see low correlation for English German (see Figure 1) and even negative correlation for Chinese English (see Figure 3). We also see very low segment-level correlation for both language pairs (see Figure 2 and Figure 4). Later, we will also show that the correlation of SOTA automatic metrics are higher than the human ratings generated by WMT. The results at least question the reliability of the human ratings acquired by WMT. ",
+        "bbox": [
+            119,
+            76,
+            487,
+            316
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "(iii) pSQM has high system-level correlation with MQM: The results for both language pairs suggest that pSQM and MQM are of similar quality as their system rankings mostly agree. Nevertheless, when zooming into the segment-level correlations, we observe a much lower correlation of ${ \\sim } 0 . 5$ based on Kendall tau for both language pairs. The difference of the two approaches is also visible in the absolute differences of the individual systems. For instance the submissions of DiDi_NLP and Tencent_Translation for Chinese English are close for pSQM (only 0.04 absolute difference). MQM on the other hand shows a larger difference of 0.19 points. When the quality of two systems gets closer, a more finegrained evaluation schema like MQM is needed. This is also important when doing system development where the difference between two variations for two systems can be minor. Looking into the future when we get closer to human translation quality, MQM will be needed for reliable evaluation. On the other hand, pSQM seems to be sufficient for an evaluation campaign like WMT. ",
+        "bbox": [
+            119,
+            332,
+            487,
+            701
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "(iv) MQM results are mainly driven by major and accuracy errors: In Table 3 and Table 4, we also show the MQM error scores only based on Major/Minor errors or only based on Fluency or Accuracy errors. Interestingly, the MQM score based on accuracy errors or based on Major errors gives us almost the same rank as the full MQM score. Later in the paper, we will see that the majority of major errors are accuracy errors. This suggests the quality of an MT system is still driven mostly by accuracy errors as most fluency errors are judged minor. ",
+        "bbox": [
+            117,
+            718,
+            487,
+            909
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "4.2 Error Category Distribution ",
+        "text_level": 1,
+        "bbox": [
+            515,
+            76,
+            778,
+            90
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "MQM provides fine-grained error categories grouped under 4 main categories (accuracy, fluency, terminology and style). The absolute error counts for all 3 ratings for all 10 systems are shown in Tables 5 and 6. The error category Accuracy/Mistranslation is responsible for the majority of major errors for both language pairs. This suggests that the main problem of MT is still mistranslation of words or phrases. The absolute number of errors is much higher for Chinese English which demonstrates that this translation pair is more challenging than English German. ",
+        "bbox": [
+            514,
+            117,
+            882,
+            309
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Table 5 decomposes system and human MQM scores per category for English German. Human translations get lower error counts in all categories, except for additions. It seems that human translators might add tokens for fluency which are not supported by the source. Both systems and humans are mostly penalized by accuracy/mistranslation errors, but systems record $4 \\mathbf { x }$ more error points in these categories. Similarly, sentences with more than 5 major errors (nontranslation) are much more frequent for systems $\\left( \\sim \\ 2 8 \\mathbf { x } \\right.$ the human rate). The best systems are quite different across categories. Tohoku is average in fluency but outstanding in accuracy, eTranslation is excellent in fluency but worse in accuracy, and OPPO ranks between the two other systems for both aspects. Compared to humans, the best systems are mostly penalized for mistranslations and non-translation (badly garbled sentences). ",
+        "bbox": [
+            514,
+            321,
+            882,
+            625
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Table 6 shows that the Chinese English translation task is more difficult than English German translation, with higher MQM error scores for human translations. Again, humans are performing better than systems across all categories except for additions, omissions and spelling. Many spelling mistakes relate to name formatting and capitalization which is difficult for this language pair (see name formatting errors). Additions and omissions again highlight that humans might be ready to compromise accuracy for fluency in some cases. Mistranslation and name formatting are the categories where the systems are penalized the most compared to humans. When comparing systems, the differences between the best systems is less pronounced than for English German, both in term of aggregate score and per-category counts. ",
+        "bbox": [
+            514,
+            636,
+            884,
+            909
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "table",
+        "img_path": "images/681959800bb5faef58bc1a15a6795389af63f160689808775eccc423e6403698.jpg",
+        "table_caption": [
+            "Table 5: Category breakdown of MQM scores for English German for human translations (A, B), machine translations (all systems) and some of the best systems (Tohohku, OPPO, eTranslation). The ratio of system over human scores is in italics. Errors $( \\% )$ report the fraction of the total error counts in a category, Major $( \\% )$ report the fraction of major error for each category. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Error Categories</td><td rowspan=\"2\">Errors (%)</td><td rowspan=\"2\">Major (%)</td><td rowspan=\"2\">Human MQM</td><td colspan=\"2\">All MT</td><td colspan=\"2\">Tohoku</td><td colspan=\"2\">OPPO</td><td colspan=\"2\">eTrans</td></tr><tr><td>MQM</td><td>vs H.</td><td>MQM</td><td>vs H.</td><td>MQM</td><td>vs H.</td><td>MQM</td><td>vs H.</td></tr><tr><td>Accuracy/Mistranslation</td><td>33.2</td><td>27.2</td><td>0.296</td><td>1.285</td><td>4.3</td><td>1.026</td><td>3.5</td><td>1.219</td><td>4.1</td><td>1.244</td><td>4.2</td></tr><tr><td>Style/Awkward</td><td>14.6</td><td>4.6</td><td>0.146</td><td>0.299</td><td>2.0</td><td>0.289</td><td>2.0</td><td>0.315</td><td>2.1</td><td>0.296</td><td>2.0</td></tr><tr><td>Fluency/Grammar</td><td>10.7</td><td>4.7</td><td>0.097</td><td>0.224</td><td>2.3</td><td>0.193</td><td>2.0</td><td>0.215</td><td>2.2</td><td>0.196</td><td>2.0</td></tr><tr><td>Accuracy/Omission</td><td>3.6</td><td>13.4</td><td>0.070</td><td>0.091</td><td>1.3</td><td>0.063</td><td>0.9</td><td>0.063</td><td>0.9</td><td>0.120</td><td>1.7</td></tr><tr><td>Accuracy/Addition</td><td>1.8</td><td>6.7</td><td>0.067</td><td>0.025</td><td>0.4</td><td>0.018</td><td>0.3</td><td>0.024</td><td>0.4</td><td>0.021</td><td>0.3</td></tr><tr><td>Terminology/Inappropriate</td><td>8.3</td><td>7.0</td><td>0.061</td><td>0.193</td><td>3.2</td><td>0.171</td><td>2.8</td><td>0.189</td><td>3.1</td><td>0.193</td><td>3.2</td></tr><tr><td>Fluency/Spelling</td><td>2.3</td><td>1.2</td><td>0.030</td><td>0.039</td><td>1.3</td><td>0.030</td><td>1.0</td><td>0.039</td><td>1.3</td><td>0.028</td><td>0.9</td></tr><tr><td>Accuracy/Untranslated tex</td><td>3.1</td><td>14.9</td><td>0.024</td><td>0.090</td><td>3.8</td><td>0.082</td><td>3.5</td><td>0.066</td><td>2.8</td><td>0.098</td><td>4.2</td></tr><tr><td>Fluency/Punctuation</td><td>20.3</td><td>0.2</td><td>0.014</td><td>0.039</td><td>2.8</td><td>0.067</td><td>4.9</td><td>0.013</td><td>1.0</td><td>0.011</td><td>0.8</td></tr><tr><td>Other</td><td>0.5</td><td>5.2</td><td>0.005</td><td>0.010</td><td>1.9</td><td>0.009</td><td>1.6</td><td>0.010</td><td>1.9</td><td>0.007</td><td>1.2</td></tr><tr><td>Fluency/Register</td><td>0.6</td><td>5.0</td><td>0.005</td><td>0.014</td><td>3.0</td><td>0.009</td><td>1.9</td><td>0.015</td><td>3.2</td><td>0.015</td><td>3.3</td></tr><tr><td>Terminology/Inconsistent</td><td>0.3</td><td>0.0</td><td>0.004</td><td>0.005</td><td>1.2</td><td>0.004</td><td>0.9</td><td>0.005</td><td>1.2</td><td>0.005</td><td>1.2</td></tr><tr><td>Non-translation</td><td>0.2</td><td>100.0</td><td>0.003</td><td>0.083</td><td>28.3</td><td>0.041</td><td>14.0</td><td>0.065</td><td>22.0</td><td>0.094</td><td>32.0</td></tr><tr><td>Fluency/Inconsistency</td><td>0.1</td><td>1.3</td><td>0.003</td><td>0.002</td><td>0.7</td><td>0.001</td><td>0.3</td><td>0.001</td><td>0.3</td><td>0.003</td><td>1.0</td></tr><tr><td>Fluency/Character enc.</td><td>0.1</td><td>3.7</td><td>0.002</td><td>0.001</td><td>0.7</td><td>0.002</td><td>1.0</td><td>0.001</td><td>0.6</td><td>0.000</td><td>0.2</td></tr><tr><td>All accuracy</td><td>41.7</td><td>24.2</td><td>0.457</td><td>1.492</td><td>3.3</td><td>1.189</td><td>2.6</td><td>1.372</td><td>3.0</td><td>1.483</td><td>3.2</td></tr><tr><td>All fluency</td><td>34.2</td><td>1.8</td><td>0.150</td><td>0.320</td><td>2.1</td><td>0.303</td><td>2.0</td><td>0.284</td><td>1.9</td><td>0.253</td><td>1.7</td></tr><tr><td>All except acc. &amp; fluenc</td><td>24.2</td><td>6.0</td><td>0.222</td><td>0.596</td><td>2.7</td><td>0.526</td><td>2.4</td><td>0.591</td><td>2.7</td><td>0.596</td><td>2.7</td></tr><tr><td>All categories</td><td>100.0</td><td>12.1</td><td>0.829</td><td>2.408</td><td>2.9</td><td>2.017</td><td>2.4</td><td>2.247</td><td>2.7</td><td>2.332</td><td>2.8</td></tr></table>",
+        "bbox": [
+            122,
+            72,
+            878,
+            367
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "table",
+        "img_path": "images/521724838a2dd74de5e8db8117cd612b2f05c1d91626669daa30ac178ca17eb6.jpg",
+        "table_caption": [
+            "Table 6: Category breakdown of MQM scores for Chinese English for human translations (A, B), machine translations (all systems) and some of the best systems (VolcTrans, WeChat, Tencent). The ratio of system over human scores is in italics. Errors $( \\% )$ report the fraction of the total error counts in a category, Major $( \\% )$ report the fraction of major error for each category. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Error Categories</td><td rowspan=\"2\">Errors (%)</td><td rowspan=\"2\">Major (%)</td><td rowspan=\"2\">Human MQM</td><td colspan=\"2\">All MT</td><td colspan=\"2\">VolcTrans</td><td colspan=\"2\">WeChat</td><td colspan=\"2\">Tencent</td></tr><tr><td>MQM</td><td>vs H.</td><td>MQM</td><td>vs H.</td><td>MQM</td><td>vs H.</td><td>MQM</td><td>vs H.</td></tr><tr><td>Accuracy/Mistranslation</td><td>42.2</td><td>71.5</td><td>1.687</td><td>3.218</td><td>1.9</td><td>2.974</td><td>1.8</td><td>3.108</td><td>1.8</td><td>3.157</td><td>1.9</td></tr><tr><td>Accuracy/Omission</td><td>8.6</td><td>61.3</td><td>0.646</td><td>0.505</td><td>0.8</td><td>0.468</td><td>0.7</td><td>0.534</td><td>0.8</td><td>0.547</td><td>0.8</td></tr><tr><td>Fluency/Grammar</td><td>13.8</td><td>18.4</td><td>0.381</td><td>0.442</td><td>1.2</td><td>0.414</td><td>1.1</td><td>0.392</td><td>1.0</td><td>0.425</td><td>1.1</td></tr><tr><td>Locale/Name format</td><td>6.4</td><td>74.5</td><td>0.250</td><td>0.505</td><td>2.0</td><td>0.506</td><td>2.0</td><td>0.491</td><td>2.0</td><td>0.433</td><td>1.7</td></tr><tr><td>Terminology/Inappropriate</td><td>5.1</td><td>31.1</td><td>0.139</td><td>0.221</td><td>1.6</td><td>0.220</td><td>1.6</td><td>0.217</td><td>1.6</td><td>0.202</td><td>1.5</td></tr><tr><td>Style/Awkward</td><td>5.7</td><td>17.1</td><td>0.122</td><td>0.182</td><td>1.5</td><td>0.193</td><td>1.6</td><td>0.180</td><td>1.5</td><td>0.185</td><td>1.5</td></tr><tr><td>Accuracy/Addition</td><td>0.9</td><td>40.2</td><td>0.110</td><td>0.025</td><td>0.2</td><td>0.017</td><td>0.1</td><td>0.013</td><td>0.1</td><td>0.018</td><td>0.2</td></tr><tr><td>Fluency/Spelling</td><td>3.6</td><td>5.1</td><td>0.107</td><td>0.071</td><td>0.7</td><td>0.071</td><td>0.7</td><td>0.059</td><td>0.6</td><td>0.073</td><td>0.7</td></tr><tr><td>Fluency/Punctuation</td><td>11.1</td><td>1.4</td><td>0.028</td><td>0.035</td><td>1.2</td><td>0.035</td><td>1.3</td><td>0.031</td><td>1.1</td><td>0.033</td><td>1.2</td></tr><tr><td>Locale/Currency format</td><td>0.4</td><td>8.8</td><td>0.011</td><td>0.010</td><td>0.9</td><td>0.010</td><td>0.9</td><td>0.010</td><td>0.9</td><td>0.010</td><td>0.9</td></tr><tr><td>Fluency/Inconsistency</td><td>0.8</td><td>27.5</td><td>0.011</td><td>0.036</td><td>3.3</td><td>0.028</td><td>2.7</td><td>0.026</td><td>2.4</td><td>0.038</td><td>3.5</td></tr><tr><td>Fluency/Register</td><td>0.4</td><td>6.5</td><td>0.008</td><td>0.008</td><td>1.0</td><td>0.008</td><td>0.9</td><td>0.008</td><td>1.0</td><td>0.009</td><td>1.1</td></tr><tr><td>Locale/Address format</td><td>0.3</td><td>65.7</td><td>0.008</td><td>0.025</td><td>3.3</td><td>0.036</td><td>4.7</td><td>0.033</td><td>4.3</td><td>0.015</td><td>2.0</td></tr><tr><td>Non-translation</td><td>0.0</td><td>100.0</td><td>0.006</td><td>0.024</td><td>3.9</td><td>0.021</td><td>3.3</td><td>0.012</td><td>2.0</td><td>0.029</td><td>4.7</td></tr><tr><td>Terminology/Inconsistent</td><td>0.3</td><td>16.1</td><td>0.004</td><td>0.008</td><td>2.3</td><td>0.007</td><td>1.8</td><td>0.004</td><td>1.2</td><td>0.010</td><td>2.8</td></tr><tr><td>Other</td><td>0.1</td><td>4.1</td><td>0.003</td><td>0.003</td><td>0.9</td><td>0.005</td><td>1.7</td><td>0.002</td><td>0.6</td><td>0.001</td><td>0.4</td></tr><tr><td>All accuracy</td><td>51.7</td><td>69.3</td><td>2.444</td><td>3.748</td><td>1.5</td><td>3.463</td><td>1.4</td><td>3.655</td><td>1.5</td><td>3.721</td><td>1.5</td></tr><tr><td>All fluency</td><td>29.8</td><td>10.5</td><td>0.535</td><td>0.593</td><td>1.1</td><td>0.557</td><td>1.0</td><td>0.517</td><td>1.0</td><td>0.580</td><td>1.1</td></tr><tr><td>All except acc. &amp; fluency</td><td>18.5</td><td>41.7</td><td>0.546</td><td>0.986</td><td>1.8</td><td>1.005</td><td>1.8</td><td>0.955</td><td>1.7</td><td>0.891</td><td>1.6</td></tr><tr><td>All categories</td><td>100.0</td><td>46.7</td><td>3.525</td><td>5.327</td><td>1.5</td><td>5.025</td><td>1.4</td><td>5.127</td><td>1.5</td><td>5.192</td><td>1.5</td></tr></table>",
+        "bbox": [
+            121,
+            445,
+            878,
+            755
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "4.3 Document-error Distribution ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            845,
+            388,
+            860
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "We calculate document-level scores by averaging the segment level scores of each document. ",
+        "bbox": [
+            117,
+            878,
+            487,
+            909
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "We show the average document scores of all MT systems and all human translations (HT) for English German in Figure 5. The translation quality of humans is very consistent over all documents and gets a MQM score of around 1 which is equivalent to one minor error. This demonstrates that the translation quality of humans is consistent independent of the underlying source sentence. The distribution of MQM errors for machine translations looks much different. For some documents, MT gets very close to human performance, while for other documents the gap is clearly visible. Interestingly, all MT systems have similar problems with the same subset of documents which demonstrated that the quality of MT output is more conditioned on the actual input sentence and not only on the underlying MT system. ",
+        "bbox": [
+            514,
+            846,
+            882,
+            909
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "table",
+        "img_path": "images/93fa3469587d2b2d8a58beee3761490ece129f570f08e226c5aa7471cce909d1.jpg",
+        "table_caption": [
+            "(a) English German ",
+            "Table 7: MQM per rater and category. The ratio of a rater score over the average score is in italics. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Categories</td><td colspan=\"2\">Rater 1</td><td colspan=\"2\">Rater 2</td><td colspan=\"2\">Rater 3</td><td colspan=\"2\">Rater 4</td><td colspan=\"2\">Rater 5</td><td colspan=\"2\">Rater 6</td></tr><tr><td></td><td>MQM</td><td>vs avg.</td><td>MQM</td><td>vs avg.</td><td>MQM</td><td>vs avg.</td><td>MQM</td><td>vs avg.</td><td>MQM</td><td>vs avg.</td><td>MQM</td><td>vs avg.</td></tr><tr><td>Accuracy</td><td>1.02</td><td>0.84</td><td>0.82</td><td>0.68</td><td>1.55</td><td>1.28</td><td>1.42</td><td>1.18</td><td>1.23</td><td>1.02</td><td>1.21</td><td>1.00</td></tr><tr><td>Fluency</td><td>0.26</td><td>0.96</td><td>0.34</td><td>1.27</td><td>0.32</td><td>1.18</td><td>0.28</td><td>1.04</td><td>0.19</td><td>0.70</td><td>0.23</td><td>0.86</td></tr><tr><td>Others</td><td>0.41</td><td>0.80</td><td>0.63</td><td>1.23</td><td>0.59</td><td>1.14</td><td>0.57</td><td>1.10</td><td>0.57</td><td>1.10</td><td>0.32</td><td>0.63</td></tr><tr><td>All</td><td>1.69</td><td>0.85</td><td>1.79</td><td>0.90</td><td>2.45</td><td>1.23</td><td>2.27</td><td>1.14</td><td>1.98</td><td>1.00</td><td>1.76</td><td>0.88</td></tr><tr><td colspan=\"9\">(b) Chinese→English</td><td colspan=\"2\"></td><td colspan=\"2\"></td></tr><tr><td rowspan=\"2\">Categories</td><td colspan=\"2\">Rater 1 vs avg.</td><td colspan=\"2\">Rater 2 vs avg.</td><td colspan=\"2\">Rater 3</td><td colspan=\"2\">Rater 4</td><td colspan=\"2\">Rater 5</td><td colspan=\"2\">Rater 6</td></tr><tr><td colspan=\"2\">MQM</td><td colspan=\"2\">MQM</td><td colspan=\"2\">MQM vs avg.</td><td colspan=\"2\">MQM vs avg.</td><td colspan=\"2\">MQM vs avg.</td><td colspan=\"2\">MQM vs avg.</td></tr><tr><td>Accuracy</td><td>3.34</td><td>0.96</td><td>3.26</td><td>0.94</td><td>3.31</td><td>0.95</td><td>2.51</td><td>0.72</td><td>4.57</td><td>1.31</td><td>3.91</td><td>1.12</td></tr><tr><td>Fluency</td><td>0.39</td><td>0.68</td><td>0.50</td><td>0.87</td><td>1.13</td><td>1.95</td><td>0.33</td><td>0.57</td><td>0.59</td><td>1.02</td><td>0.53</td><td>0.92</td></tr><tr><td>Others</td><td>0.70</td><td>0.78</td><td>0.75</td><td>0.83</td><td>0.85</td><td>0.94</td><td>0.66</td><td>0.74</td><td>1.11</td><td>1.24</td><td>1.32</td><td>1.47</td></tr><tr><td>All</td><td>4.43</td><td>0.89</td><td>4.51</td><td>0.91</td><td>5.29</td><td>1.07</td><td>3.50</td><td>0.71</td><td>6.27</td><td>1.26</td><td>5.76</td><td>1.16</td></tr></table>",
+        "bbox": [
+            127,
+            86,
+            873,
+            291
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            119,
+            338,
+            487,
+            546
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "The MQM document-level scores for Chinese English are shown in Figure 6. The distribution of MQM errors for the MT output looks very similar to the ones for English German. There are documents that are more challenging for some MT systems than others. Although the document-level scores are mostly lower for human translations, the distribution looks similar to the ones from MT systems. We first suspected that the reference translations were post-edited from MT. This is not the case: these translations originate from professional translators without access to post-editing but with access to CAT tools (mem-source and translation memory). Another possible explanation is the nature of the source sentences. Most sentences come from Chinese government news pages which have a formal style that may be difficult to render in English. ",
+        "bbox": [
+            117,
+            550,
+            487,
+            838
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "4.4 Annotator Agreement and Reliability ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            856,
+            453,
+            870
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Our annotations were performed by professional raters with MQM training. All raters were given roughly the same amount of work, with the same number of segments from each system. This setup should result in similar aggregated rater scores. ",
+        "bbox": [
+            117,
+            878,
+            487,
+            910
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "image",
+        "img_path": "images/baebd432c031f4bd4b0426fba34645a4ae904f870087da8092ce6b591f1fda49.jpg",
+        "image_caption": [
+            "Figure 5: EnDe: Document-level MQM scores. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            512,
+            337,
+            882,
+            492
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "image",
+        "img_path": "images/a26283eeef5a65539bfd18eaba235435515c8cc5a67704e59c2a92d04dfa65a6.jpg",
+        "image_caption": [
+            "Figure 6: ZhEn: Document-level MQM scores. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            512,
+            513,
+            882,
+            667
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            514,
+            701,
+            884,
+            749
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Table 7(a) reports the scores per rater aggregated over the main error categories for English German. All raters provide scores within $\\pm 2 0 \\%$ around the mean, with rater 3 being the most severe rater and rater 1 the most permissive. Looking at individual ratings, rater 2 rated fewer errors in accuracy categories but used the style/awkward category more for errors outside of fluency/accuracy. Conversely, rater 6 barely used this category. Differences in error rates among raters are not severe but could be reduced with corrections from an annotation model (Paun et al., 2018), especially when working with larger annotator pools. ",
+        "bbox": [
+            514,
+            751,
+            884,
+            909
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            117,
+            76,
+            487,
+            139
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "The rater comparison on Chinese English in Table 7(b) reports a wider range of scores than for English German. All raters provide scores within $\\pm 3 0 \\%$ around the mean. This difference might be due to the greater difficulty of the translation task itself introducing more ambiguity in the labeling. In the future, it would be interesting to compare if translation between languages of different families suffer larger annotator disagreement for MQM ratings. ",
+        "bbox": [
+            117,
+            141,
+            489,
+            302
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "4.5 Number of MQM Ratings Required ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            318,
+            443,
+            334
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Human evaluation with professional translators is more expensive than using the crowd. To keep the cost as low as possible, we compute the minimum number of ratings required to get a reliable human evaluation. We simulate new MQM rating projects by bootstrapping from the existing MQM data.2 We compute Kendall’s $\\tau$ correlation of the simulated system level scores with the system level scores obtained from the full MQM data set. Note that later should be considered as the ground truth when estimating the accuracy of simulated MQM projects. See Figure 7 for the change of distributions of Kendall’s $\\tau$ for English German as the number of ratings increases. ",
+        "bbox": [
+            117,
+            342,
+            487,
+            567
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "image",
+        "img_path": "images/6f91eeafe01f70602ff2d33c98e8cbea5058e117a0e50b44c33f1ed2126932da.jpg",
+        "image_caption": [
+            "Figure 7: Distributions of Kendall’s $\\tau$ of system level scores for English German. As the number of ratings increases, the distribution of Kendall’s $\\tau$ converges to the Dirac distribution at 1. All systems use 1 rater per sentence and 3 consecutive sentences per document. The width of $9 5 \\%$ CI is small $( < 0 . 0 2 )$ , and thus is not shown here. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            119,
+            586,
+            484,
+            751
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Figure 8 shows the effect of different distributing schema for a fixed budget of 900 segment-level ratings. The system level scores become more accurate when limiting the number of segment-level ratings to 3 consecutive sentences in each document and thus distributing the 900 segment-level scores over more documents. ",
+        "bbox": [
+            514,
+            74,
+            884,
+            186
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "image",
+        "img_path": "images/48445b2045f9982bb0721c9d4f085fdcca8f1d25d5488e032f6dbafe9d2e56ee.jpg",
+        "image_caption": [
+            "Figure 8: System-level Kendall’s $\\tau$ for different distribution schema of 900 segment-level ratings for English German. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            514,
+            211,
+            878,
+            372
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Once the items to be rated is fixed for one system, aligning the ratings across different systems makes the comparison of two system more accurate. For MQM, this means that to compare different systems, it helps to rate the same documents, and the same sentences in the corresponding documents. When possible, using the same rater(s) to rate the corresponding sentences for different systems further improves the accuracy of the comparison between systems. ",
+        "bbox": [
+            514,
+            451,
+            884,
+            611
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Finally, we estimate the number of ratings needed for MQM on different language pairs. The estimations are for systems with 3 consecutive sentences rated per document, and 1 rating per sentence. We further align the documents and the sentences rated across systems, but we do not align raters for corresponding sentences. We estimate the minimum number of ratings required such that the expected Kendall’s $\\tau$ correlation with the full data set $\\geq 0 . 9$ . ",
+        "bbox": [
+            514,
+            618,
+            884,
+            777
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "table",
+        "img_path": "images/52a574ed0062c83bd06b104465d48abaa8b435cc062019251733be467e8621fc.jpg",
+        "table_caption": [
+            "Table 8: MQM: Number of required ratings per system to achieve Kendall’s $\\tau$ of 0.9 "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>language pair </td><td>number of ratings required</td></tr><tr><td>English→German</td><td>951</td></tr><tr><td>Chinese→English</td><td>3720</td></tr></table>",
+        "bbox": [
+            547,
+            799,
+            847,
+            852
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "image",
+        "img_path": "images/d14fa4d89a9449702bb4ea80b3daecb0341722a1d8b6a7a018e23bed97e78e35.jpg",
+        "image_caption": [
+            "System-level Kendall correlations with human scores (EnDe) ",
+            "Figure 9: System-level metric performance with MQM and WMT scoring for: (a) EnDe, top panel; and (b) ZhEn, bottom panel. The horizontal blue line indicates the correlation between MQM and WMT human scores. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            176,
+            86,
+            828,
+            375
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "4.6 Impact on Automatic Evaluation ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            444,
+            418,
+            460
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "We compared the performance of automatic metrics submitted to the WMT20 Metrics Task when gold scores came from the original WMT ratings to the performance when gold scores were derived from our MQM ratings. Figure 9 shows Kendall’s tau correlation for selected metrics at the system level for English German and Chinese English;3 full results are in Appendix C. As would be expected from the low correlation between MQM and WMT scores, the ranking of metrics changes completely under MQM. In general, metrics that are not solely based on surface characteristics do somewhat better, though this pattern is not consistent (for example, chrF has a correlation of 0.8 for EnDe). Metrics tend to correlate better with MQM than they do with WMT, and almost all achieve better MQM correlation than WMT does (horizontal dotted line). ",
+        "bbox": [
+            117,
+            468,
+            487,
+            757
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Table 9 shows average correlations with WMT and MQM gold scores for different subsets of metrics at different granularities. At the system level, correlations are higher for MQM than WMT, and for EnDe than ZhEn. Correlations to MQM are quite good, though on average they are statistically significant only for EnDe. Interestingly, the average performance of baseline metrics (BLEU, sentBLEU, TER, chrF, ${ \\mathrm { c h r F } } + + { \\AA }$ ) is similar to the global average for all metrics in all conditions except for ZhEn WMT, where it is substantially better. Adding human translations4 to the outputs scored by the metrics results in a large drop in performance, especially for MQM due to human outputs being rated unambiguously higher than MT by MQM. Segment-level correlations are generally much lower than system-level, though they are significant due to having greater support. MQM correlations are again higher than WMT at this granularity, and are higher for ZhEn than EnDe, reversing the pattern from system-level results and suggesting a potential for improved system-level metric performance through better aggregation of segment-level scores. ",
+        "bbox": [
+            119,
+            760,
+            487,
+            840
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "table",
+        "img_path": "images/a7d7be46b212da1693aa3abe10b48350101418fd1065f620b5cb76b3eb98fa94.jpg",
+        "table_caption": [
+            "Table 9: Average correlations for various subsets of metrics at different granularities. Numbers in italics are average p-values from two-tailed tests, indicating the probability that the observed correlation was due to chance. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Average correlations</td><td colspan=\"2\">EnDe</td><td colspan=\"2\">ZhEn</td></tr><tr><td>WMT</td><td>MQM</td><td>WMT</td><td>MQM</td></tr><tr><td>Pearson, sys-level</td><td>0.539 0.23</td><td>0.883 0.02</td><td>0.318 0.41</td><td>0.551 0.21</td></tr><tr><td>Kendall, sys-level</td><td>0.436 0.27</td><td>0.637 0.10</td><td>0.309 0.42</td><td>0.443 0.23</td></tr><tr><td>Kendall, sys-level, baseline metrics</td><td>0.467 0.20</td><td>0.676 0.06</td><td>0.514 0.10</td><td>0.343 0.34</td></tr><tr><td>Kendall, sys-level, + human</td><td>0.387 0.26</td><td>0.123 0.68</td><td>0.426 0.20</td><td>0.159 0.64</td></tr><tr><td>Kendall, seg-level</td><td>0.170 0.00</td><td>0.228</td><td>0.159</td><td>0.298</td></tr><tr><td>Kendall, seg-level, + human</td><td>0.159 0.00</td><td>0.00 0.161 0.00</td><td>0.00 0.157</td><td>0.00 0.276</td></tr></table>",
+        "bbox": [
+            527,
+            442,
+            870,
+            640
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            514,
+            744,
+            882,
+            873
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            119,
+            76,
+            487,
+            250
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "5 Conclusion ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            268,
+            245,
+            284
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "As part of this work, we proposed a standard MQM scoring scheme that is appropriate for highquality MT. We used MQM to acquire ratings by professional translators for the recent WMT 2020 evaluation campaign for Chinese English and English German and used them as a platinum standard for comparison to different simpler evaluation methodologies and crowd worker evaluations. We release all ratings acquired in this study to encourage further research on this dataset for both human evaluation and automatic evaluation. ",
+        "bbox": [
+            119,
+            298,
+            487,
+            488
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Our study shows that crowd-worker human evaluations (as conducted by WMT) have low correlation with MQM, and the resulting systemlevel rankings are quite different. This finding questions previous conclusions made on the basis of crowd-worker human evaluation, especially for high-quality MT. We further come to the surprising finding that many automatic metrics, and in particular embedding-based ones, already outperform crowd-worker human evaluation. Unlike ratings acquired by crowd-worker and ratings acquired by professional translators on simpler human evaluation methodologies, MQM labels acquired with professional translators show a large gap between the quality of human and machine generated translations. This demonstrates that MT is still far from human parity. Furthermore, we characterize the current error types in human and machine translations, highlighting which error types are responsible for the difference between the two. We hope that researchers will use this as motivation to establish more error-type specific research directions. Finally, we give recommendations of how many MQM labels are required to establish a reliable human evaluation and how these ratings should be distributed across documents. ",
+        "bbox": [
+            119,
+            493,
+            487,
+            909
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "References ",
+        "text_level": 1,
+        "bbox": [
+            515,
+            74,
+            608,
+            90
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "ALPAC. 1966. Language and Machines: Computers in Translation and Linguistics; a Report, volume 1416. National Academies. ",
+        "bbox": [
+            515,
+            102,
+            882,
+            148
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Eleftherios Avramidis, Aljoscha Burchardt, Christian Federmann, Maja Popovic, Cindy Tscher- ´ winka, and David Vilar. 2012. Involving Language Professionals in the Evaluation of Machine Translation. In Proceedings of the Eighth International Conference on Language Resources and Evaluation (LREC’12), pages 1127–1130, Istanbul, Turkey. European Language Resources Association (ELRA). ",
+        "bbox": [
+            514,
+            164,
+            882,
+            306
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Loïc Barrault, Magdalena Biesialska, Ondˇrej Bojar, Marta R. Costa-jussà, Christian Federmann, Yvette Graham, Roman Grundkiewicz, Barry Haddow, Matthias Huck, Eric Joanis, Tom Kocmi, Philipp Koehn, Chi-kiu Lo, Nikola Ljubešic, Christof Monz, Makoto Morishita, ´ Masaaki Nagata, Toshiaki Nakazawa, Santanu Pal, Matt Post, and Marcos Zampieri. 2020. Findings of the 2020 Conference on Machine Translation (WMT20). In Proceedings of the Fifth Conference on Machine Translation, pages 1–55, Online. Association for Computational Linguistics. ",
+        "bbox": [
+            512,
+            323,
+            884,
+            530
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Luisa Bentivogli, Mauro Cettolo, Marcello Federico, and Christian Federmann. 2018. Machine Translation Human Evaluation: an investigation of evaluation based on Post-Editing and its relation with Direct Assessment. In International Workshop on Spoken Language Translation. ",
+        "bbox": [
+            514,
+            545,
+            882,
+            642
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Ondrej Bojar, Rajen Chatterjee, Federmann Christian, Graham Yvette, Haddow Barry, Huck Matthias, Koehn Philipp, Liu Qun, Logacheva Varvara, Monz Christof, et al. 2017. Findings of the 2017 Conference on Machine Translation (WMT17). In Second Conference onMachine Translation, pages 169–214. The Association for Computational Linguistics. ",
+        "bbox": [
+            512,
+            656,
+            882,
+            783
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Ondˇrej Bojar, Rajen Chatterjee, Christian Federmann, Yvette Graham, Barry Haddow, Matthias Huck, Antonio Jimeno Yepes, Philipp Koehn, Varvara Logacheva, Christof Monz, Matteo Negri, Aurélie Névéol, Mariana Neves, Martin Popel, Matt Post, Raphael Rubino, Carolina Scarton, Lucia Specia, Marco Turchi, Karin ",
+        "bbox": [
+            514,
+            799,
+            882,
+            909
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Verspoor, and Marcos Zampieri. 2016. Findings of the 2016 Conference on Machine Translation. In Proceedings of the First Conference on Machine Translation: Volume 2, Shared Task Papers, pages 131–198, Berlin, Germany. Association for Computational Linguistics. ",
+        "bbox": [
+            137,
+            76,
+            487,
+            171
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Chris Callison-Burch, Philipp Koehn, Christof Monz, Josh Schroeder, and Cameron Shaw Fordyce. 2008. Proceedings of the Third Workshop on Statistical Machine Translation. In Proceedings of the Third Workshop on Statistical Machine Translation. ",
+        "bbox": [
+            117,
+            181,
+            487,
+            275
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Sheila Castilho, Joss Moorkens, Federico Gaspari, Rico Sennrich, Vilelmini Sosoni, Panayota Georgakopoulou, Pintu Lohar, Andy Way, Antonio Valerio Miceli Barone, and Maria Gialama. 2017. A Comparative Quality Evaluation of PBSMT and NMT using Professional Translators. AAMT. ",
+        "bbox": [
+            117,
+            286,
+            487,
+            398
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Lukas Fischer and Samuel Läubli. 2020. What’s the Difference Between Professional Human and Machine Translation? A Blind Multilanguage Study on Domain-specific MT. In Proceedings of the 22nd Annual Conference of the European Association for Machine Translation, pages 215–224, Lisboa, Portugal. European Association for Machine Translation. ",
+        "bbox": [
+            117,
+            409,
+            487,
+            536
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Marina Fomicheva et al. 2017. The Role of Human Reference Translation in Machine Translation Evaluation. Ph.D. thesis, Universitat Pompeu Fabra. ",
+        "bbox": [
+            117,
+            545,
+            487,
+            608
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Mikel L Forcada, Carolina Scarton, Lucia Specia, Barry Haddow, and Alexandra Birch. 2018. Exploring Gap Filling as a Cheaper Alternative to Reading Comprehension Questionnaires when Evaluating Machine Translation for Gisting. In Proceedings of the Third Conference on Machine Translation: Research Papers, pages 192–203. ",
+        "bbox": [
+            117,
+            619,
+            487,
+            746
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Markus Freitag, Isaac Caswell, and Scott Roy. 2019. APE at Scale and Its Implications on MT Evaluation Biases. In Proceedings of the Fourth Conference on Machine Translation, pages 34– 44, Florence, Italy. Association for Computational Linguistics. ",
+        "bbox": [
+            119,
+            757,
+            487,
+            852
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Markus Freitag, David Grangier, and Isaac Caswell. 2020. BLEU might be Guilty but References Are Not Innocent. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 61–71. ",
+        "bbox": [
+            117,
+            863,
+            489,
+            909
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            532,
+            76,
+            882,
+            121
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Yvette Graham, Timothy Baldwin, Alistair Moffat, and Justin Zobel. 2013. Continuous Measurement Scales in Human Evaluation of Machine Translation. In Proceedings of the 7th Linguistic Annotation Workshop and Interoperability with Discourse, pages 33–41. ",
+        "bbox": [
+            514,
+            134,
+            882,
+            229
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Yvette Graham, Timothy Baldwin, Alistair Moffat, and Justin Zobel. 2017. Can Machine Translation Systems be Evaluated by the Crowd Alone? Natural Language Engineering, 23(1):3–30. ",
+        "bbox": [
+            514,
+            240,
+            882,
+            318
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Yvette Graham, Barry Haddow, and Philipp Koehn. 2020. Translationese in Machine Translation Evaluation. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 72–81. ",
+        "bbox": [
+            515,
+            330,
+            884,
+            410
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Hany Hassan, Anthony Aue, Chang Chen, Vishal Chowdhary, Jonathan Clark, Christian Federmann, Xuedong Huang, Marcin JunczysDowmunt, William Lewis, Mu Li, et al. 2018. Achieving Human Parity on Automatic Chinese to English News Translation. arXiv preprint arXiv:1803.05567. ",
+        "bbox": [
+            512,
+            420,
+            884,
+            532
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Filip Klubicka, Antonio Toral, and Víctor Mˇ Sánchez-Cartagena. 2018. Quantitative FineGrained Human Evaluation of Machine Translation Systems: a Case Study on English to Croatian. Machine Translation, 32(3):195–215. ",
+        "bbox": [
+            514,
+            543,
+            882,
+            623
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Philipp Koehn and Christof Monz. 2006. Manual and Automatic Evaluation of Machine Translation between European Languages. In Proceedings on the Workshop on Statistical Machine Translation, pages 102–121. ",
+        "bbox": [
+            514,
+            633,
+            882,
+            713
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Moshe Koppel and Noam Ordan. 2011. Translationese and Its Dialects. In Proceedings of the 49th Annual Meeting of the Association for Computational Linguistics: Human Language Technologies - Volume 1, pages 1318–1326. ",
+        "bbox": [
+            514,
+            724,
+            884,
+            803
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Samuel Läubli, Sheila Castilho, Graham Neubig, Rico Sennrich, Qinlan Shen, and Antonio Toral. 2020. A Set of Recommendations for Assessing Human–Machine Parity in Language Translation. Journal of Artificial Intelligence Research, 67:653–672. ",
+        "bbox": [
+            514,
+            814,
+            882,
+            909
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Samuel Läubli, Rico Sennrich, and Martin Volk. 2018. Has Machine Translation Achieved Human Parity? A Case for Document-level Evaluation. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing, pages 4791–4796. ",
+        "bbox": [
+            117,
+            76,
+            487,
+            171
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Arle Lommel, Hans Uszkoreit, and Aljoscha Burchardt. 2014. Multidimensional Quality Metrics (MQM) $:$ A Framework for Declaring and Describing Translation Quality Metrics. Tradumàtica, pages 0455–463. ",
+        "bbox": [
+            117,
+            185,
+            487,
+            265
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Nitika Mathur, Johnny Wei, Markus Freitag, Qingsong Ma, and Ondˇrej Bojar. 2020. Results of the WMT20 Metrics Shared Task. In Proceedings of the Fifth Conference on Machine Translation, pages 688–725, Online. Association for Computational Linguistics. ",
+        "bbox": [
+            117,
+            279,
+            487,
+            374
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Silviu Paun, Bob Carpenter, Jon Chamberlain, Dirk Hovy, Udo Kruschwitz, and Massimo Poesio. 2018. Comparing Bayesian Models of Annotation. Transactions of the Association for Computational Linguistics, 6:571–585. ",
+        "bbox": [
+            117,
+            390,
+            487,
+            469
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Maja Popovic. 2020.´ Informative Manual Evaluation of Machine Translation Output. In Proceedings of the 28th International Conference on Computational Linguistics, pages 5059– 5069. ",
+        "bbox": [
+            117,
+            483,
+            487,
+            562
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Ricardo Rei, Craig Stewart, Ana C Farinha, and Alon Lavie. 2020. COMET: A Neural Framework for MT Evaluation. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 2685–2702, Online. Association for Computational Linguistics. ",
+        "bbox": [
+            117,
+            577,
+            489,
+            689
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Carolina Scarton and Lucia Specia. 2016. A Reading Comprehension Corpus for Machine Translation Evaluation. In Proceedings of the Tenth International Conference on Language Resources and Evaluation (LREC’16), pages 3652–3658. ",
+        "bbox": [
+            117,
+            703,
+            487,
+            799
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Antonio Toral. 2020. Reassessing claims of human parity and super-human performance in machine translation at wmt 2019. In Proceedings of the 22nd Annual Conference of the European Association for Machine Translation, pages 185–194. ",
+        "bbox": [
+            119,
+            814,
+            487,
+            910
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Antonio Toral, Sheila Castilho, Ke Hu, and Andy Way. 2018. Attaining the Unattainable? Reassessing Claims of Human Parity in Neural Machine Translation. In Proceedings of the Third Conference on Machine Translation: Research Papers, pages 113–123, Belgium, Brussels. Association for Computational Linguistics. ",
+        "bbox": [
+            512,
+            74,
+            882,
+            202
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "David Vilar, Gregor Leusch, Hermann Ney, and Rafael E Banchs. 2007. Human Evaluation of Machine Translation Through Binary System Comparisons. In Proceedings of the Second Workshop on Statistical Machine Translation, pages 96–103. ",
+        "bbox": [
+            514,
+            215,
+            884,
+            310
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "John S White, Theresa A O’Connell, and Francis E O’Mara. 1994. The arpa mt evaluation methodologies: evolution, lessons, and future approaches. In Proceedings of the First Conference of the Association for Machine Translation in the Americas. ",
+        "bbox": [
+            514,
+            322,
+            884,
+            417
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Mike Zhang and Antonio Toral. 2019. The Effect of Translationese in Machine Translation Test Sets. In Proceedings of the Fourth Conference on Machine Translation (Volume 1: Research Papers), pages 73–81. ",
+        "bbox": [
+            512,
+            429,
+            885,
+            510
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "A MQM Summary ",
+        "text_level": 1,
+        "bbox": [
+            121,
+            74,
+            297,
+            91
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "The Multidimensional Quality Metrics (MQM) framework was developed in the EU QTLaunchPad and QT21 projects (2012–2018) (www.qt21.eu). It provides a generic methodology for assessing translation quality that can be adapted to a wide range of evaluation needs. The central idea is to establish a standard hierarchy of translation issues (potential errors) that can be pruned or extended with new issues as required. Annotators identify issues in text at a suitable granularity, and the results are summarized using a procedure that is specific to the application. ",
+        "bbox": [
+            117,
+            101,
+            487,
+            292
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "The MQM standard (www.qt21.eu/mqmdefinition) consists of a controlled vocabulary for describing issues, a scoring mechanism for aggregating annotation results, an XML formalism for describing specific metrics (instantiations of MQM), a set of guidelines for selecting issues, and mappings from legacy metrics to MQM. All components except the vocabulary and XML mechanism are considered suggestive, and may be modified as required. Figure 10 depicts the MQM Core issue hierarchy, intended to cover common issues arising in translated texts. ",
+        "bbox": [
+            119,
+            294,
+            487,
+            485
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Guidelines for adapting MQM to scientific research are provided in the standard, and augmented by (MQM-usage-guidelines.pdf). The main points can be summarized as follows: ",
+        "bbox": [
+            119,
+            487,
+            487,
+            550
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "• Choose an issue hierarchy suitable to the research questions being addressed, introducing new issues as needed,5 and pruning irrelevant issues to reduce ambiguity and cognitive load. Specify the granularity of the text units to which the issues will apply; this may range from sub-sentential spans to multi-document collections. ",
+        "bbox": [
+            139,
+            563,
+            487,
+            689
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "• If possible, use expert human translators or translators to perform annotations; three annotators per text item is recommended. Provide training in the use of the annotation tool, and guidelines for interpreting the issue hierarchy. These may be augmented with examples or decision trees, and a calibration set containing known errors can be used to assure annotator competence. ",
+        "bbox": [
+            139,
+            703,
+            487,
+            846
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "• Annotation should proceed in short segments (30 minutes), and the allocated time should take text difficulty into account. Annotation cost is estimated to be approximately 1 USD / segment (assuming three annotators), but can be highly variable. Annotation within document context is assumed implicitly. ",
+        "bbox": [
+            139,
+            859,
+            487,
+            873
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            549,
+            76,
+            884,
+            171
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "• Analysis can produce aggregate scores or finer-grained summaries. The specification recommends that each issue be graded with a severity: none, minor, major, or critical. Aggregate scores can weight each issue by type (the default is to weight all types equally) and by severity (recommended scores are 0, 1, 10, and 100, respectively). ",
+        "bbox": [
+            536,
+            189,
+            884,
+            316
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "B MQM for Broad-Coverage MT ",
+        "text_level": 1,
+        "bbox": [
+            515,
+            332,
+            815,
+            349
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Annotation ",
+        "text_level": 1,
+        "bbox": [
+            515,
+            363,
+            605,
+            376
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Our broad-coverage MT issue hierarchy is shown in Table 10. It is intended to be applied at the segment level by annotators with access to document context. We based it loosely on the MQM core hierarchy, with modifications established in collaboration with expert translators from our rater pool who had MQM experience. After an initial pilot run, we added several sub-categories to $L o$ - cale convention for the sake of consistency.6 Apart from clarifying the definitions of some categories, our main change was to add a Non-translation category to cover situations where identifying individual errors would be meaningless. At most one Non-translation error can be assigned to a segment, and choosing Non-translation precludes the identification of other errors in that segment. ",
+        "bbox": [
+            514,
+            385,
+            884,
+            642
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Table 11 shows descriptions for three severity levels that raters must assign to errors independent of their category. Many MQM schemes include an additional “Critical” severity which is worse than Major, but we dropped this because its definition is often context-specific, capturing errors that are disproportionately harmful for a particular application. We felt that for broad coverage MT the distinction between Major and Critical was likely to be highly subjective, while Major errors (actual errors) would be easier to distinguish from Minor ones (imperfections). Neutral severity allows annotators to express subjective opinions about the translation without affecting its rating. ",
+        "bbox": [
+            514,
+            644,
+            882,
+            869
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "image",
+        "img_path": "images/fe3a84b6996ea3f9c2ff58fea6f0b827067d79c0d499a36871e2d0facff9b87b.jpg",
+        "image_caption": [
+            "Figure 10: MQM Core issue hierarchy. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            235,
+            71,
+            769,
+            300
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Annotator instructions are shown in Table 12. We kept these minimal because our raters were professionals with previous experience in assessing translation quality, including with MQM. There are many subtle issues that arise in error annotation, such as the correct way to translate units (eg, should 1 inch be translated as 1 Zoll, 1cm, or $2 . 5 4 \\mathrm { c m ? }$ ), but we resisted the temptation to establish an extensive list of context-specific guidelines, relying instead on the judgment of our annotators. In order to temper the effect of long segments, we imposed a maximum of five errors per segment. For segments with more errors, we asked raters to identify only the five most severe. Thus we do not distinguish between segments containing five or more than five Major errors, although we do distinguish between segments with many identifiable errors and those that are categorized as entirely Non-translation. To focus our raters on careful error identification, and to provide potentially useful information for further studies, we had them highlight error spans in the text, following the conventions laid out in Table 12. ",
+        "bbox": [
+            119,
+            356,
+            487,
+            724
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Scoring ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            741,
+            181,
+            757
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Since we are ultimately interested in deriving scores for sentences, we require a weighting on error categories and severities. We set the weight on Minor errors to 1, and explored a range of Major error weights from 1 to 10 (the Major weight recommended in the MQM standard). For each weight combination we examined the stability of system ranking using a resampling technique. We found that a Major weight of 5 gave the best balance of stability and ability to discriminate among systems. ",
+        "bbox": [
+            119,
+            766,
+            487,
+            909
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            514,
+            355,
+            882,
+            385
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "These weights apply to all error categories except Fluency/Punctuation and Nontranslation. We assigned a weight of 0.1 for Fluency/Punctuation to reflect its mostly nonlinguistic character. Decisions like the kind of quotation mark to use or the spacing between words and punctuation affect the appearance of a text but do not change its meaning. Unlike other kinds of minor errors, these are easy to correct algorithmically, so we assign them a low weight to ensure that their main role is to distinguish between systems that are equivalent in other respects. Our decision is supported by evidence from professional translators, who tend to treat minor punctuation errors as insignificant for the purpose of scoring, even when they are required to annotate them within the MQM framework. Note that this category does not include punctuation errors that render a text ungrammatical or change its meaning (eg, eliding the comma in “Let’s eat, grandma”), which have the same weight as other Major errors. Source errors are ignored in our current study but give us the ability to discard badly garbled source sentences, which might be prevalent in certain genres. The singleton Nontranslation category has a weight of 25, equivalent to five Major errors, the worst segment-level score possible in our annotation scheme. ",
+        "bbox": [
+            514,
+            392,
+            882,
+            840
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Our current weighting ignores the text span of errors, as this provides little information relevant to scoring once severity and category are taken into account. ",
+        "bbox": [
+            514,
+            847,
+            882,
+            909
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "table",
+        "img_path": "images/f8dcb9986da917a3ed82a981fa3e2555c2d284d4dcbcd08769d9caaa9f2e9195.jpg",
+        "table_caption": [
+            "Table 10: MQM hierarchy. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td colspan=\"2\">Error Category</td><td>Description</td></tr><tr><td rowspan=\"4\">Accuracy</td><td>Addition</td><td>Translation includes information not present in the source.</td></tr><tr><td>Omission</td><td>Translation is missing content from the source.</td></tr><tr><td>Mistranslation</td><td>Translation does not accurately represent the source.</td></tr><tr><td>Untranslated text</td><td>Source text has been left untranslated.</td></tr><tr><td rowspan=\"6\">Fluency</td><td>Punctuation</td><td>Incorrect punctuation (for locale or style).</td></tr><tr><td>Spelling</td><td>Incorrect spelling or capitalization.</td></tr><tr><td>Grammar</td><td>Problems with grammar, other than orthography.</td></tr><tr><td>Register</td><td>Wrong grammatical register (eg, inappropriately informal pronouns).</td></tr><tr><td>Inconsistency</td><td>Internal inconsistency (not related to terminology).</td></tr><tr><td>Character encoding</td><td>Characters are garbled due to incorrect encoding.</td></tr><tr><td rowspan=\"2\">Terminology</td><td>Inappropriate for context</td><td>Terminology is non-standard or does not fit context.</td></tr><tr><td>Inconsistent use</td><td>Terminology is used inconsistently.</td></tr><tr><td>Style</td><td>Awkward</td><td>Translation has stylistic problems.</td></tr><tr><td rowspan=\"6\">Locale convention</td><td>Address format</td><td>Wrong format for addresses.</td></tr><tr><td>Currency format</td><td>Wrong format for currency.</td></tr><tr><td>Date format</td><td>Wrong format for dates.</td></tr><tr><td>Name format</td><td>Wrong format for names.</td></tr><tr><td>Telephone format</td><td>Wrong format for telephone numbers.</td></tr><tr><td>Time format</td><td>Wrong format for time expressions.</td></tr><tr><td colspan=\"2\">Other</td><td>Any other issues.</td></tr><tr><td colspan=\"2\">Source error</td><td>An error in the source.</td></tr><tr><td colspan=\"2\">Non-translation</td><td>Impossible to reliably characterize the 5 most severe errors.</td></tr></table>",
+        "bbox": [
+            152,
+            73,
+            850,
+            422
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "table",
+        "img_path": "images/ac5ac9ac7eb2617d2731df2c6ed9ce0b9c09e4ff5f72b7bb58f290ce22e21868.jpg",
+        "table_caption": [
+            "Table 11: MQM severity levels. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=1>Severity</td><td rowspan=1 colspan=1>Description</td></tr><tr><td rowspan=1 colspan=1>Major</td><td rowspan=1 colspan=1>Errors that may confuse or mislead the reader due to significant change in meaning or because theyappear in a visible or important part of the content.</td></tr><tr><td rowspan=1 colspan=1>Minor</td><td rowspan=1 colspan=1>Errors that don&#x27;t lead toloss ofmeaning and wouldn&#x27;t confuse ormislead the reader but would be noticed,would decrease stylistic quality, fluency or clarity, or would make the content less appealing.</td></tr><tr><td rowspan=1 colspan=1>Neutral</td><td rowspan=1 colspan=1>Use to log additional information, problems or changes to be made that don&#x27;t count as errors, e.g. theyreflect a reviewer&#x27;s choice or preferred style.</td></tr></table>",
+        "bbox": [
+            151,
+            469,
+            852,
+            585
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "Table 1 summarizes our weighting scheme. The score of a segment is the sum of all errors it contains, averaged over all annotators, and ranges from 0 (perfect) to 25 (maximally bad). Segment scores are averaged to provide documentand system-level scores. ",
+        "bbox": [
+            117,
+            633,
+            487,
+            728
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "C Analysis of Metric Performance ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            740,
+            428,
+            757
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "Figure 12 shows the system-level Kendall tau correlations for all metrics from the WMT 2020 metrics task, completing the partial picture given in Figure 9. Figure 11 contains the corresponding plots for Pearson correlation. Figure 13 shows Kendall correlation for English German for metrics using the paraphrased references available for that language pair; this substantially changes metric ranking and performance. Finally, Figure 17 shows performance when human outputs were included among the systems to be scored, resulting in lower correlations compared to MQM gold scores, and much lower correlations compared to WMT gold scores. ",
+        "bbox": [
+            117,
+            765,
+            487,
+            909
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            514,
+            633,
+            882,
+            712
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "For segment-level correlations, we adopted the WMT “Kendall-like” measure to deal with missing and unreliable segment-level annotations in the WMT data. This discards pairwise rankings when annotations are missing or when raw scores differ by less than 25. This statistic aggregates pairwise rankings over system scores for each segment rather than working from a single global list of segment-level scores, independent of which system they pertain to. For MQM correlations, lacking a way to establish a comparable threshold, and because we expected small differences to ",
+        "bbox": [
+            514,
+            718,
+            882,
+            909
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "You will be assessing translations at the segment level, where a segment may contain one or more sentences. Each segment is aligned with a corresponding source segment, and both segments are displayed within their respective documents. Annotate segments in natural order, as if you were reading the document. You may return to revise previous segments. ",
+        "bbox": [
+            127,
+            74,
+            897,
+            139
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Please identify all errors within each translated segment, up to a maximum of five. If there are more than five errors, identify only the five most severe. If it is not possible to reliably identify distinct errors because the translation is too badly garbled or is unrelated to the source, then mark a single Non-translation error that spans the entire segment. ",
+        "bbox": [
+            129,
+            155,
+            895,
+            218
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "To identify an error, highlight the relevant span of text, and select a category/sub-category and severity level from the available options. (The span of text may be in the source segment if the error is a source error or an omission.) When identifying errors, please be as fine-grained as possible. For example, if a sentence contains two words that are each mistranslated, two separate mistranslation errors should be recorded. If a single stretch of text contains multiple errors, you only need to indicate the one that is most severe. If all have the same severity, choose the first matching category listed in the error typology (eg, Accuracy, then Fluency, then Terminology, etc). ",
+        "bbox": [
+            129,
+            236,
+            895,
+            348
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Please pay particular attention to document context when annotating. If a translation might be questionable on its own but is fine in the context of the document, it should not be considered erroneous; conversely, if a translation might be acceptable in some context, but not within the current document, it should be marked as wrong. ",
+        "bbox": [
+            129,
+            365,
+            895,
+            429
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "There are two special error categories: Source error and Non-translation. Source errors should be annotated separately, highlighting the relevant span in the source segment. They do not count against the 5-error limit for target errors, which should be handled in the usual way, whether or not they resulted from a source error. There can be at most one Non-translation error per segment, and it should span the entire segment. No other errors should be identified if Non-Translation is selected. ",
+        "bbox": [
+            129,
+            445,
+            895,
+            525
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Table 12: MQM annotator guidelines be significant, we used a threshold of 0. The results are shown in Figures 15, 16, and 17 for standard references, paraphrased references, and with human outputs included, respectively. In general, segment-level correlations are much lower than system-level, but patterns of differences between WMT and MQM correlations remain similar. ",
+        "bbox": [
+            376,
+            538,
+            626,
+            552
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            117,
+            577,
+            487,
+            688
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "image",
+        "img_path": "images/e923cbc55553e9c606d1b7fe19aa834d3cac263031e93b9fc26557ac9aa2e741.jpg",
+        "image_caption": [
+            "System-level Pearson correlations with human scores (EnDe) ",
+            "Figure 11: System-level Pearson correlation with MQM and WMT scoring. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            142,
+            102,
+            863,
+            434
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "image",
+        "img_path": "images/e86fcd3d596ffb713a7c8963249f10c7397ebc2bc28dbb09a17e0056f1f112b4.jpg",
+        "image_caption": [
+            "Figure 12: System-level Kendall correlation with MQM and WMT scoring. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            142,
+            516,
+            865,
+            853
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "image",
+        "img_path": "images/41104daa2bd79722193d6cf1e9d6f6bae0a887066cd6bd6985ab7ffdab3a1cc6.jpg",
+        "image_caption": [
+            "Figure 13: System-level Kendall correlation with MQM and WMT scoring when metrics use paraphrased reference. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            142,
+            134,
+            863,
+            299
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "image",
+        "img_path": "images/a0640be60e4c38e23f78b0a95fcab87b6c35b8562abb971a5927b84341f71686.jpg",
+        "image_caption": [
+            "Figure 14: System-level Kendall correlation with MQM and WMT scoring when human outputs are included among systems to be scored. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            139,
+            469,
+            863,
+            804
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "image",
+        "img_path": "images/f78f6c302ad852c47968b0cfe44087930e7dff9b82993f994b52d6e195fdac0a.jpg",
+        "image_caption": [
+            "Figure 15: Segment-level Kendall correlation with MQM and WMT scoring. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            141,
+            148,
+            863,
+            472
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "image",
+        "img_path": "images/341d8d86e5dd5996c9036c3a3bc6e19a421ddf34c8fb905454d7b3bf61d7adf2.jpg",
+        "image_caption": [
+            "",
+            "Figure 16: Segment-level Kendall correlation with MQM and WMT scoring when metrics use paraphrased reference. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            142,
+            639,
+            862,
+            803
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "image",
+        "img_path": "images/d1281cb24181613dbc2ae55b58888da57d5c3fb56c1bb8e6fa3514303a43a2ae.jpg",
+        "image_caption": [
+            "Figure 17: Segment-level Kendall correlation with MQM and WMT scoring when human outputs are included among systems to be scored. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            141,
+            302,
+            863,
+            636
+        ],
+        "page_idx": 21
+    }
+]

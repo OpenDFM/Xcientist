@@ -1,0 +1,106 @@
+{
+    "schema_proposal": {
+      "title": {
+        "data_type": "string",
+        "description": "论文标题",
+        "rationale": "标识论文主题和焦点"
+      },
+      "introduction": {
+        "data_type": "object",
+        "description": "引言部分，介绍研究背景和问题",
+        "rationale": "提供论文的上下文和动机",
+        "sub_keys": {
+          "background": {
+            "data_type": "string",
+            "description": "研究背景和现有进展",
+            "rationale": "理解大语言模型推理能力的现状和挑战"
+          },
+          "problem_statement": {
+            "data_type": "string",
+            "description": "问题陈述",
+            "rationale": "明确研究要解决的核心问题"
+          }
+        }
+      },
+      "efficient_reasoning_approaches": {
+        "data_type": "object",
+        "description": "高效推理方法的三个关键方向",
+        "rationale": "分类和描述当前高效推理的主要方法",
+        "sub_keys": {
+          "model_optimization_approach": {
+            "data_type": "object",
+            "description": "模型优化派方法",
+            "rationale": "记录通过模型优化实现高效推理的技术",
+            "sub_keys": {
+              "description": {
+                "data_type": "string",
+                "description": "方法描述",
+                "rationale": "提取模型优化派的核心思想和技术细节"
+              },
+              "examples": {
+                "data_type": "string",
+                "description": "具体例子",
+                "rationale": "记录方法的具体应用实例"
+              }
+            }
+          },
+          "output_streamlining_approach": {
+            "data_type": "object",
+            "description": "输出精简派方法",
+            "rationale": "记录在推理过程中动态减少步骤的方法",
+            "sub_keys": {
+              "description": {
+                "data_type": "string",
+                "description": "方法描述",
+                "rationale": "提取输出精简派的核心思想和技术细节"
+              },
+              "examples": {
+                "data_type": "string",
+                "description": "具体例子",
+                "rationale": "记录方法的具体应用实例"
+              }
+            }
+          },
+          "prompt_optimization_approach": {
+            "data_type": "object",
+            "description": "提示优化派方法",
+            "rationale": "记录通过输入提示优化模型表现的方法",
+            "sub_keys": {
+              "description": {
+                "data_type": "string",
+                "description": "方法描述",
+                "rationale": "提取提示优化派的核心思想和技术细节"
+              },
+              "examples": {
+                "data_type": "string",
+                "description": "具体例子",
+                "rationale": "记录方法的具体应用实例"
+              }
+            }
+          }
+        }
+      },
+      "experimental_results": {
+        "data_type": "object",
+        "description": "实验结果和验证",
+        "rationale": "记录方法在数据集上的性能评估",
+        "sub_keys": {
+          "performance_metrics": {
+            "data_type": "string",
+            "description": "性能指标",
+            "rationale": "记录具体的评估指标和结果"
+          },
+          "results_summary": {
+            "data_type": "string",
+            "description": "结果总结",
+            "rationale": "提取实验的主要发现和效果"
+          }
+        }
+      },
+      "conclusions": {
+        "data_type": "object",
+        "description": "结论和未来方向",
+        "rationale": "总结研究贡献和提出未来工作"
+      }
+    }
+  }

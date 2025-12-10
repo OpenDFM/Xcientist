@@ -1,0 +1,439 @@
+{
+  "extraction": {
+    "paper_metadata": {
+      "title": {
+        "value": "OTC: Optimal Tool Calls via Reinforcement Learning",
+        "type": "string",
+        "unit": null,
+        "evidence": "# OTC: Optimal Tool Calls via Reinforcement Learning",
+        "provenance": {
+          "section_header": "Title",
+          "page": 1
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 3,
+          "integrity": 5
+        }
+      },
+      "authors": {
+        "value": [
+          "Hongru Wang",
+          "Cheng Qian",
+          "Wanjun Zhong",
+          "Xiusi Chen",
+          "Jiahao Qiu",
+          "Shijue Huang",
+          "Bowen Jin",
+          "Mengdi Wang",
+          "Kam-Fai Wong",
+          "Heng Ji"
+        ],
+        "type": "list",
+        "unit": null,
+        "evidence": "Hongru Wangα, Cheng $\\mathbf { Q i a n } ^ { \beta }$, Wanjun Zhongδ, Xiusi $\\mathbf { C h e n } ^ { \beta }$, Jiahao ${ \bf Q } { \bf i } { \bf u } ^ { \\sigma }$, Shijue Huangµ, Bowen $\\mathbf { J i n } ^ { \beta }$, Mengdi Wangσ, Kam-Fai $\\mathbf { W o n g } ^ { \\alpha }$, Heng $\\mathbf { J i } ^ { \beta }$",
+        "provenance": {
+          "section_header": "Authors",
+          "page": 1
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 2,
+          "integrity": 5
+        }
+      },
+      "affiliations": {
+        "value": [
+          "The Chinese University of Hong Kong",
+          "University of Illinois Urbana-Champaign",
+          "Princeton University",
+          "Sun Yat-sen University",
+          "Hong Kong University of Science and Technology"
+        ],
+        "type": "list",
+        "unit": null,
+        "evidence": "αThe Chinese University of Hong Kong, βUniversity of Illinois Urbana-Champaign σPrinceton University, $^ \\delta \\mathsf { S u n }$ Yat-sen University, $\\mu$ Hong Kong University of Science and Technology",
+        "provenance": {
+          "section_header": "Authors",
+          "page": 1
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 2,
+          "integrity": 5
+        }
+      }
+    },
+    "problem_background": {
+      "current_issues": {
+        "value": "Existing reinforcement learning methods often overlook the efficiency and cost associated with tool usage, leading to excessive tool calls or insufficient tool use.",
+        "type": "string",
+        "unit": null,
+        "evidence": "While reinforcement learning (RL) has shown promise in improving TIR by optimizing final answer correctness, existing approaches often overlook the efficiency and cost associated with tool usage.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": 2
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "target": {
+        "value": "Develop a method to optimize tool usage in tool-integrated reasoning, balancing correctness and efficiency.",
+        "type": "string",
+        "unit": null,
+        "evidence": "We aim to develop such a method based on a foundational assumption: for each question and each model, there exists an optimal number of tool calls, defined as the minimal number required for the model to arrive at a correct answer.",
+        "provenance": {
+          "section_header": "Introduction",
+          "page": 2
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      }
+    },
+    "contributions": {
+      "framework_innovation": {
+        "value": "The OTC-PO framework introduces a tool-integrated reward that optimizes for both correctness and tool usage efficiency, promoting high tool productivity.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Our method introduces a tool-integrated reward that jointly considers correctness and tool efficiency, promoting high tool productivity.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": 1
+        },
+        "notes": "OTC-PO is the first RL framework to explicitly optimize tool-use efficiency.",
+        "score": {
+          "consistency": 5,
+          "insight": 5,
+          "integrity": 5
+        }
+      },
+      "metric_innovation": {
+        "value": "Introduced tool productivity (TP) as a metric to measure the effectiveness and efficiency of tool calls during inference.",
+        "type": "string",
+        "unit": null,
+        "evidence": "We additionally define a new metric, tool productivity (TP), which measures the effectiveness and efficiency of tool calls during inference.",
+        "provenance": {
+          "section_header": "Experiments",
+          "page": 4
+        },
+        "notes": "TP reflects how efficiently the model converts tool usage into correct answers.",
+        "score": {
+          "consistency": 5,
+          "insight": 5,
+          "integrity": 5
+        }
+      },
+      "algorithm_innovation": {
+        "value": "OTC-PPO and OTC-GRPO algorithms integrate optimal tool call control into existing reinforcement learning frameworks.",
+        "type": "string",
+        "unit": null,
+        "evidence": "We instantiate this framework within both Proximal Policy Optimization (PPO) and Group Relative Preference Optimization (GRPO), resulting in OTC-PPO and OTC-GRPO.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": 1
+        },
+        "notes": "These algorithms allow for flexible integration into existing RL systems.",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "performance_improvement": {
+        "value": "OTC-PO reduces tool calls by up to 73.1% and improves tool productivity by up to 229.4% while maintaining comparable answer accuracy.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Experiments with Qwen-2.5 and Qwen-Math across multiple QA benchmarks show that our approach reduces tool calls by up to 73.1% and improves tool productivity by up to 229.4%, while maintaining comparable answer accuracy.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": 1
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 5,
+          "integrity": 5
+        }
+      }
+    },
+    "key_findings": {
+      "tool_call_reduction": {
+        "value": "Significant reduction in tool calls achieved without sacrificing accuracy.",
+        "type": "string",
+        "unit": null,
+        "evidence": "OTC-PPO achieves significant improvement in terms of TC and TP compared with Search-R1, and OTC-GRPO can further boost the performance due to more accurate approximation.",
+        "provenance": {
+          "section_header": "Results",
+          "page": 4
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "model_size_effect": {
+        "value": "Larger models tend to over-rely on external tool calls unless explicitly penalized for such behavior.",
+        "type": "string",
+        "unit": null,
+        "evidence": "As language models scale up, they tend to over-rely on external tool calls unless explicitly penalized for such behavior.",
+        "provenance": {
+          "section_header": "Results",
+          "page": 4
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "generalization_performance": {
+        "value": "OTC-PO demonstrates better generalization capabilities across various benchmarks compared to conventional methods.",
+        "type": "string",
+        "unit": null,
+        "evidence": "OTC-PPO outperforms the Search-R1-PPO in terms of EM on all benchmarks with Qwen2.5-7B-Base model with much less tool calls.",
+        "provenance": {
+          "section_header": "Out-of-domain Evaluation",
+          "page": 5
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "case_study_insights": {
+        "value": "OTC-PO effectively reduces unnecessary tool calls while maximizing internal reasoning capabilities.",
+        "type": "string",
+        "unit": null,
+        "evidence": "Our proposed method not only minimize external tool calls, but also maximize internal reasoning capabilities of LLMs at the same time.",
+        "provenance": {
+          "section_header": "Case Study",
+          "page": 5
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      }
+    },
+    "methodology": {
+      "task_definition": {
+        "value": "The goal is to generate the correct answer with the minimal number of tool calls required for the task.",
+        "type": "string",
+        "unit": null,
+        "evidence": "The objective of the task is to generate the correct answer $\\hat { a }$ with the minimal cost of tools in the full trajectory.",
+        "provenance": {
+          "section_header": "Methodology",
+          "page": 3
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      },
+      "reward_function": {
+        "base_reward": {
+          "value": "Traditional correctness reward based on whether the predicted answer matches the ground truth.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Most prior predominantly focuses on rule-based correctness rewards.",
+          "provenance": {
+            "section_header": "Methodology",
+            "page": 3
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 3,
+            "integrity": 5
+          }
+        },
+        "efficiency_reward": {
+          "value": "Introduces a tool-integrated reward that considers both correctness and tool usage efficiency.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We regard the tool-integrated reward $r _ { t o o l }$ as a coefficient of conventional reward function.",
+          "provenance": {
+            "section_header": "Methodology",
+            "page": 3
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 5,
+            "integrity": 5
+          }
+        },
+        "final_reward": {
+          "value": "The final reward combines the correctness reward with the tool usage efficiency reward to promote optimal tool calls.",
+          "type": "string",
+          "unit": null,
+          "evidence": "The final tool-integrated reward function is $r _ { \\phi } ^ { t o o l } ( q , y ) = \\alpha * r _ { t o o l } * r _ { \\phi } ( q , y )$.",
+          "provenance": {
+            "section_header": "Methodology",
+            "page": 3
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 5,
+            "integrity": 5
+          }
+        }
+      },
+      "algorithm_integration": {
+        "value": "OTC-PO can be integrated with existing RL algorithms with minimal changes.",
+        "type": "string",
+        "unit": null,
+        "evidence": "OTC-PO is lightweight and broadly applicable, requiring only minimal changes to standard RL pipelines.",
+        "provenance": {
+          "section_header": "Abstract",
+          "page": 1
+        },
+        "notes": "",
+        "score": {
+          "consistency": 5,
+          "insight": 4,
+          "integrity": 5
+        }
+      }
+    },
+    "experiments": {
+      "experimental_setup": {
+        "datasets": {
+          "value": "NQ and HotpotQA for search tasks; ToRL dataset for code tasks.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We mainly follow the Search-R1 and ToRL setting and use same baselines and datasets for the fair and comprehensive evaluation.",
+          "provenance": {
+            "section_header": "Experiments",
+            "page": 4
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        },
+        "models": {
+          "value": "Qwen-2.5-3B/7B-Base and Qwen2.5-Math-1.5B/7B-Base.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Using multiple LLMs—including Qwen-2.5-3B/7B-Base and Qwen2.5-Math-1.5B/7B-Base.",
+          "provenance": {
+            "section_header": "Experiments",
+            "page": 4
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        },
+        "parameters": {
+          "value": "Maximal tool calls set to 4 for Search-R1 and 3 for ToRL.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We set the max turn (maximal number of tool calls) in Search-R1 (ToRL) to 4 (3).",
+          "provenance": {
+            "section_header": "Experiments",
+            "page": 4
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        },
+        "resources": {
+          "value": "Experiments conducted on 8 A100-80G GPUs.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We conduct our experiments on 8 A100-80G GPU.",
+          "provenance": {
+            "section_header": "Experiments",
+            "page": 4
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        }
+      },
+      "experimental_results": {
+        "search_tool_results": {
+          "value": "OTC-PPO and OTC-GRPO show significant reductions in tool calls and improvements in tool productivity.",
+          "type": "string",
+          "unit": null,
+          "evidence": "OTC-PPO achieves significant improvement in terms of TC and TP compared with Search-R1.",
+          "provenance": {
+            "section_header": "Results",
+            "page": 4
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        },
+        "code_tool_results": {
+          "value": "Preliminary results indicate similar findings in code tasks as with search tasks.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We already observe similar findings as mentioned above.",
+          "provenance": {
+            "section_header": "Experiments",
+            "page": 4
+          },
+          "notes": "More results will be released soon.",
+          "score": {
+            "consistency": 5,
+            "insight": 3,
+            "integrity": 5
+          }
+        },
+        "behavior_analysis": {
+          "value": "OTC-PO reduces unnecessary tool calls while allowing models to leverage internal reasoning effectively.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Our proposed method not only minimizes external tool calls, but also maximizes internal reasoning capabilities of LLMs.",
+          "provenance": {
+            "section_header": "Analysis",
+            "page": 5
+          },
+          "notes": "",
+          "score": {
+            "consistency": 5,
+            "insight": 4,
+            "integrity": 5
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,273 @@
+{
+    "extraction": {
+      "code_url": {
+        "value": "https://github.com/Alpha-Innovator/SurveyForge",
+        "type": "string",
+        "unit": null,
+        "evidence": "Code:https://github.com/Alpha-Innovator/SurveyForge",
+        "provenance": {
+          "section_header": "背景",
+          "page": null
+        },
+        "notes": ""
+      },
+      "dataset_url": {
+        "value": "https://huggingface.co/datasets/U4R/SurveyBench",
+        "type": "string",
+        "unit": null,
+        "evidence": "https://huggingface.co/datasets/U4R/SurveyBench",
+        "provenance": {
+          "section_header": "背景",
+          "page": null
+        },
+        "notes": ""
+      },    
+      "introduction": {
+        "problem_statement": {
+          "value": "这篇文章针对现有大型语言模型（LLM）在自动生成学术综述时存在的质量差距，特别是大纲逻辑性和参考文献准确性不足的问题",
+          "type": "string",
+          "unit": null,
+          "evidence": "这篇文章针对现有大型语言模型（LLM）在自动生成学术综述时存在的质量差距，特别是大纲逻辑性和参考文献准确性不足的问题",
+          "provenance": {
+            "section_header": "概述",
+            "page": null
+          },
+          "notes": ""
+        },
+        "proposed_solution": {
+          "value": "提出了一个名为 SURVEYFORGE 的自动化综述生成框架。该框架通过一个两阶段的过程来提升综述质量： 1. 启发式大纲生成：通过分析人类撰写的综述文章的逻辑结构，并结合检索到的领域相关论文，生成一个结构良好、逻辑连贯的综述大纲。 2. 记忆驱动的内容生成：利用一个名为 SANA的模块，根据大纲的每个小节，精准检索高质量的核心参考文献，并驱动LLM生成相应内容，最后进行整合和优化。",
+          "type": "string",
+          "unit": null,
+          "evidence": "提出了一个名为 SURVEYFORGE 的自动化综述生成框架。该框架通过一个两阶段的过程来提升综述质量： 1. 启发式大纲生成：通过分析人类撰写的综述文章的逻辑结构，并结合检索到的领域相关论文，生成一个结构良好、逻辑连贯的综述大纲。 2. 记忆驱动的内容生成：利用一个名为 SANA的模块，根据大纲的每个小节，精准检索高质量的核心参考文献，并驱动LLM生成相应内容，最后进行整合和优化。",
+          "provenance": {
+            "section_header": "概述",
+            "page": null
+          },
+          "notes": ""
+        },
+        "key_contributions": {
+          "value": "此外，为了能够客观、全面地评估AI生成的综述质量，作者们还构建了一个名为 SurveyBench 的基准数据集和一个多维度的评估指标体系 SAM。实验证明，SURVEYFORGE 在大纲质量、参考文献覆盖率和内容相关性上均显著优于先前的自动化方法。",
+          "type": "string",
+          "unit": null,
+          "evidence": "此外，为了能够客观、全面地评估AI生成的综述质量，作者们还构建了一个名为 SurveyBench 的基准数据集和一个多维度的评估指标体系 SAM。实验证明，SURVEYFORGE 在大纲质量、参考文献覆盖率和内容相关性上均显著优于先前的自动化方法。",
+          "provenance": {
+            "section_header": "概述",
+            "page": null
+          },
+          "notes": ""
+        }
+      },
+      "motivation": {
+        "outline_quality_issues": {
+          "value": "大纲质量问题：当前利用LLM生成的综述，其大纲结构往往缺乏连贯的逻辑和组织性。例如，章节的广度可能过宽或过窄，深度可能过于细节或分析不足，整体结构失衡，不如人类专家撰写的综述那样条理清晰。",
+          "type": "string",
+          "unit": null,
+          "evidence": "大纲质量问题：当前利用LLM生成的综述，其大纲结构往往缺乏连贯的逻辑和组织性。例如，章节的广度可能过宽或过窄，深度可能过于细节或分析不足，整体结构失衡，不如人类专家撰写的综述那样条理清晰。",
+          "provenance": {
+            "section_header": "Motivation",
+            "page": null
+          },
+          "notes": ""
+        },
+        "reference_quality_issues": {
+          "value": "参考文献质量问题：AI生成的综述常常无法准确引用领域内关键且具有影响力的核心文献，反而可能引用一些不相关或次要的论文，这严重影响了综述的学术深度和价值。",
+          "type": "string",
+          "unit": null,
+          "evidence": "参考文献质量问题：AI生成的综述常常无法准确引用领域内关键且具有影响力的核心文献，反而可能引用一些不相关或次要的论文，这严重影响了综述的学术深度和价值。",
+          "provenance": {
+            "section_header": "Motivation",
+            "page": null
+          },
+          "notes": ""
+        },
+        "evaluation_system_gaps": {
+          "value": "评估体系缺失问题：目前对AI生成综述的评估主要依赖于LLM的打分，这种方式主观性强，且缺乏对大纲、参考文献、内容等关键方面的细粒度分析。缺少一个客观、标准化的评估基准，使得不同方法之间难以进行公平比较。",
+          "type": "string",
+          "unit": null,
+          "evidence": "评估体系缺失问题：目前对AI生成综述的评估主要依赖于LLM的打分，这种方式主观性强，且缺乏对大纲、参考文献、内容等关键方面的细粒度分析。缺少一个客观、标准化的评估基准，使得不同方法之间难以进行公平比较。",
+          "provenance": {
+            "section_header": "Motivation",
+            "page": null
+          },
+          "notes": ""
+        }
+      },
+      "methods": {
+        "framework_overview": {
+          "value": "SURVEYFORGE 框架通过\"两步走\"策略生成高质量学术综述。第一步，通过学习人类撰写的综述范例和检索相关论文，用LLM生成一个结构化、有逻辑的启发式大纲。第二步，针对大纲的每个小节，利用一个带有记忆和时序感知重排功能的智能体（SANA）来检索高质量的核心文献，然后驱动LLM并行生成各部分内容，最后汇总精炼成文。同时，为了客观评估，文章还提出了一个包含100篇人类综述的SurveyBench基准。",
+          "type": "string",
+          "unit": null,
+          "evidence": "SURVEYFORGE 框架通过\"两步走\"策略生成高质量学术综述。第一步，通过学习人类撰写的综述范例和检索相关论文，用LLM生成一个结构化、有逻辑的启发式大纲。第二步，针对大纲的每个小节，利用一个带有记忆和时序感知重排功能的智能体（SANA）来检索高质量的核心文献，然后驱动LLM并行生成各部分内容，最后汇总精炼成文。同时，为了客观评估，文章还提出了一个包含100篇人类综述的SurveyBench基准。",
+          "provenance": {
+            "section_header": "Methods",
+            "page": null
+          },
+          "notes": ""
+        },
+        "heuristic_outline_generation": {
+          "knowledge_fusion": {
+            "value": "知识融合：给定一个综述主题（如\"多模态大模型\"），系统首先从两个数据库中检索信息：一个是包含海量研究论文的研究论文数据库，另一个是包含大量人类撰写的综述及其大纲的综述大纲数据库。",
+            "type": "string",
+            "unit": null,
+            "evidence": "知识融合：给定一个综述主题（如\"多模态大模型\"），系统首先从两个数据库中检索信息：一个是包含海量研究论文的研究论文数据库，另一个是包含大量人类撰写的综述及其大纲的综述大纲数据库。",
+            "provenance": {
+              "section_header": "Methods",
+              "page": null
+            },
+            "notes": ""
+          },
+          "hierarchical_generation": {
+            "value": "一级大纲生成：利用LLM融合上述检索到的信息，生成综述的一级大纲（如\"引言\"、\"核心架构\"、\"应用\"等）以及每个章节对应的查询（Queries）。这一步的关键是学习人类综述的典型结构。 二级大纲生成：对每个一级章节，系统会递归地执行类似操作，即根据章节查询检索更具体的论文和综述结构，从而生成更详细的二级大纲（如\"核心架构\"下的\"多模态融合策略\"、\"训练方法\"等）和子查询。",
+            "type": "string",
+            "unit": null,
+            "evidence": "一级大纲生成：利用LLM融合上述检索到的信息，生成综述的一级大纲（如\"引言\"、\"核心架构\"、\"应用\"等）以及每个章节对应的查询（Queries）。这一步的关键是学习人类综述的典型结构。 二级大纲生成：对每个一级章节，系统会递归地执行类似操作，即根据章节查询检索更具体的论文和综述结构，从而生成更详细的二级大纲（如\"核心架构\"下的\"多模态融合策略\"、\"训练方法\"等）和子查询。",
+            "provenance": {
+              "section_header": "Methods",
+              "page": null
+            },
+            "notes": ""
+          },
+          "memory_construction": {
+            "value": "构建记忆：在此过程中，为每个章节检索到的相关论文集合被存储为该章节的\"记忆\"（Memory），供下一阶段内容生成时使用，以保证内容的相关性。",
+            "type": "string",
+            "unit": null,
+            "evidence": "构建记忆：在此过程中，为每个章节检索到的相关论文集合被存储为该章节的\"记忆\"（Memory），供下一阶段内容生成时使用，以保证内容的相关性。",
+            "provenance": {
+              "section_header": "Methods",
+              "page": null
+            },
+            "notes": ""
+          }
+        },
+        "memory_driven_content_generation": {
+          "sana_module": {
+            "value": "阶段二：记忆驱动的内容生成 (Memory-Driven Content Generation) 这个阶段由一个名为SANA（学者导航智能体）的模块主导，负责文献检索和内容写作。",
+            "type": "string",
+            "unit": null,
+            "evidence": "阶段二：记忆驱动的内容生成 (Memory-Driven Content Generation) 这个阶段由一个名为SANA（学者导航智能体）的模块主导，负责文献检索和内容写作。",
+            "provenance": {
+              "section_header": "Methods",
+              "page": null
+            },
+            "notes": ""
+          },
+          "query_decomposition": {
+            "value": "子查询分解 (Memory for Sub-query)：为了更精确地检索文献，SANA首先将大纲中每个小节的查询（query）分解成更细粒度的子查询。这个分解过程不是凭空进行的，而是利用了第一阶段为该章节构建的\"记忆\"（相关论文集）作为上下文，使得分解后的子查询更贴合主题。",
+            "type": "string",
+            "unit": null,
+            "evidence": "子查询分解 (Memory for Sub-query)：为了更精确地检索文献，SANA首先将大纲中每个小节的查询（query）分解成更细粒度的子查询。这个分解过程不是凭空进行的，而是利用了第一阶段为该章节构建的\"记忆\"（相关论文集）作为上下文，使得分解后的子查询更贴合主题。",
+            "provenance": {
+              "section_header": "Methods",
+              "page": null
+            },
+            "notes": ""
+          },
+          "temporal_aware_reranking": {
+            "value": "时序感知重排引擎 (Temporal-aware Reranking Engine)：检索到的文献会经过一个重排引擎。该引擎不仅考虑文本相关性，还综合了发表时间和引用量。它会将论文按发表年份（如每两年一个分组）分组，然后在每个时间组内根据引用数选出Top-K的论文。这确保了最终引用的文献既包括了经典的奠基性工作，也覆盖了最新的高影响力研究。",
+            "type": "string",
+            "unit": null,
+            "evidence": "时序感知重排引擎 (Temporal-aware Reranking Engine)：检索到的文献会经过一个重排引擎。该引擎不仅考虑文本相关性，还综合了发表时间和引用量。它会将论文按发表年份（如每两年一个分组）分组，然后在每个时间组内根据引用数选出Top-K的论文。这确保了最终引用的文献既包括了经典的奠基性工作，也覆盖了最新的高影响力研究。",
+            "provenance": {
+              "section_header": "Methods",
+              "page": null
+            },
+            "notes": ""
+          },
+          "parallel_generation_refinement": {
+            "value": "并行生成与精炼：利用LLM为大纲的每个小节并行生成内容，其输入是该小节的描述和经过SANA重排后的高质量参考文献。所有小节内容生成后，再由一个LLM进行最终的拼接和精炼，消除冗余，确保全文的流畅性和一致性。",
+            "type": "string",
+            "unit": null,
+            "evidence": "并行生成与精炼：利用LLM为大纲的每个小节并行生成内容，其输入是该小节的描述和经过SANA重排后的高质量参考文献。所有小节内容生成后，再由一个LLM进行最终的拼接和精炼，消除冗余，确保全文的流畅性和一致性。",
+            "provenance": {
+              "section_header": "Methods",
+              "page": null
+            },
+            "notes": ""
+          }
+        },
+        "evaluation_framework": {
+          "survey_bench": {
+            "value": "SurveyBench: 一个包含10个计算机科学前沿领域的约100篇高质量人类撰写综述的基准数据集。",
+            "type": "string",
+            "unit": null,
+            "evidence": "SurveyBench: 一个包含10个计算机科学前沿领域的约100篇高质量人类撰写综述的基准数据集。",
+            "provenance": {
+              "section_header": "Methods",
+              "page": null
+            },
+            "notes": ""
+          },
+          "sam_metrics": {
+            "value": "SAM (Survey Assessment Metrics): 一套多维度的评估指标，包括： - SAM-R: 评估参考文献质量，衡量AI生成综述的引用与基准引用的重合度。 - SAM-O: 评估大纲质量，由LLM根据结构、逻辑等标准打分。 - SAM-C: 评估内容质量，从结构、相关性、覆盖面三个维度进行打分。",
+            "type": "string",
+            "unit": null,
+            "evidence": "SAM (Survey Assessment Metrics): 一套多维度的评估指标，包括： - SAM-R: 评估参考文献质量，衡量AI生成综述的引用与基准引用的重合度。 - SAM-O: 评估大纲质量，由LLM根据结构、逻辑等标准打分。 - SAM-C: 评估内容质量，从结构、相关性、覆盖面三个维度进行打分。",
+            "provenance": {
+              "section_header": "Methods",
+              "page": null
+            },
+            "notes": ""
+          }
+        }
+      },
+      "experimental_results": {
+        "outline_quality_comparison": {
+          "value": "总结：比较AutoSurvey和SURVEYFORGE在两个不同主题下生成的大纲。可以明显看出，SURVEYFORGE的大纲结构更系统、层级更清晰、逻辑性更强，而AutoSurvey的大纲则显得零散、重复，像一个简单的论文列表。",
+          "type": "string",
+          "unit": null,
+          "evidence": "总结：比较AutoSurvey和SURVEYFORGE在两个不同主题下生成的大纲。可以明显看出，SURVEYFORGE的大纲结构更系统、层级更清晰、逻辑性更强，而AutoSurvey的大纲则显得零散、重复，像一个简单的论文列表。",
+          "provenance": {
+            "section_header": "详细内容",
+            "page": null
+          },
+          "notes": ""
+        },
+        "evaluation_win_rate": {
+          "value": "总结：无论是LLM自动评估还是人类专家评估，SURVEYFORGE对AutoSurvey的胜率都高达70%以上，证明了其质量的显著优势以及评估系统与人类判断的高度一致性。",
+          "type": "string",
+          "unit": null,
+          "evidence": "总结：无论是LLM自动评估还是人类专家评估，SURVEYFORGE对AutoSurvey的胜率都高达70%以上，证明了其质量的显著优势以及评估系统与人类判断的高度一致性。",
+          "provenance": {
+            "section_header": "详细内容",
+            "page": null
+          },
+          "notes": ""
+        }
+      },
+      "conclusions": {
+        "technical_contribution": {
+          "value": "结论1： SURVEYFORGE开创性地利用LLM生成高质量综述，显著提升了自动化综述的质量和效率。 首次提出了将提纲启发式学习与记忆驱动内容生成相结合的框架，有效解决了现有AI生成综述在提纲逻辑性、引用相关性和内容连贯性方面的痛点。通过对人工撰写综述的模式学习和对文献的精准检索与重排，大幅提升了生成综述的学术严谨性和可读性。",
+          "type": "string",
+          "unit": null,
+          "evidence": "结论1： SURVEYFORGE开创性地利用LLM生成高质量综述，显著提升了自动化综述的质量和效率。 首次提出了将提纲启发式学习与记忆驱动内容生成相结合的框架，有效解决了现有AI生成综述在提纲逻辑性、引用相关性和内容连贯性方面的痛点。通过对人工撰写综述的模式学习和对文献的精准检索与重排，大幅提升了生成综述的学术严谨性和可读性。",
+          "provenance": {
+            "section_header": "总结",
+            "page": null
+          },
+          "notes": ""
+        },
+        "evaluation_contribution": {
+          "value": "结论2： 本文为AI生成综述的评估提供了全面且客观的基准和指标。 构建了SurveyBench，并设计了多维度的SAM评估体系（SAM-R、SAM-O、SAM-C），涵盖了引用质量、提纲质量和内容质量。这些量化指标取代了传统LLM评估的主观性，使不同方法间的比较更具可信度。实验结果通过与人工评估的高度一致性进一步验证了评估系统的可靠性。",
+          "type": "string",
+          "unit": null,
+          "evidence": "结论2： 本文为AI生成综述的评估提供了全面且客观的基准和指标。 构建了SurveyBench，并设计了多维度的SAM评估体系（SAM-R、SAM-O、SAM-C），涵盖了引用质量、提纲质量和内容质量。这些量化指标取代了传统LLM评估的主观性，使不同方法间的比较更具可信度。实验结果通过与人工评估的高度一致性进一步验证了评估系统的可靠性。",
+          "provenance": {
+            "section_header": "总结",
+            "page": null
+          },
+          "notes": ""
+        },
+        "application_value": {
+          "value": "结论3： SURVEYFORGE在降低科研门槛和促进知识整合方面具有显著的应用价值。 自动化综述撰写能够极大地减少研究人员在文献综述上投入的时间和精力，帮助他们快速进入不熟悉的领域，有效获取领域知识。这对于快速发展的AI等领域尤为重要，有助于加速跨学科和跨领域知识的整合与发展。未来可进一步探索知识图谱构建和引用网络分析，以提升综述的深度和原创性，从而在产业界和学术界产生更深远的影响。",
+          "type": "string",
+          "unit": null,
+          "evidence": "结论3： SURVEYFORGE在降低科研门槛和促进知识整合方面具有显著的应用价值。 自动化综述撰写能够极大地减少研究人员在文献综述上投入的时间和精力，帮助他们快速进入不熟悉的领域，有效获取领域知识。这对于快速发展的AI等领域尤为重要，有助于加速跨学科和跨领域知识的整合与发展。未来可进一步探索知识图谱构建和引用网络分析，以提升综述的深度和原创性，从而在产业界和学术界产生更深远的影响。",
+          "provenance": {
+            "section_header": "总结",
+            "page": null
+          },
+          "notes": ""
+        }
+      }
+    }
+  }

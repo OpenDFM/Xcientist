@@ -1,0 +1,148 @@
+{
+    "extraction": {
+        "title": {
+            "value": "Stop Overthinking: A Survey on Efficient Reasoning for Large Language Models",
+            "type": "string",
+            "unit": null,
+            "evidence": "Stop Overthinking: A Survey on Efficient Reasoning for Large Language Models",
+            "provenance": {
+                "section_header": "Title",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "introduction": {
+            "background": {
+                "value": "Large Language Models (LLMs) have emerged as exceptionally powerful AI tools, demonstrating advanced capabilities in natural language understanding and complex reasoning. Recently, the rise of reasoning-focused LLMs, also referred to as reasoning-capable models or Large Reasoning Models (LRMs), has significantly improved performance in System-2 reasoning domains, particularly in challenging mathematics and programming tasks.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Large Language Models (LLMs) have emerged as exceptionally powerful AI tools, demonstrating advanced capabilities in natural language understanding and complex reasoning. Recently, the rise of reasoning-focused LLMs, also referred to as reasoning-capable models or Large Reasoning Models (LRMs) has significantly improved performance in System-2 reasoning domains, particularly in challenging mathematics and programming tasks.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "problem_statement": {
+                "value": "The problem of 'overthinking phenomenon' in LLMs, where longer reasoning sequences improve performance but also introduce significant computational overhead due to verbose and redundant outputs, limits their practical application in computation-sensitive real-world scenarios.",
+                "type": "string",
+                "unit": null,
+                "evidence": "However, while long CoT reasoning significantly boosts accuracy, step-by-step thinking mechanisms also lead to lengthy output responses, resulting in substantial computational overhead and increased reasoning time. The 'overthinking problem' arises when answering a simple question like, 'what is the answer of 2 plus 3?'",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 1
+                },
+                "notes": ""
+            }
+        },
+        "efficient_reasoning_approaches": {
+            "model_optimization_approach": {
+                "description": {
+                    "value": "Model-based efficient reasoning focuses on fine-tuning LLMs to improve their intrinsic ability to reason concisely and efficiently, integrating length rewards into reinforcement learning frameworks to optimize the reasoning path.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "From the model perspective, these works focus on fine-tuning LLMs to improve their intrinsic ability to reason concisely and efficiently.",
+                    "provenance": {
+                        "section_header": "Model-based Efficient Reasoning",
+                        "page": 6
+                    },
+                    "notes": ""
+                },
+                "examples": {
+                    "value": "Examples include RL with length reward design, where shorter correct answers receive higher rewards, and SFT with variable-length CoT data to enable LLMs to learn compact reasoning chains.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Examples include RL with length reward design, where shorter correct answers receive higher rewards, and SFT with variable-length CoT data to enable LLMs to learn compact reasoning chains.",
+                    "provenance": {
+                        "section_header": "Model-based Efficient Reasoning",
+                        "page": 6
+                    },
+                    "notes": ""
+                }
+            },
+            "output_streamlining_approach": {
+                "description": {
+                    "value": "Output streamlining methods focus on modifying the reasoning steps in the output to enhance the ability of LLMs to reason concisely and efficiently, such as compressing reasoning steps into fewer latent representations.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "From the perspective of reasoning steps in the output, these works focus on modifying the output paradigm to enhance the ability of LLMs to reason concisely and efficiently.",
+                    "provenance": {
+                        "section_header": "Reasoning Output-based Efficient Reasoning",
+                        "page": 10
+                    },
+                    "notes": ""
+                },
+                "examples": {
+                    "value": "Examples include methods like Coconut, which treats final-layer hidden states as 'continuous thought' to replace traditional discrete tokens, and SoftCoT, which generates instance-specific soft thought tokens projected into the embedding space.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Examples include methods like Coconut, which treats final-layer hidden states as 'continuous thought' to replace traditional discrete tokens, and SoftCoT, which generates instance-specific soft thought tokens projected into the embedding space.",
+                    "provenance": {
+                        "section_header": "Reasoning Output-based Efficient Reasoning",
+                        "page": 10
+                    },
+                    "notes": ""
+                }
+            },
+            "prompt_optimization_approach": {
+                "description": {
+                    "value": "Prompt optimization methods enforce length constraints or route LLMs based on the characteristics of input prompts to enable concise and efficient reasoning.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "From the perspective of input prompts and questions, these works focus on enforcing length constraints or routing LLMs based on the characteristics of input prompts to enable concise and efficient reasoning.",
+                    "provenance": {
+                        "section_header": "Input Prompts-based Efficient Reasoning",
+                        "page": 14
+                    },
+                    "notes": ""
+                },
+                "examples": {
+                    "value": "Examples include TALE-EP, which estimates a reasonable token budget by prompting the LLM itself, and Chain-of-Draft prompting, which encourages step-by-step reasoning while limiting verbosity.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Examples include TALE-EP, which estimates a reasonable token budget by prompting the LLM itself, and Chain-of-Draft prompting, which encourages step-by-step reasoning while limiting verbosity.",
+                    "provenance": {
+                        "section_header": "Input Prompts-based Efficient Reasoning",
+                        "page": 14
+                    },
+                    "notes": ""
+                }
+            }
+        },
+        "experimental_results": {
+            "performance_metrics": {
+                "value": "Performance metrics indicate that efficient reasoning approaches significantly reduce computational costs while maintaining or improving reasoning performance across various tasks.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Performance evaluation of the recording method on the dataset shows significant reductions in computational costs while maintaining or improving reasoning performance across various tasks.",
+                "provenance": {
+                    "section_header": "Experimental Results",
+                    "page": null
+                },
+                "notes": ""
+            },
+            "results_summary": {
+                "value": "The results show that efficient reasoning methods lead to better performance in reasoning tasks, demonstrating the potential for real-world applications in fields like healthcare and autonomous driving.",
+                "type": "string",
+                "unit": null,
+                "evidence": "The results show that efficient reasoning methods lead to better performance in reasoning tasks, demonstrating the potential for real-world applications in fields like healthcare and autonomous driving.",
+                "provenance": {
+                    "section_header": "Experimental Results",
+                    "page": null
+                },
+                "notes": ""
+            }
+        },
+        "conclusions": {
+            "value": "The paper concludes that efficient reasoning approaches in LLMs provide significant practical benefits across various domains, including healthcare, autonomous driving, and embodied AI, while also proposing future research directions.",
+            "type": "string",
+            "unit": null,
+            "evidence": "This paper provides the first structured survey of efficient reasoning in LLMs, categorizing existing approaches into three areas: model-based, reasoning output-based, and input prompts-based methods.",
+            "provenance": {
+                "section_header": "Conclusion",
+                "page": 19
+            },
+            "notes": ""
+        }
+    }
+}

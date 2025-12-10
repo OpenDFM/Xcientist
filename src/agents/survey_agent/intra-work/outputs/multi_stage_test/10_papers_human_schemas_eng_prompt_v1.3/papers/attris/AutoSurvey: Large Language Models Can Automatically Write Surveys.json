@@ -1,0 +1,199 @@
+{
+    "extraction": {
+        "background": {
+            "value": "The paper addresses the growing challenges in creating literature surveys in rapidly evolving fields like artificial intelligence, particularly due to the overwhelming volume of publications. Traditional methods struggle to keep pace with this information explosion, necessitating more efficient survey methodologies. The advent of large language models (LLMs) presents a potential solution, but several challenges such as context window limitations, parametric knowledge constraints, and a lack of evaluation benchmarks hinder their effectiveness.",
+            "type": "string",
+            "unit": null,
+            "evidence": "This paper introduces AutoSurvey, a speedy and well-organized methodology for automating the creation of comprehensive literature surveys in rapidly evolving fields like artificial intelligence. Traditional survey paper creation faces challenges due to the vast volume and complexity of information, prompting the need for efficient survey methods.",
+            "provenance": {
+                "section_header": "Abstract",
+                "page": 1
+            },
+            "notes": ""
+        },
+        "challenges": {
+            "information_explosion": {
+                "value": "The rapid accumulation of new information often outpaces the capacity for comprehensive scholarly review and synthesis, leading to an overwhelming volume of literature that is difficult to navigate.",
+                "type": "string",
+                "unit": null,
+                "evidence": "the rapid accumulation of new information often outpaces the capacity for comprehensive scholarly review and synthesis, emphasizing the growing need for more efficient methods to synthesize the expanding literature.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 2
+                },
+                "notes": ""
+            },
+            "context_window_limitations": {
+                "value": "LLMs face inherent restrictions in output length due to limited processing windows, making it challenging to generate comprehensive surveys that require reading hundreds of papers.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Firstly, context window limitations: LLMs encounter inherent restrictions in output length due to limited processing windows.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 3
+                },
+                "notes": ""
+            },
+            "parameter_knowledge_constraints": {
+                "value": "Relying solely on an LLM's internal knowledge is insufficient for producing accurate surveys, as LLMs may generate content based on inaccuracies or hallucinated references.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Sole reliance on an LLM\u2019s internal knowledge is insufficient for producing surveys that require comprehensive and accurate references.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 3
+                },
+                "notes": ""
+            },
+            "lack_of_evaluation_benchmarks": {
+                "value": "There is a significant lack of reliable metrics to evaluate the quality of outputs from LLMs, which presents an obstacle to their widespread adoption for academic synthesis.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Thirdly, the lack of evaluation benchmark: after production, reliable metrics to evaluate the quality of outputs from LLMs are lacking.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 3
+                },
+                "notes": ""
+            }
+        },
+        "innovative_approaches": {
+            "logical_parallel_generation": {
+                "value": "AutoSurvey employs a two-stage generation approach to parallelly generate survey content efficiently, first creating detailed outlines and then drafting subsections in parallel.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AutoSurvey employs a two-stage generation approach to parallelly generate survey content efficiently. Initially, multiple LLMs work concurrently to create detailed outlines.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 4
+                },
+                "notes": "This approach significantly accelerates the survey writing process."
+            },
+            "real_time_knowledge_update": {
+                "value": "AutoSurvey incorporates a real-time knowledge update mechanism using a Retrieval-Augmented Generation (RAG) approach, ensuring that survey content reflects the most current studies.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AutoSurvey incorporates a Real-time Knowledge Update mechanism using a Retrieval-Augmented Generation (RAG) approach.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 5
+                },
+                "notes": "This feature enhances the accuracy and depth of the literature review."
+            },
+            "multi_llm_evaluation": {
+                "value": "The Multi-LLM-as-Judge strategy uses multiple LLMs to generate evaluation metrics, which are then refined by human experts to ensure academic standards.",
+                "type": "string",
+                "unit": null,
+                "evidence": "AutoSurvey employs the Multi-LLM-as-Judge strategy, leveraging the LLM-as-Judge method for text evaluation.",
+                "provenance": {
+                    "section_header": "Introduction",
+                    "page": 5
+                },
+                "notes": "This innovation minimizes bias and ensures comprehensive assessment."
+            }
+        },
+        "methodology": {
+            "initial_retrieval_outline_generation": {
+                "value": "The first phase involves retrieving relevant publications and generating a structured outline to ensure comprehensive coverage of the topic.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Utilizing an embedding-based retrieval technique, AutoSurvey scans a database of publications to identify papers most pertinent to the specified survey topic.",
+                "provenance": {
+                    "section_header": "Methodology",
+                    "page": 6
+                },
+                "notes": "This phase is crucial for grounding the survey in recent research."
+            },
+            "subsection_drafting": {
+                "value": "During the subsection drafting phase, specialized LLMs draft each section of the outline in parallel, ensuring focused content generation.",
+                "type": "string",
+                "unit": null,
+                "evidence": "During this phase, specialized LLMs draft each section of the outline in parallel.",
+                "provenance": {
+                    "section_header": "Methodology",
+                    "page": 6
+                },
+                "notes": "This method accelerates the drafting process."
+            },
+            "integration_refinement": {
+                "value": "Each section undergoes a refinement process to enhance readability and coherence before merging into a final document.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Following the drafting phase, each section is individually refined to enhance readability.",
+                "provenance": {
+                    "section_header": "Methodology",
+                    "page": 7
+                },
+                "notes": "This step ensures a cohesive final document."
+            },
+            "rigorous_evaluation_iteration": {
+                "value": "The final phase involves a rigorous evaluation process using the Multi-LLM-as-Judge strategy to assess the survey document.",
+                "type": "string",
+                "unit": null,
+                "evidence": "The final phase involves a rigorous evaluation and iteration process, where the survey document is assessed through a Multi-LLM-as-Judge strategy.",
+                "provenance": {
+                    "section_header": "Methodology",
+                    "page": 7
+                },
+                "notes": "This phase ensures the survey meets high academic standards."
+            }
+        },
+        "performance": {
+            "experiment_setup": {
+                "value": "Experiments were conducted to evaluate AutoSurvey's performance against traditional methods, focusing on speed, citation quality, and content quality.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We conduct comprehensive experiments to evaluate the performance of AutoSurvey, comparing it against traditional methods for generating survey papers.",
+                "provenance": {
+                    "section_header": "Experiments",
+                    "page": 8
+                },
+                "notes": "This setup provides a basis for comparison."
+            },
+            "citation_quality_results": {
+                "value": "AutoSurvey achieved citation recall and precision scores of 82.25% and 77.41%, respectively, outperforming naive RAG-based LLMs.",
+                "type": "string",
+                "unit": null,
+                "evidence": "At 64k tokens, AutoSurvey achieves 82.25% recall and 77.41% precision in citation quality, outperforming naive RAG-based LLMs.",
+                "provenance": {
+                    "section_header": "Results",
+                    "page": 10
+                },
+                "notes": "These results demonstrate the effectiveness of AutoSurvey."
+            },
+            "content_quality_results": {
+                "value": "In content quality, AutoSurvey scored 4.73 in coverage, 4.33 in structure, and 4.86 in relevance, closely aligning with human performance.",
+                "type": "string",
+                "unit": null,
+                "evidence": "In content quality at 64k tokens, AutoSurvey scores 4.73 in coverage, 4.33 in structure, and 4.86 in relevance.",
+                "provenance": {
+                    "section_header": "Results",
+                    "page": 10
+                },
+                "notes": "These scores indicate high-quality outputs."
+            },
+            "performance_analysis": {
+                "value": "The experiments indicate that AutoSurvey provides a balanced trade-off between quality and efficiency, achieving near-human levels of performance.",
+                "type": "string",
+                "unit": null,
+                "evidence": "The experiments indicate that AutoSurvey provides a balanced trade-off between quality and efficiency.",
+                "provenance": {
+                    "section_header": "Results",
+                    "page": 10
+                },
+                "notes": "This finding supports the viability of AutoSurvey."
+            }
+        },
+        "conclusion": {
+            "value": "AutoSurvey represents the first system to explore the potential of large model agents in writing extensive academic surveys, proposing evaluation criteria that align with human preferences.",
+            "type": "string",
+            "unit": null,
+            "evidence": "In conclusion, to the best of our knowledge, AutoSurvey is the first system to explore the potential of large model agents in writing extensive academic surveys.",
+            "provenance": {
+                "section_header": "Conclusion",
+                "page": 12
+            },
+            "notes": ""
+        }
+    }
+}

@@ -1,0 +1,2661 @@
+[
+    {
+        "type": "text",
+        "text": "Interleaving Retrieval with Chain-of-Thought Reasoning for Knowledge-Intensive Multi-Step Questions ",
+        "text_level": 1,
+        "bbox": [
+            253,
+            93,
+            840,
+            134
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Harsh Trivedi† Niranjan Balasubramanian† Tushar Khot‡ Ashish Sabharwal‡ ",
+        "bbox": [
+            136,
+            145,
+            836,
+            162
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "†Stony Brook University Stony Brook, U.S.A. {hjtrivedi,niranjan}@cs.stonybrook.edu ",
+        "bbox": [
+            189,
+            179,
+            478,
+            229
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "‡Allen Institute for AI Seattle, U.S.A. {tushark,ashishs}@allenai.org ",
+        "bbox": [
+            581,
+            179,
+            805,
+            229
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Abstract ",
+        "text_level": 1,
+        "bbox": [
+            263,
+            253,
+            339,
+            268
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Prompting-based large language models (LLMs) are surprisingly powerful at generating natural language reasoning steps or Chains-of-Thoughts (CoT) for multi-step question answering (QA). They struggle, however, when the necessary knowledge is either unavailable to the LLM or not up-to-date within its parameters. While using the question to retrieve relevant text from an external knowledge source helps LLMs, we observe that this one-step retrieve-and-read approach is insufficient for multi-step QA. Here, what to retrieve depends on what has already been derived, which in turn may depend on what was previously retrieved. To address this, we propose IRCoT, a new approach for multi-step QA that interleaves retrieval with steps (sentences) in a CoT, guiding the retrieval with CoT and in turn using retrieved results to improve CoT. Using IRCoT with GPT3 substantially improves retrieval (up to 21 points) as well as downstream QA (up to 15 points) on four datasets: HotpotQA, 2WikiMultihopQA, MuSiQue, and IIRC. We observe similar substantial gains in out-ofdistribution (OOD) settings as well as with much smaller models such as Flan-T5-large without additional training. IRCoT reduces model hallucination, resulting in factually more accurate CoT reasoning.1. ",
+        "bbox": [
+            144,
+            280,
+            457,
+            705
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1 Introduction ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            717,
+            257,
+            732
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Large language models are capable of answering complex questions by generating step-bystep natural language reasoning steps—so called chains of thoughts (CoT)—when prompted appropriately (Wei et al., 2022). This approach has been successful when all information needed to answer the question is either provided as context (e.g., algebra questions) or assumed to be present in the model’s parameters (e.g., commonsense reasoning). ",
+        "bbox": [
+            115,
+            741,
+            487,
+            885
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "image",
+        "img_path": "images/5c1f81eef7b7d2e97e1f379f510fc5cab6a5395af3a41a2326e5505ba0a485c2.jpg",
+        "image_caption": [
+            "Figure 1: IRCoT interleaves chain-of-thought (CoT) generation and knowledge retrieval steps in order to guide the retrieval by CoT and vice-versa. This interleaving allows retrieving more relevant information for later reasoning steps, compared to standard retrieval using solely the question as the query. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            524,
+            252,
+            872,
+            494
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "However, for many open-domain questions, all required knowledge is not always available or up-todate in models’ parameters and it’s beneficial to retrieve knowledge from external sources (Lazaridou et al., 2022; Kasai et al., 2022). ",
+        "bbox": [
+            512,
+            624,
+            882,
+            702
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "How can we augment chain-of-thought prompting for open-domain, knowledge-intensive tasks that require complex, multi-step reasoning? ",
+        "bbox": [
+            512,
+            708,
+            882,
+            755
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "While a one-shot retrieval from a knowledge source based solely on the question can successfully augment LMs with relevant knowledge for many factoid-based tasks (Lewis et al., 2020; Guu et al., 2020; Borgeaud et al., 2022; Izacard et al., 2022), this strategy has clear limitations for more complex multi-step reasoning questions. For such questions, one often must retrieve partial knowledge, perform partial reasoning, retrieve additional information based on the outcome of the partial reasoning done so far, and iterate. As an example, consider the question illustrated in Fig. 1, “In what country was Lost Gravity manufactured?”. The Wikipedia document retrieved using the question (in particular, the roller coaster Lost Gravity) as the query does not mention where Lost Gravity was manufactured. Instead, one must first infer that it was manufactured by a company called Mack Rides, and then perform further retrieval, guided by the inferred company name, to obtain evidence pointing to the manufacturing country. ",
+        "bbox": [
+            512,
+            759,
+            882,
+            919
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            85,
+            485,
+            261
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Thus, the retrieval and reasoning steps must inform each other. Without retrieval, a model is likely to generate an incorrect reasoning step due to hallucination. Additionally, without generating the first reasoning step, the text supporting the second step can’t be identified easily given the lack of lexical or even semantic overlap with the question. In other words, we need retrieved facts in order to generate factually correct reasoning steps and the reasoning steps to retrieve relevant facts. ",
+        "bbox": [
+            117,
+            263,
+            487,
+            423
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Based on this intuition, we propose an interleaving approach to this problem, where the idea is to use retrieval to guide the chain-of-thought (CoT) reasoning steps and use CoT reasoning to guide the retrieval. Fig. 1 shows an overview of our retrieval method, which we call IRCoT.2 We begin by retrieving a base set of paragraphs using the question as a query. Subsequently, we alternate between the following two steps: (i) extend CoT: use the question, the paragraphs collected thus far, and the CoT sentences generated thus far to generate the next CoT sentence; (ii) expand retrieved information: use the last CoT sentence as a query to retrieve additional paragraphs to add to the collected set. We repeat these steps till the CoT reports an answer or we reach the maximum allowed number of reasoning steps. Upon termination, all collected paragraphs are returned as the retrieval outcome. Finally, we use these as the context for answering the question via direct QA prompting (Brown et al., 2020) or CoT prompting (Wei et al., 2022). ",
+        "bbox": [
+            115,
+            426,
+            487,
+            763
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "We evaluate the efficacy of our system on 4 multi-step reasoning datasets under an open-domain setting: HotpotQA (Yang et al., 2018), 2WikiMultihopQA (Ho et al., 2020), MuSiQue (Trivedi et al., 2022), and IIRC (Ferguson et al., 2020). Our experiments using OpenAI GPT3 (code-davinci-002) (Brown et al., 2020; Ouyang et al., 2022; Chen et al., 2021) demonstrate that retrieval using IRCoT is substantially more effective than the baseline, one-step, questionbased retrieval by 11-21 recall points under a fixedbudget optimal recall setup.3 When IRCoT is used in conjunction with a prompting-based reader, it also leads to substantial improvement (up to 15 F1 points) in downstream few-shot QA performance and reduces factual errors in generated CoT by up to $50 \\%$ . Our approach also works on much smaller Flan-T5 models (11B, 3B, and 0.7B) showing similar trends. In particular, we find QA using Flan-T5-XL (3B) with IRCoT even outperforms the 58X larger GPT3 with a one-step questionbased retrieval. Furthermore, these improvements also hold up in an out-of-distribution (OOD) setting where the demonstrations from one dataset are used when testing on another dataset. Lastly, we note that our QA scores exceed those reported by recent works on few-shot prompting for open-domain QA (ODQA) (Khot et al., 2023; Press et al., 2022; Yao et al., 2022), although a fair apples-to-apples comparison with them isn’t possible (cf. Appendix C). ",
+        "bbox": [
+            115,
+            765,
+            487,
+            892
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            86,
+            882,
+            438
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "In summary, our main contribution is a novel retrieval method, IRCoT, that leverages LMs’ chainof-thought generation capabilities to guide retrieval and uses retrieval in turn to improve CoT reasoning. We demonstrate that IRCoT: ",
+        "bbox": [
+            512,
+            441,
+            884,
+            519
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "1. improves both retrieval and few-shot QA performance on several multi-step open-domain QA datasets, in both IID and OOD settings; 2. reduces factual errors in generated CoTs; and 3. improves performance with both large-scale (175B models) as well as smaller-scale models (Flan-T5-\\*, $\\leq 1 1 \\mathrm { B } $ ) without any training. ",
+        "bbox": [
+            526,
+            521,
+            884,
+            633
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2 Related Work ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            649,
+            665,
+            664
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Prompting for Open-Domain QA. LLMs can learn various tasks by simply using a few examples as prompts (Brown et al., 2020). They’ve also been shown to answer complex questions by producing step-by-step reasoning (chain-ofthoughts, or CoT) when prompted with a few or zero demonstrations (Wei et al., 2022; Kojima et al., 2022). Prompting has been applied to open-domain QA (Lazaridou et al., 2022; Sun et al., 2022; Yu et al., 2023) but its value in improving retrieval and QA for multi-step open-domain questions remains relatively underexplored. ",
+        "bbox": [
+            512,
+            677,
+            882,
+            869
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Recently three approaches have been proposed for multi-step open-domain QA. SelfAsk (Press et al., 2022) prompts LLMs to decompose a question into subquestions and answers subquestions by a call to Google Search API. DecomP (Khot et al., 2023) is a general framework that decomposes a task and delegates sub-tasks to appropriate submodels. They also decompose questions but delegate retrieval to a BM25-based retriever. Both of these approaches are not developed for CoT reasoning, do not focus on the retrieval problem, and require a single-hop QA model to answer the decomposed questions. Recently proposed ReAct (Yao et al., 2022) system frames the problem as generating a sequence of reasoning and action steps. These steps are much more complex, rely on much larger models (PaLM-540B), and require fine-tuning to outperform CoT for multi-step ODQA. Furthermore, none of these works have been shown to be effective for smaller models without any training. While a direct comparison with these approaches is not straightforward (difference in knowledge corpus, LLMs, examples), we find that our ODQA performance is much higher than all their reported numbers where available (§5). ",
+        "bbox": [
+            115,
+            85,
+            487,
+            486
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Supervised Multi-Step Open-Domain QA. Prior work has explored iterative retrieval for open-domain QA in a fully supervised setting. Das et al. (2019) proposes an iterative retrieval model that retrieves using a neural query representation and then updates it based on a reading comprehension model’s output. Feldman and El-Yaniv (2019) apply similar neural query reformulation idea for multihop open-domain QA. Xiong et al. (2021) extends the widely-used Dense Passage Retrieval (DPR) (Karpukhin et al., 2020) to multihop setting, which has since been improved by Khattab et al. (2021). Asai et al. (2020) leverages the graph structure induced by the entity links present in Wikipedia paragraphs to perform iterative multi-step retrieval. GoldEn (Gold Entity) retriever (Qi et al., 2019) iteratively generates text queries based on paragraphs retrieved from an off-the-shelf retriever but requires training data for this next query generator. Nakano et al. (2021) used GPT3 to answer long-form questions by interacting with the browser but relied on human annotations of these interactions. All of these methods rely on supervised training on a large-scale dataset and can not be easily extended to a few-shot setting. ",
+        "bbox": [
+            117,
+            500,
+            487,
+            919
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3 Chain-of-Thought-Guided Retrieval and Open-Domain QA ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            83,
+            855,
+            117
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Our goal is to answer a knowledge-intensive multistep reasoning question $Q$ in a few-shot setting by using a knowledge source containing a large number of documents. To do this we follow a retrieve-and-read paradigm (Zhu et al., 2021), where the retriever first retrieves documents from the knowledge source and the QA model reads the retrieved documents and the question to generate the final answer. Our contribution is mainly in the retrieve step (§3.1), and we use standard prompting strategies for the read step (§3.2). ",
+        "bbox": [
+            512,
+            128,
+            882,
+            304
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "As noted earlier, for multi-step reasoning, retrieval can help guide the next reasoning step, which in turn can inform what to retrieve next. This motivates our interleaving strategy, discussed next. ",
+        "bbox": [
+            510,
+            306,
+            882,
+            369
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3.1 Interleaving Retrieval with Chain-of-Thought Reasoning ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            384,
+            786,
+            414
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Our proposed retriever method, IRCoT, can be instantiated from the following three ingredients: (i) a base retriever that can take a query and return a given number of paragraphs from a corpus or knowledge source; (ii) a language model with zero/few-shot Chain-of-Thought (CoT) generation capabilities; and (iii) a small number of annotated questions with reasoning steps explaining how to arrive at the answer in natural language (chain of thoughts) and a set of paragraphs from the knowledge source that collectively support the reasoning chain and the answer. ",
+        "bbox": [
+            512,
+            422,
+            882,
+            613
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "The overview of IRCoT is given in Fig. 2. We first gather a base set of paragraphs by retrieving $K$ paragraphs using the question $Q$ as the query. Then, we interleave two steps (reason and retrieve) iteratively until the termination criterion is met. ",
+        "bbox": [
+            512,
+            615,
+            882,
+            695
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "The retrieval-guided reasoning step (“Reason”) generates the next CoT sentence using the question, the paragraphs collected thus far, and the CoT sentences generated thus far. The prompt template for the task looks as follows: ",
+        "bbox": [
+            512,
+            697,
+            882,
+            776
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Wikipedia Title: <Page Title> <Paragraph Text>   \nWikipedia Title: <Page Title> <Paragraph Text> ",
+        "bbox": [
+            512,
+            783,
+            737,
+            843
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Q: <Question> A: <CoT-Sent-1> ... <CoT-Sent-n> ",
+        "bbox": [
+            512,
+            854,
+            756,
+            878
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "For in-context demonstrations, we use the complete CoT in the above format. For a test instance, we show the model only the CoT sentences generated thus far and let it complete the rest. Even though the model may output multiple sentences, for each reason-step, we only take the first generated sentence and discard the rest. ",
+        "bbox": [
+            510,
+            889,
+            884,
+            919
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "image",
+        "img_path": "images/891edfa708ce4c73d4ac90965706ff86c0b054c34d187865524f630cc7a4e55b.jpg",
+        "image_caption": [
+            "Figure 2: IRCoT interleaves chain-of-thought (CoT) generation and retrieval steps to guide the retrieval by CoT and vice-versa. We start by retrieving $K$ documents using the question as they query and repeat two steps alternatingly until termination. (i) reason-step generates next CoT sentence based on the question, so far retrieved paragraphs, and CoT sentences. (ii) retrieve-step retrieves $K$ more paragraphs based on the last CoT sentence. The process terminates when the generated CoT has “answer is” or the number of steps exceeds a threshold. The collection of all paragraphs is returned as the retrieval result on the termination. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            136,
+            82,
+            862,
+            350
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            472,
+            487,
+            550
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "For the paragraphs in the in-context demonstrations, we use ground-truth supporting paragraphs and $M$ randomly sampled paragraphs shuffled and concatenated together in the above format. For a test instance, we show all the paragraphs collected thus far across all the previous retrieve-steps. ",
+        "bbox": [
+            115,
+            554,
+            487,
+            649
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "If the generated CoT sentence has the “answer is:” string or the maximum number of steps4 has been reached, we terminate the process and return all collected paragraphs as the retrieval result. ",
+        "bbox": [
+            115,
+            651,
+            487,
+            714
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "The CoT-guided retrieval step (“Retrieve”) uses the last generated CoT sentence as a query to retrieve more paragraphs and adds them to the collected paragraphs. We cap the total number of collected paragraphs5 so as to fit in at least a few demonstrations in the model’s context limit. ",
+        "bbox": [
+            117,
+            717,
+            485,
+            812
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3.2 Question Answering Reader ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            826,
+            381,
+            841
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "The QA reader answers the question using retrieved paragraphs taken from the retriever. We consider two versions of the QA reader implemented via two prompting strategies: CoT Prompting as proposed by Wei et al. (2022), Direct Prompting as proposed by Brown et al. (2020). For CoT prompting, we use the same template as shown in $\\ S 3 . 2$ , but at test time we ask the model to generate the full CoT from scratch. The final sentence of CoT is expected to be of the form “answer is: ...”, so that the answer can be extracted programmatically. If it’s not in that form, the full generation is returned as the answer. For Direct Prompting, we use the same template as CoT Prompting but the answer field (“A: ”) contains only the final answer instead of CoT. See App. G for details. ",
+        "bbox": [
+            115,
+            850,
+            485,
+            879
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            472,
+            882,
+            696
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "4 Experimental Setup ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            714,
+            715,
+            730
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "We evaluate our method on 4 multi-step QA datasets in the open-domain setting: HotpotQA (Yang et al., 2018), 2WikiMultihopQA (Ho et al., 2020), answerable subset of MuSiQue (Trivedi et al., 2022), and answerable subset of IIRC (Ferguson et al., 2020). For HotpotQA, we use the Wikipedia corpus that comes with it for the open-domain setting. For each of the other three datasets, which originally come in a reading comprehension or mixed setting, we used the associated contexts to construct a corpus for our open-domain setting (see App. A for details). For each dataset, we use 100 randomly sampled questions from the original development set for tuning hyperparameters, and 500 other randomly sampled questions as our test set. ",
+        "bbox": [
+            512,
+            744,
+            882,
+            919
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            85,
+            485,
+            164
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "4.1 Models ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            181,
+            216,
+            196
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Retriever. We use BM25 (Robertson et al., 2009) implemented in Elasticsearch6 as our base retriever. We compare two retriever systems: ",
+        "bbox": [
+            115,
+            206,
+            487,
+            253
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "(i) One-step Retriever (OneR) uses the question as a query to retrieve $K$ paragraphs. We select $K \\in \\{ 5 , 7 , 9 , 1 1 , 1 3 , 1 5 \\}$ that’s best on the dev set. ",
+        "bbox": [
+            115,
+            256,
+            487,
+            304
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "(ii) IRCoT Retriever is our method described in $\\ S 3$ . We use BM25 as its underlying retriever and experiment with OpenAI GPT3 (code-davinci-002) (Brown et al., 2020; Ouyang et al., 2022; Chen et al., 2021) and Flan-T5 (Chung et al., 2022) of different sizes as its CoT generator. ",
+        "bbox": [
+            115,
+            306,
+            487,
+            401
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "For demonstrating in-context examples to these LMs, we wrote CoTs for 20 questions for all the datasets (see App. $\\ S G$ ). We then create 3 demonstration (“training”) sets by sampling 15 questions each for each dataset. For each experiment, we search for the best hyperparameters for the dev set using the first demonstration set and evaluate each demonstration set on the test set using the selected hyperparameters. We report the mean and standard deviation of these 3 results for each experiment. ",
+        "bbox": [
+            115,
+            405,
+            487,
+            564
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "At test time, we pack as many demonstrations as possible within the model’s context length limit. The context limit for GPT3 (code-davinci-002) is 8K word pieces. Flan-T5-\\* doesn’t have any hard limit as it uses relative position embeddings. But we limit Flan-T5’s context to 6K word pieces, which is the maximum we could fit in the memory of our 80G A100 GPUs. ",
+        "bbox": [
+            115,
+            568,
+            487,
+            695
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "IRCoT Retriever has one key hyperparameter: $K \\in \\{ 2 , 4 , 6 , 8 \\}$ , the number of paragraphs to retrieve at each step. Additionally, when creating “training” demonstrations for IRCoT’s Reasoner module, we use gold paragraphs and a smaller number $M \\in \\{ 1 , 2 , 3 \\}$ of distractor paragraphs (§3.1). ",
+        "bbox": [
+            115,
+            699,
+            487,
+            794
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Retrieval Metric: We allow a maximum of 15 paragraphs for all retriever systems and measure the recall of the gold paragraphs among the retrieved set of paragraphs. We search for the hyperparameter $K$ (and $M$ for IRCoT) that maximizes the recall on the dev set and use it on the test set. ",
+        "bbox": [
+            117,
+            797,
+            487,
+            891
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The reported metric can thus be viewed as the fixedbudget optimal recall for each system considered.7 ",
+        "bbox": [
+            512,
+            85,
+            882,
+            115
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "QA Reader. To implement the reader, we use the same LMs as used in the reason-step of IRCoT Retriever. We found that QA readers implemented with Flan-T5-\\* perform better with the Direct Prompting strategy and GPT3 performs better with CoT Prompting strategy (see App. E). Hence we use Direct prompting strategy for QA with Flan-T5-\\* and CoT with GPT3 for the experiments.8 ",
+        "bbox": [
+            512,
+            128,
+            882,
+            271
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "The QA reader has one hyperparameter $M$ : the number of distractor paragraphs in the in-context demonstrations. We search for $M$ in $\\{ 1 , 2 , 3 \\}$ When used in conjunction with IRCoT retriever $M$ is tied for the CoT generator and the reader. ",
+        "bbox": [
+            512,
+            273,
+            882,
+            353
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Open-Domain QA (ODQA) Models. Putting retrievers and readers together, we experiment with ODQA models constructed from the various language models denoted as OneR QA and IRCoT QA. For IRCoT QA, the choice of LM for the CoT generator and the reader is kept the same. We also experiment with retriever-less QA readers NoR QA to assess how well LMs can answer the question from their parametric knowledge alone. To select the best hyperparameters for the ODQA model, we search for the hyperparameters $K$ and $M$ that maximize the answer F1 on the development set. ",
+        "bbox": [
+            512,
+            365,
+            882,
+            556
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "IIRC is structured slightly differently from the other datasets, in that its questions are grounded in a main passage and other supporting paragraphs come from the Wikipedia pages of entities mentioned in this passage. We slightly modify the retrievers and readers to account for this (see App. B). ",
+        "bbox": [
+            512,
+            560,
+            882,
+            653
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "5 Results ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            669,
+            606,
+            684
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "IRCoT retrieval is better than one-step. Fig. 3 compares OneR with IRCoT retrievers made from ",
+        "bbox": [
+            510,
+            696,
+            882,
+            727
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "image",
+        "img_path": "images/c24faa26f5a609435b59a8aac1702dd04171d153ceb52c7c0a60b3b64ba91da7.jpg",
+        "image_caption": [
+            "Figure 3: Retrieval recall for one-step retriever (OneR) and IRCoT instantiated from Flan-T5-XXL (left) and GPT3 (right) models. IRCoT outperforms OneR for both models and all datasets. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            139,
+            84,
+            862,
+            236
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "image",
+        "img_path": "images/90585b176452ab3a1d971b695d4a75596b646714386d0c67af16625d2a9a2b7c.jpg",
+        "image_caption": [
+            "Figure 4: Answer F1 for ODQA model made using (i) no retriever (NoR QA) (ii) one-step retriever (OneR QA) and (iii) IRCoT QA instantiated from Flan-T5-XXL (left) and GPT3 (right) models. IRCoT QA outperforms OneR QA and NoR QA for both models on all datasets, except for GPT3 on IIRC. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            137,
+            293,
+            862,
+            445
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "Flan-T5-XXL and GPT3 LMs. For both models, IRCoT significantly outperforms one-step retrieval across all datasets. For Flan-T5-XXL, IRCoT improves our recall metric relative to one-step retrieval, on HotpotQA by 7.9, on 2WikiMultihopQA by 14.3, on MuSiQue by 3.5, and on IIRC by 10.2 points. For GPT3, this improvement is by 11.3, 22.6, 12.5, and 21.2 points, respectively. ",
+        "bbox": [
+            115,
+            527,
+            487,
+            656
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "IRCoT QA outperforms NoR and OneR QA. Fig. 4 compares ODQA performance using NoR, OneR and IRCoT retriever made from Flan-T5-XXL and GPT3 LMs. For Flan-T5-XXL, IRCoT QA outperforms OneR QA on HotpotQA by 9.4, on 2WikiMultihopQA by 15.3, on MuSiQue by 5.0 and IIRC by 2.5 F1 points. For GPT3, the corresponding numbers (except for IIRC) are 7.1, 13.2, and 7.1 F1 points. For GPT3, IRCoT doesn’t improve the QA score on IIRC, despite significantly improved retrieval (21 points as shown in Fig. 3). This is likely because IIRC relevant knowledge may already be present in GPT3, as also evidenced by its NoR QA score being similar. For other datasets and model combinations, NoR QA is much worse than IRCoT QA, indicating the limits of the models’ parametric knowledge. ",
+        "bbox": [
+            115,
+            680,
+            487,
+            919
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            527,
+            880,
+            558
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "IRCoT is effective in OOD setting. Since CoT may not always be easy to write for new datasets, we evaluate NoR, OneR, and IRCoT on generalization to new datasets, i.e. OOD setting. To do so, we use prompt demonstrations from one dataset to evaluate on another dataset.9 For all pairs of the datasets10 and for both Flan-T5-XXL and GPT3, we find the same trend as in the IID setting: IRCoT retrieval outperforms OneR (Fig. 5), and IRCoT QA outperforms both OneR QA and NoR QA (Fig. 6). ",
+        "bbox": [
+            512,
+            576,
+            884,
+            737
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "IRCoT generates CoT with fewer factual errors. ",
+        "text_level": 1,
+        "bbox": [
+            510,
+            755,
+            882,
+            769
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "To assess whether our approach also improves the factuality of generated CoTs, we manually annotated CoTs generated by NoR QA, OneR QA, and IRCoT QA using GPT3 for 40 randomly sampled questions from each of the four datasets. We considered CoT to have a factual error if at least one of the facts11 is not true.12 As Fig. 7 shows, NoR makes the most factual errors, OneR makes fewer, and IRCoT the least. In particular, IRCoT reduces the factual errors over OneR by $50 \\%$ on HotpotQA and $40 \\%$ on 2WikiMultihopQA. ",
+        "bbox": [
+            512,
+            770,
+            882,
+            866
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "image",
+        "img_path": "images/eab3b5946072401ed4e77184c252e076425c458df2201e085172f52639a9e8df.jpg",
+        "image_caption": [
+            "Figure 5: Retrieval recall for OneR and IRCoT using Flan-T5-XXL (Left) and GPT3 (Right) in out-of-distribution (OOD) setting. HQ (HotpotQA), 2W (2WikiMultihopQA), MQ (MuSiQue). The result $\\Chi { \\to } \\mathbf { Y }$ indicates prompt demonstrations are from dataset X and evaluation is on dataset Y. IRCoT outperforms OneR in such an OOD setting. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            139,
+            85,
+            860,
+            237
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "image",
+        "img_path": "images/dd4949fd2b4e26aa9819c414b1296b531a311ea1a8e90058a4531cf2b0cf7deb.jpg",
+        "image_caption": [
+            "Figure 6: Answer F1 for NoR QA, OneR QA and IRCoT QA using Flan-T5-XXL (Left) and GPT3 (Right) in out-of-distribution (OOD) setting. HQ (HotpotQA), 2W (2WikiMultihopQA), MQ (MuSiQue). The result $\\Chi { \\to } \\mathbf { Y }$ indicates prompt demonstrations are from dataset X and evaluation is on dataset Y. IRCoT QA outperforms OneR QA and NoR QA in such OOD setting. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            139,
+            310,
+            860,
+            463
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "image",
+        "img_path": "images/2baca83895930491151a6e671f6a701a3ccc55c7763574407447ff2b31c18fcd.jpg",
+        "image_caption": [
+            "Figure 7: Number of questions, out of 40, where CoT generated by GPT3 using different methods has at least 1 factual error. Factual errors: $\\underline { { \\mathrm { I R C o T } } } < \\mathrm { O n e R } < \\mathrm { N o R }$ . "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            122,
+            561,
+            478,
+            713
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            797,
+            487,
+            829
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            510,
+            560,
+            880,
+            607
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Table 2 illustrates how the CoT predictions for different methods vary qualitatively. Since NoR relies completely on parametric knowledge, it often makes a factual error in the first sentence, which derails the full CoT. OneR can retrieve relevant information closest to the question and is less likely to make such errors early on, but it still makes errors later in the CoT. IRCoT, on the other hand, is often able to prevent such errors in each step. ",
+        "bbox": [
+            512,
+            609,
+            882,
+            752
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "IRCoT is also effective for smaller models. To see how effective IRCoT is at different LM sizes, we show the scaling plots in Fig. 8.13 We compare the recall for OneR and IRCoT using Flan-T5 {base (0.2B), large (0.7B), XL (3B), XXL (11B)}, and GPT3 code-davinci-002 (175B). IRCoT with even the smallest model (0.2B) is better than ",
+        "bbox": [
+            510,
+            762,
+            882,
+            873
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "image",
+        "img_path": "images/dd439dcb7e2903fe9500eca099cdccd68264d5397fba08a192dd877b904a5aa3.jpg",
+        "image_caption": [
+            "Figure 8: Retrieval recall for OneR (bottom) and IRCoT (top) for LMs of increasing sizes: Flan-T5 {base (0.2B), large (0.7B), XL (3B), XXL (11B)} and GPT3 (175B) on HotpotQA, 2WikiMultihopQA, MuSiQue. IRCoT outperforms OneR for all model sizes, including the 0.3B model, and the difference roughly grows with model size. Note: OneR doesn’t use LM in its retrieval and so has a fixed score. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            136,
+            83,
+            860,
+            214
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "image",
+        "img_path": "images/2ff1d9148ed97b668a7afe6922f0b4b60a1aafffd52eca10ee2763a4df41a4a6.jpg",
+        "image_caption": [
+            "Figure 9: Answer F1 for ODQA models made using OneR (bottom) and IRCoT (top) for LMs of increasing sizes: Flan-T5 {base (0.2B), large (0.7B), XL (3B), XXL (11B)} and GPT3 (175B) on HotpotQA, 2WikiMultihopQA and MuSiQue. IRCoT QA outperforms OneR QA for all model sizes except for the smallest, 0.3B. IRCoT with 3B model even outperforms OneR with 58X larger GPT3 model showing the value of improved retrieval. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            136,
+            298,
+            863,
+            431
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "OneR, and the performance roughly improves with the model size. This shows the CoT generation capabilities of even small models can be leveraged for improving retrieval. Furthermore, we show the effect of model size on the QA score in Fig. 9. For all sizes except the smallest (0.2B), we see IRCoT QA is better than OneR QA. Moreover, IRCoT with a 3B model even outperforms OneR and NoR with a 58X larger 175B GPT3 model in all datasets. ",
+        "bbox": [
+            115,
+            525,
+            487,
+            669
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "IRCoT is SOTA for few-shot multistep ODQA.14 We compare IRCoT QA with five recent approaches to using LLMs for ODQA: InternetAugmented QA (Lazaridou et al., 2022), RECITE (Sun et al., 2022) ReAct (Yao et al., 2022), SelfAsk (Press et al., 2022), and DecomP (Khot et al., 2022). Although these are not head-to-head comparisons as different methods use different APIs, knowledge sources, and even LLMs (see App. C for details), it is still informative to explore, in a leaderboard-style fashion, how IRCoT performs relative to the best numbers published for these recent systems. ",
+        "bbox": [
+            115,
+            676,
+            487,
+            887
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "table",
+        "img_path": "images/84d879144d26e8a6422cede8979ac7f3b42caf3434ef1d43ab0cd5a99790b36c.jpg",
+        "table_caption": [],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Model</td><td>HpQABr</td><td>HpQA</td><td>2WikiMQA</td><td>MQ2H</td></tr><tr><td>InterAug</td><td>− | −</td><td>30.3 | -</td><td>− | −</td><td>− | −</td></tr><tr><td>RECITE ReAct</td><td>− | − − | −</td><td>37.1 | 48.4 35.1 | -</td><td>− | − | −</td><td>− | − − | −</td></tr><tr><td>SelfAsk</td><td>− | −</td><td>− | −</td><td>40.1 | -</td><td>15.2 1 -</td></tr><tr><td>DecomP</td><td>- | 50.0</td><td>− | </td><td>- | 59.3</td><td>− | −</td></tr><tr><td>IRCoT QA 45.8 | 58.5 49.3 | 60.7</td><td></td><td></td><td>57.7 | 68.0</td><td>34.2 | 43.8</td></tr></table>",
+        "bbox": [
+            512,
+            521,
+            882,
+            630
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Table 1: Comparison with other LLM-based ODQA systems on EM and F1 scores. ‘−’: score is unavailable. $\\mathrm { { H p Q A } ^ { B r } }$ : Bridge questions subset of HotpotQA. $\\mathrm { M Q } ^ { \\mathrm { 2 H } }$ : MuSiQue 2-hop questions. IRCoT QA with GPT3 (ours) outperforms other systems by a large margin. Note: Comparisons aren’t head-to-head as discussed in the text. App. $\\ S C$ reports updated SOTA numbers, including contemporaneous and newer works. ",
+        "bbox": [
+            510,
+            640,
+            882,
+            753
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "As shown in Table 1, IRCoT QA significantly outperforms all of these recent systems by a large margin, setting a new state of the art in terms of what’s achievable via retrieval-augmented LLMs (without supervised training). ",
+        "bbox": [
+            512,
+            771,
+            882,
+            851
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "6 Conclusions ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            863,
+            648,
+            878
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Chain-of-thought prompting has significantly improved LLMs’ ability to perform multi-step reasoning. We leveraged this ability to improve retrieval, and in turn, improve QA performance for complex knowledge-intensive open-domain tasks in a few-shot setting. We argued that one-step questionbased retrieval is insufficient for such tasks, and introduced IRCoT, which uses interleaved CoT reasoning and retrieval steps that guide each other step-by-step. On four datasets, IRCoT significantly improves both retrieval and QA performance when compared to one-step retrieval, for both large and relatively smaller-scale LMs. Additionally, CoTs generated by IRCoT contain fewer factual errors. ",
+        "bbox": [
+            510,
+            888,
+            882,
+            920
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "table",
+        "img_path": "images/c5e41b6f2d77dd00e79565be947e75b0bb02cf8a5fceada6aeecc00c2ae039a0.jpg",
+        "table_caption": [
+            "Table 2: Example CoTs generated by GPT3 with different methods. Since NoR relies on parametric knowledge, it often makes a factual error in the first sentence derailing the full CoT. OneR can retrieve relevant information closest to the question and is less likely to make such errors early on, but it still makes errors later in the CoT. As IRCoT performs retrieval after each step, it is often able to prevent such errors in each step. More examples are in App. D. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=1 colspan=9>Question       Gold Facts             NoR QA               OneR QA             IRCoT QA</td></tr><tr><td rowspan=7 colspan=9>The tap dancing⇒ The tap dancingThe tap dancing soloistThe tap dancing soloistThe tap dancing soloistsoloist in Mysoloist in My Feetin My Feet Keep Danc-in My Feet Keep Danc-in My Feet Keep Danc-HoHFeet    KeepKeep Dancing is Fayarding is Eleanor Pow-ing is Fayard Nicholas.ing is Fayard Nicholas.DancingalsoNicholas.ell.Eleanor PowellFayard Nicholas alsoFayard Nicholas starredstarred in what⇒Fayard Nicholasalso starred in the 1935starred in the 1935in the 1935 MGM mu-1935MGMstarred in the 1935MGM musical Broad-MGM musical Top Hat.sical An All-Coloredmusical?       MGM musicalAnway Melody of 1936.So the answer is: TopVaudeville Show.SoAll-Colored VaudevilleSo the answer is: Broad-Hat.                    the answer is: AnShow.                  way Melody of 1936.                             All-Colored VaudevilleShow.</td></tr><tr><td rowspan=1 colspan=2>Keep</td><td rowspan=1 colspan=2>p Da</td><td rowspan=1 colspan=1></td><td rowspan=1 colspan=1>ing is Eleanor Pow-</td></tr><tr><td rowspan=1 colspan=3>ell.</td><td rowspan=1 colspan=2>ell.</td><td rowspan=1 colspan=1>Eleanor Powell</td></tr><tr><td rowspan=3 colspan=2>also starred in the 1935MGM musical Broad-</td></tr><tr><td rowspan=2 colspan=1>starred in the 1935in the 1935 MGM mu-MGM musical Top Hat.sical An All-Colored</td></tr><tr></tr><tr><td rowspan=1 colspan=1>So the answer is: TopVaudeville Show.So</td></tr><tr><td rowspan=5 colspan=9>Who is the ⇒→ Queen Hyojeong Queen Hyojeong has aQueen Hyojeong is the Queen Hyojeong is thefather-in-law   is the wife of Kinghusband named Kingwife of King Heonjong wife of King Heonjongof Queen Hyo-Heonjong of Joseon.    Gojong.King Gojong of Joseon. King Heon-of Joseon. King Heon-jeong?          ⇒KingHeonjonghas a father namedjong of Joseon is the jong of Joseon is the sonRW!N!GA                   of Joseon is the sonHeungseon Daewongun.son of King Sejo ofof Crown Prince Hy-ofCrown Prince Hy-Thus, Queen HyojeongJoseon. Thus, King Sejoomyeong. Thus, Crownomyeong.has afather-in-lawof Joseon is the father-Prince Hyomyeong isnamedHeungseonin-law of Queen Hyo-the father-in-law ofDaewongun.  So thejeong. So the answer is:Queen Hyojeong. Soanswer is: HeungseonKing Sejo of Joseon.    the answer is: CrownDaewongun.                                      Prince Hyomyeong.</td></tr><tr><td rowspan=1 colspan=1>in-law of Queen Hyo-the father-in-law of</td></tr><tr><td rowspan=1 colspan=1>jeong. So the answer is:Queen Hyojeong. So</td></tr><tr><td rowspan=1 colspan=1>King Sejo of Joseon.    the answer is: Crown</td></tr><tr><td rowspan=1 colspan=1>Prince Hyomyeong.</td></tr><tr><td rowspan=1 colspan=9>Whatis the⇒  A   CollectionThe performer of A Col- A          Collection A          Collection</td></tr><tr><td rowspan=1 colspan=9>nameofthe19841989 was per-lection 19841989 is19841989       was19841989       was</td></tr><tr><td rowspan=1 colspan=9>castle intheformed by Jane Siberry.The The. The The wasperformed by Janeperformed by Jane</td></tr><tr><td rowspan=1 colspan=9>city where the⇒ Jane Siberry wasborn in London.TheSiberry. Jane Siberry Siberry.Jane Siberry</td></tr><tr><td rowspan=1 colspan=9>ndsng performer     born in Toronto.        name of the castle inwas born in Toronto.was born inToronto.ACollection⇒ The castle in TorontoLondon is the Tower of The castle in TorontoThe castle in Toronto is</td></tr><tr><td rowspan=1 colspan=9>19841989 was is the Casa Loma.       London. So the answer is Peqin Castle. So thethe Casa Loma. So theborn?                                    is: the Tower of Lon- answer is: Peqin Castle. answer is: Casa Loma.don.</td></tr></table>",
+        "bbox": [
+            117,
+            83,
+            878,
+            472
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            117,
+            564,
+            485,
+            756
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Limitations ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            776,
+            216,
+            793
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "IRCoT relies on the base LM to have a zero or few-shot CoT-generation ability. While this is commonly available in large LMs (over 100B), it’s not as common for small LMs (under 20B), which to some extent limits IRCoT adoptability. Given the recent surge of interest (Tay et al., 2023; Magister et al., 2022; Ho et al., 2022), however, smaller ",
+        "bbox": [
+            117,
+            808,
+            485,
+            919
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "LMs will likely increasingly acquire such ability, making IRCoT compatible with many more LMs. ",
+        "bbox": [
+            512,
+            564,
+            882,
+            596
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "IRCoT also relies on the base LM to support long inputs as multiple retrieved paragraphs need to fit in the LM’s input, in addition to at least a few demonstrations of QA or CoT with paragraphs. This was supported by the models we used as code-davinci-002 (GPT3) allows 8K tokens and Flan-T5-\\* uses relative position embeddings making it as extensible as the GPU memory constraints allow. Future work can explore strategies to rerank and select the retrieved paragraphs instead of passing all of them to the LM to alleviate the need for the LM to support long input. ",
+        "bbox": [
+            512,
+            599,
+            882,
+            790
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "The performance gain of IRCoT retriever and QA (over OneR and ZeroR baselines) come with an additional computational cost. This is because IRCoT makes a separate call to an (L)LM for each sentence of CoT. Future work can focus on, for instance, dynamically deciding when to retrieve more information and when to perform additional reasoning with the current information. ",
+        "bbox": [
+            512,
+            791,
+            880,
+            919
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Lastly, a portion of our experiments was carried out using a commercial LLM API from OpenAI (code-davinci-002). This model was deprecated by OpenAI after our submission making the reproduction of these experiments challenging despite our best efforts, just like any other work using such APIs. The trends discussed in the paper (IRCoT $> \\mathrm { O n e R } > \\mathrm { N o R } $ , we believe, would still hold. Additionally, all our experiments using Flan-T5-\\*, which exhibit similar trends as that of GPT3, will remain reproducible, thanks to its publicly available model weights. ",
+        "bbox": [
+            117,
+            85,
+            485,
+            275
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Ethical Considerations ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            288,
+            314,
+            305
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Language models are known to hallucinate incorrect and potentially biased information. This is especially problematic when the questions asked to it are of a sensitive nature. While retrievalaugmented approaches such as ours are expected to alleviate this issue to some extent by grounding generation in external text, this by no means solves the problem of generating biased or offensive statements. Appropriate care should thus be taken if deploying such systems in user-facing applications. ",
+        "bbox": [
+            117,
+            315,
+            487,
+            475
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "All the datasets and models used in this work are publicly available with permissible licenses. HotpotQA has CC BY-SA 4.0 license15, 2WikiMultihopQA has Apache-2.0 license16, MuSiQUe and IIRC have CC BY 4.0 license17, and Flan-T5-\\* models have Apache-2.0 license. ",
+        "bbox": [
+            117,
+            476,
+            487,
+            570
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Acknowledgments ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            585,
+            275,
+            600
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "We thank the reviewers for their valuable feedback and suggestions. We also thank OpenAI for providing access to the code-davinci-002 API. This material is based on research supported in part by the Air Force Research Laboratory (AFRL), DARPA, for the KAIROS program under agreement number FA8750-19-2-1003, in part by the National Science Foundation under the award IIS #2007290, and in part by an award from the Stony Brook Trustees Faculty Awards Program. ",
+        "bbox": [
+            115,
+            609,
+            485,
+            769
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "References ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            797,
+            211,
+            813
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Akari Asai, Kazuma Hashimoto, Hannaneh Hajishirzi, Richard Socher, and Caiming Xiong. 2020. Learning to retrieve reasoning paths over wikipedia graph for question answering. In International Conference on Learning Representations. ",
+        "bbox": [
+            117,
+            820,
+            487,
+            859
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            531,
+            86,
+            880,
+            112
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Sebastian Borgeaud, Arthur Mensch, Jordan Hoffmann, Trevor Cai, Eliza Rutherford, Katie Millican, George Bm Van Den Driessche, Jean-Baptiste Lespiau, Bogdan Damoc, Aidan Clark, Diego De Las Casas, Aurelia Guy, Jacob Menick, Roman Ring, Tom Hennigan, Saffron Huang, Loren Maggiore, Chris Jones, Albin Cassirer, Andy Brock, Michela Paganini, Geoffrey Irving, Oriol Vinyals, Simon Osindero, Karen Simonyan, Jack Rae, Erich Elsen, and Laurent Sifre. 2022. Improving language models by retrieving from trillions of tokens. In Proceedings of the 39th International Conference on Machine Learning, volume 162 of Proceedings of Machine Learning Research, pages 2206–2240. PMLR. ",
+        "bbox": [
+            510,
+            127,
+            882,
+            321
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Tom Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared D Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, et al. 2020. Language models are few-shot learners. Advances in neural information processing systems, 33:1877–1901. ",
+        "bbox": [
+            514,
+            337,
+            880,
+            414
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique Ponde de Oliveira Pinto, Jared Kaplan, Harri Edwards, Yuri Burda, Nicholas Joseph, Greg Brockman, et al. 2021. Evaluating large language models trained on code. arXiv preprint arXiv:2107.03374. ",
+        "bbox": [
+            512,
+            429,
+            882,
+            506
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Hyung Won Chung, Le Hou, Shayne Longpre, Barret Zoph, Yi Tay, William Fedus, Eric Li, Xuezhi Wang, Mostafa Dehghani, Siddhartha Brahma, et al. 2022. Scaling instruction-finetuned language models. arXiv preprint arXiv:2210.11416. ",
+        "bbox": [
+            510,
+            521,
+            882,
+            586
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Rajarshi Das, Shehzaad Dhuliawala, Manzil Zaheer, and Andrew McCallum. 2019. Multi-step retrieverreader interaction for scalable open-domain question answering. In International Conference on Learning Representations. ",
+        "bbox": [
+            510,
+            601,
+            882,
+            665
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Yair Feldman and Ran El-Yaniv. 2019. Multi-hop paragraph retrieval for open-domain question answering. In Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics, pages 2296– 2309, Florence, Italy. Association for Computational Linguistics. ",
+        "bbox": [
+            514,
+            681,
+            882,
+            759
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "James Ferguson, Matt Gardner, Hannaneh Hajishirzi, Tushar Khot, and Pradeep Dasigi. 2020. IIRC: A dataset of incomplete information reading comprehension questions. In EMNLP. ",
+        "bbox": [
+            510,
+            774,
+            882,
+            826
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Kelvin Guu, Kenton Lee, Zora Tung, Panupong Pasupat, and Mingwei Chang. 2020. Retrieval augmented language model pre-training. In Proceedings of the 37th International Conference on Machine Learning, volume 119 of Proceedings of Machine Learning Research, pages 3929–3938. PMLR. ",
+        "bbox": [
+            512,
+            840,
+            882,
+            917
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Namgyu Ho, Laura Schmid, and Se-Young Yun. 2022. Large language models are reasoning teachers. arXiv preprint arXiv:2212.10071. ",
+        "bbox": [
+            115,
+            86,
+            487,
+            124
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Xanh Ho, A. Nguyen, Saku Sugawara, and Akiko Aizawa. 2020. Constructing a multi-hop qa dataset for comprehensive evaluation of reasoning steps. In COLING. ",
+        "bbox": [
+            115,
+            139,
+            485,
+            190
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Gautier Izacard, Patrick Lewis, Maria Lomeli, Lucas Hosseini, Fabio Petroni, Timo Schick, Jane DwivediYu, Armand Joulin, Sebastian Riedel, and Edouard Grave. 2022. Atlas: Few-shot learning with retrieval augmented language models. arXiv preprint arXiv:2208.03299. ",
+        "bbox": [
+            117,
+            203,
+            487,
+            280
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Vladimir Karpukhin, Barlas Oguz, Sewon Min, Patrick Lewis, Ledell Wu, Sergey Edunov, Danqi Chen, and Wen-tau Yih. 2020. Dense passage retrieval for opendomain question answering. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 6769–6781, Online. Association for Computational Linguistics. ",
+        "bbox": [
+            117,
+            294,
+            487,
+            386
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Jungo Kasai, Keisuke Sakaguchi, Yoichi Takahashi, Ronan Le Bras, Akari Asai, Xinyan Yu, Dragomir Radev, Noah A Smith, Yejin Choi, and Kentaro Inui. 2022. RealTime QA: What’s the answer right now? arXiv preprint arXiv:2207.13332. ",
+        "bbox": [
+            115,
+            398,
+            487,
+            463
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Omar Khattab, Christopher Potts, and Matei Zaharia. 2021. Baleen: Robust multi-hop reasoning at scale via condensed retrieval. In Advances in Neural Information Processing Systems. ",
+        "bbox": [
+            115,
+            476,
+            487,
+            529
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Patrick Lewis, Ethan Perez, Aleksandra Piktus, Fabio Petroni, Vladimir Karpukhin, Naman Goyal, Heinrich Küttler, Mike Lewis, Wen-tau Yih, Tim Rocktäschel, Sebastian Riedel, and Douwe Kiela. 2020. Retrieval-augmented generation for knowledgeintensive nlp tasks. In Advances in Neural Information Processing Systems, volume 33, pages 9459– 9474. Curran Associates, Inc. ",
+        "bbox": [
+            510,
+            86,
+            882,
+            190
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Lucie Charlotte Magister, Jonathan Mallinson, Jakub Adamek, Eric Malmi, and Aliaksei Severyn. 2022. Teaching small language models to reason. arXiv preprint arXiv:2212.08410. ",
+        "bbox": [
+            510,
+            200,
+            882,
+            253
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Reiichiro Nakano, Jacob Hilton, Suchir Balaji, Jeff Wu, Long Ouyang, Christina Kim, Christopher Hesse, Shantanu Jain, Vineet Kosaraju, William Saunders, et al. 2021. WebGPT: Browser-assisted questionanswering with human feedback. arXiv preprint arXiv:2112.09332. ",
+        "bbox": [
+            510,
+            262,
+            882,
+            340
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Omar Khattab, Keshav Santhanam, Xiang Lisa Li, David Hall, Percy Liang, Christopher Potts, and Matei Zaharia. 2023. Demonstrate-search-predict: Composing retrieval and language models for knowledge-intensive NLP. ",
+        "bbox": [
+            115,
+            542,
+            487,
+            606
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Tushar Khot, Harsh Trivedi, Matthew Finlayson, Yao Fu, Kyle Richardson, Peter Clark, and Ashish Sabharwal. 2022. Decomposed prompting: A modular approach for solving complex tasks. ",
+        "bbox": [
+            117,
+            619,
+            487,
+            671
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Tushar Khot, Harsh Trivedi, Matthew Finlayson, Yao Fu, Kyle Richardson, Peter Clark, and Ashish Sabharwal. 2023. Decomposed prompting: A modular approach for solving complex tasks. In The Eleventh International Conference on Learning Representations. ",
+        "bbox": [
+            117,
+            684,
+            487,
+            762
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida, Carroll Wainwright, Pamela Mishkin, Chong Zhang, Sandhini Agarwal, Katarina Slama, Alex Gray, John Schulman, Jacob Hilton, Fraser Kelton, Luke Miller, Maddie Simens, Amanda Askell, Peter Welinder, Paul Christiano, Jan Leike, and Ryan Lowe. 2022. Training language models to follow instructions with human feedback. In Advances in Neural Information Processing Systems. ",
+        "bbox": [
+            510,
+            350,
+            882,
+            468
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Takeshi Kojima, Shixiang Shane Gu, Machel Reid, Yutaka Matsuo, and Yusuke Iwasawa. 2022. Large language models are zero-shot reasoners. In ICML 2022 Workshop on Knowledge Retrieval and Language Models. ",
+        "bbox": [
+            117,
+            776,
+            487,
+            840
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Angeliki Lazaridou, Elena Gribovskaya, Wojciech Stokowiec, and Nikolai Grigorev. 2022. Internetaugmented language models through few-shot prompting for open-domain question answering. arXiv preprint arXiv:2203.05115. ",
+        "bbox": [
+            117,
+            853,
+            487,
+            919
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Ofir Press, Muru Zhang, Sewon Min, Ludwig Schmidt, Noah A Smith, and Mike Lewis. 2022. Measuring and narrowing the compositionality gap in language models. arXiv preprint arXiv:2210.03350. ",
+        "bbox": [
+            510,
+            478,
+            882,
+            530
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Peng Qi, Xiaowen Lin, Leo Mehr, Zijian Wang, and Christopher D. Manning. 2019. Answering complex open-domain questions through iterative query generation. In Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP), pages 2590–2602, Hong Kong, China. Association for Computational Linguistics. ",
+        "bbox": [
+            510,
+            541,
+            882,
+            657
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Stephen Robertson, Hugo Zaragoza, et al. 2009. The probabilistic relevance framework: Bm25 and beyond. Foundations and Trends® in Information Retrieval, 3(4):333–389. ",
+        "bbox": [
+            510,
+            667,
+            882,
+            719
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Zhiqing Sun, Xuezhi Wang, Yi Tay, Yiming Yang, and Denny Zhou. 2022. Recitation-augmented language models. arXiv preprint arXiv:2210.01296. ",
+        "bbox": [
+            510,
+            728,
+            882,
+            768
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Yi Tay, Mostafa Dehghani, Vinh Q. Tran, Xavier Garcia, Jason Wei, Xuezhi Wang, Hyung Won Chung, Dara Bahri, Tal Schuster, Steven Zheng, Denny Zhou, Neil Houlsby, and Donald Metzler. 2023. UL2: Unifying language learning paradigms. In The Eleventh International Conference on Learning Representations. ",
+        "bbox": [
+            514,
+            778,
+            882,
+            857
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Harsh Trivedi, Niranjan Balasubramanian, Tushar Khot, and Ashish Sabharwal. 2022. MuSiQue: Multihop questions via single-hop question composition. TACL, 10:539–554. ",
+        "bbox": [
+            510,
+            866,
+            884,
+            917
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, brian ichter, Fei Xia, Ed H. Chi, Quoc V Le, and Denny Zhou. 2022. Chain of thought prompting elicits reasoning in large language models. In Advances in Neural Information Processing Systems. ",
+        "bbox": [
+            115,
+            85,
+            487,
+            151
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Wenhan Xiong, Xiang Li, Srini Iyer, Jingfei Du, Patrick Lewis, William Yang Wang, Yashar Mehdad, Scott Yih, Sebastian Riedel, Douwe Kiela, and Barlas Oguz. 2021. Answering complex open-domain questions with multi-hop dense retrieval. In International Conference on Learning Representations. ",
+        "bbox": [
+            117,
+            161,
+            487,
+            240
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Zhilin Yang, Peng Qi, Saizheng Zhang, Yoshua Bengio, William W. Cohen, Ruslan Salakhutdinov, and Christopher D. Manning. 2018. HotpotQA: A dataset for diverse, explainable multi-hop question answering. In EMNLP. ",
+        "bbox": [
+            115,
+            250,
+            487,
+            316
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao. 2022. ReAct: Synergizing reasoning and acting in language models. arXiv preprint arXiv:2210.03629. ",
+        "bbox": [
+            115,
+            326,
+            487,
+            379
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Wenhao Yu, Dan Iter, Shuohang Wang, Yichong Xu, Mingxuan Ju, Soumya Sanyal, Chenguang Zhu, Michael Zeng, and Meng Jiang. 2023. Generate rather than retrieve: Large language models are strong context generators. In The Eleventh International Conference on Learning Representations. ",
+        "bbox": [
+            117,
+            388,
+            487,
+            467
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Fengbin Zhu, Wenqiang Lei, Chao Wang, Jianming Zheng, Soujanya Poria, and Tat-Seng Chua. 2021. Retrieving and reading: A comprehensive survey on open-domain question answering. arXiv preprint arXiv:2101.00774. ",
+        "bbox": [
+            117,
+            478,
+            487,
+            542
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "A Constructing Retrieval Corpora ",
+        "text_level": 1,
+        "bbox": [
+            119,
+            83,
+            426,
+            99
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "HotpotQA already comes with the associated Wikipedia corpus for the open-domain setting, so we use it directly. 2WikiMultihopQA and MuSiQue, however, are originally reading comprehension datasets. Questions in 2WikiMultihopQA and MuSiQue are associated with 10 and 20 paragraphs respectively, 2-4 of which are supporting and others are non-supporting. To turn these datasets into an open-domain setting, we make two corpora, one for each dataset, by combining all supporting and non-supporting paragraphs for all its questions in the train, development, and test sets. IIRC is originally a mix between reading comprehension and an open-domain setting. Each question is grounded in one main paragraph, which contains links to multiple Wikipedia pages with several paragraphs each. We create a corpus out of all the paragraphs from all the Wikipedia pages present in the dataset.18 We do assume the availability of the main passage which doesn’t need to be retrieved and is always present. We don’t assume the availability of Wikipedia links in the main passage, however, to keep the retrieval problem challenging.19 ",
+        "bbox": [
+            117,
+            111,
+            485,
+            495
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "B Special Handling of Models for IIRC ",
+        "text_level": 1,
+        "bbox": [
+            115,
+            510,
+            468,
+            526
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "IIRC is slightly different from the other datasets, in that the question is grounded in the main passage and other supporting paragraphs come from the Wikipedia pages of entities mentioned in this passage. We modify the retrievers and readers to account for this difference: (i) We always keep the main passage as part of the input to the model regardless of the retrieval strategy used. (ii) For all the retrieval methods, we first prompt the model to generate a list of Wikipedia page titles using the main passage and the question. We map these generated titles to the nearest Wikipedia page titles in the corpus (found using BM25), and then the rest of the paragraph retrieval queries are scoped within only those Wikipedia pages. ",
+        "bbox": [
+            115,
+            537,
+            487,
+            777
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "To prompt the model to generate Wikipedia page titles using the main passage and the question for ",
+        "bbox": [
+            115,
+            780,
+            485,
+            810
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "IIRC, we use the following template. ",
+        "bbox": [
+            514,
+            85,
+            783,
+            98
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Wikipedia Title: <Main Page Title> <Main Paragraph Text> ",
+        "bbox": [
+            514,
+            108,
+            769,
+            130
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Q: The question is: '<Question>'. Generate titles of <N> Wikipedia pages that have relevant information to answer this question. A: [\"<Title-1>\", \"<Title-2>\", ...] ",
+        "bbox": [
+            510,
+            143,
+            880,
+            191
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "For “training”, i.e., for demonstrations, $\\mathrm { N } \\left( \\leq 3 \\right)$ is the number of supporting Wikipedia page titles for the question. At test time, since the number of supporting page titles is unknown, we use a fixed value of 3. We found this trick of prompting the model to generate more titles at the test time improves its recall over letting the model decide by itself how many titles to generate. ",
+        "bbox": [
+            512,
+            200,
+            882,
+            328
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "C Comparison with Previous Systems for ODQA with LLMs ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            344,
+            880,
+            376
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "We showed a leaderboard-style comparison with previous approaches to using large language models for open-domain QA in $\\ S 5$ . We noted though that the comparison is not head-to-head given various differences. We briefly describe each method and the differences in API, LLM, retrieval corpus, and other choices here. ",
+        "bbox": [
+            512,
+            388,
+            882,
+            499
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Internet-Augmented QA (Lazaridou et al., 2022) does (one-step) Google Search retrieval, performs additional LLM-based filtering on it, and then prompts an LLM to answer the question using the resulting context. It uses the Gopher 280B language model. RECITE (Sun et al., 2022) bypasses the retrieval and instead prompts an LLM to first generate (recite) one or several relevant passages from its own memory, and generate the answer conditioned on this generation. They experiment with many LLMs, the highest performing of which is code-davinci-002 which we report here. ReAct (Yao et al., 2022) prompts LLMs to produce reasoning and action traces where actions are calls to a Wikipedia API to return the summary for a given Wikipedia page title. It uses the PALM 540B model. SelfAsk (Press et al., 2022) prompts LLMs to decompose a question into subquestions and answers these subquestions by issuing separate calls to the Google Search API. It uses the GPT3 (text-davinci-002) model. Finally, DecomP (Khot et al., 2023) is a general framework that decomposes a task and delegates sub-tasks to appropriate sub-models. Similar to our system, it uses BM25 Search and the GPT3 (code-davinci-002) model. And lastly, ",
+        "bbox": [
+            512,
+            501,
+            882,
+            917
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "table",
+        "img_path": "images/1e002746e9f01a38d83bf23e2f642be9da91ea06dfe0d542d0bd761cd9f45c9c.jpg",
+        "table_caption": [
+            "Table 3: Extended comparison with published LLM-based ODQA systems (as of May 25, 2023) on EM and F1 scores (with new numbers marked with \\*). ‘−’: score is unavailable. $\\mathrm { { H p Q A } ^ { B r } }$ : Bridge questions subset of HotpotQA. $\\mathrm { M Q } ^ { \\mathrm { 2 H } }$ : MuSiQue 2-hop questions. IRCoT remains SOTA for MuSiQue and is close to SOTA for HotpotQA and 2WikiMultihopQA. Note the comparisons here are not head-to-head as discussed in the text. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Model</td><td>HpQABr</td><td>HpQA</td><td>2WikiMQA</td><td>MQ2H</td><td>MQ</td></tr><tr><td>InterAug (Lazaridou et al., 2022)</td><td>− | −</td><td>30.3 | -</td><td>− | −</td><td>− | −</td><td>− | −</td></tr><tr><td>RECITE (Sun et al., 2022)</td><td>− | </td><td>37.1 | 48.4</td><td>− | −</td><td>− | −</td><td>− | −</td></tr><tr><td>ReAct (Yao et al., 2022)</td><td>− | </td><td>35.1 | -</td><td>− | −</td><td>− | </td><td>− | −</td></tr><tr><td>SelfAsk (Press et al., 2022)</td><td>− | </td><td>− | −</td><td>40.1 | -</td><td>15.2 | -</td><td>− | −</td></tr><tr><td>DecomP (Khot et al., 2022)</td><td>- | 50.0</td><td> | </td><td>- | 59.3</td><td> | </td><td>− | −</td></tr><tr><td>DecomP (Khot et al., 2023) *</td><td>− | </td><td>- | 53.5</td><td>- | 70.8</td><td>− | −</td><td>- | 30.9</td></tr><tr><td>DSP (Khattab et al., 2023) *</td><td>− | −</td><td>51.4 | 62.9</td><td>− | </td><td>− | −</td><td>− | −</td></tr><tr><td>IRCoT QA (ours)</td><td>45.8 | 58.5</td><td>49.3 | 60.7</td><td>57.7 | 68.0</td><td>34.2 | 43.8</td><td>26.5 | 36.5</td></tr></table>",
+        "bbox": [
+            131,
+            82,
+            867,
+            221
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "table",
+        "img_path": "images/c11432a6f98d8b7d08a0de4c24d9022818aa7e98726c098714127e2004c8499f.jpg",
+        "table_caption": [
+            "Table 4: Answer F1 for different ODQA models made from NoR, One and IRCoT retrievals, and Direct and CoT prompting readers. For Flan-T5-XXL, Direct prompting is a better choice for the reader, and for GPT3, CoT prompting is a better choice for the reader. Hence, we make different reader choices for Flan-T5 and GPT3 for the experiments in the main paper. Note that IRCoT QA $>$ OneR QA $>$ ZeroR QA holds up regardless of this choice. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Model</td><td rowspan=\"2\"></td><td colspan=\"4\">Flan-T5-XXL</td><td colspan=\"4\">GPT3</td></tr><tr><td>HotpotQA</td><td>2WikiMQA</td><td>MuSiQue</td><td>IIRC</td><td>HotpotQA</td><td>2WikiMQA</td><td>MuSiQue</td><td>IIRC</td></tr><tr><td rowspan=\"2\">ZeroR QA</td><td>Direct</td><td>25.3 ± 0.3</td><td>32.7 ± 0.3</td><td>13.7 ± 0.3</td><td>28.9± 0.3</td><td>41.0± 1.1</td><td>38.5± 1.1</td><td>19.0± 1.2</td><td>40.9± 0.7</td></tr><tr><td>CoT</td><td>22.9± 0.1</td><td>31.7± 1.5</td><td>10.3± 0.5</td><td>24.4± 0.1</td><td>47.5 ± 0.4</td><td>41.2± 1.0</td><td>25.2± 1.2</td><td>52.1 ± 0.1</td></tr><tr><td rowspan=\"2\">OneR QA</td><td>Direct</td><td>49.7 ± 0.5</td><td>51.2 ± 0.3</td><td>25.8± 0.6</td><td>40.0± 1.3</td><td>50.7 ± 0.1</td><td>46.4± 2.9</td><td>20.4± 0.3</td><td>40.1± 0.9</td></tr><tr><td>CoT</td><td>43.1± 0.7</td><td>47.8± 0.9</td><td>17.6± 0.2</td><td>34.5 ± 1.5</td><td>53.6± 0.7</td><td>54.8 ± 2.1</td><td>29.4± 0.8</td><td>49.8± 2.3</td></tr><tr><td rowspan=\"2\">IRCoT QA</td><td>Direct</td><td>59.1 ± 0.9</td><td>66.5 ± 1.4</td><td>30.8 ± 0.2</td><td>42.5 ± 2.1</td><td>60.6±1.0</td><td>63.5 ± 2.7</td><td>36.0± 0.5</td><td>47.9± 2.3</td></tr><tr><td>CoT</td><td>52.0± 0.6</td><td>55.1 ± 1.0</td><td>24.9± 1.0</td><td>36.5± 1.3</td><td>60.7± 1.1</td><td>68.0 ± 1.5</td><td>36.5 ± 1.2</td><td>49.9± 1.1</td></tr></table>",
+        "bbox": [
+            115,
+            300,
+            882,
+            434
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "DSP (Khattab et al., 2023) provides a way to programmatically define interactions between LLM and retrieval for ODQA (e.g., via question decomposition), bootstrap demonstrations for such a program, and use them to make the answer prediction. It uses GPT3.5 LLM with ColBERT-based retrieval. Since most of these methods use different knowledge sources or APIs and are built using different LLMs and retrieval models, it’s difficult to make a fair scientific comparison across these systems. Additionally, the evaluations in the respective papers are on different random subsets (from the same distribution) of test instances. ",
+        "bbox": [
+            115,
+            526,
+            487,
+            734
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Despite these differences, it is still informative to explore, in a leaderboard-style fashion, how IRCoT performs relative to the best numbers published for these recent systems. Table 3 shows results from different systems, including contemporaneous and newer numbers. The two new systems in this table (relative to Table 1) are DecomP (newer version) and DSP. While IRCoT remains SOTA on MuSiQue, DSP outperforms it on HotpotQA by 2.0 points and the newer version of Decomp outperforms IRCoT on 2WikiMultihopQA by 2.8 points. ",
+        "bbox": [
+            117,
+            744,
+            485,
+            919
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "We speculate DecomP performs well on 2WikiMultihopQA because it has only a few easy-to-predict decomposition patterns, which DecomP’s question decomposition can leverage. The lack of such patterns in HotpotQA and MuSiQue causes it to underperform compared to IRCoT. Lastly, it will be useful to assess whether DSP, which is hardcoded for 2-hop questions like that of HotpotQA, will work well for a dataset with a varied number of hops like that of MuSiQue. We leave this further investigation to future work. ",
+        "bbox": [
+            512,
+            526,
+            882,
+            702
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "D Additional CoT Generation Examples ",
+        "text_level": 1,
+        "bbox": [
+            510,
+            715,
+            875,
+            733
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "text",
+        "text": "Table 5 provides illustrations, in addition to the ones provided in Table 2, for how the CoT generations for NoR QA, OneR QA, and IRCoT QA methods vary. This gives an insight into how IRCoT improves QA performance. Since NoR relies completely on parametric knowledge, it often makes a factual error in the first sentence, which derails the full reasoning chain. Some of this factual information can be fixed by OneR, especially information closest to the question (i.e., can be retrieved using the question). This is insufficient for fixing all the mistakes. Since IRCoT involves retrieval after each step, it can fix errors at each step. ",
+        "bbox": [
+            512,
+            744,
+            882,
+            919
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "table",
+        "img_path": "images/d9d50fe485396a90356a23c11cb1fc86a892b5e189274c10b4e5e875cbbcc65b.jpg",
+        "table_caption": [
+            "Table 5: Additional CoTs generated by GPT3 with different methods. ZeroR is most prone to factual errors. OneR often fixes some of the factual information which is closest to the question but doesn’t always fix it all the way. Since IRCoT retrieves after each step, it can also fix the errors at each step. More examples are in Table 2. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Question</td><td>Gold Facts</td><td>NoR QA</td><td>OneR QA</td><td>IRCoT QA</td></tr><tr><td>island, HOoH</td><td>What was the ⇒ Marinelli Glacier is on located on the island of which Marinelli Tierra del Fuego. Glacier is lo- ⇒ The island of Tierra cated, formerly del Fuego was formerly known as? known as Isla de Xativa.</td><td>Marinelli Glacier is located on the island of Graham Land. Graham Land was formerly known as Graham&#x27;s Land. So the answer is: Graham&#x27;s Land.</td><td>Marinelli Glacier is lo- cated on Isla Grande de Tierra del Fuego. Isla Grande de Tierra del Fuego was formerly known as Tierra del Fuego. So the answer</td><td>Marinelli Glacier is lo- cated on the island of Tierra del Fuego. The is- land of Tierra del Fuego was formerly known as Isla de Xativa. So the answer is: Isla de Xa-</td></tr><tr><td>TM!MIA</td><td>Mukhyamantri hury. (1996 Film)? has a child named Sandip Choudhury.</td><td>Who is the ⇒ The director of The film Mukhyamantri child of the Mukhyamantri (1996 was directed by S. V. Ra- director of film film) is Anjan Choud- jendra Singh Babu. S. l V. Rajendra Singh Babu ⇒ Anjan Choudhury V. Rajendra Singh Babu. So the answer is: S. V.</td><td>is: Tierra del Fuego. Mukhyamantri (1996 film) was directed by Anjan Choudhury. Anjan Choudhury has a has a child named S. child named Aniruddha Choudhury. So the answer is: Aniruddha</td><td>tiva. The director of Mukhya- mantri (1996 flm) is Anjan Choudhury. Anjan Choudhury has a child named Sandip Choudhury. So the answer is: Sandip</td></tr><tr><td>When did the Governorship no!sng end of the city where the author of Sac- erdotii Nostri Primordia died?</td><td>⇒ Sacerdotii Nostri Pri- mordia was written by Pope John XXIII. ⇒→ Pope John XXIII died in Vatican City. ⇒ The Governorship of Vatican City ended in 1952.</td><td>Rajendra Singh Babu. The author of Sacer- dotii Nostri Primordia is Pope Pius IX. Pope Pius IX died in the city of Rome. The Governor- city of Rome. ship of Rome ended in 1870. So the answer is: ended in 1870. So the 1870.</td><td>Choudhury. Sacerdotii Nostri Pri- mordia was written by Pope John XXIII. Pope John XXII died in the The Governorship of Rome answer is: 1870.</td><td>Choudhury. Sacerdotii Nostri Pri- mordia was written by Pope John XXIII. Pope John XXIII died in Vat- ican City. The Gover- norship of Vatican City ended in 1952. So the answer is: 1952.</td></tr></table>",
+        "bbox": [
+            115,
+            82,
+            878,
+            403
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            481,
+            485,
+            513
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "E Direct vs CoT Prompting Readers ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            527,
+            443,
+            545
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Table 4 compares reader choice (Direct vs CoT Prompting) for Flan-T5-XXL and GPT3. We find that Flan-T5-XXL works better with Direct Prompting as a reader and GPT3 works better with CoT Prompting as a reader. Therefore, for the experiments in the main paper, we go with this choice. Note though that the trends discussed in $\\ S 5$ (IRCoT $\\mathrm { Q A } >$ OneR QA $>$ ZeroR QA) hold regardless of the choice of the reader. ",
+        "bbox": [
+            115,
+            556,
+            487,
+            700
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "F Separate Reader in IRCoT QA ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            714,
+            416,
+            732
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "IRCoT, by construction, produces a CoT as a part of its retrieval process. So, instead of having a separate post-hoc reader, one can also just extract the answer from the CoT generated during retrieval. As Table 6 shows the effect of such an ablation. For Flan-T5-XXL having a separate reader is significantly better. For GPT3, this is not always true, but at least a model with a separate reader is always better or close to the one without. So overall we go with the choice of using the reader for the experiments in this paper. ",
+        "bbox": [
+            117,
+            743,
+            487,
+            919
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "table",
+        "img_path": "images/2ae17cf40398a11ec18e5cb1ef6d4fdec73154ca2eb9c605d90434d2137a51c4.jpg",
+        "table_caption": [],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Model</td><td colspan=\"3\">HotpotQA 2WikiMQA MuSiQue IIRC</td></tr><tr><td>M</td><td>IRCoT QA 59.1 ± 0.9 52.6± 0.3</td><td>66.5± 1.4 60.9± 0.6</td><td>30.8± 0.2 42.5± 2.1</td></tr><tr><td></td><td>w/o reader</td><td></td><td>24.9± 0.2 40.3± 0.2</td></tr><tr><td>CP1</td><td>IRCoT QA 60.7± 1.1</td><td>68.0± 1.5</td><td>36.5± 1.2 49.9± 1.1</td></tr><tr><td></td><td>w/o reader 61.0± 0.7</td><td>70.4 ± 1.5</td><td>31.5± 0.6 48.4± 1.0</td></tr></table>",
+        "bbox": [
+            515,
+            479,
+            878,
+            562
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Table 6: Answer F1 of IRCoT QA with and without a separate reader for Flan-T5-XXL (top two rows) and GPT3 (bottom two rows). When the reader is not used, the answer is extracted from the CoT generated by IRCoT while doing the retrieval. Ablating the reader usually hurts the performance. ",
+        "bbox": [
+            510,
+            573,
+            882,
+            658
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "G Prompts ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            683,
+            623,
+            699
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "Our manually written chain-of-thought annotations for HotpotQA, 2WikiMultihopQA, MuSiQue, and IIRC are given in Listing 1, 2, 3 and 4 respectively. Our prompts for GPT3 CoT Prompting are the same as these, except they have Wikipipedia paragraphs on the top of the questions as shown in $\\ S 3 . 1 ^ { 2 0 }$ . Our prompts for GPT3 Direct Prompting are the same as that of CoT prompting, except have the answer after \"A:\" directly. Our prompts for Flan-T5-\\* are slightly different from that of GPT3. For CoT Prompting, we prefix the question line: \"Q: Answer the following question by reasoning step-by-step. <actual-question>\". For Direct Prompting, we prefix the question line: \"Q: Answer the following question. <actual-question>\". We did this to follow Flan-T5-\\*’s training format and found it to help its CoT generation. ",
+        "bbox": [
+            512,
+            708,
+            882,
+            885
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            84,
+            489,
+            180
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "Listing 1: Chain-of-Thought annotations for HotpotQA.   \nQ: Jeremy Theobald and Christopher Nolan share what profession?   \nA: Jeremy Theobald is an actor and producer. Christopher Nolan is a director, producer, and screenwriter. Therefore, they both share the profession of being a producer. So the answer is: producer.   \nQ: What film directed by Brian Patrick Butler was inspired by a film directed by F.W. Murnau?   \nA: Brian Patrick Butler directed the film The Phantom Hour. The Phantom Hour was inspired by the films such as Nosferatu and The Cabinet of Dr. Caligari. Of these Nosferatu was directed by F.W. Murnau. So the answer is: The Phantom Hour.   \nQ: How many episodes were in the South Korean television series in which Ryu Hye−young played Bo−ra?   \nA: The South Korean television series in which Ryu Hye−young played Bo−ra is Reply 1988. The number of episodes Reply 1988 has is 20. So the answer is: 20.   \nQ: Vertical Limit stars which actor who also played astronaut Alan Shepard in \"The Right Stuff\"?   \nA: The actor who played astronaut Alan Shepard in \"The Right Stuff\" is Scott Glenn. The movie Vertical Limit also starred Scott Glenn. So the answer is: Scott Glenn.   \nQ: What was the 2014 population of the city where Lake Wales Medical Center is located?   \nA: Lake Wales Medical Center is located in the city of Polk County, Florida. The population of Polk County in 2014 was 15,140. So the answer is: 15,140.   \nQ: Who was born first? Jan de Bont or Raoul Walsh?   \nA: Jan de Bont was born on 22 October 1943. Raoul Walsh was born on March 11, 1887. Thus, Raoul Walsh was born the first. So the answer is: Raoul Walsh.   \nQ: In what country was Lost Gravity manufactured?   \nA: The Lost Gravity (roller coaster) was manufactured by Mack Rides. Mack Rides is a German company. So the answer is: Germany.   \nQ: Which of the following had a debut album entitled \"We Have an Emergency\": Hot Hot Heat or The Operation M.D.?   \nA: The debut album of the band \"Hot Hot Heat\" was \"Make Up the Breakdown\". The debut album of the band \"The Operation M.D.\" was \"We Have an Emergency\". So the answer is: The Operation M.D..   \nQ: In which country did this Australian who was detained in Guantanamo Bay detention camp and published \"Guantanamo: My Journey\" receive para−military training?   \nA: The Australian who was detained in Guantanamo Bay detention camp and published \"Guantanamo: My Journey\" is David Hicks. David Hicks received his para−military training in Afghanistan. So the answer is: Afghanistan.   \nQ: Does The Border Surrender or Unsane have more members?   \nA: The Border Surrender band has following members: Keith Austin, Simon Shields, Johnny Manning and Mark Austin. That is, it has 4 members. Unsane is a trio of 3 members. Thus, The Border Surrender has more members. So the answer is: The Border Surrender.   \nQ: Which band formed first, Sponge Cola or Hurricane No. 1?   \nA: Sponge Cola band was formed in 1998. Hurricane No. 1 was formed in 1996. Thus, Hurricane No. 1 band formed the first. So the answer is: Hurricane No. 1.   \nQ: James Paris Lee is best known for investing the Lee−Metford rifle and another rifle often referred to by what acronymn?   \nA: James Paris Lee is best known for investing the Lee−Metford rifle and LeeâA ¸SEnfield series of rifles. Leeâ ˘ A ¸SEnfield is ˘ often referred to by the acronym of SMLE. So the answer is: SMLE.   \nQ: Who was born first, James D Grant, who uses the pen name of Lee Child, or Bernhard Schlink?   \nA: James D Grant, who uses the pen name of Lee Child, was born in 1954. Bernhard Schlink was born in 1944. Thus, Bernhard Schlink was born first. So the answer is: Bernhard Schlink.   \nQ: Which American neo−noir science fiction has Pierce Gagnon starred?   \nA: Pierce Gagnon has starred in One Tree Hill, Looper, Wish I Was Here and Extant. Of these, Looper is an American neo− noir science fiction. So the answer is: Looper.   \nQ: What year did Edburga of Minster−in−Thanet's father die?   \nA: The father of Edburga of Minster−in−Thanet is King Centwine. Centwine died after 685. So the answer is: after 685.   \nQ: Were Lonny and Allure both founded in the 1990s?   \nA: Lonny (magazine) was founded in 2009. Allure (magazine) was founded in 1991. Thus, of the two, only Allure was founded in 1990s. So the answer is: no.   \nQ: The actor that stars as Joe Proctor on the series \"Power\" also played a character on \"Entourage\" that has what last name?   \nA: The actor that stars as Joe Proctor on the series \"Power\" is Jerry Ferrara. Jerry Ferrara also played a character on Entourage named Turtle Assante. Thus, Turtle Assante's last name is Assante. So the answer is: Assante.   \nQ: Nobody Loves You was written by John Lennon and released on what album that was issued by Apple Records, and was written, recorded, and released during his 18 month separation from Yoko Ono?   \nA: The album issued by Apple Records, and written, recorded, and released during John Lennon's 18 month separation from Yoko Ono is Walls and Bridges. Nobody Loves You was written by John Lennon on Walls and Bridges album. So the answer is: Walls and Bridges.   \nQ: How many awards did the \"A Girl Like Me\" singer win at the American Music Awards of 2012?   \nA: The singer of \"A Girl Like Me\" singer is Rihanna. In the American Music Awards of 2012, Rihana won one award. So the answer is: one.   \nQ: who is older Jeremy Horn or Renato Sobral ?   \nA: Jeremy Horn was born on August 25, 1975. Renato Sobral was born on September 7, 1975. Thus, Jeremy Horn is older. So the answer is: Jeremy Horn. ",
+        "bbox": [
+            115,
+            85,
+            880,
+            908
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            86,
+            877,
+            278
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Listing 2: Chain-of-Thought annotations for 2WikiMultihopQA. ",
+        "bbox": [
+            277,
+            302,
+            715,
+            317
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Q: When did the director of film Hypocrite (Film) die?   \nA: The film Hypocrite was directed by Miguel Morayta. Miguel Morayta died on 19 June 2013. So the answer is: 19 June 2013.   \nQ: Do director of film Coolie No. 1 ( $1 9 9 5 \\mathrm { F i l m } \\mathrm { \\Omega }$ ) and director of film The Sensational Trial have the same nationality?   \nA: Coolie No. 1 (1995 film) was directed by David Dhawan. The Sensational Trial was directed by Karl Freund. David Dhawan's nationality is India. Karl Freund's nationality is Germany. Thus, they do not have the same nationality. So the answer is: no.   \nQ: Are both Kurram Garhi and Trojkrsti located in the same country?   \nA: Kurram Garhi is located in the country of Pakistan. Trojkrsti is located in the country of Republic of Macedonia. Thus, they are not in the same country. So the answer is: no.   \nQ: Who was born first out of Martin Hodge and Ivania Martinich?   \nA: Martin Hodge was born on 4 February 1959. Ivania Martinich was born on 25 July 1995. Thus, Martin Hodge was born first. So the answer is: Martin Hodge.   \nQ: Which film came out first, The Night Of Tricks or The Genealogy?   \nA: The Night of Tricks was published in the year 1939. The Genealogy was published in the year 1979. Thus, The Night of Tricks came out first. So the answer is: The Night Of Tricks.   \nQ: When did the director of film Laughter In Hell die?   \nA: The film Laughter In Hell was directed by Edward L. Cahn. Edward L. Cahn died on August 25, 1963. So the answer is: August 25, 1963.   \nQ: Which film has the director died later, The Gal Who Took the West or Twenty Plus Two?   \nA: The film Twenty Plus Two was directed by Joseph M. Newman. The Gal Who Took the West was directed by Frederick de Cordova. Joseph M. Newman died on January 23, 2006. Fred de Cordova died on September 15, 2001. Thus, the person to die later from the two is Twenty Plus Two. So the answer is: Twenty Plus Two.   \nQ: Who is Boraqchin (Wife Of ÃUgedei)'s father−in−law? ˝   \nA: Boraqchin is married to ÃUgedei Khan. Ã ˝ Ugedei Khan's father is Genghis Khan. Thus, Boraqchin's father−in−law is ˝ Genghis Khan. So the answer is: Genghis Khan.   \nQ: What is the cause of death of Grand Duke Alexei Alexandrovich Of Russia's mother?   \nA: The mother of Grand Duke Alexei Alexandrovich of Russia is Maria Alexandrovna. Maria Alexandrovna died from tuberculosis. So the answer is: tuberculosis.   \nQ: Which film has the director died earlier, When The Mad Aunts Arrive or The Miracle Worker (1962 Film)?   \nA: When The Mad Aunts Arrive was directed by Franz Josef Gottlieb. The Miracle Worker (1962 film) was directed by Arthur Penn. Franz Josef Gottlieb died on 23 July 2006. Arthur Penn died on September 28, 2010. Thus, of the two, the director to die earlier is Franz Josef Gottlieb, who directed When The Mad Aunts Arrive. So the answer is: When The Mad Aunts Arrive.   \nQ: Which album was released earlier, What'S Inside or Cassandra'S Dream (Album)?   \nA: What's Inside was released in the year 1995. Cassandra's Dream (album) was released in the year 2008. Thus, of the two, the album to release earlier is What's Inside. So the answer is: What's Inside.   \nQ: Are both mountains, Serre Mourene and Monte Galbiga, located in the same country?   \nA: Serre Mourene is located in Spain. Monte Galbiga is located in Italy. Thus, the two countries are not located in the same ",
+        "bbox": [
+            114,
+            318,
+            875,
+            923
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "Q: What is the date of birth of the director of film Best Friends (1982 Film)? ",
+        "bbox": [
+            119,
+            110,
+            586,
+            122
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: The film Best Friends was directed by Norman Jewison. Norman Jewison was born on July 21, 1926. So the answer is: July 21, 1926. ",
+        "bbox": [
+            124,
+            123,
+            855,
+            146
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Q: Which film has the director born first, Two Weeks With Pay or Chhailla Babu? ",
+        "bbox": [
+            117,
+            158,
+            620,
+            170
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: Two Weeks with Pay was directed by Maurice Campbell. Chhailla Babu was directed by Joy Mukherjee. Maurice Campbell was born on November 28, 1919. Joy Mukherjee was born on 24 February 1939. Thus, from the two directors, Chhailla Babu was born first, who directed Two Weeks With Pay. So the answer is: Two Weeks With Pay. ",
+        "bbox": [
+            122,
+            171,
+            875,
+            205
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Q: Who is the grandchild of Krishna Shah (Nepalese Royal)? ",
+        "bbox": [
+            119,
+            217,
+            487,
+            229
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: Krishna Shah has a child named Rudra Shah. Rudra Shah has a child named Prithvipati Shah. Thus, Krishna Shah has a grandchild named Prithvipati Shah. So the answer is: Prithvipati Shah. ",
+        "bbox": [
+            115,
+            229,
+            862,
+            253
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Q: When was the director of film P.S. Jerusalem born? ",
+        "bbox": [
+            119,
+            265,
+            448,
+            277
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: P.S. Jerusalem was directed by Danae Elon. Danae Elon was born on December 23, 1970. So the answer is: December 23, 1970. ",
+        "bbox": [
+            119,
+            277,
+            875,
+            300
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Q: Which album was released more recently, If I Have to Stand Alone or Answering Machine Music? ",
+        "bbox": [
+            122,
+            311,
+            739,
+            324
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: If I Have to Stand Alone was published in the year 1991. Answering Machine Music was released in the year 1999. Thus, of the two, the album to release more recently is Answering Machine Music. So the answer is: Answering Machine Music. ",
+        "bbox": [
+            114,
+            324,
+            875,
+            360
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Q: Where did the director of film Maddalena (1954 Film) die? ",
+        "bbox": [
+            119,
+            372,
+            494,
+            382
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: The film Maddalena is directed by Augusto Genina. Augusto Genina died in Rome. So the answer is: Rome. ",
+        "bbox": [
+            117,
+            384,
+            791,
+            395
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Q: When did the director of film The Boy And The Fog die? ",
+        "bbox": [
+            121,
+            407,
+            484,
+            419
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: The director of The Boy and the Fog is Roberto GavaldÃ¸sn. Roberto GavaldÃ¸sn died on September 4, 1986. So the answer is: September 4, 1986. ",
+        "bbox": [
+            119,
+            420,
+            882,
+            444
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: The director of Sun of the Sleepless is Temur Babluani. The director of Nevada (1927 film) is John Waters. John Waters is from the country of America. Temur Babluani is from the country of Georgia. Thus, John Walters and Temur Babluani are not from the same country. So the answer is: no. ",
+        "bbox": [
+            121,
+            468,
+            877,
+            504
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Listing 3: Chain-of-Thought annotations for MuSiQue. ",
+        "bbox": [
+            304,
+            521,
+            684,
+            535
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": ": When did the first large winter carnival take place in the city where CIMI−FM is licensed to broadcas ",
+        "bbox": [
+            129,
+            538,
+            747,
+            551
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: CIMI−FM is licensed to broadcast in Quebec City. The first large winter carnival in Quebec City took place in 1894. So the answer is: 1894. ",
+        "bbox": [
+            119,
+            552,
+            862,
+            575
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Q: When was Neville A. Stanton's employer founded? ",
+        "bbox": [
+            117,
+            587,
+            447,
+            599
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: The employer of Neville A. Stanton is University of Southampton. The University of Southampton was founded in 1862. So the answer is: 1862. ",
+        "bbox": [
+            119,
+            599,
+            868,
+            623
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Q: What county is Hebron located in, in the same province the Heritage Places Protection Act applies to? ",
+        "bbox": [
+            122,
+            633,
+            774,
+            645
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: Heritage Places Protection Act applies to the jurisdiction of Prince Edward Island. Hebron, Prince Edward Island is located in the Prince County. So the answer is: Prince County. ",
+        "bbox": [
+            115,
+            646,
+            882,
+            670
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Q: What weekly publication in the Connecticut city with the most Zagat rated restaurants is issued by university of America− Lite: How Imperial Academia Dismantled Our Culture's author? ",
+        "bbox": [
+            117,
+            681,
+            873,
+            705
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: The author of America−Lite: How Imperial Academia Dismantled Our Culture is David Gelernter. David Gelernter was educated at the Yale University. The city in Connecticut that has the highest number of Zagat−rated restaurants is New Haven. The weekly publication in New Haven that is issued by Yale University is Yale Herald. So the answer is: Yale Herald. ",
+        "bbox": [
+            119,
+            706,
+            873,
+            752
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Q: What is the headquarters for the organization who sets the standards for ISO 21500? ",
+        "bbox": [
+            117,
+            764,
+            648,
+            776
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: The standards for ISO 21500 were set by International Organization for Standardization. The International Organization for Standardization has headquarters in Geneva. So the answer is: Geneva. ",
+        "bbox": [
+            122,
+            777,
+            863,
+            800
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Q: What did the publisher of Banjo−Tooie rely primarily on for its support? ",
+        "bbox": [
+            117,
+            812,
+            578,
+            824
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: The publisher of Banjo−Tooie is Nintendo. Nintendo relied primarily for its support on first−party games. So the answer is: first−party games. ",
+        "bbox": [
+            124,
+            825,
+            884,
+            847
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": ": In which county was the birthplace of the Smoke in tha City performer? ",
+        "bbox": [
+            131,
+            859,
+            571,
+            871
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: The performer of Smoke in tha City is MC Eiht. MC Eiht's birthplace is Compton. Compton is located in the county of Los Angeles County. So the answer is: Los Angeles County. ",
+        "bbox": [
+            119,
+            871,
+            880,
+            896
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "Q: What region of the state where Guy Shepherdson was born, contains SMA Negeri 68? ",
+        "bbox": [
+            124,
+            907,
+            657,
+            919
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "A: Guy Shepherdson was born in Jakarta. SMA Negeri 68 Jakarta is located in Central Jakarta. So the answer is: Central Jakarta.   \nQ: When did Britain withdraw from the country containing Hoora?   \nA: Hoora is in the country of Bahrain. Britain withdrew from Bahrain in 1971. So the answer is: 1971.   \nQ: Where does the Snake River start, in the state where Lima Mountain is located?   \nA: Lima Mountain is located in the state of Minnesota. The snake river in Minnesota starts in southern Aitkin County. So the answer is: southern Aitkin County.   \nQ: What shares a border with RiviÃ´lre−Verte in the province WRSU−FM broadcasts in?   \nA: WRSU−FM was licensed to broadcast to New Brunswick. RiviÃ´lre−Verte, New Brunswick shares border with Edmundston. So the answer is: Edmundston.   \nQ: When was the state of emergency declared in the country where the Senate is located?   \nA: The Senate is in the country of Kenya. The state of emergency was declared in Kenya on 20 October 1952. So the answer is: 20 October 1952.   \nQ: How long is the US border with the country that borders the state where Finding Dory takes place?   \nA: Finding Dory is supposed to take place in California. The country that shares a border with California is Mexico. The length of the us border with Mexico is 1,989 mi. So the answer is: 1,989 mi.   \nQ: What genre is the record label of the performer of So Long, See You Tomorrow associated with?   \nA: The performer of So Long, See You Tomorrow is Bombay Bicycle Club. The record label of Bombay Bicycle Club is Island Records. The genre of Island Records is jazz. So the answer is: jazz.   \nQ: When did the first large winter carnival happen in Olivier Robitaille's place of birth?   \nA: Olivier Robitaille was born in Quebec City. The first large winter carnival in Quebec City happened in the 1894. So the answer is: 1894.   \nQ: What is the genre of the record label of the band that performed on the Crush Tour?   \nA: The Crush Tour is performed by the band Bon Jovi. The record label of Bon Jovi is Island Records. The genre of Island Records is jazz. So the answer is: jazz.   \nQ: When was the first railway line constructed between Kotri and the city where Marie Adelaide Leprosy Centre is located?   \nA: Marie Adelaide Leprosy Centre is located in Karachi. The first railway line between Kotri and Karachi was constructed in April 1858. So the answer is: April 1858.   \nQ: Where is the crying stone found in the country in which Raphael Tuju holds citizenship?   \nA: Raphael Tuju is a citizen of Kenya. The crying stone in Kenya is found along the highway towards Kisumu. So the answer is: along the highway towards Kisumu.   \nQ: When did Britain withdraw from the country where the village of Wadyan is found?   \nA: Wadyan is in the country of Bahrain. Britain withdraw from Bahrain in 1971. So the answer is: 1971.   \nQ: How many countries in Pacific National University's continent are recognized by the organization that mediated the truce ending the Iran−Iraq war?   \nA: Pacific National University is located in Khabarovsk, Russia Khabarovsk, Russian is in the continent of Asia. The entity that mediated the truce which ended the Iran−Iraq War is the UN. The number of member states that UN recognises in Asia is 53. So the answer is: 53. ",
+        "bbox": [
+            114,
+            82,
+            875,
+            695
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "Listing 4: Chain-of-Thought annotations for IIRC. ",
+        "bbox": [
+            329,
+            711,
+            668,
+            724
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "Q: What is the age difference between the kicker and the quarterback for the Chargers?   \nA: The kicker for the Chargers is Nate Kaeding. The quarterback (QB) for the Chargers is Philip Rivers. Nate Kaeding was born in the year 1982. Philip Rivers was born in the year 1981. Thus, the age difference between them is of 1 year. So the answer is: 1.   \nQ: How many years was the ship that took the battalion from New South Wales to Ceylon in service?   \nA: The ship that took the battalion from New South Wales to Ceylon is General Hewitt. General Hewitt was launched in Calcutta in 1811. General Hewitt was sold for a hulk or to be broken up in 1864. So she served for a total of $1 8 6 4 -$ $1 8 1 1 = 5 3$ years. So the answer is: 53.   \nQ: What year was the theatre that held the 2016 NFL Draft built?   \nA: The theatre that held the 2016 NFL Draft is Auditorium Theatre. The Auditorium Theatre was built in 1889. So the answer is: 1889.   \nQ: How long had Milan been established by the year that Nava returned there as a reserve in the first team's defense?   \nA: Nava returned to Milan as a reserve in the first team's defense in the year 1990. Milan had been established in the year ",
+        "bbox": [
+            114,
+            727,
+            878,
+            920
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "text",
+        "text": "1899. Thus, Milan had been established for $1 9 9 0 - 1 8 9 9 = 9 1 $ years when Milan returned to Milan as a reserve in the first team's defense. So the answer is: 91. ",
+        "bbox": [
+            137,
+            86,
+            865,
+            110
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: When was the town Scott was born in founded? ",
+        "bbox": [
+            117,
+            122,
+            426,
+            134
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: Scott was born in the town of Cooksville, Illinois. Cooksville was founded in the year 1882. So the answer is: 1882. ",
+        "bbox": [
+            110,
+            134,
+            836,
+            147
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: In what country did Wright leave the French privateers? ",
+        "bbox": [
+            119,
+            158,
+            475,
+            170
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: Wright left the French privateers in Bluefield's river. Bluefields is the capital of the South Caribbean Autonomous Region ( RAAS) in the country of Nicaragua. So the answer is: Nicaragua. ",
+        "bbox": [
+            121,
+            171,
+            878,
+            195
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Who plays the A−Team character that Dr. Hibbert fashioned his hair after? ",
+        "bbox": [
+            137,
+            205,
+            589,
+            217
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: Dr. Hibbert fashioned his hair after Mr. T from The A−Team. Mr T.'s birthname is Lawrence Tureaud. So the answer is: Lawrence Tureaud. ",
+        "bbox": [
+            122,
+            217,
+            862,
+            241
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: How many people attended the conference held near Berlin in January 1942? ",
+        "bbox": [
+            115,
+            253,
+            605,
+            265
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: The conference held near Berlin in January 1942 is Wannsee Conference. Wannsee Conference was attended by 15 people. So the answer is: 15. ",
+        "bbox": [
+            117,
+            265,
+            878,
+            288
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: When did the country Ottwalt went into exile in founded? ",
+        "bbox": [
+            121,
+            300,
+            484,
+            312
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: Ottwalt went into exile in the country of Denmark. Denmark has been inhabited since around 12,500 BC. So the answer is: 12,500 BC. ",
+        "bbox": [
+            121,
+            312,
+            875,
+            336
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: When was the J2 club Uki played for in 2001 founded? ",
+        "bbox": [
+            121,
+            348,
+            472,
+            360
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: The J2 club that Uki played for is Montedio Yamagata. Montedio Yamagata was founded in 1984. So the answer is: 1984. ",
+        "bbox": [
+            115,
+            360,
+            873,
+            379
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: When was the person who produced A Little Ain't Enough born? ",
+        "bbox": [
+            127,
+            384,
+            529,
+            395
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: A Little Ain't Enough was produced by Bob Rock. Bob Rock was born on April 19, 1954. So the answer is: April 19, 1954. ",
+        "bbox": [
+            119,
+            395,
+            880,
+            407
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: Which of the schools Fiser is affiliated with was founded first? ",
+        "bbox": [
+            115,
+            430,
+            514,
+            442
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: The schools that Fiser is affiliated with (1) Academy of Music, University of Zagreb (2) Mozarteum University of Salzburg (3) Croatian Music Institute orchestra. Academy of Music, University of Zagreb was founded in the year 1829. Mozarteum University of Salzburg was founded in the year 1841. Croatian Music Institute was founded in the year 1827. Thus, the school founded earliest of these is Croatian Music Institute. So the answer is: Croatian Music Institute. ",
+        "bbox": [
+            117,
+            442,
+            882,
+            489
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: How many casualties were there at the battle that Dearing fought at under Jubal Early? ",
+        "bbox": [
+            117,
+            501,
+            665,
+            513
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: Under Jubal Early, Dearing fought the First Battle of Bull Run. First Battle of Bull Run has 460 union casualties and 387 confederate casualties. Thus, in total the First Battle of Bull Run had $4 6 0 + 3 8 7 = 8 4 7$ casualties. So the answer is: 847. ",
+        "bbox": [
+            124,
+            514,
+            873,
+            537
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: Which of the two congregations which provided leadership to the Pilgrims was founded first? ",
+        "bbox": [
+            117,
+            549,
+            710,
+            561
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: The congregations which provided leadership to the Pilgrims are Brownists and Separatist Puritans. Brownist was founded in 1581. The Separatist Puritans was founded in 1640. Thus, Brownist was founded first. So the answer is: Brownist. ",
+        "bbox": [
+            121,
+            562,
+            878,
+            585
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: How long had the Rock and Roll Hall of Fame been open when the band was inducted into it? ",
+        "bbox": [
+            117,
+            596,
+            714,
+            608
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: The band was inducted into Rock and Roll Hall of Fame in the year 2017. Rock and Roll Hall of Fame was established in the year of 1983. Thus, Rock and Roll Hall of Fame been open for $2 0 1 8 - 1 9 8 3 = 3 4$ years when the band was inducted into it. So the answer is: 34. ",
+        "bbox": [
+            121,
+            609,
+            877,
+            644
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: Did the Lord Sewer who was appointed at the 1509 coronation live longer than his king? ",
+        "bbox": [
+            126,
+            656,
+            670,
+            668
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: Lord Sewer who was appointed at the 1509 coronation was Robert Radcliffe, 1st Earl of Sussex. Lord Sever's king in 1509 was Henry VIII of England. Robert Radcliffe, 1st Earl of Sussex was born in the year 1483, and died in the year 1542. So Robert lived for $1 5 4 2 - 1 4 8 3 = 5 9$ years. Henry VIII of England was born in the year 1491 and died in the year 1547. So Henry VIII lived for $1 5 4 7 - 1 4 9 1 = 5 6 $ years. Thus, Robert Radcliffe lived longer than Henry VIII. So the answer is: yes. ",
+        "bbox": [
+            117,
+            668,
+            878,
+            727
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: When was the place near where Manuchar was defeated by Qvarqvare established? ",
+        "bbox": [
+            117,
+            738,
+            642,
+            751
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: Manuchar was defeated by Qvarqvare near Erzurum. Erzurum was founded during the Urartian period. So the answer is: Urartian period. ",
+        "bbox": [
+            121,
+            751,
+            865,
+            774
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: What year was the man who implemented the 46 calendar reform born? ",
+        "bbox": [
+            117,
+            785,
+            583,
+            797
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: The man who implemented the 46 calendar reform is Julius Caesar. Julius Caesar was born in the year 100 BC. So the answer is: 100 BC. ",
+        "bbox": [
+            122,
+            799,
+            852,
+            821
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: How many years after the first recorded Tommy John surgery did Scott Baker undergo his? ",
+        "bbox": [
+            115,
+            833,
+            694,
+            846
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "A: The first recorded Tommy John surgery happened when it was invented in the year 1974. Scott Baker underwent Tommy John surgery in the year 2012. Thus, Scott Baker underwent Tommy John surgery $2 0 1 2 - 1 9 7 4 = 3 8$ years after it was first recorded. So the answer is: 38. ",
+        "bbox": [
+            115,
+            846,
+            867,
+            881
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "text",
+        "text": "Q: Which was the older of the two players who found the net in the Double−Headed Eagle of the North in the sixth final for PAOK? ",
+        "bbox": [
+            115,
+            891,
+            867,
+            916
+        ],
+        "page_idx": 20
+    }
+]

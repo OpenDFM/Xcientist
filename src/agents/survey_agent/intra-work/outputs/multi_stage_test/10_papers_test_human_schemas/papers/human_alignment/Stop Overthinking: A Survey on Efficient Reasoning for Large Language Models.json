@@ -1,0 +1,150 @@
+{
+  "attri": {
+    "extraction": {
+      "title": {
+        "value": "Stop Overthinking: A Survey on Efficient Reasoning for Large Language Models",
+        "type": "string",
+        "unit": null,
+        "evidence": "Stop Overthinking: A Survey on Efficient Reasoning for Large Language Models",
+        "provenance": {
+          "section_header": "Title",
+          "page": 1
+        },
+        "notes": ""
+      },
+      "introduction": {
+        "background": {
+          "value": "Large Language Models (LLMs) have emerged as exceptionally powerful AI tools, demonstrating advanced capabilities in natural language understanding and complex reasoning.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Large Language Models (LLMs) have emerged as exceptionally powerful AI tools, demonstrating advanced capabilities in natural language understanding and complex reasoning.",
+          "provenance": {
+            "section_header": "Introduction",
+            "page": 1
+          },
+          "notes": ""
+        },
+        "problem_statement": {
+          "value": "Efficient reasoning, particularly the reduction of reasoning length, offers significant benefits in such regards, providing direct cost reduction and improved feasibility for real-world deployments.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Efficient reasoning, particularly the reduction of reasoning length, offers significant benefits in such regards, providing direct cost reduction and improved feasibility for real-world deployments.",
+          "provenance": {
+            "section_header": "Introduction",
+            "page": 1
+          },
+          "notes": ""
+        }
+      },
+      "efficient_reasoning_approaches": {
+        "model_optimization_approach": {
+          "description": {
+            "value": "Model-based efficient reasoning focuses on fine-tuning LLMs to improve their intrinsic ability to reason concisely and efficiently.",
+            "type": "string",
+            "unit": null,
+            "evidence": "From the model perspective, these works focus on fine-tuning LLMs to improve their intrinsic ability to reason concisely and efficiently.",
+            "provenance": {
+              "section_header": "Model-based Efficient Reasoning",
+              "page": 6
+            },
+            "notes": ""
+          },
+          "examples": {
+            "value": "Reinforcement Learning with Length Reward Design, Supervised Fine-Tuning with Variable-Length CoT Data.",
+            "type": "string",
+            "unit": null,
+            "evidence": "Reinforcement Learning with Length Reward Design, Supervised Fine-Tuning with Variable-Length CoT Data.",
+            "provenance": {
+              "section_header": "Model-based Efficient Reasoning",
+              "page": 6
+            },
+            "notes": ""
+          }
+        },
+        "output_streamlining_approach": {
+          "description": {
+            "value": "Output-based efficient reasoning focuses on modifying the output paradigm to enhance the ability of LLMs to reason concisely and efficiently.",
+            "type": "string",
+            "unit": null,
+            "evidence": "From the perspective of reasoning steps in the output, these works focus on modifying the output paradigm to enhance the ability of LLMs to reason concisely and efficiently.",
+            "provenance": {
+              "section_header": "Reasoning Output-based Efficient Reasoning",
+              "page": 10
+            },
+            "notes": ""
+          },
+          "examples": {
+            "value": "Compressing Reasoning Steps into Fewer Latent Representations, Dynamic Reasoning Paradigm during Inference.",
+            "type": "string",
+            "unit": null,
+            "evidence": "Compressing Reasoning Steps into Fewer Latent Representations, Dynamic Reasoning Paradigm during Inference.",
+            "provenance": {
+              "section_header": "Reasoning Output-based Efficient Reasoning",
+              "page": 10
+            },
+            "notes": ""
+          }
+        },
+        "prompt_optimization_approach": {
+          "description": {
+            "value": "Prompt-guided efficient reasoning explicitly instructs LLMs to generate fewer reasoning steps, can be a straightforward and highly effective method for improving the efficiency of reasoning models.",
+            "type": "string",
+            "unit": null,
+            "evidence": "Prompt-guided efficient reasoning explicitly instructs LLMs to generate fewer reasoning steps, can be a straightforward and highly effective method for improving the efficiency of reasoning models.",
+            "provenance": {
+              "section_header": "Input Prompts-based Efficient Reasoning",
+              "page": 15
+            },
+            "notes": ""
+          },
+          "examples": {
+            "value": "Token-Budget, Chain-of-Draft prompting.",
+            "type": "string",
+            "unit": null,
+            "evidence": "Token-Budget, Chain-of-Draft prompting.",
+            "provenance": {
+              "section_header": "Input Prompts-based Efficient Reasoning",
+              "page": 15
+            },
+            "notes": ""
+          }
+        }
+      },
+      "experimental_results": {
+        "performance_metrics": {
+          "value": "Models tend to perform better with extended reasoning steps, suggesting the CoT length is more crucial than accuracy for effective problem-solving.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Models tend to perform better with extended reasoning steps, suggesting the CoT length is more crucial than accuracy for effective problem-solving.",
+          "provenance": {
+            "section_header": "Evaluation and Benchmark",
+            "page": 18
+          },
+          "notes": ""
+        },
+        "results_summary": {
+          "value": "Efficient reasoning approaches offer significant practical benefits across various domains: reducing computational costs in healthcare diagnostics, enhancing real-time decision-making and safety in autonomous driving.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Efficient reasoning approaches offer significant practical benefits across various domains: reducing computational costs in healthcare diagnostics, enhancing real-time decision-making and safety in autonomous driving.",
+          "provenance": {
+            "section_header": "Conclusion",
+            "page": 20
+          },
+          "notes": ""
+        }
+      },
+      "conclusions": {
+        "value": "This paper provides the first structured survey of efficient reasoning in LLMs, categorizing existing approaches into three areas: model-based, reasoning output-based, and input prompts-based methods.",
+        "type": "string",
+        "unit": null,
+        "evidence": "This paper provides the first structured survey of efficient reasoning in LLMs, categorizing existing approaches into three areas: model-based, reasoning output-based, and input prompts-based methods.",
+        "provenance": {
+          "section_header": "Conclusion",
+          "page": 20
+        },
+        "notes": ""
+      }
+    }
+  }
+}

@@ -1,0 +1,204 @@
+{
+  "schema_proposal": {
+    "title": {
+      "data_type": "string",
+      "description": "Paper Title",
+      "rationale": "Identifying the core themes and research focus of the paper."
+    },
+    "problem_analysis": {
+      "data_type": "object",
+      "description": "Analysis of the problem and limitations of existing methods",
+      "rationale": "Understanding the challenges of multi-hop reasoning and the limitations of traditional methods.",
+      "sub_keys": {
+        "multihop_reasoning_challenge": {
+          "data_type": "string",
+          "description": "Multi-hop reasoning challenge description",
+          "rationale": "Record the basic characteristics and challenges of multi-hop question answering tasks."
+        },
+        "traditional_method_limitations": {
+          "data_type": "object",
+          "description": "Limitations of traditional methods",
+          "rationale": "Identify the main issues and bottlenecks of existing methods.",
+          "sub_keys": {
+            "sparse_reward_problem": {
+              "data_type": "string",
+              "description": "奖励信号稀疏问题",
+              "rationale": "记录全局奖励无法指导中间步骤的问题"
+            },
+            "search_efficiency_problem": {
+              "data_type": "string",
+              "description": "搜索效率低下问题",
+              "rationale": "提取重复搜索和资源浪费的问题"
+            },
+            "existing_method_performance": {
+              "data_type": "string",
+              "description": "现有方法性能表现",
+              "rationale": "记录传统方法在复杂任务中的性能下降"
+            }
+          }
+        }
+      }
+    },
+    "proposed_framework": {
+      "data_type": "object",
+      "description": "Proposed StepSearch framework",
+      "rationale": "Core components and technical details of the innovation framework.",
+      "sub_keys": {
+        "framework_overview": {
+          "data_type": "string",
+          "description": "Framework Overview",
+          "rationale": "Extract the core innovative ideas of StepSearch."
+        },
+        "data_generation_pipeline": {
+          "data_type": "object",
+          "description": "Fine-grained data generation pipeline",
+          "rationale": "Document the specific methods for constructing training data.",
+          "sub_keys": {
+            "subproblem_decomposition": {
+              "data_type": "string",
+              "description": "子问题分解过程",
+              "rationale": "记录如何将多跳问题拆解为子问题"
+            },
+            "search_keyword_generation": {
+              "data_type": "string",
+              "description": "搜索关键词生成",
+              "rationale": "提取候选搜索关键词的生成方法"
+            },
+            "cross_engine_validation": {
+              "data_type": "string",
+              "description": "跨引擎验证过程",
+              "rationale": "记录关键词实用性的验证机制"
+            },
+            "dataset_scale": {
+              "data_type": "string",
+              "description": "数据集规模",
+              "rationale": "记录生成的数据集大小"
+            }
+          }
+        },
+        "reward_mechanism": {
+          "data_type": "object",
+          "description": "Dual-type reward mechanism",
+          "rationale": "Design of global rewards and stepwise rewards",
+          "sub_keys": {
+            "global_rewards": {
+              "data_type": "string",
+              "description": "全局奖励设计",
+              "rationale": "提取答案正确性和搜索词质量的奖励"
+            },
+            "step_rewards": {
+              "data_type": "string",
+              "description": "分步奖励设计",
+              "rationale": "记录信息增益和冗余惩罚的机制"
+            }
+          }
+        },
+        "optimization_algorithm": {
+          "data_type": "object",
+          "description": "StePPO optimization algorithm",
+          "rationale": "Design of Improved Algorithms Based on PPO",
+          "sub_keys": {
+            "algorithm_basis": {
+              "data_type": "string",
+              "description": "算法基础",
+              "rationale": "记录算法基于PPO的改进"
+            },
+            "core_mechanism": {
+              "data_type": "string",
+              "description": "核心机制",
+              "rationale": "提取token级过程监督的实现"
+            },
+            "mathematical_formulation": {
+              "data_type": "string",
+              "description": "数学公式",
+              "rationale": "记录算法的数学表达"
+            }
+          }
+        }
+      }
+    },
+    "experimental_results": {
+      "data_type": "object",
+      "description": "Experimental results and analysis",
+      "rationale": "Performance of the recording method in benchmarking.",
+      "sub_keys": {
+        "performance_improvements": {
+          "data_type": "string",
+          "description": "Performance improvement",
+          "rationale": "Significant improvements across multiple datasets"
+        },
+        "data_efficiency": {
+          "data_type": "string",
+          "description": "Data Efficiency",
+          "rationale": "Recording small data to achieve significant improvements."
+        },
+        "generalization_capability": {
+          "data_type": "string",
+          "description": "Generalization ability",
+          "rationale": "Performance recorded in the unseen knowledge base"
+        },
+        "ablation_study_findings": {
+          "data_type": "string",
+          "description": "Ablation study findings",
+          "rationale": "Validation results of the necessity for extracting key components"
+        }
+      }
+    },
+    "comparative_analysis": {
+      "data_type": "object",
+      "description": "Comparison analysis with existing methods",
+      "rationale": "Document the essential differences between StepSearch and traditional methods.",
+      "sub_keys": {
+        "key_innovations": {
+          "data_type": "string",
+          "description": "Key Innovations",
+          "rationale": "Core innovation of the extraction method"
+        },
+        "method_comparison": {
+          "data_type": "string",
+          "description": "Method Comparison",
+          "rationale": "Document the differences between RAG, Search-R1, CoT, and other methods."
+        },
+        "case_study_example": {
+          "data_type": "string",
+          "description": "Case Study Example",
+          "rationale": "Comparison of specific problem-solving processes."
+        }
+      }
+    },
+    "limitations_and_future_work": {
+      "data_type": "object",
+      "description": "Limitations and Future Work",
+      "rationale": "Current limitations of the recording methods and future research directions.",
+      "sub_keys": {
+        "current_limitations": {
+          "data_type": "string",
+          "description": "Current Limitations",
+          "rationale": "Limitations of extraction methods in terms of modality, scale, and data."
+        },
+        "future_research_directions": {
+          "data_type": "string",
+          "description": "Future research directions",
+          "rationale": "Document planned technical improvements and application expansions."
+        }
+      }
+    },
+    "conclusion": {
+      "data_type": "object",
+      "description": "Research conclusions and significance",
+      "rationale": "Summarize the core value and impact of the research.",
+      "sub_keys": {
+        "key_contribution": {
+          "data_type": "string",
+          "description": "Key Contributions",
+          "rationale": "Core innovations and value of the recording method"
+        },
+        "broader_implications": {
+          "data_type": "string",
+          "description": "Broader significance",
+          "rationale": "Extracting the impact of research on the development of AI systems"
+        }
+      }
+    }
+  }
+}

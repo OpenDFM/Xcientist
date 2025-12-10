@@ -1,0 +1,179 @@
+{
+    "extraction": {
+        "title": {
+            "value": "Checklists Are Better Than Reward Models For Aligning Language Models",
+            "type": "string",
+            "unit": null,
+            "evidence": "Checklists Are Better Than Reward Models For Aligning Language Models",
+            "provenance": {
+                "section_header": "Title",
+                "page": null
+            },
+            "notes": ""
+        },
+        "source_link": {
+            "value": null,
+            "type": "string",
+            "unit": null,
+            "evidence": null,
+            "provenance": {
+                "section_header": null,
+                "page": null
+            },
+            "notes": "No source link provided in the paper."
+        },
+        "introduction": {
+            "core_problem": {
+                "value": "Current reinforcement learning methods for instruction following are limited in their effectiveness due to reliance on fixed criteria.",
+                "type": "string",
+                "unit": null,
+                "evidence": "What would it take to make RL a general-purpose solution at eliciting desirable behaviors in subjective or open-ended settings?",
+                "provenance": {
+                    "section_header": "1 Introduction",
+                    "page": 3
+                },
+                "notes": ""
+            },
+            "research_motivation": {
+                "value": "To improve the alignment of language models with user instructions by providing more flexible evaluation criteria.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We propose using flexible, instruction-specific criteria as a means of broadening the impact that reinforcement learning can have in eliciting instruction following.",
+                "provenance": {
+                    "section_header": "1 Introduction",
+                    "page": 3
+                },
+                "notes": ""
+            },
+            "innovation_summary": {
+                "value": "Introduction of Reinforcement Learning from Checklist Feedback (RLCF) for improving instruction following in language models.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We propose extracting dynamic checklists from instructions \u2013 an approach we term Reinforcement Learning from Checklist Feedback (RLCF).",
+                "provenance": {
+                    "section_header": "1 Introduction",
+                    "page": 3
+                },
+                "notes": ""
+            }
+        },
+        "methods": {
+            "checklist_extraction_methods": {
+                "direct_method": {
+                    "value": "Prompting a language model to extract a checklist from a given instruction.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "We simply prompt an LM to extract a checklist from a given instruction.",
+                    "provenance": {
+                        "section_header": "2 Checklist Generation",
+                        "page": 5
+                    },
+                    "notes": ""
+                },
+                "candidate_method": {
+                    "value": "Generating responses of varying quality and prompting a model to write a checklist of all possible failure modes.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "We propose a two-stage approach: produce responses of varying quality, then prompt an LM to write a checklist of all their possible failure modes.",
+                    "provenance": {
+                        "section_header": "2 Checklist Generation",
+                        "page": 5
+                    },
+                    "notes": ""
+                },
+                "dataset_construction": {
+                    "value": "Creation of the WildChecklists dataset consisting of 130,000 instructions and corresponding checklists.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "We construct WildChecklists, a dataset consisting of 130,000 instructions and corresponding checklists (generated synthetically).",
+                    "provenance": {
+                        "section_header": "1 Introduction",
+                        "page": 3
+                    },
+                    "notes": ""
+                }
+            },
+            "rlcf_principle": {
+                "value": "Utilizing checklist feedback to generate more relevant and flexible reward signals for reinforcement learning.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We propose 'Reinforcement Learning from Checklist Feedback' (RLCF).",
+                "provenance": {
+                    "section_header": "3 Reinforcement Learning from Checklist Feedback",
+                    "page": 7
+                },
+                "notes": ""
+            },
+            "evaluation_mechanism": {
+                "value": "Combining scores from AI judges and specialized verifier programs to evaluate responses against checklists.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We use a combination of an LM judge and a verifier program to grade the response.",
+                "provenance": {
+                    "section_header": "3 Reinforcement Learning from Checklist Feedback",
+                    "page": 7
+                },
+                "notes": ""
+            }
+        },
+        "experiments": {
+            "test_datasets": {
+                "value": "Five benchmarks: IFEval, InFoBench, FollowBench, AlpacaEval, and Arena-Hard.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We evaluate our method on five benchmarks: IFEval, InFoBench, FollowBench, AlpacaEval, and Arena-Hard.",
+                "provenance": {
+                    "section_header": "4 Experimental Setup and Results",
+                    "page": 8
+                },
+                "notes": ""
+            },
+            "performance_improvements": {
+                "value": "RLCF improves performance across all benchmarks, with specific increases such as a 4-point boost on FollowBench.",
+                "type": "string",
+                "unit": null,
+                "evidence": "RLCF is the only method to improve performance on every benchmark, including a 4-point boost in hard satisfaction rate on FollowBench.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "checklist_quality_comparison": {
+                "value": "Candidate-based checklists show better objectiveness and overall quality compared to direct checklists.",
+                "type": "string",
+                "unit": null,
+                "evidence": "We find that RLCF depends on high-quality, detailed, and objective checklists.",
+                "provenance": {
+                    "section_header": "5.3 Learning from candidate-based vs directly-generated checklists",
+                    "page": 14
+                },
+                "notes": ""
+            }
+        },
+        "conclusions": {
+            "limitations": {
+                "value": "RLCF relies on a larger model for grading, and the computational cost is high.",
+                "type": "string",
+                "unit": null,
+                "evidence": "The AI judge method we describe is computationally expensive.",
+                "provenance": {
+                    "section_header": "7 Limitations",
+                    "page": 16
+                },
+                "notes": ""
+            },
+            "future_directions": {
+                "value": "Exploring the combination of checklist-style feedback with trainable judges.",
+                "type": "string",
+                "unit": null,
+                "evidence": "One exciting future direction to emerge from this work is: how can we combine checklist-style feedback with trainable judges?",
+                "provenance": {
+                    "section_header": "8 Conclusion",
+                    "page": 18
+                },
+                "notes": ""
+            }
+        }
+    }
+}

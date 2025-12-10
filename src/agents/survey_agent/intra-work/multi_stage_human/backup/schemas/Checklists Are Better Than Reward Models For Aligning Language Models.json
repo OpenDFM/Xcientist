@@ -1,0 +1,114 @@
+{
+    "schema_proposal": {
+      "title": {
+        "data_type": "string",
+        "description": "论文标题",
+        "rationale": "标识论文的核心主题和研究焦点"
+      },
+      "source_link": {
+        "data_type": "string",
+        "description": "论文来源链接",
+        "rationale": "提供论文的在线访问地址"
+      },
+      "introduction": {
+        "data_type": "object",
+        "description": "全文引入部分",
+        "rationale": "概述研究的核心问题和动机",
+        "sub_keys": {
+          "core_problem": {
+            "data_type": "string",
+            "description": "核心问题描述",
+            "rationale": "记录现有奖励方法的主要局限性"
+          },
+          "research_motivation": {
+            "data_type": "string",
+            "description": "研究动机",
+            "rationale": "提取提出新方法的原因和目标"
+          },
+          "innovation_summary": {
+            "data_type": "string",
+            "description": "创新点总结",
+            "rationale": "记录方法的核心创新"
+          }
+        }
+      },
+      "methods": {
+        "data_type": "object",
+        "description": "核心方法细节",
+        "rationale": "记录RLCF方法的技术实现",
+        "sub_keys": {
+          "checklist_extraction_methods": {
+            "data_type": "object",
+            "description": "检查表提取方法",
+            "rationale": "提取两种检查表生成方法的技术细节",
+            "sub_keys": {
+              "direct_method": {
+                "data_type": "string",
+                "description": "直接方法",
+                "rationale": "记录通过提示语言模型提取检查表的方法"
+              },
+              "candidate_method": {
+                "data_type": "string",
+                "description": "候选方法",
+                "rationale": "记录通过生成不同质量响应构建检查表的方法"
+              },
+              "dataset_construction": {
+                "data_type": "string",
+                "description": "数据集构建",
+                "rationale": "记录WildChecklists数据集的创建"
+              }
+            }
+          },
+          "rlcf_principle": {
+            "data_type": "string",
+            "description": "RLCF原则",
+            "rationale": "记录强化学习从检查表反馈的核心机制"
+          },
+          "evaluation_mechanism": {
+            "data_type": "string",
+            "description": "评估机制",
+            "rationale": "记录AI裁判和验证程序的协同评分方法"
+          }
+        }
+      },
+      "experiments": {
+        "data_type": "object",
+        "description": "实验结果和分析",
+        "rationale": "记录方法在基准测试上的性能表现",
+        "sub_keys": {
+          "test_datasets": {
+            "data_type": "string",
+            "description": "测试数据集",
+            "rationale": "记录实验使用的基准数据集"
+          },
+          "performance_improvements": {
+            "data_type": "string",
+            "description": "性能提升",
+            "rationale": "提取在各数据集上的具体改进"
+          },
+          "checklist_quality_comparison": {
+            "data_type": "string",
+            "description": "检查表质量对比",
+            "rationale": "记录不同检查表生成方法的效果差异"
+          }
+        }
+      },
+      "conclusions": {
+        "data_type": "object",
+        "description": "结论和未来工作",
+        "rationale": "总结研究的局限性和未来方向",
+        "sub_keys": {
+          "limitations": {
+            "data_type": "string",
+            "description": "局限性",
+            "rationale": "记录方法的当前限制"
+          },
+          "future_directions": {
+            "data_type": "string",
+            "description": "未来方向",
+            "rationale": "提取潜在的研究扩展"
+          }
+        }
+      }
+    }
+  }

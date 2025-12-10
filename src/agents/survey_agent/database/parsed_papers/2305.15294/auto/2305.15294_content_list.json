@@ -1,0 +1,2533 @@
+[
+    {
+        "type": "text",
+        "text": "Enhancing Retrieval-Augmented Large Language Models with Iterative Retrieval-Generation Synergy ",
+        "text_level": 1,
+        "bbox": [
+            126,
+            79,
+            872,
+            118
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Zhihong Shao1, Yeyun $\\mathbf { G o n g } ^ { 2 }$ , yelong shen3, Minlie Huang1∗, Nan Duan2, Weizhu Chen3 ",
+        "bbox": [
+            136,
+            124,
+            873,
+            142
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1 The CoAI Group, DCST, Institute for Artificial Intelligence, 1 State Key Lab of Intelligent Technology and Systems, 1 Beijing National Research Center for Information Science and Technology, 1 Tsinghua University, Beijing 100084, China 2 Microsoft Research Asia 3 Microsoft Azure AI szh19@mails.tsinghua.edu.cn aihuang@tsinghua.edu.cn ",
+        "bbox": [
+            193,
+            145,
+            811,
+            242
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Abstract ",
+        "text_level": 1,
+        "bbox": [
+            263,
+            253,
+            339,
+            268
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Retrieval-augmented generation has raise extensive attention as it is promising to address the limitations of large language models including outdated knowledge and hallucinations. However, retrievers struggle to capture relevance, especially for queries with complex information needs. Recent work has proposed to improve relevance modeling by having large language models actively involved in retrieval, i.e., to guide retrieval with generation. In this paper, we show that strong performance can be achieved by a method we call ITER-RETGEN, which synergizes retrieval and generation in an iterative manner: a model’s response to a task input shows what might be needed to finish the task, and thus can serve as an informative context for retrieving more relevant knowledge which in turn helps generate a better response in another iteration. Compared with recent work which interleaves retrieval with generation when completing a single output, ITERRETGEN processes all retrieved knowledge as a whole and largely preserves the flexibility in generation without structural constraints. We evaluate ITER-RETGEN on multi-hop question answering, fact verification, and commonsense reasoning, and show that it can flexibly leverage parametric knowledge and non-parametric knowledge, and is superior to or competitive with state-of-the-art retrieval-augmented baselines while causing fewer overheads of retrieval and generation. We can further improve performance via generation-augmented retrieval adaptation. ",
+        "bbox": [
+            146,
+            280,
+            458,
+            763
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "1 Introduction ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            776,
+            258,
+            793
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Generative Large Language Models (LLMs) have powered numerous applications, with wellperceived utility. Despite being powerful, LLMs lack knowledge that is under-represented in their training data, and are prone to hallucinations, especially in open-domain settings (OpenAI, 2023). ",
+        "bbox": [
+            117,
+            802,
+            487,
+            898
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Retrieval-augmented LLMs, therefore, have raised widespread attention as LLM outputs can be potentially grounded on external knowledge. ",
+        "bbox": [
+            510,
+            254,
+            882,
+            300
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "Previous retrieval-augmented LMs (Izacard et al., 2022b; Shi et al., 2023) typically adopted one-time retrieval, i.e., to retrieve knowledge using only the task input (e.g., a user question for open-domain question answering). One-time retrieval should suffice to fulfill the information needs if they are clearly stated in the original input, which is applicable to factoid question answering (Kwiatkowski et al., 2019) and single-hop fact verification (Thorne et al., 2018), but not to tasks with complex information needs, e.g., multi-hop reasoning (Yang et al., 2018) and long-form question answering (Fan et al., 2019). ",
+        "bbox": [
+            512,
+            305,
+            882,
+            512
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "To fulfill complex information needs, recent work proposes to gather required knowledge multiple times throughout the generation process, using partial generation (Trivedi et al., 2022a; Press et al., 2022)) or forward-looking sentence(s) (Jiang et al., 2023) as search queries. However, such structured workflows of interleaving retrieval with generation have the following limitations: (1) as intermediate generation is conditioned on knowledge retrieved before, with no awareness of knowledge retrieved afterwards, they fail to process all retrieved knowledge as a whole during the generation process; (2) they require multi-round retrieval to gather a comprehensive set of knowledge, and may frequently change the prompts by updating newly retrieved knowledge, thus increasing the overheads of both retrieval and generation. ",
+        "bbox": [
+            512,
+            514,
+            882,
+            788
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "In this paper, we find it simple but effective to enhance retrieval-augmented LLMs through iterative retrieval-generation synergy (ITER-RETGEN, Fig 1). ITER-RETGEN iterates retrieval-augmented generation and generation-augmented retrieval: Retrieval-augmented generation outputs a response to a task input based on all retrieved knowledge (initially using the task input as the query). This output shows what might be needed to fulfill the task, and thus can serve as an informative context to retrieve more relevant knowledge, i.e., generationaugmented retrieval. The newly retrieved knowledge can benefit another iteration of retrievalaugmented generation. We can also leverage model generations to adapt retrieval, by distilling knowledge from a re-ranker with access to model generations to a dense retriever with access to task inputs only, which may be beneficial in scenarios where user inputs can be easily collected, but relevant knowledge or desirable outputs are not annotated. ",
+        "bbox": [
+            512,
+            791,
+            882,
+            920
+        ],
+        "page_idx": 0
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            117,
+            85,
+            487,
+            277
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "We evaluate our method on three tasks, including multi-hop question answering, fact verification, and commonsense reasoning. Our method prompts an LLM to produce a chain of reasoning steps followed by the final answer under a few-shot setting. For in-context demonstrations, we focus on problem-solving and follow Wei et al. (2022) to annotate chains of thoughts, without explicitly considering how generation-augmented retrieval might be affected, which makes it conceptually simple and easy to implement. Our method achieves up to $8 . 6 \\%$ absolute gains over previous state-of-theart retrieval-augmented methods on four out of six datasets while being competitive on the remaining two. According to our experiments, generation generally benefits from more iterations, with two iterations giving the most performance gains. One may customize the performance-cost tradeoffs by choosing an appropriate number of iterations. We can further improve performance and also reduce iterations via the aforementioned generation-augmented retrieval adaptation. ",
+        "bbox": [
+            115,
+            280,
+            487,
+            631
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "We summarize our findings as follows: ",
+        "bbox": [
+            137,
+            633,
+            423,
+            648
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "• Automatic metrics such as exact match can significantly underestimate the performance of LLMs in question answering tasks. Moreover, improvements in exact match do not always reflect improvements in generations. Evaluation using LLMs may be more reliable. ",
+        "bbox": [
+            137,
+            658,
+            487,
+            753
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "• ITER-RETGEN is superior to or competitive with state-of-the-art retrieval-augmented methods, while being simpler and causing fewer overheads of retrieval and generation. With generation-augmented retrieval adaptation, we can further improve performance and also reduce overheads (by reducing iterations). ",
+        "bbox": [
+            137,
+            765,
+            487,
+            892
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "• It is desirable for an LLM to leverage both parametric knowledge and non-parametric knowledge effectively. ITER-RETGEN consistently outperforms Self-Ask on question answering tasks, regardless of whether incontext non-parametric knowledge mentions the answers or not. ",
+        "bbox": [
+            137,
+            904,
+            484,
+            920
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            547,
+            85,
+            882,
+            179
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "2 Related Work ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            196,
+            665,
+            212
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "In recent months, there has been a surge in LLMpowered applications, such as ChatGPT, Bing Chat, and CoPilot (Chen et al., 2021). While showing an unprecedented level of performance, LLMs are subject to the following limitations: (1) Due to a high demand for compute and data, it remains an open research question to continually update LLMs both efficiently and effectively (Scialom et al., 2022); (2) LLMs also tend to hallucinate (OpenAI, 2023), i.e., generating plausible but non-factual texts. To alleviate these issues, there is a growing trend of augmenting LLMs with tools (Mialon et al., 2023; Gou et al., 2023), e.g., a code interpreter (Gao et al., 2022b; Shao et al., 2023) or a search engine (Nakano et al., 2021), in an attempt to offload subtasks to more qualified experts, or to enrich the input context for LLMs by providing more relevant information. ",
+        "bbox": [
+            510,
+            225,
+            882,
+            513
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Retrieval augmentation is a mainstream direction to connect LLMs to the external world. Previous retrieval-augmented LMs (Izacard and Grave, 2021; Shao and Huang, 2022) typically receive retrieved knowledge in a passive way: knowledge is retrieved based on the task inputs without LMs’ intervention. As it is difficult for a retriever to capture relevance, especially in the zero-shot setting, recent work shows a shift towards having LLMs actively involved in retrieval to improve relevance modeling, e.g., to provide a specific context for retrieval with model generations (e.g., generated search queries (Nakano et al., 2021; Press et al., 2022; Yao et al., 2022), partial generation (Trivedi et al., 2022a), or forward-looking sentences (Jiang et al., 2023)). Khattab et al. (2022) proposed a DSP programming framework that supports various retrieval-augmented methods. ",
+        "bbox": [
+            512,
+            516,
+            882,
+            806
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "text",
+        "text": "Recent work interleaves retrieval with generation when completing a single output. Such a structured workflow may reduce the flexibility in generation (Yao et al., 2022). ITER-RETGEN avoids interrupting generation with retrieval, but iterates retrieval and generation, i.e., to leverage the complete generation from the previous iteration to retrieve more relevant information which helps improve generation in the next iteration. ITER-RETGEN also has the advantage of processing all retrieved knowledge as a whole during the generation process, and is conceptually simpler and easier-to-implement, while being empirically strong in multi-hop question answering, fact verification, and commonsense reasoning. ",
+        "bbox": [
+            510,
+            808,
+            882,
+            920
+        ],
+        "page_idx": 1
+    },
+    {
+        "type": "image",
+        "img_path": "images/69781cbbb0a8bf0ca6fa05e9afe9b475427b8ccac504509d7b3ce961e5e26ff0.jpg",
+        "image_caption": [
+            "Figure 1: ITER-RETGEN iterates retrieval and generation. In each iteration, ITER-RETGEN leverages the model output from the previous iteration as a specific context to help retrieve more relevant knowledge, which may help improve model generation (e.g., correcting the height of Hesse Hogan in this figure). We only show two iterations in this figure for brevity. Solid arrows connect queries to the retrieved knowledge, and dashed arrows denote retrieval-augmented generation. "
+        ],
+        "image_footnote": [],
+        "bbox": [
+            141,
+            82,
+            853,
+            267
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            375,
+            487,
+            502
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "A closely related work called GAR (Mao et al., 2021) augments queries with generated background information. HyDE (Gao et al., 2022a) also shares a similar spirit, but focuses on zero-shot information retrieval, and proposes to first prompt an LLM to produce “hypothetical” paragraphs that cover the information needed to answer a given question, and then use the generated paragraphs to retrieve the real ones. RepoCoder (Zhang et al., 2023) focuses on repository-level code completion, and proposes a 2-iteration retrieval-generation paradigm where the second iteration leverages the intermediate code completion for retrieval. By contrast, we propose to synergize retrieval and generation with ITERRETGEN on various natural language tasks, and explore how we can further adapt retrieval with model generations. ",
+        "bbox": [
+            115,
+            505,
+            487,
+            777
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3 Iterative Retrieval-Generation Synergy ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            791,
+            485,
+            808
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3.1 Overview ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            819,
+            235,
+            833
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "Given a question $q$ and a retrieval corpus $\\mathcal { D } =$ $\\{ d \\}$ where $d$ is a paragraph, ITER-RETGEN repeats retrieval-generation for $T$ iterations; in iteration $t$ , we (1) leverage the generation $y _ { t - 1 }$ from the previous iteration, concatenated with $q$ , to retrieve top- $k$ paragraphs, and then (2) prompt an LLM $\\mathcal { M }$ to produce an output $y _ { t }$ , with both the retrieved paragraphs (denoted as $\\mathcal { D } _ { y _ { t - 1 } | | q } )$ and $q$ integrated into the prompt. Therefore, each iteration can be formulated as follows: ",
+        "bbox": [
+            115,
+            840,
+            485,
+            919
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            375,
+            880,
+            454
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "equation",
+        "img_path": "images/83ef16756539af2fcd725480e5064bb6de2ec5ec31f50cfc6354517d159ce22e.jpg",
+        "text": "$$\ny _ { t } = \\mathcal { M } ( y _ { t } | \\mathsf { p r o m p t } ( \\mathcal { D } _ { y _ { t - 1 } | | q } , q ) ) , \\ \\forall 1 \\leq t \\leq T\n$$",
+        "text_format": "latex",
+        "bbox": [
+            546,
+            462,
+            848,
+            479
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "The last output $y _ { T }$ will be produced as the final response. ",
+        "bbox": [
+            512,
+            488,
+            880,
+            519
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3.2 Generation-Augmented Retrieval ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            531,
+            816,
+            545
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "There are many natural language tasks with complex information needs. For example, in opendomain multi-hop question answering, specific information needs may manifest themselves only after correctly answering some prerequisite subquestions. In other words, there may exist semantic gaps between the original question $q$ and its supporting knowledge, which can not be effectively addressed by a retriever with a representation bottleneck. In the first iteration, we can retrieve knowledge with only the question $q$ . In later iterations, the LLM output from the previous iteration, though having no guarantee of correctness, shows what might be needed to answer the question, and thus can be leveraged to bridge the semantic gaps; with improved retrieval, an LLM can potentially produce a better output. ",
+        "bbox": [
+            512,
+            551,
+            884,
+            824
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "3.3 Retrieval-Augmented Generation ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            835,
+            816,
+            851
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "In each iteration, we generate an output using Chain-of-Thought prompting except that we also prepend retrieved knowledge to the question $q$ Though there may exist more advanced prompting variants, e.g., incorporating previous generations into the prompt to enable direct refinements, we leave the explorations for future work, and focus on investigating the synergy between retrieval and generation in a straightforward manner. ",
+        "bbox": [
+            512,
+            857,
+            882,
+            920
+        ],
+        "page_idx": 2
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            85,
+            487,
+            164
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "3.4 Generation-Augmented Retrieval Adaptation ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            175,
+            421,
+            206
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Model generations not only provide specific contexts for retrieval, but can also be leveraged to optimize the retriever, so that information needs in a question can be better captured by the retriever. ",
+        "bbox": [
+            115,
+            212,
+            487,
+            275
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Dense Retriever We adopted dense retrieval in our experiments. Given a dense retriever parametrized by $\\theta = \\{ \\theta _ { q } , \\theta _ { d } \\}$ where $\\theta _ { q }$ and $\\theta _ { d }$ denote parameters of the query encoder and the paragraph encoder, respectively, the similarity score between a query and a paragraph is calculated as the inner product of their encoded vectors: ",
+        "bbox": [
+            115,
+            285,
+            487,
+            398
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "equation",
+        "img_path": "images/c419770f43f232feef99e39b81eb75b3122448d1ea52db69bcf3819657667099.jpg",
+        "text": "$$\ns _ { \\theta } ( q , d ) = \\langle { \\bf E } ( q ; \\theta _ { q } ) , { \\bf E } ( d ; \\theta _ { d } ) \\rangle\n$$",
+        "text_format": "latex",
+        "bbox": [
+            201,
+            407,
+            401,
+            423
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Re-ranker A re-ranker, parametrized by $\\phi$ , outputs the probability of a paragraph being relevant to a query; we denote the probability as $s _ { \\phi } ( q , d )$ . ",
+        "bbox": [
+            115,
+            436,
+            487,
+            483
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Distillation A re-ranker is typically better at capturing relevance between a query and a paragraph than a retriever. Therefore, we distill knowledge from a re-ranker to a retriever. To help the retriever better address the semantic gaps between a question and its supporting knowledge, we allow access to $y _ { 1 }$ for the re-ranker (where $y _ { 1 }$ is the LLM output from the first iteration). We optimize only the query encoder of the retriever using the following training objective: ",
+        "bbox": [
+            115,
+            493,
+            487,
+            653
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "equation",
+        "img_path": "images/4aebe7b1768232420948d440fd6920f2a233c59b24ff81babae609cbde52cc1a.jpg",
+        "text": "$$\n\\begin{array} { c } { { \\theta _ { q } ^ { * } = a r g \\underset { \\theta _ { q } } { \\mathrm { m i n } } { \\mathrm { \\bf ~ K L } } ( P _ { \\phi } ( \\cdot | y _ { 1 } , q ) , P _ { \\theta } ( \\cdot | q ) ) } } \\\\ { { { \\cal P } _ { \\phi } ( d | y _ { 1 } , q ) = \\frac { \\exp ( s _ { \\phi } ( y _ { 1 } | | q , d ) / \\tau ) } { \\sum _ { d ^ { \\prime } \\in { \\mathcal { D } _ { y _ { 1 } } } | | q } \\exp ( s _ { \\phi } ( y _ { 1 } | | q , d ^ { \\prime } ) / \\tau ) } } } \\\\ { { P _ { \\theta } ( d | q ) = \\frac { \\exp ( s _ { \\theta } ( q , d ) / \\tau ) } { \\sum _ { d ^ { \\prime } \\in { \\mathcal { D } _ { y _ { 1 } } } | | q } \\exp ( s _ { \\theta } ( q , d ^ { \\prime } ) / \\tau ) } } } \\end{array}\n$$",
+        "text_format": "latex",
+        "bbox": [
+            147,
+            662,
+            455,
+            757
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "where $\\operatorname { K L } ( \\cdot , \\cdot )$ denotes the $\\mathrm { K L }$ divergence between two probabilistic distributions. ",
+        "bbox": [
+            115,
+            766,
+            487,
+            797
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "4 Experiments ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            809,
+            258,
+            826
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "4.1 Datasets ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            835,
+            226,
+            850
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "We experimented on six datasets of three reasoning tasks: (1) Multi-hop question answering, including HotPotQA (Yang et al., 2018), 2WikiMultiHopQA (Ho et al., 2020), MuSiQue (Trivedi et al., 2022b), and Bamboogle (Press et al., 2022). On MuSiQue, we followed Press et al. (2022) to use only 2-hop questions; (2) Fact Verification, including Feverous (Aly et al., 2021); (3) Commonsense reasoning, including StrategyQA (Geva et al., 2021). Examples are presented in Table 1. ",
+        "bbox": [
+            115,
+            857,
+            489,
+            920
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            510,
+            84,
+            884,
+            180
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "We used the October 2017 (Yang et al., 2018) and the December 2018 (Karpukhin et al., 2020) Wikipedia dump as the retrieval corpus for HotPotQA and 2WikiMultiHopQA, respectively, and used the December 2021 Wikipedia dump (Izacard et al., 2022b) for the other datasets. ",
+        "bbox": [
+            510,
+            183,
+            884,
+            278
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "4.2 Evaluation Settings ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            294,
+            707,
+            310
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "We conducted evaluations on all 125 questions from Bamboogle, the first 500 questions from the train set of StrategyQA, and the first 500 questions from the development sets of the other datasets. All methods are evaluated under the 3-shot setting, sharing the same questions in demonstrations. ",
+        "bbox": [
+            512,
+            317,
+            884,
+            413
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Evaluation metrics are exact match (EM) and F1 for multi-hop question answering datasets, and accuracy for both fact verification and commonsense reasoning datasets. For more robust evaluation, we also evaluate the correctness of model outputs using text-davinci-003, the resulting metric denoted as ${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ . The prompt used for evaluation is as follows, where {question}, {model output}, and $\\{ \\mathsf { a n s w e r } \\}$ are placeholders. ",
+        "bbox": [
+            512,
+            416,
+            884,
+            560
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Prompt for Evaluating the Correctness of a Model Output ",
+        "text_level": 1,
+        "bbox": [
+            536,
+            568,
+            855,
+            600
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "In the following task, you are given a Question, a model Prediction for the Question, and a Ground-truth Answer to the Question. You should decide whether the model Prediction implies the Ground-truth Answer. ",
+        "bbox": [
+            537,
+            611,
+            857,
+            706
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Question {question} ",
+        "bbox": [
+            537,
+            724,
+            615,
+            756
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Prediction {model output} ",
+        "bbox": [
+            536,
+            772,
+            652,
+            803
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Ground-truth Answer {answer} ",
+        "bbox": [
+            536,
+            820,
+            700,
+            852
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "text",
+        "text": "Does the Prediction imply the Ground-truth Answer? Output Yes or No: ",
+        "bbox": [
+            537,
+            869,
+            855,
+            901
+        ],
+        "page_idx": 3
+    },
+    {
+        "type": "table",
+        "img_path": "images/fd1b5457c744b5c8fc026d3b33ae8f509d41e5eca9c897a3a469bd3a08f14e81.jpg",
+        "table_caption": [
+            "Table 1: Example questions from six datasets. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Datasets</td><td>Example</td></tr><tr><td>HotPotQA</td><td>What is the name of this American musician, singer, actor, comedian, and songwriter, who worked with Modern Records and born in December 5, 1932?</td></tr><tr><td></td><td>2WikiMultiHopQA Which film came out first, Blind Shaft or The Mask Of Fu Manchu?</td></tr><tr><td>MuSiQue</td><td>In which year did the publisher of In Cold Blood form?</td></tr><tr><td>Bamboogle</td><td>When did the first prime minister of the Russian Empire come into office?</td></tr><tr><td>Feverous</td><td>Is it true that Based on the same platform as the Chevrolet Sail, the Baojun 310 was launched on 2017 Beijing Auto Show where the price ranges from 36.800 yuan to 60.800 yuan?</td></tr><tr><td>StrategyQA</td><td>Is it common to see frost during some college commencements?</td></tr></table>",
+        "bbox": [
+            121,
+            83,
+            878,
+            286
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "4.3 Baselines ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            336,
+            231,
+            351
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Direct Prompting (Brown et al., 2020) prompts an LLM to directly generate the final answer without an explanation. When augmenting Direct prompting with retrieval, we used the question to retrieve knowledge which will be placed before the question in the prompt. ",
+        "bbox": [
+            115,
+            362,
+            487,
+            458
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "CoT Prompting (Wei et al., 2022) prompts an LLM to generate natural language reasoning steps followed by the final answer. ",
+        "bbox": [
+            115,
+            462,
+            485,
+            508
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "ReAct (Yao et al., 2022) interleaves reasoning, action, and observation steps, until reaching the action of finalizing an answer. An action can be either generating a query to search for information or finalizing an answer. An observation is the concatenation of retrieved paragraphs. ",
+        "bbox": [
+            115,
+            513,
+            487,
+            607
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Self-Ask (Press et al., 2022) interleaves (i) followup question generation, (ii) retrieval using the follow-up, and (iii) answering the follow-up conditioned on the retrieved knowledge, until no more follow-up questions are generated and the LLM gives an answer to the original question. We followed (Yoran et al., 2023) to prepend newly retrieved paragraphs to the original question. On our evaluated tasks, Self-Ask is conceptually similar to ReAct, with the main difference being that SelfAsk accumulates retrieved knowledge before the original question in the prompt, while ReAct places retrieved knowledge right after its query. Self-Ask and IRCoT (Trivedi et al., 2022a) also share the spirit of synergizing reasoning and retrieval. ",
+        "bbox": [
+            115,
+            612,
+            487,
+            852
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "DSP (Khattab et al., 2022) comprises a multi-hop retrieval stage and an answer prediction stage. For each hop within the retrieval stage, the model is prompted to generate search queries and to summarize retrieve knowledge for subsequent use. In the prediction stage, DSP generates the answer using CoT based on the summarized knowledge and retrieved documents. ",
+        "bbox": [
+            115,
+            856,
+            487,
+            920
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            337,
+            882,
+            399
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "4.4 Implementation Details ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            414,
+            739,
+            430
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "We used text-davinci-003 version of InstructGPT (Ouyang et al., 2022) as the backend LLM. We also present experiments using the open-source Llama-2 models (Touvron et al., 2023) in Appendix A. All experiments used greedy decoding. Contriever-MSMARCO (Izacard et al., 2022a) was used for retrieval. We retrieved top-5 paragraphs for each query. We allowed at most 5 interactions with retrieval for ReAct and Self-Ask. We adapted the implementation of DSP 1 to use the same generation model and retrieval systems as the other methods. ",
+        "bbox": [
+            512,
+            438,
+            882,
+            629
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "Note that the first iteration of ITER-RETGEN is CoT prompting with retrieval augmentation. Therefore, ITER-RETGEN and CoT prompting share the same annotated in-context demonstrations. All prompts are presented in the Appendix. ",
+        "bbox": [
+            512,
+            632,
+            882,
+            711
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "4.5 Main Results ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            725,
+            658,
+            740
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "As shown by Table 2, ITER-RETGEN $( T ~ \\geq ~ 2 )$ ) achieve significantly higher ${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ than retrievalaugmented baselines on HotPotQA, 2WikiMultiHopQA, Bamboogle, and StrategyQA, while being competitive with the best method (i.e., Self-Ask) on MuSiQue and Feverous. ",
+        "bbox": [
+            512,
+            747,
+            882,
+            844
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "text",
+        "text": "When increasing the number of iterations for ITER-RETGEN, performance generally improves, with the second iteration giving the greatest boost. ",
+        "bbox": [
+            510,
+            846,
+            882,
+            894
+        ],
+        "page_idx": 4
+    },
+    {
+        "type": "table",
+        "img_path": "images/49f11f5882fabd11fd37dda4492f9c0de3b1ceb9f722dda4d5901ef5e82b55dc.jpg",
+        "table_caption": [
+            "Table 2: Evaluation results on multi-hop question answering, fact verification, and commonsense reasoning datasets. ${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ is the accuracy of model outputs evaluated with text-davinci-003. For ITER-RETGEN, we evaluated LLM outputs in different iterations (up to 7 iterations). Underlined metric values are higher than those of Self-Ask. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Method</td><td colspan=\"3\">HotPotQA</td><td colspan=\"3\">2WikiMultiHopQA</td><td colspan=\"3\">MuSiQue</td><td colspan=\"3\"></td><td colspan=\"2\"></td><td colspan=\"2\">Bamboogle Feverous StrategyQA</td></tr><tr><td>EM F1 Acc†</td><td></td><td></td><td></td><td>EM F1</td><td>Acct</td><td></td><td>EM F1 Acc†</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>EM F1 Acc† Acc Acc† Acc Acc†</td></tr><tr><td colspan=\"10\"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Direct</td><td></td><td></td><td>21.9 36.8 44.8 21.3 29.2</td><td></td><td></td><td>33.9</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>7.0 18.7 15.8 11.2 24.4 28.0 60.1 60.1 66.5 66.7</td></tr><tr><td>CoT</td><td></td><td></td><td></td><td></td><td>30.0 44.1 50.0 30.0 39.6</td><td>44.0</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>19.4 30.9 28.6 43.2 51.1 60.0 59.8 59.8 71.0</td><td>71.0</td></tr><tr><td colspan=\"10\">With Retrieval</td><td colspan=\"3\"></td><td colspan=\"3\"></td><td colspan=\"2\"></td></tr><tr><td>Direct</td><td></td><td></td><td>31.6 44.7 53.3 27.3 35.4</td><td></td><td></td><td>43.6</td><td>13.9 28.2 26.5 17.6 31.8 43.2 69.8</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>69.8 65.6</td><td>65.6</td></tr><tr><td>ReAct</td><td>24.9</td><td>44.7</td><td>61.1</td><td></td><td>28.0 38.5</td><td>45.9</td><td></td><td></td><td>23.4 37.0 37.9 21.8 31.0</td><td></td><td></td><td>40.3</td><td>66.4</td><td>66.4</td><td>66.9</td><td>66.9</td></tr><tr><td>Self-Ask</td><td></td><td>36.8 55.2</td><td>64.8 37.3 48.8</td><td></td><td></td><td>55.9</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>27.6 41.5 42.9 31.5 41.2 54.8 70.7 70.7 70.2</td><td>70.2</td></tr><tr><td>DSP</td><td>43.8</td><td>55.0</td><td>60.8</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td><td></td><td></td><td>-</td><td>-</td><td>-</td><td>-</td></tr><tr><td>Iter-RetGen 1</td><td>39.2</td><td>53.9</td><td>65.5</td><td>33.7 45.2</td><td></td><td>55.4</td><td></td><td>24.2 38.6</td><td>38.1</td><td>36.8</td><td>47.7</td><td>57.6</td><td>67.0</td><td>67.0</td><td>72.0</td><td>72.0</td></tr><tr><td>ItER-RetGen 2</td><td>44.1</td><td>58.6</td><td>71.2</td><td>34.9</td><td>47.0</td><td>58.1</td><td>26.4 41.1</td><td></td><td>41.0</td><td>38.4</td><td>48.7</td><td>59.2</td><td>68.8</td><td>68.8</td><td>73.0</td><td>73.0</td></tr><tr><td>Iter-RetGen 3 45.2</td><td></td><td>59.9</td><td>71.4</td><td></td><td>34.8 47.8</td><td>58.3</td><td>25.7 41.4</td><td></td><td>40.8</td><td>37.6</td><td>47.0</td><td>59.2</td><td>69.0</td><td>69.0</td><td>72.3</td><td>72.3</td></tr><tr><td>Iter-RetGen 4 45.8</td><td></td><td>61.1</td><td>73.4</td><td>36.0</td><td>47.4</td><td>58.5</td><td>26.7</td><td>41.8</td><td>40.8</td><td>38.4</td><td>49.6</td><td>60.0</td><td>71.5</td><td>71.5</td><td>73.8</td><td>73.8 73.2</td></tr><tr><td>Iter-RetGen 5 45.2</td><td></td><td>60.3 61.0</td><td>72.8</td><td></td><td>35.5 47.5</td><td>58.8</td><td>25.7 40.7</td><td></td><td>39.6</td><td>39.2</td><td>49.7</td><td>60.8</td><td>70.3</td><td>70.3</td><td>73.2</td><td>72.4</td></tr><tr><td>Iter-RetGen 6 45.9 Iter-RetGen 7 45.1</td><td></td><td>60.4</td><td>73.3 72.9</td><td>35.5 48.1</td><td></td><td>59.4</td><td>25.9 40.5</td><td></td><td>39.8</td><td>40.0</td><td>50.0</td><td>59.2</td><td>70.9</td><td>70.9</td><td>72.4</td><td></td></tr><tr><td></td><td></td><td></td><td></td><td>35.5 47.4</td><td></td><td>58.4</td><td>26.1 42.0</td><td></td><td>41.0</td><td>40.0</td><td>50.7</td><td>60.8</td><td>70.5</td><td>70.5</td><td>74.1</td><td>74.1</td></tr></table>",
+        "bbox": [
+            121,
+            82,
+            878,
+            363
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "table",
+        "img_path": "images/ebaf0d916cc740bb18a293d131ff28f8b8d6a941d9314200df567b0d42a853e2.jpg",
+        "table_caption": [
+            "Table 3: Average numbers of API calls to text-davinci-003 and retrieved paragraphs for ReAct and Self-Ask. Note that ITER-RETGEN $T = 2$ ) achieves significantly higher or competitive ${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ with fewer API calls (i.e., 2) and fewer retrieved paragraphs (5 per iteration, 10 in total). "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Method</td><td colspan=\"2\">HotPotQA</td><td colspan=\"2\">2WikiMultiHopQA</td><td colspan=\"2\">MuSiQue</td><td colspan=\"2\">Bamboogle</td><td colspan=\"2\">Feverous</td><td colspan=\"2\">StrategyQA</td></tr><tr><td># API # Doc</td><td></td><td># API</td><td># Doc</td><td># API # Doc # API # Doc # API # Doc # API # Doc</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>ReAct</td><td>2.9</td><td>14.3</td><td>3.0</td><td>15.0</td><td>2.9</td><td>14.4</td><td>2.8</td><td>14.1</td><td>2.1</td><td>10.6</td><td>2.8</td><td>14.2</td></tr><tr><td>Self-Ask</td><td>3.2</td><td>16.0</td><td>3.2</td><td>15.9</td><td>3.0</td><td>14.8</td><td>3.0</td><td>14.9</td><td>2.3</td><td>11.3</td><td>3.0</td><td>15.1</td></tr></table>",
+        "bbox": [
+            174,
+            430,
+            821,
+            505
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "It is worth noting that, as shown by Table 3, ITERRETGEN $T = 2$ ) is superior to or competitive with ReAct and Self-Ask using fewer API calls to the LLM (i.e., 2) and fewer retrieved paragraphs (i.e., 5 per iteration, 10 in total). ITER-RETGEN is also conceptually simple, which is to iterate retrievalaugmented CoT, without complex processing. ",
+        "bbox": [
+            115,
+            583,
+            487,
+            695
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "We also compared ITER-RETGEN with DSP which also generates the answer using CoT based on retrieved knowledge but differs in information collection and processing. In each iteration, ITERRETGEN retrieves knowledge based on (1) the question and (2) the previous model output which shows what may be needed to answer the question. With the number of iterations increasing, we tend to obtain a more comprehensive and relevant set of knowledge. Besides, unlike DSP, we do not summarize the retrieved documents for answer generation, and thus will not introduce summarization errors. As shown in Table 2, ITER-RETGEN outperforms ",
+        "bbox": [
+            117,
+            712,
+            487,
+            919
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "DSP significantly. We manually investigate 10 random questions where DSP fails but ITER-RETGEN provides correct answers. On $40 \\%$ of them, DSP fails to retrieve documents that cover the correct answers, while on $50 \\%$ of them, the summarized knowledge is misleading, e.g., for the question “What occupation do Chris Menges and Aram Avakian share?”, DSP generates a wrong summary “Chris Menges and Aram Avakian are both members of the American and British Societies of Cinematographers.”, while the retrieved documents mention that Aram Avakian is a film editor and director, and only Chris Menges is with the American and British Societies of Cinematographers. ",
+        "bbox": [
+            512,
+            583,
+            882,
+            825
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "text",
+        "text": "$\\mathsf { A c c ^ { \\dagger } }$ is a Reliable Metric To investigate how reliable ${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ is, we focused on model outputs where EM and ${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ disagree, and manually checked which metric gives more correct labels. On each of the four multi-hop question answering datasets, we randomly sampled 20 model outputs from the second iteration of ITER-RETGEN, resulting in 80 samples in total. For $9 8 . 7 5 \\%$ of samples, EM is 0 and ${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ is 1, while ${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ gives the correct labels $9 7 . 5 \\%$ of the time, indicating that EM severely underestimates model performance. We also carried out the same evaluation for Self-Ask, and ${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ gives the correct labels $9 8 . 7 5 \\%$ of the time when it is inconsistent with EM. ",
+        "bbox": [
+            512,
+            840,
+            882,
+            920
+        ],
+        "page_idx": 5
+    },
+    {
+        "type": "table",
+        "img_path": "images/7a7d94fcb63d6b4cdaebbda8ed5fad338e69ce43c43e9bc0e8615e5987a26696.jpg",
+        "table_caption": [
+            "Table 4: Effect of using LLM generation $y _ { 1 }$ on optimizing a dense retriever. We evaluated ITER-RETGEN on HotPotQA and Feverous in terms of ${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ . "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Dataset</td><td colspan=\"3\">HotPotQA</td><td colspan=\"3\">Feverous</td></tr><tr><td>Retriever</td><td>Original Distilled w/o y1 Distilled w/ y1</td><td></td><td></td><td></td><td></td><td>Original Distilled w/o y1 Distilled w/ y1</td></tr><tr><td>IteR-RetGEn 1</td><td>65.5</td><td>67.1</td><td>67.7</td><td>67.0</td><td>67.3</td><td>70.7</td></tr><tr><td>ItER-ReTGEn 2</td><td>71.2</td><td>75.2</td><td>75.7</td><td>68.8</td><td>68.1</td><td>69.5</td></tr></table>",
+        "bbox": [
+            178,
+            82,
+            820,
+            156
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "table",
+        "img_path": "images/b9fa7c5bcacbe1bcfcc38da7b75127c31320c2fa4da064b6f1afdc7ac83a7cc1.jpg",
+        "table_caption": [
+            "Table 5: Comparisons between Self-Ask and ITER-RETGEN $T = 2 ,$ ) on different subsets, in terms of ${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ . CoT ✓ is the subset of questions which CoT answers correctly without retrieval; CoT $\\pmb { \\chi }$ is the complement. w/ Answer Retrieved is the subset of questions for which a method (Self-Ask or ITER-RETGEN) successfully retrieves paragraphs that mention the answers; w/o Answer Retrieved is the complement. ITER-RETGEN tends to be much better at preserving the LLM’s performance on questions that can be solved using CoT without retrieval, and is consistently more accurate regardless of whether retrieved knowledge mentions the answers or not. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td rowspan=\"2\">Subset Method</td><td colspan=\"2\">CoT </td><td colspan=\"2\">Cot X</td><td colspan=\"2\">w/ Answer Retrieved</td><td colspan=\"2\">w/o Answer Retrieved</td></tr><tr><td></td><td>Self-Ask ITER-ReTGEn 2 Self-Ask ItER-ReTGEn 2 Self-Ask ItER-RETGEn 2 Self-Ask ItER-RETGEN 2</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>HotPotQA</td><td>77.5</td><td>88.0</td><td>52.0</td><td>54.4</td><td>78.1</td><td>86.9</td><td>29.9</td><td>40.8</td></tr><tr><td>2WikiMultiHopQA</td><td>68.8</td><td>78.2</td><td>46.2</td><td>42.0</td><td>73.1</td><td>77.2</td><td>30.1</td><td>42.3</td></tr><tr><td>MuSiQue</td><td>68.5</td><td>66.9</td><td>32.6</td><td>30.7</td><td>72.9</td><td>78.9</td><td>12.2</td><td>22.9</td></tr><tr><td>Bamboogle</td><td>73.0</td><td>77.3</td><td>28.0</td><td>32.0</td><td>76.2</td><td>82.2</td><td>32.8</td><td>46.2</td></tr></table>",
+        "bbox": [
+            121,
+            208,
+            878,
+            303
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            425,
+            487,
+            568
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ offers the advantage of identifying model outputs that are semantically correct, even if their surface forms differ from the annotated answers. As an illustration, for the question “Which country Jan Baptist Van Rensselaer’s father is from?”, the annotated answer is Dutch, while the model prediction is Netherlands, which is correct in terms of ${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ but is penalized by EM. ",
+        "bbox": [
+            115,
+            571,
+            487,
+            699
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Notably, ITER-RETGEN $T \\geq 2$ ) consistently demonstrate lower EM but higher ${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ than SelfAsk on 2WikiMultiHopQA, suggesting that enhancements in EM do not necessarily reflect improvements in the quality of generated answers. ",
+        "bbox": [
+            115,
+            702,
+            487,
+            782
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "table",
+        "img_path": "images/2df1c42c916fc7031d9ee6303cd4f2563c2486f3e7df8e9763688a619aff9970.jpg",
+        "table_caption": [
+            "Table 6: Answer recall of retrieved paragraphs in different iterations for ITER-RETGEN. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Iteration</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td></tr><tr><td>HotPotQA</td><td></td><td></td><td>49.5 66.1 65.7</td><td>66.5</td><td>66.7 66.7 67.1</td><td></td><td></td></tr><tr><td>2WikiMultiHopQA 29.0 45.2 46.2 46.7</td><td></td><td></td><td></td><td></td><td>45.8 45.8 46.5</td><td></td><td></td></tr><tr><td>MuSiQue</td><td></td><td></td><td>18.6 32.3 32.3 33.7</td><td></td><td></td><td></td><td>32.7 33.5 32.9</td></tr><tr><td>Bamboogle</td><td></td><td>20.8 36.0</td><td></td><td>36.8 36.0</td><td>35.2 36.0 36.0</td><td></td><td></td></tr></table>",
+        "bbox": [
+            119,
+            795,
+            489,
+            877
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Generation Benefits Retrieval Adaptation To investigate how LLM outputs can be leveraged for retrieval adaptation, we experimented on HotPotQA and Feverous. Specifically, on each dataset, we sampled 9,000 random questions from the train set for training, and 1,000 for validation. We applied ITER-RETGEN for one iteration, and used the model outputs $y _ { 1 }$ for retrieval adaptation as in Section 3.4. We used TART (Asai et al., 2022) as the re-ranker, and distilled knowledge from TART to the dense retriever for no more than 1,000 steps. Batch size was 32 and learning rate was 1e-5. We used the retriever checkpoint with the lowest distillation loss. ",
+        "bbox": [
+            512,
+            425,
+            882,
+            649
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "As shown by Table 4, retrieval adaptation enables ITER-RETGEN to achieve significantly higher ${ \\mathsf { A } } { \\mathsf { c } } { \\mathsf { c } } ^ { \\dagger }$ with fewer iterations. We also demonstrated the benefits of using $y _ { 1 }$ for adaptation by showing its improvements over a variant which only differs in that the re-ranker has no access to $y _ { 1 }$ ; the training objective of this variant can be obtained by removing all $y _ { 1 }$ notations in Eq. 3. ",
+        "bbox": [
+            512,
+            652,
+            882,
+            780
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "4.6 Ablation Study ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            795,
+            673,
+            810
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "4.6.1 Generation Augments Retrieval ",
+        "text_level": 1,
+        "bbox": [
+            515,
+            819,
+            818,
+            834
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "Table 6 shows the answer recall of retrieval in different iterations. The first iteration uses only the questions for retrieval and suffers from low answer recall. In the second iteration, retrieval, augmented with the LLM output from the first iteration, ",
+        "bbox": [
+            512,
+            840,
+            884,
+            919
+        ],
+        "page_idx": 6
+    },
+    {
+        "type": "text",
+        "text": "HotPotQA ",
+        "text_level": 1,
+        "bbox": [
+            465,
+            86,
+            532,
+            98
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Question: The arena where the Lewiston Maineiacs played their home games can seat how many people? Answer: 3,677 seated ",
+        "bbox": [
+            122,
+            104,
+            751,
+            127
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Iteration 1 ",
+        "text_level": 1,
+        "bbox": [
+            465,
+            128,
+            532,
+            139
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Retrieved Knowledge ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            140,
+            265,
+            151
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "(1) Title: Lewiston Maineiacs Context: The Lewiston Maineiacs were a junior ice hockey team ... The team played its home games at the Androscoggin Bank Colisée ... (2) Title: Bangor Auditorium Context: ... a 5,948 seat multi-purpose arena located in Bangor, Maine ... ",
+        "bbox": [
+            126,
+            151,
+            870,
+            185
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Generation ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            186,
+            201,
+            196
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "The Lewiston Maineiacs were a junior ice hockey team of the Quebec Major Junior Hockey League based in Lewiston, Maine. The team played its home games at the Androscoggin Bank Colisée. The Androscoggin Bank Colisée can seat up to 5,948 people. So the answer is 5,948 ",
+        "bbox": [
+            129,
+            196,
+            870,
+            230
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Iteration 2 ",
+        "text_level": 1,
+        "bbox": [
+            465,
+            230,
+            534,
+            242
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Retrieved Knowledge ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            243,
+            265,
+            254
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "(1) Title: Lewiston Maineiacs Context: The Lewiston Maineiacs were a junior ice hockey team ... The team played its home games at the Androscoggin Bank Colisée ...   \n(2) Title: Androscoggin Bank Colisée Context: The Androscoggin Bank Colisée (formerly Central Maine Civic Center and Lewiston Colisee) is a 4,000 capacity (3,677 seated) multi-purpose arena ... ",
+        "bbox": [
+            129,
+            254,
+            870,
+            300
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Generation ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            300,
+            201,
+            311
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "The Lewiston Maineiacs were a junior ice hockey team of the Quebec Major Junior Hockey League based in Lewiston, Maine. They played their home games at the Androscoggin Bank Colisée. The Androscoggin Bank Colisée has a capacity of 4,000 (3,677 seated). So the answer is 3,677 ",
+        "bbox": [
+            124,
+            311,
+            870,
+            346
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "StrategyQA ",
+        "text_level": 1,
+        "bbox": [
+            458,
+            351,
+            537,
+            365
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Question: Can you get Raclette in YMCA headquarters city? Answer: Yes ",
+        "bbox": [
+            127,
+            370,
+            492,
+            392
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Iteration 1 ",
+        "text_level": 1,
+        "bbox": [
+            465,
+            393,
+            532,
+            405
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Retrieved Knowledge ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            405,
+            265,
+            416
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "(1) Title: YMCA Building (Racine, Wisconsin) Context: ... Since the 50’s, headquarters of the publishing house and the bookstore are located in 11 rue de la Montagne Sainte-Geneviève 75005 Paris ... ",
+        "bbox": [
+            126,
+            416,
+            868,
+            439
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Generation ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            439,
+            201,
+            450
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "The YMCA headquarters is located in Paris, France. Raclette is a traditional Swiss dish, made with melted cheese served with potatoes, pickles, and other accompaniments. It is not a traditional French dish, so it is unlikely to be found in Paris. So the answer is No ",
+        "bbox": [
+            122,
+            450,
+            873,
+            485
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Iteration 2 ",
+        "text_level": 1,
+        "bbox": [
+            465,
+            485,
+            532,
+            497
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Retrieved Knowledge ",
+        "text_level": 1,
+        "bbox": [
+            131,
+            497,
+            265,
+            507
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "(1) Title: Raclette Context: Raclette is a Swiss dish, also popular in France, based on heating cheese and scraping off the melted part ...   \n(2) Title: YMCA Building (Racine, Wisconsin) Context: ... Since the 50’s, headquarters of the publishing house and the bookstore are located in 11 rue de la Montagne Sainte-Geneviève 75005 Paris ... ",
+        "bbox": [
+            126,
+            507,
+            872,
+            554
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Generation ",
+        "text_level": 1,
+        "bbox": [
+            129,
+            555,
+            201,
+            564
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "YMCA headquarters is located in Paris, France. Raclette is a dish native to parts of Switzerland, but it is also popular in France. So it is likely that Raclette can be found in Paris. So the answer is Yes ",
+        "bbox": [
+            121,
+            565,
+            872,
+            588
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Table 7: Two examples demonstrating retrieval-generation synergy. We underline generated phrases that help retrieve relevant knowledge which successfully corrects factual errors (in red) in the second iteration. Irrelevant retrieved paragraphs are not shown in the table for brevity. ",
+        "bbox": [
+            114,
+            604,
+            882,
+            645
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "achieves significantly higher recall, indicating that LLM generations can help bridge the semantic gaps between complex questions and their supporting knowledge. However, performance quickly hits a plateau afterwards. ",
+        "bbox": [
+            115,
+            673,
+            485,
+            751
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "4.6.2 ITER-RETGEN Leverages Parametric and Non-Parametric Knowledge Better ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            769,
+            480,
+            799
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "Ideally, an LLM should flexibly utilize nonparametric knowledge or parametric knowledge depending on whether in-context non-parametric knowledge is relevant or not. Table 5 presents performance breakdowns on different subsets of questions for investigation. We considered the ability of CoT to answer a question correctly without retrieval as a proxy for assessing an LLM’s capability to answer the question using its parametric knowledge. Compared with Self-Ask, ITER-RETGEN tends to be significantly better at preserving the LLM’s performance on questions that the LLM can solve using CoT without retrieval, while being competitive on the complementary subset. This may be because the structural constraints from Self-Ask makes an LLM over-sensitive to the precision and comprehensiveness of follow-up question generation and answering, and Self-Ask is also incapable of processing all retrieved knowledge as a whole, thus reducing the LLM’s flexibility in solving a question. Moreover, ITER-RETGEN consistently outperforms Self-Ask by a large margin, regardless of whether the in-context non-parametric knowledge mentions the answers or not. This indicates that when the in-context non-parametric knowledge is irrelevant or incomplete, ITER-RETGEN exploits parametric knowledge better than Self-Ask. ",
+        "bbox": [
+            117,
+            808,
+            487,
+            919
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            512,
+            673,
+            882,
+            913
+        ],
+        "page_idx": 7
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            115,
+            85,
+            487,
+            164
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "4.7 Error Analysis ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            180,
+            275,
+            195
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "On HotPotQA, we manually analyzed 20 random cases where ITER-RETGEN $T = 2$ ) fails. $2 5 \\%$ of predictions are false negatives. On $10 \\%$ of cases, ITER-RETGEN retrieves all necessary information but fails to perform correct reasoning. The remaining $65 \\%$ of error cases are related with retrieval, on $7 6 . 9 \\%$ of which, retrieval is misled by completely wrong reasoning from the first iteration, while on the other cases, reasoning in the first iteration is partially correct, but the retriever fails to retrieve the missing pieces in the second iteration. We also observed that, in the first iteration, reasoning can be negatively affected by noisy and possibly distractive knowledge retrieved using only the questions as the queries. ",
+        "bbox": [
+            115,
+            204,
+            487,
+            443
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "5 Case Study ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            460,
+            243,
+            476
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Table 7 demonstrates retrieval-generation synergy with two examples from HotPotQA and StrategyQA, respectively. In the first iteration, as both questions need multi-hop reasoning, the retriever fails to retrieve all supporting knowledge using only the questions. Despite being affected by distractive retrieved knowledge (the capacity of a different arena in the example from HotPotQA) and showing imperfect parametric knowledge (the generated statement that Raclette is unlikely to be found in Paris in the example from StrategyQA) in the first iteration, the LLM generates phrases that help retrieve relevant knowledge in the second iteration, and successfully corrects its outputs. ",
+        "bbox": [
+            115,
+            489,
+            487,
+            714
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "6 Conclusion ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            730,
+            243,
+            746
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "We demonstrate the effectiveness of ITER-RETGEN in answering questions with complex information needs. Despite simple, ITER-RETGEN outperforms retrieval-augmented methods that have a more complex workflow, which we believe could serve as a strong baseline for future research on retrieval-augmented generation. We also show that generation-augmented retrieval adaptation can further improve the performance of ITER-RETGEN while also reducing overheads. ",
+        "bbox": [
+            117,
+            759,
+            487,
+            919
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Limitations ",
+        "text_level": 1,
+        "bbox": [
+            512,
+            84,
+            613,
+            99
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "In this work, we propose to enhance retrievalaugmented large language models with ITERRETGEN which synergizes retrieval and generation in an iterative manner, and demonstrates strong performance compared to more structured prompting techniques such as Self-Ask. However, it’s worth noting that our experiments utilized a fixed black-box large language model, which may not have been equally optimized for various forms of prompting. It would be intriguing to investigate the potential of prompting-specific (gradient-based) optimization in pushing the limits further. This could involve enabling a large language model to leverage parametric and non-parametric knowledge more flexibly and effectively. By exploring this avenue, we may uncover new insights and advancements in the field. Furthermore, our experiments did not cover long-form generation which would probably benefit from more fine-grained retrieval than ITERRETGEN does in this work. We acknowledge that this area warrants further exploration, and we leave it for future work. ",
+        "bbox": [
+            512,
+            110,
+            882,
+            462
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Acknowledgements ",
+        "text_level": 1,
+        "bbox": [
+            514,
+            475,
+            680,
+            492
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "Zhihong Shao and Minlie Huang were supported by the National Science Foundation for Distinguished Young Scholars (with No. 62125604) and the NSFC projects (Key project with No. 61936010). They were also supported by the Guoqiang Institute of Tsinghua University, with Grant No. 2020GQG0005. ",
+        "bbox": [
+            512,
+            501,
+            884,
+            612
+        ],
+        "page_idx": 8
+    },
+    {
+        "type": "text",
+        "text": "References ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            84,
+            211,
+            98
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Rami Aly, Zhijiang Guo, Michael Sejr Schlichtkrull, James Thorne, Andreas Vlachos, Christos Christodoulopoulos, Oana Cocarascu, and Arpit Mittal. 2021. FEVEROUS: fact extraction and verification over unstructured and structured information. In Proceedings of the Neural Information Processing Systems Track on Datasets and Benchmarks 1, NeurIPS Datasets and Benchmarks 2021, December 2021, virtual. ",
+        "bbox": [
+            117,
+            109,
+            485,
+            225
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Akari Asai, Timo Schick, Patrick S. H. Lewis, Xilun Chen, Gautier Izacard, Sebastian Riedel, Hannaneh Hajishirzi, and Wen-tau Yih. 2022. Task-aware retrieval with instructions. CoRR, abs/2211.09260. ",
+        "bbox": [
+            117,
+            240,
+            487,
+            291
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Sandhini Agarwal, Ariel Herbert-Voss, Gretchen Krueger, Tom Henighan, Rewon Child, Aditya Ramesh, Daniel M. Ziegler, Jeffrey Wu, Clemens Winter, Christopher Hesse, Mark Chen, Eric Sigler, Mateusz Litwin, Scott Gray, Benjamin Chess, Jack Clark, Christopher Berner, Sam McCandlish, Alec Radford, Ilya Sutskever, and Dario Amodei. 2020. Language models are few-shot learners. CoRR, abs/2005.14165. ",
+        "bbox": [
+            117,
+            305,
+            487,
+            461
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique Pondé de Oliveira Pinto, Jared Kaplan, Harrison Edwards, Yuri Burda, Nicholas Joseph, Greg Brockman, Alex Ray, Raul Puri, Gretchen Krueger, Michael Petrov, Heidy Khlaaf, Girish Sastry, Pamela Mishkin, Brooke Chan, Scott Gray, Nick Ryder, Mikhail Pavlov, Alethea Power, Lukasz Kaiser, Mohammad Bavarian, Clemens Winter, Philippe Tillet, Felipe Petroski Such, Dave Cummings, Matthias Plappert, Fotios Chantzis, Elizabeth Barnes, Ariel Herbert-Voss, William Hebgen Guss, Alex Nichol, Alex Paino, Nikolas Tezak, Jie Tang, Igor Babuschkin, Suchir Balaji, Shantanu Jain, William Saunders, Christopher Hesse, Andrew N. Carr, Jan Leike, Joshua Achiam, Vedant Misra, Evan Morikawa, Alec Radford, Matthew Knight, Miles Brundage, Mira Murati, Katie Mayer, Peter Welinder, Bob McGrew, Dario Amodei, Sam McCandlish, Ilya Sutskever, and Wojciech Zaremba. 2021. Evaluating large language models trained on code. CoRR, abs/2107.03374. ",
+        "bbox": [
+            117,
+            475,
+            487,
+            746
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Angela Fan, Yacine Jernite, Ethan Perez, David Grangier, Jason Weston, and Michael Auli. 2019. ELI5: long form question answering. In Proceedings of the 57th Conference of the Association for Computational Linguistics, ACL 2019, Florence, Italy, July 28- August 2, 2019, Volume 1: Long Papers, pages 3558–3567. Association for Computational Linguistics. ",
+        "bbox": [
+            117,
+            762,
+            487,
+            865
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Luyu Gao, Xueguang Ma, Jimmy Lin, and Jamie Callan. 2022a. Precise zero-shot dense retrieval without relevance labels. CoRR, abs/2212.10496. ",
+        "bbox": [
+            115,
+            879,
+            487,
+            917
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Luyu Gao, Aman Madaan, Shuyan Zhou, Uri Alon, Pengfei Liu, Yiming Yang, Jamie Callan, and Graham Neubig. 2022b. PAL: program-aided language models. CoRR, abs/2211.10435. ",
+        "bbox": [
+            510,
+            86,
+            882,
+            139
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Mor Geva, Daniel Khashabi, Elad Segal, Tushar Khot, Dan Roth, and Jonathan Berant. 2021. Did aristotle use a laptop? A question answering benchmark with implicit reasoning strategies. Trans. Assoc. Comput. Linguistics, 9:346–361. ",
+        "bbox": [
+            510,
+            149,
+            882,
+            215
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Zhibin Gou, Zhihong Shao, Yeyun Gong, Yelong Shen, Yujiu Yang, Nan Duan, and Weizhu Chen. 2023. Critic: Large language models can self-correct with tool-interactive critiquing. ",
+        "bbox": [
+            510,
+            227,
+            882,
+            279
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Xanh Ho, Anh-Khoa Duong Nguyen, Saku Sugawara, and Akiko Aizawa. 2020. Constructing A multi-hop QA dataset for comprehensive evaluation of reasoning steps. In Proceedings of the 28th International Conference on Computational Linguistics, COLING 2020, Barcelona, Spain (Online), December 8-13, 2020, pages 6609–6625. International Committee on Computational Linguistics. ",
+        "bbox": [
+            510,
+            290,
+            882,
+            393
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Gautier Izacard, Mathilde Caron, Lucas Hosseini, Sebastian Riedel, Piotr Bojanowski, Armand Joulin, and Edouard Grave. 2022a. Unsupervised dense information retrieval with contrastive learning. Trans. Mach. Learn. Res., 2022. ",
+        "bbox": [
+            512,
+            405,
+            882,
+            470
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Gautier Izacard and Edouard Grave. 2021. Leveraging passage retrieval with generative models for open domain question answering. In Proceedings of the 16th Conference of the European Chapter of the Association for Computational Linguistics: Main Volume, EACL 2021, Online, April 19 - 23, 2021, pages 874– 880. Association for Computational Linguistics. ",
+        "bbox": [
+            512,
+            482,
+            882,
+            573
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Gautier Izacard, Patrick S. H. Lewis, Maria Lomeli, Lucas Hosseini, Fabio Petroni, Timo Schick, Jane Dwivedi-Yu, Armand Joulin, Sebastian Riedel, and Edouard Grave. 2022b. Few-shot learning with retrieval augmented language models. CoRR, abs/2208.03299. ",
+        "bbox": [
+            512,
+            585,
+            882,
+            662
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Zhengbao Jiang, Frank F. Xu, Luyu Gao, Zhiqing Sun, Qian Liu, Jane Dwivedi-Yu, Yiming Yang, Jamie Callan, and Graham Neubig. 2023. Active retrieval augmented generation. CoRR, abs/2305.06983. ",
+        "bbox": [
+            510,
+            675,
+            882,
+            726
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Vladimir Karpukhin, Barlas Oguz, Sewon Min, Patrick S. H. Lewis, Ledell Wu, Sergey Edunov, Danqi Chen, and Wen-tau Yih. 2020. Dense passage retrieval for open-domain question answering. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing, EMNLP 2020, Online, November 16-20, 2020, pages 6769–6781. Association for Computational Linguistics. ",
+        "bbox": [
+            510,
+            738,
+            882,
+            841
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Omar Khattab, Keshav Santhanam, Xiang Lisa Li, David Hall, Percy Liang, Christopher Potts, and Matei Zaharia. 2022. Demonstrate-search-predict: Composing retrieval and language models for knowledge-intensive NLP. CoRR, abs/2212.14024. ",
+        "bbox": [
+            512,
+            853,
+            882,
+            919
+        ],
+        "page_idx": 9
+    },
+    {
+        "type": "text",
+        "text": "Tom Kwiatkowski, Jennimaria Palomaki, Olivia Redfield, Michael Collins, Ankur P. Parikh, Chris Alberti, Danielle Epstein, Illia Polosukhin, Jacob Devlin, Kenton Lee, Kristina Toutanova, Llion Jones, Matthew Kelcey, Ming-Wei Chang, Andrew M. Dai, Jakob Uszkoreit, Quoc Le, and Slav Petrov. 2019. Natural questions: a benchmark for question answering research. Trans. Assoc. Comput. Linguistics, 7:452– 466. ",
+        "bbox": [
+            117,
+            86,
+            485,
+            203
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Yuning Mao, Pengcheng He, Xiaodong Liu, Yelong Shen, Jianfeng Gao, Jiawei Han, and Weizhu Chen. 2021. Generation-augmented retrieval for opendomain question answering. In Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing, ACL/IJCNLP 2021, (Volume 1: Long Papers), Virtual Event, August 1-6, 2021, pages 4089–4100. Association for Computational Linguistics. ",
+        "bbox": [
+            117,
+            216,
+            487,
+            346
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Grégoire Mialon, Roberto Dessì, Maria Lomeli, Christoforos Nalmpantis, Ramakanth Pasunuru, Roberta Raileanu, Baptiste Rozière, Timo Schick, Jane Dwivedi-Yu, Asli Celikyilmaz, Edouard Grave, Yann LeCun, and Thomas Scialom. 2023. Augmented language models: a survey. CoRR, abs/2302.07842. ",
+        "bbox": [
+            117,
+            360,
+            485,
+            437
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Reiichiro Nakano, Jacob Hilton, Suchir Balaji, Jeff Wu, Long Ouyang, Christina Kim, Christopher Hesse, Shantanu Jain, Vineet Kosaraju, William Saunders, Xu Jiang, Karl Cobbe, Tyna Eloundou, Gretchen Krueger, Kevin Button, Matthew Knight, Benjamin Chess, and John Schulman. 2021. Webgpt: Browserassisted question-answering with human feedback. CoRR, abs/2112.09332. ",
+        "bbox": [
+            115,
+            450,
+            487,
+            554
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "OpenAI. 2023. GPT-4 technical report. CoRR, abs/2303.08774. ",
+        "bbox": [
+            115,
+            568,
+            487,
+            593
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida, Carroll L. Wainwright, Pamela Mishkin, Chong Zhang, Sandhini Agarwal, Katarina Slama, Alex Ray, John Schulman, Jacob Hilton, Fraser Kelton, Luke Miller, Maddie Simens, Amanda Askell, Peter Welinder, Paul F. Christiano, Jan Leike, and Ryan Lowe. 2022. Training language models to follow instructions with human feedback. In NeurIPS. ",
+        "bbox": [
+            115,
+            606,
+            487,
+            709
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Ofir Press, Muru Zhang, Sewon Min, Ludwig Schmidt, Noah A. Smith, and Mike Lewis. 2022. Measuring and narrowing the compositionality gap in language models. CoRR, abs/2210.03350. ",
+        "bbox": [
+            115,
+            724,
+            487,
+            776
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Thomas Scialom, Tuhin Chakrabarty, and Smaranda Muresan. 2022. Continual-t0: Progressively instructing $5 0 +$ tasks to language models without forgetting. CoRR, abs/2205.12393. ",
+        "bbox": [
+            117,
+            789,
+            487,
+            840
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Zhihong Shao, Yeyun Gong, Yelong Shen, Minlie Huang, Nan Duan, and Weizhu Chen. 2023. Synthetic prompting: Generating chain-of-thought demonstrations for large language models. CoRR, abs/2302.00618. ",
+        "bbox": [
+            115,
+            853,
+            487,
+            917
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Zhihong Shao and Minlie Huang. 2022. Answering open-domain multi-answer questions via a recallthen-verify framework. In Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), ACL 2022, Dublin, Ireland, May 22-27, 2022, pages 1825–1838. Association for Computational Linguistics. ",
+        "bbox": [
+            510,
+            86,
+            882,
+            177
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Weijia Shi, Sewon Min, Michihiro Yasunaga, Minjoon Seo, Rich James, Mike Lewis, Luke Zettlemoyer, and Wen-tau Yih. 2023. REPLUG: retrieval-augmented black-box language models. CoRR, abs/2301.12652. ",
+        "bbox": [
+            510,
+            189,
+            880,
+            240
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "James Thorne, Andreas Vlachos, Christos Christodoulopoulos, and Arpit Mittal. 2018. FEVER: a large-scale dataset for fact extraction and VERification. In Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long Papers), pages 809–819, New Orleans, Louisiana. Association for Computational Linguistics. ",
+        "bbox": [
+            510,
+            252,
+            882,
+            368
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Hugo Touvron, Louis Martin, Kevin Stone, Peter Albert, Amjad Almahairi, Yasmine Babaei, Nikolay Bashlykov, Soumya Batra, Prajjwal Bhargava, Shruti Bhosale, Dan Bikel, Lukas Blecher, Cristian CantonFerrer, Moya Chen, Guillem Cucurull, David Esiobu, Jude Fernandes, Jeremy Fu, Wenyin Fu, Brian Fuller, Cynthia Gao, Vedanuj Goswami, Naman Goyal, Anthony Hartshorn, Saghar Hosseini, Rui Hou, Hakan Inan, Marcin Kardas, Viktor Kerkez, Madian Khabsa, Isabel Kloumann, Artem Korenev, Punit Singh Koura, Marie-Anne Lachaux, Thibaut Lavril, Jenya Lee, Diana Liskovich, Yinghai Lu, Yuning Mao, Xavier Martinet, Todor Mihaylov, Pushkar Mishra, Igor Molybog, Yixin Nie, Andrew Poulton, Jeremy Reizenstein, Rashi Rungta, Kalyan Saladi, Alan Schelten, Ruan Silva, Eric Michael Smith, Ranjan Subramanian, Xiaoqing Ellen Tan, Binh Tang, Ross Taylor, Adina Williams, Jian Xiang Kuan, Puxin Xu, Zheng Yan, Iliyan Zarov, Yuchen Zhang, Angela Fan, Melanie Kambadur, Sharan Narang, Aurélien Rodriguez, Robert Stojnic, Sergey Edunov, and Thomas Scialom. 2023. Llama 2: Open foundation and finetuned chat models. CoRR, abs/2307.09288. ",
+        "bbox": [
+            517,
+            380,
+            882,
+            678
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Harsh Trivedi, Niranjan Balasubramanian, Tushar Khot, and Ashish Sabharwal. 2022a. Interleaving retrieval with chain-of-thought reasoning for knowledge-intensive multi-step questions. CoRR, abs/2212.10509. ",
+        "bbox": [
+            510,
+            690,
+            882,
+            755
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Harsh Trivedi, Niranjan Balasubramanian, Tushar Khot, and Ashish Sabharwal. 2022b. MuSiQue: Multihop questions via single-hop question composition. Trans. Assoc. Comput. Linguistics, 10:539–554. ",
+        "bbox": [
+            510,
+            766,
+            882,
+            819
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Ed H. Chi, Quoc Le, and Denny Zhou. 2022. Chain of thought prompting elicits reasoning in large language models. CoRR, abs/2201.11903. ",
+        "bbox": [
+            510,
+            829,
+            882,
+            882
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Zhilin Yang, Peng Qi, Saizheng Zhang, Yoshua Bengio, William W. Cohen, Ruslan Salakhutdinov, and ",
+        "bbox": [
+            512,
+            892,
+            882,
+            919
+        ],
+        "page_idx": 10
+    },
+    {
+        "type": "text",
+        "text": "Christopher D. Manning. 2018. Hotpotqa: A dataset for diverse, explainable multi-hop question answering. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing, Brussels, Belgium, October 31 - November 4, 2018, pages 2369–2380. Association for Computational Linguistics. ",
+        "bbox": [
+            132,
+            86,
+            487,
+            177
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao. 2022. React: Synergizing reasoning and acting in language models. CoRR, abs/2210.03629. ",
+        "bbox": [
+            115,
+            187,
+            487,
+            240
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Ori Yoran, Tomer Wolfson, Ben Bogin, Uri Katz, Daniel Deutch, and Jonathan Berant. 2023. Answering questions by meta-reasoning over multiple chains of thought. CoRR, abs/2304.13007. ",
+        "bbox": [
+            115,
+            250,
+            485,
+            303
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "Fengji Zhang, Bei Chen, Yue Zhang, Jin Liu, Daoguang Zan, Yi Mao, Jian-Guang Lou, and Weizhu Chen. 2023. Repocoder: Repository-level code completion through iterative retrieval and generation. CoRR, abs/2303.12570. ",
+        "bbox": [
+            115,
+            313,
+            487,
+            378
+        ],
+        "page_idx": 11
+    },
+    {
+        "type": "text",
+        "text": "A Experiments Using Llama-2 ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            83,
+            394,
+            99
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "To demonstrate the effectiveness of ITER-RETGEN on open-source models, we replaced the generation model text-davinci-003 in Table 2 with Llama2 models (Touvron et al., 2023), and re-ran the evaluation. As shown in Table 8, ITER-RETGEN consistently outperforms all baselines significantly. ",
+        "bbox": [
+            115,
+            109,
+            487,
+            205
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "B Few-Shot Prompts ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            217,
+            312,
+            234
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "In this section, we present all few-shot prompts used in our experiments. We replace retrieved paragraphs with the placeholder {Knowledge} for brevity. CoT prompting shares the same in-context demonstrations with ITER-RETGEN, except that it is not augmented with retrieval. ",
+        "bbox": [
+            117,
+            243,
+            487,
+            338
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "B.1 HotPotQA ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            350,
+            245,
+            365
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Prompts for Direct Prompting, ReAct, Self-Ask, and ITER-RETGEN are presented in Table 9, Table 10, Table 11, and Table 12, respectively. ",
+        "bbox": [
+            115,
+            372,
+            487,
+            418
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "B.2 2WikiMultiHopQA ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            430,
+            314,
+            445
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Prompts for Direct Prompting, ReAct, Self-Ask, and ITER-RETGEN are presented in Table 13, Table 14, Table 15, and Table 16, respectively. ",
+        "bbox": [
+            115,
+            451,
+            487,
+            498
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "B.3 MuSiQue ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            510,
+            240,
+            525
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Prompts for Direct Prompting, ReAct, Self-Ask, and ITER-RETGEN are presented in Table 17, Table 18, Table 19, and Table 20, respectively. ",
+        "bbox": [
+            115,
+            531,
+            487,
+            577
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "B.4 Bamboogle ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            589,
+            252,
+            605
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Prompts for Direct Prompting, ReAct, Self-Ask, and ITER-RETGEN are presented in Table 21, Table 22, Table 23, and Table 24, respectively. ",
+        "bbox": [
+            115,
+            611,
+            489,
+            657
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "B.5 Feverous ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            669,
+            233,
+            683
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Prompts for Direct Prompting, ReAct, Self-Ask, and ITER-RETGEN are presented in Table 25, Table 26, Table 27, and Table 28, respectively. ",
+        "bbox": [
+            115,
+            690,
+            489,
+            737
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "B.6 StrategyQA ",
+        "text_level": 1,
+        "bbox": [
+            117,
+            749,
+            257,
+            764
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "text",
+        "text": "Prompts for Direct Prompting, ReAct, Self-Ask, and ITER-RETGEN are presented in Table 29, Table 30, Table 31, and Table 32, respectively. ",
+        "bbox": [
+            115,
+            770,
+            489,
+            816
+        ],
+        "page_idx": 12
+    },
+    {
+        "type": "table",
+        "img_path": "images/5fbe7f3f4d36b4afa1db0a3dcbe1fad4a99d4d6be9a01833a09f7122e6881cb3.jpg",
+        "table_caption": [],
+        "table_footnote": [
+            "Table 8: Experiments using the open-source Llama-2 models. We used Acc† as the evaluation metric, i.e., to evaluate the accuracy of model outputs with text-davinci-003. "
+        ],
+        "table_body": "<table><tr><td rowspan=\"2\">Model Dataset</td><td colspan=\"3\">Llama-2-13B</td><td colspan=\"2\">Llama-2-70B</td></tr><tr><td>HotPotQA 2WikiMultiHopQA StrategyQA HotPotQA 2WikiMultiHopQA StrategyQA</td><td></td><td></td><td></td><td></td></tr><tr><td colspan=\"6\">Without Retrieval</td></tr><tr><td>Direct</td><td>36.4</td><td>31.6</td><td>60.5</td><td>47.2 39.0</td><td>72.7</td></tr><tr><td>CoT</td><td>43.0</td><td>33.2</td><td>63.7</td><td>55.2 46.0</td><td>72.7</td></tr><tr><td colspan=\"6\">With Retrieval</td></tr><tr><td>Direct</td><td>51.8</td><td>38.6</td><td>63.3</td><td>58.6 45.1</td><td>73.3</td></tr><tr><td>ReAct</td><td>36.0</td><td>27.5</td><td>61.5</td><td>42.6 36.8</td><td>69.5</td></tr><tr><td>Self-Ask</td><td>45.8</td><td>38.5</td><td>63.3</td><td>58.4 53.2</td><td>71.7</td></tr><tr><td>Iter-RetGen 1</td><td>53.8</td><td>44.6</td><td>62.8</td><td>64.4 55.1</td><td>74.8</td></tr><tr><td>Iter-RetGen 2</td><td>57.8</td><td>48.0</td><td>67.2</td><td>67.8 57.9</td><td>76.6</td></tr></table>",
+        "bbox": [
+            121,
+            185,
+            878,
+            362
+        ],
+        "page_idx": 13
+    },
+    {
+        "type": "table",
+        "img_path": "images/7f5aaf2d29f8c30733ad06487df9a60f4c4d1e4901ac3dbe9808737e07640743.jpg",
+        "table_caption": [
+            "Table 10: 3-Shot Demonstrations for ReAct on HotPotQA. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>   answer the question directly. #</td></tr><tr><td>QuWha s the  th usi, s o can,nd riho worke wM Records and born in December 5, 1932? Are follow up questions needed here: Yes.</td></tr><tr><td>Follow up: Who worked with Modern Records? {Knowledge }</td></tr><tr><td>I and John Lee Hooker.</td></tr><tr><td>F: o {Knowledge}</td></tr><tr><td>Intermediate answer: Etta James was born in January 25, 1938, not December 5, 1932, so the answer is no.</td></tr><tr><td>F {Knowledge }</td></tr><tr><td>IeoD   songwriter.</td></tr><tr><td>So the final answer is: Little Richard #</td></tr><tr><td>Question: Between Chinua Achebe and Rachel Carson, who had more diverse jobs? Are follow up questions needed here: Yes.</td></tr><tr><td>Follow up: What jobs did Chinua Achebe have?</td></tr><tr><td>{Knowledge } </td></tr><tr><td>jobs. Follow up: What jobs did Rachel Carson have?</td></tr><tr><td>{Knowledge }</td></tr><tr><td>I had 3 jobs.</td></tr><tr><td>Follow up: Did Chinua Achebe have more jobs than Rachel Carson? {Knowledge}</td></tr><tr><td> </td></tr><tr><td>more jobs. So the final answer is: Chinua Achebe</td></tr><tr><td># Question: Remember Me Ballin&#x27; is a CD single by Indo G that features an American rapper born in what year?</td></tr><tr><td>Are follow up questions needed here: Yes.</td></tr><tr><td>Follow up: Which American rapper is featured by Remember Me Ballin&#x27;, a CD single by Indo G?</td></tr><tr><td>{Knowledge }</td></tr><tr><td>Intermediate answer: Gangsta Boo</td></tr><tr><td>Follow up: In which year was Gangsta Boo born?</td></tr><tr><td></td></tr><tr><td>{Knowledge } Intermediate answer: Gangsta Boo was born in August 7, 1979, so the answer is 1979.</td></tr></table>",
+        "bbox": [
+            129,
+            225,
+            872,
+            749
+        ],
+        "page_idx": 14
+    },
+    {
+        "type": "table",
+        "img_path": "images/4ff249532754351e730d923cc21f1e11fa1235b4c779da5a5111b2f88f40f9e2.jpg",
+        "table_caption": [
+            "Table 11: 3-Shot Demonstrations for Self-Ask on HotPotQA. ",
+            "Table 12: 3-Shot Demonstrations for ITER-RETGEN on HotPotQA. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>  </td><td>   </td><td></td><td></td><td></td></tr><tr><td>answer the question directly. #</td><td></td><td></td><td></td><td></td></tr><tr><td>{Knowledge}</td><td></td><td></td><td></td><td></td></tr><tr><td></td><td>QuWha  e eu  cean ri ho work i </td><td></td><td></td><td></td></tr><tr><td></td><td>Records and born in December 5, 1932?</td><td></td><td></td><td></td></tr><tr><td></td><td>Are follow up questions needed here: Yes.</td><td></td><td></td><td></td></tr><tr><td></td><td>Follow up: Who worked with Modern Records?</td><td></td><td></td><td></td></tr><tr><td>and John Lee Hooker.</td><td>Ior</td><td></td><td></td><td></td></tr><tr><td></td><td>:     o</td><td></td><td></td><td></td></tr><tr><td></td><td>Intermediate answer: Etta James was born in January 25, 1938, not December 5, 1932, so the answer is no.</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td>IYeo </td><td></td><td></td><td></td></tr><tr><td>songwriter.</td><td></td><td></td><td></td><td></td></tr><tr><td>#</td><td>So the final answer is: Little Richard</td><td></td><td></td><td></td></tr><tr><td>{Knowledge}</td><td></td><td></td><td></td><td></td></tr><tr><td></td><td>Question: Between Chinua Achebe and Rachel Carson, who had more diverse jobs?</td><td></td><td></td><td></td></tr><tr><td></td><td>Are follow up questions needed here: Yes.</td><td></td><td></td><td></td></tr><tr><td></td><td>Follow up: What jobs did Chinua Achebe have?</td><td></td><td></td><td></td></tr><tr><td>jobs.</td><td></td><td></td><td></td><td></td></tr><tr><td>Follow up: What jobs did Rachel Carson have?</td><td></td><td></td><td></td><td></td></tr><tr><td>had 3 jobs.</td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td>Follow up: Did Chinua Achebe have more jobs than Rachel Carson?</td><td></td><td></td><td></td></tr><tr><td>more jobs.</td><td> </td><td></td><td></td><td></td></tr><tr><td></td><td>So the final answer is: Chinua Achebe</td><td></td><td></td><td></td></tr><tr><td>#</td><td></td><td></td><td></td><td></td></tr><tr><td>{Knowledge }</td><td></td><td></td><td></td><td></td></tr><tr><td></td><td>Question: Remember Me Ballin&#x27; is a CD single by Indo G that features an American rapper born in what year?</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td>Are follow up questions needed here: Yes.</td><td></td><td></td><td></td></tr><tr><td></td><td>Follow up: Which American rapper is featured by Remember Me Ballin&#x27;, a CD single by Indo G?</td><td></td><td></td><td></td></tr><tr><td>Intermediate answer: Gangsta Boo</td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Follow up: In which year was Gangsta Boo born?</td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Intermediate answer: Gangsta Boo was born in August 7, 1979, so the answer is 1979.</td><td></td><td></td><td></td><td></td></tr></table>",
+        "bbox": [
+            127,
+            84,
+            872,
+            552
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "{Knowledge}   \nQuestion: What is the name of this American musician, singer, actor, comedian, and songwriter, who worked with Modern Records and born in December 5, 1932?   \nLet’s think step by step.   \nArtists who worked with Modern Records include Etta James, Joe Houston, Little Richard, Ike and Tina Turner and John Lee Hooker in the 1950s and 1960s. Of these Little Richard, born in December 5, 1932, was an American musician, singer, actor, comedian, and songwriter.   \nSo the answer is Little Richard {Knowledge}   \nQuestion: Between Chinua Achebe and Rachel Carson, who had more diverse jobs?   \nLet’s think step by step.   \nChinua Achebe was a Nigerian novelist, poet, professor, and critic. Rachel Carson was an American marine biologist, author, and conservationist. So Chinua Achebe had 4 jobs, while Rachel Carson had 3 jobs. Chinua Achebe had more diverse jobs than Rachel Carson.   \nSo the answer is Chinua Achebe {Knowledge}   \nQuestion: Remember Me Ballin’ is a CD single by Indo G that features an American rapper born in what year?   \nLet’s think step by step.   \nRemember Me Ballin’ is the CD single by Indo G featuring Gangsta Boo. Gangsta Boo is Lola Mitchell’s stage name, who was born in August 7, 1979, and is an American rapper.   \nSo the answer is 1979   \n{Knowledge}   \nQuestion: Which film has the director who was born later, El Extrano Viaje or Love In Pawn?   \nThe answer is El Extrano Viaje {Knowledge}   \nQuestion: When did John V, Prince Of Anhalt-Zerbst’s father die?   \nLet’s think step by step.   \nJohn was the second son of Ernest I, Prince of Anhalt-Dessau. Ernest I, Prince of Anhalt-Dessau died on 12 June 1516. So the answer is 12 June 1516 {Knowledge}   \nQuestion: Which film has the director who was born later, El Extrano Viaje or Love In Pawn?   \nLet’s think step by step.   \nThe director of El Extrano Viaje is Fernando Fernan Gomez, who was born on 28 August 1921. The director of Love In Pawn is Charles Saunders, who was born on 8 April 1904. 28 August 1921 comes after 8 April 1904. Therefore, Fernando Fernan Gomez was born later than Charles Saunders.   \nSo the answer is El Extrano Viaje   \n{Knowledge}   \nQuestion: Who was in charge of the city where The Killing of a Sacred Deer was filmed?   \nThe answer is John Cranley   \n{Knowledge}   \nQuestion: Where on the Avalon Peninsula is the city that Signal Hill overlooks?   \nThe answer is eastern tip ",
+        "bbox": [
+            129,
+            593,
+            872,
+            689
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            129,
+            712,
+            872,
+            791
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            129,
+            814,
+            870,
+            884
+        ],
+        "page_idx": 15
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            127,
+            239,
+            677,
+            277
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "table",
+        "img_path": "images/87881ea4f39f552801a4e51577f667d4073034ef886a90f329ed8eed69fcc41c.jpg",
+        "table_caption": [
+            "Table 13: 3-Shot Demonstrations for Direct Prompting on 2WikiMultiHopQA. ",
+            "Table 14: 3-Shot Demonstrations for ReAct on 2WikiMultiHopQA. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>   answer the question directly.</td><td></td></tr><tr><td>Question: Which film came out first, Blind Shaft or The Mask Of Fu Manchu? Are follow up questions needed here: Yes.</td><td></td></tr><tr><td>Follow up: When did Blind Shaft come out?</td><td></td></tr><tr><td>{Knowledge} Intermediate answer: Blind Shaft came out in 2003.</td><td></td></tr><tr><td>Follow up: When did The Mask Of Fu Manchu come out?</td><td></td></tr><tr><td>{Knowledge}</td><td></td></tr><tr><td>Intermediate answer: The Mask Of Fu Manchu came out in 1932.</td><td></td></tr><tr><td>So the final answer is: The Mask Of Fu Manchu #</td><td></td></tr><tr><td>Question: When did John V, Prince Of Anhalt-Zerbst&#x27;s father die? Are follow up questions needed here: Yes.</td><td></td></tr><tr><td>Follow up: Who is the father of John V, Prince Of Anhalt-Zerbst?</td><td></td></tr><tr><td>{Knowledge } Intermediate answer: The father of John V, Prince Of Anhalt-Zerbst is Ernest I, Prince of Anhalt-Dessau.</td><td></td></tr><tr><td>Follow up: When did Ernest I, Prince of Anhalt-Dessau die? {Knowledge}</td><td></td></tr><tr><td>Intermediate answer: Ernest I, Prince of Anhalt-Dessau died on 12 June 1516.</td><td></td></tr><tr><td>So the final answer is: 12 June 1516</td><td></td></tr><tr><td>#</td><td></td></tr><tr><td>Question: Which film has the director who was born later, El Extrano Viaje or Love In Pawn? Are follow up questions needed here: Yes.</td><td></td></tr><tr><td>Follow up: Who is the director of El Extrano Viaje?</td><td></td></tr><tr><td></td><td></td></tr><tr><td>{Knowledge}</td><td></td></tr><tr><td>Intermediate answer: The director of El Extrano Viaje is Fernando Fernan Gomez.</td><td></td></tr><tr><td>Follow up: Who is the director of Love in Pawn?</td><td></td></tr><tr><td>{Knowledge}</td><td></td></tr><tr><td></td><td></td></tr><tr><td>Intermediate answer: The director of Love in Pawn is Charles Saunders.</td><td></td></tr><tr><td>Follow up: When was Fernando Fernan Gomez born?</td><td></td></tr><tr><td></td><td></td></tr><tr><td>{Knowledge}</td><td></td></tr><tr><td>Intermediate answer: Fernando Fernan Gomez was born on 28 August 1921.</td><td></td></tr><tr><td></td><td></td></tr><tr><td>Follow up: When was Charles Saunders (director) born?</td><td></td></tr><tr><td></td><td></td></tr><tr><td>{Knowledge}</td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td>Intermediate answer: Charles Saunders was born on 8 April 1904.</td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td>So the final answer is: El Extrano Viaje</td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td></table>",
+        "bbox": [
+            129,
+            397,
+            877,
+            850
+        ],
+        "page_idx": 16
+    },
+    {
+        "type": "table",
+        "img_path": "images/603b589d13a0a5ebb5f70df0e3221e953b8e3928c73e0ad97508450c599100d1.jpg",
+        "table_caption": [
+            "Table 15: 3-Shot Demonstrations for Self-Ask on 2WikiMultiHopQA. ",
+            "Table 16: 3-Shot Demonstrations for ITER-RETGEN on 2WikiMultiHopQA. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td colspan=\"2\">    </td></tr><tr><td>answer the question directly.</td><td></td></tr><tr><td>#</td><td></td></tr><tr><td>{Knowledge } Question: Which film came out first, Blind Shaft or The Mask Of Fu Manchu?</td><td></td></tr><tr><td>Are follow up questions needed here: Yes.</td><td></td></tr><tr><td>Follow up: When did Blind Shaft come out?</td><td></td></tr><tr><td>Intermediate answer: Blind Shaft came out in 2003.</td><td></td></tr><tr><td>Follow up: When did The Mask Of Fu Manchu come out?</td><td></td></tr><tr><td>Intermediate answer: The Mask Of Fu Manchu came out in 1932.</td><td></td></tr><tr><td>So the final answer is: The Mask Of Fu Manchu</td><td></td></tr><tr><td>#</td><td></td></tr><tr><td>{Knowledge} Question: When did John V, Prince Of Anhalt-Zerbst&#x27;s father die?</td><td></td></tr><tr><td>Are follow up questions needed here: Yes.</td><td></td></tr><tr><td>Follow up: Who is the father of John V, Prince Of Anhalt-Zerbst?</td><td></td></tr><tr><td>Intermediate answer: The father of John V, Prince Of Anhalt-Zerbst is Ernest I, Prince of Anhalt-Dessau.</td><td></td></tr><tr><td>Follow up: When did Ernest I, Prince of Anhalt-Dessau die?</td><td></td></tr><tr><td>Intermediate answer: Ernest I, Prince of Anhalt-Dessau died on 12 June 1516. So the final answer is: 12 June 1516</td><td></td></tr><tr><td>#</td><td></td></tr><tr><td>{Knowledge}</td><td></td></tr><tr><td>Question: Which film has the director who was born later, El Extrano Viaje or Love In Pawn?</td><td></td></tr><tr><td>Are follow up questions needed here: Yes.</td><td></td></tr><tr><td>Follow up: Who is the director of El Extrano Viaje?</td><td></td></tr><tr><td>Intermediate answer: The director of El Extrano Viaje is Fernando Fernan Gomez.</td><td></td></tr><tr><td>Follow up: Who is the director of Love in Pawn?</td><td></td></tr><tr><td>Intermediate answer: The director of Love in Pawn is Charles Saunders.</td><td></td></tr><tr><td>Follow up: When was Fernando Fernan Gomez born?</td><td></td></tr><tr><td>Intermediate answer: Fernando Fernan Gomez was born on 28 August 1921.</td><td></td></tr><tr><td></td><td></td></tr><tr><td>Follow up: When was Charles Saunders (director) born?</td><td></td></tr><tr><td>Intermediate answer: Charles Saunders was born on 8 April 1904.</td><td></td></tr><tr><td>So the final answer is: El Extrano Viaje</td><td></td></tr></table>",
+        "bbox": [
+            129,
+            115,
+            833,
+            510
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            129,
+            696,
+            838,
+            755
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            129,
+            776,
+            872,
+            859
+        ],
+        "page_idx": 17
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            129,
+            200,
+            655,
+            236
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            129,
+            256,
+            598,
+            294
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "table",
+        "img_path": "images/7d8fb4019ac45d86b61a98a44ed570448667472589f554c45eb1aae8572d97a6.jpg",
+        "table_caption": [
+            "Table 17: 3-Shot Demonstrations for Direct Prompting on MuSiQue. ",
+            "Table 18: 3-Shot Demonstrations for ReAct on MuSiQue. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td></td><td>    </td><td></td><td></td></tr><tr><td colspan=\"4\">answer the question directly. #</td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td>Question: In which year did the publisher of In Cold Blood form?</td><td></td><td></td></tr><tr><td>Are follow up questions needed here: Yes.</td><td></td><td></td><td></td></tr><tr><td></td><td>Follow up: What business published In Cold Blood?</td><td></td><td></td></tr><tr><td>{Knowledge}</td><td></td><td></td><td></td></tr><tr><td></td><td>Intermediate answer: In Cold Blood was published in book form by Random House.</td><td></td><td></td></tr><tr><td></td><td>Follow up: Which year witnessed the formation of Random House?</td><td></td><td></td></tr><tr><td>{Knowledge}</td><td></td><td></td><td></td></tr><tr><td>So the final answer is: 2001</td><td>Intermediate answer: Random House was form in 2001.</td><td></td><td></td></tr><tr><td>#</td><td></td><td></td><td></td></tr><tr><td></td><td>Question: Who was in charge of the city where The Killing of a Sacred Deer was filmed?</td><td></td><td></td></tr><tr><td></td><td>Are follow up questions needed here: Yes.</td><td></td><td></td></tr><tr><td>{Knowledge}</td><td>Follow up: In which city was The Killing of a Sacred Deer filmed</td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td>Follow up: Who was in charge of Cincinnati?</td><td>Intermediate answer: The Killing of a Sacred Deer was filmed in Cincinnati.</td><td></td><td></td></tr><tr><td>{Knowledge}</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td>So the final answer is: John Cranley</td><td>Intermediate answer: The present Mayor of Cincinnati is John Cranley, so John Cranley is in charge.</td><td></td><td></td></tr><tr><td>#</td><td></td><td></td><td></td></tr><tr><td>Question: Where on the Avalon Peninsula is the city that Signal Hill overlooks?</td><td></td><td></td><td></td></tr><tr><td>Are follow up questions needed here: Yes.</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td>{Knowledge}</td><td>Follow up: What city does Signal Hill overlook?</td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td>Intermediate answer: Signal Hill is a hill which overlooks the city of St. John&#x27;s.</td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td>Follow up: Where on the Avalon Peninsula is St. John&#x27;s located?</td><td></td><td></td></tr><tr><td>{Knowledge}</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td>Intermediate answer: St. John&#x27;s is located on the eastern tip of the Avalon Peninsula.</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td>So the final answer is: eastern tip</td><td></td><td></td><td></td></tr></table>",
+        "bbox": [
+            129,
+            449,
+            848,
+            833
+        ],
+        "page_idx": 18
+    },
+    {
+        "type": "table",
+        "img_path": "images/44054ffb96437c685c1fb6de9eb8b50e54bfcea6633debeef0b56885a108d156.jpg",
+        "table_caption": [
+            "Table 19: 3-Shot Demonstrations for Self-Ask on MuSiQue. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>   </td><td> </td><td></td><td></td></tr><tr><td>answer the question directly. #</td><td></td><td></td><td></td></tr><tr><td>{Knowledge}</td><td></td><td></td><td></td></tr><tr><td></td><td>Question: In which year did the publisher of In Cold Blood form?</td><td></td><td></td></tr><tr><td>Are follow up questions needed here: Yes.</td><td></td><td></td><td></td></tr><tr><td></td><td>Follow up: What business published In Cold Blood?</td><td></td><td></td></tr><tr><td></td><td>Intermediate answer: In Cold Blood was published in book form by Random House.</td><td></td><td></td></tr><tr><td></td><td>Follow up: Which year witnessed the formation of Random House?</td><td></td><td></td></tr><tr><td>Intermediate answer: Random House was form in 2001.</td><td></td><td></td><td></td></tr><tr><td>So the final answer is: 2001</td><td></td><td></td><td></td></tr><tr><td>#</td><td></td><td></td><td></td></tr><tr><td>{Knowledge}</td><td></td><td></td><td></td></tr><tr><td></td><td>Question: Who was in charge of the city where The Killing of a Sacred Deer was filmed?</td><td></td><td></td></tr><tr><td>Are follow up questions needed here: Yes.</td><td></td><td></td><td></td></tr><tr><td></td><td>Follow up: In which city was The Killing of a Sacred Deer filmed</td><td></td><td></td></tr><tr><td></td><td>Intermediate answer: The Killing of a Sacred Deer was filmed in Cincinnati.</td><td></td><td></td></tr><tr><td>Follow up: Who was in charge of Cincinnati?</td><td></td><td></td><td></td></tr><tr><td>So the final answer is: John Cranley</td><td>Intermediate answer: The present Mayor of Cincinnati is John Cranley, so John Cranley is in charge.</td><td></td><td></td></tr><tr><td>#</td><td></td><td></td><td></td></tr><tr><td>{Knowledge }</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td>Question: Where on the Avalon Peninsula is the city that Signal Hill overlooks?</td><td></td><td></td></tr><tr><td>Are follow up questions needed here: Yes.</td><td></td><td></td><td></td></tr><tr><td>Follow up: What city does Signal Hill overlook?</td><td></td><td></td><td></td></tr><tr><td></td><td>Intermediate answer: Signal Hill is a hill which overlooks the city of St. John&#x27;s.</td><td></td><td></td></tr><tr><td></td><td>Follow up: Where on the Avalon Peninsula is St. John&#x27;s located?</td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td>Intermediate answer: St. John&#x27;s is located on the eastern tip of the Avalon Peninsula. So the final answer is: eastern tip</td><td></td><td></td><td></td></tr></table>",
+        "bbox": [
+            129,
+            129,
+            865,
+            481
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "table",
+        "img_path": "images/7328664a2d0fb1ae5dce3a69ee4d4a0bb0c6f3732959d4c35376a670f504bafe.jpg",
+        "table_caption": [
+            "Table 20: 3-Shot Demonstrations for ITER-RETGEN on MuSiQue. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>{Knowledge }</td><td>Question: In which year did the publisher of In Cold Blood form?</td></tr><tr><td>Let&#x27;s think step by step. So the answer is 2001</td><td>In Cold Blood was first published in book form by Random House. Random House was form in 2001.</td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td>{Knowledge }</td><td></td></tr><tr><td>Question: Who was in charge of the city where The Killing of a Sacred Deer was filmed? Let&#x27;s think step by step.</td><td></td></tr><tr><td></td><td></td></tr><tr><td>Cranley is in charge of the city.</td><td>Ti  Te  a   Je Jo</td></tr><tr><td>So the answer is John Cranley</td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td>{Knowledge }</td><td></td></tr><tr><td>Question: Where on the Avalon Peninsula is the city that Signal Hill overlooks?</td><td></td></tr><tr><td>Let&#x27;s think step by step.</td><td></td></tr><tr><td></td><td></td></tr><tr><td>i</td><td></td></tr><tr><td>So the answer is eastern tip</td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td><td></td></tr><tr><td></td></tr></table>",
+        "bbox": [
+            127,
+            607,
+            873,
+            844
+        ],
+        "page_idx": 19
+    },
+    {
+        "type": "table",
+        "img_path": "images/f2a71d36e7f49c85fc542143e42ce200102a12f6f27bd30d674fb53d8b591c43.jpg",
+        "table_caption": [
+            "Table 21: 3-Shot Demonstrations for Direct Prompting on Bamboogle. ",
+            "Table 22: 3-Shot Demonstrations for ReAct on Bamboogle. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td></td><td>  </td><td></td><td></td><td></td><td>    </td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>answer the question directly.</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Question: When did the first prime minister of the Russian Empire come into office?</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Are follow up questions needed here: Yes.</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Follow up: Who is the first prime minister of the Russian Empire?</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>{Knowledge}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Intermediate answer: Sergei Witte Follow up: When did Sergei Witte come into office?</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>{Knowledge}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Intermediate answer: Sergei Witte was appointed on 6 November 1905. So the final answer is: 1905-11-06 00:00:00</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Question: The most populous city in Punjab is how large (area wise)?</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Are follow up questions needed here: Yes.</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Follow up: What is the most populous city in Punjab?</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>{Knowledge } Intermediate answer: Ludhiana is the most populous and largest city in Punjab.</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Follow up: How large is Ludhiana, the most populous city in Punjab?</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>{Knowledge }</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Intermediate answer: The area of Ludhiana is over 310 km2.</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>So the final answer is: 310 square kilometers</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Question: What is the capital of the country where yoga originated?</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Are follow up questions needed here: Yes.</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Follow up: Which country was yoga originated?</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>{Knowledge }</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Intermediate answer: There is no consensus on yoga&#x27;s origin. Suggested origins include India.</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Follow up: What is the capital of India?</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>{Knowledge }</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>Intermediate answer: The current capital of India is New Delhi.</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td>So the final answer is: New Delhi</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table>",
+        "bbox": [
+            129,
+            449,
+            875,
+            833
+        ],
+        "page_idx": 20
+    },
+    {
+        "type": "table",
+        "img_path": "images/4fe9b2007819a9a1b9599e71a804df30bc9ffc7342009b3a5727cb7cfec06949.jpg",
+        "table_caption": [
+            "Table 23: 3-Shot Demonstrations for Self-Ask on Bamboogle. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>   answer the question directly.</td></tr><tr><td># {Knowledge}</td></tr><tr><td>Question: When did the first prime minister of the Russian Empire come into office?</td></tr><tr><td>Are follow up questions needed here: Yes.</td></tr><tr><td>Follow up: Who is the first prime minister of the Russian Empire?</td></tr><tr><td>Intermediate answer: Sergei Witte</td></tr><tr><td>Follow up: When did Sergei Witte come into office?</td></tr><tr><td>Intermediate answer: Sergei Witte was appointed on 6 November 1905.</td></tr><tr><td>So the final answer is: 1905-11-06 00:00:00</td></tr><tr><td>#</td></tr><tr><td>{Knowledge}</td></tr><tr><td>Question: The most populous city in Punjab is how large (area wise)?</td></tr><tr><td>Are follow up questions needed here: Yes.</td></tr><tr><td>Follow up: What is the most populous city in Punjab?</td></tr><tr><td>Intermediate answer: Ludhiana is the most populous and largest city in Punjab.</td></tr><tr><td>Follow up: How large is Ludhiana, the most populous city in Punjab? Intermediate answer: The area of Ludhiana is over 310 km2.</td></tr><tr><td>So the final answer is: 310 square kilometers</td></tr><tr><td>#</td></tr><tr><td>{Knowledge}</td></tr><tr><td>Question: What is the capital of the country where yoga originated?</td></tr><tr><td>Are follow up questions needed here: Yes.</td></tr><tr><td>Follow up: Which country was yoga originated?</td></tr><tr><td>Intermediate answer: There is no consensus on yoga&#x27;s origin. Suggested origins include India.</td></tr><tr><td>Follow up: What is the capital of India?</td></tr><tr><td>Intermediate answer: The current capital of India is New Delhi.</td></tr><tr><td></td></tr><tr><td>So the final answer is: New Delhi</td></tr></table>",
+        "bbox": [
+            129,
+            131,
+            877,
+            483
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "table",
+        "img_path": "images/eb39c94884ac41d038e139758024a10fbd4a0d63b1b5af84295f84805abce263.jpg",
+        "table_caption": [
+            "Table 24: 3-Shot Demonstrations for ITER-RETGEN on Bamboogle. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>{Knowledge}</td></tr><tr><td>Question: When did the first prime minister of the Russian Empire come into office?</td></tr><tr><td>Let&#x27;s think step by step.</td></tr><tr><td>The s priinis thRuss mi as Count Ser WiSer Wi as ppoite n Nove 0.</td></tr><tr><td>So the answer is 1905-11-06 00:00:00</td></tr><tr><td></td></tr><tr><td>{Knowledge }</td></tr><tr><td>Question: The most populous city in Punjab is how large (area wise)? Let&#x27;s think step by step.</td></tr><tr><td>  n </td></tr><tr><td>So the answer is 310 square kilometers</td></tr><tr><td></td></tr><tr><td></td></tr><tr><td>{Knowledge}</td></tr><tr><td>Question: What is the capital of the country where yoga originated?</td></tr><tr><td>Let&#x27;s think step by step.</td></tr><tr><td>Suggested origins include pre-Vedic Eastern states of India. The current capital of India is New Delhi.</td></tr><tr><td>So the answer is New Delhi</td></tr><tr><td></td></tr></table>",
+        "bbox": [
+            127,
+            615,
+            843,
+            843
+        ],
+        "page_idx": 21
+    },
+    {
+        "type": "table",
+        "img_path": "images/0db91ce6c33598dcd6284d0fded08e8a80f2b1aa3d875be938b0b5e67ef569a5.jpg",
+        "table_caption": [
+            "Table 25: 3-Shot Demonstrations for Direct Prompting on Feverous. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>{Knowledge} Soisy scBrahLah  , iMsrn oha Me The answer is Yes</td></tr><tr><td></td></tr><tr><td>{Knowledge}  </td></tr><tr><td>Show where the price ranges from 36.800 yuan to 60.800 yuan? The answer is No</td></tr><tr><td></td></tr><tr><td></td></tr><tr><td>{Knowledge}</td></tr><tr><td>I Gcoa eT</td></tr><tr><td>agencies and the bridge cost $14.2 million to construct? The answer is No</td></tr></table>",
+        "bbox": [
+            126,
+            99,
+            872,
+            300
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "table",
+        "img_path": "images/a2b7f8883ab7b00deecae7f799b2cdfc32859bee4c26f1e53dbb7c09717cf307.jpg",
+        "table_caption": [
+            "Table 26: 3-Shot Demonstrations for ReAct on Feverous. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td></td><td>     answer the question directly. The final answer should always be either Yes or No, and NOTHING ELSE.</td><td></td><td></td></tr><tr><td>Are follow up questions needed here: Yes. Follow up: What is the Belgrade Race?</td><td>Sois pascBaL  , iMsrnd Jsha Meh</td><td></td><td></td></tr><tr><td>{Knowledge} is held in Belgrade, Serbia.</td><td>Ie </td><td></td><td></td></tr><tr><td>{Knowledge} Intermediate answer: Yes, Brahim Lahlafi was the winner in 1996.</td><td>Follow up: Has Brahim Lahlafi won Belgrade Race?</td><td></td><td></td></tr><tr><td>{Knowledge} Intermediate answer: Yes, Philip Mosima beat Marathon world record and won in 1998</td><td>Follow up: Has Philip Mosima won Belgrade Race?</td><td></td><td></td></tr><tr><td>{Knowledge}</td><td>Follow up: Has Josphat Menjo won Belgrade Race?</td><td></td><td></td></tr><tr><td>So the final answer is: Yes #</td><td>Intermediate answer: Yes, Josphat Menjo broke the meet record and won the competition.</td><td></td><td></td></tr><tr><td></td><td>  Show where the price ranges from 36.800 yuan to 60.800 yuan?</td><td></td><td></td></tr><tr><td></td><td>Are follow up questions needed here: Yes. Follow up: When and where was the Baojun 310 launched?</td><td></td><td></td></tr><tr><td>{Knowledge}</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td>Intermediate answer: The Baojun 310 was launched on 2016 Beijing Auto Show, not 2017 Beijing Auto Show.</td><td></td><td></td></tr><tr><td>So the final answer is: No</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td>#</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td>agencies and the bridge cost $14.2 million to construct?</td><td>Ioa eT</td><td></td><td></td></tr><tr><td>Are follow up questions needed here: Yes.</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td>Follow up: How was Florida International University pedestrian bridge collapse funded?</td><td></td><td></td></tr><tr><td>{Knowledge }</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td> </td><td></td><td></td></tr><tr><td>Taov ecovoSa earT</td><td></td><td></td><td></td></tr><tr><td>in 2013, along with state agencies, which is consistent with facts in the question.</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td>Follow up: How much did it cost to construct Florida International University pedestrian bridge?</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td>{Knowledge }</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td>So the final answer is: No</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td>Intermediate answer: The bridge cost $9 million to construct, not $14.2 million.</td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr></table>",
+        "bbox": [
+            129,
+            367,
+            873,
+            872
+        ],
+        "page_idx": 22
+    },
+    {
+        "type": "table",
+        "img_path": "images/ac5da06f593fb341c20632c1d5fb11c6d09b25752026c6cce7a9550a6d380e6d.jpg",
+        "table_caption": [
+            "Table 27: 3-Shot Demonstrations for Self-Ask on Feverous. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>      answer the question directly. The final answer should always be either Yes or No, and NOTHING ELSE. # {Knowledge }</td></tr><tr><td></td></tr><tr><td>Seohisy pascBahL  , iMsrnd Jsha Meh</td></tr><tr><td>Are follow up questions needed here: Yes.</td></tr><tr><td>Follow up: What is the Belgrade Race? Ie </td></tr><tr><td>is held in Belgrade, Serbia.</td></tr><tr><td>Follow up: Has Brahim Lahlafi won Belgrade Race? Intermediate answer: Yes, Brahim Lahlafi was the winner in 1996.</td></tr><tr><td>Follow up: Has Philip Mosima won Belgrade Race?</td></tr><tr><td>Intermediate answer: Yes, Philip Mosima beat Marathon world record and won in 1998</td></tr><tr><td>Follow up: Has Josphat Menjo won Belgrade Race? Intermediate answer: Yes, Josphat Menjo broke the meet record and won the competition.</td></tr><tr><td>So the final answer is: Yes #</td></tr><tr><td></td></tr><tr><td>{Knowledge}   </td></tr><tr><td>Show where the price ranges from 36.800 yuan to 60.800 yuan?</td></tr><tr><td>Are follow up questions needed here: Yes.</td></tr><tr><td>Follow up: When and where was the Baojun 310 launched?</td></tr><tr><td>Intermediate answer: The Baojun 310 was launched on 2016 Beijing Auto Show, not 2017 Beijing Auto Show.</td></tr><tr><td>So the final answer is: No</td></tr><tr><td>#</td></tr><tr><td>{Knowledge}</td></tr><tr><td></td></tr><tr><td>I o </td></tr><tr><td>agencies and the bridge cost $14.2 million to construct?</td></tr><tr><td>Are follow up questions needed here: Yes.</td></tr><tr><td>Follow up: How was Florida International University pedestrian bridge collapse funded?</td></tr><tr><td></td></tr><tr><td>I 1 Taov Gecoa erT</td></tr><tr><td></td></tr><tr><td></td></tr><tr><td>in 2013, along with state agencies, which is consistent with facts in the question. Follow up: How much did it cost to construct Florida International University pedestrian bridge?</td></tr><tr><td></td></tr><tr><td>Intermediate answer: The bridge cost $9 million to construct, not $14.2 million. So the final answer is: No</td></tr></table>",
+        "bbox": [
+            129,
+            260,
+            872,
+            713
+        ],
+        "page_idx": 23
+    },
+    {
+        "type": "text",
+        "text": "{Knowledge}",
+        "bbox": [
+            131,
+            190,
+            211,
+            202
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "Question: Is it true that Belgrade Race is an annual men’s footrace of around 6 kilometres (5834 metres) that is held in Belgrade, Serbia through history, past winners includes Brahim Lahlafi (1st edition), Philip Mosima (3rd) and Josphat Menjo (6th)? Let’s think step by step. ",
+        "bbox": [
+            131,
+            202,
+            870,
+            235
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "I need to verify facts in the question. The Belgrade Race Through History is an annual men’s footrace of around 6 kilometres (5834 metres) that is held in Belgrade, Serbia. In 1996 Brahim Lahlafi was the winner of the competition. Philip Mosima won the competition in 1998, and beat Marathon world record holder Paul Tergat. Josphat Menjo also won the competition and broke the meet record. Therefore, past winners include Brahim Lahlafi, Philip Mosima and Josphat Menjo. All facts are verified. So the answer is Yes ",
+        "bbox": [
+            129,
+            236,
+            872,
+            292
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "{Knowledge}   \nQuestion: Is it true that Based on the same platform as the Chevrolet Sail, the Baojun 310 was launched on 2017 Beijing Auto Show where the price ranges from 36.800 yuan to 60.800 yuan?   \nLet’s think step by step.   \nI need to verify facts in the question. The Baojun 310 was indeed based on the same platform as the Chevrolet Sail. The Baojun 310 was launched on 2016 Beijing Auto Show, not 2017 Beijing Auto Show.   \nSo the answer is No {Knowledge}   \nQuestion: Is it true that Florida International University pedestrian bridge collapse was funded with a $\\$ 19.4$ million Transportation Investment Generating Economic Recovery grant from the United States Department of Transportation in 2013, along with state agencies and the bridge cost $\\$ 14.2$ million to construct?   \nLet’s think step by step.   \nI need to verify facts in the question. Florida International University pedestrian bridge was a $\\$ 14.2$ million project funded with a $\\$ 19.4$ million Transportation Investment Generating Economic Recovery (TIGER) grant from the United States Department of Transportation in 2013, along with state agencies. The Bridge cost $\\$ 8$ million to construct, not $\\$ 14.2$ million.   \nSo the answer is No   \n{Knowledge}   \nQuestion: Could a llama birth twice during War in Vietnam (1945-46)?   \nThe answer is No ",
+        "bbox": [
+            127,
+            316,
+            872,
+            397
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            124,
+            418,
+            872,
+            523
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "text",
+        "text": "",
+        "bbox": [
+            127,
+            737,
+            547,
+            771
+        ],
+        "page_idx": 24
+    },
+    {
+        "type": "table",
+        "img_path": "images/ea6b64d2d2d48fd62cf90d532adbc2a4052405b3cd859c46e3bccef967be1829.jpg",
+        "table_caption": [
+            "Table 30: 3-Shot Demonstrations for ReAct on StrategyQA. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>    answer the question directly. The final answer should always be either Yes or No, and NOTHING ELSE. #</td></tr><tr><td>Question: Is it common to see frost during some college commencements? Are follow up questions needed here: Yes.</td></tr><tr><td>Follow up: What seasons can you expect to see frost? {Knowledge}</td></tr><tr><td>Intermediate answer: Frost is common during the winter. Follow up: When is college commencement?</td></tr><tr><td>{Knowledge } Intermediate answer: College commencement ceremonies often happen during the months of December, May, June.</td></tr><tr><td>Follow up: Do any of the months December, May, June occur during the Winter? {Knowledge}</td></tr><tr><td>Intermediate answer: December is in the winter. So the final answer is: Yes #</td></tr><tr><td>Question: Could a llama birth twice during War in Vietnam (1945-46)?</td></tr><tr><td>Are follow up questions needed here: Yes. Follow up: How long did the vietnam war (1945-1946) last?</td></tr><tr><td>{Knowledge } Intermediate answer: The War in Vietnam (1945-46) lasted around 6 months.</td></tr><tr><td>Follow up: How long is the llama gestation period? {Knowledge} Intermediate answer: The gestation period for a llama is 11.5 months.</td></tr><tr><td>Follow up: What is 2 times 11.5?</td></tr><tr><td>{Knowledge} Intermediate answer: 23, which is longer than 6.</td></tr><tr><td>So the final answer is: No #</td></tr><tr><td>Question: Would Richard Dawkins hypothetically refuse an offering of the Last rites? Are follow up questions needed here: Yes.</td></tr><tr><td>Follow up: What are the last Rites? {Knowledge}</td></tr><tr><td>I when possible, shortly before death.</td></tr></table>",
+        "bbox": [
+            129,
+            228,
+            872,
+            744
+        ],
+        "page_idx": 25
+    },
+    {
+        "type": "table",
+        "img_path": "images/f3ee21159c6f6571a032d14c88caa3c9c4f04b06128b8b2ceeb2af0161b00c6b.jpg",
+        "table_caption": [
+            "Table 31: 3-Shot Demonstrations for Self-Ask on StrategyQA. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>   answer the question directly. The final answer should always be either Yes or No, and NOTHING ELSE. #</td></tr><tr><td>{Knowledge } Question: Is it common to see frost during some college commencements?</td></tr><tr><td>Are follow up questions needed here: Yes.</td></tr><tr><td>Follow up: What seasons can you expect to see frost?</td></tr><tr><td>Intermediate answer: Frost is common during the winter.</td></tr><tr><td>Follow up: When is college commencement?</td></tr><tr><td>Intermediate answer: College commencement ceremonies often happen during the months of December, May, June.</td></tr><tr><td>Follow up: Do any of the months December, May, June occur during the Winter? Intermediate answer: December is in the winter.</td></tr><tr><td>So the final answer is: Yes</td></tr><tr><td># {Knowledge }</td></tr><tr><td>Question: Could a llama birth twice during War in Vietnam (1945-46)?</td></tr><tr><td>Are follow up questions needed here: Yes.</td></tr><tr><td>Follow up: How long did the vietnam war (1945-1946) last? Intermediate answer: The War in Vietnam (1945-46) lasted around 6 months.</td></tr></table>",
+        "bbox": [
+            127,
+            86,
+            880,
+            527
+        ],
+        "page_idx": 26
+    },
+    {
+        "type": "table",
+        "img_path": "images/26d1bf341dcc3d470baf396f024ddcc766cb334c1651a94000b62ec7717f9a9b.jpg",
+        "table_caption": [
+            "Table 32: 3-Shot Demonstrations for ITER-RETGEN on StrategyQA. "
+        ],
+        "table_footnote": [],
+        "table_body": "<table><tr><td>Y     NOTHING ELSE.</td></tr><tr><td>{Knowledge}</td></tr><tr><td>Question: Is it common to see frost during some college commencements?</td></tr><tr><td>Let&#x27;s think step by step. Collg commencement ceremonies oten happen during the months o December, May, and sometimes JuneFros i&#x27;t</td></tr><tr><td>uncommon to see during the month of December, as it is the winter. So the answer is Yes</td></tr><tr><td></td></tr><tr><td>{Knowledge}</td></tr><tr><td>Question: Could a llama birth twice during War in Vietnam (1945-46)? Let&#x27;s think step by step.</td></tr><tr><td>minimum time needed is 2 times 11 months, which is 22 months, longer than 6 months.</td></tr><tr><td>So the answer is No</td></tr><tr><td></td></tr><tr><td>{Knowledge}</td></tr><tr><td></td></tr><tr><td>Question: Would Richard Dawkins hypothetically refuse an offering of the Last rites?</td></tr><tr><td></td></tr><tr><td>Let&#x27;s think step by step.</td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td>It is unlikely that an atheist would participate in Catholics prayers.</td></tr><tr><td></td></tr><tr><td></td></tr><tr><td>So the answer is Yes</td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr><tr><td></td></tr></table>",
+        "bbox": [
+            127,
+            565,
+            873,
+            891
+        ],
+        "page_idx": 26
+    }
+]

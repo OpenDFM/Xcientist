@@ -1,0 +1,181 @@
+{
+  "attri": {
+    "extraction": {
+      "title": {
+        "value": "Checklists Are Better Than Reward Models For Aligning Language Models",
+        "type": "string",
+        "unit": null,
+        "evidence": "Checklists Are Better Than Reward Models For Aligning Language Models",
+        "provenance": {
+          "section_header": "Title",
+          "page": null
+        },
+        "notes": ""
+      },
+      "source_link": {
+        "value": null,
+        "type": "string",
+        "unit": null,
+        "evidence": null,
+        "provenance": {
+          "section_header": null,
+          "page": null
+        },
+        "notes": "No URL provided in the paper."
+      },
+      "introduction": {
+        "core_problem": {
+          "value": "Today's models are almost universally trained to follow instructions via a two-step process: instruction finetuning, followed by reinforcement learning from human feedback (RLHF).",
+          "type": "string",
+          "unit": null,
+          "evidence": "As the general public integrates language model-based assistants into their completion of daily tasks, there is an expectation that language models can faithfully follow the users’ requests.",
+          "provenance": {
+            "section_header": "1 Introduction",
+            "page": 1
+          },
+          "notes": ""
+        },
+        "research_motivation": {
+          "value": "What would it take to make RL a general-purpose solution at eliciting desirable behaviors in subjective or open-ended settings?",
+          "type": "string",
+          "unit": null,
+          "evidence": "In this paper, we ask: 'how can we grade responses to instructions in a manner that is automatic (requires no human annotation), flexible (considers all aspects of response quality), intuitive (aligned with perceptible differences in responses), and applicable to any instruction or response, to enable more effective use of RL in language model alignment?'",
+          "provenance": {
+            "section_header": "1 Introduction",
+            "page": 1
+          },
+          "notes": ""
+        },
+        "innovation_summary": {
+          "value": "We propose 'Reinforcement Learning from Checklist Feedback' (RLCF), which uses dynamic checklists extracted from instructions for evaluating responses.",
+          "type": "string",
+          "unit": null,
+          "evidence": "As an answer, we propose extracting dynamic checklists from instructions – an approach we term Reinforcement Learning from Checklist Feedback (RLCF).",
+          "provenance": {
+            "section_header": "1 Introduction",
+            "page": 1
+          },
+          "notes": ""
+        }
+      },
+      "methods": {
+        "checklist_extraction_methods": {
+          "direct_method": {
+            "value": "We simply prompt an LM to extract a checklist from a given instruction.",
+            "type": "string",
+            "unit": null,
+            "evidence": "We examine two methods to extract checklists: Direct: We simply prompt an LM to extract a checklist from a given instruction.",
+            "provenance": {
+              "section_header": "2 Checklist Generation",
+              "page": 3
+            },
+            "notes": ""
+          },
+          "candidate_method": {
+            "value": "We view a requirement as any aspect of an instruction that, when absent, causes a response to fail.",
+            "type": "string",
+            "unit": null,
+            "evidence": "We propose a two-stage approach: produce responses of varying quality, then prompt an LM to write a checklist of all their possible failure modes.",
+            "provenance": {
+              "section_header": "2 Checklist Generation",
+              "page": 3
+            },
+            "notes": ""
+          },
+          "dataset_construction": {
+            "value": "We generate checklists for 130,000 instructions from WildChat to create a new dataset, WildChecklists.",
+            "type": "string",
+            "unit": null,
+            "evidence": "Using the candidate-based method, we generate checklists for 130,000 instructions from WildChat to create a new dataset, WildChecklists.",
+            "provenance": {
+              "section_header": "2 Checklist Generation",
+              "page": 4
+            },
+            "notes": ""
+          }
+        },
+        "rlcf_principle": {
+          "value": "RLCF uses checklist feedback to provide a flexible and comprehensive evaluation of responses, enhancing reinforcement learning.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We provide evidence that checklist-based rewards are well-correlated to human preference judgments (comparable to many finetuned reward models) while providing a stronger learning signal than alternatives.",
+          "provenance": {
+            "section_header": "1 Introduction",
+            "page": 1
+          },
+          "notes": ""
+        },
+        "evaluation_mechanism": {
+          "value": "We use a combination of an LM judge and a verifier program to grade the response.",
+          "type": "string",
+          "unit": null,
+          "evidence": "Given a prompt, a response, and an individual checklist item, we use a combination of an LM judge and a verifier program to grade the response.",
+          "provenance": {
+            "section_header": "3 Reinforcement Learning from Checklist Feedback",
+            "page": 5
+          },
+          "notes": ""
+        }
+      },
+      "experiments": {
+        "test_datasets": {
+          "value": "We evaluate our method on five benchmarks: IFEval, InFoBench, FollowBench, AlpacaEval, and Arena-Hard.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We evaluate our method on five benchmarks: IFEval [Zhou et al., 2023], InFoBench [Qin et al., 2024], FollowBench [Jiang et al., 2023], AlpacaEval [Dubois et al., 2024], and Arena-Hard [Li et al., 2024].",
+          "provenance": {
+            "section_header": "4 Experimental Setup and Results",
+            "page": 6
+          },
+          "notes": ""
+        },
+        "performance_improvements": {
+          "value": "RLCF provides a 5.4% relative improvement over Qwen2.5-7B-Instruct in average hard satisfaction rate on FollowBench.",
+          "type": "string",
+          "unit": null,
+          "evidence": "RLCF provides a $5.4\\%$ relative improvement over Qwen2.5-7B-Instruct in average hard satisfaction rate on FollowBench.",
+          "provenance": {
+            "section_header": "1 Introduction",
+            "page": 1
+          },
+          "notes": ""
+        },
+        "checklist_quality_comparison": {
+          "value": "Checklists generated by prompting an LLM directly are more natural, but candidate-based checklists have better objectiveness and atomicity.",
+          "type": "string",
+          "unit": null,
+          "evidence": "The results in Table 1 show that checklists generated by prompting an LLM directly are more natural. However, providing candidate responses to the LLM leads to checklists with consistently better objectiveness, atomicity, and overall quality.",
+          "provenance": {
+            "section_header": "2 Checklist Generation",
+            "page": 3
+          },
+          "notes": ""
+        }
+      },
+      "conclusions": {
+        "limitations": {
+          "value": "Our implementation of RLCF uses 'strong-to-weak generalization' and is computationally expensive.",
+          "type": "string",
+          "unit": null,
+          "evidence": "We highlight three key limitations with our work at present. First, our implementation of RLCF uses 'strong-to-weak generalization' – a larger model (Qwen2.5-72B-Instruct) provides AI judgments for tuning a smaller model.",
+          "provenance": {
+            "section_header": "7 Limitations",
+            "page": 10
+          },
+          "notes": ""
+        },
+        "future_directions": {
+          "value": "Combining checklist-style feedback with trainable judges is a potential future research direction.",
+          "type": "string",
+          "unit": null,
+          "evidence": "One exciting future direction to emerge from this work is: how can we combine checklist-style feedback with trainable judges?",
+          "provenance": {
+            "section_header": "8 Conclusion",
+            "page": 11
+          },
+          "notes": ""
+        }
+      }
+    }
+  }
+}

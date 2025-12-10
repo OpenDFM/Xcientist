@@ -1,0 +1,134 @@
+{
+    "schema_proposal": {
+        "title": {
+            "data_type": "string",
+            "description": "Paper title",
+            "rationale": "Canonical identifier for the research work."
+        },
+        "authors": {
+            "data_type": "list",
+            "description": "List of authors",
+            "rationale": "Credit and disambiguation of contributions."
+        },
+        "year": {
+            "data_type": "integer",
+            "description": "Publication year",
+            "rationale": "Provides temporal context for the research."
+        },
+        "abstract": {
+            "data_type": "string",
+            "description": "Summary of the paper",
+            "rationale": "Offers a concise overview of the research focus and findings."
+        },
+        "doi": {
+            "data_type": "string",
+            "description": "Digital Object Identifier",
+            "rationale": "Unique identifier for accessing the paper online."
+        },
+        "venue": {
+            "data_type": "string",
+            "description": "Conference or journal name",
+            "rationale": "Indicates the platform where the research was presented."
+        },
+        "problem_statement": {
+            "data_type": "string",
+            "description": "Description of the problem addressed",
+            "rationale": "Clarifies the specific challenge the research aims to solve."
+        },
+        "methodology": {
+            "data_type": "object",
+            "description": "Overview of the methods used",
+            "rationale": "Details the approach taken to address the problem.",
+            "sub_keys": {
+                "method_name": {
+                    "data_type": "string",
+                    "description": "Name of the proposed method",
+                    "rationale": "Identifies the specific technique introduced in the research."
+                },
+                "components": {
+                    "data_type": "list",
+                    "description": "List of key components or techniques used",
+                    "rationale": "Highlights important elements that make up the methodology."
+                },
+                "algorithm": {
+                    "data_type": "string",
+                    "description": "Description of the algorithm used",
+                    "rationale": "Provides details on the computational process involved."
+                }
+            }
+        },
+        "experiments": {
+            "data_type": "object",
+            "description": "Details of experiments conducted",
+            "rationale": "Describes the validation of the proposed methods.",
+            "sub_keys": {
+                "datasets": {
+                    "data_type": "list",
+                    "description": "List of datasets used for experiments",
+                    "rationale": "Indicates the data sources for evaluating the methods."
+                },
+                "evaluation_metrics": {
+                    "data_type": "list",
+                    "description": "Metrics used to evaluate performance",
+                    "rationale": "Defines the criteria for assessing the results."
+                },
+                "results": {
+                    "data_type": "object",
+                    "description": "Summary of experimental results",
+                    "rationale": "Presents the outcomes of the experiments conducted.",
+                    "sub_keys": {
+                        "performance": {
+                            "data_type": "list",
+                            "description": "List of performance metrics achieved",
+                            "rationale": "Quantifies the effectiveness of the method."
+                        },
+                        "comparisons": {
+                            "data_type": "list",
+                            "description": "Comparisons with baseline methods",
+                            "rationale": "Shows how the proposed method fares against existing techniques."
+                        }
+                    }
+                }
+            }
+        },
+        "results": {
+            "data_type": "object",
+            "description": "Overall findings of the research",
+            "rationale": "Summarizes the key insights and implications of the study.",
+            "sub_keys": {
+                "main_conclusions": {
+                    "data_type": "string",
+                    "description": "Key conclusions drawn from the research",
+                    "rationale": "Highlights the most significant outcomes."
+                },
+                "implications": {
+                    "data_type": "string",
+                    "description": "Implications for future research or applications",
+                    "rationale": "Discusses the impact of findings on the field."
+                }
+            }
+        },
+        "reproducibility_metadata": {
+            "data_type": "object",
+            "description": "Information for reproducing the study",
+            "rationale": "Ensures that others can replicate the research findings.",
+            "sub_keys": {
+                "code_repository": {
+                    "data_type": "string",
+                    "description": "Link to code repository",
+                    "rationale": "Provides access to implementation details."
+                },
+                "data_availability": {
+                    "data_type": "string",
+                    "description": "Information on data access",
+                    "rationale": "Indicates how others can obtain the datasets used."
+                },
+                "environment": {
+                    "data_type": "string",
+                    "description": "Description of the computational environment",
+                    "rationale": "Specifies the setup required to reproduce the experiments."
+                }
+            }
+        }
+    }
+}

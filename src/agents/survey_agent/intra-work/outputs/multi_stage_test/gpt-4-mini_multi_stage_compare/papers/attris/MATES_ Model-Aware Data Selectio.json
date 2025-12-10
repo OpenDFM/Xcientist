@@ -1,0 +1,274 @@
+{
+    "from": null,
+    "scholar_id": null,
+    "detail_id": null,
+    "title": "MATES: Model-Aware Data Selectio",
+    "bib_name": "MATES:Mode3",
+    "attri": {
+        "extraction": {
+            "title": {
+                "value": "MATES: Model-Aware Data Selection for Efficient Pretraining with Data Influence Models",
+                "type": "string",
+                "unit": null,
+                "evidence": "MATES: Model-Aware Data Selection for Efficient Pretraining with Data Influence Models",
+                "provenance": {
+                    "section_header": "Title",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "authors": {
+                "value": [
+                    "Zichun Yu",
+                    "Spandan Das",
+                    "Chenyan Xiong"
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": "Zichun Yu Spandan Das Chenyan Xiong",
+                "provenance": {
+                    "section_header": "Title",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "year": {
+                "value": 2024,
+                "type": "integer",
+                "unit": null,
+                "evidence": null,
+                "provenance": {
+                    "section_header": null,
+                    "page": null
+                },
+                "notes": "Year inferred from the references and context."
+            },
+            "abstract": {
+                "value": "Pretraining data selection has the potential to improve language model pretraining efficiency by utilizing higher-quality data from massive web data corpora. Current data selection methods, which rely on either hand-crafted rules or larger reference models, are conducted statically and do not capture the evolving data preferences during pretraining. In this paper, we introduce model-aware data selection with data influence models (MATES), where a data influence model continuously adapts to the evolving data preferences of the pretraining model and then selects the data most effective for the current pretraining progress. Specifically, we collect oracle data influence by locally probing the pretraining model and fine-tune a small data influence model to approximate it accurately. The data influence model then predicts data influence over the whole pretraining corpus and selects the most influential data for the next pretraining stage. Experiments of pretraining 410M and 1B models on the C4 dataset demonstrate that MATES significantly outperforms random data selection on extensive downstream tasks. It doubles the gains achieved by the state-of-the-art data selection approach that leverages larger reference models and reduces the total FLOPs required to reach certain performances by half. Further analyses validate the effectiveness of the locally probed oracle data influence and the approximation with data influence models. Our code is open-sourced at https://github.com/cxcscmu/MATES.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Pretraining data selection has the potential to improve language model pretraining efficiency by utilizing higher-quality data from massive web data corpora...",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "doi": {
+                "value": null,
+                "type": "string",
+                "unit": null,
+                "evidence": null,
+                "provenance": {
+                    "section_header": null,
+                    "page": null
+                },
+                "notes": "No DOI provided in the paper."
+            },
+            "venue": {
+                "value": null,
+                "type": "string",
+                "unit": null,
+                "evidence": null,
+                "provenance": {
+                    "section_header": null,
+                    "page": null
+                },
+                "notes": "No specific venue mentioned in the paper."
+            },
+            "problem_statement": {
+                "value": "Current data selection methods, which rely on either hand-crafted rules or larger reference models, are conducted statically and do not capture the evolving data preferences during pretraining.",
+                "type": "string",
+                "unit": null,
+                "evidence": "Current data selection methods, which rely on either hand-crafted rules or larger reference models, are conducted statically and do not capture the evolving data preferences during pretraining.",
+                "provenance": {
+                    "section_header": "Abstract",
+                    "page": 1
+                },
+                "notes": ""
+            },
+            "methodology": {
+                "method_name": {
+                    "value": "Model-Aware Data Selection",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "In this paper, we introduce model-aware data selection with data influence models (MATES)...",
+                    "provenance": {
+                        "section_header": "Abstract",
+                        "page": 1
+                    },
+                    "notes": ""
+                },
+                "method_description": {
+                    "value": "The method involves continuously adapting a data influence model to the evolving data preferences of the pretraining model and selecting the most effective data for pretraining.",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "MATES, where a data influence model continuously adapts to the evolving data preferences of the pretraining model and then selects the data most effective for the current pretraining progress.",
+                    "provenance": {
+                        "section_header": "Abstract",
+                        "page": 1
+                    },
+                    "notes": ""
+                },
+                "data_influence_model": {
+                    "model_type": {
+                        "value": "Data Influence Model",
+                        "type": "string",
+                        "unit": null,
+                        "evidence": "We collect oracle data influence by locally probing the pretraining model and fine-tune a small data influence model to approximate it accurately.",
+                        "provenance": {
+                            "section_header": "Abstract",
+                            "page": 1
+                        },
+                        "notes": ""
+                    },
+                    "training_method": {
+                        "value": "Fine-tuning on locally probed oracle data influence",
+                        "type": "string",
+                        "unit": null,
+                        "evidence": "We collect oracle data influence by locally probing the pretraining model and fine-tune a small data influence model to approximate it accurately.",
+                        "provenance": {
+                            "section_header": "Abstract",
+                            "page": 1
+                        },
+                        "notes": ""
+                    }
+                }
+            },
+            "experiments": {
+                "value": [
+                    {
+                        "experiment_name": {
+                            "value": "Pretraining Experiments on C4 Dataset",
+                            "type": "string",
+                            "unit": null,
+                            "evidence": "Experiments of pretraining 410M and 1B models on the C4 dataset demonstrate that MATES significantly outperforms random data selection on extensive downstream tasks.",
+                            "provenance": {
+                                "section_header": "Abstract",
+                                "page": 1
+                            },
+                            "notes": ""
+                        },
+                        "results": {
+                            "accuracy": {
+                                "value": 1.2,
+                                "type": "float",
+                                "unit": "%",
+                                "evidence": "MATES significantly outperforms random selection by an average zero-shot accuracy of $1.3\\%$ (410M) and $1.1\\%$ (1B)...",
+                                "provenance": {
+                                    "section_header": "5.1 Overall performance",
+                                    "page": 5
+                                },
+                                "notes": ""
+                            },
+                            "flops": {
+                                "value": 8.11,
+                                "type": "float",
+                                "unit": "1e19",
+                                "evidence": "MATES (Ours) (8.11)",
+                                "provenance": {
+                                    "section_header": "Table 1: Zero-shot evaluation of pretraining 410M/1B models with different data selection methods.",
+                                    "page": 5
+                                },
+                                "notes": "Total FLOPs used in the experiment."
+                            }
+                        }
+                    }
+                ],
+                "type": "list",
+                "unit": null,
+                "evidence": null,
+                "provenance": {
+                    "section_header": null,
+                    "page": null
+                },
+                "notes": "Only one experiment is detailed in the abstract."
+            },
+            "results": {
+                "performance_gain": {
+                    "value": 1.2,
+                    "type": "float",
+                    "unit": "%",
+                    "evidence": "MATES significantly outperforms random selection by an average zero-shot accuracy of $1.3\\%$ (410M) and $1.1\\%$ (1B)...",
+                    "provenance": {
+                        "section_header": "5.1 Overall performance",
+                        "page": 5
+                    },
+                    "notes": "Performance gain averaged over tasks."
+                },
+                "comparison": {
+                    "baseline_method": {
+                        "value": "QuRating",
+                        "type": "string",
+                        "unit": null,
+                        "evidence": "These gains are nearly double those achieved by the state-of-the-art data selection method, QuRating...",
+                        "provenance": {
+                            "section_header": "5.1 Overall performance",
+                            "page": 5
+                        },
+                        "notes": ""
+                    },
+                    "baseline_performance": {
+                        "value": 0.6,
+                        "type": "float",
+                        "unit": "%",
+                        "evidence": "MATES significantly outperforms random selection by an average zero-shot accuracy of $1.3\\%$ (410M) and $1.1\\%$ (1B)...",
+                        "provenance": {
+                            "section_header": "5.1 Overall performance",
+                            "page": 5
+                        },
+                        "notes": "Baseline performance is implied as less than MATES."
+                    }
+                }
+            },
+            "reproducibility_metadata": {
+                "code_link": {
+                    "value": "https://github.com/cxcscmu/MATES",
+                    "type": "string",
+                    "unit": null,
+                    "evidence": "Our code is open-sourced at https://github.com/cxcscmu/MATES.",
+                    "provenance": {
+                        "section_header": "Abstract",
+                        "page": 1
+                    },
+                    "notes": ""
+                },
+                "data_link": {
+                    "value": null,
+                    "type": "string",
+                    "unit": null,
+                    "evidence": null,
+                    "provenance": {
+                        "section_header": null,
+                        "page": null
+                    },
+                    "notes": "No specific dataset link provided."
+                },
+                "hyperparameters": {
+                    "learning_rate": {
+                        "value": 0.001,
+                        "type": "float",
+                        "unit": null,
+                        "evidence": "Max learning rate: 0.001",
+                        "provenance": {
+                            "section_header": "Experimental methodologies",
+                            "page": 4
+                        },
+                        "notes": ""
+                    },
+                    "batch_size": {
+                        "value": 512,
+                        "type": "integer",
+                        "unit": null,
+                        "evidence": "Batch size: 512",
+                        "provenance": {
+                            "section_header": "Experimental methodologies",
+                            "page": 4
+                        },
+                        "notes": ""
+                    }
+                }
+            }
+        }
+    }
+}
