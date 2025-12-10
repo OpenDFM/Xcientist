@@ -38,35 +38,35 @@ You MUST output a JSON object with this EXACT structure:
   "implementation_checklist": [
     {
       "step_id": 1,
-      "title": "Create Project Structure",
-      "description": "Create directories and __init__.py files",
-      "files_to_create": ["data/__init__.py", "models/__init__.py", "training/__init__.py"],
+      "title": "Create Project Structure with All File Skeletons",
+      "description": "Create ALL directories and ALL skeleton files with class/function signatures (pass/NotImplementedError bodies)",
+      "files_to_create": ["data/__init__.py", "data/dataset.py", "models/__init__.py", "models/encoder.py", "models/decoder.py", "training/__init__.py", "training/trainer.py"],
       "files_to_modify": null,
-      "acceptance_criteria": ["All directories exist"]
+      "acceptance_criteria": ["All directories exist: data/, models/, training/", "All skeleton files created with imports and class/function signatures", "Dataset class defined with __getitem__, __len__ signatures", "Encoder class defined with forward() signature", "Decoder class defined with forward() signature"]
     },
     {
       "step_id": 2,
       "title": "Implement Dataset Class",
-      "description": "Create Dataset with __getitem__ and __len__",
-      "files_to_create": ["data/dataset.py"],
-      "files_to_modify": null,
-      "acceptance_criteria": ["Dataset class works"]
+      "description": "Fill in Dataset implementation with actual data loading logic",
+      "files_to_create": null,
+      "files_to_modify": ["data/dataset.py"],
+      "acceptance_criteria": ["Inherits torch.utils.data.Dataset", "__getitem__(idx) returns (features: Tensor, label: Tensor)", "__len__() returns int", "Loads data from dataset_candidate/"]
     },
     {
       "step_id": 3,
       "title": "Implement Encoder",
-      "description": "Create Encoder network with Conv2d layers",
-      "files_to_create": ["models/encoder.py"],
-      "files_to_modify": null,
-      "acceptance_criteria": ["Encoder forward pass works"]
+      "description": "Fill in Encoder implementation with Conv2d layers",
+      "files_to_create": null,
+      "files_to_modify": ["models/encoder.py"],
+      "acceptance_criteria": ["Input: (batch, channels, H, W)", "Output: (batch, latent_dim)", "Uses nn.Conv2d layers", "forward(x) -> Tensor"]
     },
     {
       "step_id": 4,
       "title": "Implement Decoder",
-      "description": "Create Decoder network with ConvTranspose2d",
-      "files_to_create": ["models/decoder.py"],
-      "files_to_modify": null,
-      "acceptance_criteria": ["Decoder forward pass works"]
+      "description": "Fill in Decoder implementation with ConvTranspose2d",
+      "files_to_create": null,
+      "files_to_modify": ["models/decoder.py"],
+      "acceptance_criteria": ["Input: (batch, latent_dim)", "Output: (batch, channels, H, W)", "Uses nn.ConvTranspose2d layers", "forward(z) -> Tensor"]
     }
   ],
   "implementation_notes": "Use PyTorch 2.0+, ensure reproducibility with fixed seeds, use absolute imports.",
@@ -106,6 +106,15 @@ You MUST output a JSON object with this EXACT structure:
 | `files_to_create` | array or null | NO | Files to create |
 | `files_to_modify` | array or null | NO | Files to modify |
 | `acceptance_criteria` | array or null | NO | Verification criteria |
+
+### ⚠️ Acceptance Criteria Rules:
+Write **SPECIFIC, VERIFIABLE** criteria checkable by code review or unit test:
+- ✅ "Input: (batch, seq_len, features) tensor"
+- ✅ "Output: (batch, hidden_dim) tensor"
+- ✅ "Uses nn.Conv1d, not nn.Linear"
+- ✅ "Inherits from torch.utils.data.Dataset"
+- ❌ "Works correctly" (vague)
+- ❌ "Properly implemented" (not verifiable)
 
 ### ExperimentPlan Object:
 
@@ -150,7 +159,7 @@ def create_initial_plan_agent(
 ## WORKFLOW: EXPLORE → DESIGN → OUTPUT JSON
 
 ### 1️⃣ EXPLORE (Before Planning)
-Use `list_files` + `read_file` to scan:
+Use `list_directory` + `file_viewer` to scan:
 - `repos/`: Architecture patterns, training loops, data formats
 - `dataset_candidate/`: Available datasets, formats, sizes
 
@@ -163,7 +172,17 @@ Use `list_files` + `read_file` to scan:
 **CODE PLAN:**
 - File Structure: Flat under `project/`. Dirs: data/, models/, training/, configs/, utils/, scripts/, tests/
 - Imports: Absolute from project root: `from models.net import X`
-- Checklist: Step 1 = "Create Project Structure", then logical steps as needed
+
+**⚠️ CRITICAL: Step 1 MUST create FULL project skeleton:**
+- Step 1 title: "Create Project Structure with All File Skeletons"
+- Step 1 MUST create ALL directories AND ALL placeholder files listed in `file_structure`
+- Each placeholder file should have: imports, class/function signatures with `pass` or `raise NotImplementedError`
+- This ensures ALL files exist before any step tries to modify them
+- Subsequent steps then MODIFY these skeleton files (not create new ones)
+
+**Checklist structure:**
+- Step 1: Create ALL directories + ALL skeleton files (with interfaces defined)
+- Step 2+: Implement specific modules by MODIFYING existing skeleton files
 
 **EXPERIMENT PLAN:**
 - Baseline: Define method with same conditions as proposed

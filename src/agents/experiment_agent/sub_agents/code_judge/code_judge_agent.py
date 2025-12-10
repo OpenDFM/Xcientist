@@ -22,6 +22,7 @@ from src.agents.experiment_agent.utils.json_utils import (
     extract_and_parse_json,
     JSONParseError,
 )
+from src.agents.experiment_agent.utils.repo_map import generate_repo_map
 
 from src.agents.experiment_agent.utils.print_utils import *
 
@@ -97,6 +98,7 @@ def create_judge_output_unifier(model: str = None) -> Agent:
     """Create unifier agent to format judge output."""
     if model is None:
         from src.agents.experiment_agent.config import UNIFIER_MODEL
+
         model = UNIFIER_MODEL
     return Agent(
         name="Code Judge Output Unifier",
@@ -120,15 +122,47 @@ def create_judge_agent(
 
 ## 1️⃣ INSPECT (Interface Audit)
 
-| Check | Method | Flag If |
-|-------|--------|---------|
-| Imports | `read_file` target files | Import doesn't resolve to actual export |
+**Use Search → Zoom workflow:**
+1. `grep("pattern", ".")` - Find code (returns file:line)
+2. `file_viewer("file.py", start_line=N)` - View around line N
+
+| Check | How | Flag If |
+|-------|-----|---------|
+| Imports | `grep("from.*import", "file.py")` | Import doesn't exist |
 | Data contracts | Trace producer→consumer | Output format ≠ expected input format |
 | Signatures | Compare definition vs calls | Mismatch in params/types |
 | Breaking changes | Check callers of modified APIs | Callers not updated |
+| Torch dimensions | Check tensor ops | Hardcoded shapes / Missing validation |
+
+**🔥 TORCH CODE INSPECTION (CRITICAL):**
+When inspecting code with torch tensor operations, you MUST first think about the dimension flow table:
+
+**Dimension Flow Analysis Example:**
+```
+[DIMENSION FLOW ANALYSIS]
+Input: [B, C, H, W]
+↓ Conv2d(C→64, k=3)
+Conv_out: [B, 64, H, W]
+↓ Flatten
+Flattened: [B, 64*H*W]  <- Check if Linear layer matches this!
+↓ Linear(64*H*W→hidden_dim)
+Output: [B, hidden_dim]
+```
+
+Then verify the code:
+1. ✅ Uses dynamic dimensions (x.size(), x.shape[...])
+2. ✅ Has shape assertions in forward()
+3. ✅ **MANDATORY**: Each tensor operation line has inline comments showing tensor shapes
+   - Use variable names or symbols (B=batch, S=seq_len, H=hidden_dim, etc.) instead of hardcoded numbers
+   - Example: `x = self.linear(x)  # x: [B, S, H_in] -> [B, S, H_out]`
+   - Example: `out = torch.cat([a, b], dim=-1)  # a: [B, H1], b: [B, H2] -> out: [B, H1+H2]`
+4. ❌ Contains hardcoded dimensions (e.g., self.fc = nn.Linear(1024, ...))
+5. ❌ Assumes fixed batch_size
+6. ❌ Missing shape comments after tensor operations
+
 
 🚫 Flag as **CRITICAL** if Implement Agent didn't read related files before coding.
-
+🚫 Flag as **MAJOR** if torch code uses hardcoded shapes that may cause dimension mismatch.
 ---
 
 ## 2️⃣ TEST (Dynamic Verification)
@@ -364,28 +398,32 @@ class CodeJudgeAgent:
         """Get implementation checklist from code plan output."""
         if not code_plan_output:
             return []
-        
+
         # Unified access
         checklist = code_plan_output.get("implementation_checklist", [])
-        
+
         # Convert dict items to objects for consistent attribute access
         if checklist and isinstance(checklist[0], dict):
+
             class ChecklistStep:
                 def __init__(self, data):
                     for key, value in data.items():
                         setattr(self, key, value)
+
             checklist = [ChecklistStep(item) for item in checklist]
-        
+
         return checklist
-    
+
     def _extract_issue_history(self, context: Any) -> str:
         """Extract issue history from context's issue tracker for judge agent."""
-        if not hasattr(context, 'get_issue_tracker') or not hasattr(context, 'issue_tracker_data'):
+        if not hasattr(context, "get_issue_tracker") or not hasattr(
+            context, "issue_tracker_data"
+        ):
             return ""
-        
+
         if context.issue_tracker_data is None:
             return ""
-        
+
         try:
             tracker = context.get_issue_tracker()
             return tracker.format_for_judge_agent()
@@ -400,137 +438,115 @@ class CodeJudgeAgent:
         # Extract data from context
         plan = context.get("code_plan_output", None)
         checklist = self._get_checklist_from_plan(plan)
-        
+
         current_step_idx = context.get("current_checklist_step", 0)
         current_step = None
         checklist_progress = ""
-        
+
         if checklist and current_step_idx < len(checklist):
             current_step = checklist[current_step_idx]
             checklist_progress = f"Step {current_step_idx + 1}/{len(checklist)}"
 
-        target_files_context = ""
+        # === BUILD INPUT PROMPT (Prioritized Structure) ===
+
+        # 1. TASK SECTION (What to evaluate)
+        task_section = ""
+        files_to_review = []
         if current_step:
-            files_to_check = []
             if current_step.files_to_create:
-                files_to_check.extend(current_step.files_to_create)
+                files_to_review.extend(current_step.files_to_create)
             if current_step.files_to_modify:
-                files_to_check.extend(current_step.files_to_modify)
+                files_to_review.extend(current_step.files_to_modify)
+            files_to_review = list(set(files_to_review))
 
-            files_to_check = list(set(files_to_check))
+            files_list = (
+                "\n".join(f"- `{f}`" for f in files_to_review)
+                if files_to_review
+                else "- None"
+            )
 
-            # Filter out directories - only keep actual files
-            actual_files = []
-            for f in files_to_check:
-                if not f:
-                    continue
-                if f.endswith("/"):
-                    continue
-                # Remove duplicate "project/" prefix if present
-                clean_f = f.strip().lstrip("/").lstrip("\\")
-                if clean_f.startswith("project/") or clean_f.startswith("project\\"):
-                    clean_f = clean_f[8:]
-                full_path = os.path.join(self.working_dir, "project", clean_f)
-                if os.path.exists(full_path) and os.path.isdir(full_path):
-                    continue
-                actual_files.append(clean_f)
+            task_section = f"""
+## 🎯 EVALUATION TASK ({checklist_progress})
 
-            if actual_files:
-                file_contents = []
-                for f in actual_files:
-                    # f is already cleaned in the loop above
-                    clean_f = f
+**{current_step.title}**
 
-                    # 1. Try standard location: working_dir/project/path
-                    project_path = os.path.join(self.working_dir, "project", clean_f)
+{current_step.description}
 
-                    # 2. Fallback location: working_dir/path (if someone messed up structure)
-                    root_path = os.path.join(self.working_dir, clean_f)
-
-                    content = ""
-                    final_path = ""
-
-                    if os.path.exists(project_path) and os.path.isfile(project_path):
-                        final_path = project_path
-                    elif os.path.exists(root_path) and os.path.isfile(root_path):
-                        final_path = root_path
-                        content = f"[WARNING: File found at {root_path}, NOT in project/ subdirectory. Please move it.]\n"
-                    else:
-                        content = (
-                            f"[File not found: {clean_f}]\n[Checked: {project_path}]"
-                        )
-
-                    if final_path:
-                        try:
-                            with open(
-                                final_path, "r", encoding="utf-8", errors="replace"
-                            ) as f_obj:
-                                raw_lines = f_obj.readlines()
-                                if len(raw_lines) > 300:
-                                    content += (
-                                        "".join(raw_lines[:50])
-                                        + f"\n\n... ({len(raw_lines)-50} more lines) ..."
-                                    )
-                                else:
-                                    content += "".join(raw_lines)
-                        except Exception as e:
-                            content = f"[Error reading file: {str(e)}]"
-
-                    if not content.startswith("[Directory:") and not content.startswith(
-                        "[Binary file:"
-                    ):
-                        file_contents.append(
-                            f"--- FILE: {f} ---\n{content}\n----------------"
-                        )
-
-                target_files_context = "\n=== TARGET CODE CONTEXT ===\n" + "\n".join(
-                    file_contents
-                )
-
-        step_info = ""
-        if current_step:
-            step_info = f"""
-=== CURRENT STEP TO EVALUATE ===
-
-Step ID: {current_step.step_id}
-Title: {current_step.title}
-Description: {current_step.description}
-
-Files to Create: {', '.join(current_step.files_to_create) if current_step.files_to_create else 'None'}
-Files to Modify: {', '.join(current_step.files_to_modify) if current_step.files_to_modify else 'None'}
-
-Acceptance Criteria:
-{chr(10).join(f'  - {criterion}' for criterion in current_step.acceptance_criteria)}
-
-Progress: {checklist_progress}
+### Files to Review:
+{files_list}
 """
 
-        core_plan_context = extract_core_plan_context(context.code_plan_output)
-        
-        # Get issue history for tracking recurring problems
+        # 2. ACCEPTANCE CRITERIA (What to verify)
+        criteria_section = ""
+        if current_step and current_step.acceptance_criteria:
+            criteria_items = "\n".join(
+                f"- [ ] {c}" for c in current_step.acceptance_criteria
+            )
+            criteria_section = f"""
+## ✅ ACCEPTANCE CRITERIA (Verify Each)
+
+{criteria_items}
+"""
+
+        # 3. ISSUE HISTORY (Previously identified issues)
         issue_history_section = self._extract_issue_history(context)
+        history_section = ""
+        if issue_history_section:
+            history_section = f"""
+## 📜 PREVIOUSLY IDENTIFIED ISSUES
 
-        input_data = f"""Review the following code implementation (STEP-BY-STEP MODE):
-{step_info}
-
-{target_files_context}
+Check if each issue has been resolved in the current implementation:
 
 {issue_history_section}
+"""
 
-=== GLOBAL DESIGN CONTEXT ===
+        # 4. CODE SKELETON (Repo Map - overview of all code)
+        repo_map_section = ""
+        if self.working_dir:
+            project_dir = os.path.join(self.working_dir, "project")
+            if os.path.exists(project_dir):
+                repo_map = generate_repo_map(project_dir, max_files=30)
+                if repo_map and "[No Python files found" not in repo_map:
+                    repo_map_section = f"""
+## 🔗 CODE SKELETON (All Project Files)
+
+{repo_map}
+"""
+
+        # 5. BACKGROUND (Design context and analysis)
+        core_plan_context = extract_core_plan_context(context.code_plan_output)
+        analysis_summary = extract_analysis_summary(context.pre_analysis_output)
+
+        background_section = f"""
+## 📚 BACKGROUND
+
+### Design Context
 {core_plan_context}
 
-=== ANALYSIS SUMMARY ===
-{extract_analysis_summary(context.pre_analysis_output)}
+### Research Requirements
+{analysis_summary}
+"""
 
-=== CODEBASE PATH ===
-Project directory: {self.working_dir}/project
+        # 6. INSTRUCTIONS
+        instructions_section = f"""
+## 📋 INSTRUCTIONS
 
-INSTRUCTIONS:
-1. Check files in the Project Directory using available tools.
-2. If there are PREVIOUSLY IDENTIFIED ISSUES, check if each one has been resolved.
-3. Execute the VERIFICATION pipeline (write test -> run test -> judge).
-4. Report issues with SPECIFIC details (file path, line numbers, code examples, concrete fixes).
+1. **READ**: Use `file_viewer` to inspect the files listed above
+2. **VERIFY**: Check each acceptance criterion
+3. **TEST**: Write and run unit tests in `tests/` directory
+4. **JUDGE**: Report issues with SPECIFIC details (file, line, code example, fix suggestion)
+
+**Project Path**: `{self.working_dir}/project`
+"""
+
+        # Assemble final prompt
+        input_data = f"""
+{task_section}
+{criteria_section}
+{history_section}
+{repo_map_section}
+{background_section}
+{instructions_section}
 """
 
         return await self.judge(input_data)
@@ -550,7 +566,7 @@ INSTRUCTIONS:
 
 ### EXECUTION REQUIRED
 You must strictly follow the WORKFLOW defined in your system instructions.
-1. INSPECT: `read_file` target files.
+1. INSPECT: `file_viewer` target files.
 2. TEST: `write_file` (ensure valid JSON escaping: \\n for newlines, \\" for quotes) -> `run_pytest_local`.
 3. JUDGE: Return JSON output based on results.
 
@@ -561,17 +577,15 @@ Project Root: `{self.working_dir}/project`
         print_subsection("Evaluating Current Step Implementation")
         print_info("Reviewing code and running verification tests...")
 
-        run_config = RunConfig(
-            model_settings=ModelSettings(max_tokens=128*1024)
-        )
+        run_config = RunConfig(model_settings=ModelSettings(max_tokens=128 * 1024))
 
         # Use streamed version for real-time output
         result_stream = Runner.run_streamed(
-            self.judge_agent, 
-            judge_input, 
-            hooks=self.hooks, 
+            self.judge_agent,
+            judge_input,
+            hooks=self.hooks,
             max_turns=100,
-            run_config=run_config
+            run_config=run_config,
         )
         final_text = ""
         async for event in result_stream.stream_events():
@@ -613,11 +627,13 @@ Extract all issues, test results, and output the structured JSON:"""
         unifier_result = await Runner.run(
             self.output_unifier,
             unifier_prompt,
-            run_config=RunConfig(model_settings=ModelSettings(max_tokens=64*1024)),
+            run_config=RunConfig(model_settings=ModelSettings(max_tokens=64 * 1024)),
         )
 
         unified_text = ""
-        if hasattr(unifier_result, "final_output") and isinstance(unifier_result.final_output, str):
+        if hasattr(unifier_result, "final_output") and isinstance(
+            unifier_result.final_output, str
+        ):
             unified_text = unifier_result.final_output
         elif hasattr(unifier_result, "chat_history") and unifier_result.chat_history:
             unified_text = unifier_result.chat_history[-1].content
@@ -626,7 +642,9 @@ Extract all issues, test results, and output the structured JSON:"""
 
         # Extract and parse JSON from the unified output
         try:
-            evaluation = extract_and_parse_json(unified_text, CodeJudgeOutput, raise_on_failure=True)
+            evaluation = extract_and_parse_json(
+                unified_text, CodeJudgeOutput, raise_on_failure=True
+            )
         except JSONParseError as e:
             print_error(f"JSON parsing failed, will trigger retry: {e}")
             raise
@@ -637,16 +655,22 @@ Extract all issues, test results, and output the structured JSON:"""
                 is_consistent=False,
                 issues=[],
                 unit_tests=[],
-                implementation_suggestions=[f"JSON parsing failed: {str(e)}. Re-run evaluation."],
+                implementation_suggestions=[
+                    f"JSON parsing failed: {str(e)}. Re-run evaluation."
+                ],
             )
 
         # Display evaluation results
         print_subsection("Evaluation Results")
 
         if evaluation.is_consistent:
-            print_success(f"Code review passed! (Consistency: {evaluation.is_consistent})")
+            print_success(
+                f"Code review passed! (Consistency: {evaluation.is_consistent})"
+            )
         else:
-            print_error(f"Code review failed! (Consistency: {evaluation.is_consistent})")
+            print_error(
+                f"Code review failed! (Consistency: {evaluation.is_consistent})"
+            )
             print_warning(f"Issues found: {len(evaluation.issues)}")
 
         if evaluation.issues:
@@ -719,4 +743,3 @@ def create_code_judge_agent(
     return CodeJudgeAgent(
         model=model, working_dir=working_dir, tools=tools, verbose=verbose
     )
-

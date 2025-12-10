@@ -35,7 +35,7 @@ You MUST output a JSON object with this EXACT structure:
       "description": "Change dim=0 to dim=1 at line 45 in encoder.py",
       "files_to_create": null,
       "files_to_modify": ["models/encoder.py"],
-      "acceptance_criteria": ["No dimension mismatch error", "Forward pass completes"]
+      "acceptance_criteria": ["Line 45: dim=1 instead of dim=0", "encoder.forward(x) returns (batch, latent_dim)", "No RuntimeError on forward pass"]
     }
   ],
   "implementation_notes": "MINIMAL FIX: Only change the exact line causing the error. Do not refactor.",
@@ -65,6 +65,14 @@ You MUST output a JSON object with this EXACT structure:
 - Change MINIMUM code necessary
 - Prefer targeted fixes, each step handles 1 file
 - If fix requires > 20 lines, reconsider
+
+### ⚠️ Acceptance Criteria for Fixes:
+Write **SPECIFIC** criteria that verify the fix works:
+- ✅ "Line 45: dim=1 instead of dim=0"
+- ✅ "encoder.forward(x) returns (batch, latent_dim)"
+- ✅ "No KeyError on data['features']"
+- ❌ "Works correctly" (vague)
+- ❌ "Error is fixed" (not verifiable)
 
 ⚠️ **CRITICAL**: Output ONLY valid JSON, no markdown explanations!
 """
@@ -101,7 +109,7 @@ From the error feedback, extract:
 - FILE and LINE NUMBER
 - STACK TRACE
 
-Use `read_file` to read:
+Use `file_viewer` to read:
 - The file that threw the error
 - Functions in the stack trace
 - Related imports/dependencies

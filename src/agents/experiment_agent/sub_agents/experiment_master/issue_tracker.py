@@ -33,8 +33,8 @@ class TrackedIssue:
     suggestion: str
     
     # Tracking metadata
-    first_seen_step: int  # execution_step_counter when first seen
-    last_seen_step: int  # execution_step_counter when last seen
+    first_seen_step: int  # checklist step when first seen
+    last_seen_step: int  # checklist step when last seen
     occurrence_count: int = 1  # How many times this issue appeared
     
     # Status tracking
@@ -132,7 +132,7 @@ class IssueTracker:
     def process_judge_output(
         self, 
         judge_output: Dict[str, Any], 
-        current_step: int
+        checklist_step: int
     ) -> Dict[str, Any]:
         """
         Process judge output to update issue tracking.
@@ -141,11 +141,11 @@ class IssueTracker:
         1. Extracts issues from judge output
         2. Matches against existing issues using fingerprints
         3. Updates occurrence counts and escalates severity
-        4. Marks issues not present in this output as resolved
+        4. Removes issues not present in this output (they are resolved)
         
         Args:
             judge_output: Output from code_judge agent
-            current_step: Current execution_step_counter
+            checklist_step: Current step number in the checklist
             
         Returns:
             Summary of changes (new, updated, resolved counts)
@@ -167,7 +167,7 @@ class IssueTracker:
                 # Existing issue - update
                 tracked = self.issues[fingerprint]
                 tracked.occurrence_count += 1
-                tracked.last_seen_step = current_step
+                tracked.last_seen_step = checklist_step
                 tracked.status = "open"  # Re-open if was resolved
                 tracked.resolution_step = None
                 
@@ -203,8 +203,8 @@ class IssueTracker:
                     current_severity=issue.get("severity", "minor"),
                     description=issue.get("description", ""),
                     suggestion=issue.get("suggestion", ""),
-                    first_seen_step=current_step,
-                    last_seen_step=current_step,
+                    first_seen_step=checklist_step,
+                    last_seen_step=checklist_step,
                     occurrence_count=1,
                     status="open",
                 )
@@ -213,17 +213,20 @@ class IssueTracker:
                 new_count += 1
                 print(f"[ISSUE_TRACKER] New issue {issue_id}: {tracked.file_path} - {tracked.issue_type}")
         
-        # Mark issues not seen in this step as resolved
+        # Remove issues not seen in this step (they are resolved)
+        # Any open issue that doesn't appear in current judge output is considered resolved
         resolved_count = 0
+        fingerprints_to_remove = []
         for fingerprint, tracked in self.issues.items():
-            if (fingerprint not in current_step_fingerprints 
-                and tracked.status == "open"
-                and fingerprint in self._last_step_fingerprints):
-                # Issue was present last step but not now -> resolved
-                tracked.status = "resolved"
-                tracked.resolution_step = current_step
+            if fingerprint not in current_step_fingerprints and tracked.status == "open":
+                # Issue not reported by judge anymore -> resolved, remove it
+                fingerprints_to_remove.append(fingerprint)
                 resolved_count += 1
-                print(f"[ISSUE_TRACKER] Resolved {tracked.issue_id}: {tracked.file_path}")
+                print(f"[ISSUE_TRACKER] Resolved & removed {tracked.issue_id}: {tracked.file_path}")
+        
+        # Remove resolved issues from tracker
+        for fp in fingerprints_to_remove:
+            del self.issues[fp]
         
         # Update last step fingerprints
         self._last_step_fingerprints = current_step_fingerprints
@@ -232,8 +235,7 @@ class IssueTracker:
             "new_issues": new_count,
             "updated_issues": updated_count,
             "resolved_issues": resolved_count,
-            "total_open": sum(1 for t in self.issues.values() if t.status == "open"),
-            "total_resolved": sum(1 for t in self.issues.values() if t.status == "resolved"),
+            "total_open": len(self.issues),  # All issues in tracker are open
         }
     
     def get_open_issues(self) -> List[TrackedIssue]:
@@ -251,10 +253,6 @@ class IssueTracker:
             )
         )
     
-    def get_resolved_issues(self) -> List[TrackedIssue]:
-        """Get all resolved issues."""
-        return [t for t in self.issues.values() if t.status == "resolved"]
-    
     def get_recurring_issues(self, min_occurrences: int = 2) -> List[TrackedIssue]:
         """Get issues that have occurred multiple times."""
         return [
@@ -266,60 +264,36 @@ class IssueTracker:
         """
         Format issue history for code_implement agent input.
         
-        Returns a formatted string that includes:
-        - Open issues (prioritized)
-        - Recently resolved issues (for context)
+        Returns a formatted string with open issues (prioritized).
+        Note: Resolved issues are not stored, only open issues are tracked.
         """
         lines = []
         
         open_issues = self.get_open_issues()
-        resolved_issues = self.get_resolved_issues()
         
-        if not open_issues and not resolved_issues:
+        if not open_issues:
             return ""
         
-        lines.append("=== ISSUE HISTORY (from previous judge reviews) ===\n")
+        lines.append("=== OPEN ISSUES (from previous judge reviews) ===\n")
         
-        # Open issues
-        if open_issues:
-            lines.append("### OPEN ISSUES (must be addressed)")
+        for issue in open_issues:
+            warning = ""
+            if issue.occurrence_count >= 3:
+                warning = " ⚠️ RECURRING (appeared 3+ times)"
+            elif issue.occurrence_count >= 2:
+                warning = " ⚠️ (appeared twice)"
+            
+            escalation_note = ""
+            if issue.current_severity != issue.original_severity:
+                escalation_note = f" [ESCALATED from {issue.original_severity}]"
+            
+            lines.append(f"[{issue.issue_id}] [{issue.current_severity.upper()}]{escalation_note}{warning}")
+            lines.append(f"  File: {issue.file_path}")
+            lines.append(f"  Type: {issue.issue_type}")
+            lines.append(f"  Problem: {issue.description}")
+            lines.append(f"  Fix: {issue.suggestion}")
+            lines.append(f"  First seen: step {issue.first_seen_step}, Occurrences: {issue.occurrence_count}")
             lines.append("")
-            
-            for issue in open_issues:
-                warning = ""
-                if issue.occurrence_count >= 3:
-                    warning = " ⚠️ RECURRING (appeared 3+ times)"
-                elif issue.occurrence_count >= 2:
-                    warning = " ⚠️ (appeared twice)"
-                
-                escalation_note = ""
-                if issue.current_severity != issue.original_severity:
-                    escalation_note = f" [ESCALATED from {issue.original_severity}]"
-                
-                lines.append(f"[{issue.issue_id}] [{issue.current_severity.upper()}]{escalation_note}{warning}")
-                lines.append(f"  File: {issue.file_path}")
-                lines.append(f"  Type: {issue.issue_type}")
-                lines.append(f"  Problem: {issue.description}")
-                lines.append(f"  Fix: {issue.suggestion}")
-                lines.append(f"  First seen: step {issue.first_seen_step}, Occurrences: {issue.occurrence_count}")
-                lines.append("")
-        
-        # Resolved issues (brief, for context)
-        if resolved_issues:
-            lines.append("### RECENTLY RESOLVED ISSUES (for reference)")
-            lines.append("")
-            
-            # Only show recently resolved (last 3)
-            recent_resolved = sorted(
-                resolved_issues, 
-                key=lambda x: x.resolution_step or 0, 
-                reverse=True
-            )[:3]
-            
-            for issue in recent_resolved:
-                lines.append(f"[{issue.issue_id}] ✓ RESOLVED at step {issue.resolution_step}")
-                lines.append(f"  File: {issue.file_path} - {issue.issue_type}")
-                lines.append("")
         
         lines.append("=" * 60)
         lines.append("")
@@ -362,10 +336,16 @@ class IssueTracker:
         return "\n".join(lines)
     
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize tracker state for cache storage."""
+        """Serialize tracker state for cache storage. Only saves open issues."""
+        # Only save open issues - resolved issues are removed
+        open_issues = {
+            fp: issue.to_dict() 
+            for fp, issue in self.issues.items() 
+            if issue.status == "open"
+        }
         return {
             "issue_counter": self.issue_counter,
-            "issues": {fp: issue.to_dict() for fp, issue in self.issues.items()},
+            "issues": open_issues,
             "last_step_fingerprints": list(self._last_step_fingerprints),
         }
     
@@ -382,15 +362,12 @@ class IssueTracker:
         return tracker
     
     def get_stats(self) -> Dict[str, Any]:
-        """Get tracker statistics."""
+        """Get tracker statistics. Only open issues are tracked."""
         open_issues = self.get_open_issues()
-        resolved_issues = self.get_resolved_issues()
         recurring = self.get_recurring_issues()
         
         return {
-            "total_tracked": len(self.issues),
-            "open_count": len(open_issues),
-            "resolved_count": len(resolved_issues),
+            "total_open": len(open_issues),
             "recurring_count": len(recurring),
             "severity_breakdown": {
                 "critical": sum(1 for i in open_issues if i.current_severity == "critical"),

@@ -35,7 +35,7 @@ You MUST output a JSON object with this EXACT structure:
       "description": "Create scheduler.py with CosineAnnealingLR wrapper",
       "files_to_create": ["training/scheduler.py"],
       "files_to_modify": null,
-      "acceptance_criteria": ["Scheduler reduces LR over epochs"]
+      "acceptance_criteria": ["CosineAnnealingLR class with __init__(optimizer, T_max)", "step() method updates optimizer LR", "get_lr() returns current learning rate"]
     },
     {
       "step_id": 2,
@@ -43,7 +43,7 @@ You MUST output a JSON object with this EXACT structure:
       "description": "Add scheduler.step() call in training loop",
       "files_to_create": null,
       "files_to_modify": ["training/trainer.py"],
-      "acceptance_criteria": ["LR decreases during training"]
+      "acceptance_criteria": ["scheduler.step() called after each epoch", "LR logged each epoch shows decrease", "Scheduler initialized in Trainer.__init__()"]
     }
   ],
   "implementation_notes": "Based on analysis: model converges but slowly. Adding scheduler should improve convergence.",
@@ -73,6 +73,14 @@ You MUST output a JSON object with this EXACT structure:
 - Every change must be JUSTIFIED by feedback
 - If something works, DON'T TOUCH IT
 - MAX 15 steps, prefer 1-5 targeted improvements
+
+### ⚠️ Acceptance Criteria for Improvements:
+Write **SPECIFIC** criteria that verify the improvement:
+- ✅ "scheduler.step() called after each epoch"
+- ✅ "batch_size parameter added to config"
+- ✅ "forward() uses self.dropout(x)"
+- ❌ "Performance improved" (vague)
+- ❌ "Training is better" (not verifiable)
 
 ⚠️ **CRITICAL**: Output ONLY valid JSON, no markdown explanations!
 """
@@ -104,7 +112,7 @@ def create_analysis_feedback_plan_agent(
 ## WORKFLOW: READ → ANALYZE → OUTPUT JSON
 
 ### 1️⃣ READ (Before Planning)
-Use `read_file` to examine:
+Use `file_viewer` to examine:
    - Files mentioned in the feedback
 - Related files and dependencies
 - Entry points and main logic

@@ -145,6 +145,179 @@ def _validate_path_security(
 # Limits for large file handling
 MAX_READ_BYTES = 100 * 1024  # 100KB
 MAX_READ_LINES = 2000
+PAGE_SIZE = 50  # Fixed 50 lines per page
+
+
+@function_tool
+def grep(pattern: str, path: str = ".") -> Dict[str, Any]:
+    """
+    Search for a pattern in files (like grep/ripgrep).
+    Returns matching lines with file paths and line numbers.
+    
+    Args:
+        pattern: Search pattern (supports regex)
+        path: File or directory to search in (default: current directory)
+    
+    Returns:
+        List of matches with file:line:content format.
+        Use file_viewer(file, start_line=N) to see context around a match.
+    """
+    import re
+    
+    is_valid, abs_path, error_msg = _validate_path_security(path, allow_read_only=True)
+    if not is_valid:
+        return {"success": False, "error": error_msg}
+    
+    try:
+        regex = re.compile(pattern, re.IGNORECASE)
+    except re.error as e:
+        return {"success": False, "error": f"Invalid regex: {e}"}
+    
+    matches = []
+    max_matches = 50  # Limit results
+    
+    def search_file(file_path: str, rel_path: str):
+        nonlocal matches
+        if len(matches) >= max_matches:
+            return
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                for line_num, line in enumerate(f, 1):
+                    if len(matches) >= max_matches:
+                        break
+                    if regex.search(line):
+                        matches.append({
+                            "file": rel_path,
+                            "line": line_num,
+                            "content": line.strip()[:100],  # Truncate long lines
+                            "hint": f"file_viewer('{rel_path}', start_line={line_num})"
+                        })
+        except Exception:
+            pass  # Skip files that can't be read
+    
+    try:
+        abs_path_obj = Path(abs_path)
+        
+        if abs_path_obj.is_file():
+            search_file(str(abs_path_obj), abs_path_obj.name)
+        elif abs_path_obj.is_dir():
+            # Search Python files recursively
+            for py_file in abs_path_obj.rglob("*.py"):
+                if len(matches) >= max_matches:
+                    break
+                # Skip common directories
+                if any(skip in str(py_file) for skip in ["__pycache__", ".git", "venv", "node_modules"]):
+                    continue
+                try:
+                    rel_path = str(py_file.relative_to(abs_path_obj))
+                except ValueError:
+                    rel_path = str(py_file)
+                search_file(str(py_file), rel_path)
+        else:
+            return {"success": False, "error": f"Path not found: {abs_path}"}
+        
+        result = {
+            "success": True,
+            "pattern": pattern,
+            "match_count": len(matches),
+            "matches": matches,
+        }
+        
+        if len(matches) >= max_matches:
+            result["truncated"] = f"Showing first {max_matches} matches"
+        
+        return result
+        
+    except Exception as e:
+        return {"success": False, "error": f"Search error: {str(e)}"}
+
+
+@function_tool
+def file_viewer(file_path: str, start_line: Optional[int] = None, page: int = 1) -> Dict[str, Any]:
+    """
+    View file content (50 lines per page).
+    
+    Usage:
+    1. Page navigation: file_viewer("file.py", page=2)
+    2. Jump to line: file_viewer("file.py", start_line=52) - centers view on line 52
+    
+    Args:
+        file_path: Path to file
+        start_line: Jump to this line (from grep results). Shows 50 lines centered on it.
+        page: Page number (1-based, ignored if start_line is set)
+    """
+    is_valid, abs_path, error_msg = _validate_path_security(
+        file_path, allow_read_only=True
+    )
+
+    if not is_valid:
+        return {"success": False, "error": error_msg}
+
+    try:
+        if not os.path.exists(abs_path):
+            return {"success": False, "error": f"File not found: {abs_path}"}
+
+        with open(abs_path, "r", encoding="utf-8", errors="replace") as f:
+            all_lines = f.readlines()
+
+        total_lines = len(all_lines)
+        
+        # Mode 1: Jump to specific line (from grep)
+        if start_line is not None:
+            half = PAGE_SIZE // 2
+            begin = max(0, start_line - 1 - half)
+            end = min(total_lines, begin + PAGE_SIZE)
+            if end == total_lines:
+                begin = max(0, end - PAGE_SIZE)
+            
+            # Format with line numbers, highlight target line
+            numbered = []
+            for i, line in enumerate(all_lines[begin:end], start=begin + 1):
+                marker = ">>> " if i == start_line else "    "
+                numbered.append(f"{marker}{i:4d} | {line.rstrip()}")
+            
+            return {
+                "success": True,
+                "content": "\n".join(numbered),
+                "file_path": abs_path,
+                "lines": f"{begin + 1}-{end}",
+                "total_lines": total_lines,
+                "target_line": start_line,
+                "hint": f"Centered on line {start_line}",
+            }
+        
+        # Mode 2: Page-based navigation
+        total_pages = (total_lines + PAGE_SIZE - 1) // PAGE_SIZE
+
+        if page < 1:
+            page = 1
+        if page > total_pages and total_pages > 0:
+            page = total_pages
+
+        begin = (page - 1) * PAGE_SIZE
+        end = min(begin + PAGE_SIZE, total_lines)
+
+        page_content = "".join(all_lines[begin:end])
+
+        nav_hint = f"Page {page}/{total_pages} | Lines {begin + 1}-{end} of {total_lines}"
+        if page < total_pages:
+            nav_hint += f" | Next: file_viewer('{file_path}', page={page + 1})"
+        if page > 1:
+            nav_hint += f" | Prev: file_viewer('{file_path}', page={page - 1})"
+
+        return {
+            "success": True,
+            "content": page_content,
+            "file_path": abs_path,
+            "page": page,
+            "total_pages": total_pages,
+            "lines": f"{begin + 1}-{end}",
+            "total_lines": total_lines,
+            "navigation": nav_hint,
+        }
+
+    except Exception as e:
+        return {"success": False, "error": f"View error: {str(e)}"}
 
 
 @function_tool

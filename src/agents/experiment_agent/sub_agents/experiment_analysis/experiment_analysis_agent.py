@@ -114,7 +114,7 @@ Analysis triggers iteration back to code_plan_agent. Provide ACTIONABLE feedback
 ## WORKFLOW: READ → ANALYZE → OUTPUT JSON
 
 ### 1️⃣ READ
-Use `read_file` to read log files from `project/logs/` and results from `project/results/`.
+Use `file_viewer` to read log files from `project/logs/` and results from `project/results/`.
 🚫 **DO NOT make up numbers** - only report what you find in logs.
 
 ### 2️⃣ ANALYZE
@@ -370,7 +370,7 @@ Analyze experiment results and provide structured feedback for improvement.
 {f"- {experiment_plan_info}" if experiment_plan_info else ""}
 
 ## Instructions
-1. Read log files using `read_file` to extract actual metrics
+1. Read log files using `file_viewer` to extract actual metrics
 2. Analyze results comparing baseline vs proposed (if applicable)
 3. Provide structured JSON feedback following the format in your instructions
 

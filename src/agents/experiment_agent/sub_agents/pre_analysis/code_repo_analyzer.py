@@ -48,7 +48,7 @@ WORKFLOW:
 1. Use `list_directory` to discover repositories in {repos_path}
 2. For each repository found:
    a. Use `list_directory` to explore its structure
-   b. Use `read_file` to read key files (README, main modules, config files)
+   b. Use `file_viewer` to read key files (README, main modules, config files)
    c. Identify the repository's purpose and main functionality
 3. Generate a summary for each repository
 

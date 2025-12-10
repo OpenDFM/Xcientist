@@ -125,7 +125,7 @@ def create_execute_agent(
 ### 1️⃣ EXPLORE
 1. `list_files` → understand project structure
 2. Find entry scripts: `main.py`, `train.py`, `run_*.py`
-3. `read_file` → understand arguments, configs, data paths
+3. `file_viewer` → understand arguments, configs, data paths
 4. Verify datasets exist
 
 ### 2️⃣ EXECUTE

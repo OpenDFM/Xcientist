@@ -375,8 +375,8 @@ class VerboseRunHooks(RunHooks):
                 # Show success status
                 success = result.get("success")
                 if success is False:
-                    # Show error info
-                    error_msg = result.get("error", "Unknown error")
+                    # Show error info (check error field first, then stderr for shell commands)
+                    error_msg = result.get("error") or result.get("stderr") or "Unknown error"
                     print(f"   {Colors.FAIL}❌ Error: {error_msg}{Colors.ENDC}")
                     # Still show result content for debugging
                     result_str = json.dumps(result, indent=2, ensure_ascii=False)

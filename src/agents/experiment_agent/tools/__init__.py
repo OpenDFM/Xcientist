@@ -9,6 +9,8 @@ from typing import List, Dict, Any
 
 # Import all tools from modules
 from src.agents.experiment_agent.tools.file_tools import (
+    grep,
+    file_viewer,
     read_file,
     write_file,
     edit_file,
@@ -41,14 +43,16 @@ from src.agents.experiment_agent.tools.repository_tools import (
 
 
 FILE_TOOLS = [
-    read_file,
+    grep,
+    file_viewer,
     write_file,
     edit_file,
     list_directory,
 ]
 
 FILE_TOOLS_READONLY = [
-    read_file,
+    grep,
+    file_viewer,
     list_directory,
 ]
 
@@ -152,6 +156,8 @@ def get_tool_by_name(tool_name: str):
 
 
 __all__ = [
+    "grep",
+    "file_viewer",
     "read_file",
     "write_file",
     "edit_file",

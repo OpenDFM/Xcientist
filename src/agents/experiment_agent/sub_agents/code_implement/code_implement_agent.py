@@ -19,6 +19,7 @@ from src.agents.experiment_agent.utils.json_utils import (
     extract_and_parse_json,
     JSONParseError,
 )
+from src.agents.experiment_agent.utils.repo_map import generate_repo_map
 
 from src.agents.experiment_agent.utils.print_utils import *
 
@@ -81,6 +82,7 @@ CONTENT: ...
 1. Parse IMPLEMENTATION_TYPE -> `implementation_type`
 2. Parse each FILE block -> `generated_files` array
 3. Parse IMPLEMENTATION SUMMARY section -> `implementation_summary` object
+   - **CRITICAL**: `total_lines` MUST be an exact integer (e.g., `150`), NOT a string like `"500+"` or `"~200"`
 4. Parse TEST FILES section -> `test_files`:
    - If NO test files mentioned: set to `null`
    - If test files listed but no content: set `content` to empty string `""`
@@ -96,6 +98,7 @@ def create_implement_output_unifier(model: str = None) -> Agent:
     """Create unifier agent to format implementation output."""
     if model is None:
         from src.agents.experiment_agent.config import UNIFIER_MODEL
+
         model = UNIFIER_MODEL
     return Agent(
         name="Code Implement Output Unifier",
@@ -127,10 +130,18 @@ def create_unified_implement_agent(
 
 ### 1️⃣ DISCOVER (Before Writing Code)
 
-**Read before you write.** Use `read_file` to:
-- Trace inputs: find where arguments are created, their types/keys
-- Trace outputs: find consumers of your return values, verify expected format
-- Verify calls: read function definitions before calling them
+**Map → Search → Zoom workflow:**
+
+1. **Map**: Check REPO MAP section in context (already provided)
+2. **Search**: `grep("pattern", "path")` - find relevant code
+   - Example: `grep("class Dataset", "data/")` → returns file:line matches
+3. **Zoom**: `file_viewer("file.py", start_line=52)` - view context around line 52
+   - Or use `file_viewer("file.py", page=1)` for page-based browsing
+
+**Before implementing, verify:**
+- Trace inputs: `grep("MyClass", ".")` → find where it's used
+- Check signatures: `file_viewer("utils.py", start_line=30)` → see function definition
+- Find dependencies: `grep("import.*module", ".")`
 
 🚫 **NEVER** guess data structures. **NEVER** modify signatures without checking callers.
 
@@ -155,6 +166,40 @@ def create_unified_implement_agent(
 - Implement ONLY the current step
 - Input validation: check None, ≤0, empty, wrong type
 - Float comparison: use `torch.allclose(a, b, atol=1e-5)` not `==`
+
+**🔥 TORCH TENSOR OPERATIONS (MANDATORY for PyTorch code):**
+When writing code with torch tensor operations, you MUST first think about the dimension flow table:
+**Dimension Flow Table Example:**
+```
+[DIMENSION FLOW ANALYSIS]
+Input: [B, S, H_in]  # B=batch_size, S=seq_len, H_in=input_dim
+↓ Linear(H_in → H_hidden)
+Layer1: [B, S, H_hidden]
+↓ MultiHeadAttention(num_heads)
+Layer2: [B, S, H_hidden]
+↓ Mean pooling(dim=1)
+Pooled: [B, H_hidden]
+↓ Linear(H_hidden → 1)
+Output: [B, 1]
+```
+
+**Critical Principles:**
+- ✅ Use dynamic dimension inference (x.size(0), x.shape[-1])
+- ✅ Add shape assertions in forward() for key dimensions
+- ✅ **MANDATORY**: After each tensor operation line, add inline comments showing the shape of each tensor involved
+  - Use variable names or symbols (B=batch, S=seq_len, H=hidden_dim, etc.) instead of hardcoded numbers
+  - Example: `x = self.linear(x)  # x: [B, S, H_in] -> [B, S, H_out]`
+  - Example: `out = torch.cat([a, b], dim=-1)  # a: [B, H1], b: [B, H2] -> out: [B, H1+H2]`
+  - Example: `attn_weights = torch.matmul(q, k.transpose(-2, -1))  # q: [B, num_heads, S, d_k], k: [B, num_heads, S, d_k] -> attn_weights: [B, num_heads, S, S]`
+  - Example: `hidden = self.proj(x)  # x: [batch_size, seq_len, input_dim] -> hidden: [batch_size, seq_len, hidden_dim]`
+- ❌ NO hardcoded dimensions (e.g., nn.Linear(1024, ...))
+- ❌ NO fixed batch_size assumptions
+
+**🐛 DEBUGGING (When tests fail repeatedly):**
+- If same error occurs 2+ times: STOP blind fixing!
+- Add debug prints before the error line to inspect actual values/shapes
+- Run test again to see real data, then fix based on evidence
+- For dimension/shape errors: print ALL involved variables' shapes before the operation
 
 **⛔ ABSOLUTELY PROHIBITED - DO NOT CREATE THESE FILES:**
 - `STEP*.json`, `*_COMPLETION*.json`, `*_EVALUATION*.json`, `*_SUMMARY*.json`
@@ -279,16 +324,18 @@ class CodeImplementAgent:
         """Get implementation checklist from code plan output."""
         if not code_plan_output:
             return []
-        
+
         checklist = code_plan_output.get("implementation_checklist", [])
-        
+
         if checklist and isinstance(checklist[0], dict):
+
             class ChecklistStep:
                 def __init__(self, data):
                     for key, value in data.items():
                         setattr(self, key, value)
+
             checklist = [ChecklistStep(item) for item in checklist]
-        
+
         return checklist
 
     def _extract_judge_feedback(self, judge_output: Any) -> str:
@@ -300,7 +347,9 @@ class CodeImplementAgent:
         feedback_section = "=== LATEST FEEDBACK (from current judge review) ===\n"
         issues = judge_output.get("issues", [])
         if issues:
-            feedback_section += f"DETAILED ISSUES FROM CODE JUDGE: {len(issues)} found\n"
+            feedback_section += (
+                f"DETAILED ISSUES FROM CODE JUDGE: {len(issues)} found\n"
+            )
             for i, issue in enumerate(issues, 1):
                 desc = issue.get("description", "No description")
                 sugg = issue.get("suggestion", "No suggestion")
@@ -308,26 +357,28 @@ class CodeImplementAgent:
                 severity = issue.get("severity", "unknown")
                 expected = issue.get("expected", "N/A")
                 actual = issue.get("actual", "N/A")
-                
+
                 feedback_section += f"\n--- Issue #{i} [{severity.upper()}] ---\n"
                 feedback_section += f"File: {file_p}\n"
                 feedback_section += f"Problem: {desc}\n"
                 feedback_section += f"Expected: {expected}\n"
                 feedback_section += f"Actual: {actual}\n"
                 feedback_section += f"Fix: {sugg}\n"
-            
+
             feedback_section += f"\n{'='*60}\n"
 
         return feedback_section
-    
+
     def _extract_issue_history(self, context: Any) -> str:
         """Extract issue history from context's issue tracker."""
-        if not hasattr(context, 'get_issue_tracker') or not hasattr(context, 'issue_tracker_data'):
+        if not hasattr(context, "get_issue_tracker") or not hasattr(
+            context, "issue_tracker_data"
+        ):
             return ""
-        
+
         if context.issue_tracker_data is None:
             return ""
-        
+
         try:
             tracker = context.get_issue_tracker()
             return tracker.format_for_implement_agent()
@@ -345,90 +396,123 @@ class CodeImplementAgent:
         current_step_idx = getattr(context, "current_checklist_step", 0)
         current_step = None
         checklist_progress = ""
-        
+
         if checklist and current_step_idx < len(checklist):
             current_step = checklist[current_step_idx]
             checklist_progress = f"Step {current_step_idx + 1}/{len(checklist)}"
-            
+
         # Determine feedback
         judge_output = None
-        
+
         # Check for retry (retry count > 0 or explicit feedback type)
         retry_count = getattr(context, "checklist_step_retry_count", 0)
         pending_feedback_type = getattr(context, "pending_feedback_type", None)
-        
+
         feedback_section = ""
         if retry_count > 0 or pending_feedback_type == "judge_rejection":
             judge_output = getattr(context, "code_judge_output", None)
             feedback_section = self._extract_judge_feedback(judge_output)
 
-        # Build current step section
-        step_section = ""
+        # === BUILD INPUT PROMPT (Prioritized Structure) ===
+
+        # 1. TASK SECTION (Most Important)
+        task_section = ""
         if current_step:
-            step_section = f"""
-=== CURRENT STEP ===
-Current Checklist Step: {checklist_progress}
-Title: {current_step.title}
-Description: {current_step.description}
-Files to Create: {', '.join(current_step.files_to_create) if current_step.files_to_create else 'None'}
-Files to Modify: {', '.join(current_step.files_to_modify) if current_step.files_to_modify else 'None'}
-Acceptance Criteria:
-{chr(10).join(f'  - {c}' for c in current_step.acceptance_criteria)}
+            files_create = (
+                ", ".join(current_step.files_to_create)
+                if current_step.files_to_create
+                else "None"
+            )
+            files_modify = (
+                ", ".join(current_step.files_to_modify)
+                if current_step.files_to_modify
+                else "None"
+            )
+            task_section = f"""
+## 🎯 TASK ({checklist_progress})
+
+**{current_step.title}**
+
+{current_step.description}
+
+| Action | Files |
+|--------|-------|
+| Create | {files_create} |
+| Modify | {files_modify} |
 """
 
+        # 2. ACCEPTANCE CRITERIA (What counts as "done")
+        criteria_section = ""
+        if current_step and current_step.acceptance_criteria:
+            criteria_items = "\n".join(
+                f"- [ ] {c}" for c in current_step.acceptance_criteria
+            )
+            criteria_section = f"""
+## ✅ ACCEPTANCE CRITERIA
 
-
-        # Extract file structure from plan
-        file_structure_info = ""
-        file_structure = context.code_plan_output.get("file_structure", []) if context.code_plan_output else []
-        
-        if file_structure:
-            structure_lines = ["=== FILE STRUCTURE ===\n"]
-            for item in file_structure:
-                # Handle item being dict or object
-                path = item.get("path") if hasattr(item, "get") else getattr(item, "path", None)
-                if path:
-                    structure_lines.append(f"- {path}")
-            file_structure_info = "\n".join(structure_lines)
-
-        core_plan_context = extract_core_plan_context(context.code_plan_output)
-        
-        # Extract code repos info from pre_analysis_output
-        code_repos_info_section = ""
-        if hasattr(context, "pre_analysis_output") and context.pre_analysis_output:
-            code_repos_info = context.pre_analysis_output.get("code_repos_info", "")
-            if code_repos_info:
-                code_repos_info_section = f"=== REFERENCE CODE REPOSITORIES ===\n{code_repos_info}\n"
-        
-        # Extract issue history from tracker
-        issue_history_section = self._extract_issue_history(context)
-
-        mode_instructions = "You should follow the instructions to implement the code." if not feedback_section else f"You should follow the feedback to fix the code."
-        
-        # Add priority note for recurring issues
-        priority_note = ""
-        if issue_history_section:
-            priority_note = """
-⚠️ IMPORTANT: Review the ISSUE HISTORY section below. Issues marked as "RECURRING" have appeared multiple times 
-and MUST be prioritized. Failing to address recurring issues will result in continued rejection.
+{criteria_items}
 """
-        
-        input_prompt = f"""
-{mode_instructions}
-{priority_note}
 
-{step_section}
-
-{file_structure_info}
-
-{code_repos_info_section}
-
-{issue_history_section}
+        # 3. ISSUES TO FIX (If retry mode)
+        issues_section = ""
+        if feedback_section:
+            issues_section = f"""
+## ⚠️ ISSUES TO FIX (from Code Judge)
 
 {feedback_section}
+"""
 
-Global Context:
+        # 4. ISSUE HISTORY (Recurring problems)
+        issue_history_section = self._extract_issue_history(context)
+        history_section = ""
+        if issue_history_section:
+            history_section = f"""
+## 📜 ISSUE HISTORY
+
+⚠️ Issues marked "RECURRING" have appeared multiple times and MUST be prioritized!
+
+{issue_history_section}
+"""
+
+        # 5. EXISTING CODE (Repo Map - what's already implemented)
+        repo_map_section = ""
+        if self.working_dir:
+            project_dir = os.path.join(self.working_dir, "project")
+            if os.path.exists(project_dir):
+                repo_map = generate_repo_map(project_dir, max_files=30)
+                if repo_map and "[No Python files found" not in repo_map:
+                    repo_map_section = f"""
+## 🔗 EXISTING CODE (Interfaces you can use)
+
+{repo_map}
+"""
+
+        # 6. BACKGROUND REFERENCE (Collapsed/Optional)
+        core_plan_context = extract_core_plan_context(context.code_plan_output)
+
+        code_repos_info = ""
+        if hasattr(context, "pre_analysis_output") and context.pre_analysis_output:
+            code_repos_info = context.pre_analysis_output.get("code_repos_info", "")
+
+        background_section = f"""
+## 📚 BACKGROUND REFERENCE
+
 {core_plan_context}
+"""
+        if code_repos_info:
+            background_section += f"""
+### Reference Repositories
+{code_repos_info}
+"""
+
+        # Assemble final prompt
+        input_prompt = f"""
+{task_section}
+{criteria_section}
+{issues_section}
+{history_section}
+{repo_map_section}
+{background_section}
 """
 
         return await self.implement(input_prompt)
@@ -441,16 +525,14 @@ Global Context:
 
         print_subsection("Implementing Current Step")
 
-        run_config = RunConfig(
-            model_settings=ModelSettings(max_tokens=128*1024)
-        )
+        run_config = RunConfig(model_settings=ModelSettings(max_tokens=128 * 1024))
 
         implementation_stream = Runner.run_streamed(
-            self.implementation_agent, 
-            input_data, 
-            hooks=self.hooks, 
+            self.implementation_agent,
+            input_data,
+            hooks=self.hooks,
             max_turns=100,
-            run_config=run_config
+            run_config=run_config,
         )
         final_text = ""
         async for event in implementation_stream.stream_events():
@@ -504,11 +586,13 @@ Extract all file information and output the structured JSON:"""
         unifier_result = await Runner.run(
             self.output_unifier,
             unifier_prompt,
-            run_config=RunConfig(model_settings=ModelSettings(max_tokens=64*1024)),
+            run_config=RunConfig(model_settings=ModelSettings(max_tokens=64 * 1024)),
         )
 
         unified_text = ""
-        if hasattr(unifier_result, "final_output") and isinstance(unifier_result.final_output, str):
+        if hasattr(unifier_result, "final_output") and isinstance(
+            unifier_result.final_output, str
+        ):
             unified_text = unifier_result.final_output
         elif hasattr(unifier_result, "chat_history") and unifier_result.chat_history:
             unified_text = unifier_result.chat_history[-1].content
@@ -517,7 +601,9 @@ Extract all file information and output the structured JSON:"""
 
         # Extract and parse JSON from the unified output
         try:
-            final_output = extract_and_parse_json(unified_text, CodeImplementOutput, raise_on_failure=True)
+            final_output = extract_and_parse_json(
+                unified_text, CodeImplementOutput, raise_on_failure=True
+            )
         except JSONParseError as e:
             print_error(f"JSON parsing failed, will trigger retry: {e}")
             raise

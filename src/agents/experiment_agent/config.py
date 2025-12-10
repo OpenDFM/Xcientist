@@ -13,27 +13,32 @@ from typing import Optional
 # API提供商选择: "azure" 或 "openai"
 API_PROVIDER: str = "openai"
 
-# -----------------------------------------------------------------------------
-# Azure OpenAI 配置（当 API_PROVIDER=azure 时使用）
-# -----------------------------------------------------------------------------
-AZURE_ENDPOINT: Optional[str] = (
-    "https://yikai-m870y3k5-eastus2.cognitiveservices.azure.com/"
-)
-AZURE_API_KEY: Optional[str] = (
-    "PYPBhHVSnCL9J2i4whVg3X36uTArslFQWvYp5ENh7fFmR17gyiS1JQQJ99BCACHYHv6XJ3w3AAAAACOGruFq"
-)
-AZURE_API_VERSION: str = "2024-12-01-preview"
-AZURE_DEPLOYMENT: str = "gpt-4o-2"
+# # -----------------------------------------------------------------------------
+# # Azure OpenAI 配置（当 API_PROVIDER=azure 时使用）
+# # -----------------------------------------------------------------------------
+# AZURE_ENDPOINT: Optional[str] = (
+#     "https://yikai-m870y3k5-eastus2.cognitiveservices.azure.com/"
+# )
+# AZURE_API_KEY: Optional[str] = (
+#     "PYPBhHVSnCL9J2i4whVg3X36uTArslFQWvYp5ENh7fFmR17gyiS1JQQJ99BCACHYHv6XJ3w3AAAAACOGruFq"
+# )
+# AZURE_API_VERSION: str = "2024-12-01-preview"
+# AZURE_DEPLOYMENT: str = "gpt-4o-2"
 
-# -----------------------------------------------------------------------------
-# OpenAI 配置（当 API_PROVIDER=openai 时使用）
-# 支持OpenAI官方API或其他兼容API（如 https://www.dmxapi.cn/v1）
-# -----------------------------------------------------------------------------
-# OPENAI_API_KEY: Optional[str] = "sk-BWZ0Kqbk3PvdF0zRFf69B63901B84e85A5B4D8B1AfE27e2e"
-# OPENAI_API_BASE: Optional[str] = "https://api.xi-ai.cn/v1"
 
-OPENAI_API_KEY: Optional[str] = "sk-Q1Aah6ovHJyPhlmi0yZtNazWo29XiMyBIMtaKZGtG6RzFp2W"
-OPENAI_API_BASE: Optional[str] = "https://www.dmxapi.cn/v1"
+OPENAI_API_KEY: Optional[str] = "sk-BWZ0Kqbk3PvdF0zRFf69B63901B84e85A5B4D8B1AfE27e2e"
+OPENAI_API_BASE: Optional[str] = "https://api.xi-ai.cn/v1"
+
+MINIMAX_API_KEY: Optional[str] = (
+"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiLkvIEiLCJVc2VyTmFtZSI6IuS8gSIsIkFjY291bnQiOiIiLCJTdWJqZWN0SUQiOiIxOTk4MjcyNjcyNjM0NTA3NTQ0IiwiUGhvbmUiOiIxODk4NTU0MDc2NiIsIkdyb3VwSUQiOiIxOTk4MjcyNjcyNjMwMzEzMjQwIiwiUGFnZU5hbWUiOiIiLCJNYWlsIjoiIiwiQ3JlYXRlVGltZSI6IjIwMjUtMTItMTAgMTQ6MTQ6NTMiLCJUb2tlblR5cGUiOjQsImlzcyI6Im1pbmltYXgifQ.hvIJx5NfyV-53iYcS7AMkwooAK4yLv00ZMW0CojFki_S0qXfBECOFozLVcSVcS_-Lbn1ttS6_ZQmuFOZLzZbMz679Svq_ffebftANne4fUQheFrdWMiI48JBvzVH5aDL85cxyLyLU4zfujrE1tpEkfOWddgASMpSzZmK-uiivOOPJqAoMQI76kyZbuVTIIMjXYmsTKsYpmj83ggnpHFT8E2pmXBnQyL_5IRwDRLyN4VKSRUjSRvjo8z4_QE_f1ubGLThJgnCeb0mS5nVtjg9rGcBHmRsvJoTwLKPSRv8lCaEvGTM9U8UVvOcMIt9Y3BgBT2tuUvDXJt-VGAnw3OfhA"
+)
+
+
+MINIMAX_API_BASE: Optional[str] = "https://api.minimaxi.com/v1"
+
+MINIMAX_MODEL_EXTRA_BODY: dict = {"reasoning_split": True}
+
+MINIMAX_MODELS: list = ["MiniMax-M2"]
 
 # =============================================================================
 # Model Configuration - 每个Agent的模型配置
@@ -53,7 +58,7 @@ EXECUTE_EXPERIMENT_MODEL: str = "MiniMax-M2"
 
 RESULT_ANALYSIS_MODEL: str = "gpt-5.1"
 
-UNIFIER_MODEL: str = "gpt-4.1-mini"
+UNIFIER_MODEL: str = "gpt-5-mini"
 
 DEFAULT_MODEL: str = "MiniMax-M2"
 
@@ -239,10 +244,15 @@ COLORED_LOGS: bool = True
 # =============================================================================
 
 
+def is_minimax_model(model_name: str) -> bool:
+    if not model_name:
+        return False
+    return any(m.lower() in model_name.lower() for m in MINIMAX_MODELS)
+
+
 def get_openai_config(model: Optional[str] = None) -> dict:
     """
     Get OpenAI configuration dictionary.
-
     Args:
         model: Optional model name to use. If not provided, uses DEFAULT_MODEL.
 
@@ -261,14 +271,40 @@ def get_openai_config(model: Optional[str] = None) -> dict:
             "model_name": model_to_use,
         }
     else:  # openai
-        config = {
-            "use_azure": False,
-            "api_key": OPENAI_API_KEY,
-            "model_name": model_to_use,
-        }
-        if OPENAI_API_BASE:
-            config["base_url"] = OPENAI_API_BASE
+        # 检查是否为 MiniMax 模型，使用对应的 API 配置
+        if is_minimax_model(model_to_use):
+            config = {
+                "use_azure": False,
+                "api_key": MINIMAX_API_KEY,
+                "model_name": model_to_use,
+                "base_url": MINIMAX_API_BASE,
+                "extra_body": MINIMAX_MODEL_EXTRA_BODY,
+                "is_minimax": True,
+            }
+        else:
+            config = {
+                "use_azure": False,
+                "api_key": OPENAI_API_KEY,
+                "model_name": model_to_use,
+                "is_minimax": False,
+            }
+            if OPENAI_API_BASE:
+                config["base_url"] = OPENAI_API_BASE
         return config
+
+
+def get_minimax_config() -> dict:
+    """
+    获取 MiniMax API 专用配置。
+
+    Returns:
+        Dictionary with MiniMax API configuration
+    """
+    return {
+        "api_key": MINIMAX_API_KEY,
+        "base_url": MINIMAX_API_BASE,
+        "extra_body": MINIMAX_MODEL_EXTRA_BODY,
+    }
 
 
 def get_model_config() -> dict:
@@ -365,6 +401,11 @@ def validate_config(experiment_id: Optional[str] = None) -> tuple[bool, list[str
     else:  # openai
         if not OPENAI_API_KEY:
             errors.append("OPENAI_API_KEY is not set")
+        # Check MiniMax configuration
+        if not MINIMAX_API_KEY:
+            errors.append("MINIMAX_API_KEY is not set")
+        if not MINIMAX_API_BASE:
+            errors.append("MINIMAX_API_BASE is not set")
 
     # Check model configuration
     if not DEFAULT_MODEL:
@@ -427,6 +468,11 @@ def print_config(experiment_id: Optional[str] = None):
         print(f"  OpenAI API Key: {'*' * 20}...")
         if OPENAI_API_BASE:
             print(f"  OpenAI API Base: {OPENAI_API_BASE}")
+        print(f"\n  [MiniMax API Configuration]")
+        print(f"  MiniMax API Key: {'*' * 20}...")
+        print(f"  MiniMax API Base: {MINIMAX_API_BASE}")
+        print(f"  MiniMax Models: {MINIMAX_MODELS}")
+        print(f"  MiniMax Extra Body: {MINIMAX_MODEL_EXTRA_BODY}")
 
     print(f"\n[Model Configuration]")
     print(f"  Experiment Master: {EXPERIMENT_MASTER_MODEL}")
