@@ -1,5 +1,0 @@
-A Survey of Automatic Generation of Source Code Comments: Algorithms and Techniques
-Diagnostic captioning: a survey
-Development of a Generation/Expression System of Narratives in the Style of a Folk Tale, KOSERUBE Version 1
-Barriers and enabling factors for error analysis in NLG research
-A survey on automatic generation of medical imaging reports based on deep learning

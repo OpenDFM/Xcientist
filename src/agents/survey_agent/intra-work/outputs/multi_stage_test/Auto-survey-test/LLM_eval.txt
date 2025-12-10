@@ -1,3 +1,0 @@
-[STATS] AutoSurvey: Large Language Models Can Automatically Write Surveys.json averages -> 
-consistency: 5.000, insight: 4.000, integrity: 5.000
-
