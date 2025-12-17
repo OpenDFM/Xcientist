@@ -1,10 +1,13 @@
 BasicInfo:
-  topic: Vision Transformers
+  topic: ""
+  evaluation_save_path: ""
+  save_path: ""
+  save_json_path: ""
+  topic_path: ./topics.txt
+  output_base_dir: ./outputs/batch
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
-  save_path: ./outputs/vit.md
-  save_json_path: ./outputs/vit.json
-  evaluation_save_path: ./outputs/vit_evaluation.txt
+  topic_max_retry: 1
   debug: True
 APIInfo:
   llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f

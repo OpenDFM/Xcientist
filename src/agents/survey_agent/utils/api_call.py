@@ -12,7 +12,7 @@ from tenacity import (
 from tqdm import tqdm
 from pathlib import Path
 from utils.rich_logger import get_logger
-
+import tiktoken
 
 class SemanticScholarAPI:
     def __init__(self, config):
@@ -57,6 +57,7 @@ class ChatAgent:
     Record_show_length = 200
 
     def __init__(self, config) -> None:
+        self.config = config
         self.remote_url = config.APIInfo.llm_api_base_url
         self.token = config.APIInfo.llm_api_key
         self.header = {
@@ -152,6 +153,44 @@ class ChatAgent:
                 i, resp = future.result()
                 res_l[i] = resp
         return res_l
+
+    import tiktoken
+
+    def encode_with_fallback(self, text: str, model: str = "gpt-4o-mini"):
+        try:
+            enc = tiktoken.encoding_for_model(model)
+        except Exception:
+            enc = tiktoken.get_encoding("cl100k_base")
+        return enc.encode(text), enc
+
+    def truncate_text(self, pid:str, text: str, allowed: int) -> str:
+
+        tokens, enc = self.encode_with_fallback(text, model=self.config.APIInfo.llm_model_name)
+        token_len = len(tokens)
+        
+        if token_len > allowed:
+            self.logger.warning(f"Paper {pid} tokens={token_len}, truncate to {allowed}")
+            tokens = tokens[:allowed]
+            truncate_text = enc.decode(tokens)
+
+            if(truncate_text[:3000] != text[:3000]):
+                self.logger.warning(f"Truncation error for paper {pid}, fallback to approiximation.")
+                approx_tokens = len(text) / 4  # 1 token ≈ 4 chars
+                if approx_tokens > allowed:
+                    new_char_len = int(allowed * 4)
+                    self.logger.warning(
+                        f"Paper {pid} markdown too long: ~{approx_tokens:.0f} tokens, "
+                        f"truncating to ~{allowed}."
+                    )
+                    text = text[:new_char_len]
+            else:
+                text = truncate_text
+        return text
+
+    def estimate_tokens(self, text: str) -> int:
+        tokens, enc = self.encode_with_fallback(text, model=self.config.APIInfo.llm_model_name)
+        token_len = len(tokens)
+        return token_len
 
 
 if __name__ == "__main__":

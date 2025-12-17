@@ -1,7 +1,8 @@
 import hashlib
 import re, json
 from typing import Dict
-
+import os
+import pypdfium2 as pdfium
 
 def get_hash(text):
     return hashlib.md5(text.encode("utf-8")).hexdigest()
@@ -17,6 +18,26 @@ def extract_json(text):
     if not m:
         raise ValueError("No JSON found")
     return json.loads(m.group())
+
+def is_valid_pdf(path: str) -> bool:
+    if not os.path.isfile(path) or os.path.getsize(path) < 2048:
+        return False
+    try:
+        with open(path, "rb") as f:
+            head = f.read(5)
+            size = os.path.getsize(path)
+            f.seek(max(size - 20, 0), os.SEEK_SET)
+            tail = f.read()
+        if not (head == b"%PDF-" and b"%%EOF" in tail):
+            return False
+        pdfium.PdfDocument(path)  # 深一层校验
+        return True
+    except Exception:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        return False
 
 
 if __name__ == "__main__":

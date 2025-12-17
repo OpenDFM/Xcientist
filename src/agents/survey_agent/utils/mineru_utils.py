@@ -280,7 +280,7 @@ def parse_doc(
             end_page_id=end_page_id,
         )
     except Exception as e:
-        logger.exception(e)
+        logger.exception(f"Error in mineru parse_doc: {e}")
 
 
 if __name__ == "__main__":

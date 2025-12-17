@@ -44,50 +44,78 @@ class WorkAnalyzer:
 
     def read_papers_and_write_keynotes(self, papers: List[str], retry: int = 1):
         if retry > self.config.ModuleInfo.WorkAnalyzer.paper_reading_max_retry:
-            return
-        try:
-            tasks = []
-            for pid in papers:
+            self.logger.error("Exceeded maximum retries for reading papers.")
+            self.logger.error(f"Papers failed to read: {papers}")
+            return papers
+        
+        tasks = []
+        err_papers = []
+        for pid in papers:
+            try:
                 hash_id = get_hash(pid)
                 if hash_id in self.paper_keynote_cache:
                     continue
 
-                with open(
-                    os.path.join(
-                        f"{self.cache_path}/parsed_papers", pid, "auto", f"{pid}.md"
-                    ),
-                    "r",
-                    encoding="utf-8",
-                ) as fr:
-                    paper_markdown_text = fr.read()
+                paper_markdown_text = self.get_paper_raw_markdown(pid)
+
+                if paper_markdown_text.strip() == "Fail to Get Content":
+                    self.logger.error(f"Failed to get content for paper ID: {pid} in PAPER COMPREHENDING. Skipping this paper.")
+                    err_papers.append(pid)
+                    continue
+
+                max_ctx = self.config.APIInfo.llm_max_context_length
+                overhead = self.config.APIInfo.llm_max_context_overhead_length
+                allowed = max_ctx - overhead
+
+                paper_markdown_text = self.chat_agent.truncate_text(pid, paper_markdown_text, allowed)
+
+                prompt = PAPER_DEEP_READING.format(
+                    paper_markdown_text=paper_markdown_text
+                )
+
                 tasks.append(
                     [
                         pid,
                         hash_id,
-                        PAPER_DEEP_READING.format(
-                            paper_markdown_text=paper_markdown_text
-                        ),
+                        prompt,
                     ]
                 )
+            except Exception as e:
+                self.logger.error(f"Error preparing paper {pid} for reading: {e} in PAPER COMPREHENDING")
+                err_papers.append(pid)
 
-            prompts = [task[2] for task in tasks]
-            if not prompts:
-                return
+        prompts = [task[2] for task in tasks]
+        if not prompts and not err_papers:
+            return []  # all papers are already processed
+
+        try:
             responses = self.chat_agent.batch_remote_chat(
                 prompts,
                 temperature=self.config.ModuleInfo.WorkAnalyzer.paper_reading_temperature,
                 desc="Reading papers",
             )
-            for i, response in enumerate(responses):
+        except Exception as e:
+            self.logger.error(f'Error: {e} , during comprehending papers in getting response from LLM, retrying all...')
+            return self.read_papers_and_write_keynotes(papers, retry=retry + 1)
+
+        for i, response in enumerate(responses):
+            try:
                 pid, hash_id, _ = tasks[i]
+                keynote = extract_json(response)
                 self.paper_keynote_cache[hash_id] = {
                     "paper_id": pid,
-                    "keynote": extract_json(response),
+                    "keynote": keynote,
                 }
                 if self.config.BasicInfo.debug:
-                    self.logger.info(f"paper ID {pid} keynote: {extract_json(response)}")
-        except Exception as e:
-            self.read_papers_and_write_keynotes(papers, retry=retry + 1)
+                    self.logger.info(f"paper ID {pid} keynote: {keynote}")
+            except Exception as e:
+                self.logger.warning(f"Error processing LLM's response for paper {tasks[i][0]}: {e}. First 500 char of response: {response[:500]}")
+                err_papers.append(tasks[i][0])
+
+        if err_papers:
+            self.logger.info(f"Retrying {len(err_papers)} papers due to previous errors in keynotes generation...")
+            return self.read_papers_and_write_keynotes(err_papers, retry=retry + 1)
+        
 
     def generate_mla(self, paper_id: str):
         if (
@@ -141,16 +169,22 @@ class WorkAnalyzer:
         return keynote_data
 
     def get_paper_raw_markdown(self, paper_id: str) -> str:
+        md_path = os.path.join(f"{self.cache_path}/parsed_papers", paper_id, "auto", f"{paper_id}.md")
         if not os.path.exists(
-            os.path.join(
-                f"{self.cache_path}/parsed_papers", paper_id, "auto", f"{paper_id}.md"
-            )
+            md_path
         ):
-            self.work_collector.download_and_parse_papers([paper_id])
+            if self.config.BasicInfo.debug:
+                self.logger.info(f"Paper {paper_id} markdown not found in cache, re-downloading and parsing...")
+            try:
+                self.work_collector.download_and_parse_papers([paper_id])
+            except Exception as e:
+                self.logger.error(f"Failed to parse paper {paper_id}: {e}")
+                return "Fail to Get Content"
+        if self.config.BasicInfo.debug and not os.path.exists(md_path):
+            self.logger.error(f"Markdown still missing after parse: {md_path}")
+            return "Fail to Get Content"
         with open(
-            os.path.join(
-                f"{self.cache_path}/parsed_papers", paper_id, "auto", f"{paper_id}.md"
-            ),
+            md_path,
             "r",
             encoding="utf-8",
         ) as fr:
@@ -166,7 +200,7 @@ class WorkAnalyzer:
         i = 0
         while i < num_batches:
             valid = False
-            for _ in range(
+            for retry_time in range(
                 self.config.ModuleInfo.WorkAnalyzer.paper_clustering_max_retry
             ):
                 try:
@@ -178,7 +212,8 @@ class WorkAnalyzer:
                         )
                         * self.config.ModuleInfo.WorkAnalyzer.clustering_batch_size
                     ]
-
+                    if self.config.BasicInfo.debug:
+                        self.logger.info(f'complete paper list for clustering: {papers}')
                     keynote_papers = []
                     paper_keynotes = ""
                     for pid in batch:
@@ -187,6 +222,8 @@ class WorkAnalyzer:
                             f"Paper ID: {pid}\nKeynote: {keynote_json}\n\n"
                         )
                         keynote_papers.append(pid)
+                        if self.config.BasicInfo.debug:
+                            self.logger.info(f"valid keynote paper: {pid}")
 
                     # self.logger.info(f"Clustering {len(batch)} papers...")
                     # self.logger.info(f'Clustering prompt: {PAPER_CLUSTERING.format(existing_clusters_json=clusters,new_batch_json=paper_keynotes,)}')
@@ -199,15 +236,19 @@ class WorkAnalyzer:
                             temperature=self.config.ModuleInfo.WorkAnalyzer.clustering_temperature,
                         )
                     )
-                    self.validate_clusters(new_clusters, keynote_papers, papers) #YZY MODIFY: from clusters
+                    self.validate_clusters(new_clusters, papers) #YZY MODIFY: from clusters
                     valid = True
                     break
                 except Exception as e:
-                    self.logger.warning("Retrying")
+                    self.logger.warning(f"Error during clustering batch {i+1}: {e}. Retrying for {retry_time + 1}...")
             if not valid:
                 raise ValueError("Clustering failed after maximum retries.")
             clusters = new_clusters
+            if self.config.BasicInfo.debug:
+                self.logger.info(f"CLUSTER after batch {i+1}: {new_clusters}")
             i += 1
+        if self.config.BasicInfo.debug:
+            self.logger.info(f"Final CLUSTER result: {clusters}")
         return new_clusters
         
 
@@ -226,19 +267,14 @@ class WorkAnalyzer:
             log_str += "-" * 40 + "\n\n"
         self.logger.info(log_str)
 
-    def validate_clusters(self, clusters: List[Dict], keynote_papers: List[str], papers: List[str]) -> List[Dict]:
+    def validate_clusters(self, clusters: List[Dict], papers: List[str]) -> List[Dict]:
         paper_id_set = set(papers)
-        keynote_id_set = set(keynote_papers) # YZY MODIFY
         for cluster in clusters:
             for paper in cluster["papers"]:
                 if paper["id"] not in paper_id_set:
                     self.logger.warning(
                         f"Paper ID {paper['id']} in cluster {cluster['cluster_name']} not in original paper list."
                     )
-                    if paper["id"] in keynote_id_set: # YZY MODIFY
-                        self.logger.info(
-                            f"Paper ID {paper['id']} found in keynote papers.")
-                        continue
                     raise ValueError("Invalid clustering result.")
 
     def prepare_prompt_for_proposing_questions_for_cluster(self, cluster: List[str]):

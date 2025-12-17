@@ -1,10 +1,9 @@
 BasicInfo:
-  topic: Vision Transformers
+  topic: ""
+  topic_path: ./topics.txt
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
-  save_path: ./outputs/vit.md
-  save_json_path: ./outputs/vit.json
-  evaluation_save_path: ./outputs/vit_evaluation.txt
+  evaluation_save_path: ""
   debug: True
 APIInfo:
   llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f
@@ -14,6 +13,14 @@ APIInfo:
   llm_max_context_overhead_length: 20000
   batch_chat_agent_worker: 4
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
+EvalInfo:
+  baselines:
+    - AutoSurvey
+  save_paths:
+    - ./outputs/baseline/AutoSurvey_evaluation.txt
+  paper_paths:
+    - ../AutoSurvey/output/survey_bench
+
 ModuleInfo:
   WorkCollector:
     download_safe_mode: False
@@ -52,9 +59,10 @@ ModuleInfo:
     subsection_draft_max_error_info_length: 500
     outline_max_error_info_length: 500
     llm_max_context_overhead_length_generation: 30000
+    llm_max_context_overhead_length_section: 30000
   Judge:
     model: gpt-4o-mini
     nli_temperature: 0.1
     citation_quality_threshold: 0.5
-    rubrics_eval: True
+    rubrics_eval: False
     citation_eval: True

@@ -11,8 +11,9 @@ from sentence_transformers import SentenceTransformer, util
 import torch
 from modules.pe import PAPER_RELATEDNESS_BASED_ON_TITLE_AND_ABSTRACT
 import diskcache as dc
-from utils.utils import get_hash, extract_json
+from utils.utils import get_hash, extract_json, is_valid_pdf
 
+import gc
 
 class WorkCollector:
     def __init__(self, config):
@@ -65,6 +66,7 @@ class WorkCollector:
 
         valid_paper_ids = []
         valid_paper_paths = []
+        valid_paper_paths_ids = []
         # step 1: download the paper PDF
         index = 0
         total = min(len(papers), limit) if limit > 0 else len(papers)
@@ -72,6 +74,8 @@ class WorkCollector:
             paper = papers[index]
             index += 1
 
+            download_urls = []
+            is_arxiv = False
             if isinstance(paper, dict):
                 if "ArXiv" in paper.get("externalIds", {}):
                     paper_id = paper["externalIds"]["ArXiv"]
@@ -81,9 +85,11 @@ class WorkCollector:
                     is_arxiv = False
 
                 if is_arxiv:
-                    download_url = f"https://arxiv.org/pdf/{paper_id}.pdf"
+                    download_urls.append(f"https://export.arxiv.org/pdf/{paper_id}.pdf")
+                    download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
+
                 elif paper.get("openAccessPdf", {}).get("url"):
-                    download_url = paper["openAccessPdf"]["url"]
+                    download_urls.append(paper["openAccessPdf"]["url"])
                 else:
                     continue
                 paper_title = paper.get("title", paper_id)
@@ -91,17 +97,37 @@ class WorkCollector:
                 is_arxiv = "." in paper
                 if is_arxiv:
                     paper_id = paper
-                    download_url = f"https://arxiv.org/pdf/{paper_id}.pdf"
+                    download_urls.append(f"https://export.arxiv.org/pdf/{paper_id}.pdf")
+                    download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
                 else:
+                    paper_id = paper
                     paper = self.semantic_scholar_api.get_paper_details(
                         paper,
                         fields="title,externalIds,openAccessPdf",
                     )
+                    if paper_id != paper.get("paperId"):
+                        self.logger.warning(
+                            f"Paper ID mismatch for {paper_id}, got {paper.get('paperId')} in DOWNLOAD AND PARSE PAPER, skipping."
+                        )
+                        continue
                     if not paper:
                         continue
-                    # paper_id = paper
-                    if paper.get("openAccessPdf", {}).get("url"):
-                        download_url = paper["openAccessPdf"]["url"]
+                    try:
+                    # YZY MODIFY: fix bug when paper is dict(str is meaning less)
+                        if "ArXiv" in paper.get("externalIds", {}):
+                            paper_id = paper["externalIds"]["ArXiv"]
+                            is_arxiv = True
+                        else:
+                            paper_id = paper.get("paperId")
+                            is_arxiv = False
+                    except Exception as e:
+                        self.logger.warning(f"Error getting paper ID: {e} with paper data: {paper}, skipping.")
+                        continue
+                    if is_arxiv:
+                        download_urls.append(f"https://export.arxiv.org/pdf/{paper_id}.pdf")
+                        download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
+                    elif paper.get("openAccessPdf", {}).get("url"):
+                        download_urls.append(paper["openAccessPdf"]["url"])
                     else:
                         continue
                 paper_title = self.reference_graph.nodes.get(paper_id, {}).get(
@@ -119,24 +145,54 @@ class WorkCollector:
                 not self.config.ModuleInfo.WorkCollector.download_safe_mode
                 and os.path.exists(pdf_path)
             ):
-                valid_paper_ids.append(paper_id)
-                if not os.path.exists(
-                    os.path.join(
-                        self.config.BasicInfo.cache_path, "parsed_papers", paper_id
-                    )
-                ):
-                    valid_paper_paths.append(pdf_path)
-                continue
+                if is_valid_pdf(pdf_path):
+                    if self.config.BasicInfo.debug:
+                        self.logger.info(f"Cache Hit! Existing PDF at {pdf_path} is valid, skipping download.")
+                    valid_paper_ids.append(paper_id)
+                    if not os.path.exists(
+                        os.path.join(
+                            self.config.BasicInfo.cache_path, "parsed_papers", paper_id
+                        )
+                    ):
+                        valid_paper_paths.append(pdf_path)
+                        valid_paper_paths_ids.append(paper_id)
+                    continue
+                else:
+                    try:
+                        os.remove(pdf_path)
+                    except OSError as e:
+                        self.logger.error(f"Failed to delete invalid PDF {pdf_path}: {e}")
+                        continue
+                    self.logger.warning(f"Existing PDF at {pdf_path} is invalid, re-downloading.")
             os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-            downloaded = self._download_pdf_with_resume(
-                download_url,
-                pdf_path,
-                f"{paper_title} ({index}/{total})",
-            )
-            if not downloaded:
-                self.logger.warning(
-                    f"Failed to download paper {paper_id} from {download_url}"
+
+            for download_url in download_urls:
+                downloaded = None
+                downloaded = self._download_pdf_with_resume(
+                    url = download_url,
+                    filename = pdf_path,
+                    title = f"{paper_title} ({index}/{total})",
                 )
+                if not downloaded or not is_valid_pdf(pdf_path):
+                    self.logger.warning(
+                        f"Failed to download valid paper {paper_id} from {download_url}, trying next URL if available."
+                    )
+                    continue
+                else:
+                    break
+
+            if not downloaded or not is_valid_pdf(pdf_path):
+                self.logger.warning(
+                    f"Failed to download valid paper {paper_id} from {download_url}"
+                )
+                self.logger.warning(
+                    f"Existing PDF at {pdf_path} is invalid, deleting."
+                )
+                try:
+                    os.remove(pdf_path)
+                except OSError as e:
+                    self.logger.error(f"Failed to delete invalid PDF {pdf_path}: {e}")
+                    continue  # 或 return / raise
                 continue
 
             valid_paper_ids.append(paper_id)
@@ -147,26 +203,54 @@ class WorkCollector:
                 )
             ):
                 valid_paper_paths.append(pdf_path)
+                valid_paper_paths_ids.append(paper_id)
 
         # step 2: parse the downloaded PDFs
         self.logger.info(f"Parsing {len(valid_paper_paths)} downloaded papers...")
-        if valid_paper_ids:
-            parse_doc(
-                valid_paper_paths,
-                output_dir=os.path.join(
-                    self.config.BasicInfo.cache_path, "parsed_papers"
-                ),
-                lang="en",
-            )
+        if valid_paper_paths:
+            try:
+                parse_doc(
+                    valid_paper_paths,
+                    output_dir=os.path.join(
+                        self.config.BasicInfo.cache_path, "parsed_papers"
+                    ),
+                    lang="en",
+                )
+            except Exception as e:
+                for paper_path in valid_paper_paths:
+                    try:
+                        parse_doc(
+                            [paper_path],
+                            output_dir=os.path.join(
+                                self.config.BasicInfo.cache_path, "parsed_papers"
+                            ),
+                            lang="en",
+                        )
+                    except Exception as e2:
+                        self.logger.error(f"Failed to parse paper at {paper_path}: {e2}")
+                        valid_paper_ids.remove(
+                            valid_paper_paths_ids[
+                                valid_paper_paths.index(paper_path)
+                            ]
+                        )
 
         return valid_paper_ids
 
-    def _download_pdf_with_resume(self, url, filename, title, chunk_size=1024 * 1024):
+    def _download_pdf_with_resume(self, url, filename, title, is_arxiv = False, chunk_size=1024 * 1024):
         temp_size = 0
         if os.path.exists(filename):
             temp_size = os.path.getsize(filename)
-
+            
         headers = {"Range": f"bytes={temp_size}-"}
+        if is_arxiv:
+            headers = {
+                "User-Agent": "Mozilla/5.0 (compatible; arXiv-downloader/1.0; +https://1369700255@qq.com/)",
+                "Range": f"bytes={temp_size}-"
+            }
+
+
+        if self.config.BasicInfo.debug:
+            self.logger.info(f"[{title}] Resuming download from byte {temp_size} from {url}")
 
         import time
 
@@ -388,9 +472,28 @@ class WorkCollector:
             abstract = node_data.get("abstract", "")
             return f"Title: {title}\nAbstract: {abstract}"
 
-        model = SentenceTransformer(
-            self.config.ModuleInfo.WorkCollector.sentence_transformer_model
-        ).cpu()
+        try:
+            model = SentenceTransformer(
+                self.config.ModuleInfo.WorkCollector.sentence_transformer_model
+            ).cuda()
+        except Exception as e:
+            if "out of memory" in str(e).lower():
+                self.logger.error("Out of memory error detected. Using CPU instead.")
+                try:
+                    del model
+                except Exception:
+                    self.logger.warning("Failed to delete model from GPU memory.")
+                    pass
+                try:
+                    torch.cuda.empty_cache()
+                    gc.collect()
+                except Exception:
+                    self.logger.warning("Failed to clear GPU cache.")
+                    pass
+
+                model = SentenceTransformer(
+                    self.config.ModuleInfo.WorkCollector.sentence_transformer_model
+                ).cpu()
 
         seed_texts = [paper2text(pid) for pid in seed_paper_ids]
         seed_embeddings = model.encode(
