@@ -12,6 +12,9 @@ build/
 src/agents/experiment_agent/workspaces/
 src/agents/experiment_agent/workspace/
 
+# Idea Agent - 清除检索缓存
+src/agents/idea_agent/cache/
+
 # IDE
 .vscode/
 .idea/
