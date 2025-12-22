@@ -14,34 +14,36 @@ if __name__ == "__main__":
     logger = get_logger()
     
     agent = LigAgent()
-    agent.memory["topic"] = "Physics-Informed Neural Networks."
-    agent.memory["retrieval_keywords"].append(agent.memory["topic"])
+    agent.memory["topic"].append("Physics-Informed Neural Networks.")
+    agent.memory["retrieval_keywords"].append(agent.memory["topic"][-1])
     agent.memory["background_knowledge"].append("Physics-Informed Neural Networks (PINNs) are a class of neural models that incorporate physical laws directly into the training process. The key idea is to embed governing equations—such as differential equations, conservation laws, and initial or boundary conditions—into the loss function so that the network not only fits observational data but also satisfies the underlying physics.")
     logger.info("========================================")
     logger.info("🤖 Hello, I am LigAgent!")
-    logger.info(f"💡 The research topic is {agent.memory['topic']}")
+    logger.info(f"💡 The research topic is {agent.memory['topic'][-1]}")
     time.sleep(2)
 
     max_turn = 50
-    for i in range(max_turn):
-        logger.info("========================================")
-        logger.info(f"Turn {i+1}:")
-        info = {}
-        # select action
-        logger.info("🧠 Selecting action...")
-        if len(agent.memory["steps"]) == 0:
-            action = "knowledge_aquisition"
-        else:
-            action = agent.select_action(observation=agent.memory["steps"][-1])
+    try:
+        for i in range(max_turn):
+            logger.info("========================================")
+            logger.info(f"Turn {i+1}:")
+            info = {}
+            # select action
+            logger.info("🧠 Selecting action...")
+            if len(agent.memory["steps"]) == 0:
+                action = "knowledge_aquisition"
+            else:
+                action = agent.select_action(observation=agent.memory["steps"][-1])
 
-        # select information from memory
-        # info = agent.select_memory(action,info)
+            # select information from memory
+            # info = agent.select_memory(action,info)
 
-        # perform action
-        agent.perform_action(action, **info)
+            # perform action
+            agent.perform_action(action, **info)
 
-        # import pdb; pdb.set_trace()
+            # import pdb; pdb.set_trace()
 
-        # update memory
-        
+            # update memory
+    except (Exception, KeyboardInterrupt) as e:
+        logger.info(agent.memory)
         

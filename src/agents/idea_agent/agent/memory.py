@@ -14,7 +14,7 @@ MEMORY_FORMAT = {
 
 def memory_init() -> dict:
     memory = {
-        "topic": "",
+        "topic": [],
         "survey": "",
         "background_knowledge": [],
         "analysis": [],

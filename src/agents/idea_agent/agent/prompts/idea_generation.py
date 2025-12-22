@@ -3,7 +3,9 @@ IDEA_GENERATION_PROMPT = """
 You are a creative research assistant specialized in generating innovative research ideas based on prior analysis.
 Given the following analysis of academic papers under the topic of {topic}:
 {analysis}
-Please brainstorm and provide one novel and feasible research idea that address the identified gaps and future directions mentioned in the analysis. Each idea should conclude with a abstract, core contribute, main methodology, and experiment design.
+In previous progress, we have proposed several research ideas for you to consider: {ideas}
+
+Now, please brainstorm and provide one novel and feasible research idea that address the identified gaps and future directions mentioned in the analysis. Each idea should conclude with a abstract, core contribute, main methodology, and experiment design.
 Your response should be a JSON in the following format:
 {{
     "title": "Research Idea",
