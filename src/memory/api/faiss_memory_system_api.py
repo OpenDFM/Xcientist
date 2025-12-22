@@ -136,6 +136,31 @@ class FAISSMemorySystem(MemorySystem):
         except Exception as e:
             print(f"Error deleting memories: {e}")
             return False
+
+    def upsert_normal_records(self, records: List[Union[SemanticRecord, ProceduralRecord]]) -> None:
+        for record in records:
+            result = self.get_nearest_k_records(record, k=1, threshold=0.8)
+            if result is not None and len(result) > 0:
+                nearset_record = result[0][1]
+                updated_at = now_iso()
+                if isinstance(record, SemanticRecord):
+                    nearset_record.update(
+                        summary=record.summary,
+                        detail=record.detail,
+                        tags=record.tags,
+                    )
+                elif isinstance(record, ProceduralRecord):
+                    nearset_record.update(
+                        name=record.name,
+                        description=record.description,
+                        steps=record.steps,
+                        code=record.code,
+                        tags=record.tags,
+                    )
+            else:
+                self.add([record])
+    
+        return
     
     def query(self, 
         query_text: str, 

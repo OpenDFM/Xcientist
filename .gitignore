@@ -32,3 +32,9 @@ src/agents/survey_agent/logs
 .env
 .venv/
 venv/
+memory_test.sh
+epi_test/faiss.index
+epi_test/meta.json
+.gitignore
+sem_test/faiss.index
+sem_test/meta.json

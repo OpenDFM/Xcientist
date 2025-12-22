@@ -10,11 +10,12 @@
 | compress_slots      | ✅ Debugged |
 | query      | ✅ Debugged |
 | transfer_slot_to_text | ✅ Debugged |
-| transfer_experiment_agent_context_to_working_slots | ❌ Not yet debugged |
+| transfer_experiment_agent_context_to_working_slots | ✅ Debugged |
 | generate_long_term_memory | ✅ Debugged |
 | transfer_slot_to_semantic_record | ✅ Debugged |
 | transfer_slot_to_episodic_record | ✅ Debugged |
 | transfer_slot_to_procedural_record | ✅ Debugged |
+| multi_thread_process | ✅ Debugged |
 
 # Long-term Memory API
 | Module / Test Item | Status |
@@ -250,6 +251,57 @@ research_slot = WorkingSlot(
       print(procedural_payload)
 
   asyncio.run(demo_procedural_conversion())
+  ```
+
+- **`multi_thread_process(func, max_workers=5, **kwargs)`** – drive the entire short-term → long-term pipeline in one call. `func` must synchronously populate `slot_container` (for example, by calling `add_slot` after pulling context from an agent). Once the slots are buffered, the helper fans out filtering/routing and memory conversions with `_multi_thread_run`, stores the intermediate dicts in `memory_dict`, pushes the converted records into the configured FAISS stores, and finally prints the updated store sizes through the module-level `llm_client`. Because the routine references the global `args` namespace and the FAISS stores, make sure they are initialized before invoking it (the CLI wiring already does this).
+  ```python
+  from types import SimpleNamespace
+  import api.slot_process_api as slot_api
+  from api.slot_process_api import SlotProcess
+  from api.faiss_memory_system_api import FAISSMemorySystem
+  from memory_system import WorkingSlot
+
+  slot_process = SlotProcess()
+
+  slot_api.llm_client = SimpleNamespace(
+      slot_process=slot_process,
+      semantic_memory_system=FAISSMemorySystem(memory_type="semantic"),
+      episodic_memory_system=FAISSMemorySystem(memory_type="episodic"),
+      procedural_memory_system=FAISSMemorySystem(memory_type="procedural"),
+  )
+  slot_api.args = SimpleNamespace(abstract_memories=False)
+
+  # Expose the memory stores on the SlotProcess instance for the threaded transfer step.
+  slot_process.slot_process = slot_process
+  slot_process.semantic_memory_system = slot_api.llm_client.semantic_memory_system
+  slot_process.episodic_memory_system = slot_api.llm_client.episodic_memory_system
+  slot_process.procedural_memory_system = slot_api.llm_client.procedural_memory_system
+
+  demo_slots = [
+      WorkingSlot(
+          stage="analysis",
+          topic="fog_ablation",
+          summary="Compared fog-on vs fog-off policies; saw +3% accuracy in coastal storms.",
+          tags=["analysis", "vision"],
+      ),
+      WorkingSlot(
+          stage="execution",
+          topic="fog_eval_run",
+          summary="Replayed 120 autopilot clips with fog augmentations; latency +5ms.",
+          tags=["execution", "fog"],
+      ),
+  ]
+
+  def seed_slots(batch_size: int):
+      slot_process.clear_container()
+      for slot in demo_slots[:batch_size]:
+          slot_process.add_slot(slot)
+
+  slot_process.multi_thread_process(
+      func=seed_slots,
+      batch_size=2,     # forwarded to seed_slots(**kwargs)
+      max_workers=4,    # used for both filtering/routing and conversion stages
+  )
   ```
 
 ## Long-term Memory API Examples

@@ -1,4 +1,7 @@
 import json
+import asyncio
+import concurrent.futures
+import threading
 
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union, Any
 from collections import deque
@@ -10,6 +13,8 @@ from memory.memory_system.utils import (
     _safe_dump,
     _truncate_text,
     compute_overlap_score,
+    _chunks,
+    _multi_thread_run,
 )
 from memory.memory_system.user_prompt import (
     WORKING_SLOT_COMPRESS_USER_PROMPT,
@@ -33,6 +38,7 @@ class SlotProcess:
         self.filtered_slot_container: List[WorkingSlot] = []
         self.routed_slot_container: List[Dict] = []
         self.llm_model = OpenAIClient()
+        self.memory_dict = []
 
     def add_slot(self, slot: WorkingSlot) -> None:
         self.slot_container[slot.to_dict().get('id')] = slot
@@ -43,7 +49,10 @@ class SlotProcess:
     def get_container_size(self) -> int:
         return len(self.slot_container)
 
-    def query(self, query_text: str, limit: int = 5, key_words: Optional[List[str]] = None) -> List[Tuple[float, WorkingSlot]]:
+    def query(self, query_text: str, slots: Optional[List[WorkingSlot]] = None, limit: int = 5, key_words: Optional[List[str]] = None) -> List[Tuple[float, WorkingSlot]]:
+        if slots is None:
+            slots = list(self.slot_container.values())
+    
         k = min(limit, len(self.slot_container))
 
         scored_slots: List[Tuple[float, WorkingSlot]] = []
@@ -73,6 +82,21 @@ class SlotProcess:
             print(f"Routing error: {e}")
         
         return self.routed_slot_container
+
+    def _multi_thread_filter_and_route_slot(self, slot: WorkingSlot):
+        check_result = asyncio.run(slot.slot_filter(self.llm_model))
+        if check_result == True:
+            try:
+                route_result = asyncio.run(slot.slot_router(self.llm_model))
+                pair = {
+                        "memory_type": route_result,
+                        "slot": slot
+                    }
+                self.routed_slot_container.append(pair)
+            except Exception as e:
+                print(f"Routing error: {e}")
+        else:
+            return
     
     async def compress_slots(self, sids: List[str] = None) -> WorkingSlot:
         slot_json_blobs = []
@@ -214,6 +238,30 @@ class SlotProcess:
 
         return inputs
 
+    def _multi_thread_transfer_slot_to_memory(self, pair: Dict[str, WorkingSlot]) -> List[Dict[str, Any]]:
+        allowed_types = {"semantic", "episodic", "procedural"}
+        memory_type = pair.get("memory_type")
+        slot = pair.get("slot")
+
+        if memory_type not in allowed_types or not isinstance(slot, WorkingSlot):
+            return
+
+        try:
+            if memory_type == "semantic":
+                input_dict = asyncio.run(self.transfer_slot_to_semantic_record(slot))
+            elif memory_type == "episodic":
+                input_dict = asyncio.run(self.transfer_slot_to_episodic_record(slot))
+            elif memory_type == "procedural":
+                input_dict = asyncio.run(self.transfer_slot_to_procedural_record(slot))
+        except Exception as exc:
+            print(
+                f"[MEMORY] Failed to convert slot {getattr(slot, 'id', 'unknown')} "
+                f"({memory_type}): {exc}"
+            )
+            return
+
+        self.memory_dict.append({"memory_type": memory_type, "input": input_dict})
+
     async def transfer_slot_to_semantic_record(self, slot: WorkingSlot) -> Dict[str, Any]:
         system_prompt = (
             "You are a senior research archivist. Convert the WorkingSlot into a reusable "
@@ -290,3 +338,61 @@ class SlotProcess:
             "code": code.strip() if isinstance(code, str) else None,
             "tags": list(tags),
         }
+
+    async def multi_thread_transfer_dicts_to_memories(self, is_abstract: bool = False):
+        semantic_records = []
+        episodic_records = []
+
+        for i in self.slot_process.memory_dict:
+            if i['memory_type'] == 'semantic':
+                semantic_records.append(self.semantic_memory_system.instantiate_sem_record(**i['input']))
+            elif i['memory_type'] == 'episodic':
+                episodic_records.append(self.episodic_memory_system.instantiate_epi_record(**i['input']))
+        
+        if is_abstract and len(episodic_records) > 0:
+            await self.abstract_episodic_records_to_semantic_record(episodic_records)
+
+        if len(semantic_records) > 0:
+            try:
+                self.semantic_memory_system.upsert_normal_records(semantic_records)
+            except Exception as e:
+                import traceback
+                print("[ERROR] upsert_normal_records for semantic_records failed:", repr(e))
+                traceback.print_exc()
+        if len(episodic_records) > 0:
+            try:
+                self.episodic_memory_system.upsert_normal_records(episodic_records)
+            except Exception as e:
+                import traceback
+                print("[ERROR] upsert_normal_records for episodic_records failed:", repr(e))
+                traceback.print_exc()
+
+    def multi_thread_process(self, func, max_workers: int = 5, **kwargs) -> None:
+        '''
+        Multi-thread process for: 1. transfer context to working slots; 2. filter and route working slots; 3. transfer working slots to long-term memories.
+        '''
+        # func is your processing function
+        try:
+            func(**kwargs) # call your processing function here, your processing function MUST load context to working slots first!
+            working_slots = self.slot_container.values()
+            num_slots = len(working_slots)
+
+            # filter and route
+            print(f"[Info] Filtering and routing {num_slots} slots")
+            _multi_thread_run(self.multi_thread_filter_and_route_slot, working_slots, max_workers=max_workers)
+            routed_slots = llm_client.slot_process.routed_slot_container
+            num_routed_slots = len(routed_slots)
+            print(f"[Info] Transferring memories from {num_routed_slots} slots to memory systems")
+
+            # generate memories in multi-threaded way
+            _multi_thread_run(self.multi_thread_transfer_slot_to_memory, routed_slots, max_workers=max_workers)
+
+            # transfer memories to records
+            asyncio.run(self.multi_thread_transfer_dicts_to_memories(is_abstract=args.abstract_memories))
+
+        except Exception as e:
+            print(f"Error processing batch: {e}")
+
+        print(f"[Info] Semantic memory size: {llm_client.semantic_memory_system.size}")
+        print(f"[Info] Episodic memory size: {llm_client.episodic_memory_system.size}")
+        print(f"[Info] Procedural memory size: {llm_client.procedural_memory_system.size}")        
