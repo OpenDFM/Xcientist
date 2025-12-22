@@ -109,9 +109,9 @@ class FAISSMemorySystem(MemorySystem):
                 results.append(False)
         return results
         
-    def add(self, memories: List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]] = None) -> bool:
+    def add(self, memories: List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]] = None, agent_id: str = "") -> bool:
         try:
-            self.vector_store.add(memories) # Add new memory to FAISS vectorstore.
+            self.vector_store.add(memories, agent_id=agent_id) # Add new memory to FAISS vectorstore.
             return True
         except Exception as e:
             print(f"Error adding memories: {e}")
@@ -137,9 +137,9 @@ class FAISSMemorySystem(MemorySystem):
             print(f"Error deleting memories: {e}")
             return False
 
-    def upsert_normal_records(self, records: List[Union[SemanticRecord, ProceduralRecord]]) -> None:
+    def upsert_normal_records(self, records: List[Union[SemanticRecord, ProceduralRecord]], agent_id: str = "") -> None:
         for record in records:
-            result = self.get_nearest_k_records(record, k=1, threshold=0.8)
+            result = self.get_nearest_k_records(record, k=1, threshold=0.8, agent_id=agent_id)
             if result is not None and len(result) > 0:
                 nearset_record = result[0][1]
                 updated_at = now_iso()
@@ -158,7 +158,7 @@ class FAISSMemorySystem(MemorySystem):
                         tags=record.tags,
                     )
             else:
-                self.add([record])
+                self.add([record], agent_id=agent_id)
     
         return
     
@@ -166,10 +166,11 @@ class FAISSMemorySystem(MemorySystem):
         query_text: str, 
         method: str = "embedding", 
         limit: int = 5, 
-        filters: Optional[Dict] = None) ->List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
+        filters: Optional[Dict] = None,
+        agent_id: str = "") ->List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
         limit = min(limit, self.size)
         try:
-            results = self.vector_store.query(query_text, method=method, limit=limit, filters=filters)
+            results = self.vector_store.query(query_text, method=method, limit=limit, filters=filters, agent_id=agent_id)
         except Exception as e:
             print(f"Error querying memories: {e}")
             results = []
@@ -245,7 +246,7 @@ class FAISSMemorySystem(MemorySystem):
         
         return abstract_result, cidmap2semrec
 
-    def upsert_abstract_semantic_records(self, sem_records: List[SemanticRecord], cidmap2semrec: Dict[int, SemanticRecord]) -> None:
+    def upsert_abstract_semantic_records(self, sem_records: List[SemanticRecord], cidmap2semrec: Dict[int, SemanticRecord], agent_id: str = "") -> None:
         add_list = []
         update_list = []
 
@@ -264,14 +265,15 @@ class FAISSMemorySystem(MemorySystem):
                 update_list.append(last_sem_rec)
                 self.global_cidmap2semrec[sem_rec.cluster_id] = last_sem_rec
 
-        self.add(add_list)
+        self.add(add_list, agent_id=agent_id)
         self.update(update_list)
 
     def get_nearest_k_records(self, 
             record: Union[SemanticRecord, EpisodicRecord, ProceduralRecord], 
             method: str = "embedding", 
             k: int = 5,
-            filters: Optional[Dict] = None) -> List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
+            filters: Optional[Dict] = None,
+            agent_id: str = "") -> List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
         if isinstance(record, SemanticRecord):
             query_text = record.detail
         elif isinstance(record, EpisodicRecord):
@@ -280,7 +282,7 @@ class FAISSMemorySystem(MemorySystem):
             query_text = record.description
         
         try:
-            results = self.vector_store.query(query_text, method=method, limit=k, filters=filters)
+            results = self.vector_store.query(query_text, method=method, limit=k, filters=filters, agent_id=agent_id)
         except Exception as e:
             print(f"Error querying nearest records: {e}")
             results = []

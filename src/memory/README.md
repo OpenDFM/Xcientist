@@ -385,6 +385,26 @@ The remaining snippets reuse `sem_record`, `epi_record`, and `proc_record` defin
   procedural_store.add([proc_record])
   ```
 
+- **`add(..., agent_id='idea_agent')`** and `query(..., agent_id='idea_agent')` – scope inserts and lookups to a specific agent (`survey_agent`, `idea_agent`, or `experiment_agent`). The store appends `_{agent_id}` to every persisted record ID and filters query hits by that suffix, allowing multiple agents to share the same FAISS index without collisions.
+  ```python
+  idea_semantic = semantic_store.instantiate_sem_record(
+      summary="Idea agent logged a fog augmentation hypothesis.",
+      detail="Consider fog-aware sampling to stabilize RL rollouts.",
+      tags=("idea", "fog"),
+  )
+  semantic_store.add([idea_semantic], agent_id="idea_agent")
+
+  # Later, pull only the memories contributed by the idea agent.
+  idea_hits = semantic_store.query(
+      query_text="fog augmentation hypothesis",
+      agent_id="idea_agent",
+      method="embedding",
+      limit=3,
+  )
+  for score, record in idea_hits:
+      print(record.id, score)
+  ```
+
 - **`update(memories)`** – push field edits back into FAISS.
   ```python
   sem_record.detail = "Retrained with fog + rain augmentations; accuracy is now 0.75."

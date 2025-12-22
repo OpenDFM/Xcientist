@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Tuple, Union
+from typing import List, Dict, Tuple, Union, Optional
 from memory.memory_system.models import SemanticRecord, EpisodicRecord, ProceduralRecord
 from memory.memory_system.utils import _nomralize_embedding, _jsonable_meta, compute_overlap_score
 from sentence_transformers import SentenceTransformer
@@ -22,7 +22,7 @@ class VectorStore(ABC):
         ...
 
     @abstractmethod
-    def query(self, query_text: str, method: str = "embedding", limit: int = 5, filters: Dict | None = None) -> List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
+    def query(self, query_text: str, method: str = "embedding", limit: int = 5, filters: Optional[Dict] = None) -> List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
         ...
 
     @abstractmethod
@@ -61,7 +61,9 @@ class FaissVectorStore(VectorStore):
     def _get_record_nums(self) -> int:
         return len(self.meta)
     
-    def add(self, raws: List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]) -> List[int]:
+    def add(self, raws: List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]], agent_id: str = "") -> List[int]:
+        assert agent_id in ["", "survey_agent", "idea_agent", "experiment_agent"], "Unsupported agent_id."
+
         if len(raws) == 0:
             return []
         
@@ -71,6 +73,9 @@ class FaissVectorStore(VectorStore):
             texts = [raw.summary for raw in raws]
         elif isinstance(raws[0], ProceduralRecord):
             texts = [raw.description for raw in raws]
+
+        for raw in raws:
+            raw.id += f"_{agent_id}" if agent_id else ""
 
         mids = [raw.id for raw in raws]
         ids = np.arange(self._next_id, self._next_id + len(raws), dtype="int64")
@@ -114,8 +119,11 @@ class FaissVectorStore(VectorStore):
             query_text: str, 
             method: str = "embedding", 
             limit: int = 5, 
-            filters: Dict | None = None) -> List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
+            filters: Optional[Dict] = None,
+            agent_id: str = "",
+            ) -> List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
         assert method in ["embedding", "bm25", "overlapping"], "Unsupported query method."
+        assert agent_id in ["", "survey_agent", "idea_agent", "experiment_agent"], "Unsupported agent_id."
 
         if self.index is None or self.index.ntotal == 0:
             return []       
@@ -123,7 +131,10 @@ class FaissVectorStore(VectorStore):
 
         if method == "embedding":
             q = self._embed([query_text])
-            D, I = self.index.search(q, limit)
+            if agent_id != "":
+                D, I = self.index.search(q, min(limit * 5, self.index.ntotal))  # retrieve more to filter later
+            else:
+                D, I = self.index.search(q, limit)
             for score, _id in zip(D[0], I[0]):
                 if _id == -1:
                     continue
@@ -132,7 +143,8 @@ class FaissVectorStore(VectorStore):
                     ok = all(md.get(k2) == v2 for k2, v2 in filters.items())
                     if not ok:
                         continue
-                results.append((float(score), md))
+                if md.id.endswith(f"_{agent_id}") or agent_id == "":
+                    results.append((float(score), md))
 
         elif method == "bm25":
             if self.memory_type == "semantic":
@@ -146,7 +158,10 @@ class FaissVectorStore(VectorStore):
             idmap2fid = {bmid: fid for bmid, fid in enumerate(self.fidmap2mid.keys())} # {bm25_id: faiss_id}
             bm25 = BM25Okapi(tokenized_corpus, k1=1.5, b=0.75)
             bm25_scores = bm25.get_scores(re.findall(r"\w+", (query_text or "").lower()))
-            top_bmid = sorted(range(len(bm25_scores)), key=lambda bmid: bm25_scores[bmid], reverse=True)[:limit]
+            if agent_id != "":
+                top_bmid = sorted(range(len(bm25_scores)), key=lambda bmid: bm25_scores[bmid], reverse=True)[:min(limit * 5, len(bm25_scores))]
+            else:
+                top_bmid = sorted(range(len(bm25_scores)), key=lambda bmid: bm25_scores[bmid], reverse=True)[:limit]
 
             for bmid in top_bmid:
                 fid = idmap2fid[bmid]
@@ -157,7 +172,8 @@ class FaissVectorStore(VectorStore):
                     ok = all(md.get(k2) == v2 for k2, v2 in filters.items())
                     if not ok:
                         continue
-                results.append((float(bm25_scores[bmid]), md))
+                if md.id.endswith(f"_{agent_id}") or agent_id == "":
+                    results.append((float(bm25_scores[bmid]), md))
         
         elif method == "overlapping":
             corpus = [record.summary for record in self.meta.values()]
@@ -171,7 +187,10 @@ class FaissVectorStore(VectorStore):
                 base_score = overlap_score / max(len(query_tokens), 1)
                 overlap_scores.append(base_score)
             
-            top_olid = sorted(range(len(overlap_scores)), key= lambda olid: overlap_scores[olid], reverse=True)[:limit]
+            if agent_id != "":
+                top_olid = sorted(range(len(overlap_scores)), key= lambda olid: overlap_scores[olid], reverse=True)[:min(limit * 5, len(overlap_scores))]
+            else:
+                top_olid = sorted(range(len(overlap_scores)), key= lambda olid: overlap_scores[olid], reverse=True)[:limit]
             for olid in top_olid:
                 fid = idmap2fid[olid]
                 if fid == -1:
@@ -181,7 +200,8 @@ class FaissVectorStore(VectorStore):
                     ok = all(md.get(k2) == v2 for k2, v2 in filters.items())
                     if not ok:
                         continue
-                results.append((float(overlap_scores[olid]), md))
+                if md.id.endswith(f"_{agent_id}") or agent_id == "":
+                    results.append((float(overlap_scores[olid]), md))
 
         return results
     
