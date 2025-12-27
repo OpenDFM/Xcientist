@@ -118,8 +118,8 @@ Authoring rules:
 6. `tags` is a list of lowercase keywords (≤5 items) mixing domain + workflow hints.
 7. If the context lacks meaningful content, return `"slots": []` but keep the envelope.
 
-Output STRICTLY as JSON within the tags below:
-<working-slots>
+**DO NOT wrap your JSON output in markdown code blocks (```json or ```). Output raw JSON only.**
+Output STRICTLY as JSON:
 {{
     "slots": [
     {{
@@ -136,7 +136,6 @@ Output STRICTLY as JSON within the tags below:
     }}
     ]
 }}
-</working-slots>
 """)
 
 TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT = dedent("""
@@ -151,14 +150,13 @@ Expectations:
 {dump_slot_json}
 </working-slot>
 
-Output STRICTLY as JSON inside the tags:
-<semantic-record>
+**DO NOT wrap your JSON output in markdown code blocks (```json or ```). Output raw JSON only.**
+Output STRICTLY as JSON:
 {{
     "summary": "semantic insight summary",
     "detail": "expanded reasoning and context",
     "tags": ["keyword1","keyword2"]
 }}
-</semantic-record>
 """
 )
 
@@ -169,8 +167,8 @@ Convert the WorkingSlot into an episodic memory record emphasizing Situation →
 {dump_slot_json}
 </working-slot>
 
-Output STRICTLY as JSON inside the tags:
-<episodic-record>
+**DO NOT wrap your JSON output in markdown code blocks (```json or ```). Output raw JSON only.**
+Output STRICTLY as JSON:
 {{
     "stage": "{stage}",
     "summary": "≤80 word SAR overview",
@@ -183,7 +181,6 @@ Output STRICTLY as JSON inside the tags:
     }},
     "tags": ["keyword1","keyword2"]
 }}
-</episodic-record>
 """)
 
 
@@ -194,8 +191,8 @@ Convert the WorkingSlot into a procedural memory entry that captures a reusable 
 {dump_slot_json}
 </working-slot>
 
-Output STRICTLY as JSON inside the tags:
-<procedural-record>
+**DO NOT wrap your JSON output in markdown code blocks (```json or ```). Output raw JSON only.**
+Output STRICTLY as JSON:
 {{
     "name": "short skill name",
     "description": "≤60 words explaining when/why to apply it",
@@ -203,5 +200,4 @@ Output STRICTLY as JSON inside the tags:
     "code": "optional snippet or empty string",
     "tags": ["keyword1","keyword2"]
 }}
-</procedural-record>
 """)
