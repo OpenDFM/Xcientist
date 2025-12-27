@@ -35,7 +35,11 @@ from src.agents.experiment_agent.shared.utils.config import (
     ensure_experiment_dirs,
 )
 from src.agents.experiment_agent.shared.utils.cache import Cache
-from src.agents.experiment_agent.layers.base.state import StateManager, GlobalPhase, StepStatus
+from src.agents.experiment_agent.layers.base.state import (
+    StateManager,
+    GlobalPhase,
+    StepStatus,
+)
 from src.agents.experiment_agent.layers.code.schemas.manifest import CodeManifest
 from src.agents.experiment_agent.layers.code.schemas.proposal import Proposal
 from src.agents.experiment_agent.layers.code.schemas.blueprint import Blueprint
@@ -490,8 +494,10 @@ async def run_single_experiment(
     expected_outputs: Optional[List[str]] = None,
 ) -> ExperimentResult:
     """Run a single experiment directly."""
-    from layers.science.schemas.experiment import ExperimentTask
-    from layers.science.worker import ExpWorkerAgent
+    from src.agents.experiment_agent.layers.science.schemas.experiment import (
+        ExperimentTask,
+    )
+    from src.agents.experiment_agent.layers.science.worker import ExpWorkerAgent
 
     task = ExperimentTask(
         task_id=task_id,

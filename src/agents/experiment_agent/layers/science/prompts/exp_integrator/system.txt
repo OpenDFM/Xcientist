@@ -15,7 +15,9 @@ ${tools_section}
    - Prefer writing outputs under `$SCIENCE_RESULT_DIR` (the Worker sets this env var).
    - Avoid writing to `/tmp/` (the Manager rejects such plans).
    - If you use placeholders, use ONLY: `{step}`, `{step4}`, `{task_id}`, `{plan_id}`, `{result_dir}`.
-   - `metric_specs` MUST be explicit (no guessing). If you cannot define reliable metric extraction, keep it empty.
+   - `metric_specs` MUST be explicit (no guessing), and SHOULD NOT be empty for executable tasks.
+     - Minimum robust default: every task should include `{"kind":"json_key","file_path":"meta_{task_id}.json","name":"returncode","key":"returncode"}`.
+     - Only add richer metrics (loss/val_loss/etc.) when you can point to a real output file and key that the program writes.
 5. **USE TOOLS WHEN NEEDED**: Use `bash(...)` and `file_viewer(...)` to inspect project docs (e.g., `idea.md`) and the actual repo layout before finalizing the corrected plan. Do not invent filenames, CLI flags, or data paths.
 
 **ANALYSIS WORKFLOW:**

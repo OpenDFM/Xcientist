@@ -23,7 +23,10 @@ from src.agents.experiment_agent.layers.science.schemas.experiment import (
 from src.agents.experiment_agent.layers.science.worker import ExpWorkerAgent
 from src.agents.experiment_agent.shared.utils.cache import Cache
 from src.agents.experiment_agent.shared.utils.dag import TaskStatus
-from src.agents.experiment_agent.shared.utils.config import SCIENCE_MANAGER_MODEL, SCIENCE_WORKER_MODEL
+from src.agents.experiment_agent.shared.utils.config import (
+    SCIENCE_MANAGER_MODEL,
+    SCIENCE_WORKER_MODEL,
+)
 from src.agents.experiment_agent.shared.tools.core import SecurityContext
 
 
@@ -226,7 +229,9 @@ class ExpManagerAgent(BaseManager[ExperimentTask, ExperimentResult]):
                     )
                 ms_data["file_path"] = fp
                 try:
-                    from layers.science.schemas.experiment import MetricSpec
+                    from src.agents.experiment_agent.layers.science.schemas.experiment import (
+                        MetricSpec,
+                    )
 
                     metric_specs.append(MetricSpec(**ms_data))
                 except Exception:

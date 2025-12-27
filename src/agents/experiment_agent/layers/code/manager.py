@@ -13,9 +13,15 @@ import logging
 from typing import List, Dict, Optional, Set
 
 from src.agents.experiment_agent.layers.base.manager import BaseManager, TaskWrapper
-from src.agents.experiment_agent.layers.base.state import GlobalPhase, StepStatus, TaskStatus as StateTaskStatus
-from src.agents.experiment_agent.layers.code.schemas.blueprint import Blueprint, FileSpec
-from src.agents.experiment_agent.layers.code.schemas.fix_blueprint import FixBlueprint, FixTaskSpec
+from src.agents.experiment_agent.layers.base.state import (
+    GlobalPhase,
+    StepStatus,
+    TaskStatus as StateTaskStatus,
+)
+from src.agents.experiment_agent.layers.code.schemas.blueprint import (
+    Blueprint,
+    FileSpec,
+)
 from src.agents.experiment_agent.layers.code.worker import CodeWorkerAgent
 from src.agents.experiment_agent.shared.utils.dag import TaskStatus
 from src.agents.experiment_agent.shared.exceptions import exit_on_rate_limit
@@ -273,17 +279,14 @@ class CodeManagerAgent(BaseManager[FileSpec, str]):
             if wrapper.last_error:
                 feedback = f"Previous attempt failed: {wrapper.last_error}"
 
-            # Dispatch to worker
-            # Get is_fix_mode from kwargs (default False for normal implementation retries)
-            is_fix_mode = kwargs.get("is_fix_mode", False)
+            # Dispatch to worker (implementation only; fix is handled by the Integrator).
             try:
-                _ = await worker.run_task(
+                result = await worker.run_task(
                     file_spec=file_spec,
                     stub_context=stub_context,
                     project_root=self.project_root,
                     idea_md_path=self.idea_md_path,
                     feedback=feedback,
-                    is_fix_mode=is_fix_mode,
                 )
             except Exception as e:
                 error_str = str(e)
@@ -294,12 +297,30 @@ class CodeManagerAgent(BaseManager[FileSpec, str]):
 
                 continue
 
-            code = ""
             full_path = os.path.join(self.project_root, file_spec.file_path)
             if not os.path.exists(full_path):
-                wrapper.last_error = "Worker did not write the file to disk."
-                print(f"  ❌ Missing file on disk: {file_spec.file_path}")
-                continue
+                # Fallback: try to extract code from worker output and write it ourselves.
+                try:
+                    code_fallback = worker._extract_code_from_result(
+                        result, file_spec=file_spec, project_root=self.project_root
+                    )
+                except Exception as e:
+                    code_fallback = ""
+                    wrapper.last_error = f"Worker did not write the file to disk; fallback extraction failed: {e}"
+
+                if not code_fallback.strip() or code_fallback.lstrip().startswith(
+                    "# Error:"
+                ):
+                    wrapper.last_error = "Worker did not write the file to disk."
+                    print(f"  ❌ Missing file on disk: {file_spec.file_path}")
+                    continue
+
+                # Write fallback code to disk and proceed with normal validation.
+                print(
+                    f"  ⚠ Missing file on disk; writing fallback code: {file_spec.file_path}"
+                )
+                self._write_file(full_path, code_fallback)
+
             try:
                 with open(full_path, "r", encoding="utf-8") as f:
                     code = f.read()
@@ -432,154 +453,6 @@ class CodeManagerAgent(BaseManager[FileSpec, str]):
 
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
-
-    async def fix_files(
-        self,
-        tickets: List[Dict],
-        blueprint: Blueprint,
-    ) -> Dict[str, str]:
-        """Fix files based on integration error tickets."""
-        if not tickets:
-            return {}
-
-        self.blueprint = blueprint
-
-        print(f"\n{'='*60}")
-        print(f"CodeManager: Fixing {len(tickets)} files from integration errors...")
-        print(f"{'='*60}")
-
-        # Reset tasks for files that need fixing
-        for ticket in tickets:
-            file_path = ticket["file_path"]
-            file_spec = next(
-                (f for f in blueprint.files if f.file_path == file_path), None
-            )
-
-            if not file_spec:
-                print(f"  ⚠️ No spec found for {file_path}, skipping...")
-                continue
-
-            # Create feedback from ticket
-            feedback = f"""⚠️ INTEGRATION ERROR - Please fix this issue:
-
-Issue Type: {ticket["issue_type"]}
-Error Message: {ticket["message"]}
-Suggestion: {ticket.get("suggestion", "Review and fix the code")}
-
-Please carefully review the error and fix the implementation.
-"""
-
-            # Create task wrapper
-            task = TaskWrapper(file_spec, priority=0)
-            task.last_error = feedback
-            self.tasks[file_path] = task
-
-        # Execute fixes (with is_fix_mode=True)
-        results = await self.execute_tasks(
-            tasks=[
-                self.tasks[t["file_path"]].task
-                for t in tickets
-                if t["file_path"] in self.tasks
-            ],
-            blueprint=blueprint,
-            is_fix_mode=True,
-        )
-
-        # Mark step status only (phase stays REFINEMENT)
-        self.complete_execution(StepStatus.COMPLETED)
-
-        return {
-            task_id: wrapper.status.value for task_id, wrapper in self.tasks.items()
-        }
-
-    async def fix_blueprint(
-        self,
-        fix_blueprint: FixBlueprint,
-        blueprint: Blueprint,
-    ) -> Dict[str, str]:
-        """
-        Fix files based on a FixBlueprint (file-level tasks + DAG).
-
-        The task granularity is file-level, aligned with implementation tasks.
-        """
-        if not fix_blueprint.tasks:
-            return {}
-
-        self.blueprint = blueprint
-
-        # Reload state to pick up any new step created by entry.py
-        if self.state_manager:
-            self.state_manager.load()
-
-        # Resume semantics for fix loop:
-        # Only skip tasks that execution state marked as completed (NOT based on "file exists").
-        completed_ids: Optional[Set[str]] = None
-        if self.state_manager and self.state_manager.current_state:
-            completed_set: Set[str] = self.get_completed_task_ids_from_state()
-            if completed_set:
-                completed_ids = completed_set
-                self._log_info(
-                    f"FixBlueprint resume: skipping {len(completed_ids)} completed tasks from execution state"
-                )
-
-        print(f"\n{'='*60}")
-        print(
-            f"CodeManager: Fixing {len(fix_blueprint.tasks)} files from FixBlueprint..."
-        )
-        print(f"{'='*60}")
-
-        # Reset tasks for files that need fixing
-        tasks_to_run: List[FileSpec] = []
-        for task in fix_blueprint.tasks:
-            file_path = task.file_path
-            file_spec = next(
-                (f for f in blueprint.files if f.file_path == file_path), None
-            )
-
-            if not file_spec:
-                print(f"  ⚠️ No spec found for {file_path}, skipping...")
-                continue
-
-            issues_text = "\n".join(
-                [
-                    f"- {i.issue_type}: {i.message}\n  Suggestion: {i.suggestion}"
-                    for i in task.issues
-                ]
-            )
-
-            feedback = f"""⚠️ FIX TASK - Please fix these issues:
-
-Task: {task.title}
-File: {task.file_path}
-
-Issues:
-{issues_text}
-
-Acceptance:
-- Fix the root cause (do not change tests just to make them pass).
-- Keep code complete (no TODO/placeholder).
-"""
-
-            wrapper = TaskWrapper(file_spec, priority=0)
-            wrapper.last_error = feedback
-            self.tasks[file_path] = wrapper
-            tasks_to_run.append(file_spec)
-
-        # Execute fixes (with is_fix_mode=True)
-        results = await self.execute_tasks(
-            tasks=tasks_to_run,
-            resume=True if completed_ids is not None else False,
-            completed_ids=completed_ids,
-            blueprint=blueprint,
-            is_fix_mode=True,
-        )
-
-        # Mark step status only (phase stays REFINEMENT)
-        self.complete_execution(StepStatus.COMPLETED)
-
-        return {
-            task_id: wrapper.status.value for task_id, wrapper in self.tasks.items()
-        }
 
     def _build_system_prompt(self, **kwargs) -> str:
         return ""  # Manager doesn't use LLM directly

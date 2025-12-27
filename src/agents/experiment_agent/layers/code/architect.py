@@ -16,7 +16,9 @@ from src.agents.experiment_agent.layers.code.schemas.blueprint import Blueprint
 from src.agents.experiment_agent.layers.code.schemas.proposal import Proposal
 from src.agents.experiment_agent.shared.exceptions import exit_on_rate_limit
 from src.agents.experiment_agent.shared.tools.core import get_architect_tools
-from src.agents.experiment_agent.shared.tools.parsing import extract_json_from_llm_output
+from src.agents.experiment_agent.shared.tools.parsing import (
+    extract_json_from_llm_output,
+)
 from src.agents.experiment_agent.shared.utils.config import CODE_ARCHITECT_MODEL
 from src.agents.experiment_agent.shared.utils.prompts import load_and_render_prompt
 
@@ -104,9 +106,23 @@ class CodeArchitectAgent(BaseAgent):
 
 {last_error}
 
-**CRITICAL:** You MUST output a complete, valid JSON Blueprint with ALL required fields:
-- Every `FunctionSignature` must have: `name`, `args`, `return_type`, `docstring`
-- Every `ClassSignature` must have: `name`, `methods` (list of FunctionSignature), `docstring`
+**CRITICAL (STRICT Pydantic Schema):** You MUST output a complete, valid JSON `Blueprint` with ALL required fields and correct types:
+- Top-level required keys: `file_tree`, `files`, `shared_data_structures`, `entry_point`
+- `file_tree` MUST be a JSON array of strings (file paths). DO NOT put dict/object items in `file_tree`.
+- `files` MUST be a JSON array of `FileSpec` objects.
+- `shared_data_structures` MUST be a JSON object/dict mapping name -> definition string (use `{{}}` if none).
+- `entry_point` MUST be a string path to the entry point file.
+- CONSISTENCY: `file_tree` must match exactly the set of `files[*].file_path` (same paths, no missing, no extra).
+
+**CRITICAL (Nested required fields):**
+- `files[*].functions` (if present) MUST be a JSON array of FunctionSignature OBJECTS (NOT strings).
+  Every `FunctionSignature` must have: `name`, `args`, `return_type`, `docstring`
+- `files[*].classes` (if present) MUST be a JSON array of ClassSignature OBJECTS (NOT strings).
+  Every `ClassSignature` must have: `name`, `methods` (list of FunctionSignature objects), `docstring`
+- `files[*].test_file` MUST be either a string path or null. NEVER use boolean true/false.
+- `files[*].is_test` MUST be boolean (true/false). Do NOT swap `test_file` and `is_test`.
+- DAG RULE: Source files MUST NEVER depend on test files. Do NOT put any "tests/..." in a non-test file's `dependencies`.
+- DAG RULE: Avoid setting `test_file` for non-test files; prefer `test_file: null` to prevent src<->test cycles.
 - Every `FileSpec` must have: `file_path`, `description`, `dependencies`
 
 Please regenerate the complete Blueprint JSON with all required fields filled in.
@@ -143,6 +159,212 @@ Please regenerate the complete Blueprint JSON with all required fields filled in
                     )
 
         raise ValueError("Failed to generate Blueprint")
+
+    async def generate_spec_md(
+        self,
+        proposal_path: str,
+        constitution_md: str,
+        templates_dir: str = "",
+        experiment_id: str = "",
+        dataset_dir: str = "",
+    ) -> str:
+        """
+        Generate Product Spec (spec.md) as Markdown.
+        """
+        prompt_path = os.path.join(
+            os.path.dirname(__file__),
+            "prompts",
+            "code_spec",
+            "system.txt",
+        )
+        system_prompt = load_and_render_prompt(
+            prompt_path=prompt_path,
+            variables={
+                "constitution_md": constitution_md or "",
+                "proposal_path": proposal_path or "",
+                "templates_dir": templates_dir or "",
+                "experiment_id": experiment_id or "",
+                "dataset_dir": dataset_dir or "",
+            },
+        )
+        tmpl = (templates_dir or "").rstrip("/")
+        user_prompt = (
+            "Write `spec.md` now.\n"
+            "Before writing, you MUST read the proposal via tools using the provided path (file_viewer).\n"
+            f'You MUST also read the spec template via tools: file_viewer("{tmpl}/spec-template.md", 1, 140)\n'
+            "Output ONLY Markdown."
+        )
+        result = await self._run_agent(
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            tools=self._get_tools(),
+        )
+        return str(self._extract_output(result) or "").strip()
+
+    async def generate_plan_md(
+        self,
+        spec_md: str,
+        constitution_md: str,
+        templates_dir: str = "",
+        experiment_id: str = "",
+        dataset_dir: str = "",
+        reference_repos: Optional[List[str]] = None,
+    ) -> str:
+        """
+        Generate Technical Plan (plan.md) as Markdown.
+        """
+        repos_to_use = reference_repos or []
+        reference_repos_str = ""
+        if repos_to_use:
+            reference_repos_str = "\n".join(f"- {repo}" for repo in repos_to_use)
+
+        prompt_path = os.path.join(
+            os.path.dirname(__file__),
+            "prompts",
+            "code_plan",
+            "system.txt",
+        )
+        system_prompt = load_and_render_prompt(
+            prompt_path=prompt_path,
+            variables={
+                "constitution_md": constitution_md or "",
+                "spec_md": spec_md or "",
+                "templates_dir": templates_dir or "",
+                "experiment_id": experiment_id or "",
+                "dataset_dir": dataset_dir or "",
+                "reference_repos_str": reference_repos_str or "",
+            },
+        )
+        tmpl = (templates_dir or "").rstrip("/")
+        user_prompt = (
+            "Write `plan.md` now.\n"
+            "You MUST treat the provided `spec.md` and constitution content as source of truth.\n"
+            f'You MUST also read the plan template via tools: file_viewer("{tmpl}/plan-template.md", 1, 180)\n'
+            "Output ONLY Markdown."
+        )
+        result = await self._run_agent(
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            tools=self._get_tools(),
+        )
+        return str(self._extract_output(result) or "").strip()
+
+    async def create_blueprint_from_plan(
+        self,
+        plan_md: str,
+        constitution_md: str,
+        templates_dir: str = "",
+        max_retries: int = 3,
+    ) -> Blueprint:
+        """
+        Create a Blueprint (tasks) derived from plan.md (spec-kit-aligned).
+        """
+        prompt_path = os.path.join(
+            os.path.dirname(__file__),
+            "prompts",
+            "code_blueprint",
+            "system.txt",
+        )
+        system_prompt = load_and_render_prompt(
+            prompt_path=prompt_path,
+            variables={
+                "constitution_md": constitution_md or "",
+                "plan_md": plan_md or "",
+                "templates_dir": templates_dir or "",
+            },
+        )
+        tmpl = (templates_dir or "").rstrip("/")
+        user_prompt = (
+            "Generate the Blueprint JSON from plan.md now.\n"
+            f'You MUST also read the tasks template via tools (task quality intent): file_viewer("{tmpl}/tasks-template.md", 1, 140)\n'
+            "Output ONLY ```json ... ```."
+        )
+
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            if attempt > 1:
+                retry_prompt = f"""{user_prompt}
+
+---
+⚠️ PREVIOUS ATTEMPT FAILED - FIX THESE ERRORS:
+
+{last_error}
+"""
+                user_prompt = retry_prompt
+
+            result = await self._run_agent(
+                user_prompt=user_prompt,
+                system_prompt=system_prompt,
+                tools=self._get_tools(),
+            )
+
+            try:
+                blueprint = self._extract_blueprint(result)
+                blueprint.validate_dag()
+                return blueprint
+            except Exception as e:
+                last_error = str(e)
+                exit_on_rate_limit(last_error)
+                if attempt == max_retries:
+                    raise
+
+        raise ValueError("Failed to generate Blueprint from plan")
+
+    async def generate_constitution_md(
+        self,
+        constitution_template_path: str,
+        templates_dir: str,
+        experiment_id: str = "",
+        max_retries: int = 2,
+    ) -> str:
+        """
+        Generate a per-experiment constitution.md from a spec-kit style template.
+        """
+        prompt_path = os.path.join(
+            os.path.dirname(__file__),
+            "prompts",
+            "code_constitution",
+            "system.txt",
+        )
+        system_prompt = load_and_render_prompt(
+            prompt_path=prompt_path,
+            variables={
+                "templates_dir": templates_dir or "",
+                "constitution_template_path": constitution_template_path or "",
+                "experiment_id": experiment_id or "",
+            },
+        )
+
+        user_prompt = (
+            "Generate the constitution now.\n"
+            "You MUST follow the required workflow in the system instructions.\n"
+            "Output ONLY Markdown."
+        )
+
+        last_error = ""
+        for attempt in range(1, max_retries + 1):
+            if attempt > 1:
+                user_prompt = (
+                    user_prompt + "\n\nPrevious attempt issues:\n" + (last_error or "")
+                )
+            result = await self._run_agent(
+                user_prompt=user_prompt,
+                system_prompt=system_prompt,
+                tools=self._get_tools(),
+            )
+            text = str(self._extract_output(result) or "").strip()
+            # Minimal validation: must look like the template shape and include Governance + Version line.
+            if (
+                ("## Governance" in text)
+                and ("**Version**:" in text)
+                and ("# " in text[:100])
+            ):
+                return text
+            last_error = (
+                "Missing required sections (Governance/Version) or malformed output."
+            )
+
+        return str(text or "").strip()
 
     def _build_system_prompt(
         self, reference_repos: Optional[List[str]] = None, **kwargs

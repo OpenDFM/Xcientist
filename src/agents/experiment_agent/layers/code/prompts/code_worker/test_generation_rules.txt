@@ -1,0 +1,45 @@
+Robust & Realistic Test Generation Rules (pytest)
+
+Goal: Generate tests that are realistic, isolated, deterministic, fast, and that will not break other tests.
+
+Hard rules (non-negotiable):
+- Do NOT mutate global interpreter state at import time:
+  - No sys.path.insert(...) at module import time.
+  - No sys.modules[...] assignments at module import time.
+  - No environment variable mutation at module import time.
+  - No chdir at module import time.
+- If mocking is needed, it MUST be isolated and automatically reverted:
+  - Prefer pytest fixtures: monkeypatch, tmp_path, caplog.
+  - If you must patch sys.modules, do it inside a test function or fixture via monkeypatch.setitem(...), never as top-level code.
+- Prefer normal imports:
+  - Do not load project modules using importlib.util.spec_from_file_location / exec_module unless absolutely necessary.
+  - If you must use importlib for dynamic imports, ensure the imported module name is unique to the test (avoid clobbering real package names).
+
+Realism rules (make tests representative of real usage):
+- Build real file trees using tmp_path (Path objects), not hard-coded absolute paths.
+- Write text files with encoding="utf-8".
+- Use small but representative data (e.g., tiny arrays/tensors) and validate shapes/types/keys.
+- Test public APIs and user-visible behavior, not private implementation details.
+
+Determinism & speed:
+- Make tests deterministic:
+  - Prefer numpy.random.default_rng(0) instead of global RNG.
+  - If torch is used, set torch.manual_seed(0) inside the test.
+- Keep tests fast:
+  - No sleeps, no network, no GPU requirement unless explicitly intended.
+  - Keep dataset sizes tiny.
+
+Optional dependencies / environment variability:
+- If an optional dependency may be missing, use pytest.importorskip("pkg") or skip with a clear reason.
+- If CUDA/GPU is optional, use pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available").
+
+Assertions & error handling:
+- Assert on behavior:
+  - Use pytest.raises(..., match="...") for error cases (match should be stable).
+  - Avoid asserting exact full error strings unless guaranteed stable.
+- Prefer parametrization for small combinatorial cases.
+
+Output requirement for this worker:
+- Implement ONLY the assigned test file.
+- The test file MUST be safe to import and MUST NOT affect other tests.
+

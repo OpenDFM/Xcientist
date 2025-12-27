@@ -7,7 +7,7 @@ Tools:
 - write_file: Write file to disk
 - edit_file: Edit file with string replacement
 
-Validation utilities are imported from shared.tools.validation:
+Validation utilities are imported from src.agents.experiment_agent.shared.tools.validation:
 - run_linter: Run syntax and style checks
 - validate_code_against_spec: Validate code matches specification
 - extract_interface_stub: Extract interface stub from Python file
@@ -34,6 +34,8 @@ from src.agents.experiment_agent.shared.tools.validation import (
 
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_BASH_TIMEOUT_SECONDS = int(os.getenv("AGENT_BASH_TIMEOUT_SECONDS", "600"))
 
 
 # =============================================================================
@@ -99,7 +101,7 @@ def bash(command: str, working_dir: str = "") -> dict:
             cwd=cwd,
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=DEFAULT_BASH_TIMEOUT_SECONDS,
         )
 
         return {
@@ -112,7 +114,7 @@ def bash(command: str, working_dir: str = "") -> dict:
         logger.warning(f"Command timed out: {command[:50]}...")
         return {
             "success": False,
-            "stderr": "Command timed out after 60 seconds",
+            "stderr": f"Command timed out after {DEFAULT_BASH_TIMEOUT_SECONDS} seconds",
             "return_code": -1,
         }
     except Exception as e:
@@ -266,9 +268,9 @@ def edit_file(file_path: str, old_string: str, new_string: str) -> dict:
 
 
 # =============================================================================
-# Validation Utilities - Re-exported from shared.tools.validation
+# Validation Utilities - Re-exported from src.agents.experiment_agent.shared.tools.validation
 # =============================================================================
-# These functions are imported from shared.tools.validation for backward compatibility:
+# These functions are imported from src.agents.experiment_agent.shared.tools.validation for backward compatibility:
 # - run_linter
 # - validate_code_against_spec
 # - extract_interface_stub

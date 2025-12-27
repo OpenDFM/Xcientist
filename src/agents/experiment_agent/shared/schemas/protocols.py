@@ -67,7 +67,7 @@ class OptimizationTicket(BaseModel):
     )
 
     def to_fix_ticket(self) -> Dict[str, Any]:
-        """Convert to the format expected by Code Manager.fix_files()."""
+        """Convert to the generic ticket dict format consumed by the Code Integrator optimization loop."""
         return {
             "file_path": self.file_path,
             "issue_type": self.issue_type,
@@ -108,7 +108,7 @@ class OptimizationBatch(BaseModel):
         return sum(1 for t in self.tickets if t.priority == TicketPriority.HIGH)
 
     def to_fix_tickets(self) -> List[Dict[str, Any]]:
-        """Convert all tickets to fix format for Code Manager."""
+        """Convert all tickets to the generic ticket dict format for the Code Layer."""
         return [t.to_fix_ticket() for t in self.tickets]
 
     def group_by_file(self) -> Dict[str, List[OptimizationTicket]]:

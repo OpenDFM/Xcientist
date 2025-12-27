@@ -12,12 +12,17 @@ import os
 from typing import Optional, List, Any
 
 from src.agents.experiment_agent.layers.base.agent import BaseAgent, PromptBuilder
-from src.agents.experiment_agent.layers.science.schemas.experiment import ExperimentPlan, ExperimentTask
+from src.agents.experiment_agent.layers.science.schemas.experiment import (
+    ExperimentPlan,
+    ExperimentTask,
+)
 from src.agents.experiment_agent.layers.code.schemas.blueprint import Blueprint
 from src.agents.experiment_agent.layers.code.schemas.manifest import CodeManifest
 from src.agents.experiment_agent.layers.code.schemas.proposal import Proposal
 from src.agents.experiment_agent.shared.tools.core import get_architect_tools
-from src.agents.experiment_agent.shared.tools.parsing import extract_json_from_llm_output
+from src.agents.experiment_agent.shared.tools.parsing import (
+    extract_json_from_llm_output,
+)
 from src.agents.experiment_agent.shared.utils.cache import Cache
 from src.agents.experiment_agent.shared.utils.config import SCIENCE_ARCHITECT_MODEL
 from src.agents.experiment_agent.shared.utils.prompts import load_and_render_prompt
@@ -182,6 +187,9 @@ class ExpArchitectAgent(BaseAgent):
             scripts_info = f"\n**AVAILABLE SCRIPTS:**\n{scripts_list}\n"
 
         project_root = project_root or (manifest.project_root if manifest else ".")
+        workspace_root = (
+            os.path.dirname(os.path.abspath(project_root or "")) if project_root else ""
+        )
         entry_point = manifest.entry_point if manifest else "main.py"
         config_file = manifest.config_file if manifest else "Not specified"
         skeleton_block = f"\n{project_skeleton}\n" if project_skeleton else ""
@@ -210,6 +218,22 @@ Let the observed formats/splits drive the data loading commands and evaluation c
             variables={
                 "dataset_context_str": (
                     dataset_context_str.strip("\n") if dataset_context_str else ""
+                ),
+                "workspace_root": str(workspace_root),
+                "constitution_path": (
+                    str(os.path.join(workspace_root, "cached", "constitution.md"))
+                    if workspace_root
+                    else ""
+                ),
+                "spec_path": (
+                    str(os.path.join(workspace_root, "specs", "spec.md"))
+                    if workspace_root
+                    else ""
+                ),
+                "plan_path": (
+                    str(os.path.join(workspace_root, "specs", "plan.md"))
+                    if workspace_root
+                    else ""
                 ),
                 "project_root": str(project_root),
                 "entry_point": str(entry_point),

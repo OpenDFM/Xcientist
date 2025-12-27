@@ -8,7 +8,8 @@ Provides hooks to intercept and display:
 """
 
 import json
-from typing import Any, Dict
+import os
+from typing import Any, Dict, List, Optional
 
 from agents import RunHooks
 
@@ -159,6 +160,135 @@ def _truncate_to_tokens(text: str, max_tokens: int = 500, model: str = "gpt-4") 
     if len(text) <= max_chars:
         return text
     return text[:max_chars] + f"\n... (truncated, ~{len(text)} chars total)"
+
+
+def _as_plain_obj(obj: Any) -> Optional[Any]:
+    """
+    Best-effort conversion of SDK/agents objects to plain Python containers.
+    Returns dict/list when possible, otherwise None.
+    """
+    if obj is None:
+        return None
+    try:
+        if hasattr(obj, "model_dump") and callable(getattr(obj, "model_dump")):
+            return obj.model_dump()
+    except Exception:
+        pass
+    try:
+        if hasattr(obj, "dict") and callable(getattr(obj, "dict")):
+            return obj.dict()
+    except Exception:
+        pass
+    try:
+        if isinstance(obj, (dict, list)):
+            return obj
+    except Exception:
+        pass
+    try:
+        d = getattr(obj, "__dict__", None)
+        if isinstance(d, dict) and d:
+            return d
+    except Exception:
+        pass
+    return None
+
+
+def _extract_think_tag(text: str) -> Optional[str]:
+    """
+    Extract <think>...</think> content if present.
+    MiniMax models may embed thinking in content when reasoning_split is not surfaced.
+    """
+    if not isinstance(text, str):
+        return None
+    start = text.find("<think>")
+    end = text.find("</think>")
+    if start == -1 or end == -1 or end <= start:
+        return None
+    inner = text[start + len("<think>") : end].strip()
+    return inner if inner else None
+
+
+def _extract_reasoning_from_modelresponse_output(output_value: Any) -> Optional[str]:
+    """
+    Extract provider reasoning from a Responses-style ModelResponse.output.
+    Best-effort:
+    - Look for reasoning_details fields (MiniMax: List[{"text": "..."}])
+    - Look for content items with type like "reasoning"/"thinking"
+    - Fallback: parse <think>...</think> from output_text text
+    """
+    expanded = _as_plain_obj(output_value)
+    if expanded is not None and expanded is not output_value:
+        output_value = expanded
+
+    if not isinstance(output_value, list):
+        return None
+
+    # Pass 1: explicit reasoning_details / reasoning-like content
+    for item in output_value:
+        item_dump = _as_plain_obj(item) or item
+        if not isinstance(item_dump, dict):
+            continue
+
+        # Sometimes reasoning_details is attached at message level
+        rd = item_dump.get("reasoning_details", None)
+        if isinstance(rd, list) and rd:
+            texts = []
+            for d in rd:
+                if isinstance(d, dict) and isinstance(d.get("text", None), str):
+                    texts.append(d["text"])
+            joined = "\n".join([t for t in texts if t.strip()])
+            if joined.strip():
+                return joined
+
+        content = item_dump.get("content", None)
+        content_dump = _as_plain_obj(content) or content
+        if isinstance(content_dump, list):
+            for c in content_dump:
+                cd = _as_plain_obj(c) or c
+                if not isinstance(cd, dict):
+                    continue
+                ctype = cd.get("type", None)
+                if isinstance(ctype, str) and ctype.lower() in (
+                    "reasoning",
+                    "thinking",
+                ):
+                    # try common text fields
+                    for k in ("text", "content", "value"):
+                        v = cd.get(k, None)
+                        if isinstance(v, str) and v.strip():
+                            return v
+                rd2 = cd.get("reasoning_details", None)
+                if isinstance(rd2, list) and rd2:
+                    texts = []
+                    for d in rd2:
+                        if isinstance(d, dict) and isinstance(d.get("text", None), str):
+                            texts.append(d["text"])
+                    joined = "\n".join([t for t in texts if t.strip()])
+                    if joined.strip():
+                        return joined
+
+    # Pass 2: <think> tags inside output_text
+    for item in output_value:
+        item_dump = _as_plain_obj(item) or item
+        if not isinstance(item_dump, dict):
+            continue
+        content = item_dump.get("content", None)
+        content_dump = _as_plain_obj(content) or content
+        if not isinstance(content_dump, list):
+            continue
+        for c in content_dump:
+            cd = _as_plain_obj(c) or c
+            if not isinstance(cd, dict):
+                continue
+            ctype = cd.get("type", None)
+            if isinstance(ctype, str) and ctype == "output_text":
+                txt = cd.get("text", None)
+                if isinstance(txt, str) and txt:
+                    think = _extract_think_tag(txt)
+                    if think:
+                        return think
+
+    return None
 
 
 class VerboseRunHooks(RunHooks):
@@ -342,23 +472,57 @@ class VerboseRunHooks(RunHooks):
         if not self.show_llm_responses:
             return
 
+        # agents 库的 on_llm_end 往往会传入：
+        # args = (RunContextWrapper, Agent, ModelResponse)
+        # 真实模型输出通常在最后一个参数（ModelResponse）里，而不是 RunContextWrapper.context
         response = kwargs.get("response", args[0] if args else None)
+        llm_response = args[-1] if args else response
         print(f"{Colors.OKGREEN}✓ LLM Response{Colors.ENDC}")
 
-        if response is None:
+        if llm_response is None:
             return
 
         try:
             content = None
+            reasoning = None
             tool_calls = []
 
-            if hasattr(response, "choices") and response.choices:
-                choice = response.choices[0]
+            if hasattr(llm_response, "choices") and llm_response.choices:
+                choice = llm_response.choices[0]
                 if hasattr(choice, "message"):
                     message = choice.message
 
                     if hasattr(message, "content") and message.content:
                         content = message.content
+
+                    # Best-effort: some providers (or proxy gateways) may return a separate reasoning field
+                    # when configured with options like `reasoning_split`.
+                    for attr in (
+                        "reasoning",
+                        "reasoning_content",
+                        "thinking",
+                        "thought",
+                        "thoughts",
+                        "reasoning_details",
+                    ):
+                        if hasattr(message, attr):
+                            val = getattr(message, attr, None)
+                            # MiniMax 文档：reasoning_split=True 时，思考内容会在 reasoning_details 字段
+                            # 典型结构：List[{"text": "..."}]
+                            if isinstance(val, str) and val.strip():
+                                reasoning = val
+                                break
+                            if isinstance(val, list) and val:
+                                texts = []
+                                for item in val:
+                                    if isinstance(item, dict) and isinstance(
+                                        item.get("text", None), str
+                                    ):
+                                        texts.append(item["text"])
+                                joined = "\n".join([t for t in texts if t.strip()])
+                                if joined.strip():
+                                    reasoning = joined
+                                    break
 
                     if hasattr(message, "tool_calls") and message.tool_calls:
                         for tool_call in message.tool_calls:
@@ -368,6 +532,28 @@ class VerboseRunHooks(RunHooks):
                                 else "unknown"
                             )
                             tool_calls.append(tool_name)
+
+            # Responses-style fallback: ModelResponse.output
+            if reasoning is None and hasattr(llm_response, "output"):
+                try:
+                    reasoning = _extract_reasoning_from_modelresponse_output(
+                        getattr(llm_response, "output", None)
+                    )
+                except Exception:
+                    pass
+
+            # Optional: print provider-supplied reasoning if explicitly enabled.
+            # This is off by default to avoid noisy logs and accidental leakage.
+            show_reasoning_env = (
+                os.environ.get("SHOW_LLM_REASONING", "").strip().lower()
+            )
+            show_reasoning = show_reasoning_env in ("1", "true", "yes", "y", "on")
+            if show_reasoning and reasoning:
+                truncated_reasoning = _truncate_to_tokens(
+                    str(reasoning), max_tokens=300
+                )
+                print(f"{Colors.OKCYAN}🧠 Thinking:{Colors.ENDC}")
+                print(f"{Colors.WARNING}{truncated_reasoning}{Colors.ENDC}\n")
 
             if content:
                 truncated_output = _truncate_to_tokens(content, max_tokens=500)

@@ -23,10 +23,10 @@ API_PROVIDER: str = "openai"
 
 # OpenAI Configuration
 OPENAI_API_KEY: Optional[str] = os.environ.get(
-    "OPENAI_API_KEY", "sk-Q1Aah6ovHJyPhlmi0yZtNazWo29XiMyBIMtaKZGtG6RzFp2W"
+    "OPENAI_API_KEY", "sk-BWZ0Kqbk3PvdF0zRFf69B63901B84e85A5B4D8B1AfE27e2e"
 )
 OPENAI_API_BASE: Optional[str] = os.environ.get(
-    "OPENAI_API_BASE", "https://www.dmxapi.cn/v1"
+    "OPENAI_API_BASE", "https://api.xi-ai.cn/v1"
 )
 
 # MiniMax Configuration
@@ -36,8 +36,11 @@ MINIMAX_API_KEY: Optional[str] = os.environ.get(
 )
 MINIMAX_API_BASE: Optional[str] = "https://api.minimaxi.com/v1"
 MINIMAX_MODEL_EXTRA_BODY: dict = {"reasoning_split": True}
-MINIMAX_MODELS: list = ["Minimax-M2"]
+MINIMAX_MODELS: list = ["MiniMax-M2.1"]
 
+XIAOMI_API_KEY: str = "sk-c8bwnop3bi1nahlzx98ga7o0kqgr8u9h0bpv6zri28hp2x20"
+XIAOMI_API_BASE: str = "https://api.xiaomimimo.com/v1/"
+XIAOMI_MODELS: list = ["mimo-v2-flash"]
 # MINIMAX_API_KEY: Optional[str] = os.environ.get(
 #     "MINIMAX_API_KEY",
 #     "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiLkvIEiLCJVc2VyTmFtZSI6IuS8gSIsIkFjY291bnQiOiIiLCJTdWJqZWN0SUQiOiIxOTk4MjcyNjcyNjM0NTA3NTQ0IiwiUGhvbmUiOiIxODk4NTU0MDc2NiIsIkdyb3VwSUQiOiIxOTk4MjcyNjcyNjMwMzEzMjQwIiwiUGFnZU5hbWUiOiIiLCJNYWlsIjoiIiwiQ3JlYXRlVGltZSI6IjIwMjUtMTItMTAgMTQ6MTQ6NTMiLCJUb2tlblR5cGUiOjQsImlzcyI6Im1pbmltYXgifQ.hvIJx5NfyV-53iYcS7AMkwooAK4yLv00ZMW0CojFki_S0qXfBECOFozLVcSVcS_-Lbn1ttS6_ZQmuFOZLzZbMz679Svq_ffebftANne4fUQheFrdWMiI48JBvzVH5aDL85cxyLyLU4zfujrE1tpEkfOWddgASMpSzZmK-uiivOOPJqAoMQI76kyZbuVTIIMjXYmsTKsYpmj83ggnpHFT8E2pmXBnQyL_5IRwDRLyN4VKSRUjSRvjo8z4_QE_f1ubGLThJgnCeb0mS5nVtjg9rGcBHmRsvJoTwLKPSRv8lCaEvGTM9U8UVvOcMIt9Y3BgBT2tuUvDXJt-VGAnw3OfhA",
@@ -56,18 +59,18 @@ MINIMAX_MODELS: list = ["Minimax-M2"]
 
 # Code Layer Models
 CODE_ARCHITECT_MODEL: str = "gpt-5.2"
-CODE_MANAGER_MODEL: str = "MiniMax-M2"
-CODE_WORKER_MODEL: str = "MiniMax-M2"
-CODE_INTEGRATOR_MODEL: str = "MiniMax-M2"
+CODE_MANAGER_MODEL: str = "MiniMax-M2.1"
+CODE_WORKER_MODEL: str = "MiniMax-M2.1"
+CODE_INTEGRATOR_MODEL: str = "MiniMax-M2.1"
 
 # Science Layer Models
 SCIENCE_ARCHITECT_MODEL: str = "gpt-5.2"
-SCIENCE_MANAGER_MODEL: str = "MiniMax-M2"
-SCIENCE_WORKER_MODEL: str = "MiniMax-M2"
+SCIENCE_MANAGER_MODEL: str = "MiniMax-M2.1"
+SCIENCE_WORKER_MODEL: str = "MiniMax-M2.1"
 SCIENCE_INTEGRATOR_MODEL: str = "gpt-5.2"
 
 # Default fallback
-DEFAULT_MODEL: str = "MiniMax-M2"
+DEFAULT_MODEL: str = "MiniMax-M2.1"
 
 
 # Base directory for all CodeAgent workspaces
@@ -87,12 +90,14 @@ PROJECT_ROOT: str = ""
 MAX_PARALLEL_WORKERS: int = 5
 
 # Maximum attempts for each file implementation
-MAX_IMPLEMENTATION_ATTEMPTS: int = 5
+MAX_IMPLEMENTATION_ATTEMPTS: int = 50
 
 MAX_SCIENCE_ITERATIONS: int = 1
 
 # Maximum tool-calling turns for agents
 MAX_AGENT_TURNS: int = 999
+
+MAX_FIX_ITERATIONS = 50
 
 # Enable/disable tracing
 ENABLE_TRACING: bool = False
@@ -237,6 +242,17 @@ def ensure_experiment_dirs(experiment_id: str) -> dict:
     os.makedirs(paths["logs_dir"], exist_ok=True)
     os.makedirs(paths["cache_dir"], exist_ok=True)
     os.makedirs(paths["dataset_dir"], exist_ok=True)
+    specs_dir = os.path.join(paths["workspace_dir"], "specs")
+    os.makedirs(specs_dir, exist_ok=True)
+    paths["specs_dir"] = specs_dir
+
+    templates_dir = os.path.join(paths["workspace_dir"], "templates")
+    os.makedirs(templates_dir, exist_ok=True)
+    paths["templates_dir"] = templates_dir
+
+    # Per-experiment constitution (spec-kit-like "memory/constitution.md"), but stored directly
+    # under cached/ for this experiment so it can differ across experiments and is resume-friendly.
+    paths["constitution_path"] = os.path.join(paths["cache_dir"], "constitution.md")
 
     return paths
 
@@ -324,6 +340,13 @@ def is_minimax_model(model_name: str) -> bool:
     return any(m.lower() in model_name.lower() for m in MINIMAX_MODELS)
 
 
+def is_xiaomi_model(model_name: str) -> bool:
+    """Check if model is a Xiaomi model."""
+    if not model_name:
+        return False
+    return any(m.lower() in model_name.lower() for m in XIAOMI_MODELS)
+
+
 def get_openai_config(model: Optional[str] = None) -> dict:
     """
     Get OpenAI configuration dictionary.
@@ -343,6 +366,13 @@ def get_openai_config(model: Optional[str] = None) -> dict:
             "base_url": MINIMAX_API_BASE,
             "extra_body": MINIMAX_MODEL_EXTRA_BODY,
             "is_minimax": True,
+        }
+    elif is_xiaomi_model(model_to_use):
+        return {
+            "api_key": XIAOMI_API_KEY,
+            "model_name": model_to_use,
+            "base_url": XIAOMI_API_BASE,
+            "is_xiaomi": True,
         }
     else:
         config = {

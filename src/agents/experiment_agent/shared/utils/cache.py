@@ -100,6 +100,11 @@ class Cache:
         return cls._hash_key(key)
 
     @classmethod
+    def hash_text(cls, text: str) -> str:
+        """Create a stable hash from an arbitrary UTF-8 text."""
+        return cls._hash_key(str(text or ""))
+
+    @classmethod
     def clear(cls):
         """Clear all caches."""
         with cls._lock:

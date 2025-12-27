@@ -21,12 +21,18 @@ import glob
 # Add current directory to sys.path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from src.agents.experiment_agent.layers.code.entry import run_code_generation_loop, run_optimization
+from src.agents.experiment_agent.layers.code.entry import (
+    run_code_generation_loop,
+    run_optimization,
+)
 from src.agents.experiment_agent.layers.science.entry import run_science_cycle
 from src.agents.experiment_agent.layers.code.schemas.blueprint import Blueprint
 from src.agents.experiment_agent.layers.code.schemas.manifest import CodeManifest
 from src.agents.experiment_agent.layers.code.schemas.idea_parser import load_idea_file
-from src.agents.experiment_agent.shared.schemas.protocols import OptimizationBatch, tickets_from_science_analysis
+from src.agents.experiment_agent.shared.schemas.protocols import (
+    OptimizationBatch,
+    tickets_from_science_analysis,
+)
 from src.agents.experiment_agent.shared.exceptions import exit_on_rate_limit
 from src.agents.experiment_agent.shared.logger import print_phase
 from src.agents.experiment_agent.shared.utils.config import (
@@ -274,7 +280,7 @@ async def main():
         blueprint = None
         candidate_ids = []
 
-        # If the last code step was a FixBlueprint (id like "fix_*"), try to recover the original
+        # If the last code step was an intermediate fix step (id like "fix_*"), try to recover the original
         # Blueprint ID from the code execution state meta.
         try:
             sm = StateManager(paths["workspace_dir"], namespace="code")

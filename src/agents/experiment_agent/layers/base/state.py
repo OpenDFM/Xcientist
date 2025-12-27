@@ -22,6 +22,7 @@ from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
+_NO_UPDATE = object()
 
 
 class GlobalPhase(str, Enum):
@@ -367,7 +368,7 @@ class StateManager:
         task_id: str,
         status: TaskStatus = None,
         attempts: int = None,
-        last_error: str = None,
+        last_error: Any = _NO_UPDATE,
         save: bool = True,
     ) -> None:
         """
@@ -391,7 +392,9 @@ class StateManager:
             task.status = status
         if attempts is not None:
             task.attempts = attempts
-        if last_error is not None:
+        # Allow callers to explicitly clear last_error by passing last_error=None.
+        # (We need a sentinel to distinguish "no update" from "set to None".)
+        if last_error is not _NO_UPDATE:
             task.last_error = last_error
 
         # Auto-promote phase from INIT -> EXECUTION on the first meaningful task update.

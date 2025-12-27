@@ -9,10 +9,10 @@ Modules:
 - exceptions: Unified exception handling
 
 Usage:
-    from shared.tools import bash, file_viewer, run_linter
-    from shared.utils import Cache, DAGScheduler, ProjectContext
-    from shared.schemas import OptimizationTicket
-    from shared.exceptions import SuperAgentError
+    from src.agents.experiment_agent.shared.tools import bash, file_viewer, run_linter
+    from src.agents.experiment_agent.shared.utils import Cache, DAGScheduler, ProjectContext
+    from src.agents.experiment_agent.shared.schemas import OptimizationTicket
+    from src.agents.experiment_agent.shared.exceptions import SuperAgentError
 """
 
 from src.agents.experiment_agent.shared.exceptions import (

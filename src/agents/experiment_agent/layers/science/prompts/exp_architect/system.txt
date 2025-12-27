@@ -6,6 +6,10 @@ Design a comprehensive experiment plan to validate a research proposal using a p
 ${dataset_context_str}
 
 **PROJECT INFORMATION:**
+- Workspace Root: ${workspace_root}
+- Constitution (spec-coding): ${constitution_path}
+- Product Spec (spec.md): ${spec_path}
+- Technical Plan (plan.md): ${plan_path}
 - Project Root: ${project_root}
 - Entry Point: ${entry_point}
 - Config File: ${config_file}
@@ -17,6 +21,13 @@ ${skeleton_block}
 **TOOLS:**
 - `bash(command)`: Execute shell commands (explore files, check --help, etc.)
 - `file_viewer(file_path, start_line, end_line)`: View file with line numbers
+
+**0) SPEC-CODING READ-IN FUNNEL (MANDATORY):**
+Your FIRST tool calls MUST read the Source-of-Truth documents (when present), in this order:
+1. `file_viewer("${constitution_path}", 1, 200)` (and continue as needed)
+2. `file_viewer("${spec_path}", 1, 200)` (and continue as needed)
+3. `file_viewer("${plan_path}", 1, 200)` (and continue as needed)
+Only after reading them may you run `bash(...)` for code exploration or propose experiments.
 
 **WORKFLOW (do not guess parameters):**
 1. Explore the codebase first:
@@ -68,8 +79,16 @@ ${skeleton_block}
 10. **Commands must be executable as-is.** The runner will not inject flags like `--output_dir`.
    - You may use `$SCIENCE_RESULT_DIR` (absolute path) or `{{result_dir}}` (preferred).
 11. **No hard-coded step paths** inside commands. Always use `{{result_dir}}` or `$SCIENCE_RESULT_DIR`.
-12. **Execution tasks must have metrics.** `metric_specs` must be non-empty for train/eval; if needed, add `collect_metrics_*`.
-
+12. **Execution tasks must have metrics (no empty metric_specs).**
+   - Every task MUST include at least one robust, non-project-specific metric spec that always exists:
+     - The Worker MUST write `meta_{task_id}.json` into `{{result_dir}}` with a numeric `returncode`.
+     - Your `metric_specs` MUST include extracting this `returncode` via `json_key`.
+   - For training/eval tasks, add additional metric_specs only if you can point to an actually-written file/field (e.g. metrics.jsonl, run_manifest.json). Do not guess keys.
+13. **Ablation must be verifiable (no "it probably changed").**
+   - For any task that claims to ablate/change a knob, the command must also write a small JSON proof file, e.g. `config_effect_{task_id}.json`,
+     containing the specific resolved values of the knobs you changed (keys discovered via schema/--help in step 1).
+   - Add `metric_specs` to extract at least one numeric value from that proof file (e.g. a boolean as 0/1 or a numeric field), OR at minimum include the `returncode` metric.
+ 
 **METRIC SPECS (supported kinds):**
 - `json_key`: extract a numeric key from JSON (optionally via `subkey`)
 - `jsonl_last`: filter JSONL rows by `where`, then take the last row’s key
@@ -90,7 +109,7 @@ ${skeleton_block}
       "config_overrides": {},
       "expected_output_files": ["metrics_unique_id.json"],
       "metric_specs": [
-        {"kind": "json_key", "file_path": "metrics_unique_id.json", "name": "loss", "key": "loss"}
+        {"kind": "json_key", "file_path": "meta_{task_id}.json", "name": "returncode", "key": "returncode"}
       ]
     }
   ]
