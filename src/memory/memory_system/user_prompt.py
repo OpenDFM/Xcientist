@@ -1,6 +1,6 @@
 from textwrap import dedent
 
-WORKING_SLOT_FILTER_USER_PROMPT = dedent("""
+EXPERIMENT_WORKING_SLOT_FILTER_USER_PROMPT = dedent("""
 You guard ResearchAgent's long-term memory entrance. Decide if this WorkingSlot deserves promotion into FAISS storage.
 
 Assess four dimensions:
@@ -18,7 +18,7 @@ STRICT OUTPUT: respond with a single lowercase word: `yes` or `no`. Do not expla
 </slot-dump>
 """)
 
-WORKING_SLOT_ROUTE_USER_PROMPT = dedent("""
+EXPERIMENT_WORKING_SLOT_ROUTE_USER_PROMPT = dedent("""
 Map this WorkingSlot to the correct ResearchAgent long-term memory family. Choose EXACTLY one label:
 
 - semantic → enduring insights, generalized conclusions, reusable heuristics.
@@ -31,6 +31,58 @@ Tie-breaking rules:
 - Otherwise output semantic.
 
 Return only one of: "semantic", "episodic", "procedural".
+
+<slot-dump>
+{slot_dump}
+</slot-dump>
+""")
+
+IDEA_WORKING_SLOT_FILTER_USER_PROMPT = dedent("""
+You guard IdeaAgent's long-term memory entrance. Decide if this IdeaAgent WorkingSlot deserves promotion into FAISS storage.
+
+Judge using four dimensions (return `yes` only if at least TWO are clearly satisfied):
+1. Utility: Will this slot help future idea generation/evaluation (e.g., reusable defect→fix heuristic, evaluation protocol, operator outcome)?
+2. Stability: Is it durable (not a transient log, not a one-off chat line)?
+3. Specificity: Does it include concrete details (operator, targeted defects, metrics like novelty/feasibility/lift, failure modes, fairness protocol, or referenced memory IDs)?
+4. Evidence: Does the slot provide supporting rationale/metrics/attachments that make it verifiable or reusable?
+
+Hard YES rules (return `yes` even if brief) if the slot contains ANY of:
+- a reusable defect→fix recipe (defect(s) + operator/action + why + expected lift/impact);
+- a fairness/baseline/ablation protocol that can be reused;
+- a clearly stated failure-mode surfacing plan (what fails, how to detect, what to log);
+- a durable field insight distilled from multiple candidates (not just a single idea title).
+
+Hard NO rules (return `no`) if the slot is:
+- only a raw idea title with no method/experiments/risks;
+- purely meta chatter, status updates, or repetition with no new info;
+- missing any actionable content (no operator/defect/metric/protocol/insight).
+
+STRICT OUTPUT: respond with a single lowercase word: `yes` or `no`. Do not explain.
+
+<slot-dump>
+{slot_dump}
+</slot-dump>
+""")
+
+IDEA_WORKING_SLOT_ROUTE_USER_PROMPT = dedent("""
+Map this IdeaAgent WorkingSlot to the correct ResearchAgent long-term memory family. Choose EXACTLY one label:
+
+- semantic → durable field knowledge, generalized conclusions, anti-pattern constraints, stable heuristics (e.g., "always add baseline+ablation", "counterfactual tests reveal X").
+- episodic → Situation→Action→Result traces for a specific MCTS iteration/path, with contextual narrative, metrics, and what happened (e.g., operator applied, evaluation scores, chosen best/pareto).
+- procedural → reusable "how-to" guidance: when to use + optional reproducible steps/checklist/pipeline (e.g., "how to run fairness baseline upgrade", "how to harvest defect→fix experiences").
+
+Routing rules tailored to MemoryGuidedMCTS:
+1. Prefer procedural if the slot contains explicit steps/checklists/commands OR it reads like an instruction template
+   (keywords: "steps", "checklist", "do X then Y", "protocol", "pipeline", "how to", "when to use").
+2. Prefer episodic if the slot describes a specific run/path/outcome:
+   - mentions a concrete idea title, node/path summary, "best/pareto", iteration, or a one-time evaluation outcome,
+   - includes SAR narrative with metrics (novelty/feasibility/impact/risk/conciseness/confidence/lift).
+3. Otherwise output semantic when it is an enduring insight/constraint:
+   - anti-pattern constraints, guardrails, defect taxonomy insights,
+   - field knowledge snippets distilled for reuse,
+   - stable mapping from defect→operator with rationale (without step-by-step recipe).
+
+Return only one of: "semantic", "episodic", "procedural". No explanations.
 
 <slot-dump>
 {slot_dump}
@@ -134,6 +186,46 @@ Output STRICTLY as JSON:
         }},
         "tags": ["plan","coverage"]
     }}
+    ]
+}}
+""")
+
+TRANSFER_IDEA_AGENT_CONTEXT_TO_WORKING_SLOTS_PROMPT = dedent("""
+You convert Idea Agent traces into EXACTLY ONE WorkingSlot suitable for ResearchAgent's memory queue.
+You MUST output a JSON object with a "slots" array that contains exactly 1 element.
+Do NOT output 0 slots. Do NOT output more than {max_slots} slot.
+
+Context snapshot:
+<idea-agent-context>
+{snapshot}
+</idea-agent-context>
+
+Authoring directives:
+1. Stage MUST be one of: {stage_enums}. Match the dominant activity recorded in the snippet.
+2. Topic is a 3–6 word slug tying the slot to the research focus (include modality/task when possible).
+3. Summary (≤130 words) follows Situation→Action→Result, explicitly referencing memory-guided MCTS behavior:
+   - mention which edit operator(s) fired, the targeted defects, and retrieved memory snippet IDs if available;
+   - capture structured idea details (title, abstract, core_contribution, method, experiments, risks) when summarizing candidates;
+   - highlight evaluation/Q updates (novelty/feasibility/etc.), Pareto role (best/novel/feasible/concise), and fairness/failure-mode instrumentation.
+4. Attachments are optional but, when helpful, group info under keys like
+   - "ideas": {{"items": ["title :: abstract"]}}
+   - "operators": {{"items": ["operator → defect"]}}
+   - "metrics": {{"novelty": 4.3, "lift": 18}}
+   - "memories": {{"items": ["Field#1 summary"]}}
+   - "actions": {{"list": ["write ltm defect→fix"]}}
+5. Tags ≤5 items mixing domain + workflow cues, e.g., ["diffusion","mcts_evaluation","fairness"].
+6. Always emit at least one slot even if the agent stalled; prefer grouping by actionable insight rather than chronology.
+
+STRICT OUTPUT (no prose, no markdown code fences):
+{{
+    "slots": [
+        {{
+            "stage": "...",
+            "topic": "...",
+            "summary": "...",
+            "attachments": {{"notes": {{"items": []}}}},
+            "tags": ["..."]
+        }}
     ]
 }}
 """)

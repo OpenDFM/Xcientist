@@ -13,7 +13,8 @@ class Semantic:
         self.api_key = api_key or os.getenv("S2_API_KEY")
         self.sch = SemanticScholar(api_key=self.api_key) if self.api_key else SemanticScholar()
         print("🔍 Initializing embedding model for semantic search filtering...")
-        self.embed_model =FlagAutoModel.from_finetuned('BAAI/bge-large-en-v1.5',
+        local_path = "/home/lococo/project/ResearchAgent/src/agents/idea_agent/.cache/bge-large-en-v1.5"
+        self.embed_model =FlagAutoModel.from_finetuned(local_path,
                                      query_instruction_for_retrieval="Represent this sentence for searching relevant passages:",
                                      use_fp16=True,
                                      devices=['cpu'])

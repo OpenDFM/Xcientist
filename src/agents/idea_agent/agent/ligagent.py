@@ -6,6 +6,7 @@ from typing import Any, Dict, Literal, List
 from agent.tools import TOOLS
 from agent.memory import MEMORY_FORMAT, memory_init
 from agent.prompts import PROMPTS
+from agent.mcts import MemoryGuidedMCTS, MCTSConfig
 import json
 import http.client
 
@@ -18,6 +19,12 @@ class LigAgent(AgentBase):
         self.action_space = ["knowledge_aquisition", "advanced_analysis", "idea_generation", "idea_evaluation", "re_analysis_replan"]
         self.tools = TOOLS
         self.memory = memory_init()
+        self.mcts = MemoryGuidedMCTS(
+            chat_fn=self.chat,
+            generation_prompt=PROMPTS["mcts_generation"],
+            evaluation_prompt=PROMPTS["mcts_evaluation"],
+            config=MCTSConfig(),
+        )
 
     def select_action(self, observation: Any) -> str:
         prompt = PROMPTS["action_selection"].format(action_space=self.action_space, step=observation)
@@ -111,11 +118,51 @@ class LigAgent(AgentBase):
         return step
 
     def idea_generation(self, **kwargs) -> None:
-        prompt = PROMPTS["idea_generation"].format(topic=self.memory["topic"][-1], analysis=self.memory["analysis"], ideas=self.memory["idea_pool"])
+        topic = self.memory["topic"][-1] if self.memory["topic"] else "unspecified topic"
+        context = {
+            "analysis": self.memory.get("analysis", []),
+            "idea_pool": self.memory.get("idea_pool", []),
+            "background_knowledge": self.memory.get("background_knowledge", []),
+        }
+        result = self.mcts.search(topic=topic, context=context)
+        if not result.best:
+            logger.warning("⚠️ MCTS search returned no candidate, falling back to legacy generator.")
+            legacy_step = self._legacy_single_idea(topic)
+            return legacy_step
+
+        best_payload = result.best.to_dict()
+        best_entry = best_payload["idea"]
+        best_entry["evaluation"] = best_payload["evaluation"]
+        best_entry["search_score"] = best_payload["score"]
+        best_entry["search_path"] = best_payload["path"]
+        best_entry["pareto_candidates"] = {
+            label: cand.to_dict() if cand else None for label, cand in result.pareto.items()
+        }
+        best_entry["search_trace"] = result.trace
+        self.memory["idea_pool"].append(best_entry)
+        self.memory.setdefault("evaluations", []).append(best_payload["evaluation"])
+        self.memory.setdefault("ltm_experiences", []).extend(result.experiences)
+        pareto_lines = []
+        for label, cand in result.pareto.items():
+            if cand:
+                pareto_lines.append(f"{label}: {cand.node.state.title} (score={cand.evaluation.composite:.2f})")
+        pareto_summary = "; ".join(pareto_lines) if pareto_lines else "no Pareto picks"
+        step = (
+            f"\nIn this idea_generation action, I ran memory-guided MCTS over '{topic}'. "
+            f"Best idea: {best_entry['title']} (score={best_entry['search_score']:.2f}). "
+            f"Pareto set -> {pareto_summary}. Persisted {len(result.experiences)} defect→fix lifts to long-term memory."
+        )
+        return step
+
+    def _legacy_single_idea(self, topic: str) -> str:
+        prompt = PROMPTS["idea_generation"].format(
+            topic=topic,
+            analysis=self.memory.get("analysis", []),
+            ideas=self.memory.get("idea_pool", []),
+        )
         response = json.loads(self.chat(prompt))
         self.memory["idea_pool"].append(response)
-        step = f"\nIn this idea_generation action, I generated new research ideas:\n💡 {response}"
-        return step
+        return f"\nIn this idea_generation action, I generated new research ideas via fallback prompt:\n💡 {response}"
 
     def idea_evaluation(self, **kwargs) -> None:
         prompt = PROMPTS["idea_evaluation"].format(topic=self.memory["topic"][-1], idea=self.memory["idea_pool"][-1])

@@ -3,7 +3,7 @@ import asyncio
 import concurrent.futures
 import threading
 
-from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union, Any
+from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union, Any, Callable
 from collections import deque
 from memory.memory_system.utils import (
     dump_slot_json, 
@@ -31,6 +31,27 @@ from memory.memory_system.models import (
     SemanticRecord,
     ProceduralRecord,
 )
+
+EXPERIMENT_AGENT_STAGE_OPTIONS = [
+    "pre_analysis",
+    "code_plan",
+    "code_implement",
+    "code_judge",
+    "experiment_execute",
+    "experiment_analysis",
+]
+
+IDEA_AGENT_STAGE_OPTIONS = [
+    "topic_alignment",
+    "memory_retrieval",
+    "analysis",
+    "mcts_planning",
+    "mcts_expansion",
+    "mcts_simulation",
+    "mcts_evaluation",
+    "idea_selection",
+    "memory_writeback",
+]
 
 class SlotProcess:
     def __init__(self):
@@ -63,16 +84,16 @@ class SlotProcess:
         
         return scored_slots[:k]
         
-    async def filter_and_route_slots(self) -> List[Dict[str, WorkingSlot]]:
+    async def filter_and_route_slots(self, task: Literal["experiment", "idea"] = "experiment") -> List[Dict[str, WorkingSlot]]:
         for slot in self.slot_container.values():
-            check_result = await slot.slot_filter(self.llm_model)
+            check_result = await slot.slot_filter(self.llm_model, task=task)
             print(check_result)
             if check_result == True:
                 self.filtered_slot_container.append(slot)
         
         try:
             for filtered_slot in self.filtered_slot_container:
-                route_result = await filtered_slot.slot_router(self.llm_model)
+                route_result = await filtered_slot.slot_router(self.llm_model, task=task)
                 pair = {
                     "memory_type": route_result,
                     "slot": filtered_slot
@@ -83,11 +104,11 @@ class SlotProcess:
         
         return self.routed_slot_container
 
-    def _multi_thread_filter_and_route_slot(self, slot: WorkingSlot):
-        check_result = asyncio.run(slot.slot_filter(self.llm_model))
+    def _multi_thread_filter_and_route_slot(self, slot: WorkingSlot, task: Literal["experiment", "idea"] = "experiment"):
+        check_result = asyncio.run(slot.slot_filter(self.llm_model, task=task))
         if check_result == True:
             try:
-                route_result = asyncio.run(slot.slot_router(self.llm_model))
+                route_result = asyncio.run(slot.slot_router(self.llm_model, task=task))
                 pair = {
                         "memory_type": route_result,
                         "slot": slot
@@ -355,9 +376,9 @@ class SlotProcess:
 
         raise ValueError(f"Failed to create record after {max_retries} retries. Last error: {last_error}")
 
-    async def transfer_experiment_agent_context_to_working_slots(self, context, state: str, max_slots: int = 50) -> List[WorkingSlot]:
+    def transfer_experiment_agent_context_to_working_slots(self, context, state: str, max_slots: int = 50) -> List[WorkingSlot]:
         
-        if state not in {"pre_analysis", "code_plan", "code_implement", "code_judge", "experiment_execute", "experiment_analysis"}:
+        if state not in set(EXPERIMENT_AGENT_STAGE_OPTIONS):
             return []
 
         snapshot = _build_context_snapshot(context, state)
@@ -392,6 +413,47 @@ class SlotProcess:
             context=snapshot,
             is_async=False,
         )
+
+        return working_slots
+
+    def transfer_idea_agent_context_to_working_slots(self, context: Dict[str, Any], max_slots: int = 1) -> List[WorkingSlot]:
+        snapshot = _safe_dump_str(context)
+
+        system_prompt = (
+            "You are the recorder for ResearchAgent's memory-guided MCTS idea workflow. "
+            "Transform the Idea Agent context into WorkingSlot JSON objects that capture operator usage, "
+            "retrieved memories, structured ideas, evaluator feedback, and write-back actions. "
+            "Each slot must retain stage, topic, ≤130 word SAR summary, attachments, and tags. "
+            "Always emit at least one slot summarizing the best or most novel outcome."
+        )
+
+        user_prompt = TRANSFER_IDEA_AGENT_CONTEXT_TO_WORKING_SLOTS_PROMPT.format(
+            max_slots=max_slots,
+            snapshot=snapshot,
+            stage_enums=", ".join(IDEA_AGENT_STAGE_OPTIONS),
+        )
+
+        schema = Schema(max_slots=max_slots)
+        idea_task_slot_schema = schema.IDEA_TASK_SLOT_SCHEMA
+        allowed_keys = {"stage", "topic", "summary", "attachments", "tags"}
+
+        working_slots = self._retry_llm_to_slots(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            json_schema=idea_task_slot_schema,
+            schema_name="IDEA_TASK_SLOT_SCHEMA",
+            allowed_keys=allowed_keys,
+            max_slots=max_slots,
+            max_retries=5,
+            max_tokens=4096,
+            post_process_slot=None,
+            context=snapshot,
+            is_async=False,
+        )
+
+        for slot in working_slots:
+            # We always attach the full context for Idea Agent slots
+            slot.attachments = context
 
         return working_slots
 
@@ -623,3 +685,51 @@ class SlotProcess:
         print(f"[Info] Semantic memory size: {llm_client.semantic_memory_system.size}")
         print(f"[Info] Episodic memory size: {llm_client.episodic_memory_system.size}")
         print(f"[Info] Procedural memory size: {llm_client.procedural_memory_system.size}")        
+
+
+class Schema:
+    """
+    Simple helper to build json_schema payloads for LLM structured outputs.
+    """
+
+    def __init__(self, max_slots: int = 20) -> None:
+        self.max_slots = max_slots
+        self.EXPERIMENT_TASK_SLOT_SCHEMA = self._build_slot_schema(EXPERIMENT_AGENT_STAGE_OPTIONS)
+        self.IDEA_TASK_SLOT_SCHEMA = self._build_slot_schema(IDEA_AGENT_STAGE_OPTIONS)
+
+    def _build_slot_schema(self, stage_enums: List[str]) -> Dict[str, Any]:
+        slot_schema: Dict[str, Any] = {
+            "type": "object",
+            "properties": {
+                "stage": {"type": "string", "enum": stage_enums},
+                "topic": {"type": "string", "minLength": 1, "maxLength": 80},
+                "summary": {"type": "string", "minLength": 1, "maxLength": 600},
+                "attachments": {
+                    "type": "object",
+                    "additionalProperties": True,
+                    "default": {},
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1, "maxLength": 32},
+                    "maxItems": 5,
+                    "default": [],
+                },
+            },
+            "required": ["stage", "topic", "summary"],
+            "additionalProperties": False,
+        }
+
+        return {
+            "type": "object",
+            "properties": {
+                "slots": {
+                    "type": "array",
+                    "items": slot_schema,
+                    "minItems": 1,
+                    "maxItems": self.max_slots,
+                }
+            },
+            "required": ["slots"],
+            "additionalProperties": False,
+        }

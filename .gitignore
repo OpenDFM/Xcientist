@@ -14,10 +14,15 @@ src/agents/experiment_agent/workspace/
 
 # Idea Agent - 清除检索缓存
 src/agents/idea_agent/cache/
+src/agents/idea_agent/.cache
 
 # Survey Agent - 排除检索缓存
 src/agents/survey_agent/database/
 src/agents/survey_agent/logs
+
+# Memory
+src/memory/memory_system/.cache
+src/memory/memory_system/__pycache__
 
 # IDE
 .vscode/

@@ -5,7 +5,12 @@ from memory.memory_system.utils import new_id, dump_slot_json
 from pydantic import BaseModel, Field, field_validator, validate_call
 from openai import OpenAI
 from textwrap import dedent
-from memory.memory_system.user_prompt import WORKING_SLOT_FILTER_USER_PROMPT, WORKING_SLOT_ROUTE_USER_PROMPT
+from memory.memory_system.user_prompt import (
+    EXPERIMENT_WORKING_SLOT_FILTER_USER_PROMPT,
+    EXPERIMENT_WORKING_SLOT_ROUTE_USER_PROMPT,
+    IDEA_WORKING_SLOT_FILTER_USER_PROMPT,
+    IDEA_WORKING_SLOT_ROUTE_USER_PROMPT,
+)
 from memory.memory_system.llm import OpenAIClient, LLMClient
 
 class SlotPayload(BaseModel):
@@ -33,9 +38,12 @@ class WorkingSlot(SlotPayload):
             "tags": self.tags,
         }
     
-    async def slot_filter(self, llm: LLMClient) -> bool:
+    async def slot_filter(self, llm: LLMClient, task: Literal["experiment", "idea"] = "experiment") -> bool:
         system_prompt = "You are a memory access reviewer. Only output 'yes' or 'no'."
-        user_prompt = WORKING_SLOT_FILTER_USER_PROMPT.format(slot_dump=dump_slot_json(self))
+        if task == "experiment":
+            user_prompt = EXPERIMENT_WORKING_SLOT_FILTER_USER_PROMPT.format(slot_dump=dump_slot_json(self))
+        elif task == "idea":
+            user_prompt = IDEA_WORKING_SLOT_FILTER_USER_PROMPT.format(slot_dump=dump_slot_json(self))
         out = await llm.complete(system_prompt, user_prompt)
 
         if out.strip().lower() not in ["yes", "no"]:
@@ -43,10 +51,14 @@ class WorkingSlot(SlotPayload):
 
         return True if out.strip().lower() == "yes" else False
     
-    async def slot_router(self, llm: LLMClient) -> Literal["semantic", "procedural", "episodic"]:
+    async def slot_router(self, llm: LLMClient, task: Literal["experiment", "idea"] = "experiment") -> Literal["semantic", "procedural", "episodic"]:
         system_prompt = "You are a memory type classifier. Only output legal string: 'semantic', 'procedural', or 'episodic'."
-        user_prompt = WORKING_SLOT_ROUTE_USER_PROMPT.format(slot_dump=dump_slot_json(self))
+        if task == "experiment":
+            user_prompt = EXPERIMENT_WORKING_SLOT_ROUTE_USER_PROMPT.format(slot_dump=dump_slot_json(self))
+        elif task == "idea":
+            user_prompt = IDEA_WORKING_SLOT_ROUTE_USER_PROMPT.format(slot_dump=dump_slot_json(self))
         out = await llm.complete(system_prompt, user_prompt)
+        
         if out.strip() not in ["semantic", "procedural", "episodic"]:
             raise ValueError(f"Invalid slot type: {out}")
         return out
