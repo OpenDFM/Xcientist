@@ -19,6 +19,8 @@ Return up to {max_children} mutually distinct child ideas. Each child must:
 2. Document which operator was used and why it repairs the defect without triggering anti-patterns (no feature dumping, enforce fair baselines, expose failure modes, and respect resource limits).
 3. Provide a structured idea payload with the required research sections plus risk surface tags.
 4. Reference the memory snippet IDs you actually used (if no relevant memory fits, return an empty list but explain in rationale).
+5. Introduce a concrete algorithmic intervention (new module, coupling, optimization step, or training signal); instrumentation-only fixes are insufficient unless paired with a clearly described mechanism change.
+6. Prefer the **mechanism-commit-innovation** operator whenever it is applicable. If you choose a different operator, explicitly justify why mechanism-commit is unsuitable for that child.
 
 STRICT OUTPUT: valid JSON with the following schema (do not wrap in Markdown):
 {{

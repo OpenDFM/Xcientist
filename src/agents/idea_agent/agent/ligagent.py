@@ -3,6 +3,8 @@ from agent import get_logger
 logger = get_logger()
 logger.info("🤖 Initializing LigAgent...")
 from typing import Any, Dict, Literal, List
+from pathlib import Path
+import re
 from agent.tools import TOOLS
 from agent.memory import MEMORY_FORMAT, memory_init
 from agent.prompts import PROMPTS
@@ -10,13 +12,14 @@ from agent.mcts import MemoryGuidedMCTS, MCTSConfig
 import json
 import http.client
 
-
 class LigAgent(AgentBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.action_space = ["knowledge_aquisition", "advanced_analysis", "idea_generation", "idea_evaluation", "re_analysis_replan"]
+        self.model = "mimo-v2-flash"
         self.tools = TOOLS
         self.memory = memory_init()
+        self.idea_result_path = Path(__file__).resolve().parent.parent / "idea_result.json"
         self.mcts = MemoryGuidedMCTS(
             chat_fn=self.chat,
             generation_prompt=PROMPTS["mcts_generation"],
@@ -26,7 +29,7 @@ class LigAgent(AgentBase):
 
     def select_action(self, observation: Any) -> str:
         prompt = PROMPTS["action_selection"].format(action_space=self.action_space, step=observation)
-        response = self.chat(prompt)
+        response = self.chat(prompt, model=self.model)
         return response.strip()
 
     def perform_action(self, action: str, **kwargs) -> Any:
@@ -80,7 +83,24 @@ class LigAgent(AgentBase):
                         title = paper.get('title') if isinstance(paper, dict) else str(paper)
                         logger.info(f"📄 {i}. {title}")
                         abstract = paper.get('abstract', 'No abstract available.') if isinstance(paper, dict) else 'No abstract available.'
-                        new_papers.append({"title": title, "abstract": abstract})
+                        authors_field = paper.get("authors", []) if isinstance(paper, dict) else []
+                        if isinstance(authors_field, list):
+                            authors = [a.get("name", str(a)) for a in authors_field]
+                        elif authors_field:
+                            authors = [str(authors_field)]
+                        else:
+                            authors = []
+                        paper_entry = {
+                            "title": title,
+                            "abstract": abstract,
+                            "authors": authors,
+                            "year": paper.get("year") if isinstance(paper, dict) else None,
+                            "url": paper.get("url") if isinstance(paper, dict) else None,
+                            "tldr": paper.get("tldr") if isinstance(paper, dict) else None,
+                            "paper_id": paper.get("paperId") if isinstance(paper, dict) else None,
+                            "source_keywords": search_keywords,
+                        }
+                        new_papers.append(paper_entry)
                     step = f"\nIn this knowledge_aquisition action, I acquired {len(papers)} papers about '{search_keywords}'."
                     self.memory["references"].append(new_papers)
 
@@ -109,7 +129,7 @@ class LigAgent(AgentBase):
     def advanced_analysis(self, **kwargs) -> None:
         # import pdb; pdb.set_trace()
         prompt = PROMPTS["advanced_analysis"].format(topic=self.memory["topic"][-1], papers=self.memory["references"][-1])
-        response = json.loads(self.chat(prompt))
+        response = json.loads(self.chat(prompt, model=self.model))
         logger.info(f"📝 Advanced Analysis Result:\n{response}")
         self.memory["analysis"].append(response)
         step = f"\nIn this advanced_analysis action, I analyzed the collected papers and summarized my findings: {response['tldr']}"
@@ -145,6 +165,7 @@ class LigAgent(AgentBase):
             if cand:
                 pareto_lines.append(f"{label}: {cand.node.state.title} (score={cand.evaluation.composite:.2f})")
         pareto_summary = "; ".join(pareto_lines) if pareto_lines else "no Pareto picks"
+        self._persist_final_idea(best_entry)
         step = (
             f"\nIn this idea_generation action, I ran memory-guided MCTS over '{topic}'. "
             f"Best idea: {best_entry['title']} (score={best_entry['search_score']:.2f}). "
@@ -158,21 +179,227 @@ class LigAgent(AgentBase):
             analysis=self.memory.get("analysis", []),
             ideas=self.memory.get("idea_pool", []),
         )
-        response = json.loads(self.chat(prompt))
+        response = json.loads(self.chat(prompt, model=self.model))
         self.memory["idea_pool"].append(response)
         return f"\nIn this idea_generation action, I generated new research ideas via fallback prompt:\n💡 {response}"
 
     def idea_evaluation(self, **kwargs) -> None:
         prompt = PROMPTS["idea_evaluation"].format(topic=self.memory["topic"][-1], idea=self.memory["idea_pool"][-1])
-        response = json.loads(self.chat(prompt))
+        response = json.loads(self.chat(prompt, model=self.model))
         self.memory["idea_pool"][-1]["evaluation"] = response
         step = f"\nIn this idea_evaluation action, I evaluated the generated research ideas:\n✅ {response}"
         return step
     
     def re_analysis_replan(self, **kwargs) -> None:
         prompt = PROMPTS["re_analysis_replan"].format(topic=self.memory["topic"][-1], idea=self.memory["idea_pool"][-1], last_queries=self.memory["retrieval_keywords"], topics=self.memory["topic"])
-        response = json.loads(self.chat(prompt))
+        response = json.loads(self.chat(prompt, model=self.model))
         self.memory["topic"].append(response['new_topic'])
         self.memory["retrieval_keywords"].append(response['search_keywords'])
         step = f"\nIn this re_analysis_replan action, I replanned my research topic to '{response['new_topic']}' and decided to search for new information using keywords '{response['search_keywords']}'."
         return step
+
+    def _build_algorithm_spec(
+        self,
+        idea: Dict[str, Any],
+        topic: str,
+        raw_references: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        analysis_entries = self.memory.get("analysis", [])
+        latest_analysis = analysis_entries[-1] if analysis_entries else {}
+        base_inputs: List[str] = []
+        if topic and topic != "unspecified topic":
+            base_inputs.append(f"Topic focus: {topic}")
+        retrieval_history = self.memory.get("retrieval_keywords", [])
+        if retrieval_history:
+            base_inputs.append(f"Latest retrieval keywords: {retrieval_history[-1]}")
+        if isinstance(latest_analysis, dict):
+            tldr = latest_analysis.get("tldr")
+            if tldr:
+                base_inputs.append(f"Analysis TL;DR: {tldr}")
+            key_methods = latest_analysis.get("key_methods")
+            if key_methods:
+                base_inputs.append("Key methods referenced: " + "; ".join(key_methods[:3]))
+        if raw_references:
+            ref_titles = [r.get("title") for r in raw_references[:3] if r.get("title")]
+            if ref_titles:
+                base_inputs.append("Reference anchors: " + "; ".join(ref_titles))
+        target_defects = idea.get("target_defects")
+        if target_defects:
+            base_inputs.append(f"Target defects: {', '.join(target_defects)}")
+
+        base_outputs: List[str] = []
+        abstract = idea.get("abstract")
+        if abstract:
+            base_outputs.append(f"Abstract focus: {abstract}")
+        core = idea.get("core_contribute") or idea.get("core_contribution")
+        if core:
+            base_outputs.append(f"Core contribution: {core}")
+        methodology = idea.get("methodology") or idea.get("method")
+        if methodology:
+            base_outputs.append(f"Methodology: {methodology}")
+        experiments = idea.get("experiment_design") or idea.get("experiments")
+        if experiments:
+            base_outputs.append(f"Experiment design: {experiments}")
+        score = idea.get("search_score")
+        if isinstance(score, (int, float)):
+            base_outputs.append(f"MCTS search score: {score:.2f}")
+
+        prompt = PROMPTS["algorithm_structuring"].format(
+            topic=topic,
+            idea=json.dumps(idea, ensure_ascii=False, indent=2),
+            base_inputs=json.dumps(base_inputs, ensure_ascii=False, indent=2),
+            base_outputs=json.dumps(base_outputs, ensure_ascii=False, indent=2),
+            analysis=json.dumps(latest_analysis, ensure_ascii=False, indent=2),
+            references=json.dumps(raw_references[:5], ensure_ascii=False, indent=2),
+        )
+        prompt += "\n Directly output JSON."
+        try:
+            response = self.chat(prompt, temperature=0.01, max_tokens=4096, model=self.model)
+            payload = json.loads(response)
+            candidate = payload.get("algorithms", payload)
+            if isinstance(candidate, list) and candidate:
+                return candidate
+        except Exception as exc:
+            logger.warning("⚠️ Algorithm structuring failed: %s", exc)
+
+        return self._fallback_algorithm_spec(idea, base_inputs, base_outputs)
+
+    def _collect_reference_material(self) -> List[Dict[str, Any]]:
+        references: List[Dict[str, Any]] = []
+        seen_titles = set()
+        for batch in self.memory.get("references", []):
+            for paper in batch:
+                if not isinstance(paper, dict):
+                    continue
+                title = (paper.get("title") or "").strip()
+                if not title:
+                    continue
+                key = title.lower()
+                if key in seen_titles:
+                    continue
+                seen_titles.add(key)
+                entry = {
+                    "title": title,
+                    "authors": paper.get("authors") or [],
+                    "abstract": paper.get("abstract"),
+                    "tldr": paper.get("tldr"),
+                    "url": paper.get("url"),
+                    "year": paper.get("year"),
+                    "paper_id": paper.get("paper_id"),
+                    "source_keywords": paper.get("source_keywords"),
+                }
+                references.append(entry)
+        return references
+
+    def _fallback_algorithm_spec(
+        self,
+        idea: Dict[str, Any],
+        inputs: List[str],
+        outputs: List[str],
+    ) -> List[Dict[str, Any]]:
+        pipeline = self._derive_pipeline_steps(idea)
+        algorithm_entry = {
+            "name": idea.get("title") or "Research Algorithm",
+            "input": inputs,
+            "output": outputs,
+            "pipeline": pipeline,
+        }
+        return [algorithm_entry]
+
+    def _derive_pipeline_steps(self, idea: Dict[str, Any]) -> List[str]:
+        sections = [
+            idea.get("methodology"),
+            idea.get("experiment_design"),
+            idea.get("abstract"),
+            idea.get("core_contribute") or idea.get("core_contribution"),
+        ]
+        sentences: List[str] = []
+        for section in sections:
+            if not section:
+                continue
+            chunks = re.split(r"(?<=[.;])\s+", section)
+            for chunk in chunks:
+                cleaned = chunk.strip(" .;\n")
+                if cleaned:
+                    sentences.append(cleaned)
+                if len(sentences) >= 6:
+                    break
+            if len(sentences) >= 3:
+                break
+        if not sentences:
+            sentences = ["Outline the proposed method using available context."]
+        return [f"Step {idx + 1}: {sentence}" for idx, sentence in enumerate(sentences)]
+
+    def _synthesize_reference_summaries(
+        self,
+        topic: str,
+        best_entry: Dict[str, Any],
+        algorithm: List[Dict[str, Any]],
+        raw_references: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        if not raw_references:
+            return []
+        prompt = PROMPTS["reference_grounding"].format(
+            topic=topic,
+            idea_title=best_entry.get("title", ""),
+            idea_abstract=best_entry.get("abstract", ""),
+            algorithm=json.dumps(algorithm, ensure_ascii=False, indent=2),
+            references=json.dumps(raw_references, ensure_ascii=False, indent=2),
+        )
+        prompt += "\n Directly output JSON."
+        try:
+            response = self.chat(prompt, temperature=0.01, max_tokens=4096, model=self.model)
+            payload = json.loads(response)
+            candidate = payload.get("reference_papers", payload)
+            if isinstance(candidate, list):
+                return candidate
+        except Exception as exc:
+            logger.warning("⚠️ Reference synthesis failed: %s", exc)
+        return raw_references
+
+    def _suggest_datasets(
+        self,
+        topic: str,
+        best_entry: Dict[str, Any],
+        algorithm: List[Dict[str, Any]],
+        references: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        if not references:
+            return []
+        prompt = PROMPTS["dataset_grounding"].format(
+            topic=topic,
+            idea_title=best_entry.get("title", ""),
+            idea_abstract=best_entry.get("abstract", ""),
+            algorithm=json.dumps(algorithm, ensure_ascii=False, indent=2),
+            references=json.dumps(references, ensure_ascii=False, indent=2),
+        )
+        try:
+            response = self.chat(prompt, temperature=0.01, max_tokens=4096, model=self.model)
+            payload = json.loads(response)
+            candidate = payload.get("datasets", payload)
+            if isinstance(candidate, list):
+                return candidate
+        except Exception as exc:
+            logger.warning("⚠️ Dataset synthesis failed: %s", exc)
+        return []
+
+    def _persist_final_idea(self, best_entry: Dict[str, Any]) -> None:
+        topic = self.memory["topic"][-1] if self.memory["topic"] else "unspecified topic"
+        raw_refs = self._collect_reference_material()
+        algorithm = self._build_algorithm_spec(best_entry, topic, raw_refs)
+        references = self._synthesize_reference_summaries(topic, best_entry, algorithm, raw_refs)
+        datasets = self._suggest_datasets(topic, best_entry, algorithm, references)
+        payload = {
+            "title": best_entry.get("title"),
+            "abstract": best_entry.get("abstract"),
+            "algorithm": algorithm,
+            "reference_papers": references,
+            "datasets": datasets,
+        }
+        self.memory["idea_result"] = payload
+        try:
+            with open(self.idea_result_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+            logger.info(f"💾 Saved idea result to {self.idea_result_path}")
+        except OSError as exc:
+            logger.error(f"⚠️ Failed to persist idea_result.json: {exc}")

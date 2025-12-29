@@ -10,7 +10,7 @@ Candidate idea (JSON):
 If available, the rewrite path describing applied operators:
 {path_summary}
 
-Judge the idea across multi-dimensional criteria. Enforce fairness (explicit baselines, ablations), guard against resource dumping, and highlight uncovered failure modes.
+Judge the idea across multi-dimensional criteria. Enforce fairness (explicit baselines, ablations), guard against resource dumping, and highlight uncovered failure modes. Reward concrete algorithmic/mechanistic innovations; penalize responses that only add analysis/instrumentation without a new intervention (novelty <= 2 in those cases).
 
 Return STRICT JSON (no prose) using:
 {{

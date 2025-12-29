@@ -192,7 +192,7 @@ Output STRICTLY as JSON:
 
 TRANSFER_IDEA_AGENT_CONTEXT_TO_WORKING_SLOTS_PROMPT = dedent("""
 You convert Idea Agent traces into EXACTLY ONE WorkingSlot suitable for ResearchAgent's memory queue.
-You MUST output a JSON object with a "slots" array that contains exactly 1 element.
+You MUST output a JSON object with a "slots" array.
 Do NOT output 0 slots. Do NOT output more than {max_slots} slot.
 
 Context snapshot:
@@ -201,42 +201,82 @@ Context snapshot:
 </idea-agent-context>
 
 Authoring directives:
-1. Stage MUST be one of: {stage_enums}. Match the dominant activity recorded in the snippet.
-2. Topic is a 3–6 word slug tying the slot to the research focus (include modality/task when possible).
-3. Summary (≤130 words) follows Situation→Action→Result, explicitly referencing memory-guided MCTS behavior:
-   - mention which edit operator(s) fired, the targeted defects, and retrieved memory snippet IDs if available;
-   - capture structured idea details (title, abstract, core_contribution, method, experiments, risks) when summarizing candidates;
-   - highlight evaluation/Q updates (novelty/feasibility/etc.), Pareto role (best/novel/feasible/concise), and fairness/failure-mode instrumentation.
-4. Attachments are optional but, when helpful, group info under keys like
+1. Stage MUST be one of: {stage_enums}. Match the dominant activity in the snippet.
+2. Topic is a 3–6 word slug tied to the research focus (include modality/task when possible).
+3. Summary (≤130 words) MUST follow Situation→Action→Result and MUST be specific, not generic:
+   - Explicitly name which edit operator(s) fired, the targeted defects, and retrieved memory snippet IDs if available.
+   - Capture structured idea details (title, abstract, core_contribution, method, experiments, risks) when summarizing candidates.
+   - Highlight evaluation / Q updates (novelty/feasibility/impact/risk/conciseness/confidence), Pareto role (best/novel/feasible/concise),
+     and fairness / failure-mode instrumentation.
+4. Add a REPRODUCIBILITY SPEC inside attachments when relevant (strongly preferred whenever an idea proposes a mechanism).
+   Put it under:
+   - "procedures": {{"steps": [...]}}  (for minimal harness / protocol steps)
+   - "notes": {{"items": [...]}}       (for concise mechanism specs and formulas)
+   - "issues": {{"list": [...]}}       (for failure modes)
+   - "actions": {{"list": [...]}}      (for mitigations / next actions)
+   - "metrics": {{...}}               (for target metrics / thresholds / overhead budgets)
+
+   The REPRODUCIBILITY SPEC MUST include (use short lines; be concrete):
+   A) Mechanism spec (what exactly is gated/weighted):
+      - e.g., whether attention/gating applies to each loss term vs each collocation-point residual, and which residual components.
+   B) Minimal formula sketch:
+      - e.g., sigmoid/softmax input definition, temperature, normalization, and any moving-average / clipping.
+   C) Insertion point & overhead cap:
+      - where it plugs into the PINN training loop and an upper bound on parameter/compute overhead (rough but explicit).
+   D) Minimal verification harness:
+      - 1–2 representative PDEs, baselines (vanilla PINN / dynamic weighting / ALM), and metrics (L2 error, PDE residual,
+        stability variance, generalization gap).
+   E) Failure modes & guards:
+      - e.g., weight collapse/oscillation -> clip, entropy regularization, EMA smoothing; what to log.
+   F) Trigger conditions (when to enable):
+      - symptom rules such as “one loss term dominates > threshold for N steps” or “interface residual drift > threshold”.
+
+5. Attachments are optional but, when helpful, group info under keys like:
    - "ideas": {{"items": ["title :: abstract"]}}
    - "operators": {{"items": ["operator → defect"]}}
-   - "metrics": {{"novelty": 4.3, "lift": 18}}
    - "memories": {{"items": ["Field#1 summary"]}}
-   - "actions": {{"list": ["write ltm defect→fix"]}}
-5. Tags ≤5 items mixing domain + workflow cues, e.g., ["diffusion","mcts_evaluation","fairness"].
-6. Always emit at least one slot even if the agent stalled; prefer grouping by actionable insight rather than chronology.
+   - "metrics": {{"novelty": 4.3, "lift": 18, "overhead_params_pct": 3, "trigger_loss_dom_ratio": 0.8}}
+6. Tags ≤5 items mixing domain + workflow cues, e.g., ["pinn","adaptive_weighting","mcts_evaluation","repro_protocol"].
+7. Always emit exactly one slot even if the agent stalled; prefer grouping by the single most actionable, testable insight.
 
 STRICT OUTPUT (no prose, no markdown code fences):
 {{
-    "slots": [
-        {{
-            "stage": "...",
-            "topic": "...",
-            "summary": "...",
-            "attachments": {{"notes": {{"items": []}}}},
-            "tags": ["..."]
-        }}
-    ]
+  "slots": [
+    {{
+      "stage": "...",
+      "topic": "...",
+      "summary": "...",
+      "attachments": {{
+        "notes": {{"items": [
+          "Mechanism: gate per-loss-term weights (not per-point residual) OR specify exact residual granularity.",
+          "Formula: w_i = softmax((g_i)/T), g_i = f(stats); include normalization/EMA/clipping.",
+          "Insertion: compute weights before backprop; overhead <= X% params / Y% time."
+        ]}},
+        "procedures": {{"steps": [
+          "PDE1: ...; PDE2: ...",
+          "Baselines: vanilla PINN; dynamic reweighting; ALM",
+          "Metrics: L2; residual; stability var; gen gap",
+          "Logging: weight entropy; max/min weight; residual drift"
+        ]}},
+        "issues": {{"list": ["failure mode 1", "failure mode 2"]}},
+        "actions": {{"list": ["guard: clip weights", "guard: entropy reg", "guard: EMA smoothing"]}},
+        "metrics": {{"trigger_rule": "loss_dom_ratio>0.8 for 500 steps", "overhead_params_pct": 3}}
+      }},
+      "tags": ["..."]
+    }}
+  ]
 }}
 """)
 
-TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT = dedent("""
-Transform the WorkingSlot into a semantic memory entry suitable for FAISS retrieval.
+TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT_EXPEIRMENT = dedent("""
+Transform the WorkingSlot into a semantic memory entry suitable for FAISS retrieval in HotpotQA-style multi-hop QA.
 
 Expectations:
-- `summary` (≤80 words) expresses the enduring conclusion or heuristic.
-- `detail` should elaborate supporting evidence, metrics, or caveats. Use "\\n" to separate logically distinct statements.
-- `tags` mixes domain terms and method/process hints.
+- The semantic record MUST capture **factual evidence** grounded in the WorkingSlot (e.g., retrieved passages, environment observations), not planning logic or agent-control flow.
+- `summary` (≤80 words) is a compact, question-agnostic factual statement or tightly related fact cluster that can be reused as evidence (e.g., key relations, attributes, dates, locations).
+- `detail` elaborates the supporting evidence: paraphrased or briefly quoted spans, source/page titles or IDs, and important caveats. Use "\\n" to separate logically distinct atomic facts or evidence items.
+- Avoid speculation or heuristic advice; only include information that is directly supported by the WorkingSlot content.
+- `tags` should mix entity names, domain hints, and relation/type hints (e.g., ["hotpotqa","wikipedia","albert-einstein","birthplace"]).
 
 <working-slot>
 {dump_slot_json}
@@ -245,14 +285,38 @@ Expectations:
 **DO NOT wrap your JSON output in markdown code blocks (```json or ```). Output raw JSON only.**
 Output STRICTLY as JSON:
 {{
-    "summary": "semantic insight summary",
-    "detail": "expanded reasoning and context",
+    "summary": "semantic evidence summary",
+    "detail": "expanded factual evidence and context",
     "tags": ["keyword1","keyword2"]
 }}
-"""
-)
+""")
 
-TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT = dedent("""
+TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT_IDEA = dedent("""
+You curate MemoryGuidedMCTS knowledge. Convert the IdeaAgent WorkingSlot into a semantic record that captures durable guidance rather than run-specific chatter.
+
+Authoring directives:
+- Summaries (≤80 words) MUST describe reusable defect→fix insights, anti-pattern guardrails, or field knowledge that hold across future searches.
+- `detail` should weave the causal reasoning: reference the edit operator(s), targeted defects, fairness or failure instrumentation, cited memory IDs, and any evaluation statistics (novelty/feasibility/impact/risk/conciseness/confidence/lift) that justify the claim.
+- When the slot is episodic, abstract it into the lasting principle or heuristic that another traversal could reuse (e.g., “counterfactual-contrast lifted novelty when dataset bias was detected”).
+- Tags blend domain concepts, operators, and workflow cues such as ["pinn","mechanism-commit-innovation","mcts_semantic"].
+
+WorkingSlot excerpt:
+<working-slot>
+{dump_slot_json}
+</working-slot>
+
+**DO NOT wrap your JSON output in markdown code blocks (```json or ```). Output raw JSON only.**
+Output STRICTLY as JSON:
+<semantic-record>
+{{
+    "summary": "generalizable conclusion",
+    "detail": "multi-sentence explanation with references to operators/defects/memory IDs/metrics",
+    "tags": ["keyword1","keyword2"]
+}}
+</semantic-record>
+""")
+
+TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT_EXPRIMENT = dedent("""
 Convert the WorkingSlot into an episodic memory record emphasizing Situation → Action → Result.
 
 <working-slot>
@@ -263,7 +327,7 @@ Convert the WorkingSlot into an episodic memory record emphasizing Situation →
 Output STRICTLY as JSON:
 {{
     "stage": "{stage}",
-    "summary": "≤80 word SAR overview",
+    "summary": "≤80 word Situation → Action → Result overview",
     "detail": {{
         "situation": "Context and constraints",
         "actions": ["action 1","action 2"],
@@ -275,8 +339,39 @@ Output STRICTLY as JSON:
 }}
 """)
 
+TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT_IDEA = dedent("""
+Document this IdeaAgent WorkingSlot as an episodic memory focused on a specific MCTS traversal segment (stage = {stage}).
 
-TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT = dedent("""
+Guidance:
+- Situation should capture topic, parent idea state, and why this stage ran (e.g., "mcts_expansion on counterfactual-contrast to fix dataset_bias").
+- Actions must enumerate concrete operator applications, memory bundle usage, evaluation prompts, or guardrail enforcement. Reference idea title/abstract/method snippets when helpful.
+- Results must state measurable outcomes: evaluation scores (novelty/feasibility/impact/risk/clarity/conciseness/confidence/lift), fairness or failure-mode findings, Pareto role (best/novel/feasible/concise), or memory persistence decisions.
+- Populate `metrics` with numeric values whenever the slot contains them; include `"path"` or `"idea_signature"` entries inside `artifacts` when mentioned (e.g., path summary, memory_refs).
+
+WorkingSlot excerpt:
+<working-slot>
+{dump_slot_json}
+</working-slot>
+
+**DO NOT wrap your JSON output in markdown code blocks (```json or ```). Output raw JSON only.**
+Output STRICTLY as JSON:
+<episodic-record>
+{{
+    "stage": "{stage}",
+    "summary": "≤80 word Situation → Action → Result overview",
+    "detail": {{
+        "situation": "Context and targeted defects/operators",
+        "actions": ["action 1","action 2"],
+        "results": ["result 1","result 2"],
+        "metrics": {{"novelty": 4.3, "lift": 12}},
+        "artifacts": ["path: ...", "memory_refs: Field#1,Recipe#2"]
+    }},
+    "tags": ["keyword1","keyword2"]
+}}
+</episodic-record>
+""")
+
+TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT_EXPERIMENT = dedent("""
 Convert the WorkingSlot into a procedural memory entry that captures a reusable skill or checklist.
 
 <working-slot>
@@ -292,4 +387,32 @@ Output STRICTLY as JSON:
     "code": "optional snippet or empty string",
     "tags": ["keyword1","keyword2"]
 }}
+""")
+
+TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT_IDEA = dedent("""
+Convert the IdeaAgent WorkingSlot into a procedural memory entry that describes how to reproduce the operator-driven workflow or evaluation harness it encodes.
+
+Expectations:
+- `name` should hint at when to apply the playbook (operator + targeted defects or evaluation purpose).
+- The description (≤60 words) must state trigger conditions (e.g., "use when novelty stagnates and dataset_bias is flagged") and the intended impact (lift, fairness coverage, failure surfacing).
+- `steps` should be actionable and sequential: include memory retrieval prep, edit-operator injection, reproducibility spec (mechanism, formula, insertion point, overhead), evaluation/ablation requirements, and persistence/guardrail steps.
+- Use `code` for any command, pseudo-code, or schema snippets referenced in the slot; leave empty string if none.
+- Tags mix domain cues and workflow hints such as ["idea_agent","mcts","counterfactual-contrast","fairness_protocol"].
+
+WorkingSlot excerpt:
+<working-slot>
+{dump_slot_json}
+</working-slot>
+
+**DO NOT wrap your JSON output in markdown code blocks (```json or ```). Output raw JSON only.**
+Output STRICTLY as JSON:
+<procedural-record>
+{{
+    "name": "short skill name",
+    "description": "≤60 words explaining when/why to apply it",
+    "steps": ["step 1","step 2","step 3"],
+    "code": "optional snippet or empty string",
+    "tags": ["keyword1","keyword2"]
+}}
+</procedural-record>
 """)

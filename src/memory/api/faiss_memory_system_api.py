@@ -26,7 +26,7 @@ class FAISSMemorySystem(MemorySystem):
 
         self.memory_type = cfg.memory_type
         self.vector_store = FaissVectorStore(cfg.model_path, self.memory_type)
-        self.llm = OpenAIClient(model=cfg.llm_name)
+        self.llm = OpenAIClient(model=cfg.llm_name, backend=cfg.llm_backend)
 
         if self.memory_type == "semantic":
             self.global_cidmap2semrec: Dict[int, SemanticRecord] = {} # {cluster_id: SemanticRecord}, Only updated when abstracted semantic records are processed
@@ -167,10 +167,11 @@ class FAISSMemorySystem(MemorySystem):
         method: str = "embedding", 
         limit: int = 5, 
         filters: Optional[Dict] = None,
+        threshold: float = 0.0,
         agent_id: str = "") ->List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
         limit = min(limit, self.size)
         try:
-            results = self.vector_store.query(query_text, method=method, limit=limit, filters=filters, agent_id=agent_id)
+            results = self.vector_store.query(query_text, method=method, limit=limit, filters=filters, threshold=threshold, agent_id=agent_id)
         except Exception as e:
             print(f"Error querying memories: {e}")
             results = []

@@ -4,6 +4,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agent.ligagent import LigAgent
 from agent import init_logger, get_logger
 import time
+import traceback
 
 
 
@@ -46,4 +47,5 @@ if __name__ == "__main__":
             # update memory
     except (Exception, KeyboardInterrupt) as e:
         logger.info(agent.memory)
+        logger.error("Traceback:\n%s", traceback.format_exc())
         

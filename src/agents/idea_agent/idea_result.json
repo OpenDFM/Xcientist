@@ -1,0 +1,125 @@
+{
+  "title": "Physics-Guided Adversarial Boundary Sampler",
+  "abstract": "We propose a targeted adversarial sampler that identifies training points most vulnerable to boundary perturbations by computing the gradient of the PDE residual with respect to boundary condition parameters. This mechanism generates hard counterfactuals by perturbing these boundary parameters along the direction of maximal residual increase, creating a curriculum of physics-aware edge cases. The sampler plugs into the training loop as a dynamic batch augmentation, forcing the PINN to learn robustness to boundary variations without manual heuristic tuning.",
+  "algorithm": [
+    {
+      "name": "Physics-Guided Adversarial Boundary Sampler",
+      "input": [
+        "Topic focus: Physics-Informed Neural Networks.",
+        "Latest retrieval keywords: Physics-Informed Neural Networks.",
+        "Analysis TL;DR: PINNs offer promise for solving PDEs but face optimization challenges; future work should focus on robust training, hard constraints, and theoretical foundations.",
+        "Key methods referenced: Physics-Informed Neural Networks (PINNs) incorporating PDEs as soft constraints in loss functions; Curriculum regularization to progressively increase PDE complexity during training; Sequence-to-sequence learning for spatiotemporal problems",
+        "Reference anchors: Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations; Scientific Machine Learning Through Physics–Informed Neural Networks: Where we are and What’s Next; Characterizing possible failure modes in physics-informed neural networks",
+        "Target defects: missing_edge_cases, weak_generalization"
+      ],
+      "output": [
+        "Abstract focus: We propose a targeted adversarial sampler that identifies training points most vulnerable to boundary perturbations by computing the gradient of the PDE residual with respect to boundary condition parameters. This mechanism generates hard counterfactuals by perturbing these boundary parameters along the direction of maximal residual increase, creating a curriculum of physics-aware edge cases. The sampler plugs into the training loop as a dynamic batch augmentation, forcing the PINN to learn robustness to boundary variations without manual heuristic tuning.",
+        "Core contribution: A gradient-based boundary attack that generates adversarial counterfactuals by maximizing residual sensitivity to boundary condition perturbations.",
+        "Methodology: 1. At each training step, compute gradient of the PDE residual norm w.r.t. boundary condition parameters (e.g., location, BC values). 2. Identify top-k points with highest sensitivity scores. 3. Generate counterfactuals by perturbing boundary parameters along the gradient direction (e.g., shift boundary by epsilon * sign(∂R/∂BC)). 4. Add synthetic points to batch with mixing ratio (20%). 5. Compute loss on both real and adversarial counterfactuals. 6. Log sensitivity distribution and counterfactual statistics.",
+        "Experiment design: Baseline: Standard PINN on original data. Ablation: PINN with adversarial sampler disabled. Control: PINN with random boundary perturbations (no gradient guidance). Metrics: Generalization error on edge-case test set (high-gradient regions, shifted boundaries), constraint violation on rare regimes, sensitivity distribution coverage. Dataset: 2D Poisson with complex boundaries. Resource limit: 36h on 1x A100. Instrumentation: Log sensitivity scores, counterfactual coverage, and boundary shift magnitudes.",
+        "MCTS search score: 3.50"
+      ],
+      "pipeline": [
+        "Step 1: 1",
+        "Step 2: At each training step, compute gradient of the PDE residual norm w.r.t",
+        "Step 3: boundary condition parameters (e.g., location, BC values)",
+        "Step 4: 2",
+        "Step 5: Identify top-k points with highest sensitivity scores",
+        "Step 6: 3"
+      ]
+    }
+  ],
+  "reference_papers": [
+    {
+      "title": "Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations",
+      "authors": [
+        "M. Raissi",
+        "P. Perdikaris",
+        "G. Karniadakis"
+      ],
+      "abstract": null,
+      "tldr": {
+        "model": "tldr@v2.0.0",
+        "text": null
+      },
+      "url": "https://www.semanticscholar.org/paper/d86084808994ac54ef4840ae65295f3c0ec4decd",
+      "year": 2019,
+      "paper_id": "d86084808994ac54ef4840ae65295f3c0ec4decd",
+      "source_keywords": "Physics-Informed Neural Networks."
+    },
+    {
+      "title": "Scientific Machine Learning Through Physics–Informed Neural Networks: Where we are and What’s Next",
+      "authors": [
+        "S. Cuomo",
+        "Vincenzo Schiano Di Cola",
+        "F. Giampaolo",
+        "G. Rozza",
+        "Maizar Raissi",
+        "F. Piccialli"
+      ],
+      "abstract": "Physics-Informed Neural Networks (PINN) are neural networks (NNs) that encode model equations, like Partial Differential Equations (PDE), as a component of the neural network itself. PINNs are nowadays used to solve PDEs, fractional equations, integral-differential equations, and stochastic PDEs. This novel methodology has arisen as a multi-task learning framework in which a NN must fit observed data while reducing a PDE residual. This article provides a comprehensive review of the literature on PINNs: while the primary goal of the study was to characterize these networks and their related advantages and disadvantages. The review also attempts to incorporate publications on a broader range of collocation-based physics informed neural networks, which stars form the vanilla PINN, as well as many other variants, such as physics-constrained neural networks (PCNN), variational hp-VPINN, and conservative PINN (CPINN). The study indicates that most research has focused on customizing the PINN through different activation functions, gradient optimization techniques, neural network structures, and loss function structures. Despite the wide range of applications for which PINNs have been used, by demonstrating their ability to be more feasible in some contexts than classical numerical techniques like Finite Element Method (FEM), advancements are still possible, most notably theoretical issues that remain unresolved.",
+      "tldr": {
+        "model": "tldr@v2.0.0",
+        "text": "This article provides a comprehensive review of the literature on PINNs and indicates that most research has focused on customizing the PINN through different activation functions, gradient optimization techniques, neural network structures, and loss function structures."
+      },
+      "url": "https://www.semanticscholar.org/paper/e916f69e70a4321f21356f7ce360e380dd976a43",
+      "year": 2022,
+      "paper_id": "e916f69e70a4321f21356f7ce360e380dd976a43",
+      "source_keywords": "Physics-Informed Neural Networks."
+    },
+    {
+      "title": "Characterizing possible failure modes in physics-informed neural networks",
+      "authors": [
+        "Aditi S. Krishnapriyan",
+        "A. Gholami",
+        "Shandian Zhe",
+        "Robert M. Kirby",
+        "Michael W. Mahoney"
+      ],
+      "abstract": "Recent work in scientific machine learning has developed so-called physics-informed neural network (PINN) models. The typical approach is to incorporate physical domain knowledge as soft constraints on an empirical loss function and use existing machine learning methodologies to train the model. We demonstrate that, while existing PINN methodologies can learn good models for relatively trivial problems, they can easily fail to learn relevant physical phenomena for even slightly more complex problems. In particular, we analyze several distinct situations of widespread physical interest, including learning differential equations with convection, reaction, and diffusion operators. We provide evidence that the soft regularization in PINNs, which involves PDE-based differential operators, can introduce a number of subtle problems, including making the problem more ill-conditioned. Importantly, we show that these possible failure modes are not due to the lack of expressivity in the NN architecture, but that the PINN's setup makes the loss landscape very hard to optimize. We then describe two promising solutions to address these failure modes. The first approach is to use curriculum regularization, where the PINN's loss term starts from a simple PDE regularization, and becomes progressively more complex as the NN gets trained. The second approach is to pose the problem as a sequence-to-sequence learning task, rather than learning to predict the entire space-time at once. Extensive testing shows that we can achieve up to 1-2 orders of magnitude lower error with these methods as compared to regular PINN training.",
+      "tldr": {
+        "model": "tldr@v2.0.0",
+        "text": "It is demonstrated that, while existing PINN methodologies can learn good models for relatively trivial problems, they can easily fail to learn relevant physical phenomena for even slightly more complex problems."
+      },
+      "url": "https://www.semanticscholar.org/paper/3c4372b125d0744bb68bfca9f5d6b0abb85dd182",
+      "year": 2021,
+      "paper_id": "3c4372b125d0744bb68bfca9f5d6b0abb85dd182",
+      "source_keywords": "Physics-Informed Neural Networks."
+    },
+    {
+      "title": "Understanding and Mitigating Gradient Flow Pathologies in Physics-Informed Neural Networks",
+      "authors": [
+        "Sifan Wang",
+        "Yujun Teng",
+        "P. Perdikaris"
+      ],
+      "abstract": null,
+      "tldr": null,
+      "url": "https://www.semanticscholar.org/paper/bdd29cf7f30cfa7991c8259a0d27217c9eafb3bd",
+      "year": 2021,
+      "paper_id": "bdd29cf7f30cfa7991c8259a0d27217c9eafb3bd",
+      "source_keywords": "Physics-Informed Neural Networks."
+    },
+    {
+      "title": "Physics-informed neural networks with hard constraints for inverse design",
+      "authors": [
+        "Lu Lu",
+        "R. Pestourie",
+        "Wenjie Yao",
+        "Zhicheng Wang",
+        "F. Verdugo",
+        "Steven G. Johnson"
+      ],
+      "abstract": "Inverse design arises in a variety of areas in engineering such as acoustic, mechanics, thermal/electronic transport, electromagnetism, and optics. Topology optimization is a major form of inverse design, where we optimize a designed geometry to achieve targeted properties and the geometry is parameterized by a density function. This optimization is challenging, because it has a very high dimensionality and is usually constrained by partial differential equations (PDEs) and additional inequalities. Here, we propose a new deep learning method -- physics-informed neural networks with hard constraints (hPINNs) -- for solving topology optimization. hPINN leverages the recent development of PINNs for solving PDEs, and thus does not rely on any numerical PDE solver. However, all the constraints in PINNs are soft constraints, and hence we impose hard constraints by using the penalty method and the augmented Lagrangian method. We demonstrate the effectiveness of hPINN for a holography problem in optics and a fluid problem of Stokes flow. We achieve the same objective as conventional PDE-constrained optimization methods based on adjoint methods and numerical PDE solvers, but find that the design obtained from hPINN is often simpler and smoother for problems whose solution is not unique. Moreover, the implementation of inverse design with hPINN can be easier than that of conventional methods.",
+      "tldr": {
+        "model": "tldr@v2.0.0",
+        "text": "This work proposes a new deep learning method -- physics-informed neural networks with hard constraints (hPINNs) -- for solving topology optimization and finds that the design obtained from hPINN is often simpler and smoother for problems whose solution is not unique."
+      },
+      "url": "https://www.semanticscholar.org/paper/fef2135b3ae7b27ab28ddf41a943bd2ddc5d5113",
+      "year": 2021,
+      "paper_id": "fef2135b3ae7b27ab28ddf41a943bd2ddc5d5113",
+      "source_keywords": "Physics-Informed Neural Networks."
+    }
+  ],
+  "datasets": []
+}

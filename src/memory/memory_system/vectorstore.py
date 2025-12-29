@@ -120,6 +120,7 @@ class FaissVectorStore(VectorStore):
             method: str = "embedding", 
             limit: int = 5, 
             filters: Optional[Dict] = None,
+            threshold: float = 0.0,
             agent_id: str = "",
             ) -> List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
         assert method in ["embedding", "bm25", "overlapping"], "Unsupported query method."
@@ -136,7 +137,7 @@ class FaissVectorStore(VectorStore):
             else:
                 D, I = self.index.search(q, limit)
             for score, _id in zip(D[0], I[0]):
-                if _id == -1:
+                if _id == -1 or score < threshold:
                     continue
                 md = self.meta.get(int(_id), {})
                 if filters:
@@ -165,7 +166,7 @@ class FaissVectorStore(VectorStore):
 
             for bmid in top_bmid:
                 fid = idmap2fid[bmid]
-                if fid == -1:
+                if fid == -1 or bm25_scores[bmid] < threshold:
                     continue
                 md = self.meta.get(int(fid), {})
                 if filters:
@@ -193,7 +194,7 @@ class FaissVectorStore(VectorStore):
                 top_olid = sorted(range(len(overlap_scores)), key= lambda olid: overlap_scores[olid], reverse=True)[:limit]
             for olid in top_olid:
                 fid = idmap2fid[olid]
-                if fid == -1:
+                if fid == -1 or overlap_scores[olid] < threshold:
                     continue
                 md = self.meta.get(int(fid), {})
                 if filters:

@@ -6,6 +6,7 @@ import hashlib
 import itertools
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from tqdm import tqdm
 
 from memory.api.faiss_memory_system_api import FAISSMemorySystem
 from memory.api.slot_process_api import SlotProcess
@@ -30,40 +31,53 @@ class EditOperator:
 
 EDIT_OPERATORS: List[EditOperator] = [
     EditOperator(
+        name="mechanism-commit-innovation",
+        description="Introduce a concrete architectural or algorithmic intervention (new module, coupling, or training signal) and argue how it fixes the defect while outlining the validation harness.",
+        defects=["stagnant_novelty", "unclear_mechanism", "validation_gap"],
+        guardrails=[
+            "must name the exact component being added/rewired and why it targets the defect",
+            "must define the success metric and experiment that proves the mechanism works",
+            "tie the intervention to at least one risk or failure surfaced earlier",
+        ],
+    ),
+    EditOperator(
         name="counterfactual-contrast",
-        description="Stress-test with counterfactual or long-tail scenarios to expose generalization gaps.",
+        description="Prototype counterfactual generators or rare-regime samplers that feed new signals into the learning pipeline, forcing the model to handle unseen physics or boundary cases.",
         defects=["missing_edge_cases", "weak_generalization", "dataset_bias"],
-        guardrails=["limit to 1-2 new factors per iteration", "must log counterfactual success/failure"],
+        guardrails=["limit to 1-2 new synthetic channels per iteration", "log how the new sampler plugs into training/eval"],
     ),
     EditOperator(
-        name="failure-mode-inversion",
-        description="Instrument the known failure signature and invert the assumption or architecture bottleneck.",
-        defects=["silent_failure", "opaque_pipeline", "unverified_assumption"],
-        guardrails=["requires explicit failure log", "explain the inversion in plain language"],
-    ),
-    EditOperator(
-        name="fairness-baseline-upgrade",
-        description="Upgrade evaluation stack with stronger baselines, ablations, and fairness probes.",
-        defects=["unfair_comparison", "missing_ablation", "weak_eval_protocol"],
-        guardrails=["must describe control group", "state fairness metric"],
+        name="adaptive-constraint-hybridization",
+        description="Hybridize hard/soft constraints or controllers by adding a new auxiliary head, penalty, or differentiable solver coupling that directly enforces domain rules.",
+        defects=["constraint_drift", "physical_invalidity", "weak_regularization"],
+        guardrails=[
+            "clearly state the additional constraint signal and how it is computed",
+            "prove it does not explode training cost without justification",
+        ],
     ),
     EditOperator(
         name="surgical-modularity",
-        description="Split the method into orthogonal, swappable modules and re-solve the weakest block.",
+        description="Split the method into orthogonal, swappable modules and re-solve the weakest block with a new mechanism (e.g., delegate geometry encoder, solver head, or monitor).",
         defects=["feature_dumping", "monolithic_design", "harder_to_ablate"],
-        guardrails=["touch only one block", "outline interface contracts"],
-    ),
-    EditOperator(
-        name="risk-aware-simplification",
-        description="Remove redundant components while adding instrumentation for risks and failure reporting.",
-        defects=["complexity_sprawl", "unstated_risks"],
-        guardrails=["document removal criteria", "tie risky components to monitoring signals"],
+        guardrails=["touch only one block", "outline interface contracts and how modules communicate"],
     ),
     EditOperator(
         name="data-contract-repair",
-        description="Repair data or supervision contracts (coverage, labeling, alignment) before adding model tricks.",
+        description="Repair data or supervision contracts (coverage, labeling, alignment) before adding model tricks, potentially by inserting new labeling heads or contract tests.",
         defects=["data_quality", "label_noise", "missing_contracts"],
-        guardrails=["state measurable contract tests", "forbid new model components unless contract fails"],
+        guardrails=["state measurable contract tests", "forbid new model components unless the contract gap is proven"],
+    ),
+    EditOperator(
+        name="multi-scale-coordinator",
+        description="Introduce a coordinator/controller that fuses predictions from different scales or modalities, committing to a routing, aggregation, or scheduling mechanism.",
+        defects=["scale_mismatch", "coordination_failure", "latency_bottleneck"],
+        guardrails=["describe routing policy and how conflicts are resolved", "quantify added latency or compute budget"],
+    ),
+    EditOperator(
+        name="self-supervised-corrector",
+        description="Attach a corrective model (teacher, diffusion prior, energy head) that learns residuals or invariants without extra labels, producing explicit correction signals.",
+        defects=["systematic_bias", "silent_failure", "drift"],
+        guardrails=["specify the self-supervised loss and how corrections are injected", "explain how over-correction is prevented"],
     ),
 ]
 
@@ -144,6 +158,8 @@ class LongTermMemoryAccessor:
                 # Create the memory store instance
                 self._stores[memory_type] = FAISSMemorySystem(
                     memory_type=memory_type,
+                    llm_name="mimo-v2-flash",
+                    backend="openai",
                     **cfg,
                 )
             except Exception as exc:
@@ -169,6 +185,7 @@ class LongTermMemoryAccessor:
                 method="embedding",
                 limit=limit,
                 agent_id="idea_agent",
+                threshold=0.4,
             )
         except Exception as exc:
             logger.warning("⚠️  Memory query failed (%s): %s", prefix, exc)
@@ -220,8 +237,8 @@ class LongTermMemoryAccessor:
 
         return bundle
 
-    def persist_experiences(self, experiences: List[Dict[str, Any]], max_workers:int = 20) -> None:
-        if not experiences:
+    def persist_experience(self, experience: Dict[str, Any], max_workers: int = 20) -> None:
+        if not experience:
             return
 
         semantic = self._get_store("semantic")
@@ -231,13 +248,18 @@ class LongTermMemoryAccessor:
             logger.info("ℹ️ Skipping persistence because semantic store is unavailable.")
             return
         
-        slot_process = SlotProcess() # lazy loading
-        # 1. Multi-threaded run for contexts transformation
-        _multi_thread_run(slot_process.transfer_idea_agent_context_to_working_slots, experiences, max_workers)
-        # 2. Multi-threaded run for slots filter and route
-        _multi_thread_run(slot_process._multi_thread_filter_and_route_slot, slot_process.slot_container.values(), max_workers)
-        # 3. Multi-threaded run for experiences persistence
-        _multi_thread_run(slot_process._multi_thread_transfer_slot_to_memory, slot_process.routed_slot_container, max_workers)
+        slot_process = SlotProcess(llm_name="mimo-v2-flash", llm_backend="openai") # lazy loading
+        try:
+            # 1. Multi-threaded run for contexts transformation
+            working_slots = slot_process.transfer_idea_agent_context_to_working_slots(experience)
+            print("[Info] Transferred experience to working slots, total slots:", len(working_slots))
+            # 2. Multi-threaded run for slots filter and route
+            _multi_thread_run(slot_process._multi_thread_filter_and_route_slot, working_slots, max_workers)
+            # 3. Multi-threaded run for experience persistence
+            _multi_thread_run(slot_process._multi_thread_transfer_slot_to_memory, slot_process.routed_slot_container, max_workers)
+        except Exception as exc:
+            logger.warning("⚠️  Failed to persist experience: %s", exc)
+            return
 
         semantic_records: List[SemanticRecord] = []
         episodic_records: List[EpisodicRecord] = []
@@ -265,6 +287,8 @@ class LongTermMemoryAccessor:
                 procedural.add(procedural_records, agent_id="idea_agent")
             except Exception as exc:
                 logger.warning("⚠️  Failed to persist procedural records: %s", exc)
+
+        print(f"[Debug] Size of semantic_records: {len(semantic_records)}, episodic_records: {len(episodic_records)}, procedural_records: {len(procedural_records)}")
 
 
 @dataclass
@@ -446,15 +470,15 @@ class IdeaNode:
 
 @dataclass
 class MCTSConfig:
-    max_iterations: int = 18
+    max_iterations: int = 5
     max_depth: int = 3
     branching_factor: int = 3
     exploration_constant: float = 1.2
-    generation_model: str = "gpt-4.1"
-    evaluation_model: str = "gpt-4.1"
+    generation_model: str = "mimo-v2-flash"
+    evaluation_model: str = "mimo-v2-flash"
     generation_temperature: float = 0.4
     evaluation_temperature: float = 0.0
-    min_confidence_for_memory: float = 0.6
+    min_confidence_for_memory: float = 0.0
     pareto_top_k: int = 3
 
 
@@ -507,9 +531,10 @@ class MemoryGuidedMCTS:
         self.analysis_blob = self._format_analysis(context.get("analysis", []))
         root_state = self._build_root_state(topic, context)
         root = self._new_node(root_state, depth=0, parent=None)
+        experiences = []
         self.trace = []
 
-        for iteration in range(self.config.max_iterations):
+        for iteration in tqdm(range(self.config.max_iterations)):
             leaf = self._select(root)
             if leaf.depth >= self.config.max_depth:
                 target = leaf
@@ -517,7 +542,7 @@ class MemoryGuidedMCTS:
                 target = self._expand(leaf)
             if target is None:
                 continue
-            evaluation = self._simulate(target)
+            evaluation = self._simulate(target, experiences)
             if evaluation is None:
                 continue
             self._backpropagate(target, evaluation)
@@ -534,10 +559,7 @@ class MemoryGuidedMCTS:
 
         best = self._best_candidate(root)
         pareto = self._pareto_candidates(root)
-        experiences = self._harvest_experiences()
-
-        if experiences:
-            self.memory_accessor.persist_experiences(experiences)
+    
 
         return SearchResult(
             best=best,
@@ -624,6 +646,34 @@ class MemoryGuidedMCTS:
             memory_refs=[],
         )
 
+    def _parse_json_response(self, raw: str) -> Dict[str, Any]:
+        """
+        LLM responses occasionally include code fences or extra commentary.
+        This helper strips the noise and extracts the first JSON object/array well-formed enough for json.loads.
+        """
+        text = (raw or "").strip()
+        if not text:
+            raise ValueError("Empty response")
+        if text.startswith("```"):
+            fence_end = text.find("\n")
+            if fence_end != -1:
+                text = text[fence_end + 1 :]
+            if text.endswith("```"):
+                text = text[: -3]
+        text = text.strip()
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            decoder = json.JSONDecoder()
+            for idx, ch in enumerate(text):
+                if ch in "{[":
+                    try:
+                        parsed, _ = decoder.raw_decode(text[idx:])
+                        return parsed
+                    except json.JSONDecodeError:
+                        continue
+        raise ValueError(f"Unable to parse JSON from response: {text[:200]}")
+
     def _select(self, node: IdeaNode) -> IdeaNode:
         current = node
         while current.children and current.expanded:
@@ -648,19 +698,23 @@ class MemoryGuidedMCTS:
             max_children=self.config.branching_factor,
             constraints="\n".join(ANTI_PATTERN_CONSTRAINTS),
         )
+        prompt += "\n Directly output JSON. DO NOT include any commentary outside the JSON."
+        children_payload: List[Dict[str, Any]]
         try:
             response = self.chat_fn(
                 prompt,
                 model=self.config.generation_model,
                 temperature=self.config.generation_temperature,
-                max_tokens=1800,
+                max_tokens=4096,
             )
-            payload = json.loads(response)
+            print(f"[Debug] Generation response: {response}")
+            if not response or not response.strip():
+                raise ValueError("Empty response from generation model")
+            payload = self._parse_json_response(response)
             children_payload = payload.get("children", [])[: self.config.branching_factor]
         except Exception as exc:
-            logger.warning("⚠️  Expansion failed: %s", exc)
-            node.expanded = True
-            return None
+            logger.warning("⚠️  Expansion failed: %s. Falling back to heuristic children.", exc)
+            children_payload = self._fallback_child_payloads(node, bundle)
 
         new_child: Optional[IdeaNode] = None
         for child_data in children_payload:
@@ -701,7 +755,34 @@ class MemoryGuidedMCTS:
             memory_refs=_list("memory_refs"),
         )
 
-    def _simulate(self, node: IdeaNode) -> Optional[IdeaEvaluation]:
+    def _fallback_child_payloads(self, node: IdeaNode, bundle: MemoryBundle) -> List[Dict[str, Any]]:
+        """
+        Deterministically craft child payloads when the language model fails to expand a node.
+        Ensures the tree keeps growing instead of aborting the search loop.
+        """
+        payloads: List[Dict[str, Any]] = []
+        referenced_ids = bundle.referenced_ids()
+        parent_title = node.state.title
+        parent_gap = node.state.core_contribution or node.state.abstract
+        base_tags = node.state.tags or []
+        for idx, op in enumerate(EDIT_OPERATORS[: self.config.branching_factor]):
+            payloads.append(
+                {
+                    "title": f"{parent_title} | {op.name.replace('-', ' ').title()} #{idx+1}",
+                    "abstract": f"Apply {op.description} to stress {parent_title} against {', '.join(op.defects)}.",
+                    "core_contribution": f"Operationalize {op.name} to fix {', '.join(op.defects)} highlighted in '{parent_title}'.",
+                    "method": f"Modify the parent method focusing on {parent_gap} via {op.description}.",
+                    "experiments": f"Design ablations that validate the {op.name} intervention on the parent idea.",
+                    "risks": "Heuristic fallback idea; validate with full generation later.",
+                    "tags": list({*base_tags, op.name}),
+                    "operator": op.name,
+                    "target_defects": op.defects,
+                    "memory_refs": referenced_ids,
+                }
+            )
+        return payloads
+
+    def _simulate(self, node: IdeaNode, experiences: List[Dict[str, Any]]) -> Optional[IdeaEvaluation]:
         if node.state.signature in self.evaluation_cache:
             evaluation = self.evaluation_cache[node.state.signature]
             node.evaluation = evaluation
@@ -718,9 +799,9 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.evaluation_model,
                 temperature=self.config.evaluation_temperature,
-                max_tokens=1200,
+                max_tokens=4096,
             )
-            payload = json.loads(response)
+            payload = self._parse_json_response(response)
             evaluation = IdeaEvaluation.from_payload(payload)
         except Exception as exc:
             logger.warning("⚠️  Simulation failed: %s", exc)
@@ -728,6 +809,12 @@ class MemoryGuidedMCTS:
 
         self.evaluation_cache[node.state.signature] = evaluation
         node.evaluation = evaluation
+
+        experience = self._harvest_experience(node, evaluation)
+        if experience:
+            self.memory_accessor.persist_experience(experience)
+            experiences.append(experience)
+
         return evaluation
 
     def _backpropagate(self, node: IdeaNode, evaluation: IdeaEvaluation) -> None:
@@ -770,17 +857,9 @@ class MemoryGuidedMCTS:
                 pareto[label] = max(visited, key=lambda c, s=scorer: s(c.evaluation))
         return pareto
 
-    def _harvest_experiences(self) -> List[Dict[str, Any]]:
-        experiences: List[Dict[str, Any]] = []
-        for signature, evaluation in self.evaluation_cache.items():
-            if evaluation.confidence < self.config.min_confidence_for_memory:
-                continue
-            nodes = self.signature_nodes.get(signature, [])
-            if not nodes:
-                continue
-            node = max(nodes, key=lambda n: n.visits)
-            experiences.append(
-                {
+    def _harvest_experience(self, node: IdeaNode, evaluation: IdeaEvaluation) -> Optional[Dict[str, Any]]:
+        if evaluation.confidence > self.config.min_confidence_for_memory:
+            experience = {
                     "defect": ", ".join(node.state.target_defects) or evaluation.defect_fix_summary,
                     "action": node.state.operator,
                     "lift": round(evaluation.lift_estimate, 2),
@@ -789,8 +868,10 @@ class MemoryGuidedMCTS:
                     "feedback": evaluation.feedback,
                     "tags": node.state.tags + ["defect_fix"],
                 }
-            )
-        return experiences
+            
+            return experience
+        else:
+            return None
 
     def _format_edit_ops(self) -> str:
         lines = []

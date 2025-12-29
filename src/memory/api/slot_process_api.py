@@ -10,19 +10,25 @@ from memory.memory_system.utils import (
     _extract_json_between, 
     _hard_validate_slot_keys,
     _build_context_snapshot,
-    _safe_dump,
+    _safe_dump_str,
     _truncate_text,
     compute_overlap_score,
     _chunks,
     _multi_thread_run,
+    new_id,
+    now_iso,
 )
 from memory.memory_system.user_prompt import (
     WORKING_SLOT_COMPRESS_USER_PROMPT,
     TRANSFER_EXPERIMENT_AGENT_CONTEXT_TO_WORKING_SLOTS_PROMPT,
+    TRANSFER_IDEA_AGENT_CONTEXT_TO_WORKING_SLOTS_PROMPT,
     TRANSFER_SLOT_TO_TEXT_PROMPT,
-    TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT,
-    TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT,
-    TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT,
+    TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT_EXPEIRMENT,
+    TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT_EXPRIMENT,
+    TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT_EXPERIMENT,
+    TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT_IDEA,
+    TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT_IDEA,
+    TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT_IDEA,
 )
 from textwrap import dedent
 from memory.memory_system import WorkingSlot, OpenAIClient, LLMClient
@@ -54,11 +60,11 @@ IDEA_AGENT_STAGE_OPTIONS = [
 ]
 
 class SlotProcess:
-    def __init__(self):
+    def __init__(self, llm_name: str = "gpt-4o-mini", llm_backend: Literal["openai", "vllm"] = "openai"):
         self.slot_container: Dict[str, WorkingSlot] = {}
         self.filtered_slot_container: List[WorkingSlot] = []
         self.routed_slot_container: List[Dict] = []
-        self.llm_model = OpenAIClient()
+        self.llm_model = OpenAIClient(model=llm_name, backend=llm_backend)
         self.memory_dict = []
 
     def add_slot(self, slot: WorkingSlot) -> None:
@@ -87,7 +93,6 @@ class SlotProcess:
     async def filter_and_route_slots(self, task: Literal["experiment", "idea"] = "experiment") -> List[Dict[str, WorkingSlot]]:
         for slot in self.slot_container.values():
             check_result = await slot.slot_filter(self.llm_model, task=task)
-            print(check_result)
             if check_result == True:
                 self.filtered_slot_container.append(slot)
         
@@ -181,7 +186,7 @@ class SlotProcess:
         allowed_keys: set,
         max_slots: int,
         max_retries: int = 5,
-        max_tokens: int = 4096,
+        max_tokens: int = 8192,
         post_process_slot: Optional[Callable[[dict, str], dict]] = None,
         context: Optional[str] = None,
         is_async: bool = False,
@@ -416,7 +421,7 @@ class SlotProcess:
 
         return working_slots
 
-    def transfer_idea_agent_context_to_working_slots(self, context: Dict[str, Any], max_slots: int = 1) -> List[WorkingSlot]:
+    def transfer_idea_agent_context_to_working_slots(self, context: Dict[str, Any], max_slots: int = 10) -> List[WorkingSlot]:
         snapshot = _safe_dump_str(context)
 
         system_prompt = (
@@ -451,10 +456,6 @@ class SlotProcess:
             is_async=False,
         )
 
-        for slot in working_slots:
-            # We always attach the full context for Idea Agent slots
-            slot.attachments = context
-
         return working_slots
 
     async def generate_long_term_memory(self, routed_slots: List[Dict[str, WorkingSlot]]) -> List[Dict[str, Any]]:
@@ -470,11 +471,11 @@ class SlotProcess:
 
             try:
                 if memory_type == "semantic":
-                    input_dict = await self.transfer_slot_to_semantic_record(slot)
+                    input_dict = self.transfer_slot_to_semantic_record(slot)
                 elif memory_type == "episodic":
-                    input_dict = await self.transfer_slot_to_episodic_record(slot)
+                    input_dict = self.transfer_slot_to_episodic_record(slot)
                 else:
-                    input_dict = await self.transfer_slot_to_procedural_record(slot)
+                    input_dict = self.transfer_slot_to_procedural_record(slot)
             except Exception as exc:
                 print(
                     f"[MEMORY] Failed to convert slot {getattr(slot, 'id', 'unknown')} "
@@ -497,11 +498,11 @@ class SlotProcess:
 
         try:
             if memory_type == "semantic":
-                input_dict = asyncio.run(self.transfer_slot_to_semantic_record(slot))
+                input_dict = self.transfer_slot_to_semantic_record(slot)
             elif memory_type == "episodic":
-                input_dict = asyncio.run(self.transfer_slot_to_episodic_record(slot))
+                input_dict = self.transfer_slot_to_episodic_record(slot)
             elif memory_type == "procedural":
-                input_dict = asyncio.run(self.transfer_slot_to_procedural_record(slot))
+                input_dict = self.transfer_slot_to_procedural_record(slot)
         except Exception as exc:
             print(
                 f"[MEMORY] Failed to convert slot {getattr(slot, 'id', 'unknown')} "
@@ -511,12 +512,22 @@ class SlotProcess:
 
         self.memory_dict.append({"memory_type": memory_type, "input": input_dict})
 
-    def transfer_slot_to_semantic_record(self, slot: WorkingSlot) -> Dict[str, Any]:
-        system_prompt = (
-            "You are a senior research archivist. Convert the WorkingSlot into a reusable "
-            "semantic memory entry that captures enduring, generalizable insights."
-        )
-        user_prompt = TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT_EXPEIRMENT.format(dump_slot_json=dump_slot_json(slot))
+    def transfer_slot_to_semantic_record(self, slot: WorkingSlot, task: Literal["experiment", "idea"] = "idea") -> Dict[str, Any]:
+        if task == "experiment":
+            system_prompt = (
+                "You are a senior research archivist. Convert the WorkingSlot into a reusable "
+                "semantic memory entry that captures enduring, generalizable insights."
+            )
+            user_prompt = TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT_EXPEIRMENT.format(dump_slot_json=dump_slot_json(slot))
+        elif task == "idea":
+            system_prompt = (
+                "You are a senior research archivist curating long-term memory. "
+                "Convert an IdeaAgent WorkingSlot into a semantic memory record that preserves durable, "
+                "generalizable guidance. Focus on reusable defect→fix heuristics, anti-pattern guardrails, "
+                "field knowledge, and evaluation protocols—not run-specific chatter. "
+                "Return only the structured output requested by the user prompt."
+            )
+            user_prompt = TRANSFER_SLOT_TO_SEMANTIC_RECORD_PROMPT_IDEA.format(dump_slot_json=dump_slot_json(slot))
         user_prompt += " /no_think"
 
         def post_process_semantic(payload: dict, slot: WorkingSlot) -> Dict[str, Any]:
@@ -546,13 +557,24 @@ class SlotProcess:
             max_tokens=2048,
         )
 
-    def transfer_slot_to_episodic_record(self, slot: WorkingSlot) -> Dict[str, Any]:
-        system_prompt = (
-            "You are a scientific lab journal assistant. Convert the WorkingSlot into an episodic "
-            "memory capturing Situation → Action → Result, including measurable outcomes."
-        )
-        user_prompt = TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT_EXPRIMENT.format(dump_slot_json=dump_slot_json(slot), stage=slot.stage)
+    def transfer_slot_to_episodic_record(self, slot: WorkingSlot, task: Literal["experiment", "idea"] = "idea") -> Dict[str, Any]:
+        if task == "experiment":
+            system_prompt = (
+                "You are a scientific lab journal assistant. Convert the WorkingSlot into an episodic "
+                "memory capturing Situation → Action → Result, including measurable outcomes."
+            )
+            user_prompt = TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT_EXPRIMENT.format(dump_slot_json=dump_slot_json(slot), stage=slot.stage)
+        elif task == "idea":
+            system_prompt = (
+                "You are a lab-notebook style recorder. "
+                "Convert an IdeaAgent WorkingSlot into an episodic record capturing a specific MCTS traversal segment. "
+                "Preserve Situation → Action → Result with concrete operator applications, targeted defects, "
+                "retrieved memory IDs, evaluation metrics, Pareto role, and any fairness/failure-mode instrumentation. "
+                "Return only the structured output requested by the user prompt."
+            )
+            user_prompt = TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT_IDEA.format(dump_slot_json=dump_slot_json(slot), stage=slot.stage)
         user_prompt += " /no_think"
+
 
         def post_process_episodic(payload: dict, slot: WorkingSlot) -> Dict[str, Any]:
             stage = payload.get("stage") or slot.stage
@@ -584,12 +606,23 @@ class SlotProcess:
             max_tokens=2048,
         )
 
-    def transfer_slot_to_procedural_record(self, slot: WorkingSlot) -> Dict[str, Any]:
-        system_prompt = (
-            "You are an expert operations documenter. Convert the WorkingSlot into a procedural "
-            "memory entry describing reproducible steps/commands."
-        )
-        user_prompt = TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT_EXPERIMENT.format(dump_slot_json=dump_slot_json(slot))
+    def transfer_slot_to_procedural_record(self, slot: WorkingSlot, task: Literal["experiment", "idea"] = "idea") -> Dict[str, Any]:
+        if task == "experiment":
+            system_prompt = (
+                "You are an expert operations documenter. Convert the WorkingSlot into a procedural "
+                "memory entry describing reproducible steps/commands."
+            )
+            user_prompt = TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT_EXPERIMENT.format(dump_slot_json=dump_slot_json(slot))
+        elif task == "idea":
+            system_prompt = (
+                "You are an expert operations documenter. "
+                "Convert an IdeaAgent WorkingSlot into a procedural memory entry that a future agent can execute to "
+                "reproduce the workflow or evaluation harness. Emphasize trigger conditions (when to use), "
+                "step-by-step actions (memory retrieval, operator application, reproducibility spec), "
+                "evaluation/ablation requirements, and guardrails for failure modes. "
+                "Return only the structured output requested by the user prompt."
+            )
+            user_prompt = TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT_IDEA.format(dump_slot_json=dump_slot_json(slot))
         user_prompt += " /no_think"
 
         def post_process_procedural(payload: dict, slot: WorkingSlot) -> Dict[str, Any]:

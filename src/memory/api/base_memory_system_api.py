@@ -13,7 +13,8 @@ from memory.memory_system import (
 class MemorySystemConfig(BaseModel):
     memory_type: Literal["semantic", "episodic", "procedural", "working"] = "semantic"
     model_path: str = Field("./.cache/all-MiniLM-L6-v2", description="Path to the model used for vector embeddings.")
-    llm_name: str = Field("gpt-4.1-mini", description="Name of the LLM model to be used.")
+    llm_name: str = Field("gpt-4o-mini", description="Name of the LLM model to be used.")
+    llm_backend: Literal["openai", "vllm"] = "openai"
     eps: Optional[float] = Field(0.6, description="Mu parameter for Denstream.")
     beta: Optional[float] = Field(0.5, description="Beta parameter for Denstream.")
     mu: Optional[float] = Field(4, description="Eps parameter for Denstream.")
@@ -84,7 +85,7 @@ class MemorySystem(ABC):
         ...
     
     @abstractmethod
-    def query(self, query_text: str, method: str = "embedding", limit: int = 5, filters: Dict | None = None) -> List[Tuple[float, List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]]:
+    def query(self, query_text: str, method: str = "embedding", limit: int = 5, filters: Optional[Dict] = None) -> List[Tuple[float, List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]]:
         ...
     
     @abstractmethod
