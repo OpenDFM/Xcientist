@@ -11,8 +11,6 @@ import json
 import http.client
 
 
-
-
 class LigAgent(AgentBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

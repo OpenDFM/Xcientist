@@ -235,9 +235,9 @@ class LongTermMemoryAccessor:
         # 1. Multi-threaded run for contexts transformation
         _multi_thread_run(slot_process.transfer_idea_agent_context_to_working_slots, experiences, max_workers)
         # 2. Multi-threaded run for slots filter and route
-        _multi_thread_run(slot_process._multi_thread_filter_and_route_slot, slot_container.values(), max_workers)
+        _multi_thread_run(slot_process._multi_thread_filter_and_route_slot, slot_process.slot_container.values(), max_workers)
         # 3. Multi-threaded run for experiences persistence
-        _multi_thread_run(slot_process._multi_thread_transfer_slot_to_memory, routed_slot_container, max_workers)
+        _multi_thread_run(slot_process._multi_thread_transfer_slot_to_memory, slot_process.routed_slot_container, max_workers)
 
         semantic_records: List[SemanticRecord] = []
         episodic_records: List[EpisodicRecord] = []
