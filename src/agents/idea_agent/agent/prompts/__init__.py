@@ -8,6 +8,7 @@ from agent.prompts.re_analysis_replan import RE_ANALYSIS_REPLAN_PROMPT
 from agent.prompts.reference_grounding import REFERENCE_GROUNDING_PROMPT
 from agent.prompts.dataset_grounding import DATASET_GROUNDING_PROMPT
 from agent.prompts.algorithm_structuring import ALGORITHM_STRUCTURING_PROMPT
+from agent.prompts.algorithm_alignment import ALGORITHM_ALIGNMENT_PROMPT
 
 
 PROMPTS = {
@@ -21,4 +22,5 @@ PROMPTS = {
     "reference_grounding": REFERENCE_GROUNDING_PROMPT,
     "dataset_grounding": DATASET_GROUNDING_PROMPT,
     "algorithm_structuring": ALGORITHM_STRUCTURING_PROMPT,
+    "algorithm_alignment": ALGORITHM_ALIGNMENT_PROMPT,
 }

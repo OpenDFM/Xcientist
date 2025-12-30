@@ -4,8 +4,9 @@ import json
 import math
 import hashlib
 import itertools
+import logging
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Set
 from tqdm import tqdm
 
 from memory.api.faiss_memory_system_api import FAISSMemorySystem
@@ -17,8 +18,13 @@ from memory.memory_system.utils import (
     _multi_thread_run,
 )
 from agent import get_logger
+from agents.idea_agent.utils.mcts_helpers import (
+    parse_json_response,
+    format_analysis_blob,
+    format_edit_operators,
+)
 
-logger = get_logger()
+module_logger = get_logger()
 
 
 @dataclass
@@ -135,10 +141,12 @@ class LongTermMemoryAccessor:
         semantic_cfg: Optional[Dict[str, Any]] = None,
         episodic_cfg: Optional[Dict[str, Any]] = None,
         procedural_cfg: Optional[Dict[str, Any]] = None,
+        logger: Optional[logging.Logger] = None,
     ) -> None:
         self.semantic_cfg = semantic_cfg or {}
         self.episodic_cfg = episodic_cfg or {}
         self.procedural_cfg = procedural_cfg or {}
+        self.logger = logger or module_logger
         self._stores: Dict[str, Optional[FAISSMemorySystem]] = {
             "semantic": None,
             "episodic": None,
@@ -163,7 +171,7 @@ class LongTermMemoryAccessor:
                     **cfg,
                 )
             except Exception as exc:
-                logger.warning(
+                self.logger.warning(
                     "⚠️  Unable to initialize %s memory store: %s",
                     memory_type,
                     exc,
@@ -188,7 +196,7 @@ class LongTermMemoryAccessor:
                 threshold=0.4,
             )
         except Exception as exc:
-            logger.warning("⚠️  Memory query failed (%s): %s", prefix, exc)
+            self.logger.warning("⚠️  Memory query failed (%s): %s", prefix, exc)
             return snippets
 
         for idx, (_, record) in enumerate(records_with_scores, start=1):
@@ -245,20 +253,23 @@ class LongTermMemoryAccessor:
         episodic = self._get_store("episodic")
         procedural = self._get_store("procedural")
         if not semantic and not episodic and not procedural:
-            logger.info("ℹ️ Skipping persistence because semantic store is unavailable.")
+            self.logger.info("ℹ️ Skipping persistence because semantic store is unavailable.")
             return
         
         slot_process = SlotProcess(llm_name="mimo-v2-flash", llm_backend="openai") # lazy loading
         try:
             # 1. Multi-threaded run for contexts transformation
             working_slots = slot_process.transfer_idea_agent_context_to_working_slots(experience)
-            print("[Info] Transferred experience to working slots, total slots:", len(working_slots))
+            self.logger.info(
+                "[MCTS] Transferred experience to working slots (count=%d)",
+                len(working_slots),
+            )
             # 2. Multi-threaded run for slots filter and route
             _multi_thread_run(slot_process._multi_thread_filter_and_route_slot, working_slots, max_workers)
             # 3. Multi-threaded run for experience persistence
             _multi_thread_run(slot_process._multi_thread_transfer_slot_to_memory, slot_process.routed_slot_container, max_workers)
         except Exception as exc:
-            logger.warning("⚠️  Failed to persist experience: %s", exc)
+            self.logger.warning("⚠️  Failed to persist experience: %s", exc)
             return
 
         semantic_records: List[SemanticRecord] = []
@@ -276,19 +287,24 @@ class LongTermMemoryAccessor:
             try:
                 semantic.add(semantic_records, agent_id="idea_agent")
             except Exception as exc:
-                logger.warning("⚠️  Failed to persist semantic records: %s", exc)
+                self.logger.warning("⚠️  Failed to persist semantic records: %s", exc)
         if episodic and len(episodic_records) > 0:
             try:
                 episodic.add(episodic_records, agent_id="idea_agent")
             except Exception as exc:
-                logger.warning("⚠️  Failed to persist episodic records: %s", exc)
+                self.logger.warning("⚠️  Failed to persist episodic records: %s", exc)
         if procedural and len(procedural_records) > 0:
             try:
                 procedural.add(procedural_records, agent_id="idea_agent")
             except Exception as exc:
-                logger.warning("⚠️  Failed to persist procedural records: %s", exc)
+                self.logger.warning("⚠️  Failed to persist procedural records: %s", exc)
 
-        print(f"[Debug] Size of semantic_records: {len(semantic_records)}, episodic_records: {len(episodic_records)}, procedural_records: {len(procedural_records)}")
+        self.logger.debug(
+            "[MCTS] Persisted records -> semantic=%d | episodic=%d | procedural=%d",
+            len(semantic_records),
+            len(episodic_records),
+            len(procedural_records),
+        )
 
 
 @dataclass
@@ -411,13 +427,13 @@ class IdeaEvaluation:
     @property
     def composite(self) -> float:
         positive = (
-            0.25 * self.novelty
+            0.30 * self.novelty
             + 0.25 * self.impact
-            + 0.25 * self.feasibility
+            + 0.20 * self.feasibility
             + 0.15 * self.clarity
             + 0.10 * self.conciseness
         )
-        penalty = 0.25 * self.risk
+        penalty = 0.2 * self.risk
         return positive - penalty
 
 
@@ -441,6 +457,8 @@ class IdeaNode:
     value_sum: float = 0.0
     expanded: bool = False
     evaluation: Optional[IdeaEvaluation] = None
+    latest_path_summary: str = ""
+    path_history: Dict[str, str] = field(default_factory=dict)
 
     def uct_value(self, parent_visits: int, exploration_constant: float) -> float:
         if self.visits == 0:
@@ -460,6 +478,8 @@ class IdeaNode:
         return list(reversed(chain))
 
     def path_summary(self) -> str:
+        if self.latest_path_summary:
+            return self.latest_path_summary
         steps = []
         for hop in self.path():
             steps.append(
@@ -470,16 +490,16 @@ class IdeaNode:
 
 @dataclass
 class MCTSConfig:
-    max_iterations: int = 5
-    max_depth: int = 3
+    max_iterations = 24
+    max_depth = 4
     branching_factor: int = 3
-    exploration_constant: float = 1.2
+    exploration_constant: float = 1.0
     generation_model: str = "mimo-v2-flash"
     evaluation_model: str = "mimo-v2-flash"
     generation_temperature: float = 0.4
     evaluation_temperature: float = 0.0
-    min_confidence_for_memory: float = 0.0
-    pareto_top_k: int = 3
+    min_confidence_for_memory: float = 0.6
+    pareto_top_k: int = 5
 
 
 @dataclass
@@ -513,59 +533,96 @@ class MemoryGuidedMCTS:
         evaluation_prompt: str,
         config: Optional[MCTSConfig] = None,
         memory_accessor: Optional[LongTermMemoryAccessor] = None,
+        logger: Optional[logging.Logger] = None,
+        log_sink: Optional[Callable[[str, str], None]] = None,
     ) -> None:
         self.chat_fn = chat_fn
         self.generation_prompt = generation_prompt
         self.evaluation_prompt = evaluation_prompt
         self.config = config or MCTSConfig()
-        self.memory_accessor = memory_accessor or LongTermMemoryAccessor()
+        self.logger = logger or module_logger
+        self.log_sink = log_sink
+        self.memory_accessor = memory_accessor or LongTermMemoryAccessor(logger=self.logger)
         self._id_iter = itertools.count()
-        self.signature_nodes: Dict[str, List[IdeaNode]] = {}
-        self.evaluation_cache: Dict[str, IdeaEvaluation] = {}
+        self.signature_nodes: Dict[str, IdeaNode] = {}
+        self.evaluation_cache: Dict[str, Dict[str, IdeaEvaluation]] = {}
+        self.experience_cache: Set[str] = set()
         self.trace: List[Dict[str, Any]] = []
         self.topic: str = ""
         self.analysis_blob: str = ""
 
+    def _log(self, level: str, message: str, *args: Any) -> None:
+        log_fn = getattr(self.logger, level, self.logger.info)
+        try:
+            log_fn(message, *args)
+        except Exception:
+            self.logger.exception("MCTS logging failure for message: %s", message)
+        if self.log_sink:
+            try:
+                formatted = message % args if args else message
+            except Exception:
+                formatted = f"{message} | args={args}"
+            try:
+                self.log_sink(level, formatted)
+            except Exception as exc:
+                self.logger.debug("⚠️  MCTS log sink failed: %s", exc)
+
     def search(self, topic: str, context: Dict[str, Any]) -> SearchResult:
         self.topic = topic
-        self.analysis_blob = self._format_analysis(context.get("analysis", []))
+        self.analysis_blob = format_analysis_blob(context.get("analysis", []))
         root_state = self._build_root_state(topic, context)
         root = self._new_node(root_state, depth=0, parent=None)
         experiences = []
         self.trace = []
+        self.experience_cache.clear()
 
         for iteration in tqdm(range(self.config.max_iterations)):
-            leaf = self._select(root)
-            if leaf.depth >= self.config.max_depth:
+            leaf, path = self._select(root)
+            current_depth = len(path) - 1
+            if current_depth >= self.config.max_depth:
                 target = leaf
+                rollout_path = path
             else:
-                target = self._expand(leaf)
+                target, rollout_path = self._expand(leaf, path)
             if target is None:
                 continue
-            evaluation = self._simulate(target, experiences)
+            evaluation = self._simulate(target, rollout_path, experiences)
             if evaluation is None:
                 continue
-            self._backpropagate(target, evaluation)
+            self._backpropagate(rollout_path, evaluation)
+            path_summary = self._path_summary(rollout_path)
+            transformation = target.transformation
+            defects = list(transformation.defects) if transformation and transformation.defects else []
+            operator = transformation.operator if transformation else "unknown"
+            action_summary = f"{operator} -> {', '.join(defects) if defects else 'unspecified_defect'}"
             self.trace.append(
                 {
                     "iteration": iteration,
                     "node_id": target.node_id,
+                    "depth": len(rollout_path) - 1,
                     "title": target.state.title,
+                    "operator": operator,
+                    "defects": defects,
+                    "memory_refs": list(transformation.memory_refs) if transformation else [],
+                    "rationale": transformation.rationale if transformation else "",
                     "score": evaluation.composite,
                     "visits": target.visits,
-                    "path": target.path_summary(),
+                    "path": path_summary,
+                    "action_summary": action_summary,
+                    "evaluation": {**evaluation.to_dict(), "composite": evaluation.composite},
+                    "signature": target.state.signature,
                 }
             )
 
         best = self._best_candidate(root)
         pareto = self._pareto_candidates(root)
     
-
+        cache_entries = sum(len(entries) for entries in self.evaluation_cache.values())
         return SearchResult(
             best=best,
             pareto=pareto,
             trace=self.trace,
-            cache_size=len(self.evaluation_cache),
+            cache_size=cache_entries,
             experiences=experiences,
         )
 
@@ -575,6 +632,9 @@ class MemoryGuidedMCTS:
         depth: int,
         parent: Optional[IdeaNode],
     ) -> IdeaNode:
+        existing = self.signature_nodes.get(state.signature)
+        if existing:
+            return existing
         node = IdeaNode(
             node_id=next(self._id_iter),
             state=state,
@@ -587,20 +647,63 @@ class MemoryGuidedMCTS:
                 memory_refs=state.memory_refs,
             ),
         )
-        self.signature_nodes.setdefault(state.signature, []).append(node)
+        self.signature_nodes[state.signature] = node
         if parent:
             parent.children.append(node)
         return node
 
-    def _format_analysis(self, analysis: List[Any]) -> str:
-        if not analysis:
-            return "No prior analysis."
-        try:
-            if isinstance(analysis[-1], dict):
-                return json.dumps(analysis[-1], ensure_ascii=False, indent=2)
-            return str(analysis[-1])
-        except Exception:
-            return str(analysis)
+    def _attach_child(self, parent: IdeaNode, state: IdeaState) -> IdeaNode:
+        child = self.signature_nodes.get(state.signature)
+        if child is None:
+            child = self._new_node(state, depth=parent.depth + 1, parent=parent)
+        elif child not in parent.children:
+            parent.children.append(child)
+        return child
+
+    def _path_summary(self, path: List[IdeaNode]) -> str:
+        steps = []
+        for hop in path:
+            defects = hop.transformation.defects or ["unspecified"]
+            steps.append(
+                f"{hop.state.title} [{hop.transformation.operator}] -> defects {defects}"
+            )
+        return " | ".join(steps)
+
+    def _path_cache_key(self, signature: str, path_summary: str) -> str:
+        raw = f"{signature}|{path_summary}"
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    def _get_cached_evaluation(self, signature: str, path_key: str) -> Optional[IdeaEvaluation]:
+        sig_cache = self.evaluation_cache.get(signature)
+        if not sig_cache:
+            return None
+        return sig_cache.get(path_key)
+
+    def _cache_evaluation(self, signature: str, path_key: str, evaluation: IdeaEvaluation) -> None:
+        self.evaluation_cache.setdefault(signature, {})[path_key] = evaluation
+
+    def _get_best_cached_evaluation(self, signature: str) -> Optional[IdeaEvaluation]:
+        sig_cache = self.evaluation_cache.get(signature)
+        if not sig_cache:
+            return None
+        return max(sig_cache.values(), key=lambda ev: ev.composite)
+
+    def _maybe_record_experience(
+        self,
+        path_key: str,
+        node: IdeaNode,
+        evaluation: IdeaEvaluation,
+        path_summary: str,
+        experiences: List[Dict[str, Any]],
+    ) -> None:
+        if path_key in self.experience_cache:
+            return
+        experience = self._harvest_experience(node, evaluation, path_summary)
+        if not experience:
+            return
+        self.memory_accessor.persist_experience(experience)
+        experiences.append(experience)
+        self.experience_cache.add(path_key)
 
     def _build_root_state(self, topic: str, context: Dict[str, Any]) -> IdeaState:
         idea_pool = context.get("idea_pool") or []
@@ -646,47 +749,22 @@ class MemoryGuidedMCTS:
             memory_refs=[],
         )
 
-    def _parse_json_response(self, raw: str) -> Dict[str, Any]:
-        """
-        LLM responses occasionally include code fences or extra commentary.
-        This helper strips the noise and extracts the first JSON object/array well-formed enough for json.loads.
-        """
-        text = (raw or "").strip()
-        if not text:
-            raise ValueError("Empty response")
-        if text.startswith("```"):
-            fence_end = text.find("\n")
-            if fence_end != -1:
-                text = text[fence_end + 1 :]
-            if text.endswith("```"):
-                text = text[: -3]
-        text = text.strip()
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            decoder = json.JSONDecoder()
-            for idx, ch in enumerate(text):
-                if ch in "{[":
-                    try:
-                        parsed, _ = decoder.raw_decode(text[idx:])
-                        return parsed
-                    except json.JSONDecodeError:
-                        continue
-        raise ValueError(f"Unable to parse JSON from response: {text[:200]}")
-
-    def _select(self, node: IdeaNode) -> IdeaNode:
+    def _select(self, node: IdeaNode) -> Tuple[IdeaNode, List[IdeaNode]]:
         current = node
+        path = [node]
         while current.children and current.expanded:
+            parent = current
             current = max(
-                current.children,
+                parent.children,
                 key=lambda child: child.uct_value(
-                    parent_visits=current.visits or 1,
+                    parent_visits=parent.visits or 1,
                     exploration_constant=self.config.exploration_constant,
                 ),
             )
-        return current
+            path.append(current)
+        return current, path
 
-    def _expand(self, node: IdeaNode) -> Optional[IdeaNode]:
+    def _expand(self, node: IdeaNode, path: List[IdeaNode]) -> Tuple[Optional[IdeaNode], List[IdeaNode]]:
         bundle = self.memory_accessor.retrieve_bundle(
             query=f"{self.topic}\n{node.state.title}\n{node.state.core_contribution}"
         )
@@ -694,7 +772,7 @@ class MemoryGuidedMCTS:
             topic=self.topic,
             current_summary=node.state.describe(),
             memory_bundle=bundle.to_prompt_block(),
-            edit_operators=self._format_edit_ops(),
+            edit_operators=format_edit_operators(EDIT_OPERATORS),
             max_children=self.config.branching_factor,
             constraints="\n".join(ANTI_PATTERN_CONSTRAINTS),
         )
@@ -707,30 +785,35 @@ class MemoryGuidedMCTS:
                 temperature=self.config.generation_temperature,
                 max_tokens=4096,
             )
-            print(f"[Debug] Generation response: {response}")
+            self._log("debug", "[MCTS] Generation response: %s", response)
             if not response or not response.strip():
                 raise ValueError("Empty response from generation model")
-            payload = self._parse_json_response(response)
+            payload = parse_json_response(response)
             children_payload = payload.get("children", [])[: self.config.branching_factor]
         except Exception as exc:
-            logger.warning("⚠️  Expansion failed: %s. Falling back to heuristic children.", exc)
+            self._log(
+                "warning",
+                "⚠️  Expansion failed: %s. Falling back to heuristic children.",
+                exc,
+            )
             children_payload = self._fallback_child_payloads(node, bundle)
 
         new_child: Optional[IdeaNode] = None
         for child_data in children_payload:
             state = self._parse_child_state(child_data)
-            existing_nodes = self.signature_nodes.get(state.signature)
-            if existing_nodes:
-                # Reuse canonical state to avoid diverging copies.
-                state = existing_nodes[0].state
-            child_node = self._new_node(state, depth=node.depth + 1, parent=node)
-            if existing_nodes and existing_nodes[0].evaluation:
-                child_node.evaluation = existing_nodes[0].evaluation
-                self.evaluation_cache[state.signature] = existing_nodes[0].evaluation
-            if new_child is None:
+            child_node = self._attach_child(node, state)
+            cached_eval = self._get_best_cached_evaluation(state.signature)
+            if cached_eval:
+                child_node.evaluation = cached_eval
+            if new_child is None and child_node.visits == 0:
                 new_child = child_node
         node.expanded = True
-        return new_child or (node.children[0] if node.children else node)
+        if new_child is None and node.children:
+            # All children seen before; pick the least explored one.
+            new_child = min(node.children, key=lambda c: c.visits)
+        if new_child:
+            return new_child, path + [new_child]
+        return node, path
 
     def _parse_child_state(self, data: Dict[str, Any]) -> IdeaState:
         def _list(key: str) -> List[str]:
@@ -782,17 +865,22 @@ class MemoryGuidedMCTS:
             )
         return payloads
 
-    def _simulate(self, node: IdeaNode, experiences: List[Dict[str, Any]]) -> Optional[IdeaEvaluation]:
-        if node.state.signature in self.evaluation_cache:
-            evaluation = self.evaluation_cache[node.state.signature]
-            node.evaluation = evaluation
-            return evaluation
+    def _simulate(self, node: IdeaNode, path: List[IdeaNode], experiences: List[Dict[str, Any]]) -> Optional[IdeaEvaluation]:
+        path_summary_text = self._path_summary(path)
+        path_key = self._path_cache_key(node.state.signature, path_summary_text)
+        cached_evaluation = self._get_cached_evaluation(node.state.signature, path_key)
+        if cached_evaluation:
+            node.evaluation = cached_evaluation
+            node.latest_path_summary = path_summary_text
+            node.path_history[path_key] = path_summary_text
+            self._maybe_record_experience(path_key, node, cached_evaluation, path_summary_text, experiences)
+            return cached_evaluation
 
         prompt = self.evaluation_prompt.format(
             topic=self.topic,
             analysis=self.analysis_blob,
             idea=json.dumps(node.state.to_payload(), ensure_ascii=False, indent=2),
-            path_summary=node.path_summary(),
+            path_summary=path_summary_text,
         )
         try:
             response = self.chat_fn(
@@ -801,29 +889,26 @@ class MemoryGuidedMCTS:
                 temperature=self.config.evaluation_temperature,
                 max_tokens=4096,
             )
-            payload = self._parse_json_response(response)
+            payload = parse_json_response(response)
             evaluation = IdeaEvaluation.from_payload(payload)
         except Exception as exc:
-            logger.warning("⚠️  Simulation failed: %s", exc)
+            self._log("warning", "⚠️  Simulation failed: %s", exc)
             return None
 
-        self.evaluation_cache[node.state.signature] = evaluation
+        self._cache_evaluation(node.state.signature, path_key, evaluation)
         node.evaluation = evaluation
+        node.latest_path_summary = path_summary_text
+        node.path_history[path_key] = path_summary_text
 
-        experience = self._harvest_experience(node, evaluation)
-        if experience:
-            self.memory_accessor.persist_experience(experience)
-            experiences.append(experience)
+        self._maybe_record_experience(path_key, node, evaluation, path_summary_text, experiences)
 
         return evaluation
 
-    def _backpropagate(self, node: IdeaNode, evaluation: IdeaEvaluation) -> None:
+    def _backpropagate(self, path: List[IdeaNode], evaluation: IdeaEvaluation) -> None:
         score = evaluation.composite
-        current: Optional[IdeaNode] = node
-        while current:
-            current.visits += 1
-            current.value_sum += score
-            current = current.parent
+        for hop in reversed(path):
+            hop.visits += 1
+            hop.value_sum += score
 
     def _best_candidate(self, root: IdeaNode) -> Optional[SearchCandidate]:
         candidates: List[SearchCandidate] = []
@@ -857,26 +942,18 @@ class MemoryGuidedMCTS:
                 pareto[label] = max(visited, key=lambda c, s=scorer: s(c.evaluation))
         return pareto
 
-    def _harvest_experience(self, node: IdeaNode, evaluation: IdeaEvaluation) -> Optional[Dict[str, Any]]:
+    def _harvest_experience(self, node: IdeaNode, evaluation: IdeaEvaluation, path_summary: str) -> Optional[Dict[str, Any]]:
         if evaluation.confidence > self.config.min_confidence_for_memory:
             experience = {
                     "defect": ", ".join(node.state.target_defects) or evaluation.defect_fix_summary,
                     "action": node.state.operator,
                     "lift": round(evaluation.lift_estimate, 2),
                     "idea": node.state.title,
-                    "context": node.path_summary(),
+                    "context": path_summary,
                     "feedback": evaluation.feedback,
                     "tags": node.state.tags + ["defect_fix"],
                 }
-            
+
             return experience
         else:
             return None
-
-    def _format_edit_ops(self) -> str:
-        lines = []
-        for op in EDIT_OPERATORS:
-            lines.append(
-                f"- {op.name}: {op.description} | targets {', '.join(op.defects)} | guardrails: {', '.join(op.guardrails)}"
-            )
-        return "\n".join(lines)

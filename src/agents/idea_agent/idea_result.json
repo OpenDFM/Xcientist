@@ -1,125 +1,1193 @@
 {
-  "title": "Physics-Guided Adversarial Boundary Sampler",
-  "abstract": "We propose a targeted adversarial sampler that identifies training points most vulnerable to boundary perturbations by computing the gradient of the PDE residual with respect to boundary condition parameters. This mechanism generates hard counterfactuals by perturbing these boundary parameters along the direction of maximal residual increase, creating a curriculum of physics-aware edge cases. The sampler plugs into the training loop as a dynamic batch augmentation, forcing the PINN to learn robustness to boundary variations without manual heuristic tuning.",
+  "title": "Adaptive Counterfactual Weighting via Uncertainty-Gated Injection",
+  "abstract": "The baseline injects synthetic boundary points with a fixed weight, risking bias and high compute from adjoint solves. We propose an uncertainty-gated mechanism that dynamically scales the counterfactual loss weight based on the model's epistemic uncertainty on the perturbed inputs. This reduces bias by focusing on under-explored regions and cuts compute by skipping adjoint solves when uncertainty is low.",
   "algorithm": [
     {
-      "name": "Physics-Guided Adversarial Boundary Sampler",
+      "name": "Uncertainty-Gated Counterfactual Injection",
       "input": [
-        "Topic focus: Physics-Informed Neural Networks.",
-        "Latest retrieval keywords: Physics-Informed Neural Networks.",
-        "Analysis TL;DR: PINNs offer promise for solving PDEs but face optimization challenges; future work should focus on robust training, hard constraints, and theoretical foundations.",
-        "Key methods referenced: Physics-Informed Neural Networks (PINNs) incorporating PDEs as soft constraints in loss functions; Curriculum regularization to progressively increase PDE complexity during training; Sequence-to-sequence learning for spatiotemporal problems",
-        "Reference anchors: Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations; Scientific Machine Learning Through Physics–Informed Neural Networks: Where we are and What’s Next; Characterizing possible failure modes in physics-informed neural networks",
-        "Target defects: missing_edge_cases, weak_generalization"
+        "PINN model parameters",
+        "Training dataset (real boundary points)",
+        "Synthetic boundary point generator",
+        "Adjoint solver function",
+        "Hyperparameters: K (ensemble size), lambda (base weight), threshold, epsilon, learning rate"
       ],
       "output": [
-        "Abstract focus: We propose a targeted adversarial sampler that identifies training points most vulnerable to boundary perturbations by computing the gradient of the PDE residual with respect to boundary condition parameters. This mechanism generates hard counterfactuals by perturbing these boundary parameters along the direction of maximal residual increase, creating a curriculum of physics-aware edge cases. The sampler plugs into the training loop as a dynamic batch augmentation, forcing the PINN to learn robustness to boundary variations without manual heuristic tuning.",
-        "Core contribution: A gradient-based boundary attack that generates adversarial counterfactuals by maximizing residual sensitivity to boundary condition perturbations.",
-        "Methodology: 1. At each training step, compute gradient of the PDE residual norm w.r.t. boundary condition parameters (e.g., location, BC values). 2. Identify top-k points with highest sensitivity scores. 3. Generate counterfactuals by perturbing boundary parameters along the gradient direction (e.g., shift boundary by epsilon * sign(∂R/∂BC)). 4. Add synthetic points to batch with mixing ratio (20%). 5. Compute loss on both real and adversarial counterfactuals. 6. Log sensitivity distribution and counterfactual statistics.",
-        "Experiment design: Baseline: Standard PINN on original data. Ablation: PINN with adversarial sampler disabled. Control: PINN with random boundary perturbations (no gradient guidance). Metrics: Generalization error on edge-case test set (high-gradient regions, shifted boundaries), constraint violation on rare regimes, sensitivity distribution coverage. Dataset: 2D Poisson with complex boundaries. Resource limit: 36h on 1x A100. Instrumentation: Log sensitivity scores, counterfactual coverage, and boundary shift magnitudes.",
-        "MCTS search score: 3.50"
+        "Updated model parameters",
+        "Training loss breakdown (PDE, boundary, counterfactual)",
+        "Effective counterfactual weight history",
+        "Compute time metrics (adjoint solves skipped)"
       ],
       "pipeline": [
-        "Step 1: 1",
-        "Step 2: At each training step, compute gradient of the PDE residual norm w.r.t",
-        "Step 3: boundary condition parameters (e.g., location, BC values)",
-        "Step 4: 2",
-        "Step 5: Identify top-k points with highest sensitivity scores",
-        "Step 6: 3"
+        "Step 1: Initialize ensemble of K PINNs (or prepare MC dropout masks).",
+        "Step 2: Generate synthetic boundary points using the current model state.",
+        "Step 3: Estimate epistemic uncertainty on synthetic points: compute variance across the K ensemble members (or K MC samples).",
+        "Step 4: Compute uncertainty gate g = sigmoid(K * variance - threshold).",
+        "Step 5: Determine effective counterfactual weight lambda_eff = lambda * g.",
+        "Step 6: Conditionally execute adjoint solve: if g >= epsilon, compute counterfactual loss using adjoint method; else, skip adjoint solve and set counterfactual loss to 0.",
+        "Step 7: Compute total loss = PDE residual loss + Boundary loss + lambda_eff * Counterfactual loss.",
+        "Step 8: Perform backpropagation and optimizer step to update model parameters.",
+        "Step 9: Update ensemble weights or MC dropout masks for the next epoch."
+      ]
+    },
+    {
+      "name": "Residual-Clipped Gradient Stabilization",
+      "input": [
+        "PINN model parameters",
+        "Batch of training points (including synthetic boundary points)",
+        "PDE residual function",
+        "Gradient clipping hyperparameters (temperature T, scaling factor alpha)"
+      ],
+      "output": [
+        "Updated model parameters",
+        "Clipped gradient norms",
+        "Residual magnitude statistics"
+      ],
+      "pipeline": [
+        "Step 1: Perform forward pass to compute PDE residuals and boundary constraints for the current batch.",
+        "Step 2: Compute per-sample residual magnitude (norm of the PDE residual vector).",
+        "Step 3: Calculate adaptive scaling factor alpha = tanh(residual_magnitude / T).",
+        "Step 4: Compute gradients of the total loss with respect to model parameters.",
+        "Step 5: Scale gradients element-wise: g_prime = alpha * g.",
+        "Step 6: Apply standard optimizer step using the scaled gradients.",
+        "Step 7: Log clipping ratio (magnitude of g_prime / magnitude of g) for monitoring."
+      ]
+    },
+    {
+      "name": "Differentiable SDF Boundary Projection",
+      "input": [
+        "PINN model output (predicted state)",
+        "Input coordinates (x, y, t)",
+        "Signed Distance Function (SDF) for the geometry",
+        "Hard constraint threshold epsilon"
+      ],
+      "output": [
+        "Projected state values (enforcing boundary conditions)",
+        "Boundary violation metrics"
+      ],
+      "pipeline": [
+        "Step 1: Compute the SDF value for each input coordinate.",
+        "Step 2: Identify points within the boundary region (|SDF| < epsilon).",
+        "Step 3: Apply differentiable projection function P(x) to enforce boundary conditions: u_projected = u_pred * (1 - mask) + boundary_value * mask, where mask is a smooth function of SDF (e.g., mask = 0.5 * (1 + tanh(k * SDF))).",
+        "Step 4: Return projected state for use in loss calculation."
       ]
     }
   ],
   "reference_papers": [
     {
       "title": "Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations",
-      "authors": [
-        "M. Raissi",
-        "P. Perdikaris",
-        "G. Karniadakis"
-      ],
-      "abstract": null,
-      "tldr": {
-        "model": "tldr@v2.0.0",
-        "text": null
-      },
-      "url": "https://www.semanticscholar.org/paper/d86084808994ac54ef4840ae65295f3c0ec4decd",
+      "authors": "M. Raissi, P. Perdikaris, G. Karniadakis",
       "year": 2019,
-      "paper_id": "d86084808994ac54ef4840ae65295f3c0ec4decd",
-      "source_keywords": "Physics-Informed Neural Networks."
-    },
-    {
-      "title": "Scientific Machine Learning Through Physics–Informed Neural Networks: Where we are and What’s Next",
-      "authors": [
-        "S. Cuomo",
-        "Vincenzo Schiano Di Cola",
-        "F. Giampaolo",
-        "G. Rozza",
-        "Maizar Raissi",
-        "F. Piccialli"
-      ],
-      "abstract": "Physics-Informed Neural Networks (PINN) are neural networks (NNs) that encode model equations, like Partial Differential Equations (PDE), as a component of the neural network itself. PINNs are nowadays used to solve PDEs, fractional equations, integral-differential equations, and stochastic PDEs. This novel methodology has arisen as a multi-task learning framework in which a NN must fit observed data while reducing a PDE residual. This article provides a comprehensive review of the literature on PINNs: while the primary goal of the study was to characterize these networks and their related advantages and disadvantages. The review also attempts to incorporate publications on a broader range of collocation-based physics informed neural networks, which stars form the vanilla PINN, as well as many other variants, such as physics-constrained neural networks (PCNN), variational hp-VPINN, and conservative PINN (CPINN). The study indicates that most research has focused on customizing the PINN through different activation functions, gradient optimization techniques, neural network structures, and loss function structures. Despite the wide range of applications for which PINNs have been used, by demonstrating their ability to be more feasible in some contexts than classical numerical techniques like Finite Element Method (FEM), advancements are still possible, most notably theoretical issues that remain unresolved.",
-      "tldr": {
-        "model": "tldr@v2.0.0",
-        "text": "This article provides a comprehensive review of the literature on PINNs and indicates that most research has focused on customizing the PINN through different activation functions, gradient optimization techniques, neural network structures, and loss function structures."
-      },
-      "url": "https://www.semanticscholar.org/paper/e916f69e70a4321f21356f7ce360e380dd976a43",
-      "year": 2022,
-      "paper_id": "e916f69e70a4321f21356f7ce360e380dd976a43",
-      "source_keywords": "Physics-Informed Neural Networks."
+      "url": "https://www.semanticscholar.org/paper/d86084808994ac54ef4840ae65295f3c0ec4decd",
+      "summary": "This paper introduces the foundational Physics-Informed Neural Network (PINN) framework, which embeds physical laws described by PDEs directly into the neural network's training process. It uses a composite loss function comprising data misfit and PDE residual terms to solve both forward and inverse problems.",
+      "contribution": "This work establishes the baseline methodology that the idea aims to improve. The idea's 'baseline' approach of using a fixed weight for counterfactual loss is a direct extension of the PINN loss formulation proposed here, and the idea's total loss structure (PDE + Boundary + Counterfactual) is built directly upon this foundation."
     },
     {
       "title": "Characterizing possible failure modes in physics-informed neural networks",
-      "authors": [
-        "Aditi S. Krishnapriyan",
-        "A. Gholami",
-        "Shandian Zhe",
-        "Robert M. Kirby",
-        "Michael W. Mahoney"
-      ],
-      "abstract": "Recent work in scientific machine learning has developed so-called physics-informed neural network (PINN) models. The typical approach is to incorporate physical domain knowledge as soft constraints on an empirical loss function and use existing machine learning methodologies to train the model. We demonstrate that, while existing PINN methodologies can learn good models for relatively trivial problems, they can easily fail to learn relevant physical phenomena for even slightly more complex problems. In particular, we analyze several distinct situations of widespread physical interest, including learning differential equations with convection, reaction, and diffusion operators. We provide evidence that the soft regularization in PINNs, which involves PDE-based differential operators, can introduce a number of subtle problems, including making the problem more ill-conditioned. Importantly, we show that these possible failure modes are not due to the lack of expressivity in the NN architecture, but that the PINN's setup makes the loss landscape very hard to optimize. We then describe two promising solutions to address these failure modes. The first approach is to use curriculum regularization, where the PINN's loss term starts from a simple PDE regularization, and becomes progressively more complex as the NN gets trained. The second approach is to pose the problem as a sequence-to-sequence learning task, rather than learning to predict the entire space-time at once. Extensive testing shows that we can achieve up to 1-2 orders of magnitude lower error with these methods as compared to regular PINN training.",
-      "tldr": {
-        "model": "tldr@v2.0.0",
-        "text": "It is demonstrated that, while existing PINN methodologies can learn good models for relatively trivial problems, they can easily fail to learn relevant physical phenomena for even slightly more complex problems."
-      },
-      "url": "https://www.semanticscholar.org/paper/3c4372b125d0744bb68bfca9f5d6b0abb85dd182",
+      "authors": "Aditi S. Krishnapriyan, A. Gholami, Shandian Zhe, Robert M. Kirby, Michael W. Mahoney",
       "year": 2021,
-      "paper_id": "3c4372b125d0744bb68bfca9f5d6b0abb85dd182",
-      "source_keywords": "Physics-Informed Neural Networks."
+      "url": "https://www.semanticscholar.org/paper/3c4372b125d0744bb68bfca9f5d6b0abb85dd182",
+      "summary": "This paper demonstrates that standard PINN training can easily fail on complex problems due to the loss landscape becoming difficult to optimize, often caused by ill-conditioning from PDE-based regularization. The authors show that these failures are not due to model expressivity but rather the optimization challenges introduced by the PINN setup.",
+      "contribution": "This paper provides the core motivation for the idea's 'Uncertainty-Gated Counterfactual Injection'. The idea's dynamic weighting mechanism is a direct response to the optimization pathologies and failure modes identified here, aiming to stabilize training by focusing compute on under-explored regions and avoiding poorly conditioned areas of the loss landscape."
     },
     {
       "title": "Understanding and Mitigating Gradient Flow Pathologies in Physics-Informed Neural Networks",
-      "authors": [
-        "Sifan Wang",
-        "Yujun Teng",
-        "P. Perdikaris"
-      ],
-      "abstract": null,
-      "tldr": null,
-      "url": "https://www.semanticscholar.org/paper/bdd29cf7f30cfa7991c8259a0d27217c9eafb3bd",
+      "authors": "Sifan Wang, Yujun Teng, P. Perdikaris",
       "year": 2021,
-      "paper_id": "bdd29cf7f30cfa7991c8259a0d27217c9eafb3bd",
-      "source_keywords": "Physics-Informed Neural Networks."
+      "url": "https://www.semanticscholar.org/paper/bdd29cf7f30cfa7991c8259a0d27217c9eafb3bd",
+      "summary": "This paper analyzes the gradient flow pathologies that arise in PINNs, particularly the issue of training instability caused by the disparate scaling of loss terms. It proposes adaptive weighting schemes and gradient manipulation techniques to balance the contributions of different loss components and improve convergence.",
+      "contribution": "This work directly influences the 'Uncertainty-Gated Counterfactual Injection' and 'Residual-Clipped Gradient Stabilization' components. The idea's dynamic, uncertainty-based weighting for the counterfactual loss is a sophisticated form of the adaptive weighting strategies explored in this paper. Furthermore, the 'Residual-Clipped Gradient Stabilization' is a specific implementation of the gradient manipulation techniques proposed to mitigate the pathologies analyzed here."
     },
     {
       "title": "Physics-informed neural networks with hard constraints for inverse design",
-      "authors": [
-        "Lu Lu",
-        "R. Pestourie",
-        "Wenjie Yao",
-        "Zhicheng Wang",
-        "F. Verdugo",
-        "Steven G. Johnson"
-      ],
-      "abstract": "Inverse design arises in a variety of areas in engineering such as acoustic, mechanics, thermal/electronic transport, electromagnetism, and optics. Topology optimization is a major form of inverse design, where we optimize a designed geometry to achieve targeted properties and the geometry is parameterized by a density function. This optimization is challenging, because it has a very high dimensionality and is usually constrained by partial differential equations (PDEs) and additional inequalities. Here, we propose a new deep learning method -- physics-informed neural networks with hard constraints (hPINNs) -- for solving topology optimization. hPINN leverages the recent development of PINNs for solving PDEs, and thus does not rely on any numerical PDE solver. However, all the constraints in PINNs are soft constraints, and hence we impose hard constraints by using the penalty method and the augmented Lagrangian method. We demonstrate the effectiveness of hPINN for a holography problem in optics and a fluid problem of Stokes flow. We achieve the same objective as conventional PDE-constrained optimization methods based on adjoint methods and numerical PDE solvers, but find that the design obtained from hPINN is often simpler and smoother for problems whose solution is not unique. Moreover, the implementation of inverse design with hPINN can be easier than that of conventional methods.",
-      "tldr": {
-        "model": "tldr@v2.0.0",
-        "text": "This work proposes a new deep learning method -- physics-informed neural networks with hard constraints (hPINNs) -- for solving topology optimization and finds that the design obtained from hPINN is often simpler and smoother for problems whose solution is not unique."
-      },
-      "url": "https://www.semanticscholar.org/paper/fef2135b3ae7b27ab28ddf41a943bd2ddc5d5113",
+      "authors": "Lu Lu, R. Pestourie, Wenjie Yao, Zhicheng Wang, F. Verdugo, Steven G. Johnson",
       "year": 2021,
-      "paper_id": "fef2135b3ae7b27ab28ddf41a943bd2ddc5d5113",
-      "source_keywords": "Physics-Informed Neural Networks."
+      "url": "https://www.semanticscholar.org/paper/fef2135b3ae7b27ab28ddf41a943bd2ddc5d5113",
+      "summary": "This paper introduces hard-constrained PINNs (hPINNs) for inverse design, using penalty and augmented Lagrangian methods to strictly enforce boundary conditions. It highlights the importance of accurately handling boundary conditions and demonstrates that hard constraints can lead to simpler and smoother designs compared to soft constraints.",
+      "contribution": "This paper provides the context for the idea's 'Differentiable SDF Boundary Projection' component. While the idea uses a soft constraint approach (smooth projection), it is directly inspired by the challenges of boundary enforcement in inverse design discussed here. The use of a Signed Distance Function (SDF) to define geometry is a technique shared between this work and the idea's projection method."
     }
   ],
-  "datasets": []
+  "datasets": [
+    {
+      "name": "1D Burgers' Equation dataset",
+      "source_paper": "Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations",
+      "usage": "Serves as a baseline benchmark to validate the 'Uncertainty-Gated Counterfactual Injection' algorithm. By generating synthetic boundary points on this well-understood problem, we can verify if the adaptive weighting mechanism correctly identifies under-explored regions and stabilizes training compared to the fixed-weight baseline described in the source paper.",
+      "access": "Synthetic data generated via numerical solver (e.g., spectral method) as described in the paper."
+    },
+    {
+      "name": "Inverse Cauchy Problem for 2D Poisson Equation",
+      "source_paper": "Characterizing possible failure modes in physics-informed neural networks",
+      "usage": "This dataset (or problem type) is critical for testing the idea's robustness against optimization pathologies. The source paper demonstrates PINN failures on such problems. The idea's 'Residual-Clipped Gradient Stabilization' and uncertainty gating are designed to mitigate these exact failures, making this a high-value test case.",
+      "access": "Data can be generated by solving the Poisson equation on a unit square with Dirichlet boundary conditions on a subset of the boundary, as detailed in the source paper's experiments."
+    },
+    {
+      "name": "Inverse Schrödinger Equation dataset",
+      "source_paper": "Understanding and Mitigating Gradient Flow Pathologies in Physics-Informed Neural Networks",
+      "usage": "The source paper uses this complex problem to showcase adaptive weighting. This dataset allows us to compare the idea's 'Uncertainty-Gated Counterfactual Injection' against the adaptive weighting schemes proposed in the paper, evaluating if the uncertainty-gated approach offers superior performance and compute efficiency.",
+      "access": "Synthetic data generated from the time-dependent Schrödinger equation, as described in the paper's experimental setup."
+    },
+    {
+      "name": "NACA Airfoil dataset",
+      "source_paper": "Physics-informed neural networks with hard constraints for inverse design",
+      "usage": "This dataset provides a complex geometry defined by a parametric curve. It is used to evaluate the 'Differentiable SDF Boundary Projection' component. The SDF for the airfoil can be computed, and the projection method can be tested for its ability to enforce boundary conditions smoothly on this non-trivial shape, a key challenge highlighted in the source paper.",
+      "access": "The NACA airfoil geometry definitions are standard; the SDF can be computed numerically. The paper references standard airfoil datasets for validation."
+    },
+    {
+      "name": "2D Lid-Driven Cavity Flow dataset",
+      "source_paper": "Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear partial differential equations",
+      "usage": "A canonical fluid dynamics problem used to test the full pipeline. The complex flow field and boundary conditions (moving lid, stationary walls) make it a good testbed for the combined effect of uncertainty-gated weighting and residual-clipped gradients to manage the difficult loss landscape of the Navier-Stokes equations.",
+      "access": "Synthetic data generated by solving the incompressible Navier-Stokes equations for the lid-driven cavity, as referenced in the source paper's discussion of fluid mechanics applications."
+    }
+  ],
+  "mcts_evolution": {
+    "best_path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Decoupled Geometry and Physics Heads for PINNs [surgical-modularity] -> defects ['monolithic_design', 'harder_to_ablate'] | Rare-Regime Boundary Sampler for Geometry Encoder [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Physics-Guided Counterfactual Boundary Generator [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Adaptive Counterfactual Weighting via Uncertainty-Gated Injection [mechanism-commit-innovation] -> defects ['over-sampling synthetic points may bias the model', 'adjoint solve adds compute']",
+    "best_operator": "mechanism-commit-innovation",
+    "target_defects": [
+      "over-sampling synthetic points may bias the model",
+      "adjoint solve adds compute"
+    ],
+    "iterations": [
+      {
+        "iteration": 0,
+        "node_id": 1,
+        "depth": 1,
+        "title": "Residual Physics Correction Layer for PINNs",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "stagnant_novelty",
+          "validation_gap",
+          "silent_failure"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Residual Physics Correction Layer for PINNs [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'validation_gap', 'silent_failure']",
+        "action_summary": "mechanism-commit-innovation -> stagnant_novelty, validation_gap, silent_failure",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.9,
+          "failure_modes": [
+            "The Corrector network may overfit to the specific residual patterns seen during training, failing to generalize to unseen regions of the state space where the main PINN fails catastrophically.",
+            "Recursive application of the correction (if used in training loops) could lead to instability or oscillation, similar to issues in iterative solvers without damping."
+          ],
+          "fairness_protocol": "The protocol requires comparing against a baseline with equal parameter count (e.g., a wider main network) to ensure the improvement comes from the mechanism, not just capacity. It also requires monitoring the magnitude of the correction term to ensure it isn't dominating the solution.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' targeting 'silent_failure'. However, the novelty is moderate as residual correction concepts exist in other ML domains. To increase impact, consider training the Corrector to predict the *future* residual state or using it to re-weight the main loss function dynamically, rather than just a static additive correction.",
+          "defect_fix_summary": "Addresses 'silent_failure' by explicitly modeling the PDE residual error via an auxiliary head. This converts the unmonitored constraint violation into a supervised learning task, making the error explicit and correctable.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "rationale": "This operator directly addresses the 'silent_failure' defect by introducing a mechanism to learn and correct residuals. It avoids feature dumping by using a specialized, lightweight head tied explicitly to the physics error metric.",
+        "signature": "30416a69f4f4424a04c426491b8c0bb7763e7b445c9c6d791a7abe09265de947"
+      },
+      {
+        "iteration": 1,
+        "node_id": 4,
+        "depth": 2,
+        "title": "Gradient-Clipped Residual Correction Layer",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "training_instability",
+          "overfitting_to_noise"
+        ],
+        "score": 3.1500000000000004,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Adversarial Boundary Sampling for PINN Generalization [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization', 'dataset_bias'] | Gradient-Clipped Residual Correction Layer [mechanism-commit-innovation] -> defects ['training_instability', 'overfitting_to_noise']",
+        "action_summary": "mechanism-commit-innovation -> training_instability, overfitting_to_noise",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 4.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Under-correction: If λ is too small, the tanh term saturates and fails to suppress gradients, leading to the original instability.",
+            "Over-smoothing: If λ is too large or clipping is too aggressive, the correction term vanishes, and the model fails to learn from the hard adversarial examples, losing boundary layer resolution."
+          ],
+          "fairness_protocol": "Must ablate the tanh correction vs. standard gradient clipping alone to prove the 'residual correction' aspect adds value. Must compare against a baseline trained with standard adversarial sampling (from the parent idea) without any clipping to isolate the stabilization effect.",
+          "feedback": "The idea is a solid 'mechanism-commit' that directly patches the 'training_instability' defect of adversarial sampling. However, the novelty is moderate as gradient clipping and residual weighting are known techniques. To strengthen, explicitly justify why tanh-based normalization on the residual is superior to simple global gradient norm clipping (e.g., 'it preserves relative importance of spatial regions while preventing magnitude explosion').",
+          "defect_fix_summary": "Addresses 'training_instability' and 'overfitting_to_noise' from adversarial sampling by introducing a bounded correction term (tanh) and gradient clipping, preventing gradient explosion from high-residual outliers.",
+          "lift_estimate": 15.0,
+          "composite": 3.1500000000000004
+        },
+        "rationale": "This directly addresses the instability defect by adding a mechanism-commit innovation that clips and normalizes adversarial gradients. It avoids feature dumping by integrating a lightweight correction that targets the specific failure mode of noisy high-residual points.",
+        "signature": "630ccd0fe7d5a7de3020762bd99173f5bff9b9b6f98241c7a831dbbdadbb4f96"
+      },
+      {
+        "iteration": 2,
+        "node_id": 7,
+        "depth": 2,
+        "title": "Physics-Informed Residual Corrector for Solver Head",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "silent_failure",
+          "systematic_bias"
+        ],
+        "score": 3.2,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Decoupled Geometry and Physics Heads for PINNs [surgical-modularity] -> defects ['monolithic_design', 'harder_to_ablate'] | Physics-Informed Residual Corrector for Solver Head [mechanism-commit-innovation] -> defects ['silent_failure', 'systematic_bias']",
+        "action_summary": "mechanism-commit-innovation -> silent_failure, systematic_bias",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 4.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Corrector overfitting: The residual corrector may learn to predict low residuals for physically invalid solutions if the solver head consistently outputs a specific wrong pattern, effectively masking the error rather than correcting it.",
+            "Training instability: Introducing a dynamic weighting factor (r_hat) can create a feedback loop where the physics loss becomes unstable, oscillating or vanishing, potentially making training harder than the baseline."
+          ],
+          "fairness_protocol": "Fairness requires comparing against the parent modular architecture (Decoupled Heads) to isolate the corrector's effect. Ablation must remove the corrector and use static weighting (e.g., constant or manual schedule) to prove dynamic re-weighting is superior. The 'silent failure rate' metric is good, but must be defined strictly (e.g., 'validation error > threshold despite low training loss').",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' that targets the 'silent_failure' defect. However, the novelty is moderate as residual weighting is a known concept. To increase impact, consider how the corrector's output (r_hat) could be used not just for weighting, but as a hard constraint or a curriculum signal (start training when r_hat is low). Ensure the corrector is lightweight to avoid negating the efficiency gains of the modular head.",
+          "defect_fix_summary": "Addresses 'silent_failure' by explicitly predicting the PDE residual and using it to modulate the physics loss. This forces the solver head to prioritize high-error regions, preventing convergence to solutions that look geometrically correct but violate physics. The 'mechanism-commit-innovation' operator adds a specific feedback loop to the architecture.",
+          "lift_estimate": 15.0,
+          "composite": 3.2
+        },
+        "memory_refs": [
+          "Pattern#1",
+          "Pattern#2"
+        ],
+        "rationale": "This directly addresses silent failure by making the solver head's physics violations explicit and trainable, using the residual correction mechanism from memory Pattern#1. It respects guardrails by adding only one targeted module and defining clear diagnostic metrics.",
+        "signature": "a919c76a19e398222509156a62870379a1ac00b683f08938367754bfa2b2528a"
+      },
+      {
+        "iteration": 3,
+        "node_id": 1,
+        "depth": 1,
+        "title": "Residual Physics Correction Layer for PINNs",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "stagnant_novelty",
+          "validation_gap",
+          "silent_failure"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 2,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Residual Physics Correction Layer for PINNs [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'validation_gap', 'silent_failure']",
+        "action_summary": "mechanism-commit-innovation -> stagnant_novelty, validation_gap, silent_failure",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.9,
+          "failure_modes": [
+            "The Corrector network may overfit to the specific residual patterns seen during training, failing to generalize to unseen regions of the state space where the main PINN fails catastrophically.",
+            "Recursive application of the correction (if used in training loops) could lead to instability or oscillation, similar to issues in iterative solvers without damping."
+          ],
+          "fairness_protocol": "The protocol requires comparing against a baseline with equal parameter count (e.g., a wider main network) to ensure the improvement comes from the mechanism, not just capacity. It also requires monitoring the magnitude of the correction term to ensure it isn't dominating the solution.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' targeting 'silent_failure'. However, the novelty is moderate as residual correction concepts exist in other ML domains. To increase impact, consider training the Corrector to predict the *future* residual state or using it to re-weight the main loss function dynamically, rather than just a static additive correction.",
+          "defect_fix_summary": "Addresses 'silent_failure' by explicitly modeling the PDE residual error via an auxiliary head. This converts the unmonitored constraint violation into a supervised learning task, making the error explicit and correctable.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "rationale": "This operator directly addresses the 'silent_failure' defect by introducing a mechanism to learn and correct residuals. It avoids feature dumping by using a specialized, lightweight head tied explicitly to the physics error metric.",
+        "signature": "30416a69f4f4424a04c426491b8c0bb7763e7b445c9c6d791a7abe09265de947"
+      },
+      {
+        "iteration": 4,
+        "node_id": 10,
+        "depth": 3,
+        "title": "Residual Gradient Clipping via Tanh-based Normalization",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "training instability",
+          "overfitting defects"
+        ],
+        "score": 3.5,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Decoupled Geometry and Physics Heads for PINNs [surgical-modularity] -> defects ['monolithic_design', 'harder_to_ablate'] | Rare-Regime Boundary Sampler for Geometry Encoder [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Residual Gradient Clipping via Tanh-based Normalization [mechanism-commit-innovation] -> defects ['training instability', 'overfitting defects']",
+        "action_summary": "mechanism-commit-innovation -> training instability, overfitting defects",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 5.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.9,
+          "failure_modes": [
+            "Under-clipping: If temperature T is too high, the mechanism fails to prevent gradient explosions during adversarial sampling spikes.",
+            "Over-clipping: If T is too low, gradients in rare regimes are suppressed, effectively masking the very signal the parent sampler introduced.",
+            "Residual magnitude instability: If the PDE residual itself becomes unstable (e.g., near shocks), the clipping factor becomes erratic, causing oscillating updates."
+          ],
+          "fairness_protocol": "Fairness requires comparing against: 1) Global gradient clipping (standard baseline) to prove adaptive scaling is better than fixed thresholds. 2) Ablation without the tanh non-linearity (linear scaling) to prove the bounding behavior is necessary. 3) The parent 'Rare-Regime Boundary Sampler' baseline without clipping to confirm the fix resolves the reported instability without losing generalization.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' that directly patches the instability defect introduced by the parent sampler. However, novelty is capped because gradient clipping is a standard technique; the innovation lies in the 'residual-magnitude' conditioning. Ensure the 'temperature' hyperparameter is justified physically or via sensitivity analysis in experiments.",
+          "defect_fix_summary": "Addresses 'training instability' and 'overfitting defects' from the parent 'Rare-Regime Boundary Sampler'. The operator introduces an adaptive gating mechanism (Residual Gradient Clipping) that dampens updates specifically when the PDE residual is high (indicating difficult or adversarial regions), preventing the optimizer from overshooting while preserving gradients in stable rare regimes.",
+          "lift_estimate": 15.0,
+          "composite": 3.5
+        },
+        "memory_refs": [
+          "Pattern#1"
+        ],
+        "rationale": "This directly addresses the instability defect from adversarial sampling by adaptively gating gradients, avoiding the overfitting pitfall noted in the memory. It respects guardrails by adding minimal compute and providing explicit monitoring.",
+        "signature": "6e47842f4485fba701b914daf58ce2869d0665c0f03705dcc4ee3ca86528b7ca"
+      },
+      {
+        "iteration": 5,
+        "node_id": 13,
+        "depth": 3,
+        "title": "Residual-Gated Counterfactual Prioritization",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "missing_edge_cases",
+          "weak_generalization"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Adversarial Boundary Sampling for PINN Generalization [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization', 'dataset_bias'] | Boundary-Aware Counterfactual Generator [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Residual-Gated Counterfactual Prioritization [mechanism-commit-innovation] -> defects ['missing_edge_cases', 'weak_generalization']",
+        "action_summary": "mechanism-commit-innovation -> missing_edge_cases, weak_generalization",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Residual computation overhead dominates training time, negating efficiency gains.",
+            "The gating mechanism creates a feedback loop where the model only learns from high-error regions, potentially ignoring low-error regions that are necessary for smooth global approximation.",
+            "Top-k selection introduces hyperparameter sensitivity; poor choice of k leads to either insufficient coverage or noisy training."
+          ],
+          "fairness_protocol": "The experiment design explicitly compares against baseline counterfactual generator (no gating) and random sampling, which provides a fair baseline. Ablation on k is good. To be fully fair, they should also report wall-clock time per epoch to ensure residual computation overhead doesn't outweigh benefits.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' that addresses 'missing_edge_cases' by filtering low-impact samples. However, the risk of 'residual computation overhead' is high; ensure the residual calculation is cheap (e.g., analytical derivatives if possible) or strictly limited to a small subset of candidates. The 'bias toward high-noise samples' risk needs mitigation, perhaps by normalizing residuals or using a moving average threshold rather than a fixed top-k.",
+          "defect_fix_summary": "Addresses 'missing_edge_cases' and 'weak_generalization' by replacing indiscriminate counterfactual injection with a residual-gated filter. This operator ensures the model focuses computational budget on regions where the physics is currently violated, theoretically accelerating convergence to a robust solution.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "rationale": "Mechanism-commit-innovation is suitable because it adds a concrete filtering step (residual gating) that directly targets the defect of indiscriminate sampling. This ensures computational resources focus on high-impact edge cases, improving generalization without feature dumping.",
+        "signature": "2a61fe3eb0498a5383896c1421b9a1ea66b32ed9293a70bd0d2a02ae84a9a0f1"
+      },
+      {
+        "iteration": 6,
+        "node_id": 16,
+        "depth": 3,
+        "title": "Differentiable Signed Distance Function (SDF) Projection Layer",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "physical_invalidity",
+          "constraint_drift"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Decoupled Geometry and Physics Heads for PINNs [surgical-modularity] -> defects ['monolithic_design', 'harder_to_ablate'] | Hard-Soft Constraint Coupling for Physics Solver Head [adaptive-constraint-hybridization] -> defects ['physical_invalidity', 'constraint_drift'] | Differentiable Signed Distance Function (SDF) Projection Layer [mechanism-commit-innovation] -> defects ['physical_invalidity', 'constraint_drift']",
+        "action_summary": "mechanism-commit-innovation -> physical_invalidity, constraint_drift",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "SDF computation becomes expensive or inaccurate for highly complex 3D geometries, slowing down the projection step.",
+            "The smooth approximation of the projection might introduce small boundary errors that accumulate, violating the 'exact' constraint claim.",
+            "Gradient explosion/vanishing if the projection function P(x) has high curvature regions near the boundary."
+          ],
+          "fairness_protocol": "The protocol is strong: it explicitly compares against 'soft-only PINN' and 'monolithic PINN' baselines. It includes an ablation comparing the differentiable SDF against a non-differentiable version (stop-gradient). Metrics cover boundary violation, interior residual, and gradient stability.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' that fixes the 'constraint_drift' defect. However, the novelty is moderate because differentiable projections are an active area of research. To increase impact, you should explicitly compare against a standard penalty method for boundaries (the current dominant baseline) rather than just 'soft-only PINN'. Ensure the 'smooth approximation' of the SDF is mathematically rigorous (e.g., using polynomial splines or hyperbolic tangents) rather than a naive softplus, as this is the core mechanism.",
+          "defect_fix_summary": "Addresses 'constraint_drift' and 'physical_invalidity' defects from the parent 'Hard-Soft Constraint Coupling' node. The operator replaces a potentially non-differentiable or biased projection with a mathematically grounded differentiable SDF layer, ensuring gradients flow correctly while enforcing boundaries.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "rationale": "This operator directly addresses the stated risk of non-differentiability in the projection step. By introducing a specific, differentiable geometric mechanism (SDF), we repair the defect without introducing generic feature bloat.",
+        "signature": "fb280e8f26f0c4c413f1b407fe5bbe22ec467abbb7150f1f9df7c1764ef798a0"
+      },
+      {
+        "iteration": 7,
+        "node_id": 19,
+        "depth": 2,
+        "title": "Gated Residual Corrector with Stability Monitor",
+        "operator": "self-supervised-corrector",
+        "defects": [
+          "silent_failure",
+          "systematic_bias"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Residual Physics Correction Layer for PINNs [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'validation_gap', 'silent_failure'] | Gated Residual Corrector with Stability Monitor [self-supervised-corrector] -> defects ['silent_failure', 'systematic_bias']",
+        "action_summary": "self-supervised-corrector -> silent_failure, systematic_bias",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.9,
+          "failure_modes": [
+            "The residual magnitude might be high in regions where the PINN is accurate but the PDE is stiff, causing the gate to erroneously suppress valid corrections.",
+            "The corrector network itself may overfit to the training residuals, learning noise rather than the systematic bias, leading to poor generalization on unseen data."
+          ],
+          "fairness_protocol": "Fairness is enforced by comparing against a baseline PINN and a non-gated additive corrector (ablation). Metrics include correction ratio and instability events to quantify the trade-off of the gating mechanism.",
+          "feedback": "The idea effectively targets 'silent_failure' via the stability monitor. However, the 'self-supervised-corrector' operator implies a specific contract: the corrector learns the residual. To strengthen this, explicitly define the loss function for the corrector (e.g., MSE on residual) and ensure the gate logic is differentiable if end-to-end training is desired, or strictly separate the phases as described.",
+          "defect_fix_summary": "Addresses 'silent_failure' and 'systematic_bias' (from parent Residual Physics Correction Layer) by introducing a gating mechanism that attenuates corrections when residuals are high, preventing the corrector from destabilizing the solution.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "memory_refs": [
+          "Recipe#1"
+        ],
+        "rationale": "Recipe#1 highlights residual stagnation and bias flags; gating via residual magnitude directly addresses over-correction risk. This keeps the self-supervised contract while adding a stability guardrail.",
+        "signature": "6891613ad8ac72a7f00807eba405e43ca79346769e7cda8aa713dfc0198f194e"
+      },
+      {
+        "iteration": 8,
+        "node_id": 22,
+        "depth": 3,
+        "title": "Differentiable SDF Projection Layer with Adaptive Scaling",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "constraint_drift",
+          "physical_invalidity"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Adversarial Boundary Sampling for PINN Generalization [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization', 'dataset_bias'] | Hybrid Hard-Soft Boundary Constraint Layer [adaptive-constraint-hybridization] -> defects ['constraint_drift', 'physical_invalidity'] | Differentiable SDF Projection Layer with Adaptive Scaling [mechanism-commit-innovation] -> defects ['constraint_drift', 'physical_invalidity']",
+        "action_summary": "mechanism-commit-innovation -> constraint_drift, physical_invalidity",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "SDF computation overhead becomes bottleneck for complex geometries",
+            "Adaptive scaling oscillation prevents convergence if alpha reacts too fast",
+            "Projection introduces bias if SDF approximation is inaccurate near corners"
+          ],
+          "fairness_protocol": "Must compare against: 1) Standard PINN (baseline), 2) Adversarial PINN (parent), 3) Hybrid Hard-Soft layer (sibling). Ablations: fixed alpha vs adaptive, no projection vs projection. Metrics: boundary error, interior residual, gradient norm stability.",
+          "feedback": "The idea is a strong mechanism-commit-innovation targeting constraint_drift. To strengthen feasibility, specify the SDF computation method (e.g., analytic for primitives, mesh-based for complex) and bound the projection complexity. Ensure the adaptive scaling uses a stable update rule (e.g., exponential moving average) to avoid oscillation.",
+          "defect_fix_summary": "Addresses 'constraint_drift' and 'physical_invalidity' from the parent Hybrid Hard-Soft layer. The SDF projection provides exact geometric enforcement (fixing drift) and smooth gradients (fixing instability), while adaptive scaling balances interior vs boundary loss dynamically.",
+          "lift_estimate": 25.0,
+          "composite": 3.3000000000000003
+        },
+        "memory_refs": [
+          "Recipe#1"
+        ],
+        "rationale": "This mechanism directly fixes the defect of discontinuities and insufficient enforcement by introducing a smooth, differentiable projection. It respects guardrails by using a single module and clear failure metrics.",
+        "signature": "782cf3dba77a3abe58c47d73e57fab3a24e6083e8e645e19e81913c6f61e9953"
+      },
+      {
+        "iteration": 9,
+        "node_id": 25,
+        "depth": 4,
+        "title": "Physics-Informed Residual Adapter for Geometry Encoder",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "harder_to_ablate",
+          "monolithic_design"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Decoupled Geometry and Physics Heads for PINNs [surgical-modularity] -> defects ['monolithic_design', 'harder_to_ablate'] | Rare-Regime Boundary Sampler for Geometry Encoder [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Decoupled Geometry Encoder with Interface Contract [surgical-modularity] -> defects ['monolithic_design', 'harder_to_ablate'] | Physics-Informed Residual Adapter for Geometry Encoder [mechanism-commit-innovation] -> defects ['harder_to_ablate', 'monolithic_design']",
+        "action_summary": "mechanism-commit-innovation -> harder_to_ablate, monolithic_design",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Adapter may overfit to specific PDEs, harming generalization (as noted in risks)",
+            "Residual evaluation overhead could dominate training time for high-dimensional problems",
+            "Adapter gradients might conflict with solver gradients, leading to unstable training"
+          ],
+          "fairness_protocol": "Baseline: modular encoder without adapter. Ablation: adapter with residual loss weight lambda=0. Metrics: convergence speed, residual error, feature map diversity. Missing: comparison against non-modular monolithic PINN to quantify modularity cost.",
+          "feedback": "The idea addresses 'monolithic_design' via surgical modularity (residual adapter). However, novelty is limited because residual adapters are common in transfer learning. To increase novelty, consider: 1) Dynamic adapter weighting based on local PDE stiffness, 2) Adversarial training of adapter to maximize feature diversity, 3) Theoretical analysis of adapter's effect on loss landscape conditioning. The current proposal is safe but incremental.",
+          "defect_fix_summary": "Addresses 'monolithic_design' and 'harder_to_ablate' by introducing a decoupled adapter module that injects physics features without altering the core solver interface. This allows targeted ablation of physics-awareness while maintaining modularity.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "rationale": "This operator directly addresses the defect of monolithic design by adding a targeted mechanism that enhances feature expressivity while preserving the modular interface. It avoids feature dumping by tying the new module to a measurable physics loss.",
+        "signature": "7805c7cac15e384582c2d17ea4c0cbab24e1bc4283e62aed0d1b96e49a628425"
+      },
+      {
+        "iteration": 10,
+        "node_id": 28,
+        "depth": 3,
+        "title": "Residual-Gated SDF Projection for PINNs",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "constraint_drift",
+          "physical_invalidity"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Residual Physics Correction Layer for PINNs [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'validation_gap', 'silent_failure'] | Differentiable SDF Boundary Enforcer for PINNs [adaptive-constraint-hybridization] -> defects ['constraint_drift', 'physical_invalidity'] | Residual-Gated SDF Projection for PINNs [mechanism-commit-innovation] -> defects ['constraint_drift', 'physical_invalidity']",
+        "action_summary": "mechanism-commit-innovation -> constraint_drift, physical_invalidity",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Oscillation at convergence: As the residual approaches zero, the tanh gate approaches zero, potentially slowing down final convergence or getting stuck in a local minimum if the projection is needed to push it further.",
+            "Hyperparameter sensitivity: The scaling factor α might need careful tuning; too high and it behaves like constant λ (losing stability), too low and it barely projects (failing to enforce constraints)."
+          ],
+          "fairness_protocol": "The experiment design explicitly calls for comparison against 'constant λ' and 'penalty' baselines, and includes an ablation of Uniform vs. Gated λ. This is fair. To be fully rigorous, they should also report the 'physical invalidity rate' as a hard constraint pass/fail metric, not just L2 error.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' that directly addresses the instability of aggressive projection. However, the novelty is moderate as it is a specific modulation of an existing constraint method. To increase impact, consider analyzing the gradient flow specifically at the boundary to prove why this gating prevents the 'constraint_drift' defect better than a simple learning rate decay.",
+          "defect_fix_summary": "Addresses 'constraint_drift' and 'physical_invalidity' from the parent SDF enforcer. The parent used a constant projection strength, causing oscillation or over-correction. This operator introduces a dynamic gating mechanism (adaptive-constraint-hybridization logic) that softens enforcement when the solution is near the boundary, stabilizing training.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "memory_refs": [
+          "Pattern#1",
+          "Recipe#1"
+        ],
+        "rationale": "This uses mechanism-commit-innovation to address the instability risk of the parent idea. It targets 'constraint_drift' by making enforcement adaptive, preventing oscillation from aggressive projections.",
+        "signature": "d3b51e9aad5774f59925bf432054a79bb9ec18a1cc7f891cbba6551fb1d3b566"
+      },
+      {
+        "iteration": 11,
+        "node_id": 31,
+        "depth": 4,
+        "title": "Differentiable Signed Distance Field (SDF) Projection Layer",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "physical_invalidity",
+          "constraint_drift"
+        ],
+        "score": 3.65,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Adversarial Boundary Sampling for PINN Generalization [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization', 'dataset_bias'] | Boundary-Aware Counterfactual Generator [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Boundary-Condition Hard-Soft Hybrid Loss [adaptive-constraint-hybridization] -> defects ['physical_invalidity', 'constraint_drift'] | Differentiable Signed Distance Field (SDF) Projection Layer [mechanism-commit-innovation] -> defects ['physical_invalidity', 'constraint_drift']",
+        "action_summary": "mechanism-commit-innovation -> physical_invalidity, constraint_drift",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.9,
+          "failure_modes": [
+            "Projection artifacts or 'flipping' near complex geometries where the SDF gradient is ambiguous (e.g., corners/edges), causing unstable gradients.",
+            "The projection layer acts as a hard filter, potentially preventing the model from learning necessary corrections if the SDF itself is slightly inaccurate or if the physical boundary condition is not strictly a geometric projection (e.g., Neumann conditions)."
+          ],
+          "fairness_protocol": "Must compare against a baseline using standard hard constraint penalty methods (e.g., Lagrange multipliers or large penalty weights) rather than just the hybrid loss. Ablation on epsilon threshold is good, but must also verify that the projection layer does not degrade performance on interior points (PDE residual).",
+          "feedback": "The core mechanism is strong. To strengthen the proposal, explicitly address the risk of gradient discontinuities at the epsilon threshold (where projection turns on/off). Suggest a smooth transition function (e.g., sigmoid) rather than a hard step function to ensure stable backpropagation.",
+          "defect_fix_summary": "Addresses 'constraint_drift' and 'physical_invalidity' by replacing penalty-based enforcement (which allows error) with a geometric projection (which enforces exactness), directly fixing the conflict between soft PDE residuals and hard boundary geometry.",
+          "lift_estimate": 25.0,
+          "composite": 3.65
+        },
+        "memory_refs": [
+          "Recipe#1"
+        ],
+        "rationale": "This directly fixes the conflict between hard/soft signals by unifying them geometrically. It respects guardrails by adding a single, targeted module with a measurable success metric (reduced drift).",
+        "signature": "7e863efcdc6d727fc03646abc27638eb771025469ececca9ba33d8b06149d7af"
+      },
+      {
+        "iteration": 12,
+        "node_id": 34,
+        "depth": 4,
+        "title": "Residual Gradient Clipping via Tanh-Gated Normalization",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "training instability",
+          "overfitting"
+        ],
+        "score": 3.1500000000000004,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Adversarial Boundary Sampling for PINN Generalization [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization', 'dataset_bias'] | Hybrid Hard-Soft Boundary Constraint Layer [adaptive-constraint-hybridization] -> defects ['constraint_drift', 'physical_invalidity'] | Boundary-Perturbed Counterfactual Sampler [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Residual Gradient Clipping via Tanh-Gated Normalization [mechanism-commit-innovation] -> defects ['training instability', 'overfitting']",
+        "action_summary": "mechanism-commit-innovation -> training instability, overfitting",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 4.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Underfitting on boundary conditions if temperature is too low, causing the gate to saturate and suppress necessary gradients.",
+            "Hyperparameter sensitivity: the 'temperature' parameter requires careful tuning per problem class, potentially reintroducing the instability it aims to solve."
+          ],
+          "fairness_protocol": "The experiment design explicitly defines a control (same sampler, no gating) and a baseline (interior-only). To ensure true fairness, an ablation on the temperature parameter is required to prove the mechanism itself is the cause of improvement, not just the addition of counterfactuals.",
+          "feedback": "The mechanism is a solid 'mechanism-commit-innovation' targeting 'training instability'. However, the novelty is limited as gradient clipping is standard; the tanh-gating is a variation. To increase impact, consider coupling this with an adaptive temperature schedule rather than a fixed hyperparameter, addressing the 'Automated tuning' future direction.",
+          "defect_fix_summary": "Addresses 'training instability' and 'overfitting' (defects) by introducing a tanh-gated normalization mechanism (operator) that dynamically clips counterfactual gradients, preventing loss landscape distortion from adversarial samples.",
+          "lift_estimate": 15.0,
+          "composite": 3.1500000000000004
+        },
+        "memory_refs": [
+          "Pattern#1",
+          "Pattern#2"
+        ],
+        "rationale": "This directly addresses the instability defect flagged in Pattern#1 and Pattern#2 by gating counterfactual gradients, avoiding the anti-pattern of uncontrolled adversarial sampling. It respects guardrails by introducing a minimal, targeted mechanism with clear monitoring.",
+        "signature": "ec47d39a905531337209c4dff80e6b4597b3871d4e981f8cdc48ed3ac282c3d3"
+      },
+      {
+        "iteration": 13,
+        "node_id": 37,
+        "depth": 4,
+        "title": "Gradient-Clipped Residual Correction via Tanh-based Normalization",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "sampler_instability",
+          "weak_generalization"
+        ],
+        "score": 3.1500000000000004,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Decoupled Geometry and Physics Heads for PINNs [surgical-modularity] -> defects ['monolithic_design', 'harder_to_ablate'] | Hard-Soft Constraint Coupling for Physics Solver Head [adaptive-constraint-hybridization] -> defects ['physical_invalidity', 'constraint_drift'] | Boundary Perturbation and Extreme Condition Sampling [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Gradient-Clipped Residual Correction via Tanh-based Normalization [mechanism-commit-innovation] -> defects ['sampler_instability', 'weak_generalization']",
+        "action_summary": "mechanism-commit-innovation -> sampler_instability, weak_generalization",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 4.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Tanh saturation threshold becomes a new hyperparameter requiring tuning; if set too low, it may suppress valid gradients and slow convergence, if too high, it fails to clip effectively.",
+            "Per-sample gating introduces computational overhead and potential instability if residual magnitudes fluctuate wildly between batches.",
+            "Separate gating for boundary vs. PDE residuals may inadvertently suppress boundary gradients needed for accurate geometry generalization, leading to underfitting on boundary conditions."
+          ],
+          "fairness_protocol": "The experiment design explicitly includes a baseline (no clipping) and a control (global gradient clipping), which is fair. However, it lacks a control for the 'counterfactual sampler' component itself (i.e., testing without adversarial sampling) to isolate the benefit of clipping specifically against the sampler's instability. Ablations on tanh thresholds are good but should also include ablations on separate vs. joint gating.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' that directly targets the 'sampler_instability' defect. However, the novelty is moderate as gradient clipping is standard practice; the innovation lies in the 'tanh-based residual normalization' gating. Ensure the 'tanh normalization' is mathematically distinct from simple scaling. The experiment design is strong on metrics but should explicitly verify 'physical invalidity' (e.g., checking if clipped gradients violate conservation laws) as a risk from the parent 'constraint_drift' defect.",
+          "defect_fix_summary": "Addresses 'sampler_instability' (from the counterfactual sampler) by dynamically gating gradients based on residual magnitude, preventing outlier perturbations from destabilizing the optimization. It also implicitly targets 'weak_generalization' by stabilizing the training signal, allowing the model to learn more robust features rather than overfitting to extreme samples.",
+          "lift_estimate": 15.0,
+          "composite": 3.1500000000000004
+        },
+        "memory_refs": [
+          "Pattern#1",
+          "Pattern#2"
+        ],
+        "rationale": "This directly addresses the instability defect from Pattern#1 by introducing a targeted clipping mechanism. It respects guardrails by naming the exact component (tanh-based gating) and tying it to the surfaced failure mode.",
+        "signature": "8f164246d4e61ff4f9493ac712bfc5045907f0f1bc796b646ca8f2655595756e"
+      },
+      {
+        "iteration": 14,
+        "node_id": 40,
+        "depth": 3,
+        "title": "Physics-Gated Residual Mixer",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "scale_mismatch",
+          "coordination_failure"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Residual Physics Correction Layer for PINNs [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'validation_gap', 'silent_failure'] | Hierarchical Residual Fusion Coordinator [multi-scale-coordinator] -> defects ['scale_mismatch', 'latency_bottleneck'] | Physics-Gated Residual Mixer [mechanism-commit-innovation] -> defects ['scale_mismatch', 'coordination_failure']",
+        "action_summary": "mechanism-commit-innovation -> scale_mismatch, coordination_failure",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Gradient vanishing/exploding if α/β are not scaled properly, leading to uniform routing (w ~ constant).",
+            "The gate relies on accurate PDE residual computation, which might be noisy or inaccurate in early training stages, causing unstable routing.",
+            "Spatial gradient variance might be dominated by high-frequency noise rather than true multi-scale features, misleading the router."
+          ],
+          "fairness_protocol": "The protocol explicitly compares against the learned-MLP coordinator (parent baseline) and ablations (uniform weights, single-head). This isolates the benefit of physics-informed gating vs generic learned routing. To be fully fair, a 'random-gate' ablation should be added to ensure the gate isn't just adding capacity.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' on the coordinator. However, the novelty is moderate as physics-informed gating is a logical extension of the residual correction layer. To increase impact, consider making α and β learnable parameters (perhaps via a small meta-network) rather than fixed hyperparameters, or compare against a 'residual-magnitude' baseline (routing based solely on ||r||) to prove the value of the composite metric (residual + gradient variance).",
+          "defect_fix_summary": "Addresses 'coordination_failure' (and implicitly 'scale_mismatch') by grounding the routing policy in physical consistency metrics (PDE residual and gradient variance). This prevents the generic MLP router from learning arbitrary or spurious correlations, forcing it to rely on signals that indicate where the model is uncertain or physically inconsistent.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "rationale": "This operator fixes coordination failure by grounding the routing decision in physical residuals, preventing arbitrary learned policies. It avoids feature dumping by adding minimal compute and explicit physics signals.",
+        "signature": "4737ac119afc9b1a6c0e96fc8408a7052079fb7cb3782b9ef877fad33e05c775"
+      },
+      {
+        "iteration": 15,
+        "node_id": 43,
+        "depth": 3,
+        "title": "Residual-Gated Dynamic Weighting",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "overfitting_to_noise",
+          "training_instability"
+        ],
+        "score": 2.95,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Adversarial Boundary Sampling for PINN Generalization [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization', 'dataset_bias'] | Gradient-Clipped Residual Correction Layer [mechanism-commit-innovation] -> defects ['training_instability', 'overfitting_to_noise'] | Residual-Gated Dynamic Weighting [mechanism-commit-innovation] -> defects ['overfitting_to_noise', 'training_instability']",
+        "action_summary": "mechanism-commit-innovation -> overfitting_to_noise, training_instability",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 4.0,
+          "impact": 3.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Gate collapse (g → 0) renders the mechanism useless, reverting to static behavior.",
+            "The MLP introducing the gate may overfit to batch statistics, causing erratic weighting updates.",
+            "Increased computational overhead per batch may not justify marginal stability gains."
+          ],
+          "fairness_protocol": "Requires comparison against static correction baseline and a 'no-gate' ablation (MLP outputs constant 1) to isolate the benefit of dynamic weighting.",
+          "feedback": "The idea is a solid mechanism-commit-innovation but risks being a minor tweak. To strengthen, explicitly define the 'static correction' baseline you are improving (e.g., fixed lambda scaling). The risk of 'gate collapse' needs a mitigation strategy (e.g., minimum gate value or regularization) rather than just noting it.",
+          "defect_fix_summary": "Addresses 'training_instability' and 'overfitting_to_noise' by replacing static residual scaling with a learnable gate that adapts to batch statistics, preventing gradients from exploding or being drowned out by noisy samples.",
+          "lift_estimate": 15.0,
+          "composite": 2.95
+        },
+        "memory_refs": [
+          "Pattern#1",
+          "Pattern#2"
+        ],
+        "rationale": "This operator directly addresses the defect by introducing an adaptive mechanism that learns to modulate correction strength, preventing the under-correction and instability inherent in static scaling. It respects guardrails by adding minimal compute and defining clear failure metrics.",
+        "signature": "7fdd6131e4b2f52d45b10bc0a4624fa9603371389cfe506bb9f504612108239e"
+      },
+      {
+        "iteration": 16,
+        "node_id": 46,
+        "depth": 3,
+        "title": "Physics-Informed Residual Adapter with Dynamic Gating",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "systematic_bias",
+          "silent_failure"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Residual Physics Correction Layer for PINNs [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'validation_gap', 'silent_failure'] | Gated Residual Corrector with Stability Monitor [self-supervised-corrector] -> defects ['silent_failure', 'systematic_bias'] | Physics-Informed Residual Adapter with Dynamic Gating [mechanism-commit-innovation] -> defects ['systematic_bias', 'silent_failure']",
+        "action_summary": "mechanism-commit-innovation -> systematic_bias, silent_failure",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.9,
+          "failure_modes": [
+            "Adapter gate collapse to zero if residual noise dominates signal",
+            "Adapter overfitting to residual magnitude patterns, failing on unseen geometries",
+            "Propagation of error if the base PINN residual is high but the corrector is inaccurate"
+          ],
+          "fairness_protocol": "Requires comparison against: 1) Standard PINN (no correction), 2) Static-gate corrector (uniform scaling), 3) Uncorrected PINN + Adapter (to isolate adapter impact). Ablation on adapter architecture (MLP vs. linear) is necessary.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' that addresses 'systematic_bias'. However, the novelty is moderate as it builds on existing corrector concepts. To increase impact, consider how the gating mechanism could be extended to vector-valued gates (spatially varying correction strength) rather than a scalar, or how it handles multi-scale residuals.",
+          "defect_fix_summary": "Addresses 'systematic_bias' and 'silent_failure' (specifically over-correction bias) by dynamically modulating correction magnitude based on local residual density, preventing the corrector from corrupting accurate regions of the base PINN.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "memory_refs": [
+          "Pattern#4",
+          "Recipe#1"
+        ],
+        "rationale": "This uses mechanism-commit-innovation to introduce a dynamic gate that targets systematic bias by preventing over-correction in accurate regions. It respects guardrails by adding a lightweight component and defining a specific failure mode (gate collapse) to monitor.",
+        "signature": "5ff46ce0df9e78876f23836d02e8b3c27a5ab3b2f73c04013366bda49d456a01"
+      },
+      {
+        "iteration": 17,
+        "node_id": 49,
+        "depth": 3,
+        "title": "Residual-Gated Dynamic Loss Weighting",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "silent_failure",
+          "systematic_bias"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Decoupled Geometry and Physics Heads for PINNs [surgical-modularity] -> defects ['monolithic_design', 'harder_to_ablate'] | Physics-Informed Residual Corrector for Solver Head [mechanism-commit-innovation] -> defects ['silent_failure', 'systematic_bias'] | Residual-Gated Dynamic Loss Weighting [mechanism-commit-innovation] -> defects ['silent_failure', 'systematic_bias']",
+        "action_summary": "mechanism-commit-innovation -> silent_failure, systematic_bias",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Oscillation: If residuals fluctuate wildly, weights may oscillate, destabilizing training.",
+            "Dominance collapse: One residual term may dominate early, suppressing others and leading to incomplete physics learning.",
+            "Temperature sensitivity: Poor T choice can either flatten gradients (high T) or cause mode collapse (low T)."
+          ],
+          "fairness_protocol": "Must ablate temperature T and compare against static weighting and uniform averaging. Must report weight entropy curves to verify 'focus' behavior.",
+          "feedback": "Good mechanistic intervention targeting silent failure. However, novelty is moderate because dynamic loss weighting is a known concept (e.g., GradNorm, uncertainty weighting). To increase novelty, consider coupling the gating to the corrector's confidence or using a learned gating network rather than pure softmax on residuals.",
+          "defect_fix_summary": "Addresses silent_failure by dynamically re-weighting physics terms based on instantaneous violation magnitude, preventing the solver from ignoring dominant errors.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "memory_refs": [
+          "Pattern#1",
+          "Pattern#5"
+        ],
+        "rationale": "This directly addresses silent failure by making loss weighting adaptive to real-time physics violations, as suggested by memory feedback. It avoids feature dumping by using a lightweight, mathematically justified gating mechanism tied to the core defect.",
+        "signature": "4fe8e4ce68a273351fb3103d71ff00f880f182d1d8aa6be0f30b93f97fff58c5"
+      },
+      {
+        "iteration": 18,
+        "node_id": 52,
+        "depth": 4,
+        "title": "Curvature-Weighted Adversarial Loss Gating",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "weak_generalization",
+          "overfitting"
+        ],
+        "score": 3.1500000000000004,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Residual Physics Correction Layer for PINNs [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'validation_gap', 'silent_failure'] | Differentiable SDF Boundary Enforcer for PINNs [adaptive-constraint-hybridization] -> defects ['constraint_drift', 'physical_invalidity'] | Adversarial Boundary Sampler for SDF-Guided PINNs [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Curvature-Weighted Adversarial Loss Gating [mechanism-commit-innovation] -> defects ['weak_generalization', 'overfitting']",
+        "action_summary": "mechanism-commit-innovation -> weak_generalization, overfitting",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 4.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Residual magnitude collapse: If the PDE residual becomes very small (near convergence), the gating weight may suppress adversarial terms prematurely, preventing fine-grained boundary optimization.",
+            "Noise sensitivity: EMA of residuals can be noisy in early training, leading to unstable gating and erratic loss scaling."
+          ],
+          "fairness_protocol": "Must ablate the EMA smoothing factor and temperature T. Baseline must include standard adversarial sampling and a variant with static weighting (e.g., fixed w_adv = 0.5) to prove dynamic gating is superior to simple scaling.",
+          "feedback": "The mechanism is sound but relies on a proxy (PDE residual) for boundary stability. To strengthen the 'mechanism-commit-innovation', explicitly link the residual magnitude to the geometric curvature mentioned in the title. Currently, the title promises 'Curvature-Weighted' but the methodology uses 'Residual-Magnitude-Weighted'. Ensure the EMA window is adaptive to training stage (curriculum-like) to prevent early suppression.",
+          "defect_fix_summary": "Addresses 'weak_generalization' and 'overfitting' from the Adversarial Boundary Sampler parent. It mitigates the risk of adversarial terms dominating the loss landscape by dynamically gating them based on local physics stability.",
+          "lift_estimate": 15.0,
+          "composite": 3.1500000000000004
+        },
+        "memory_refs": [
+          "Pattern#3",
+          "Pattern#4",
+          "Recipe#2"
+        ],
+        "rationale": "This mechanism-commit-innovation directly addresses the overfitting risk identified in the parent node by introducing a residual-aware gating function. It leverages established PINN stability protocols (Recipe#2) to ensure adversarial terms do not destabilize training.",
+        "signature": "1fe1788c72c2fc8da7f9444a50bd5f332b66aec680d674b3f1fe2f0a38f8505c"
+      },
+      {
+        "iteration": 19,
+        "node_id": 55,
+        "depth": 4,
+        "title": "Adaptive Counterfactual Weighting via Uncertainty-Gated Injection",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "over-sampling synthetic points may bias the model",
+          "adjoint solve adds compute"
+        ],
+        "score": 3.65,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Decoupled Geometry and Physics Heads for PINNs [surgical-modularity] -> defects ['monolithic_design', 'harder_to_ablate'] | Rare-Regime Boundary Sampler for Geometry Encoder [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Physics-Guided Counterfactual Boundary Generator [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Adaptive Counterfactual Weighting via Uncertainty-Gated Injection [mechanism-commit-innovation] -> defects ['over-sampling synthetic points may bias the model', 'adjoint solve adds compute']",
+        "action_summary": "mechanism-commit-innovation -> over-sampling synthetic points may bias the model, adjoint solve adds compute",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.9,
+          "failure_modes": [
+            "Uncertainty estimation may be inaccurate (especially with MC dropout), leading to incorrect gating and either wasted compute or under-training on critical regions.",
+            "The added overhead of ensemble inference or MC sampling might outweigh the compute savings from skipping adjoint solves, particularly if the model is already well-calibrated.",
+            "Threshold tuning becomes a new hyperparameter sensitivity problem; poor tuning could lead to effectively disabling the mechanism."
+          ],
+          "fairness_protocol": "The protocol correctly proposes a controlled experiment: same total budget of synthetic points. It should also ensure the baseline uses the same architecture and optimizer. Ablation on the gating mechanism (e.g., random gating vs uncertainty gating) would further validate the specific contribution of the uncertainty signal.",
+          "feedback": "The idea is a strong 'mechanism-commit-innovation' that directly tackles the 'adjoint solve adds compute' defect. To strengthen the fairness protocol, explicitly state that the baseline uses a fixed schedule of adjoint solves, and the ablation should include a 'random gate' control to prove that the uncertainty signal, not just the gating sparsity, is responsible for improvements. Also, clarify if the ensemble is re-trained from scratch or if weights are shared (e.g., via SWAG) to manage the overhead risk.",
+          "defect_fix_summary": "Addresses 'adjoint solve adds compute' by dynamically skipping expensive adjoint solves when the model is certain. Addresses 'over-sampling synthetic points may bias the model' by reducing the effective weight of synthetic points in well-explored regions, focusing learning on high-uncertainty (under-explored) areas.",
+          "lift_estimate": 25.0,
+          "composite": 3.65
+        },
+        "rationale": "This mechanism directly addresses the stated risks by adding a concrete gating module that reduces bias and compute. It is a clear architectural intervention with measurable success metrics.",
+        "signature": "74f1f9febd94776371e383dfbf6900f9e70efba5db7e1015191f01b91930dfa3"
+      },
+      {
+        "iteration": 20,
+        "node_id": 56,
+        "depth": 4,
+        "title": "Physics-Guided Adversarial Boundary Sampler",
+        "operator": "counterfactual-contrast",
+        "defects": [
+          "missing_edge_cases",
+          "weak_generalization"
+        ],
+        "score": 2.95,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Decoupled Geometry and Physics Heads for PINNs [surgical-modularity] -> defects ['monolithic_design', 'harder_to_ablate'] | Rare-Regime Boundary Sampler for Geometry Encoder [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Physics-Guided Counterfactual Boundary Generator [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Physics-Guided Adversarial Boundary Sampler [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization']",
+        "action_summary": "counterfactual-contrast -> missing_edge_cases, weak_generalization",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 4.0,
+          "impact": 3.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Adversarial perturbations may generate physically invalid states (violating conservation laws) despite energy filtering, leading to training on noisy labels.",
+            "The adversarial sampler may dominate the batch if alpha is too high, causing catastrophic forgetting of the original boundary distribution."
+          ],
+          "fairness_protocol": "Enforced via 'Control: same total synthetic point budget' and ablation study (symmetry-only, adversarial-only, mixed). Missing: comparison against standard data augmentation (e.g., random noise) to verify that the residual-maximizing direction is superior to generic perturbations.",
+          "feedback": "The idea is a solid application of the 'counterfactual-contrast' operator. However, it risks 'resource dumping' by adding complexity without architectural change. To increase novelty, consider integrating the adversarial loss directly into the PDE residual term rather than just data augmentation, or use the adversarial sampler to dynamically adjust the weighting of the symmetry sampler.",
+          "defect_fix_summary": "Addresses 'missing_edge_cases' and 'weak_generalization' (inherited defects from the parent geometry encoder) by explicitly generating synthetic data points that maximize PDE residuals, forcing the model to learn robust features in high-error regimes rather than just interpolating known solutions.",
+          "lift_estimate": 15.0,
+          "composite": 2.95
+        },
+        "rationale": "This operator directly targets missing edge cases by adding a new synthetic channel. It is a lightweight augmentation that does not require architectural changes.",
+        "signature": "9827749cce2c78c7a4e06116c9c5b5345275aa88fd176c7aca81004886c9923b"
+      },
+      {
+        "iteration": 21,
+        "node_id": 58,
+        "depth": 4,
+        "title": "Tikhonov-Regularized Residual Corrector",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "systematic_bias",
+          "silent_failure"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Adversarial Boundary Sampling for PINN Generalization [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization', 'dataset_bias'] | Boundary-Aware Counterfactual Generator [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Residual-Corrective Teacher for Boundary Layers [self-supervised-corrector] -> defects ['systematic_bias', 'silent_failure'] | Tikhonov-Regularized Residual Corrector [mechanism-commit-innovation] -> defects ['systematic_bias', 'silent_failure']",
+        "action_summary": "mechanism-commit-innovation -> systematic_bias, silent_failure",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "The linear corrector may underfit complex residual patterns that are not linear in the extracted features, leading to insufficient correction.",
+            "Solving the linear system per batch introduces significant computational overhead and potential numerical instability if the feature matrix is ill-conditioned."
+          ],
+          "fairness_protocol": "The experiment design correctly specifies a three-way comparison (MLP corrector, uncorrected PINN, and the proposed Tikhonov corrector) on a standard benchmark (high-Reynolds flow). It includes ablation on the regularization strength λ, which is a critical hyperparameter.",
+          "feedback": "The idea is a solid mechanism-commit-innovation that directly addresses the 'silent_failure' and 'systematic_bias' defects of the previous MLP corrector. However, the novelty is moderate as Tikhonov regularization is a standard technique. To increase impact, consider comparing the computational cost against the MLP corrector explicitly and discuss the trade-off. Additionally, the feature extraction step is crucial; ensure features are sufficiently expressive for the linear layer to capture residuals.",
+          "defect_fix_summary": "Addresses 'systematic_bias' and 'silent_failure' by replacing the unconstrained MLP corrector with a Tikhonov-regularized linear solver. This explicit regularization prevents the corrector from overfitting to noise or dominating the loss landscape, stabilizing the training signal and making corrections more reliable.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "memory_refs": [
+          "Pattern#2"
+        ],
+        "rationale": "This mechanism-commit-innovation directly targets the overfitting risk flagged in the parent idea by replacing the unregularized MLP with a constrained linear solver. It respects the guardrails by defining a concrete architectural change (linear corrector with closed-form solve) and a clear success metric (stability improvement).",
+        "signature": "ef203035ff10c33c0811061aa06e8d68cf2375d14e520cb4435f95dc8bf1e323"
+      },
+      {
+        "iteration": 22,
+        "node_id": 61,
+        "depth": 4,
+        "title": "Residual-Conditioned Gating with Latency-Aware Distillation",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "weak_generalization",
+          "latency_bottleneck"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Residual Physics Correction Layer for PINNs [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'validation_gap', 'silent_failure'] | Hierarchical Residual Fusion Coordinator [multi-scale-coordinator] -> defects ['scale_mismatch', 'latency_bottleneck'] | Latency-Aware Adversarial Head Scheduler [counterfactual-contrast] -> defects ['latency_bottleneck', 'weak_generalization'] | Residual-Conditioned Gating with Latency-Aware Distillation [mechanism-commit-innovation] -> defects ['weak_generalization', 'latency_bottleneck']",
+        "action_summary": "mechanism-commit-innovation -> weak_generalization, latency_bottleneck",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Residual extraction fails to capture meaningful high-frequency components for smooth PDE solutions, leading the gating policy to rely on noise.",
+            "Teacher model (dual-head) is itself inaccurate on adversarial regimes, propagating incorrect soft targets to the student policy.",
+            "Latency-aware loss term dominates, causing the policy to aggressively skip the expensive head even when accuracy is critically low."
+          ],
+          "fairness_protocol": "The design specifies a baseline (original dual-head PINN) and a control (latency-aware gating without distillation). This isolates the benefit of distillation. However, it lacks an ablation on the residual conditioning (i.e., gating on raw features vs. residuals) to prove the residual mechanism's specific value.",
+          "feedback": "The idea effectively targets 'weak_generalization' and 'latency_bottleneck' via the 'mechanism-commit-innovation' operator. The distillation approach is a solid intervention. To strengthen fairness, add a control experiment where the gating policy conditions on raw input features (no residual extraction) to validate that residuals are indeed necessary for identifying rare regimes. Ensure the 'teacher' is a converged, high-capacity model to avoid propagating its own failure modes.",
+          "defect_fix_summary": "Addresses 'weak_generalization' on rare regimes by distilling knowledge from a teacher model into the gating policy, ensuring the policy learns to activate the robust head when needed. Addresses 'latency_bottleneck' via the latency-aware loss term that penalizes high expected inference time.",
+          "lift_estimate": 25.0,
+          "composite": 3.3000000000000003
+        },
+        "memory_refs": [
+          "Pattern#1",
+          "Pattern#2"
+        ],
+        "rationale": "This mechanism directly targets the gating policy's weakness on rare regimes by distilling teacher knowledge. It avoids feature dumping by conditioning on residuals and uses fair baselines to validate the distillation benefit.",
+        "signature": "7eaceee105bed33df3fb1e377cdba8fd4ade386ecf150afd0e5472501661f8f2"
+      },
+      {
+        "iteration": 23,
+        "node_id": 32,
+        "depth": 4,
+        "title": "Physics-Guided Counterfactual Boundary Sampler",
+        "operator": "counterfactual-contrast",
+        "defects": [
+          "missing_edge_cases",
+          "weak_generalization"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Adversarial Boundary Sampling for PINN Generalization [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization', 'dataset_bias'] | Boundary-Aware Counterfactual Generator [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Boundary-Condition Hard-Soft Hybrid Loss [adaptive-constraint-hybridization] -> defects ['physical_invalidity', 'constraint_drift'] | Physics-Guided Counterfactual Boundary Sampler [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization']",
+        "action_summary": "counterfactual-contrast -> missing_edge_cases, weak_generalization",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Proxy model bias: If the low-fidelity PINN fails to identify high-residual regions (e.g., due to spectral bias), the sampling strategy reinforces the wrong areas.",
+            "Curvature over-sampling: Sampling too heavily on geometric singularities (corners) might destabilize training if those points are inherently ill-posed."
+          ],
+          "fairness_protocol": "Must compare against 'Smart Sampling' baselines (e.g., pure residual-based sampling without curvature, or active learning acquisition functions) to prove the specific value of the counterfactual/geometric hybrid.",
+          "feedback": "The core mechanism is solid, but the 'counterfactual' label is slightly stretched; this is more 'Adaptive Residual Sampling'. To increase novelty (score 4+), consider a closed-loop version where the main model's gradients on the boundary actively guide the generation of new points (generative sampling) rather than just re-weighting existing ones.",
+          "defect_fix_summary": "Addresses 'missing_edge_cases' by explicitly populating the training set with points derived from high-error regions and geometric singularities, forcing the model to resolve under-constrained areas rather than interpolating blindly.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "memory_refs": [
+          "Pattern#3"
+        ],
+        "rationale": "This addresses missing edge cases by explicitly generating them, a core strength of counterfactual operators. It avoids feature dumping by integrating directly into the sampling pipeline, and the proxy model is a justified cost for improved data quality.",
+        "signature": "1565840e8df308a6ea01c0f711af7590bb85bfb0c9e3b1bcba98e1682165eb81"
+      }
+    ],
+    "pareto_front": {
+      "novel": {
+        "idea": {
+          "title": "Adaptive Counterfactual Weighting via Uncertainty-Gated Injection",
+          "abstract": "The baseline injects synthetic boundary points with a fixed weight, risking bias and high compute from adjoint solves. We propose an uncertainty-gated mechanism that dynamically scales the counterfactual loss weight based on the model's epistemic uncertainty on the perturbed inputs. This reduces bias by focusing on under-explored regions and cuts compute by skipping adjoint solves when uncertainty is low.",
+          "core_contribute": "A dynamic weighting module that uses model uncertainty to gate counterfactual loss and compute spend.",
+          "methodology": "1. Train an ensemble of K PINNs (or use MC dropout) to estimate epistemic variance on synthetic points. 2. Compute uncertainty gate g = sigmoid(K * variance - threshold). 3. Scale counterfactual loss weight lambda_eff = lambda * g. 4. Skip adjoint solve if g < epsilon. 5. Update ensemble or dropout masks every epoch.",
+          "experiment_design": "Baseline: fixed lambda counterfactual sampler. Ablation: ensemble vs MC dropout for uncertainty. Metrics: generalization error on rare regimes, training time per epoch, bias drift (distance from original distribution). Control: same total budget of synthetic points.",
+          "risks": "Ensemble overhead; gate threshold tuning; potential under-sampling if threshold too high.",
+          "tags": [
+            "uncertainty_gate",
+            "bias_reduction",
+            "compute_saving"
+          ],
+          "operator": "mechanism-commit-innovation",
+          "target_defects": [
+            "over-sampling synthetic points may bias the model",
+            "adjoint solve adds compute"
+          ],
+          "memory_refs": [],
+          "rationale": "This mechanism directly addresses the stated risks by adding a concrete gating module that reduces bias and compute. It is a clear architectural intervention with measurable success metrics."
+        },
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.9,
+          "failure_modes": [
+            "Uncertainty estimation may be inaccurate (especially with MC dropout), leading to incorrect gating and either wasted compute or under-training on critical regions.",
+            "The added overhead of ensemble inference or MC sampling might outweigh the compute savings from skipping adjoint solves, particularly if the model is already well-calibrated.",
+            "Threshold tuning becomes a new hyperparameter sensitivity problem; poor tuning could lead to effectively disabling the mechanism."
+          ],
+          "fairness_protocol": "The protocol correctly proposes a controlled experiment: same total budget of synthetic points. It should also ensure the baseline uses the same architecture and optimizer. Ablation on the gating mechanism (e.g., random gating vs uncertainty gating) would further validate the specific contribution of the uncertainty signal.",
+          "feedback": "The idea is a strong 'mechanism-commit-innovation' that directly tackles the 'adjoint solve adds compute' defect. To strengthen the fairness protocol, explicitly state that the baseline uses a fixed schedule of adjoint solves, and the ablation should include a 'random gate' control to prove that the uncertainty signal, not just the gating sparsity, is responsible for improvements. Also, clarify if the ensemble is re-trained from scratch or if weights are shared (e.g., via SWAG) to manage the overhead risk.",
+          "defect_fix_summary": "Addresses 'adjoint solve adds compute' by dynamically skipping expensive adjoint solves when the model is certain. Addresses 'over-sampling synthetic points may bias the model' by reducing the effective weight of synthetic points in well-explored regions, focusing learning on high-uncertainty (under-explored) areas.",
+          "lift_estimate": 25.0
+        },
+        "score": 3.65,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Decoupled Geometry and Physics Heads for PINNs [surgical-modularity] -> defects ['monolithic_design', 'harder_to_ablate'] | Rare-Regime Boundary Sampler for Geometry Encoder [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Physics-Guided Counterfactual Boundary Generator [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Adaptive Counterfactual Weighting via Uncertainty-Gated Injection [mechanism-commit-innovation] -> defects ['over-sampling synthetic points may bias the model', 'adjoint solve adds compute']"
+      },
+      "feasible": {
+        "idea": {
+          "title": "Residual Gradient Clipping via Tanh-based Normalization",
+          "abstract": "Adversarial boundary sampling can introduce large gradients that destabilize training and cause overfitting to rare regimes. We propose a Residual Gradient Clipping mechanism that normalizes gradients using a tanh-based scaling factor derived from the local PDE residual magnitude. This adaptively bounds updates without global clipping, preserving signal from rare events while preventing gradient explosions. The mechanism is inserted directly into the optimization step.",
+          "core_contribute": "An adaptive gradient clipping strategy tied to residual magnitude that stabilizes adversarial sampling without suppressing rare-regime signals.",
+          "methodology": "1. Compute per-sample PDE residual magnitude. 2. Derive scaling factor alpha = tanh(residual / T) where T is a temperature. 3. Clip gradients as g' = alpha * g. 4. Integrate into training loop with logging of clipping ratios.",
+          "experiment_design": "Compare against global gradient clipping and no clipping on 1D Wave moving boundary and 2D Burgers shock tasks. Metrics: training loss stability (variance), generalization error on held-out rare regimes, and gradient norm distribution.",
+          "risks": "Temperature T may require tuning; over-clipping could slow convergence.",
+          "tags": [
+            "gradient_clipping",
+            "stability",
+            "rare_regime"
+          ],
+          "operator": "mechanism-commit-innovation",
+          "target_defects": [
+            "training instability",
+            "overfitting defects"
+          ],
+          "memory_refs": [
+            "Pattern#1"
+          ],
+          "rationale": "This directly addresses the instability defect from adversarial sampling by adaptively gating gradients, avoiding the overfitting pitfall noted in the memory. It respects guardrails by adding minimal compute and providing explicit monitoring."
+        },
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 5.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.9,
+          "failure_modes": [
+            "Under-clipping: If temperature T is too high, the mechanism fails to prevent gradient explosions during adversarial sampling spikes.",
+            "Over-clipping: If T is too low, gradients in rare regimes are suppressed, effectively masking the very signal the parent sampler introduced.",
+            "Residual magnitude instability: If the PDE residual itself becomes unstable (e.g., near shocks), the clipping factor becomes erratic, causing oscillating updates."
+          ],
+          "fairness_protocol": "Fairness requires comparing against: 1) Global gradient clipping (standard baseline) to prove adaptive scaling is better than fixed thresholds. 2) Ablation without the tanh non-linearity (linear scaling) to prove the bounding behavior is necessary. 3) The parent 'Rare-Regime Boundary Sampler' baseline without clipping to confirm the fix resolves the reported instability without losing generalization.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' that directly patches the instability defect introduced by the parent sampler. However, novelty is capped because gradient clipping is a standard technique; the innovation lies in the 'residual-magnitude' conditioning. Ensure the 'temperature' hyperparameter is justified physically or via sensitivity analysis in experiments.",
+          "defect_fix_summary": "Addresses 'training instability' and 'overfitting defects' from the parent 'Rare-Regime Boundary Sampler'. The operator introduces an adaptive gating mechanism (Residual Gradient Clipping) that dampens updates specifically when the PDE residual is high (indicating difficult or adversarial regions), preventing the optimizer from overshooting while preserving gradients in stable rare regimes.",
+          "lift_estimate": 15.0
+        },
+        "score": 3.5,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Decoupled Geometry and Physics Heads for PINNs [surgical-modularity] -> defects ['monolithic_design', 'harder_to_ablate'] | Rare-Regime Boundary Sampler for Geometry Encoder [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Residual Gradient Clipping via Tanh-based Normalization [mechanism-commit-innovation] -> defects ['training instability', 'overfitting defects']"
+      },
+      "concise": {
+        "idea": {
+          "title": "Gradient-Clipped Residual Correction via Tanh-based Normalization",
+          "abstract": "Adversarial boundary sampling introduces training instability and overfitting defects. We propose a residual gradient clipping mechanism that uses tanh-based normalization to gate per-loss-term weights based on residual magnitude. This prevents any single boundary perturbation from dominating the gradient signal, stabilizing training while preserving the generalization benefits of the counterfactual sampler. The mechanism acts as a dynamic regulator on the solver head's learning signal.",
+          "core_contribute": "A dynamic gradient gating mechanism using tanh-based residual normalization to stabilize adversarial boundary sampling without sacrificing generalization.",
+          "methodology": "1. Compute per-sample residuals for boundary constraints. 2. Apply tanh normalization to residual magnitudes to generate gating weights. 3. Multiply each loss term by its gate before backward pass. 4. Integrate this clipping layer directly before the optimizer step. 5. Maintain separate gating for boundary vs. PDE residuals to preserve physics fidelity.",
+          "experiment_design": "Baseline: Standard counterfactual sampler without clipping. Control: Global gradient clipping (fixed threshold). Treatment: Tanh-based residual clipping. Metrics: Training loss variance, boundary generalization error on shifted geometries, PDE residual consistency. Ablation: Vary tanh saturation thresholds.",
+          "risks": "['sampler_instability', 'overfitting']",
+          "tags": [
+            "stability",
+            "gradient_control",
+            "residual_clipping"
+          ],
+          "operator": "mechanism-commit-innovation",
+          "target_defects": [
+            "sampler_instability",
+            "weak_generalization"
+          ],
+          "memory_refs": [
+            "Pattern#1",
+            "Pattern#2"
+          ],
+          "rationale": "This directly addresses the instability defect from Pattern#1 by introducing a targeted clipping mechanism. It respects guardrails by naming the exact component (tanh-based gating) and tying it to the surfaced failure mode."
+        },
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 4.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Tanh saturation threshold becomes a new hyperparameter requiring tuning; if set too low, it may suppress valid gradients and slow convergence, if too high, it fails to clip effectively.",
+            "Per-sample gating introduces computational overhead and potential instability if residual magnitudes fluctuate wildly between batches.",
+            "Separate gating for boundary vs. PDE residuals may inadvertently suppress boundary gradients needed for accurate geometry generalization, leading to underfitting on boundary conditions."
+          ],
+          "fairness_protocol": "The experiment design explicitly includes a baseline (no clipping) and a control (global gradient clipping), which is fair. However, it lacks a control for the 'counterfactual sampler' component itself (i.e., testing without adversarial sampling) to isolate the benefit of clipping specifically against the sampler's instability. Ablations on tanh thresholds are good but should also include ablations on separate vs. joint gating.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' that directly targets the 'sampler_instability' defect. However, the novelty is moderate as gradient clipping is standard practice; the innovation lies in the 'tanh-based residual normalization' gating. Ensure the 'tanh normalization' is mathematically distinct from simple scaling. The experiment design is strong on metrics but should explicitly verify 'physical invalidity' (e.g., checking if clipped gradients violate conservation laws) as a risk from the parent 'constraint_drift' defect.",
+          "defect_fix_summary": "Addresses 'sampler_instability' (from the counterfactual sampler) by dynamically gating gradients based on residual magnitude, preventing outlier perturbations from destabilizing the optimization. It also implicitly targets 'weak_generalization' by stabilizing the training signal, allowing the model to learn more robust features rather than overfitting to extreme samples.",
+          "lift_estimate": 15.0
+        },
+        "score": 3.1500000000000004,
+        "path": "Physics-Informed Neural Networks. baseline [seed] -> defects ['unexplored_gap'] | Decoupled Geometry and Physics Heads for PINNs [surgical-modularity] -> defects ['monolithic_design', 'harder_to_ablate'] | Hard-Soft Constraint Coupling for Physics Solver Head [adaptive-constraint-hybridization] -> defects ['physical_invalidity', 'constraint_drift'] | Boundary Perturbation and Extreme Condition Sampling [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Gradient-Clipped Residual Correction via Tanh-based Normalization [mechanism-commit-innovation] -> defects ['sampler_instability', 'weak_generalization']"
+      }
+    }
+  }
 }

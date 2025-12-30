@@ -20,9 +20,11 @@ src/agents/idea_agent/.cache
 src/agents/survey_agent/database/
 src/agents/survey_agent/logs
 
+
 # Memory
 src/memory/memory_system/.cache
 src/memory/memory_system/__pycache__
+src/agents/survey_agent/config/database/paper_keynotes
 
 # IDE
 .vscode/
@@ -43,3 +45,4 @@ epi_test/meta.json
 .gitignore
 sem_test/faiss.index
 sem_test/meta.json
+

@@ -2,6 +2,9 @@ ALGORITHM_STRUCTURING_PROMPT = """
 You are an algorithm architect. Convert the idea below into executable algorithm specs.
 
 Topic: {topic}
+Idea Title: {idea_title}
+Idea Abstract:
+{idea_abstract}
 Idea JSON:
 {idea}
 
@@ -34,8 +37,11 @@ Return ONLY a JSON object:
 }}
 
 Rules:
+- All algorithms must clearly implement the single idea described above; explicitly connect each name/pipeline to the Idea Title or key phrases from the abstract.
+- Remove or rewrite anything that cannot be justified by the Idea Abstract.
 - Pipeline steps must describe the actual method execution (no meta statements like 'run MCTS').
 - Keep inputs/outputs concrete and derived from the idea details and references.
 - If multiple sub-algorithms exist, include each as its own entry.
+- Do not fill the step with placeholders; be specific.
 - Do not add commentary outside the JSON.
 """
