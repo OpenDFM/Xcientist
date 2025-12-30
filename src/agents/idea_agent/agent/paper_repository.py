@@ -7,14 +7,19 @@ from typing import Dict, Iterable, Optional
 from omegaconf import OmegaConf
 
 from agents.survey_agent.modules.work_collector import WorkCollector
-from agents.survey_agent.modules.work_analyzer import WorkAnalyzer
+
+from agents.idea_agent.agent.paper_processing import (
+    IdeaPaperAnalyzer,
+    IdeaPaperParser,
+    resolve_paper_records,
+)
 
 
 class PaperRepository:
     """
-    Thin wrapper around the survey agent's WorkCollector and WorkAnalyzer modules.
-    It exposes a lightweight interface for the idea agent to ensure that papers are
-    downloaded, parsed into Markdown, and summarized via the keynote cache.
+    Thin wrapper around the survey agent's WorkCollector plus lightweight parsing
+    utilities so the idea agent can download, parse, and summarize papers without
+    invoking the survey agent's graph-heavy analyzer.
     """
 
     def __init__(
@@ -29,7 +34,10 @@ class PaperRepository:
         self._normalize_cache_path()
 
         self.work_collector = WorkCollector(self.config)
-        self.work_analyzer = WorkAnalyzer(self.config, self.work_collector)
+        self.paper_parser = IdeaPaperParser(self.config, self.work_collector, logger)
+        self.paper_analyzer = IdeaPaperAnalyzer(
+            self.config, self.paper_parser, logger
+        )
 
     def _resolve_config_path(self, provided_path, config):
         if config is not None:
@@ -60,8 +68,8 @@ class PaperRepository:
 
     def _normalize_cache_path(self) -> None:
         """
-        Resolve the cache path to an absolute directory so that WorkCollector and
-        WorkAnalyzer can find/download parsed papers deterministically.
+        Resolve the cache path to an absolute directory so downstream helpers can
+        deterministically read/write parsed papers and summaries.
         """
         cache_path = Path(self.config.BasicInfo.cache_path)
         if not cache_path.is_absolute():
@@ -93,23 +101,26 @@ class PaperRepository:
         if not unique_ids:
             return {}
 
-        self.work_collector.download_and_parse_papers(unique_ids)
+        papers = resolve_paper_records(self.work_collector, unique_ids, self.logger)
+        self.paper_parser.download_and_parse(papers)
+        keynotes = self.paper_analyzer.ensure_keynotes(unique_ids)
 
         results: Dict[str, Dict[str, object]] = {}
         for pid in unique_ids:
             try:
-                keynote = self.work_analyzer.get_paper_keynote(pid)
+                keynote_entry = keynotes.get(pid)
             except Exception as exc:  # pragma: no cover - defensive
                 if self.logger:
                     self.logger.warning(
                         "Failed to generate keynote for paper %s: %s", pid, exc
                     )
-                keynote = None
-            results[pid] = {"keynote": keynote}
+                keynote_entry = None
+            keynote_value = None
+            if isinstance(keynote_entry, dict):
+                keynote_value = keynote_entry.get("keynote") or keynote_entry
+            results[pid] = {"keynote": keynote_value}
         return results
 
     def get_markdown(self, paper_id: str) -> str:
-        """
-        Retrieve the parsed Markdown content for a paper directly from WorkAnalyzer.
-        """
-        return self.work_analyzer.get_paper_raw_markdown(paper_id)
+        """Retrieve the parsed Markdown content for a paper via the local parser."""
+        return self.paper_parser.get_markdown(paper_id)

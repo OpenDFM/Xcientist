@@ -181,12 +181,28 @@ class LigAgent(AgentBase):
             if not pid:
                 continue
             content = prepared.get(pid)
-            if not content:
-                continue
-            paper["keynote"] = content.get("keynote")
-            paper["has_parsed_markdown"] = True
+            keynote_data = None
+            if content:
+                keynote_data = content.get("keynote") or content
+
+            if not keynote_data:
+                fallback_text = paper.get("abstract") or paper.get("title") or "No content available."
+                keynote_data = {
+                    "tldr": fallback_text,
+                    "source": "title_abstract_fallback",
+                }
+                paper["has_parsed_markdown"] = False
+            else:
+                paper["has_parsed_markdown"] = True
+
+            paper["keynote"] = keynote_data
+            logger.info(
+                "🗒️ Enriched paper '%s' with summary source=%s",
+                paper.get("title"),
+                keynote_data.get("source", "parsed"),
+            )
             storage[pid] = {
-                "keynote": content.get("keynote"),
+                "keynote": keynote_data,
                 "source_keywords": paper.get("source_keywords"),
             }
 

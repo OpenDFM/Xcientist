@@ -130,9 +130,13 @@ class WorkCollector:
                         download_urls.append(paper["openAccessPdf"]["url"])
                     else:
                         continue
-                paper_title = self.reference_graph.nodes.get(paper_id, {}).get(
-                    "title", paper_id
-                )
+                # WZJ MODIFY: Check if self.reference_graph is None
+                if self.reference_graph:
+                    paper_title = self.reference_graph.nodes.get(paper_id, {}).get(
+                        "title", paper_id
+                    )
+                else:
+                    paper_title = papers[index-1].get("title", paper_id) # For idea_agent, we do not need to use reference_graph.
 
             pdf_path = os.path.join(
                 self.config.BasicInfo.cache_path,

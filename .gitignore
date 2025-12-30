@@ -15,6 +15,7 @@ src/agents/experiment_agent/workspace/
 # Idea Agent - 清除检索缓存
 src/agents/idea_agent/cache/
 src/agents/idea_agent/.cache
+src/agents/survey_agent/config/database
 
 # Survey Agent - 排除检索缓存
 src/agents/survey_agent/database/
@@ -45,4 +46,6 @@ epi_test/meta.json
 .gitignore
 sem_test/faiss.index
 sem_test/meta.json
+.gitignore
+
 
