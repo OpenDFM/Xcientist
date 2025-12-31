@@ -4,11 +4,20 @@ Topic: {topic}
 Latest analysis + critiques:
 {analysis}
 
+Relevant literature evidence from the current paper cache:
+{paper_context}
+
 Candidate idea (JSON):
 {idea}
 
 If available, the rewrite path describing applied operators:
 {path_summary}
+
+ICML bar reminders:
+- Reward ideas that introduce brand-new mechanisms, training contracts, or cross-domain theory transfers with higher novelty/impact.
+- Penalize "just add a gate/MoE/ensemble" tweaks (novelty ≤ 1, impact ≤ 2) unless the idea explicitly offers a new scientific insight.
+- Elevate proposals that overhaul evaluation contracts or surface new failure science; note this inside feedback.
+- Explicitly call out if the idea fails the ICML bar due to lack of mechanism clarity, missing evaluation, or excessive incrementalism.
 
 Judge the idea across multi-dimensional criteria. Enforce fairness (explicit baselines, ablations), guard against resource dumping, and highlight uncovered failure modes. Reward concrete algorithmic/mechanistic innovations; penalize responses that only add analysis/instrumentation without a new intervention (novelty <= 2 in those cases).
 

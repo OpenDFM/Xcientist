@@ -85,6 +85,24 @@ EDIT_OPERATORS: List[EditOperator] = [
         defects=["systematic_bias", "silent_failure", "drift"],
         guardrails=["specify the self-supervised loss and how corrections are injected", "explain how over-correction is prevented"],
     ),
+    EditOperator(
+        name="theory-transfer-injection",
+        description="Port a principled mechanism or constraint from another discipline (control theory, info theory, neuro, geometry) and fuse it as a first-class module or objective.",
+        defects=["stagnant_novelty", "theory_gap", "weak_generalization"],
+        guardrails=[
+            "identify the exact theorem/mechanism you are borrowing and how it plugs into the pipeline",
+            "spell out the new capability it enables beyond gating or ensembling baselines",
+        ],
+    ),
+    EditOperator(
+        name="evaluation-contract-overhaul",
+        description="Redesign the evaluation/training contract (stress datasets, protocol, reward shaping) so that new failure modes are surfaced and optimized.",
+        defects=["evaluation_blindspot", "weak_accountability", "missing_contracts"],
+        guardrails=[
+            "describe concrete datasets/protocols introduced and the defect they expose",
+            "clarify how the new contract integrates with training/inference cost ceilings",
+        ],
+    ),
 ]
 
 ANTI_PATTERN_CONSTRAINTS = [
@@ -92,6 +110,8 @@ ANTI_PATTERN_CONSTRAINTS = [
     "Always declare baseline + ablation protocols for fairness.",
     "Describe at least one deliberate failure-mode surfacing plan.",
     "Constrain resource usage; note instrumentation for guardrails.",
+    "Avoid trivial gating/ensembling tweaks; if an incremental safeguard is unavoidable, tag it 'incremental' and explain why it is temporary.",
+    "Ensure at least one child is a moonshot-level mechanism or evaluation-contract overhaul suitable for ICML/NeurIPS novelty expectations.",
 ]
 
 
@@ -490,13 +510,13 @@ class IdeaNode:
 
 @dataclass
 class MCTSConfig:
-    max_iterations = 24
-    max_depth = 4
-    branching_factor: int = 3
-    exploration_constant: float = 1.0
+    max_iterations = 256
+    max_depth = 5
+    branching_factor: int = 4
+    exploration_constant: float = 1.15
     generation_model: str = "mimo-v2-flash"
     evaluation_model: str = "mimo-v2-flash"
-    generation_temperature: float = 0.4
+    generation_temperature: float = 0.65
     evaluation_temperature: float = 0.0
     min_confidence_for_memory: float = 0.6
     pareto_top_k: int = 5
@@ -550,6 +570,7 @@ class MemoryGuidedMCTS:
         self.trace: List[Dict[str, Any]] = []
         self.topic: str = ""
         self.analysis_blob: str = ""
+        self.paper_context: str = ""
 
     def _log(self, level: str, message: str, *args: Any) -> None:
         log_fn = getattr(self.logger, level, self.logger.info)
@@ -570,6 +591,7 @@ class MemoryGuidedMCTS:
     def search(self, topic: str, context: Dict[str, Any]) -> SearchResult:
         self.topic = topic
         self.analysis_blob = format_analysis_blob(context.get("analysis", []))
+        self.paper_context = context.get("paper_context") or "No curated papers available yet."
         root_state = self._build_root_state(topic, context)
         root = self._new_node(root_state, depth=0, parent=None)
         experiences = []
@@ -771,6 +793,7 @@ class MemoryGuidedMCTS:
         prompt = self.generation_prompt.format(
             topic=self.topic,
             current_summary=node.state.describe(),
+            paper_context=self.paper_context,
             memory_bundle=bundle.to_prompt_block(),
             edit_operators=format_edit_operators(EDIT_OPERATORS),
             max_children=self.config.branching_factor,
@@ -783,7 +806,7 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.generation_model,
                 temperature=self.config.generation_temperature,
-                max_tokens=4096,
+                max_tokens=8192,
             )
             self._log("debug", "[MCTS] Generation response: %s", response)
             if not response or not response.strip():
@@ -879,6 +902,7 @@ class MemoryGuidedMCTS:
         prompt = self.evaluation_prompt.format(
             topic=self.topic,
             analysis=self.analysis_blob,
+            paper_context=self.paper_context,
             idea=json.dumps(node.state.to_payload(), ensure_ascii=False, indent=2),
             path_summary=path_summary_text,
         )
@@ -887,7 +911,7 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.evaluation_model,
                 temperature=self.config.evaluation_temperature,
-                max_tokens=4096,
+                max_tokens=8192,
             )
             payload = parse_json_response(response)
             evaluation = IdeaEvaluation.from_payload(payload)

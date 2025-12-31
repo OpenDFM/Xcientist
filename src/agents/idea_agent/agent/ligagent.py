@@ -2,7 +2,7 @@ from agent.base import AgentBase
 from agent import get_logger
 logger = get_logger()
 logger.info("🤖 Initializing LigAgent...")
-from typing import Any, Dict, Literal, List, Optional
+from typing import Any, Dict, Literal, List, Optional, Union
 from pathlib import Path
 import time
 from agent.tools import TOOLS
@@ -16,6 +16,14 @@ from agents.idea_agent.utils.idea_helpers import (
     derive_pipeline_steps,
     fallback_algorithm_spec,
 )
+from agents.idea_agent.utils.ligagent_utils import (
+    collect_paper_context_entries,
+    enrich_papers_with_content,
+    generate_idea_introduction,
+    paper_context_text,
+    parse_json_response,
+    fallback_introduction_text,
+)
 import json
 import http.client
 
@@ -24,12 +32,20 @@ class LigAgent(AgentBase):
         chat_max_retries = kwargs.pop("chat_max_retries", 3)
         chat_retry_backoff = kwargs.pop("chat_retry_backoff", 2.0)
         survey_config_path = kwargs.pop("survey_config_path", None)
+        run_dir = kwargs.pop("run_dir", None)
+        idea_result_path = kwargs.pop("idea_result_path", None)
         super().__init__(*args, **kwargs)
         self.action_space = ["knowledge_aquisition", "advanced_analysis", "idea_generation", "idea_evaluation", "re_analysis_replan"]
         self.model = "mimo-v2-flash"
         self.tools = TOOLS
         self.memory = memory_init()
-        self.idea_result_path = Path(__file__).resolve().parent.parent / "idea_result.json"
+        self.run_dir = Path(run_dir) if run_dir else Path(__file__).resolve().parent.parent
+        self.run_dir.mkdir(parents=True, exist_ok=True)
+        if idea_result_path:
+            self.idea_result_path = Path(idea_result_path)
+        else:
+            self.idea_result_path = self.run_dir / "idea_result.json"
+        self.idea_result_path.parent.mkdir(parents=True, exist_ok=True)
         self.chat_max_retries = chat_max_retries
         self.chat_retry_backoff = chat_retry_backoff
         self.mcts = MemoryGuidedMCTS(
@@ -106,11 +122,62 @@ class LigAgent(AgentBase):
     def select_memory(self, action: str="", info: dict={}) -> str:
         pass
 
+    def bootstrap_topic(self, topic: str, retrieval_keywords: Optional[str] = None) -> None:
+        normalized_topic = (topic or "").strip()
+        if not normalized_topic:
+            raise ValueError("Topic must be a non-empty string.")
+        keywords = retrieval_keywords.strip() if isinstance(retrieval_keywords, str) else normalized_topic
+        self.memory["topic"].append(normalized_topic)
+        self.memory["retrieval_keywords"].append(keywords)
+        background = self._generate_background_brief(normalized_topic)
+        if background:
+            self.memory["background_knowledge"].append(background)
+
+    def _generate_background_brief(self, topic: str) -> Optional[str]:
+        template = PROMPTS.get("topic_background")
+        if not template:
+            return None
+        prompt = template.format(topic=topic)
+        try:
+            payload = self._parse_json_response(self.chat(prompt, model=self.model))
+        except Exception as exc:
+            logger.warning("⚠️ Failed to bootstrap background knowledge for %s: %s", topic, exc)
+            return None
+
+        def _join_list(values: Any, prefix: str) -> Optional[str]:
+            if isinstance(values, list) and values:
+                joined = "; ".join(str(item) for item in values if item)
+                if joined:
+                    return f"{prefix}: {joined}"
+            return None
+
+        if isinstance(payload, dict):
+            sections = []
+            summary = payload.get("background") or payload.get("summary")
+            if summary:
+                sections.append(str(summary).strip())
+            extra_sections = [
+                _join_list(payload.get("key_questions"), "Key questions"),
+                _join_list(payload.get("canonical_methods"), "Representative methods"),
+                _join_list(payload.get("datasets"), "Datasets"),
+            ]
+            sections.extend(line for line in extra_sections if line)
+            compiled = " ".join(line for line in sections if line).strip()
+            if compiled:
+                return compiled
+        if isinstance(payload, list):
+            compiled = " ".join(str(item) for item in payload if item).strip()
+            if compiled:
+                return compiled
+        if isinstance(payload, str):
+            return payload.strip()
+        return None
+
     def knowledge_aquisition(self, search_type: Literal["paper_search", "website"]="paper_search") -> str:
         if search_type == "paper_search":
             search_keywords = self.memory["retrieval_keywords"][-1]
             try:
-                papers = self.run_tool(name="semantic_search", query=search_keywords, limit=5) 
+                papers = self.run_tool(name="semantic_search", query=search_keywords, limit=10) 
                 logger.info("📄 Found Papers:")
                 new_papers = []
                 if papers and len(papers) > 0:
@@ -165,46 +232,17 @@ class LigAgent(AgentBase):
                 step = f"\nIn this knowledge_aquisition action, I acquired several papers about '{search_keywords}'."
             return step
     def _enrich_papers_with_content(self, papers: List[Dict[str, Any]]) -> None:
-        if not papers:
-            return
-        paper_ids = [paper.get("paper_id") for paper in papers if paper.get("paper_id")]
-        if not paper_ids:
-            return
-        try:
-            prepared = self.paper_repository.prepare_papers(paper_ids)
-        except Exception as exc:
-            logger.warning("Failed to prepare parsed papers: %s", exc)
-            return
-        storage = self.memory.setdefault("paper_contents", {})
-        for paper in papers:
-            pid = paper.get("paper_id")
-            if not pid:
-                continue
-            content = prepared.get(pid)
-            keynote_data = None
-            if content:
-                keynote_data = content.get("keynote") or content
+        enrich_papers_with_content(papers, self.paper_repository, self.memory, logger)
 
-            if not keynote_data:
-                fallback_text = paper.get("abstract") or paper.get("title") or "No content available."
-                keynote_data = {
-                    "tldr": fallback_text,
-                    "source": "title_abstract_fallback",
-                }
-                paper["has_parsed_markdown"] = False
-            else:
-                paper["has_parsed_markdown"] = True
+    def _collect_paper_context_entries(self, limit: int = 6) -> List[Dict[str, Any]]:
+        return collect_paper_context_entries(
+            self.memory,
+            self.memory.get("references", []),
+            limit=limit,
+        )
 
-            paper["keynote"] = keynote_data
-            logger.info(
-                "🗒️ Enriched paper '%s' with summary source=%s",
-                paper.get("title"),
-                keynote_data.get("source", "parsed"),
-            )
-            storage[pid] = {
-                "keynote": keynote_data,
-                "source_keywords": paper.get("source_keywords"),
-            }
+    def _paper_context_text(self, entries: List[Dict[str, Any]]) -> str:
+        return paper_context_text(entries)
 
     def get_paper_content(self, paper_id: str, include_markdown: bool = True) -> Dict[str, Any]:
         if not paper_id:
@@ -219,25 +257,125 @@ class LigAgent(AgentBase):
         return stored
 
     def advanced_analysis(self, **kwargs) -> None:
-        # import pdb; pdb.set_trace()
-        prompt = PROMPTS["advanced_analysis"].format(topic=self.memory["topic"][-1], papers=self.memory["references"][-1])
-        response = self._parse_json_response(self.chat(prompt, model=self.model))
+        topic = self.memory["topic"][-1] if self.memory["topic"] else "unspecified topic"
+        references = self.memory["references"][-1] if self.memory["references"] else []
+        prompt = PROMPTS["advanced_analysis"].format(
+            topic=topic,
+            papers=json.dumps(references, ensure_ascii=False, indent=2) if references else "[]",
+        )
+        raw_response = self._parse_json_response(self.chat(prompt, model=self.model, max_tokens=4096))
+        response = self._normalize_analysis_entry(raw_response)
         logger.info(f"📝 Advanced Analysis Result:\n{response}")
         self.memory["analysis"].append(response)
-        step = f"\nIn this advanced_analysis action, I analyzed the collected papers and summarized my findings: {response['tldr']}"
+        self._ingest_analysis_background(response)
+        step = f"\nIn this advanced_analysis action, I analyzed the collected papers and summarized my findings: {response.get('tldr', 'No TL;DR provided.')}"
         return step
+
+    def _normalize_analysis_entry(self, response: Any) -> Dict[str, Any]:
+        if isinstance(response, dict):
+            return response
+        if isinstance(response, list):
+            for item in response:
+                if isinstance(item, dict):
+                    return item
+            return {"key_methods": [], "existing_problems": [], "future_directions": [], "tldr": "; ".join(str(it) for it in response[:3])}
+        if isinstance(response, str):
+            return {"key_methods": [], "existing_problems": [], "future_directions": [], "tldr": response}
+        return {"key_methods": [], "existing_problems": [], "future_directions": [], "tldr": "Analysis output was not structured; falling back to placeholder."}
+
+    def _ingest_analysis_background(self, analysis_entry: Dict[str, Any]) -> None:
+        if not isinstance(analysis_entry, dict):
+            return
+        seeds = analysis_entry.get("divergent_idea_seeds") or analysis_entry.get("moonshot_hypotheses") or []
+        if not isinstance(seeds, list) or not seeds:
+            return
+        background_lines = []
+        for seed in seeds[:3]:
+            if not isinstance(seed, dict):
+                continue
+            title = seed.get("title") or seed.get("hypothesis") or "Moonshot Seed"
+            hypothesis = seed.get("hypothesis") or ""
+            method = seed.get("method_sketch") or seed.get("method") or ""
+            gap = seed.get("why_it_is_not_incremental") or seed.get("why_now") or ""
+            snippet = f"[Moonshot Seed] {title}: {hypothesis}".strip()
+            if method:
+                snippet += f" | Mechanism: {method}"
+            if gap:
+                snippet += f" | Differentiator: {gap}"
+            background_lines.append(snippet)
+        if not background_lines:
+            return
+        background_store = self.memory.setdefault("background_knowledge", [])
+        existing = set(background_store)
+        for line in background_lines:
+            if line and line not in existing:
+                background_store.append(line)
+                existing.add(line)
+
+    def _latest_analysis_seed_ideas(self) -> List[Dict[str, Any]]:
+        if not self.memory.get("analysis"):
+            return []
+        latest = self.memory["analysis"][-1]
+        if not isinstance(latest, dict):
+            return []
+        seeds = latest.get("divergent_idea_seeds") or latest.get("moonshot_hypotheses") or []
+        return self._convert_seeds_to_ideas(seeds)
+
+    def _convert_seeds_to_ideas(self, seeds: Any) -> List[Dict[str, Any]]:
+        if not isinstance(seeds, list):
+            return []
+        payloads: List[Dict[str, Any]] = []
+        for idx, seed in enumerate(seeds):
+            if not isinstance(seed, dict):
+                continue
+            title = seed.get("title") or seed.get("hypothesis") or f"Moonshot Seed #{idx + 1}"
+            hypothesis = seed.get("hypothesis") or ""
+            method = seed.get("method_sketch") or seed.get("method") or ""
+            differentiator = seed.get("why_it_is_not_incremental") or seed.get("why_now") or ""
+            evaluation_plan = seed.get("evaluation_plan") or seed.get("evaluation") or ""
+            risk = seed.get("risk") or seed.get("risk_surface") or ""
+            supporting = seed.get("supporting_papers", [])
+            if isinstance(supporting, str):
+                supporting = [supporting]
+            tags = ["analysis-seed", "moonshot"]
+            if seed.get("source_field"):
+                tags.append(str(seed["source_field"]).lower().replace(" ", "-"))
+            custom_tags = seed.get("tags")
+            if isinstance(custom_tags, list):
+                tags.extend(str(tag) for tag in custom_tags if tag)
+            payloads.append(
+                {
+                    "title": title,
+                    "abstract": " | ".join(part for part in [hypothesis, f"Mechanism: {method}" if method else ""] if part),
+                    "core_contribute": differentiator or hypothesis or method or "Analysis-seeded moonshot hypothesis.",
+                    "methodology": method or "Derived from divergent analysis seed; requires fleshing out.",
+                    "experiment_design": evaluation_plan or "Design ICML-grade evaluation including failure-surface probes.",
+                    "risks": risk or "High novelty risk; feasibility unknown.",
+                    "tags": tags,
+                    "operator": "analysis_seed",
+                    "target_defects": seed.get("target_defects", ["stagnant_novelty"]),
+                    "memory_refs": supporting if isinstance(supporting, list) else [str(supporting)],
+                    "rationale": differentiator or "Seed extracted from advanced analysis.",
+                }
+            )
+        return payloads
 
     def idea_generation(self, **kwargs) -> None:
         topic = self.memory["topic"][-1] if self.memory["topic"] else "unspecified topic"
+        paper_entries = self._collect_paper_context_entries(limit=10)
+        idea_history = list(self.memory.get("idea_pool", []))
+        seed_ideas = self._latest_analysis_seed_ideas()
+        idea_context = idea_history if idea_history else seed_ideas
         context = {
             "analysis": self.memory.get("analysis", []),
-            "idea_pool": self.memory.get("idea_pool", []),
+            "idea_pool": idea_context,
             "background_knowledge": self.memory.get("background_knowledge", []),
+            "paper_context": self._paper_context_text(paper_entries),
         }
         result = self.mcts.search(topic=topic, context=context)
         if not result.best:
             logger.warning("⚠️ MCTS search returned no candidate, falling back to legacy generator.")
-            legacy_step = self._legacy_single_idea(topic)
+            legacy_step = self._legacy_single_idea(topic, paper_entries)
             return legacy_step
 
         best_payload = result.best.to_dict()
@@ -257,7 +395,7 @@ class LigAgent(AgentBase):
             if cand:
                 pareto_lines.append(f"{label}: {cand.node.state.title} (score={cand.evaluation.composite:.2f})")
         pareto_summary = "; ".join(pareto_lines) if pareto_lines else "no Pareto picks"
-        self._persist_final_idea(best_entry)
+        self._persist_final_idea(best_entry, paper_entries)
         step = (
             f"\nIn this idea_generation action, I ran memory-guided MCTS over '{topic}'. "
             f"Best idea: {best_entry['title']} (score={best_entry['search_score']:.2f}). "
@@ -265,11 +403,12 @@ class LigAgent(AgentBase):
         )
         return step
 
-    def _legacy_single_idea(self, topic: str) -> str:
+    def _legacy_single_idea(self, topic: str, paper_entries: List[Dict[str, Any]]) -> str:
         prompt = PROMPTS["idea_generation"].format(
             topic=topic,
             analysis=self.memory.get("analysis", []),
             ideas=self.memory.get("idea_pool", []),
+            papers=json.dumps(paper_entries, ensure_ascii=False, indent=2),
         )
         response = self._parse_json_response(self.chat(prompt, model=self.model))
         self.memory["idea_pool"].append(response)
@@ -437,20 +576,23 @@ class LigAgent(AgentBase):
             logger.warning("⚠️ Dataset synthesis failed: %s", exc)
         return []
 
-    def _persist_final_idea(self, best_entry: Dict[str, Any]) -> None:
+    def _persist_final_idea(self, best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]]) -> None:
         topic = self.memory["topic"][-1] if self.memory["topic"] else "unspecified topic"
         raw_refs = collect_reference_material(self.memory.get("references", []))
         algorithm = self._build_algorithm_spec(best_entry, topic, raw_refs)
         references = self._synthesize_reference_summaries(topic, best_entry, algorithm, raw_refs)
         datasets = self._suggest_datasets(topic, best_entry, algorithm, references)
+        introduction = self._generate_idea_introduction(best_entry, paper_entries)
         payload = {
             "title": best_entry.get("title"),
             "abstract": best_entry.get("abstract"),
+            "introduction": introduction,
             "algorithm": algorithm,
             "reference_papers": references,
             "datasets": datasets,
             "mcts_evolution": build_mcts_evolution(best_entry),
         }
+        best_entry["introduction"] = introduction
         self.memory["idea_result"] = payload
         try:
             with open(self.idea_result_path, "w", encoding="utf-8") as f:
@@ -459,30 +601,25 @@ class LigAgent(AgentBase):
         except OSError as exc:
             logger.error(f"⚠️ Failed to persist idea_result.json: {exc}")
 
+    def _generate_idea_introduction(
+        self, best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]]
+    ) -> str:
+        entries = paper_entries or self._collect_paper_context_entries(limit=6)
+        topic = self.memory["topic"][-1] if self.memory["topic"] else "unspecified topic"
+        return generate_idea_introduction(
+            chat_fn=self.chat,
+            prompt_template=PROMPTS["idea_introduction"],
+            model=self.model,
+            topic=topic,
+            best_entry=best_entry,
+            paper_entries=entries,
+            logger=logger,
+        )
+
+    def _fallback_introduction_text(
+        self, best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]]
+    ) -> str:
+        return fallback_introduction_text(best_entry, paper_entries)
+
     def _parse_json_response(self, raw: str) -> Dict[str, Any]:
-        """
-        LLM responses occasionally include code fences or extra commentary.
-        This helper strips the noise and extracts the first JSON object/array well-formed enough for json.loads.
-        """
-        text = (raw or "").strip()
-        if not text:
-            raise ValueError("Empty response")
-        if text.startswith("```"):
-            fence_end = text.find("\n")
-            if fence_end != -1:
-                text = text[fence_end + 1 :]
-            if text.endswith("```"):
-                text = text[: -3]
-        text = text.strip()
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            decoder = json.JSONDecoder()
-            for idx, ch in enumerate(text):
-                if ch in "{[":
-                    try:
-                        parsed, _ = decoder.raw_decode(text[idx:])
-                        return parsed
-                    except json.JSONDecodeError:
-                        continue
-        raise ValueError(f"Unable to parse JSON from response: {text[:200]}")
+        return parse_json_response(raw)

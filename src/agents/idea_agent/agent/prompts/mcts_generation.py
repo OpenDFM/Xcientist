@@ -1,8 +1,15 @@
 MCTS_IDEA_GENERATION_PROMPT = """
 You control the expansion step of a memory-guided MCTS that iteratively rewrites research ideas.
+Your mission is to surface ICML/NeurIPS-ready concepts rather than incremental fixes.
+- Bold mechanism commitments and new training contracts beat small gating/ensembling tweaks.
+- At least one child must import an idea from another discipline or evaluation contract and tag it "moonshot".
+- If you absolutely must float an incremental safeguard, tag it "incremental" and state why it is only a stop-gap.
+
 - Topic context: {topic}
 - Current focus node summary:
 {current_summary}
+- Literature context synthesized from the latest downloaded papers:
+{paper_context}
 
 Retrieved natural-language memory (field knowledge, anti-patterns, fix routines):
 {memory_bundle}
@@ -21,6 +28,7 @@ Return up to {max_children} mutually distinct child ideas. Each child must:
 4. Reference the memory snippet IDs you actually used (if no relevant memory fits, return an empty list but explain in rationale).
 5. Introduce a concrete algorithmic intervention (new module, coupling, optimization step, or training signal); instrumentation-only fixes are insufficient unless paired with a clearly described mechanism change.
 6. Prefer the **mechanism-commit-innovation** operator whenever it is applicable. If you choose a different operator, explicitly justify why mechanism-commit is unsuitable for that child.
+7. Inside each rationale, explicitly add "ICML bar: <pass/fail + reason>" describing why reviewers would see it as top-tier or what is missing.
 
 STRICT OUTPUT: valid JSON with the following schema (do not wrap in Markdown):
 {{

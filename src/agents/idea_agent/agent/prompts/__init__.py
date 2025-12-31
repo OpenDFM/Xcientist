@@ -9,6 +9,8 @@ from agent.prompts.reference_grounding import REFERENCE_GROUNDING_PROMPT
 from agent.prompts.dataset_grounding import DATASET_GROUNDING_PROMPT
 from agent.prompts.algorithm_structuring import ALGORITHM_STRUCTURING_PROMPT
 from agent.prompts.algorithm_alignment import ALGORITHM_ALIGNMENT_PROMPT
+from agent.prompts.idea_introduction import IDEA_INTRODUCTION_PROMPT
+from agent.prompts.topic_background import TOPIC_BACKGROUND_PROMPT
 
 
 PROMPTS = {
@@ -23,4 +25,6 @@ PROMPTS = {
     "dataset_grounding": DATASET_GROUNDING_PROMPT,
     "algorithm_structuring": ALGORITHM_STRUCTURING_PROMPT,
     "algorithm_alignment": ALGORITHM_ALIGNMENT_PROMPT,
+    "idea_introduction": IDEA_INTRODUCTION_PROMPT,
+    "topic_background": TOPIC_BACKGROUND_PROMPT,
 }

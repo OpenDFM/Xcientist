@@ -254,7 +254,7 @@ class IdeaPaperAnalyzer:
         if not paper_ids or retry > self.max_retry:
             return
 
-        tasks: List[tuple[str, str]] = []
+        tasks: List[tuple[str, str, str]] = []
         for pid in paper_ids:
             markdown = self.parser.get_markdown(pid)
             if not markdown or markdown.strip() == "Fail to Get Content":
@@ -266,7 +266,8 @@ class IdeaPaperAnalyzer:
                 continue
             truncated = self.chat_agent.truncate_text(pid, markdown, self.allowed_tokens)
             prompt = PAPER_DEEP_READING.format(paper_markdown_text=truncated)
-            tasks.append((pid, prompt))
+            excerpt = markdown[:2000]
+            tasks.append((pid, prompt, excerpt))
 
         if not tasks:
             return
@@ -283,11 +284,21 @@ class IdeaPaperAnalyzer:
                 self.logger.error(
                     "Paper reading batch failed on attempt %d: %s", retry, exc
                 )
+            if retry >= self.max_retry:
+                self._store_fallback_keynotes(tasks)
+                return
             return self._read_and_cache(paper_ids, retry=retry + 1)
 
-        for (pid, _), response in zip(tasks, responses):
+        for (pid, _, excerpt), response in zip(tasks, responses):
             keynote = self._safe_extract_json(response)
             self.cache[pid] = {"paper_id": pid, "keynote": keynote}
+
+    def _store_fallback_keynotes(self, tasks: List[tuple[str, str, str]]) -> None:
+        for pid, _, excerpt in tasks:
+            self.cache[pid] = {
+                "paper_id": pid,
+                "keynote": self._fallback_keynote(pid, excerpt),
+            }
 
     def _safe_extract_json(self, text: str) -> Dict[str, object]:
         try:
@@ -299,3 +310,15 @@ class IdeaPaperAnalyzer:
                     "Falling back to raw response for keynote due to parse error."
                 )
             return {"raw_response": text.strip()[:2000]}
+
+    def _fallback_keynote(self, paper_id: str, excerpt: str) -> Dict[str, object]:
+        preview = (excerpt or "").strip()
+        if not preview:
+            preview = "Markdown unavailable or parsing failed."
+        return {
+            "tldr": (
+                "LLM summarization unavailable due to API errors; using markdown excerpt."
+            ),
+            "paper_id": paper_id,
+            "excerpt": preview,
+        }
