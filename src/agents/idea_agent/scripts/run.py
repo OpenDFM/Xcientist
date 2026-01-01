@@ -4,7 +4,7 @@ import os
 import re
 import sys
 import traceback
-import uuid
+from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence
@@ -57,6 +57,7 @@ def _run_topic(topic: str, max_turn: int, output_root: str, run_id: str, include
         filename="ligagent.log",
         include_console=include_console,
         include_timestamp=False,
+        force_reinit=True,
     )
     logger = get_logger()
     logger.info("========================================")
@@ -137,7 +138,8 @@ def main() -> None:
     futures = {}
     with ProcessPoolExecutor(max_workers=parallelism) as executor:
         for topic in topics:
-            run_id = f"{_slugify(topic)}-{uuid.uuid4().hex[:6]}"
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            run_id = f"{_slugify(topic)}-{timestamp}"
             future = executor.submit(
                 _run_topic,
                 topic,

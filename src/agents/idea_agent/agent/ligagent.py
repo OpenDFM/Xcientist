@@ -5,6 +5,8 @@ logger.info("🤖 Initializing LigAgent...")
 from typing import Any, Dict, Literal, List, Optional, Union
 from pathlib import Path
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+import uuid
 from agent.tools import TOOLS
 from agent.memory import MEMORY_FORMAT, memory_init
 from agent.prompts import PROMPTS
@@ -34,6 +36,7 @@ class LigAgent(AgentBase):
         survey_config_path = kwargs.pop("survey_config_path", None)
         run_dir = kwargs.pop("run_dir", None)
         idea_result_path = kwargs.pop("idea_result_path", None)
+        self.paper_enrichment_timeout = kwargs.pop("paper_enrichment_timeout", 180)
         super().__init__(*args, **kwargs)
         self.action_space = ["knowledge_aquisition", "advanced_analysis", "idea_generation", "idea_evaluation", "re_analysis_replan"]
         self.model = "mimo-v2-flash"
@@ -203,7 +206,7 @@ class LigAgent(AgentBase):
                             "source_keywords": search_keywords,
                         }
                         new_papers.append(paper_entry)
-                    self._enrich_papers_with_content(new_papers)
+                    self._safely_enrich_papers_with_content(new_papers)
                     step = (
                         f"\nIn this knowledge_aquisition action, I acquired {len(papers)} papers "
                         f"about '{search_keywords}' and fetched their parsed + summarized content."
@@ -233,6 +236,58 @@ class LigAgent(AgentBase):
             return step
     def _enrich_papers_with_content(self, papers: List[Dict[str, Any]]) -> None:
         enrich_papers_with_content(papers, self.paper_repository, self.memory, logger)
+
+    def _safely_enrich_papers_with_content(self, papers: List[Dict[str, Any]]) -> None:
+        if not papers:
+            return
+        timeout = max(30, int(self.paper_enrichment_timeout or 0))
+        executor = ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(self._enrich_papers_with_content, papers)
+        try:
+            future.result(timeout=timeout)
+        except FuturesTimeoutError:
+            future.cancel()
+            logger.warning(
+                "⚠️ Paper enrichment exceeded %ss. Falling back to lightweight summaries.",
+                timeout,
+            )
+            self._fallback_paper_summaries(papers, reason="timeout_fallback")
+        except Exception as exc:
+            logger.warning("⚠️ Paper enrichment failed: %s", exc)
+            self._fallback_paper_summaries(papers, reason="error_fallback")
+        finally:
+            executor.shutdown(wait=False)
+
+    def _fallback_paper_summaries(self, papers: List[Dict[str, Any]], reason: str) -> None:
+        storage = self.memory.setdefault("paper_contents", {})
+        for paper in papers:
+            if not isinstance(paper, dict):
+                continue
+            pid = paper.get("paper_id")
+            if not pid:
+                pid = f"fallback-{uuid.uuid4().hex}"
+                paper["paper_id"] = pid
+            if pid in storage and storage[pid].get("keynote"):
+                continue
+            fallback_text = (
+                paper.get("abstract")
+                or paper.get("title")
+                or paper.get("tldr")
+                or "No parsed content available yet."
+            )
+            keynote_data = {
+                "tldr": fallback_text,
+                "source": reason,
+            }
+            paper["keynote"] = keynote_data
+            paper["has_parsed_markdown"] = False
+            storage[pid] = {
+                "keynote": keynote_data,
+                "source_keywords": paper.get("source_keywords"),
+                "title": paper.get("title"),
+                "abstract": paper.get("abstract"),
+                "authors": paper.get("authors"),
+            }
 
     def _collect_paper_context_entries(self, limit: int = 6) -> List[Dict[str, Any]]:
         return collect_paper_context_entries(

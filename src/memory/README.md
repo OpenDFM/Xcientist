@@ -1,4 +1,23 @@
+## Local Package Imports
+
+Some modules are designed to be imported as standalone packages. Run the editable installs once per environment so Python can resolve `agents` and `memory` without tweaking `PYTHONPATH`.
+
+```bash
+python -m pip install -e .
+```
+
+Example usage after installation:
+
+```python
+# memory package (driven by src/memory/setup.py)
+from memory.memory_system.vectorstore import VectorStore
+```
+
+These setups keep the repository as the single source of truth while letting interactive sessions or downstream tools import the project modules directly.
+
 # 🧪 Test Progress
+
+At 2026.1.1, we finish the whole test and debug for MemPrism!
 
 # Slot (Short-term) API
 | Module / Test Item | Status |
@@ -31,8 +50,8 @@
 | update   | ✅ Debugged |
 | delete    | ✅ Debugged |
 | query | ✅ Debugged |
-| abstract_episodic_records | ❌ Not yet debugged |
-| upsert_abstract_semantic_records | ❌ Not yet debugged |
+| abstract_episodic_records | ✅ Debugged |
+| upsert_abstract_semantic_records | ✅ Debugged |
 | get_nearest_k_records    | ✅ Debugged |
 | save   | ✅ Debugged |
 | load  | ✅ Debugged |
@@ -43,8 +62,8 @@ The snippets below assume your OpenAI credentials are exported so that `SlotProc
 
 ### Shared setup
 ```python
-from api.slot_process_api import SlotProcess
-from memory_system import WorkingSlot
+from memory.api.slot_process_api import SlotProcess
+from memory.memory_system import WorkingSlot
 
 slot_process = SlotProcess()
 research_slot = WorkingSlot(
@@ -256,10 +275,10 @@ research_slot = WorkingSlot(
 - **`multi_thread_process(func, max_workers=5, **kwargs)`** – drive the entire short-term → long-term pipeline in one call. `func` must synchronously populate `slot_container` (for example, by calling `add_slot` after pulling context from an agent). Once the slots are buffered, the helper fans out filtering/routing and memory conversions with `_multi_thread_run`, stores the intermediate dicts in `memory_dict`, pushes the converted records into the configured FAISS stores, and finally prints the updated store sizes through the module-level `llm_client`. Because the routine references the global `args` namespace and the FAISS stores, make sure they are initialized before invoking it (the CLI wiring already does this).
   ```python
   from types import SimpleNamespace
-  import api.slot_process_api as slot_api
-  from api.slot_process_api import SlotProcess
-  from api.faiss_memory_system_api import FAISSMemorySystem
-  from memory_system import WorkingSlot
+  from memory.api import slot_process_api as slot_api
+  from memory.api.slot_process_api import SlotProcess
+  from memory.api.faiss_memory_system_api import FAISSMemorySystem
+  from memory.memory_system import WorkingSlot
 
   slot_process = SlotProcess()
 
@@ -310,7 +329,7 @@ All examples assume FAISS can write to disk (for save/load) and that the OpenAI 
 
 ### Shared setup
 ```python
-from api.faiss_memory_system_api import FAISSMemorySystem
+from memory.api.faiss_memory_system_api import FAISSMemorySystem
 
 semantic_store = FAISSMemorySystem(memory_type="semantic")
 episodic_store = FAISSMemorySystem(memory_type="episodic")
