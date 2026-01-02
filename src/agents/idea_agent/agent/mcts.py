@@ -24,6 +24,22 @@ from agents.idea_agent.utils.mcts_helpers import (
     format_edit_operators,
 )
 
+MAX_IDEA_TEXT = 800
+MAX_RATIONALE_TEXT = 600
+MAX_TITLE_TEXT = 256
+MAX_LIST_ENTRIES = 12
+MAX_REF_TEXT = 96
+ELLIPSIS = "..."
+
+
+def _clip_text(value: Any, limit: int = MAX_IDEA_TEXT) -> str:
+    text = "" if value is None else str(value).strip()
+    if limit <= 0:
+        return text
+    if len(text) <= limit:
+        return text
+    return text[: max(1, limit - 1)] + ELLIPSIS
+
 module_logger = get_logger()
 
 
@@ -343,6 +359,20 @@ class IdeaState:
     signature: str = field(init=False)
 
     def __post_init__(self) -> None:
+        self.title = _clip_text(self.title, MAX_TITLE_TEXT)
+        self.abstract = _clip_text(self.abstract, MAX_IDEA_TEXT)
+        self.core_contribution = _clip_text(self.core_contribution, MAX_IDEA_TEXT)
+        self.method = _clip_text(self.method, MAX_IDEA_TEXT)
+        self.experiments = _clip_text(self.experiments, MAX_IDEA_TEXT)
+        self.risks = _clip_text(self.risks, MAX_IDEA_TEXT)
+        self.rationale = _clip_text(self.rationale, MAX_RATIONALE_TEXT)
+        self.tags = [_clip_text(tag, 48) for tag in self.tags[:MAX_LIST_ENTRIES]]
+        self.target_defects = [
+            _clip_text(defect, 48) for defect in self.target_defects[:MAX_LIST_ENTRIES]
+        ]
+        self.memory_refs = [
+            _clip_text(ref, MAX_REF_TEXT) for ref in self.memory_refs[:MAX_LIST_ENTRIES]
+        ]
         canonical = "|".join(
             [
                 self.title.lower(),
@@ -395,6 +425,14 @@ class IdeaEvaluation:
     feedback: str
     defect_fix_summary: str
     lift_estimate: float
+
+    def __post_init__(self) -> None:
+        self.failure_modes = [
+            _clip_text(mode, 160) for mode in (self.failure_modes or [])[:MAX_LIST_ENTRIES]
+        ]
+        self.fairness_protocol = _clip_text(self.fairness_protocol, MAX_IDEA_TEXT)
+        self.feedback = _clip_text(self.feedback, MAX_IDEA_TEXT)
+        self.defect_fix_summary = _clip_text(self.defect_fix_summary, MAX_IDEA_TEXT)
 
     @classmethod
     def from_payload(cls, payload: Dict[str, Any]) -> "IdeaEvaluation":
@@ -464,6 +502,14 @@ class OperatorApplication:
     rationale: str
     memory_refs: List[str]
 
+    def __post_init__(self) -> None:
+        self.operator = _clip_text(self.operator, 80)
+        self.defects = [_clip_text(defect, 48) for defect in self.defects[:MAX_LIST_ENTRIES]]
+        self.rationale = _clip_text(self.rationale, MAX_RATIONALE_TEXT)
+        self.memory_refs = [
+            _clip_text(ref, MAX_REF_TEXT) for ref in self.memory_refs[:MAX_LIST_ENTRIES]
+        ]
+
 
 @dataclass
 class IdeaNode:
@@ -478,7 +524,6 @@ class IdeaNode:
     expanded: bool = False
     evaluation: Optional[IdeaEvaluation] = None
     latest_path_summary: str = ""
-    path_history: Dict[str, str] = field(default_factory=dict)
 
     def uct_value(self, parent_visits: int, exploration_constant: float) -> float:
         if self.visits == 0:
@@ -510,9 +555,9 @@ class IdeaNode:
 
 @dataclass
 class MCTSConfig:
-    max_iterations = 256
-    max_depth = 5
-    branching_factor: int = 4
+    max_iterations = 128
+    max_depth = 4
+    branching_factor: int = 3
     exploration_constant: float = 1.15
     generation_model: str = "mimo-v2-flash"
     evaluation_model: str = "mimo-v2-flash"
@@ -588,15 +633,25 @@ class MemoryGuidedMCTS:
             except Exception as exc:
                 self.logger.debug("⚠️  MCTS log sink failed: %s", exc)
 
+    def _reset_search_state(self) -> None:
+        """
+        Drop cached nodes/evaluations between searches so long-running agents
+        do not accumulate an ever-growing tree across topics.
+        """
+        self.signature_nodes = {}
+        self.evaluation_cache = {}
+        self.experience_cache.clear()
+        self.trace = []
+        self._id_iter = itertools.count()
+
     def search(self, topic: str, context: Dict[str, Any]) -> SearchResult:
+        self._reset_search_state()
         self.topic = topic
         self.analysis_blob = format_analysis_blob(context.get("analysis", []))
         self.paper_context = context.get("paper_context") or "No curated papers available yet."
         root_state = self._build_root_state(topic, context)
         root = self._new_node(root_state, depth=0, parent=None)
         experiences = []
-        self.trace = []
-        self.experience_cache.clear()
 
         for iteration in tqdm(range(self.config.max_iterations)):
             leaf, path = self._select(root)
@@ -689,7 +744,7 @@ class MemoryGuidedMCTS:
             steps.append(
                 f"{hop.state.title} [{hop.transformation.operator}] -> defects {defects}"
             )
-        return " | ".join(steps)
+        return _clip_text(" | ".join(steps), 1024)
 
     def _path_cache_key(self, signature: str, path_summary: str) -> str:
         raw = f"{signature}|{path_summary}"
@@ -895,7 +950,6 @@ class MemoryGuidedMCTS:
         if cached_evaluation:
             node.evaluation = cached_evaluation
             node.latest_path_summary = path_summary_text
-            node.path_history[path_key] = path_summary_text
             self._maybe_record_experience(path_key, node, cached_evaluation, path_summary_text, experiences)
             return cached_evaluation
 
@@ -914,6 +968,8 @@ class MemoryGuidedMCTS:
                 max_tokens=8192,
             )
             payload = parse_json_response(response)
+            if instance(payload, list):
+                payload = payload[0] # Sometimes returns a list of evaluations, we take the first one.
             evaluation = IdeaEvaluation.from_payload(payload)
         except Exception as exc:
             self._log("warning", "⚠️  Simulation failed: %s", exc)
@@ -922,7 +978,6 @@ class MemoryGuidedMCTS:
         self._cache_evaluation(node.state.signature, path_key, evaluation)
         node.evaluation = evaluation
         node.latest_path_summary = path_summary_text
-        node.path_history[path_key] = path_summary_text
 
         self._maybe_record_experience(path_key, node, evaluation, path_summary_text, experiences)
 

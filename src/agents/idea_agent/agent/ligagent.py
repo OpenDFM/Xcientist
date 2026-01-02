@@ -2,7 +2,7 @@ from agent.base import AgentBase
 from agent import get_logger
 logger = get_logger()
 logger.info("🤖 Initializing LigAgent...")
-from typing import Any, Dict, Literal, List, Optional, Union
+from typing import Any, Dict, Literal, List, Optional, Set, Union
 from pathlib import Path
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
@@ -30,6 +30,60 @@ import json
 import http.client
 
 class LigAgent(AgentBase):
+    ACTION_ALIASES: Dict[str, Set[str]] = {
+        "knowledge_aquisition": {
+            "knowledge_aquisition",
+            "knowledge aquisition",
+            "knowledge acquisition",
+            "knowledgeaquisition",
+            "knowledgeacquisition",
+            "knowledge-acquisition",
+        },
+        "advanced_analysis": {
+            "advanced_analysis",
+            "advanced analysis",
+            "advancedanalysis",
+            "advanced-analysis",
+        },
+        "idea_generation": {
+            "idea_generation",
+            "idea generation",
+            "ideageneration",
+            "idea-generation",
+        },
+        "idea_evaluation": {
+            "idea_evaluation",
+            "idea evaluation",
+            "ideaevaluation",
+            "idea-evaluation",
+        },
+        "re_analysis_replan": {
+            "re_analysis_replan",
+            "re analysis replan",
+            "reanalysisreplan",
+            "re-analysis-replan",
+        },
+    }
+    @staticmethod
+    def _sanitize_action_token(action: str) -> str:
+        return "".join(ch for ch in action.lower().strip() if ch.isalnum())
+
+    @classmethod
+    def _build_action_lookup(cls) -> Dict[str, str]:
+        lookup: Dict[str, str] = {}
+        for canonical, aliases in cls.ACTION_ALIASES.items():
+            for alias in aliases:
+                key = cls._sanitize_action_token(alias)
+                if key:
+                    lookup[key] = canonical
+        return lookup
+
+    def _canonical_action(self, action: Optional[str]) -> Optional[str]:
+        if not action:
+            return None
+        sanitized = self._sanitize_action_token(action)
+        return self._action_lookup.get(sanitized)
+
     def __init__(self, *args, **kwargs):
         chat_max_retries = kwargs.pop("chat_max_retries", 3)
         chat_retry_backoff = kwargs.pop("chat_retry_backoff", 2.0)
@@ -37,8 +91,10 @@ class LigAgent(AgentBase):
         run_dir = kwargs.pop("run_dir", None)
         idea_result_path = kwargs.pop("idea_result_path", None)
         self.paper_enrichment_timeout = kwargs.pop("paper_enrichment_timeout", 180)
+        action_selection_attempts = kwargs.pop("action_selection_attempts", 2)
         super().__init__(*args, **kwargs)
         self.action_space = ["knowledge_aquisition", "advanced_analysis", "idea_generation", "idea_evaluation", "re_analysis_replan"]
+        self.action_selection_attempts = max(1, action_selection_attempts)
         self.model = "mimo-v2-flash"
         self.tools = TOOLS
         self.memory = memory_init()
@@ -51,6 +107,7 @@ class LigAgent(AgentBase):
         self.idea_result_path.parent.mkdir(parents=True, exist_ok=True)
         self.chat_max_retries = chat_max_retries
         self.chat_retry_backoff = chat_retry_backoff
+        self._action_lookup = self._build_action_lookup()
         self.mcts = MemoryGuidedMCTS(
             chat_fn=self.chat,
             generation_prompt=PROMPTS["mcts_generation"],
@@ -82,38 +139,62 @@ class LigAgent(AgentBase):
         raise last_exc if last_exc else RuntimeError("Chat failed without exception detail.")
 
     def select_action(self, observation: Any) -> str:
-        prompt = PROMPTS["action_selection"].format(action_space=self.action_space, step=observation)
-        response = self.chat(prompt, model=self.model)
-        return response.lower().strip()
+        invalid_action: Optional[str] = None
+        for attempt in range(1, self.action_selection_attempts + 1):
+            template_key = "action_selection" if attempt == 1 else "action_retry"
+            template = PROMPTS.get(template_key, PROMPTS["action_selection"])
+            prompt = template.format(
+                action_space=self.action_space,
+                step=observation,
+                invalid_action=invalid_action or "",
+            )
+            response = self.chat(prompt, model=self.model)
+            resolved = self._canonical_action(response)
+            if resolved:
+                return resolved
+            invalid_action = response
+            logger.warning(
+                "⚠️ Invalid action '%s' (attempt %d/%d). Reminding agent of allowed actions.",
+                response,
+                attempt,
+                self.action_selection_attempts,
+            )
+        raise ValueError(
+            f"Unable to obtain a valid action after {self.action_selection_attempts} attempts (last response: {invalid_action})"
+        )
 
     def perform_action(self, action: str, **kwargs) -> Any:
         """
         Dispatch an action to the corresponding method, forwarding positional and keyword arguments.
         """
         logger.info(f"🚀 Performing action: {action}...")
+        resolved_action = self._canonical_action(action)
+        if not resolved_action:
+            raise ValueError(f"Unknown action: {action}")
+        action = resolved_action
 
-        if action in ["knowledge_aquisition", "knowledge aquisition"]:
+        if action == "knowledge_aquisition":
             logger.info("🔍 Due to API and web request rate limits, this process may take some time...")
             step = self.knowledge_aquisition(**kwargs)
             self.memory["steps"].append(step)
             logger.info(step)
             return step
-        if action in ["advanced_analysis", "advanced analysis"]:
+        if action == "advanced_analysis":
             step = self.advanced_analysis(**kwargs)
             self.memory["steps"].append(step)
             logger.info(step)
             return step
-        if action in ["idea_generation", "idea generation"]:
+        if action == "idea_generation":
             step = self.idea_generation(**kwargs)
             self.memory["steps"].append(step)
             logger.info(step)
             return step
-        if action in ["idea_evaluation", "idea evaluation"]:
+        if action == "idea_evaluation":
             step = self.idea_evaluation(**kwargs)
             self.memory["steps"].append(step)
             logger.info(step)
             return step
-        if action in ["re_analysis_replan", "re analysis replan"]:
+        if action == "re_analysis_replan":
             step = self.re_analysis_replan(**kwargs)
             self.memory["steps"].append(step)
             logger.info(step)

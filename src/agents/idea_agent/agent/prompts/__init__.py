@@ -1,4 +1,5 @@
 from agent.prompts.action_selection import ACTION_SELECTION_PROMPT
+from agent.prompts.action_retry import ACTION_RETRY_PROMPT
 from agent.prompts.advanced_analysis import ADVANCED_ANALYSIS_PROMPT
 from agent.prompts.idea_generation import IDEA_GENERATION_PROMPT
 from agent.prompts.idea_evaluation import IDEA_EVALUATION_PROMPT
@@ -15,6 +16,7 @@ from agent.prompts.topic_background import TOPIC_BACKGROUND_PROMPT
 
 PROMPTS = {
     "action_selection": ACTION_SELECTION_PROMPT,
+    "action_retry": ACTION_RETRY_PROMPT,
     "advanced_analysis": ADVANCED_ANALYSIS_PROMPT,
     "idea_generation": IDEA_GENERATION_PROMPT,
     "idea_evaluation": IDEA_EVALUATION_PROMPT,

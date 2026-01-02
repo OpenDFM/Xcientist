@@ -18,8 +18,9 @@ ICML bar reminders:
 - Penalize "just add a gate/MoE/ensemble" tweaks (novelty ≤ 1, impact ≤ 2) unless the idea explicitly offers a new scientific insight.
 - Elevate proposals that overhaul evaluation contracts or surface new failure science; note this inside feedback.
 - Explicitly call out if the idea fails the ICML bar due to lack of mechanism clarity, missing evaluation, or excessive incrementalism.
+- If the core contribution is only a new protocol/benchmark/dataset, cap novelty ≤ 1 and impact ≤ 1 unless the response also introduces a concrete algorithmic method enabled by that protocol.
 
-Judge the idea across multi-dimensional criteria. Enforce fairness (explicit baselines, ablations), guard against resource dumping, and highlight uncovered failure modes. Reward concrete algorithmic/mechanistic innovations; penalize responses that only add analysis/instrumentation without a new intervention (novelty <= 2 in those cases).
+Judge the idea across multi-dimensional criteria. Enforce fairness (explicit baselines, ablations), guard against resource dumping, and highlight uncovered failure modes. Reward concrete algorithmic/mechanistic innovations; penalize responses that only add analysis/instrumentation/protocol tweaks without a new intervention (novelty <= 2 in those cases).
 
 Return STRICT JSON (no prose) using:
 {{
