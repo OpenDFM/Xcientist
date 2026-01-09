@@ -12,6 +12,9 @@ build/
 src/agents/experiment_agent/workspaces/
 src/agents/experiment_agent/workspace/
 
+# Paper Agent - 排除工作空间
+src/agents/paper_agent/workspaces/
+
 # Idea Agent - 清除检索缓存
 src/agents/idea_agent/cache/
 
