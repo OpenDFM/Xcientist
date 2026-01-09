@@ -6,6 +6,7 @@ MEMORY_FORMAT = {
     "background_knowledge": List[str], # list of background knowledge strings
     "analysis":  List[str], # list of analysis strings
     "references": List[dict], # list of reference dicts
+    "paper_contents": dict, # mapping from paper_id -> parsed content metadata
     "idea_pool": List[str], # list of research ideas
     "dialogue": dict, # dialogue history
     "steps": List[str], # list of steps taken
@@ -22,9 +23,9 @@ def memory_init() -> dict:
         "idea_pool": [],
         "evaluations": [],
         "retrieval_keywords": [],
+        "paper_contents": {},
         "dialogue": {},
         "steps": [],
         "memory_structure": {}
     }
     return memory
-

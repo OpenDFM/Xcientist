@@ -18,28 +18,32 @@ def init_logger(
     level: int = logging.INFO,
     include_console: bool = True,
     include_timestamp: bool = True,
-    timestamp_format: str = "%Y%m%d_%H%M%S"
+    timestamp_format: str = "%Y%m%d_%H%M%S",
+    force_reinit: bool = False,
 ) -> logging.Logger:
     """
-    Initialize a process-wide global logger. Safe to call multiple times.
+    Initialize or re-configure the process-wide logger.
     - Rotating file handler (5MB, 5 backups)
     - Optional console handler
     - Optional timestamp appended to filename (before file extension)
+    - Set force_reinit=True to rebuild handlers even if the logger already exists.
     """
     global _logger
-    if _logger is not None:
-        _logger.setLevel(level)
-        return _logger
-
-    logger = logging.getLogger(_LOGGER_NAME)
+    logger = _logger or logging.getLogger(_LOGGER_NAME)
     logger.setLevel(level)
     logger.propagate = False
 
-    if not logger.handlers:
+    if force_reinit or not logger.handlers:
+        for handler in list(logger.handlers):
+            try:
+                handler.close()
+            except Exception:
+                pass
+            logger.removeHandler(handler)
+
         resolved_log_dir = log_dir or _DEFAULT_LOG_DIR
         os.makedirs(resolved_log_dir, exist_ok=True)
 
-        # append timestamp before extension if requested
         if include_timestamp:
             name, ext = os.path.splitext(filename)
             if not ext:
@@ -72,5 +76,9 @@ def init_logger(
 def get_logger() -> logging.Logger:
     global _logger
     if _logger is None:
-        return init_logger()
+        logger = logging.getLogger(_LOGGER_NAME)
+        logger.setLevel(logging.INFO)
+        if not logger.handlers:
+            logger.addHandler(logging.NullHandler())
+        _logger = logger
     return _logger

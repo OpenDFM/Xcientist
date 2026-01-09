@@ -1,0 +1,39 @@
+{
+  "compile_success": true,
+  "main_tex_used": "main.tex",
+  "main_tex_attempts": [
+    "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_min/paper/main.tex"
+  ],
+  "toolchain": "tectonic",
+  "return_code": 0,
+  "elapsed_sec": 0.37480831146240234,
+  "pdf_path": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_min/artifacts/compile/main.pdf",
+  "logs": {
+    "stdout": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_min/artifacts/compile/compile.stdout.txt",
+    "stderr": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_min/artifacts/compile/compile.stderr.txt",
+    "latex_log": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_min/artifacts/compile/main.log"
+  },
+  "issues": {
+    "missing_files": [],
+    "undefined_citations": [],
+    "undefined_references": [],
+    "overfull_hbox": [],
+    "errors": [],
+    "warnings": []
+  },
+  "vlm_layout_review": {
+    "success": false,
+    "reviewed_pages": [
+      1
+    ],
+    "findings": [],
+    "render": {
+      "success": true,
+      "rendered_pages": [
+        "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_min/artifacts/pdf_pages/page_001.png"
+      ],
+      "total_pages": 1
+    },
+    "error": "VLM backend not configured (set PAPER_AGENT_VLM_* and implement caller)."
+  }
+}

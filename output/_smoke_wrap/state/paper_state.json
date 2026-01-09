@@ -1,0 +1,17 @@
+{
+  "run_name": "_smoke_wrap",
+  "paths": {
+    "template_dir": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/_tmp_template_min_wrap",
+    "paper_dir": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_wrap/paper",
+    "artifact_dir": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_wrap/artifacts",
+    "idea_md": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/experiment_agent/workspaces/pinn/idea.md",
+    "project_dir": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/experiment_agent/workspaces/pinn",
+    "specs_dir": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_wrap/specs"
+  },
+  "status": {
+    "initialized": true,
+    "compiled_once": false,
+    "architect_ran": false,
+    "writer_ran": false
+  }
+}

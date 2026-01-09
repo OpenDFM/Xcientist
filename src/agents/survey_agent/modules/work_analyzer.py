@@ -2,10 +2,10 @@ from typing import List
 import os
 import pickle
 from typing import Dict
-from utils.api_call import ChatAgent, SemanticScholarAPI
-from utils.utils import get_hash, extract_json
+from agents.survey_agent.utils.api_call import ChatAgent, SemanticScholarAPI
+from agents.survey_agent.utils.utils import get_hash, extract_json
 import diskcache as dc
-from modules.pe import (
+from agents.survey_agent.modules.pe import (
     PAPER_DEEP_READING,
     PAPER_CLUSTERING,
     PROPOSE_QUESTIONS_FOR_CLUSTER,
@@ -14,7 +14,7 @@ from modules.pe import (
 )
 import hdbscan
 from sentence_transformers import SentenceTransformer
-from utils.rich_logger import get_logger
+from agents.survey_agent.utils.rich_logger import get_logger
 import math
 
 

@@ -1,0 +1,46 @@
+{
+  "run_name": "_smoke_full",
+  "paths": {
+    "template_dir": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/_tmp_template_min3",
+    "paper_dir": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_full/paper",
+    "artifact_dir": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_full/artifacts",
+    "idea_md": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/experiment_agent/workspaces/pinn/idea.md",
+    "project_dir": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/experiment_agent/workspaces/pinn",
+    "specs_dir": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_full/specs"
+  },
+  "status": {
+    "initialized": true,
+    "compiled_once": true,
+    "architect_ran": false,
+    "writer_ran": false
+  },
+  "last_compile": {
+    "compile_success": true,
+    "main_tex_used": "main.tex",
+    "main_tex_attempts": [
+      "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_full/paper/main.tex"
+    ],
+    "toolchain": "tectonic",
+    "return_code": 0,
+    "elapsed_sec": 0.6258716583251953,
+    "pdf_path": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_full/artifacts/compile/main.pdf",
+    "logs": {
+      "stdout": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_full/artifacts/compile/compile.stdout.txt",
+      "stderr": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_full/artifacts/compile/compile.stderr.txt",
+      "latex_log": "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/output/_smoke_full/artifacts/compile/main.log"
+    },
+    "issues": {
+      "missing_files": [],
+      "undefined_citations": [],
+      "undefined_references": [],
+      "overfull_hbox": [],
+      "errors": [],
+      "warnings": []
+    },
+    "vlm_layout_review": {
+      "success": false,
+      "skipped": true,
+      "reason": "vlm_mode=compile_only"
+    }
+  }
+}

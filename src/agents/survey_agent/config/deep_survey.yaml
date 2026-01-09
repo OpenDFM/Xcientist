@@ -7,9 +7,9 @@ BasicInfo:
   evaluation_save_path: ./outputs/vit_evaluation.txt
   debug: True
 APIInfo:
-  llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f
-  llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
-  llm_model_name: gpt-4o-mini
+  llm_api_key: sk-ccvbi9mee9jjkgu6sunujtrcnk8lu78hxqya9en30o4gr56z
+  llm_api_base_url: https://api.xiaomimimo.com/v1/chat/completions
+  llm_model_name: mimo-v2-flash
   llm_max_context_length: 128000
   llm_max_context_overhead_length: 20000
   batch_chat_agent_worker: 4
@@ -20,7 +20,7 @@ ModuleInfo:
     max_seed_paper_num: 5
     reference_graph_depth: 1
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
-    sentence_transformer_batch_size: 32
+    sentence_transformer_batch_size: 16
     related_work_top_k: 20  # for debug
     log_related_work_num: -1 # set to -1 to log all
     related_work_threshold: 0.6
@@ -53,7 +53,7 @@ ModuleInfo:
     outline_max_error_info_length: 500
     llm_max_context_overhead_length_generation: 30000
   Judge:
-    model: gpt-4o-mini
+    model: mimo-v2-flash
     nli_temperature: 0.1
     citation_quality_threshold: 0.5
     rubrics_eval: True
