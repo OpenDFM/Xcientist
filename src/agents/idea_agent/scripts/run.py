@@ -1,22 +1,23 @@
 import os
 import sys
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agent.ligagent import LigAgent
 from agent import init_logger, get_logger
 import time
 
 
-
-
 if __name__ == "__main__":
     # 初始化全局日志
-    init_logger(filename='01.log')
+    init_logger(filename="01.log")
     logger = get_logger()
-    
+
     agent = LigAgent()
     agent.memory["topic"].append("Physics-Informed Neural Networks.")
     agent.memory["retrieval_keywords"].append(agent.memory["topic"][-1])
-    agent.memory["background_knowledge"].append("Physics-Informed Neural Networks (PINNs) are a class of neural models that incorporate physical laws directly into the training process. The key idea is to embed governing equations—such as differential equations, conservation laws, and initial or boundary conditions—into the loss function so that the network not only fits observational data but also satisfies the underlying physics.")
+    agent.memory["background_knowledge"].append(
+        "Physics-Informed Neural Networks (PINNs) are a class of neural models that incorporate physical laws directly into the training process. The key idea is to embed governing equations—such as differential equations, conservation laws, and initial or boundary conditions—into the loss function so that the network not only fits observational data but also satisfies the underlying physics."
+    )
     logger.info("========================================")
     logger.info("🤖 Hello, I am LigAgent!")
     logger.info(f"💡 The research topic is {agent.memory['topic'][-1]}")
@@ -46,4 +47,4 @@ if __name__ == "__main__":
             # update memory
     except (Exception, KeyboardInterrupt) as e:
         logger.info(agent.memory)
-        
+        logger.exception(e)

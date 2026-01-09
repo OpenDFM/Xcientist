@@ -1,15 +1,13 @@
 """
-Experiment Architect Agent - Experiment Design
+Experiment Architect Agent (Science) - Spec-Coding Docs Authoring
 
-Based on the paper "Towards a Science of Scaling Agent Systems":
-- Handles the "high sequential dependency" phase of experiment design
-- Uses the strongest model available for global consistency
-- Outputs a detailed ExperimentPlan
+In Science layer, the Architect is responsible for producing iteration documents
+(spec.md/plan_v###.md/tasks_v###.md) in Markdown, not JSON.
 """
 
 import logging
 import os
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 
 from src.agents.experiment_agent.layers.base.agent import BaseAgent, PromptBuilder
 from src.agents.experiment_agent.layers.science.schemas.experiment import (
@@ -19,7 +17,7 @@ from src.agents.experiment_agent.layers.science.schemas.experiment import (
 from src.agents.experiment_agent.layers.code.schemas.blueprint import Blueprint
 from src.agents.experiment_agent.layers.code.schemas.manifest import CodeManifest
 from src.agents.experiment_agent.layers.code.schemas.proposal import Proposal
-from src.agents.experiment_agent.shared.tools.core import get_architect_tools
+from src.agents.experiment_agent.shared.tools.core import get_science_architect_tools
 from src.agents.experiment_agent.shared.tools.parsing import (
     extract_json_from_llm_output,
 )
@@ -51,7 +49,66 @@ class ExpArchitectAgent(BaseAgent):
         )
 
     def _get_tools(self) -> List:
-        return get_architect_tools()
+        return get_science_architect_tools()
+
+    async def write_iteration_docs(
+        self,
+        manifest: CodeManifest,
+        proposal: Proposal,
+        code_blueprint: Optional[Blueprint] = None,
+        project_root: Optional[str] = None,
+        previous_results: Optional[List[Any]] = None,
+        experiment_id: Optional[str] = None,
+        dataset_dir: Optional[str] = None,
+        doc_paths: Optional[Dict[str, str]] = None,
+    ) -> None:
+        """
+        Write Science iteration docs in Markdown.
+
+        Contract:
+        - Writes spec/plan/tasks to the absolute paths provided via doc_paths.
+        - Does NOT return JSON; orchestrator should validate files exist.
+        """
+        effective_project_root = project_root or manifest.project_root
+        blueprint = code_blueprint
+        project_skeleton = self._build_project_skeleton(blueprint) if blueprint else ""
+
+        system_prompt = self._build_system_prompt(
+            manifest=manifest,
+            project_root=effective_project_root,
+            project_skeleton=project_skeleton,
+            experiment_id=experiment_id,
+            dataset_dir=dataset_dir,
+            doc_paths=doc_paths,
+        )
+        user_prompt = self._build_user_prompt(
+            manifest=manifest,
+            proposal=proposal,
+            project_skeleton=project_skeleton,
+            previous_results=previous_results,
+            experiment_id=experiment_id,
+            dataset_dir=dataset_dir,
+            doc_paths=doc_paths,
+        )
+        _ = await self._run_agent(
+            user_prompt=user_prompt,
+            system_prompt=system_prompt,
+            tools=self._get_tools(),
+        )
+
+        # Best-effort validation that required files exist.
+        paths = doc_paths or {}
+        required = [
+            str(paths.get("spec_out_path") or ""),
+            str(paths.get("plan_out_path") or ""),
+            str(paths.get("tasks_out_path") or ""),
+        ]
+        missing = [p for p in required if p and (not os.path.exists(p))]
+        if missing:
+            raise FileNotFoundError(
+                "Science Architect did not write required doc files: "
+                + ", ".join(missing)
+            )
 
     async def design_experiments(
         self,
@@ -62,6 +119,7 @@ class ExpArchitectAgent(BaseAgent):
         previous_results: Optional[List[Any]] = None,
         experiment_id: Optional[str] = None,
         dataset_dir: Optional[str] = None,
+        doc_paths: Optional[Dict[str, str]] = None,
     ) -> ExperimentPlan:
         """
         Design a comprehensive experiment plan.
@@ -92,6 +150,7 @@ class ExpArchitectAgent(BaseAgent):
             project_skeleton=project_skeleton,
             experiment_id=experiment_id,
             dataset_dir=dataset_dir,
+            doc_paths=doc_paths,
         )
         user_prompt = self._build_user_prompt(
             manifest=manifest,
@@ -100,6 +159,7 @@ class ExpArchitectAgent(BaseAgent):
             previous_results=previous_results,
             experiment_id=experiment_id,
             dataset_dir=dataset_dir,
+            doc_paths=doc_paths,
         )
 
         # Run agent
@@ -178,6 +238,7 @@ class ExpArchitectAgent(BaseAgent):
         """Build the system prompt for the experiment architect agent."""
         dataset_dir = kwargs.get("dataset_dir")
         experiment_id = kwargs.get("experiment_id")
+        doc_paths: Dict[str, str] = kwargs.get("doc_paths") or {}
 
         scripts_info = ""
         if manifest and manifest.scripts:
@@ -220,21 +281,39 @@ Let the observed formats/splits drive the data loading commands and evaluation c
                     dataset_context_str.strip("\n") if dataset_context_str else ""
                 ),
                 "workspace_root": str(workspace_root),
-                "constitution_path": (
-                    str(os.path.join(workspace_root, "cached", "constitution.md"))
-                    if workspace_root
-                    else ""
+                "constitution_path": str(
+                    doc_paths.get("constitution_path")
+                    or (
+                        os.path.join(workspace_root, "cached", "constitution.md")
+                        if workspace_root
+                        else ""
+                    )
                 ),
-                "spec_path": (
-                    str(os.path.join(workspace_root, "specs", "spec.md"))
-                    if workspace_root
-                    else ""
+                "idea_path": str(doc_paths.get("idea_path") or ""),
+                "spec_path": str(
+                    doc_paths.get("spec_path")
+                    or (
+                        os.path.join(workspace_root, "specs", "spec.md")
+                        if workspace_root
+                        else ""
+                    )
                 ),
-                "plan_path": (
-                    str(os.path.join(workspace_root, "specs", "plan.md"))
-                    if workspace_root
-                    else ""
+                "plan_path": str(
+                    doc_paths.get("plan_path")
+                    or (
+                        os.path.join(workspace_root, "specs", "plan.md")
+                        if workspace_root
+                        else ""
+                    )
                 ),
+                "tasks_path": str(doc_paths.get("tasks_path") or ""),
+                "prev_plan_path": str(doc_paths.get("prev_plan_path") or ""),
+                "prev_tasks_path": str(doc_paths.get("prev_tasks_path") or ""),
+                "prev_report_path": str(doc_paths.get("prev_report_path") or ""),
+                "prev_feedback_path": str(doc_paths.get("prev_feedback_path") or ""),
+                "spec_out_path": str(doc_paths.get("spec_out_path") or ""),
+                "plan_out_path": str(doc_paths.get("plan_out_path") or ""),
+                "tasks_out_path": str(doc_paths.get("tasks_out_path") or ""),
                 "project_root": str(project_root),
                 "entry_point": str(entry_point),
                 "config_file": str(config_file),
@@ -255,6 +334,7 @@ Let the observed formats/splits drive the data loading commands and evaluation c
         builder = PromptBuilder()
         experiment_id = kwargs.get("experiment_id")
         dataset_dir = kwargs.get("dataset_dir")
+        doc_paths: Dict[str, str] = kwargs.get("doc_paths") or {}
 
         if experiment_id or dataset_dir:
             builder.add_header("Runtime Context", level=2)
@@ -269,6 +349,20 @@ Let the observed formats/splits drive the data loading commands and evaluation c
         builder.add_header("Research Proposal")
         builder.add_section("Title", proposal.idea.title)
         builder.add_section("Description", proposal.idea.description)
+        if doc_paths:
+            builder.add_header("Science Doc Paths (absolute; write to these)", level=2)
+            for k in [
+                "idea_path",
+                "spec_out_path",
+                "plan_out_path",
+                "tasks_out_path",
+                "prev_plan_path",
+                "prev_tasks_path",
+                "prev_report_path",
+                "prev_feedback_path",
+            ]:
+                if doc_paths.get(k):
+                    builder.add_text(f"- **{k}**: `{doc_paths.get(k)}`")
 
         builder.add_header("Key Innovations to Validate", level=2)
         builder.add_list(proposal.idea.key_innovations, ordered=True)
@@ -309,6 +403,13 @@ Let the observed formats/splits drive the data loading commands and evaluation c
         else:
             builder.add_separator()
             builder.add_header("Your Task", level=2)
+            builder.add_text(
+                "**IMPORTANT**: Dataset files are located in `<workspace>/dataset_candidate/` directory."
+            )
+            builder.add_text(
+                "**GPU Usage**: If experiments need GPU, design commands that first check `nvidia-smi` for GPU memory, then set CUDA_VISIBLE_DEVICES to use the GPU with most available memory."
+            )
+            builder.add_text("")
             builder.add_list(
                 [
                     "If `Dataset Directory` is provided, inspect it first with 1-2 tool calls and let the observed data format drive the experiment design",

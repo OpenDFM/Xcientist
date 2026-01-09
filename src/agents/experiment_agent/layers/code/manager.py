@@ -10,6 +10,7 @@ Based on the paper "Towards a Science of Scaling Agent Systems":
 
 import os
 import logging
+from pathlib import Path
 from typing import List, Dict, Optional, Set
 
 from src.agents.experiment_agent.layers.base.manager import BaseManager, TaskWrapper
@@ -34,6 +35,10 @@ from src.agents.experiment_agent.shared.tools.core import (
     validate_code_against_spec,
     run_linter,
     extract_interface_stub,
+)
+from src.agents.experiment_agent.shared.utils.memory_middleware import (
+    set_code_worker_memory_context,
+    writeback_current_task_async,
 )
 
 
@@ -205,9 +210,10 @@ class CodeManagerAgent(BaseManager[FileSpec, str]):
                         )
                         continue
 
-                    stub_result = extract_interface_stub(full_path)
-                    if stub_result["success"]:
-                        self.completed_files[task_id] = stub_result["stub"]
+                    if str(task_id or "").endswith(".py"):
+                        stub_result = extract_interface_stub(full_path)
+                        if stub_result["success"]:
+                            self.completed_files[task_id] = stub_result["stub"]
 
                 if bad_completed:
                     self._log_info(
@@ -270,118 +276,194 @@ class CodeManagerAgent(BaseManager[FileSpec, str]):
         # Create worker
         worker = self._create_worker()
 
-        while wrapper.attempts < wrapper.max_attempts:
-            wrapper.attempts += 1
-            print(f"\n  [Attempt {wrapper.attempts}/{wrapper.max_attempts}]")
+        with set_code_worker_memory_context(
+            project_root=self.project_root,
+            target_file_path=file_spec.file_path,
+            purpose=file_spec.description,
+            dependencies=list(getattr(file_spec, "dependencies", []) or []),
+            feedback=str(wrapper.last_error or ""),
+        ):
+            while wrapper.attempts < wrapper.max_attempts:
+                wrapper.attempts += 1
+                print(f"\n  [Attempt {wrapper.attempts}/{wrapper.max_attempts}]")
 
-            # Prepare feedback
-            feedback = ""
-            if wrapper.last_error:
-                feedback = f"Previous attempt failed: {wrapper.last_error}"
+                # Prepare feedback for the worker prompt (may change per attempt).
+                feedback = ""
+                if wrapper.last_error:
+                    feedback = f"Previous attempt failed: {wrapper.last_error}"
 
-            # Dispatch to worker (implementation only; fix is handled by the Integrator).
-            try:
-                result = await worker.run_task(
-                    file_spec=file_spec,
-                    stub_context=stub_context,
-                    project_root=self.project_root,
-                    idea_md_path=self.idea_md_path,
-                    feedback=feedback,
-                )
-            except Exception as e:
-                error_str = str(e)
-                wrapper.last_error = f"Worker error: {error_str}"
-                print(f"  ❌ Worker failed: {e}")
-
-                exit_on_rate_limit(error_str)
-
-                continue
-
-            full_path = os.path.join(self.project_root, file_spec.file_path)
-            if not os.path.exists(full_path):
-                # Fallback: try to extract code from worker output and write it ourselves.
+                # Dispatch to worker (implementation only; fix is handled by the Integrator).
                 try:
-                    code_fallback = worker._extract_code_from_result(
-                        result, file_spec=file_spec, project_root=self.project_root
+                    result = await worker.run_task(
+                        file_spec=file_spec,
+                        stub_context=stub_context,
+                        project_root=self.project_root,
+                        idea_md_path=self.idea_md_path,
+                        feedback=feedback,
                     )
                 except Exception as e:
-                    code_fallback = ""
-                    wrapper.last_error = f"Worker did not write the file to disk; fallback extraction failed: {e}"
-
-                if not code_fallback.strip() or code_fallback.lstrip().startswith(
-                    "# Error:"
-                ):
-                    wrapper.last_error = "Worker did not write the file to disk."
-                    print(f"  ❌ Missing file on disk: {file_spec.file_path}")
+                    error_str = str(e)
+                    wrapper.last_error = f"Worker error: {error_str}"
+                    print(f"  ❌ Worker failed: {e}")
+                    exit_on_rate_limit(error_str)
                     continue
 
-                # Write fallback code to disk and proceed with normal validation.
-                print(
-                    f"  ⚠ Missing file on disk; writing fallback code: {file_spec.file_path}"
-                )
-                self._write_file(full_path, code_fallback)
+                full_path = os.path.join(self.project_root, file_spec.file_path)
 
-            try:
-                with open(full_path, "r", encoding="utf-8") as f:
-                    code = f.read()
-                print(f"  📖 Read code from disk: {file_spec.file_path}")
-            except Exception as e:
-                wrapper.last_error = f"Could not read file from disk: {e}"
-                print(f"  ❌ Could not read from disk: {e}")
-                continue
+                # NOTE: Some tasks may refer to binary artifacts (e.g. .npz). Those files should never be
+                # read as UTF-8 text (it will crash) and should never be rewritten by this code pipeline.
+                # If the artifact already exists on disk, we simply mark the task as completed.
+                binary_exts = {
+                    ".npz",
+                    ".npy",
+                    ".pt",
+                    ".pth",
+                    ".ckpt",
+                    ".bin",
+                    ".pkl",
+                    ".pickle",
+                    ".onnx",
+                    ".parquet",
+                    ".feather",
+                    ".arrow",
+                    ".sqlite",
+                    ".db",
+                    ".png",
+                    ".jpg",
+                    ".jpeg",
+                    ".gif",
+                    ".webp",
+                    ".pdf",
+                    ".zip",
+                    ".tar",
+                    ".gz",
+                    ".bz2",
+                    ".xz",
+                }
+                ext = str(Path(str(file_spec.file_path or "")).suffix).lower()
+                if ext in binary_exts:
+                    if not os.path.exists(full_path):
+                        wrapper.last_error = (
+                            "Binary artifact is missing on disk; "
+                            "this pipeline does not generate binary files as UTF-8 text."
+                        )
+                        print(
+                            f"  ❌ Missing binary artifact on disk: {file_spec.file_path}"
+                        )
+                        continue
 
-            is_python = str(file_spec.file_path or "").endswith(".py")
-            if is_python:
-                validation_result = validate_code_against_spec(code, file_spec)
-
-                if not validation_result["valid"]:
-                    wrapper.last_error = "; ".join(validation_result["errors"])
-                    print(f"  ❌ Validation failed: {wrapper.last_error}")
-                    continue
-
-                lint_result = run_linter(code=code)
-                if not lint_result.get("syntax_valid", True):
-                    wrapper.last_error = (
-                        f"Syntax error: {lint_result.get('syntax_error', 'Unknown')}"
+                    print(
+                        f"  📦 Binary artifact detected; skipped read/validation: {file_spec.file_path}"
                     )
-                    print(f"  ❌ Syntax error")
+                    self.mark_task_completed(file_spec.file_path, wrapper.attempts)
+                    try:
+                        await writeback_current_task_async(
+                            success=True, error="", final_output=""
+                        )
+                    except Exception:
+                        pass
+                    return True
+
+                if not os.path.exists(full_path):
+                    # Fallback: try to extract code from worker output and write it ourselves.
+                    try:
+                        code_fallback = worker._extract_code_from_result(
+                            result,
+                            file_spec=file_spec,
+                            project_root=self.project_root,
+                        )
+                    except Exception as e:
+                        code_fallback = ""
+                        wrapper.last_error = (
+                            "Worker did not write the file to disk; "
+                            f"fallback extraction failed: {e}"
+                        )
+
+                    if not code_fallback.strip() or code_fallback.lstrip().startswith(
+                        "# Error:"
+                    ):
+                        wrapper.last_error = "Worker did not write the file to disk."
+                        print(f"  ❌ Missing file on disk: {file_spec.file_path}")
+                        continue
+
+                    # Write fallback code to disk and proceed with normal validation.
+                    print(
+                        f"  ⚠ Missing file on disk; writing fallback code: {file_spec.file_path}"
+                    )
+                    self._write_file(full_path, code_fallback)
+
+                try:
+                    with open(full_path, "r", encoding="utf-8") as f:
+                        code = f.read()
+                    print(f"  📖 Read code from disk: {file_spec.file_path}")
+                except Exception as e:
+                    wrapper.last_error = f"Could not read file from disk: {e}"
+                    print(f"  ❌ Could not read from disk: {e}")
                     continue
-                print("  ✅ Validation passed")
-            else:
-                # Non-Python files (e.g., yaml/json/txt) should NOT be parsed with ast.
-                if not code.strip():
-                    wrapper.last_error = "File content is empty."
-                    print("  ❌ Empty non-Python file")
-                    continue
-                print("  ✅ Non-Python file - skipped Python validation")
 
-            # Success - write to disk
-            wrapper.result = code
-            full_path = os.path.join(self.project_root, file_spec.file_path)
-            self._write_file(full_path, code)
+                is_python = str(file_spec.file_path or "").endswith(".py")
+                if is_python:
+                    validation_result = validate_code_against_spec(code, file_spec)
 
-            # Store stub for future workers
-            if is_python:
-                stub_result = extract_interface_stub(full_path)
-                if stub_result["success"]:
-                    self.completed_files[file_spec.file_path] = stub_result["stub"]
+                    if not validation_result["valid"]:
+                        wrapper.last_error = "; ".join(validation_result["errors"])
+                        print(f"  ❌ Validation failed: {wrapper.last_error}")
+                        continue
 
-            # UPDATE TASK STATE (use base class method)
-            self.mark_task_completed(file_spec.file_path, wrapper.attempts)
+                    lint_result = run_linter(code=code)
+                    if not lint_result.get("syntax_valid", True):
+                        wrapper.last_error = f"Syntax error: {lint_result.get('syntax_error', 'Unknown')}"
+                        print("  ❌ Syntax error")
+                        continue
+                    print("  ✅ Validation passed")
+                else:
+                    # Non-Python files (e.g., yaml/json/txt) should NOT be parsed with ast.
+                    if not code.strip():
+                        wrapper.last_error = "File content is empty."
+                        print("  ❌ Empty non-Python file")
+                        continue
+                    print("  ✅ Non-Python file - skipped Python validation")
 
-            print(f"  ✅ Completed {file_spec.file_path}")
-            return True
+                # Success - write to disk
+                wrapper.result = code
+                self._write_file(full_path, code)
 
-        # Max attempts reached - mark as failed (use base class method)
-        self.mark_task_failed(
-            file_spec.file_path,
-            wrapper.attempts,
-            wrapper.last_error,
-        )
-        print(
-            f"  ❌ FAILED {file_spec.file_path} after {wrapper.max_attempts} attempts"
-        )
-        return False
+                # Store stub for future workers
+                if is_python:
+                    stub_result = extract_interface_stub(full_path)
+                    if stub_result["success"]:
+                        self.completed_files[file_spec.file_path] = stub_result["stub"]
+
+                # UPDATE TASK STATE (use base class method)
+                self.mark_task_completed(file_spec.file_path, wrapper.attempts)
+
+                print(f"  ✅ Completed {file_spec.file_path}")
+                try:
+                    await writeback_current_task_async(
+                        success=True, error="", final_output=code
+                    )
+                except Exception:
+                    pass
+                return True
+
+            # Max attempts reached - mark as failed (use base class method)
+            self.mark_task_failed(
+                file_spec.file_path,
+                wrapper.attempts,
+                wrapper.last_error,
+            )
+            print(
+                f"  ❌ FAILED {file_spec.file_path} after {wrapper.max_attempts} attempts"
+            )
+            try:
+                await writeback_current_task_async(
+                    success=False,
+                    error=str(wrapper.last_error or ""),
+                    final_output="",
+                )
+            except Exception:
+                pass
+            return False
 
     def _get_stub_context(self, file_spec: FileSpec, blueprint: Blueprint) -> str:
         """Generate "Stub Context" for a worker (Context Slicing)."""

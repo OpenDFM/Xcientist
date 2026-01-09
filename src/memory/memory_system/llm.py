@@ -3,6 +3,7 @@ import asyncio
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union, Protocol
 from openai import OpenAI
 
+
 class LLMClient(Protocol):
     async def complete(
         self,
@@ -10,12 +11,26 @@ class LLMClient(Protocol):
         user_prompt: str,
         max_tokens: int = 512,
         temperature: float = 0.0,
-        ) -> str:
-        ...
+    ) -> str: ...
+
 
 class OpenAIClient:
-    def __init__(self, model: str = "gpt-4.1-mini", client: Optional[OpenAI] = None) -> None:
-        self._client = client or OpenAI()
+    def __init__(
+        self,
+        model: str = "gpt-4.1-mini",
+        client: Optional[OpenAI] = None,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+    ) -> None:
+        if client is not None:
+            self._client = client
+        else:
+            kwargs = {}
+            if api_key:
+                kwargs["api_key"] = api_key
+            if base_url:
+                kwargs["base_url"] = base_url
+            self._client = OpenAI(**kwargs) if kwargs else OpenAI()
         self._model = model
 
     async def complete(
@@ -42,7 +57,7 @@ class OpenAIClient:
                 if attempt == max_retries:
                     raise last_error
                 # simple exponential backoff between attempts
-                delay = retry_delay * (2 ** attempt)
+                delay = retry_delay * (2**attempt)
                 if delay > 0:
                     await asyncio.sleep(delay)
 
@@ -64,19 +79,6 @@ class OpenAIClient:
 
         try:
             response = await asyncio.to_thread(
-                self._client.responses.create,
-                model=self._model,
-                input=messages,
-                max_output_tokens=max_tokens,
-                temperature=temperature,
-            )
-            if hasattr(response, "output_text"):
-                return response.output_text
-        except (AttributeError, TypeError) as exc:
-            last_error = exc
-
-        try:
-            response = await asyncio.to_thread(
                 self._client.chat.completions.create,
                 model=self._model,
                 messages=messages,
@@ -85,7 +87,7 @@ class OpenAIClient:
             )
             message = response.choices[0].message
             return message["content"] if isinstance(message, dict) else message.content
-        except AttributeError as exc:
+        except Exception as exc:
             last_error = last_error or exc
 
         try:

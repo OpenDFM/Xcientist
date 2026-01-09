@@ -1,12 +1,16 @@
 import asyncio
 
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union, Protocol
-from memory.memory_system.utils import new_id, dump_slot_json
+from src.memory.memory_system.utils import new_id, dump_slot_json
 from pydantic import BaseModel, Field, field_validator, validate_call
 from openai import OpenAI
 from textwrap import dedent
-from memory.memory_system.user_prompt import WORKING_SLOT_FILTER_USER_PROMPT, WORKING_SLOT_ROUTE_USER_PROMPT
-from memory.memory_system.llm import OpenAIClient, LLMClient
+from src.memory.memory_system.user_prompt import (
+    WORKING_SLOT_FILTER_USER_PROMPT,
+    WORKING_SLOT_ROUTE_USER_PROMPT,
+)
+from src.memory.memory_system.llm import OpenAIClient, LLMClient
+
 
 class SlotPayload(BaseModel):
     id: str = Field(default_factory=lambda: new_id("work"))
@@ -22,6 +26,7 @@ class SlotPayload(BaseModel):
         description="List of tags associated with the slot.",
     )
 
+
 class WorkingSlot(SlotPayload):
     def to_dict(self) -> Dict:
         return {
@@ -32,21 +37,36 @@ class WorkingSlot(SlotPayload):
             "attachments": self.attachments,
             "tags": self.tags,
         }
-    
+
     async def slot_filter(self, llm: LLMClient) -> bool:
         system_prompt = "You are a memory access reviewer. Only output 'yes' or 'no'."
-        user_prompt = WORKING_SLOT_FILTER_USER_PROMPT.format(slot_dump=dump_slot_json(self))
+        user_prompt = WORKING_SLOT_FILTER_USER_PROMPT.format(
+            slot_dump=dump_slot_json(self)
+        )
         out = await llm.complete(system_prompt, user_prompt)
+        if out is None:
+            # If the LLM call failed or returned nothing, do not promote this slot.
+            return False
+        out = str(out)
 
         if out.strip().lower() not in ["yes", "no"]:
-            raise ValueError(f"Invalid slot filter output: {out}")
+            # Be tolerant: invalid outputs should not crash writeback. Treat as "no".
+            return False
 
         return True if out.strip().lower() == "yes" else False
-    
-    async def slot_router(self, llm: LLMClient) -> Literal["semantic", "procedural", "episodic"]:
+
+    async def slot_router(
+        self, llm: LLMClient
+    ) -> Literal["semantic", "procedural", "episodic"]:
         system_prompt = "You are a memory type classifier. Only output legal string: 'semantic', 'procedural', or 'episodic'."
-        user_prompt = WORKING_SLOT_ROUTE_USER_PROMPT.format(slot_dump=dump_slot_json(self))
+        user_prompt = WORKING_SLOT_ROUTE_USER_PROMPT.format(
+            slot_dump=dump_slot_json(self)
+        )
         out = await llm.complete(system_prompt, user_prompt)
-        if out.strip() not in ["semantic", "procedural", "episodic"]:
-            raise ValueError(f"Invalid slot type: {out}")
+        if out is None:
+            # Conservative fallback: episodic captures context without over-generalizing.
+            return "episodic"
+        out = str(out).strip()
+        if out not in ["semantic", "procedural", "episodic"]:
+            return "episodic"
         return out

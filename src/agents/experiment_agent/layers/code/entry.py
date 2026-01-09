@@ -32,6 +32,11 @@ from src.agents.experiment_agent.shared.utils.config import (
     get_reference_repos,
     MAX_FIX_ITERATIONS,
 )
+from src.agents.experiment_agent.layers.code.docs import (
+    build_code_doc_paths,
+    snapshot_idea_to_cache,
+    sync_code_docs_to_specs,
+)
 from src.agents.experiment_agent.shared.utils.cache import Cache
 from src.agents.experiment_agent.layers.base.state import (
     StateManager,
@@ -126,10 +131,6 @@ def _sync_templates_into_workspace(
 
 async def run_code_generation_loop(
     experiment_id: str,
-    proposal_path: Optional[str] = None,
-    output_dir: Optional[str] = None,
-    extra_reference_repos: Optional[List[str]] = None,
-    skip_integration: bool = False,
     resume: bool = False,
     fresh: bool = False,
 ) -> Optional[CodeManifest]:
@@ -144,17 +145,16 @@ async def run_code_generation_loop(
         print(f"\n[CodeAgent: {experiment_id}]")
         paths = ensure_experiment_dirs(experiment_id)
 
-        if proposal_path is None:
-            proposal_path = paths["idea_input"]
-        if output_dir is None:
-            output_dir = paths["project_dir"]
+        proposal_path = paths["idea_input"]
+        output_dir = paths["project_dir"]
 
         workspace_root = paths["workspace_dir"]
         cache_dir = paths["cache_dir"]
         dataset_dir = paths.get("dataset_dir")
-        templates_dir = paths.get("templates_dir") or os.path.join(
-            workspace_root, "templates"
+        doc_paths = build_code_doc_paths(
+            workspace_root=workspace_root, cache_root=cache_dir, ensure=True
         )
+        templates_dir = doc_paths.templates_dir()
 
         reference_repos = get_reference_repos(experiment_id)
     else:
@@ -168,8 +168,10 @@ async def run_code_generation_loop(
         cache_dir = os.path.join(output_dir, ".cache")
         dataset_dir = None
         os.makedirs(output_dir, exist_ok=True)
-        templates_dir = os.path.join(workspace_root, "templates")
-        os.makedirs(templates_dir, exist_ok=True)
+        doc_paths = build_code_doc_paths(
+            workspace_root=workspace_root, cache_root=cache_dir, ensure=True
+        )
+        templates_dir = doc_paths.templates_dir()
 
     # Initialize cache
     Cache.initialize(cache_dir, enabled=True)
@@ -184,12 +186,6 @@ async def run_code_generation_loop(
 
             shutil.rmtree(output_dir)
             os.makedirs(output_dir, exist_ok=True)
-
-    # Add extra repos
-    if extra_reference_repos:
-        for repo in extra_reference_repos:
-            if repo not in reference_repos:
-                reference_repos.append(repo)
 
     # Initialize context
     ProjectContext.initialize(
@@ -216,7 +212,7 @@ async def run_code_generation_loop(
         return None
 
     # Spec/Plan (spec-kit-aligned source-of-truth)
-    constitution_path = paths.get("constitution_path") if experiment_id else ""
+    constitution_path = doc_paths.constitution_path() if experiment_id else ""
     if constitution_path and (not os.path.exists(constitution_path)):
         _write_text(constitution_path, DEFAULT_CONSTITUTION_MD)
 
@@ -227,107 +223,98 @@ async def run_code_generation_loop(
         fresh=bool(fresh),
     )
 
-    specs_dir = os.path.join(workspace_root, "specs")
-    os.makedirs(specs_dir, exist_ok=True)
-    spec_path = os.path.join(specs_dir, "spec.md")
-    plan_path = os.path.join(specs_dir, "plan.md")
+    # Code layer spec-coding source-of-truth lives in cache/code/
+    spec_path = doc_paths.spec_md()
+    plan_path = doc_paths.plan_md()
 
     constitution_md = _read_text(constitution_path) if constitution_path else ""
 
     architect = CodeArchitectAgent()
-    if fresh or (not os.path.exists(spec_path)):
-        print_phase("Product Spec (spec.md)", phase_num=2)
+    # Snapshot idea.md into cache/code/idea.md for resumability and consistent prompts.
+    try:
+        proposal_text = f"# Idea\n\n## Title\n{proposal.idea.title}\n\n## Description\n{proposal.idea.description}\n"
+    except Exception:
+        proposal_text = ""
+    snapshot_idea_to_cache(
+        idea_input_path=proposal_path or "",
+        proposal_text=proposal_text,
+        doc_paths=doc_paths,
+    )
+
+    # One-shot only (single-run guarantee):
+    # - If cached blueprint is valid AND spec/plan already exist in cache, reuse cache and DO NOT call the architect.
+    # - Otherwise, run one-shot exactly once to (re)write spec/plan and output blueprint JSON.
+    spec_md = _read_text(spec_path)
+    plan_md = _read_text(plan_path)
+    proposal_hash = Cache.hash_proposal(proposal)
+    plan_hash = Cache.hash_text(plan_md)
+
+    blueprint = None
+    cached_blueprint = Cache.get_blueprint(plan_hash)
+    if cached_blueprint and "blueprint" in cached_blueprint:
         try:
-            spec_md = await architect.generate_spec_md(
+            blueprint = Blueprint(**cached_blueprint["blueprint"])
+            blueprint.validate_dag()
+            print("✓ Using cached blueprint")
+        except Exception as e:
+            print(f"  ⚠ Cached blueprint invalid; will run one-shot. Reason: {e}")
+            blueprint = None
+
+    need_oneshot = False
+    if fresh:
+        need_oneshot = True
+    if (not spec_md.strip()) or (not plan_md.strip()):
+        need_oneshot = True
+    if blueprint is None:
+        need_oneshot = True
+
+    if need_oneshot:
+        print_phase("Spec + Plan + Blueprint (one-shot)", phase_num=2)
+        try:
+            blueprint = await architect.create_spec_plan_and_blueprint(
                 proposal_path=proposal_path or "",
                 constitution_md=constitution_md,
                 templates_dir=os.path.abspath(templates_dir),
-                experiment_id=experiment_id or "",
-                dataset_dir=dataset_dir or "",
-            )
-            if spec_md.strip():
-                _write_text(spec_path, spec_md)
-        except Exception as e:
-            exit_on_rate_limit(e)
-            print(f"✗ Failed to generate spec.md: {e}")
-            return None
-    else:
-        spec_md = _read_text(spec_path)
-
-    if fresh or (not os.path.exists(plan_path)):
-        print_phase("Technical Plan (plan.md)", phase_num=3)
-        try:
-            plan_md = await architect.generate_plan_md(
-                spec_md=spec_md,
-                constitution_md=constitution_md,
-                templates_dir=os.path.abspath(templates_dir),
+                spec_output_path=os.path.abspath(spec_path),
+                plan_output_path=os.path.abspath(plan_path),
                 experiment_id=experiment_id or "",
                 dataset_dir=dataset_dir or "",
                 reference_repos=reference_repos,
             )
-            if plan_md.strip():
-                _write_text(plan_path, plan_md)
+            blueprint.validate_dag()
         except Exception as e:
             exit_on_rate_limit(e)
-            print(f"✗ Failed to generate plan.md: {e}")
+            print(f"✗ One-shot spec/plan/blueprint failed: {e}")
             return None
-    else:
+
+        # Refresh texts + hashes after one-shot (plan/spec may have changed)
+        spec_md = _read_text(spec_path)
         plan_md = _read_text(plan_path)
+        plan_hash = Cache.hash_text(plan_md)
+        sync_code_docs_to_specs(doc_paths)
 
-    plan_hash = Cache.hash_text(plan_md)
-    proposal_hash = Cache.hash_proposal(proposal)
-
-    # Architect Phase (Blueprint == tasks, derived from plan.md)
-    print_phase("Tasks Derivation (Blueprint from plan.md)", phase_num=4)
-    cached_blueprint = Cache.get_blueprint(plan_hash)
-
-    blueprint = None
-    if cached_blueprint:
-        print("✓ Using cached blueprint")
-        if dataset_dir and os.path.isdir(dataset_dir):
-            try:
-                has_files = any(
-                    os.path.isfile(os.path.join(dataset_dir, name))
-                    for name in os.listdir(dataset_dir)
-                )
-            except Exception:
-                has_files = False
-            if has_files:
-                print(
-                    f"  ⚠ Dataset directory appears non-empty ({dataset_dir}). "
-                    "If the dataset has changed and you want the Architect to re-design the blueprint based on it, rerun with --fresh."
-                )
-        try:
-            blueprint = Blueprint(**cached_blueprint["blueprint"])
-            # Validate cached blueprint; if invalid, drop cache and regenerate via Architect.
-            blueprint.validate_dag()
-        except Exception as e:
-            print(f"  ⚠ Cached blueprint invalid; will regenerate. Reason: {e}")
-            cached_blueprint = None
-            blueprint = None
-
-    if not blueprint:
-        try:
-            blueprint = await architect.create_blueprint_from_plan(
-                plan_md=plan_md,
-                constitution_md=constitution_md,
-                templates_dir=os.path.abspath(templates_dir),
-            )
-            blueprint.validate_dag()
-
-            # Primary cache key is plan_hash (spec-kit semantics: plan change => tasks change)
+    # Ensure blueprint is cached under plan_hash and proposal_hash (resume-friendly)
+    try:
+        cached = Cache.get_blueprint(plan_hash)
+        if (not cached) or ("blueprint" not in cached):
             Cache.set_blueprint(plan_hash, blueprint.model_dump())
-            # Compatibility alias for other layers that still locate by proposal_hash
-            Cache.set_blueprint(proposal_hash, blueprint.model_dump())
+        Cache.set_blueprint(proposal_hash, blueprint.model_dump())
+    except Exception:
+        pass
 
-            # Initial state snapshot with blueprint
+    # Ensure a state step exists (even when using cached/one-shot blueprint) to keep resume robust.
+    try:
+        has_state = state_manager.load() and state_manager.current_state is not None
+    except Exception:
+        has_state = False
+    if not has_state:
+        try:
             task_ids = [f.file_path for f in blueprint.files]
             state_manager.init_state(
                 blueprint.model_dump(),
                 blueprint_id=plan_hash,
                 task_ids=task_ids,
             )
-            # Record provenance for resume/debug
             if state_manager.current_state:
                 state_manager.set_phase(
                     state_manager.current_state.phase,
@@ -336,11 +323,8 @@ async def run_code_generation_loop(
                         "plan_hash": plan_hash,
                     },
                 )
-
-        except Exception as e:
-            exit_on_rate_limit(e)
-            print(f"✗ Architect failed: {e}")
-            return None
+        except Exception:
+            pass
 
     # Check if we should skip implementation phase (already in REFINEMENT)
     skip_implementation = False
@@ -367,7 +351,7 @@ async def run_code_generation_loop(
     # Implementation Phase
     manager = CodeManagerAgent(
         project_root=output_dir,
-        idea_md_path=proposal_path or "",
+        idea_md_path=doc_paths.idea_md(),
         reference_repos=reference_repos,
     )
 
@@ -387,28 +371,27 @@ async def run_code_generation_loop(
 
     # Integration Phase
     success = True
-    if not skip_integration:
-        print_phase("Integration & Verification", phase_num=6)
+    print_phase("Integration & Verification", phase_num=6)
 
-        integrator = CodeIntegratorAgent(project_root=output_dir)
+    integrator = CodeIntegratorAgent(project_root=output_dir)
+    try:
         try:
-            try:
-                if state_manager.load() and state_manager.current_state:
-                    meta = dict(state_manager.current_state.meta or {})
-                    meta["stage"] = "INTEGRATION_FIX"
-                    state_manager.set_phase(GlobalPhase.REFINEMENT, meta=meta)
-                    state_manager.set_status(StepStatus.RUNNING, meta=meta)
-            except Exception:
-                pass
+            if state_manager.load() and state_manager.current_state:
+                meta = dict(state_manager.current_state.meta or {})
+                meta["stage"] = "INTEGRATION_FIX"
+                state_manager.set_phase(GlobalPhase.REFINEMENT, meta=meta)
+                state_manager.set_status(StepStatus.RUNNING, meta=meta)
+        except Exception:
+            pass
 
-            # Fix is handled by the Integrator itself (single-agent loop inside the LLM agent).
-            success = await integrator.fix_until_tests_pass(
-                entry_point=blueprint.entry_point
-            )
-        except Exception as e:
-            exit_on_rate_limit(e)
-            print(f"✗ Integration failed: {e}")
-            success = False
+        # Fix is handled by the Integrator itself (single-agent loop inside the LLM agent).
+        success = await integrator.fix_until_tests_pass(
+            entry_point=blueprint.entry_point
+        )
+    except Exception as e:
+        exit_on_rate_limit(e)
+        print(f"✗ Integration failed: {e}")
+        success = False
 
     if success:
         try:

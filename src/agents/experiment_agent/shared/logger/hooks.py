@@ -1,22 +1,18 @@
-"""
-Custom hooks for OpenAI agents library.
-
-Provides hooks to intercept and display:
-- Agent execution flow
-- LLM requests and responses
-- Tool calls and results
-"""
-
 import json
 import os
 from typing import Any, Dict, List, Optional
 
 from agents import RunHooks
 
+from src.agents.experiment_agent.shared.utils.memory_middleware import (
+    record_llm_end,
+    record_llm_start,
+    record_tool_end,
+    record_tool_start,
+)
+
 
 class Colors:
-    """ANSI color codes for terminal output."""
-
     OKBLUE = "\033[94m"
     OKCYAN = "\033[96m"
     OKGREEN = "\033[92m"
@@ -28,12 +24,6 @@ class Colors:
 
 
 async def process_stream_events(stream, show_tool_args_delta: bool = False) -> dict:
-    """
-    Stream and print model response text deltas in real time.
-
-    This is inspired by EdgeDevice/src/utils/stream_utils.py and is used to make
-    Architect-stage outputs observable while the model is still generating.
-    """
     tool_count = 0
     text_chars = 0
     announced_tools = set()
@@ -145,17 +135,6 @@ async def process_stream_events(stream, show_tool_args_delta: bool = False) -> d
 
 
 def _truncate_to_tokens(text: str, max_tokens: int = 500, model: str = "gpt-4") -> str:
-    """
-    Truncate text to approximately max_tokens.
-
-    Args:
-        text: Text to truncate
-        max_tokens: Maximum number of tokens
-        model: Model name for tokenization
-
-    Returns:
-        Truncated text with token count info
-    """
     max_chars = max_tokens * 4
     if len(text) <= max_chars:
         return text
@@ -163,10 +142,6 @@ def _truncate_to_tokens(text: str, max_tokens: int = 500, model: str = "gpt-4") 
 
 
 def _as_plain_obj(obj: Any) -> Optional[Any]:
-    """
-    Best-effort conversion of SDK/agents objects to plain Python containers.
-    Returns dict/list when possible, otherwise None.
-    """
     if obj is None:
         return None
     try:
@@ -194,10 +169,6 @@ def _as_plain_obj(obj: Any) -> Optional[Any]:
 
 
 def _extract_think_tag(text: str) -> Optional[str]:
-    """
-    Extract <think>...</think> content if present.
-    MiniMax models may embed thinking in content when reasoning_split is not surfaced.
-    """
     if not isinstance(text, str):
         return None
     start = text.find("<think>")
@@ -209,13 +180,6 @@ def _extract_think_tag(text: str) -> Optional[str]:
 
 
 def _extract_reasoning_from_modelresponse_output(output_value: Any) -> Optional[str]:
-    """
-    Extract provider reasoning from a Responses-style ModelResponse.output.
-    Best-effort:
-    - Look for reasoning_details fields (MiniMax: List[{"text": "..."}])
-    - Look for content items with type like "reasoning"/"thinking"
-    - Fallback: parse <think>...</think> from output_text text
-    """
     expanded = _as_plain_obj(output_value)
     if expanded is not None and expanded is not output_value:
         output_value = expanded
@@ -292,15 +256,6 @@ def _extract_reasoning_from_modelresponse_output(output_value: Any) -> Optional[
 
 
 class VerboseRunHooks(RunHooks):
-    """
-    Custom hooks to print detailed agent execution information.
-
-    Intercepts:
-    - Agent start/end
-    - LLM requests/responses
-    - Tool calls/results
-    """
-
     def __init__(
         self,
         show_llm_responses: bool = True,
@@ -308,15 +263,6 @@ class VerboseRunHooks(RunHooks):
         show_tool_args: bool = True,
         agent_type: str = "Agent",
     ):
-        """
-        Initialize verbose hooks.
-
-        Args:
-            show_llm_responses: Whether to show LLM response content
-            show_tools: Whether to show tool results (detailed output)
-            show_tool_args: Whether to show tool call arguments (always recommended)
-            agent_type: Type identifier for this agent (Architect/Manager/Worker/Integrator)
-        """
         super().__init__()
         self.show_llm_responses = show_llm_responses
         self.show_tools = show_tools
@@ -403,10 +349,28 @@ class VerboseRunHooks(RunHooks):
 
     async def on_llm_start(self, *args, **kwargs):
         """Called when LLM request starts."""
+        self.turn_count += 1
+
+        # Record LLM request for memory trace (independent of printing).
+        try:
+            messages = None
+            for arg in args:
+                if isinstance(arg, list):
+                    messages = arg
+                    break
+                if hasattr(arg, "messages"):
+                    messages = getattr(arg, "messages", None)
+                    break
+            if messages is None and "messages" in kwargs:
+                messages = kwargs["messages"]
+            record_llm_start(
+                messages=messages, agent_type=self.agent_type, turn=self.turn_count
+            )
+        except Exception:
+            pass
+
         if not self.show_llm_responses:
             return
-
-        self.turn_count += 1
         print(f"{Colors.WARNING}📤 LLM Request (Turn {self.turn_count}){Colors.ENDC}")
 
         # Only show input on the first turn
@@ -468,15 +432,77 @@ class VerboseRunHooks(RunHooks):
             )
 
     async def on_llm_end(self, *args, **kwargs):
-        """Called when LLM response is received."""
+        response = kwargs.get("response", args[0] if args else None)
+        llm_response = args[-1] if args else response
+
+        try:
+            content = None
+            reasoning = None
+            tool_calls = []
+
+            if hasattr(llm_response, "choices") and llm_response.choices:
+                choice = llm_response.choices[0]
+                if hasattr(choice, "message"):
+                    message = choice.message
+
+                    if hasattr(message, "content") and message.content:
+                        content = message.content
+
+                    for attr in (
+                        "reasoning",
+                        "reasoning_content",
+                        "thinking",
+                        "thought",
+                        "thoughts",
+                        "reasoning_details",
+                    ):
+                        if hasattr(message, attr):
+                            val = getattr(message, attr, None)
+                            if isinstance(val, str) and val.strip():
+                                reasoning = val
+                                break
+                            if isinstance(val, list) and val:
+                                texts = []
+                                for item in val:
+                                    if isinstance(item, dict) and isinstance(
+                                        item.get("text", None), str
+                                    ):
+                                        texts.append(item["text"])
+                                joined = "\n".join([t for t in texts if t.strip()])
+                                if joined.strip():
+                                    reasoning = joined
+                                    break
+
+                    if hasattr(message, "tool_calls") and message.tool_calls:
+                        for tool_call in message.tool_calls:
+                            tool_name = (
+                                tool_call.function.name
+                                if hasattr(tool_call, "function")
+                                else "unknown"
+                            )
+                            tool_calls.append(tool_name)
+
+            if reasoning is None and hasattr(llm_response, "output"):
+                try:
+                    reasoning = _extract_reasoning_from_modelresponse_output(
+                        getattr(llm_response, "output", None)
+                    )
+                except Exception:
+                    pass
+
+            record_llm_end(
+                content=content,
+                reasoning=reasoning,
+                tool_calls=tool_calls,
+                agent_type=self.agent_type,
+                turn=self.turn_count,
+            )
+        except Exception:
+            pass
+
         if not self.show_llm_responses:
             return
 
-        # agents 库的 on_llm_end 往往会传入：
-        # args = (RunContextWrapper, Agent, ModelResponse)
-        # 真实模型输出通常在最后一个参数（ModelResponse）里，而不是 RunContextWrapper.context
-        response = kwargs.get("response", args[0] if args else None)
-        llm_response = args[-1] if args else response
         print(f"{Colors.OKGREEN}✓ LLM Response{Colors.ENDC}")
 
         if llm_response is None:
@@ -495,8 +521,6 @@ class VerboseRunHooks(RunHooks):
                     if hasattr(message, "content") and message.content:
                         content = message.content
 
-                    # Best-effort: some providers (or proxy gateways) may return a separate reasoning field
-                    # when configured with options like `reasoning_split`.
                     for attr in (
                         "reasoning",
                         "reasoning_content",
@@ -507,8 +531,6 @@ class VerboseRunHooks(RunHooks):
                     ):
                         if hasattr(message, attr):
                             val = getattr(message, attr, None)
-                            # MiniMax 文档：reasoning_split=True 时，思考内容会在 reasoning_details 字段
-                            # 典型结构：List[{"text": "..."}]
                             if isinstance(val, str) and val.strip():
                                 reasoning = val
                                 break
@@ -542,8 +564,6 @@ class VerboseRunHooks(RunHooks):
                 except Exception:
                     pass
 
-            # Optional: print provider-supplied reasoning if explicitly enabled.
-            # This is off by default to avoid noisy logs and accidental leakage.
             show_reasoning_env = (
                 os.environ.get("SHOW_LLM_REASONING", "").strip().lower()
             )
@@ -588,6 +608,16 @@ class VerboseRunHooks(RunHooks):
             except:
                 arguments = tool_ctx.tool_arguments
 
+        # Record tool start for memory trace.
+        try:
+            record_tool_start(
+                tool_name=str(tool_name or ""),
+                arguments=arguments,
+                agent_type=self.agent_type,
+            )
+        except Exception:
+            pass
+
         print(f"\n{Colors.OKGREEN}🔧 TOOL: {tool_name}{Colors.ENDC}")
 
         if self.show_tool_args and arguments and isinstance(arguments, dict):
@@ -614,6 +644,16 @@ class VerboseRunHooks(RunHooks):
                 tool_name = tool_arg.name
             elif isinstance(tool_arg, str):
                 tool_name = tool_arg
+
+        # Record tool end for memory trace (raw result).
+        try:
+            record_tool_end(
+                tool_name=str(tool_name or ""),
+                result=result,
+                agent_type=self.agent_type,
+            )
+        except Exception:
+            pass
 
         show_full_output = False
         if tool_name == "write_file":
@@ -730,18 +770,6 @@ def create_hooks(
     show_tools: bool = True,
     show_tool_args: bool = True,
 ) -> VerboseRunHooks:
-    """
-    Create verbose run hooks for agent execution.
-
-    Args:
-        agent_type: Type of agent (Architect/Manager/Worker/Integrator)
-        show_llm_responses: Whether to show full LLM responses
-        show_tools: Whether to show detailed tool results
-        show_tool_args: Whether to show tool call arguments
-
-    Returns:
-        VerboseRunHooks instance
-    """
     return VerboseRunHooks(
         show_llm_responses=show_llm_responses,
         show_tools=show_tools,

@@ -92,3 +92,17 @@ class ScienceAnalysis(BaseModel):
     next_experiments: Optional[ExperimentPlan] = Field(
         default=None, description="Plan for next round of experiments (if needed)"
     )
+
+    # --- Science iteration reporting (spec-coding friendly) ---
+    verdict: Optional[str] = Field(
+        default=None,
+        description="Idea validation verdict: supported/refuted/inconclusive (optional)",
+    )
+    report_md: str = Field(
+        default="",
+        description="Markdown report text for this iteration (optional)",
+    )
+    feedback_md: str = Field(
+        default="",
+        description="Markdown feedback to Architect for next iteration (optional; only when more experiments needed)",
+    )

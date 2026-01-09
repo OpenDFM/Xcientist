@@ -25,6 +25,10 @@ from typing import List
 
 from agents import function_tool
 
+from src.agents.experiment_agent.shared.utils.memory_middleware import (
+    maybe_augment_tool_result,
+)
+
 # Import validation utilities from dedicated module
 from src.agents.experiment_agent.shared.tools.validation import (
     run_linter,
@@ -35,7 +39,31 @@ from src.agents.experiment_agent.shared.tools.validation import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_BASH_TIMEOUT_SECONDS = int(os.getenv("AGENT_BASH_TIMEOUT_SECONDS", "600"))
+
+def _get_bash_timeout_seconds():
+    """
+    Parse bash timeout from env.
+
+    Behavior:
+    - Unset/empty/"none"/"off"/<=0 => no timeout (None)
+    - Positive number => seconds (float)
+    """
+    raw = str(os.getenv("AGENT_BASH_TIMEOUT_SECONDS", "")).strip()
+    if not raw:
+        return None
+    if raw.lower() in {"none", "null", "off", "disable", "disabled"}:
+        return None
+    try:
+        val = float(raw)
+    except ValueError:
+        return None
+    if val <= 0:
+        return None
+    return val
+
+
+# Default: do NOT impose a timeout unless explicitly configured via env var.
+DEFAULT_BASH_TIMEOUT_SECONDS = _get_bash_timeout_seconds()
 
 
 # =============================================================================
@@ -95,35 +123,52 @@ def bash(command: str, working_dir: str = "") -> dict:
         if not cwd:
             cwd = os.getcwd()
 
-        result = subprocess.run(
-            command,
-            shell=True,
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=DEFAULT_BASH_TIMEOUT_SECONDS,
-        )
+        run_kwargs = {
+            "shell": True,
+            "cwd": cwd,
+            "capture_output": True,
+            "text": True,
+        }
+        if DEFAULT_BASH_TIMEOUT_SECONDS is not None:
+            run_kwargs["timeout"] = DEFAULT_BASH_TIMEOUT_SECONDS
 
-        return {
+        result = subprocess.run(command, **run_kwargs)
+
+        result = {
             "success": result.returncode == 0,
             "stdout": result.stdout,
             "stderr": result.stderr,
             "return_code": result.returncode,
         }
+        return maybe_augment_tool_result(
+            tool_name="bash",
+            tool_args={"command": command, "working_dir": working_dir},
+            result=result,
+        )
     except subprocess.TimeoutExpired:
         logger.warning(f"Command timed out: {command[:50]}...")
-        return {
+        result = {
             "success": False,
             "stderr": f"Command timed out after {DEFAULT_BASH_TIMEOUT_SECONDS} seconds",
             "return_code": -1,
         }
+        return maybe_augment_tool_result(
+            tool_name="bash",
+            tool_args={"command": command, "working_dir": working_dir},
+            result=result,
+        )
     except Exception as e:
         logger.error(f"Command failed: {e}")
-        return {
+        result = {
             "success": False,
             "stderr": str(e),
             "return_code": -1,
         }
+        return maybe_augment_tool_result(
+            tool_name="bash",
+            tool_args={"command": command, "working_dir": working_dir},
+            result=result,
+        )
 
 
 @function_tool
@@ -170,18 +215,45 @@ def file_viewer(file_path: str, start_line: int = 1, end_line: int = -1) -> dict
             line_num = i + 1
             numbered_lines.append(f"{line_num:4d}|{lines[i].rstrip()}")
 
-        return {
+        result = {
             "success": True,
             "content": "\n".join(numbered_lines),
             "file_path": full_path,
             "total_lines": total_lines,
             "showing": f"lines {start_idx + 1}-{end_idx}",
         }
+        return maybe_augment_tool_result(
+            tool_name="file_viewer",
+            tool_args={
+                "file_path": file_path,
+                "start_line": start_line,
+                "end_line": end_line,
+            },
+            result=result,
+        )
     except FileNotFoundError:
-        return {"success": False, "error": f"File not found: {file_path}"}
+        result = {"success": False, "error": f"File not found: {file_path}"}
+        return maybe_augment_tool_result(
+            tool_name="file_viewer",
+            tool_args={
+                "file_path": file_path,
+                "start_line": start_line,
+                "end_line": end_line,
+            },
+            result=result,
+        )
     except Exception as e:
         logger.error(f"file_viewer failed: {e}")
-        return {"success": False, "error": str(e)}
+        result = {"success": False, "error": str(e)}
+        return maybe_augment_tool_result(
+            tool_name="file_viewer",
+            tool_args={
+                "file_path": file_path,
+                "start_line": start_line,
+                "end_line": end_line,
+            },
+            result=result,
+        )
 
 
 @function_tool
@@ -214,14 +286,24 @@ def write_file(file_path: str, content: str) -> dict:
             f.write(content)
 
         logger.debug(f"Wrote {len(content)} chars to {full_path}")
-        return {
+        result = {
             "success": True,
             "file_path": full_path,
             "message": f"Written {len(content)} chars, {len(content.splitlines())} lines",
         }
+        return maybe_augment_tool_result(
+            tool_name="write_file",
+            tool_args={"file_path": file_path},
+            result=result,
+        )
     except Exception as e:
         logger.error(f"write_file failed: {e}")
-        return {"success": False, "error": str(e)}
+        result = {"success": False, "error": str(e)}
+        return maybe_augment_tool_result(
+            tool_name="write_file",
+            tool_args={"file_path": file_path},
+            result=result,
+        )
 
 
 @function_tool
@@ -251,7 +333,12 @@ def edit_file(file_path: str, old_string: str, new_string: str) -> dict:
             content = f.read()
 
         if old_string not in content:
-            return {"success": False, "error": "old_string not found in file"}
+            result = {"success": False, "error": "old_string not found in file"}
+            return maybe_augment_tool_result(
+                tool_name="edit_file",
+                tool_args={"file_path": file_path},
+                result=result,
+            )
 
         new_content = content.replace(old_string, new_string, 1)
 
@@ -259,12 +346,27 @@ def edit_file(file_path: str, old_string: str, new_string: str) -> dict:
             f.write(new_content)
 
         logger.debug(f"Edited {full_path}")
-        return {"success": True, "file_path": full_path, "message": "File edited"}
+        result = {"success": True, "file_path": full_path, "message": "File edited"}
+        return maybe_augment_tool_result(
+            tool_name="edit_file",
+            tool_args={"file_path": file_path},
+            result=result,
+        )
     except FileNotFoundError:
-        return {"success": False, "error": f"File not found: {file_path}"}
+        result = {"success": False, "error": f"File not found: {file_path}"}
+        return maybe_augment_tool_result(
+            tool_name="edit_file",
+            tool_args={"file_path": file_path},
+            result=result,
+        )
     except Exception as e:
         logger.error(f"edit_file failed: {e}")
-        return {"success": False, "error": str(e)}
+        result = {"success": False, "error": str(e)}
+        return maybe_augment_tool_result(
+            tool_name="edit_file",
+            tool_args={"file_path": file_path},
+            result=result,
+        )
 
 
 # =============================================================================
@@ -286,9 +388,29 @@ def get_architect_tools() -> List:
     Get tools available to Architect agents.
 
     Architect needs: exploration (bash, file_viewer)
-    Does NOT need: write/edit (only designs, doesn't implement)
+    Does NOT need: write/edit (planning only; implementation happens elsewhere).
     """
     return [bash, file_viewer]
+
+
+def get_science_architect_tools() -> List:
+    """
+    Tools for Science Architect.
+
+    Science Architect is responsible for writing spec-coding artifacts (MD) into
+    the experiment workspace cache, so it needs write/edit.
+    """
+    return [bash, file_viewer, write_file, edit_file]
+
+
+def get_code_architect_tools() -> List:
+    """
+    Tools for Code Architect.
+
+    Code Architect writes spec-coding documents (spec.md / plan.md) into the workspace
+    using tools, and outputs Blueprint JSON for the DAG task graph.
+    """
+    return [bash, file_viewer, write_file, edit_file]
 
 
 def get_worker_tools() -> List:
@@ -310,6 +432,15 @@ def get_integrator_tools() -> List:
     return [bash, file_viewer]
 
 
+def get_prepare_tools() -> List:
+    """
+    Tools for Prepare agent.
+
+    Prepare needs: shell ops (git, python), file inspection, and writing workspace artifacts.
+    """
+    return [bash, file_viewer, write_file, edit_file]
+
+
 # =============================================================================
 # Backward Compatibility Exports
 # =============================================================================
@@ -328,6 +459,9 @@ __all__ = [
     "extract_interface_stub",
     # Tool collections
     "get_architect_tools",
+    "get_science_architect_tools",
+    "get_code_architect_tools",
     "get_worker_tools",
     "get_integrator_tools",
+    "get_prepare_tools",
 ]

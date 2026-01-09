@@ -15,7 +15,7 @@ from src.agents.experiment_agent.layers.base.agent import BaseAgent, PromptBuild
 from src.agents.experiment_agent.layers.code.schemas.blueprint import Blueprint
 from src.agents.experiment_agent.layers.code.schemas.proposal import Proposal
 from src.agents.experiment_agent.shared.exceptions import exit_on_rate_limit
-from src.agents.experiment_agent.shared.tools.core import get_architect_tools
+from src.agents.experiment_agent.shared.tools.core import get_code_architect_tools
 from src.agents.experiment_agent.shared.tools.parsing import (
     extract_json_from_llm_output,
 )
@@ -52,7 +52,7 @@ class CodeArchitectAgent(BaseAgent):
         self.reference_repos.append(repo_path)
 
     def _get_tools(self) -> List:
-        return get_architect_tools()
+        return get_code_architect_tools()
 
     async def create_blueprint(
         self,
@@ -160,21 +160,32 @@ Please regenerate the complete Blueprint JSON with all required fields filled in
 
         raise ValueError("Failed to generate Blueprint")
 
-    async def generate_spec_md(
+    async def create_spec_plan_and_blueprint(
         self,
         proposal_path: str,
         constitution_md: str,
-        templates_dir: str = "",
+        templates_dir: str,
+        spec_output_path: str,
+        plan_output_path: str,
         experiment_id: str = "",
         dataset_dir: str = "",
-    ) -> str:
+        reference_repos: Optional[List[str]] = None,
+        max_retries: int = 2,
+    ) -> Blueprint:
         """
-        Generate Product Spec (spec.md) as Markdown.
+        One-shot Code Architect:
+        - writes spec.md + plan.md via tools (absolute paths)
+        - outputs Blueprint JSON (tasks for DAG)
         """
+        repos_to_use = reference_repos or []
+        reference_repos_str = ""
+        if repos_to_use:
+            reference_repos_str = "\n".join(f"- {repo}" for repo in repos_to_use)
+
         prompt_path = os.path.join(
             os.path.dirname(__file__),
             "prompts",
-            "code_spec",
+            "code_spec_plan_blueprint",
             "system.txt",
         )
         system_prompt = load_and_render_prompt(
@@ -185,69 +196,47 @@ Please regenerate the complete Blueprint JSON with all required fields filled in
                 "templates_dir": templates_dir or "",
                 "experiment_id": experiment_id or "",
                 "dataset_dir": dataset_dir or "",
-            },
-        )
-        tmpl = (templates_dir or "").rstrip("/")
-        user_prompt = (
-            "Write `spec.md` now.\n"
-            "Before writing, you MUST read the proposal via tools using the provided path (file_viewer).\n"
-            f'You MUST also read the spec template via tools: file_viewer("{tmpl}/spec-template.md", 1, 140)\n'
-            "Output ONLY Markdown."
-        )
-        result = await self._run_agent(
-            user_prompt=user_prompt,
-            system_prompt=system_prompt,
-            tools=self._get_tools(),
-        )
-        return str(self._extract_output(result) or "").strip()
-
-    async def generate_plan_md(
-        self,
-        spec_md: str,
-        constitution_md: str,
-        templates_dir: str = "",
-        experiment_id: str = "",
-        dataset_dir: str = "",
-        reference_repos: Optional[List[str]] = None,
-    ) -> str:
-        """
-        Generate Technical Plan (plan.md) as Markdown.
-        """
-        repos_to_use = reference_repos or []
-        reference_repos_str = ""
-        if repos_to_use:
-            reference_repos_str = "\n".join(f"- {repo}" for repo in repos_to_use)
-
-        prompt_path = os.path.join(
-            os.path.dirname(__file__),
-            "prompts",
-            "code_plan",
-            "system.txt",
-        )
-        system_prompt = load_and_render_prompt(
-            prompt_path=prompt_path,
-            variables={
-                "constitution_md": constitution_md or "",
-                "spec_md": spec_md or "",
-                "templates_dir": templates_dir or "",
-                "experiment_id": experiment_id or "",
-                "dataset_dir": dataset_dir or "",
                 "reference_repos_str": reference_repos_str or "",
+                "spec_output_path": spec_output_path or "",
+                "plan_output_path": plan_output_path or "",
             },
         )
-        tmpl = (templates_dir or "").rstrip("/")
         user_prompt = (
-            "Write `plan.md` now.\n"
-            "You MUST treat the provided `spec.md` and constitution content as source of truth.\n"
-            f'You MUST also read the plan template via tools: file_viewer("{tmpl}/plan-template.md", 1, 180)\n'
-            "Output ONLY Markdown."
+            "Run the one-shot spec-coding workflow now.\n"
+            "You MUST write spec.md and plan.md via write_file to the provided paths.\n"
+            "Then output ONLY the Blueprint JSON wrapped in ```json ... ```.\n"
         )
-        result = await self._run_agent(
-            user_prompt=user_prompt,
-            system_prompt=system_prompt,
-            tools=self._get_tools(),
-        )
-        return str(self._extract_output(result) or "").strip()
+
+        last_error = ""
+        for attempt in range(1, int(max_retries) + 1):
+            if attempt > 1:
+                user_prompt = (
+                    user_prompt
+                    + "\n\nPrevious attempt issues:\n"
+                    + (last_error or "")
+                    + "\nPlease fix and output a complete Blueprint JSON."
+                )
+            result = await self._run_agent(
+                user_prompt=user_prompt,
+                system_prompt=system_prompt,
+                tools=self._get_tools(),
+            )
+            try:
+                blueprint = self._extract_blueprint(result)
+                blueprint.validate_dag()
+                # Ensure files were written
+                if spec_output_path and (not os.path.exists(spec_output_path)):
+                    raise FileNotFoundError(f"spec.md not written: {spec_output_path}")
+                if plan_output_path and (not os.path.exists(plan_output_path)):
+                    raise FileNotFoundError(f"plan.md not written: {plan_output_path}")
+                return blueprint
+            except Exception as e:
+                last_error = str(e)
+                exit_on_rate_limit(last_error)
+                if attempt == int(max_retries):
+                    raise
+
+        raise ValueError("Failed to generate spec/plan/blueprint")
 
     async def create_blueprint_from_plan(
         self,
@@ -256,59 +245,9 @@ Please regenerate the complete Blueprint JSON with all required fields filled in
         templates_dir: str = "",
         max_retries: int = 3,
     ) -> Blueprint:
-        """
-        Create a Blueprint (tasks) derived from plan.md (spec-kit-aligned).
-        """
-        prompt_path = os.path.join(
-            os.path.dirname(__file__),
-            "prompts",
-            "code_blueprint",
-            "system.txt",
+        raise NotImplementedError(
+            "create_blueprint_from_plan has been removed. Use create_spec_plan_and_blueprint (one-shot) instead."
         )
-        system_prompt = load_and_render_prompt(
-            prompt_path=prompt_path,
-            variables={
-                "constitution_md": constitution_md or "",
-                "plan_md": plan_md or "",
-                "templates_dir": templates_dir or "",
-            },
-        )
-        tmpl = (templates_dir or "").rstrip("/")
-        user_prompt = (
-            "Generate the Blueprint JSON from plan.md now.\n"
-            f'You MUST also read the tasks template via tools (task quality intent): file_viewer("{tmpl}/tasks-template.md", 1, 140)\n'
-            "Output ONLY ```json ... ```."
-        )
-
-        last_error = None
-        for attempt in range(1, max_retries + 1):
-            if attempt > 1:
-                retry_prompt = f"""{user_prompt}
-
----
-⚠️ PREVIOUS ATTEMPT FAILED - FIX THESE ERRORS:
-
-{last_error}
-"""
-                user_prompt = retry_prompt
-
-            result = await self._run_agent(
-                user_prompt=user_prompt,
-                system_prompt=system_prompt,
-                tools=self._get_tools(),
-            )
-
-            try:
-                blueprint = self._extract_blueprint(result)
-                blueprint.validate_dag()
-                return blueprint
-            except Exception as e:
-                last_error = str(e)
-                exit_on_rate_limit(last_error)
-                if attempt == max_retries:
-                    raise
-
-        raise ValueError("Failed to generate Blueprint from plan")
 
     async def generate_constitution_md(
         self,

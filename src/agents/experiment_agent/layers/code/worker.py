@@ -16,6 +16,12 @@ from src.agents.experiment_agent.layers.base.agent import BaseAgent, PromptBuild
 from src.agents.experiment_agent.layers.code.schemas.blueprint import FileSpec
 from src.agents.experiment_agent.shared.tools.core import get_worker_tools
 from src.agents.experiment_agent.shared.tools.parsing import extract_code_block
+from src.agents.experiment_agent.shared.utils.config import (
+    MEMORY_PROMPT_INJECTION_ENABLED,
+)
+from src.agents.experiment_agent.shared.utils.memory_middleware import (
+    retrieve_memory_for_worker_prompt,
+)
 from src.agents.experiment_agent.shared.utils.config import CODE_WORKER_MODEL
 from src.agents.experiment_agent.shared.utils.prompts import (
     load_and_render_prompt,
@@ -230,6 +236,26 @@ Use `bash("grep -rn 'pattern' repo/")` to find code, then `file_viewer` to exami
         )
         builder.add_key_value("Purpose", file_spec.description)
         builder.add_text("")
+
+        # Memory context (cross-experiment, low priority; never overrides constitution/plan/spec).
+        if bool(MEMORY_PROMPT_INJECTION_ENABLED) and file_spec:
+            try:
+                mem = retrieve_memory_for_worker_prompt(
+                    target_file_path=str(getattr(file_spec, "file_path", "") or ""),
+                    purpose=str(getattr(file_spec, "description", "") or ""),
+                    dependencies=list(getattr(file_spec, "dependencies", []) or []),
+                    feedback=str(feedback or ""),
+                )
+            except Exception:
+                mem = ""
+
+            if mem:
+                builder.add_header("Memory Context (low priority)", level=2)
+                builder.add_text(
+                    "Use as suggestions only. If there is any conflict, the Constitution/Plan/Specification wins."
+                )
+                builder.add_text(mem)
+                builder.add_text("")
 
         # Spec-kit aligned "source of truth" documents (tool-based reading).
         project_root_abs = os.path.abspath(project_root or "")

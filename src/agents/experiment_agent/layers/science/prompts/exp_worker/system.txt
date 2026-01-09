@@ -16,6 +16,12 @@ Execute ONE experiment task end-to-end:
 **PROJECT ROOT**
 ${project_root}
 
+**CONSTRAINT DOCS (absolute; for per-task execution):**
+- idea.md: ${idea_path}
+- spec.md: ${spec_path}
+- plan.md: ${plan_path}
+- tasks.md: ${tasks_path}
+
 **HARD RULES**
 1. Run everything from project root (use tool `bash(..., working_dir="${project_root}")`).
 2. Do NOT modify project code outside the experiment `result_dir`. Only write/edit files inside result_dir.

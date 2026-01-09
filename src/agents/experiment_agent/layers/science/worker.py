@@ -67,10 +67,28 @@ class ExpWorkerAgent(BaseAgent):
     def _get_abs_result_dir(
         self, task: ExperimentTask, project_root: str
     ) -> Optional[str]:
+        """
+        Resolve task.result_dir into an absolute path **under** project_root.
+
+        - Treat result_dir as a project-relative path (even if an absolute path is provided).
+        - Prevent path traversal (e.g. "../") from escaping project_root.
+        """
         rd = str(getattr(task, "result_dir", "") or "").strip()
         if not rd:
             return None
-        return os.path.join(project_root, rd)
+
+        pr_abs = os.path.abspath(str(project_root))
+        # If upstream passes an absolute path, force it to behave like a relative path.
+        if os.path.isabs(rd):
+            rd = rd.lstrip(os.sep)
+
+        abs_dir = os.path.abspath(os.path.join(pr_abs, rd))
+        # Guard against path traversal escaping project_root.
+        if os.path.commonpath([pr_abs, abs_dir]) != pr_abs:
+            abs_dir = os.path.join(
+                pr_abs, os.path.basename(os.path.normpath(rd)) or "results"
+            )
+        return abs_dir
 
     def _read_text(self, path: str) -> str:
         try:
@@ -247,7 +265,94 @@ class ExpWorkerAgent(BaseAgent):
             prompt_path=prompt_path,
             variables={
                 "project_root": str(kwargs.get("project_root", "") or ""),
+                "idea_path": str(kwargs.get("idea_path", "") or ""),
+                "spec_path": str(kwargs.get("spec_path", "") or ""),
+                "plan_path": str(kwargs.get("plan_path", "") or ""),
+                "tasks_path": str(kwargs.get("tasks_path", "") or ""),
             },
+        )
+
+    def _build_iteration_system_prompt(self, **kwargs) -> str:
+        prompt_path = os.path.join(
+            os.path.dirname(__file__),
+            "prompts",
+            "exp_worker",
+            "iteration_system.txt",
+        )
+        return load_and_render_prompt(
+            prompt_path=prompt_path,
+            variables={
+                "project_root": str(kwargs.get("project_root", "") or ""),
+                "idea_path": str(kwargs.get("idea_path", "") or ""),
+                "spec_path": str(kwargs.get("spec_path", "") or ""),
+                "plan_path": str(kwargs.get("plan_path", "") or ""),
+                "tasks_path": str(kwargs.get("tasks_path", "") or ""),
+                "iteration_result_dir": str(
+                    kwargs.get("iteration_result_dir", "") or ""
+                ),
+            },
+        )
+
+    def _build_iteration_user_prompt(
+        self,
+        project_root: str,
+        tasks_path: str,
+        iteration_result_dir: str,
+        **kwargs,
+    ) -> str:
+        _ = kwargs
+        builder = PromptBuilder()
+        builder.add_header("Science Iteration Execution")
+        builder.add_key_value("Project Root", str(project_root))
+        builder.add_key_value("Tasks (Markdown)", str(tasks_path))
+        builder.add_key_value("Iteration Result Dir", str(iteration_result_dir))
+        builder.add_text("")
+        builder.add_text(
+            "**IMPORTANT**: Dataset files are located in `<workspace>/dataset_candidate/` directory."
+        )
+        builder.add_text(
+            "**GPU Usage**: If GPU is needed, first run `nvidia-smi` to check GPU memory usage, then select and use the GPU with the most available memory (set CUDA_VISIBLE_DEVICES accordingly)."
+        )
+        builder.add_text("")
+        builder.add_list(
+            [
+                "Read tasks.md and execute each command block sequentially.",
+                "Create per-task subfolders under iteration_result_dir/runs/<TASK_ID>/.",
+                "Write result_summary.json at iteration_result_dir/ when finished.",
+                'Print exactly "ITERATION COMPLETE" as the final line.',
+            ],
+            ordered=True,
+        )
+        return builder.build()
+
+    async def run_iteration_from_tasks_md(
+        self,
+        project_root: str,
+        tasks_path: str,
+        iteration_result_dir: str,
+        idea_path: str = "",
+        spec_path: str = "",
+        plan_path: str = "",
+    ) -> None:
+        """
+        Execute the whole iteration from a Markdown tasks file (no JSON, no parser).
+        All artifacts must be written under iteration_result_dir.
+        """
+        _ = await self._run_agent(
+            user_prompt=self._build_iteration_user_prompt(
+                project_root=project_root,
+                tasks_path=tasks_path,
+                iteration_result_dir=iteration_result_dir,
+            ),
+            system_prompt=self._build_iteration_system_prompt(
+                project_root=project_root,
+                tasks_path=tasks_path,
+                iteration_result_dir=iteration_result_dir,
+                idea_path=idea_path,
+                spec_path=spec_path,
+                plan_path=plan_path,
+            ),
+            tools=self._get_tools(),
         )
 
     def _build_user_prompt(
@@ -303,7 +408,11 @@ class ExpWorkerAgent(BaseAgent):
             [
                 f"Create the result directory if it does not exist: `{abs_result_dir}`",
                 "Run from project root using bash tool (set working_dir to project root).",
+                "**CRITICAL**: All Python commands MUST use the project's venv: `source {project_root}/venv/bin/activate && <your_command>`",
                 f"Before running, export env var `SCIENCE_RESULT_DIR` to the absolute result dir (`{abs_result_dir}`) for the command.",
+                "**IMPORTANT**: Dataset files should be located in `<workspace>/dataset_candidate/` directory. Look for data files there.",
+                "**GPU Usage**: If GPU is needed, first run `nvidia-smi` to check GPU memory usage, then select and use the GPU with the most available memory (set CUDA_VISIBLE_DEVICES accordingly).",
+                "**Missing Dependencies**: If ImportError or ModuleNotFoundError occurs, install the package: `source {project_root}/venv/bin/activate && pip install <package>`, then retry.",
                 "If the command fails, inspect stdout/stderr, create/fix configs or other inputs under result_dir as needed, and re-run until success or you can provide a clear failure reason.",
                 "Do NOT modify project code outside result_dir. Only write under result_dir.",
                 "Persist orchestration artifacts under result_dir (per-task filenames):",
@@ -328,6 +437,10 @@ class ExpWorkerAgent(BaseAgent):
         task: ExperimentTask,
         project_root: str,
         feedback: str = "",
+        idea_path: str = "",
+        spec_path: str = "",
+        plan_path: str = "",
+        tasks_path: str = "",
     ) -> ExperimentResult:
         if self.verbose:
             print(f"    ExpWorker: Executing {task.task_id} (agent-driven)...")
@@ -338,7 +451,13 @@ class ExpWorkerAgent(BaseAgent):
             user_prompt=self._build_user_prompt(
                 task=task, project_root=project_root, feedback=feedback
             ),
-            system_prompt=self._build_system_prompt(project_root=project_root),
+            system_prompt=self._build_system_prompt(
+                project_root=project_root,
+                idea_path=idea_path,
+                spec_path=spec_path,
+                plan_path=plan_path,
+                tasks_path=tasks_path,
+            ),
             tools=self._get_tools(),
         )
         _ = result_obj  # output text not relied upon; artifacts are on disk

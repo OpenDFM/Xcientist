@@ -178,6 +178,9 @@ class CodeIntegratorAgent(BaseAgent):
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             tools=get_worker_tools(),
+            project_root=self.project_root,
+            purpose=f"Fix project until tests pass (entry_point={str(entry_point or '')})",
+            feedback=extra_context,
         )
 
     def _build_fix_executor_user_prompt(
@@ -223,11 +226,30 @@ class CodeIntegratorAgent(BaseAgent):
 
         builder.add_separator()
         builder.add_header("Your Task", level=2)
+        builder.add_header("Phase 1: Design Alignment and Optimization", level=3)
+        builder.add_text(
+            "**Critical**: Before running tests, ensure code aligns with design documents."
+        )
+        builder.add_text("")
         builder.add_list(
             [
-                "Run ALL tests under `tests/` by executing `pytest -q` from the PROJECT ROOT.",
+                "Read the Source of Truth documents (Constitution, Plan, idea.md, spec.md if exists) completely.",
+                "Inspect the codebase to verify alignment with design specifications.",
+                "Check: Does the implementation match the design intent? Are key features implemented correctly?",
+                "If you find inconsistencies (missing features, wrong logic, mismatches with design), **actively fix the code** to align with the design.",
+                "Make thoughtful improvements to match the specification, not just cosmetic changes.",
+                "Document what you changed and why in your reasoning.",
+            ],
+            ordered=True,
+        )
+        builder.add_text("")
+        builder.add_header("Phase 2: Test Execution and Fix", level=3)
+        builder.add_list(
+            [
+                "Run ALL tests under `tests/` by executing `pytest -q` from the PROJECT ROOT using venv.",
                 "You MUST set `working_dir` to the provided Project Root when calling `bash(...)` (do not run from workspace root).",
-                "If tests fail, inspect the pytest output, identify the root cause, and fix the code by editing existing project files.",
+                "**If you encounter ImportError or ModuleNotFoundError**, install the missing package into venv: `source <project_root>/venv/bin/activate && pip install <package>`",
+                "If tests fail, inspect the pytest output, identify the root cause, and fix the code.",
                 "Repeat until `pytest -q` passes.",
                 "Make the smallest set of changes needed; do NOT change tests just to make them pass.",
                 "ABSOLUTE RULE: Do NOT modify any file under `tests/`.",

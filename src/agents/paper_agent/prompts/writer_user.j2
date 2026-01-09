@@ -1,0 +1,9 @@
+Workflow:
+1) Read spec.md and plan.md (absolute paths provided in system prompt) using file_viewer.
+2) Read idea.md.
+3) Inspect the LaTeX template entry .tex.
+4) Use spec/plan to design a coherent paper narrative (thesis → method → evidence → limitations).
+5) Explore project_dir results to support experiments section.
+6) Call subagents as required (literature for citations; analysis/viz for artifacts).
+7) Edit LaTeX files to write the full paper following the section design.
+8) Call review_paper() repeatedly to compile+VLM+review until the paper is clean and coherent.

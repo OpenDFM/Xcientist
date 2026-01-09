@@ -24,7 +24,9 @@ from src.agents.experiment_agent.layers.science.schemas.experiment import (
 from src.agents.experiment_agent.layers.code.schemas.proposal import Proposal
 from src.agents.experiment_agent.layers.code.schemas.blueprint import Blueprint
 from src.agents.experiment_agent.shared.tools.core import get_integrator_tools
-from src.agents.experiment_agent.shared.tools.parsing import extract_json_from_llm_output
+from src.agents.experiment_agent.shared.tools.parsing import (
+    extract_json_from_llm_output,
+)
 from src.agents.experiment_agent.shared.utils.config import SCIENCE_INTEGRATOR_MODEL
 from src.agents.experiment_agent.shared.utils.prompts import load_and_render_prompt
 
@@ -74,10 +76,20 @@ class ExpIntegratorAgent(BaseAgent):
         ):
             next_experiments = None
 
+        verdict = getattr(analysis, "verdict", None)
+        if verdict is not None:
+            verdict = str(verdict).strip() or None
+
+        report_md = str(getattr(analysis, "report_md", "") or "")
+        feedback_md = str(getattr(analysis, "feedback_md", "") or "")
+
         return ScienceAnalysis(
             success=bool(getattr(analysis, "success", False)),
+            verdict=verdict,
             summary=summary,
             key_findings=key_findings,
+            report_md=report_md,
+            feedback_md=feedback_md,
             optimization_tickets=list(
                 getattr(analysis, "optimization_tickets", []) or []
             ),
@@ -92,6 +104,7 @@ class ExpIntegratorAgent(BaseAgent):
         proposal: Optional[Proposal] = None,
         code_blueprint: Optional[Blueprint] = None,
         plan: Optional[ExperimentPlan] = None,
+        doc_paths: Optional[Dict[str, str]] = None,
     ) -> ScienceAnalysis:
         """
         Analyze experimental results and draw conclusions.
@@ -126,6 +139,7 @@ class ExpIntegratorAgent(BaseAgent):
             proposal=proposal,
             code_blueprint=code_blueprint,
             plan=plan,
+            doc_paths=doc_paths,
         )
 
         # Run agent
@@ -147,6 +161,88 @@ class ExpIntegratorAgent(BaseAgent):
             )
 
         return analysis
+
+    async def analyze_iteration_dir(
+        self,
+        goal: str,
+        project_root: str,
+        iteration_result_dir: str,
+        proposal: Optional[Proposal] = None,
+        doc_paths: Optional[Dict[str, str]] = None,
+    ) -> ScienceAnalysis:
+        """
+        Analyze a Markdown-driven iteration.
+
+        Inputs are primarily:
+        - iteration_result_dir (must contain result_summary.json and per-task run folders)
+        - constraint docs (idea/spec/plan/tasks) via doc_paths
+        """
+        builder = PromptBuilder()
+        builder.add_header("Science Iteration Analysis Request")
+        builder.add_section("Analysis Goal", str(goal or "").strip())
+        builder.add_text("")
+        builder.add_key_value("Project Root", str(project_root))
+        builder.add_key_value("Iteration Result Dir", str(iteration_result_dir))
+
+        if doc_paths:
+            builder.add_header(
+                "Science Constraint Docs (absolute; read when needed)", level=2
+            )
+            for k in [
+                "idea_path",
+                "spec_path",
+                "plan_path",
+                "tasks_path",
+                "prev_report_path",
+                "prev_feedback_path",
+            ]:
+                if doc_paths.get(k):
+                    builder.add_text(f"- **{k}**: `{doc_paths.get(k)}`")
+            builder.add_text("")
+
+        if proposal is not None:
+            try:
+                proposal_data = (
+                    proposal.model_dump()
+                    if hasattr(proposal, "model_dump")
+                    else dict(proposal)
+                )
+            except Exception:
+                proposal_data = {"proposal": str(proposal)}
+            builder.add_header("Idea / Proposal (Input Context)", level=2)
+            builder.add_code(
+                json.dumps(proposal_data, ensure_ascii=False, indent=2), language="json"
+            )
+
+        builder.add_separator()
+        builder.add_header("Your Task", level=2)
+        builder.add_text(
+            "**Context**: Dataset files are located in `<workspace>/dataset_candidate/` directory."
+        )
+        builder.add_text(
+            "**Context**: If experiments need GPU, they should check `nvidia-smi` first and use CUDA_VISIBLE_DEVICES to select the GPU with most available memory."
+        )
+        builder.add_text("")
+        builder.add_list(
+            [
+                "Use tools to inspect iteration_result_dir (especially result_summary.json and per-task logs).",
+                "Write a concise report in report_md with evidence links (file paths) and key metrics.",
+                "Decide success (goal achieved) and set verdict supported/refuted/inconclusive.",
+                "If not successful, write actionable next-iteration instructions in feedback_md (Markdown). Your feedback can include:",
+                "  - Experimental design improvements (better hyperparameters, additional experiments, etc.)",
+                "  - Code improvements needed (bug fixes, missing features, performance optimizations, etc.)",
+                "  - Be specific: mention file paths, function names, and concrete suggestions",
+                "Always set optimization_tickets to [] and next_experiments to null.",
+            ],
+            ordered=True,
+        )
+
+        result = await self._run_agent(
+            user_prompt=builder.build(),
+            system_prompt=self._build_system_prompt(project_root=project_root),
+            tools=self._get_tools(),
+        )
+        return self._normalize_analysis(self._extract_analysis(result))
 
     def _hydrate_results_from_result_dirs(
         self, results: List[ExperimentResult], project_root: str
@@ -341,6 +437,7 @@ You can examine result files using these tools if needed.
         proposal: Optional[Proposal] = None,
         code_blueprint: Optional[Blueprint] = None,
         plan: Optional[ExperimentPlan] = None,
+        doc_paths: Optional[Dict[str, str]] = None,
         **kwargs,
     ) -> str:
         """Build the user prompt with proposal + code blueprint + experiment results."""
@@ -348,6 +445,22 @@ You can examine result files using these tools if needed.
 
         builder.add_header("Experiment Analysis Request")
         builder.add_section("Analysis Goal", goal)
+
+        if doc_paths:
+            builder.add_header(
+                "Science Constraint Docs (absolute; read when needed)", level=2
+            )
+            for k in [
+                "idea_path",
+                "spec_path",
+                "plan_path",
+                "tasks_path",
+                "prev_report_path",
+                "prev_feedback_path",
+            ]:
+                if doc_paths.get(k):
+                    builder.add_text(f"- **{k}**: `{doc_paths.get(k)}`")
+            builder.add_text("")
 
         # High-level context
         if proposal is not None:
@@ -470,13 +583,23 @@ You can examine result files using these tools if needed.
 
         builder.add_separator()
         builder.add_header("Your Task", level=2)
+        builder.add_text(
+            "**Context**: Dataset files are located in `<workspace>/dataset_candidate/` directory."
+        )
+        builder.add_text(
+            "**Context**: If experiments need GPU, they should check `nvidia-smi` first and use CUDA_VISIBLE_DEVICES to select the GPU with most available memory."
+        )
+        builder.add_text("")
         builder.add_list(
             [
                 "Analyze the experiment results comprehensively",
                 "Determine if the analysis goal was achieved",
                 "Identify key findings and patterns",
-                "If experiments failed or the goal was not achieved, generate a corrected ExperimentPlan and put it in next_experiments (for the Experiment Manager to execute next)",
-                "If the root cause is likely in code (crash, numerical issues, broken pipeline), populate optimization_tickets with concrete, file-scoped tickets for the Code Layer (file_path/issue_type/message/suggestion)",
+                "If experiments failed or goal not achieved, you can suggest both experimental AND code improvements:",
+                "  - Better experimental design (hyperparameters, metrics, etc.)",
+                "  - Code improvements (bug fixes, missing features, performance issues)",
+                "  - Be specific: file paths, function names, concrete suggestions",
+                "Do NOT populate optimization_tickets (deprecated). Instead use feedback in report/feedback_md.",
                 "Output the ScienceAnalysis as JSON",
             ],
             ordered=True,

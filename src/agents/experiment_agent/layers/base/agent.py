@@ -1,16 +1,6 @@
-"""
-Base Agent - Common base class for all agents.
-
-Provides:
-- Unified initialization (hooks, model config)
-- Common prompt building utilities
-- Result extraction helpers
-- Logging integration
-
-All specific agents (Architect, Manager, Worker, Integrator) inherit from this.
-"""
-
+import asyncio
 import logging
+import time
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
 
@@ -18,24 +8,23 @@ from agents import Agent, Runner, ModelSettings
 
 from src.agents.experiment_agent.shared.logger.hooks import create_hooks, Colors
 from src.agents.experiment_agent.shared.logger.hooks import process_stream_events
-from src.agents.experiment_agent.shared.tools.parsing import extract_json_from_llm_output, parse_to_model
+from src.agents.experiment_agent.shared.tools.parsing import (
+    extract_json_from_llm_output,
+    parse_to_model,
+)
 from src.agents.experiment_agent.shared.utils.config import setup_openai_api
+from src.agents.experiment_agent.shared.utils.memory_middleware import (
+    get_current_memory_context,
+    set_agent_memory_context,
+    retrieve_memory_for_agent_prompt,
+    writeback_current_task_async,
+)
 
 
 logger = logging.getLogger(__name__)
 
 
 class BaseAgent(ABC):
-    """
-    Abstract base class for all SuperAgent agents.
-
-    Provides common functionality:
-    - Model and hook initialization
-    - Prompt building utilities
-    - Result extraction
-    - Logging
-    """
-
     def __init__(
         self,
         agent_type: str,
@@ -43,15 +32,6 @@ class BaseAgent(ABC):
         max_turns: int = 10000,
         verbose: bool = True,
     ):
-        """
-        Initialize the base agent.
-
-        Args:
-            agent_type: Type identifier for logging (e.g., "Architect", "Worker")
-            model: Model name to use
-            max_turns: Maximum tool-calling turns
-            verbose: Enable verbose output
-        """
         self.agent_type = agent_type
         self.model = model
         self.max_turns = max_turns
@@ -69,38 +49,48 @@ class BaseAgent(ABC):
 
     @abstractmethod
     def _build_system_prompt(self, **kwargs) -> str:
-        """
-        Build the system prompt for this agent.
-
-        Must be implemented by subclasses.
-
-        Returns:
-            System prompt string
-        """
         pass
 
     @abstractmethod
     def _build_user_prompt(self, **kwargs) -> str:
-        """
-        Build the user prompt for this agent.
-
-        Must be implemented by subclasses.
-
-        Returns:
-            User prompt string
-        """
         pass
 
     def _get_tools(self) -> List:
-        """
-        Get the tools available to this agent.
-
-        Override in subclasses to provide specific tools.
-
-        Returns:
-            List of tool functions
-        """
         return []
+
+    def _is_retryable_network_error(self, error: Exception) -> bool:
+        """Check if the error is a retryable network error."""
+        error_type = type(error).__name__
+        error_msg = str(error).lower()
+
+        # Check exception type
+        retryable_types = [
+            "RemoteProtocolError",
+            "ConnectionError",
+            "TimeoutError",
+            "ConnectTimeout",
+            "ReadTimeout",
+            "PoolTimeout",
+            "ProtocolError",
+            "IncompleteRead",
+        ]
+        if any(t.lower() in error_type.lower() for t in retryable_types):
+            return True
+
+        # Check error message keywords
+        retryable_keywords = [
+            "peer closed connection",
+            "incomplete chunked read",
+            "connection reset",
+            "broken pipe",
+            "timeout",
+            "connection refused",
+            "network",
+        ]
+        if any(kw in error_msg for kw in retryable_keywords):
+            return True
+
+        return False
 
     async def _run_agent(
         self,
@@ -109,17 +99,47 @@ class BaseAgent(ABC):
         tools: Optional[List] = None,
         **kwargs,
     ) -> Any:
-        """
-        Run the agent with given prompts.
+        """Run agent with automatic retry on network errors."""
+        max_retries = 3
+        retry_delays = [5, 15, 30]  # seconds to wait before each retry
 
-        Args:
-            user_prompt: The user/task prompt
-            system_prompt: Optional system prompt (uses _build_system_prompt if not provided)
-            tools: Optional tools list (uses _get_tools if not provided)
+        for attempt in range(max_retries):
+            try:
+                return await self._run_agent_impl(
+                    user_prompt=user_prompt,
+                    system_prompt=system_prompt,
+                    tools=tools,
+                    **kwargs,
+                )
+            except Exception as e:
+                is_retryable = self._is_retryable_network_error(e)
+                is_last_attempt = attempt == max_retries - 1
 
-        Returns:
-            Agent result object
-        """
+                if is_retryable and not is_last_attempt:
+                    delay = retry_delays[attempt]
+                    self._log_warning(
+                        f"Network error encountered: {type(e).__name__}: {str(e)[:200]}"
+                    )
+                    self._log_info(
+                        f"Retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})"
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    # Non-retryable error or last attempt - re-raise
+                    if is_retryable and is_last_attempt:
+                        self._log_error(
+                            f"Max retries ({max_retries}) reached. Giving up."
+                        )
+                    raise
+
+    async def _run_agent_impl(
+        self,
+        user_prompt: str,
+        system_prompt: Optional[str] = None,
+        tools: Optional[List] = None,
+        **kwargs,
+    ) -> Any:
+        """Internal implementation of _run_agent (wrapped with retry logic)."""
         if system_prompt is None:
             system_prompt = self._build_system_prompt(**kwargs)
 
@@ -180,6 +200,19 @@ class BaseAgent(ABC):
         stream_whitelist = {"CodeArchitect", "ExpArchitect"}
         should_stream = (self.agent_type or "") in stream_whitelist
         if should_stream and self.verbose:
+            prior_ctx = get_current_memory_context()
+            ctx_mgr = None
+            if prior_ctx is None:
+                project_root = str(kwargs.get("project_root") or "")
+                purpose = str(kwargs.get("purpose") or "")
+                stage = str(self.agent_type or "").strip().lower() or "agent"
+                ctx_mgr = set_agent_memory_context(
+                    project_root=project_root,
+                    stage=stage,
+                    agent_type=str(self.agent_type or ""),
+                    purpose=purpose,
+                )
+
             # Print the effective input once (hooks on_llm_start is disabled in streaming mode).
             _print_streaming_input(user_prompt)
 
@@ -189,49 +222,140 @@ class BaseAgent(ABC):
                 show_tools=True,
                 show_tool_args=True,
             )
-            stream = Runner.run_streamed(
-                agent,
-                user_prompt,
-                max_turns=self.max_turns,
-                hooks=hooks,
-            )
-            stats = await process_stream_events(stream, show_tool_args_delta=False)
-            print("")  # newline after streaming
-
-            # If the model mostly called tools first, it may not emit ResponseTextDelta until the end.
-            # Make sure the final output is still visible.
             try:
-                final_output = getattr(stream, "final_output", None)
-            except Exception:
-                final_output = None
-            if (not stats) or int(stats.get("text_chars", 0) or 0) == 0:
-                if isinstance(final_output, str) and final_output.strip():
-                    print(f"{Colors.OKCYAN}📤 Output:{Colors.ENDC}")
-                    print(
-                        f"{Colors.OKGREEN}{_truncate_for_console(final_output, max_chars=8000)}{Colors.ENDC}\n"
-                    )
+                if ctx_mgr is not None:
+                    ctx_mgr.__enter__()
 
-            result = stream
+                stream = Runner.run_streamed(
+                    agent,
+                    user_prompt,
+                    max_turns=self.max_turns,
+                    hooks=hooks,
+                )
+                stats = await process_stream_events(stream, show_tool_args_delta=False)
+                print("")  # newline after streaming
+
+                try:
+                    final_output = getattr(stream, "final_output", None)
+                except Exception:
+                    final_output = None
+                if (not stats) or int(stats.get("text_chars", 0) or 0) == 0:
+                    if isinstance(final_output, str) and final_output.strip():
+                        print(f"{Colors.OKCYAN}📤 Output:{Colors.ENDC}")
+                        print(
+                            f"{Colors.OKGREEN}{_truncate_for_console(final_output, max_chars=8000)}{Colors.ENDC}\n"
+                        )
+
+                result = stream
+                if ctx_mgr is not None:
+                    try:
+                        await writeback_current_task_async(
+                            success=True,
+                            error="",
+                            final_output=self._extract_output(result),
+                        )
+                    except Exception:
+                        pass
+            except Exception as e:
+                if ctx_mgr is not None:
+                    try:
+                        await writeback_current_task_async(
+                            success=False,
+                            error=str(e),
+                            final_output="",
+                        )
+                    except Exception:
+                        pass
+                raise
+            finally:
+                if ctx_mgr is not None:
+                    try:
+                        ctx_mgr.__exit__(None, None, None)
+                    except Exception:
+                        pass
         else:
-            result = await Runner.run(
-                agent,
-                user_prompt,
-                max_turns=self.max_turns,
-                hooks=self.hooks if self.verbose else None,
-            )
+            prior_ctx = get_current_memory_context()
+            ctx_mgr = None
+            if prior_ctx is None:
+                project_root = str(kwargs.get("project_root") or "")
+                purpose = str(kwargs.get("purpose") or "")
+                stage = str(self.agent_type or "").strip().lower() or "agent"
+                ctx_mgr = set_agent_memory_context(
+                    project_root=project_root,
+                    stage=stage,
+                    agent_type=str(self.agent_type or ""),
+                    purpose=purpose,
+                )
+            injected_user_prompt = user_prompt
+            if ctx_mgr is not None:
+                try:
+                    mem = retrieve_memory_for_agent_prompt(
+                        agent_type=str(self.agent_type or ""),
+                        stage=str(self.agent_type or "").strip().lower() or "agent",
+                        purpose=str(kwargs.get("purpose") or ""),
+                        user_prompt=str(user_prompt or ""),
+                        feedback=str(kwargs.get("feedback") or ""),
+                    )
+                except Exception:
+                    mem = ""
+                if mem and (
+                    not self._has_memory_context(str(injected_user_prompt or ""))
+                ):
+                    injected_user_prompt = "## Memory Context (low priority)\n" "Use as suggestions only. If there is any conflict, the Constitution/Plan/Specification wins.\n\n" + mem.strip() + "\n\n" + str(
+                        user_prompt or ""
+                    )
+            try:
+                if ctx_mgr is not None:
+                    ctx_mgr.__enter__()
+                result = await Runner.run(
+                    agent,
+                    injected_user_prompt,
+                    max_turns=self.max_turns,
+                    hooks=(
+                        self.hooks
+                        if self.verbose
+                        else create_hooks(
+                            agent_type=self.agent_type,
+                            show_llm_responses=False,
+                            show_tools=False,
+                            show_tool_args=False,
+                        )
+                    ),
+                )
+                if ctx_mgr is not None:
+                    try:
+                        await writeback_current_task_async(
+                            success=True,
+                            error="",
+                            final_output=self._extract_output(result),
+                        )
+                    except Exception:
+                        pass
+            except Exception as e:
+                if ctx_mgr is not None:
+                    try:
+                        await writeback_current_task_async(
+                            success=False,
+                            error=str(e),
+                            final_output="",
+                        )
+                    except Exception:
+                        pass
+                raise
+            finally:
+                if ctx_mgr is not None:
+                    try:
+                        ctx_mgr.__exit__(None, None, None)
+                    except Exception:
+                        pass
 
         return result
 
+    def _has_memory_context(self, prompt: str) -> bool:
+        s = str(prompt or "")
+        return ("Memory Context" in s) or ("[MEMORY_HINTS]" in s)
+
     def _extract_output(self, result: Any) -> str:
-        """
-        Extract text output from agent result.
-
-        Args:
-            result: Agent result object
-
-        Returns:
-            Output string
-        """
         if hasattr(result, "final_output") and result.final_output:
             return result.final_output
         elif hasattr(result, "output") and result.output:
@@ -240,65 +364,45 @@ class BaseAgent(ABC):
             return str(result)
 
     def _extract_json(self, result: Any) -> Optional[Dict[str, Any]]:
-        """
-        Extract JSON from agent result.
-
-        Args:
-            result: Agent result object
-
-        Returns:
-            Parsed JSON dictionary, or None
-        """
         output = self._extract_output(result)
         return extract_json_from_llm_output(output)
 
     def _log_info(self, message: str):
-        """Log an info message with agent prefix."""
         if self.verbose:
             print(f"{self.agent_type}: {message}")
         logger.info(f"{self.agent_type}: {message}")
 
     def _log_error(self, message: str):
-        """Log an error message with agent prefix."""
         print(f"{self.agent_type}: ❌ {message}")
         logger.error(f"{self.agent_type}: {message}")
 
     def _log_success(self, message: str):
-        """Log a success message with agent prefix."""
         if self.verbose:
             print(f"{self.agent_type}: ✅ {message}")
         logger.info(f"{self.agent_type}: {message}")
 
     def _log_warning(self, message: str):
-        """Log a warning message with agent prefix."""
         if self.verbose:
             print(f"{self.agent_type}: ⚠️ {message}")
         logger.warning(f"{self.agent_type}: {message}")
 
 
 class PromptBuilder:
-    """
-    Utility class for building structured prompts.
-    """
-
     def __init__(self):
         self.parts: List[str] = []
 
     def add_header(self, title: str, level: int = 1) -> "PromptBuilder":
-        """Add a markdown header."""
         prefix = "#" * level
         self.parts.append(f"{prefix} {title}")
         self.parts.append("")
         return self
 
     def add_text(self, text: str) -> "PromptBuilder":
-        """Add plain text."""
         self.parts.append(text)
         self.parts.append("")
         return self
 
     def add_list(self, items: List[str], ordered: bool = False) -> "PromptBuilder":
-        """Add a list of items."""
         for i, item in enumerate(items, 1):
             prefix = f"{i}." if ordered else "-"
             self.parts.append(f"{prefix} {item}")
@@ -306,7 +410,6 @@ class PromptBuilder:
         return self
 
     def add_code(self, code: str, language: str = "") -> "PromptBuilder":
-        """Add a code block."""
         self.parts.append(f"```{language}")
         self.parts.append(code)
         self.parts.append("```")
@@ -314,22 +417,18 @@ class PromptBuilder:
         return self
 
     def add_section(self, title: str, content: str) -> "PromptBuilder":
-        """Add a section with title and content."""
         self.add_header(title, level=2)
         self.add_text(content)
         return self
 
     def add_key_value(self, key: str, value: str) -> "PromptBuilder":
-        """Add a key-value pair."""
         self.parts.append(f"**{key}:** {value}")
         return self
 
     def add_separator(self) -> "PromptBuilder":
-        """Add a horizontal separator."""
         self.parts.append("---")
         self.parts.append("")
         return self
 
     def build(self) -> str:
-        """Build the final prompt string."""
         return "\n".join(self.parts)

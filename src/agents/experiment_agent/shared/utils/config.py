@@ -58,19 +58,60 @@ XIAOMI_MODELS: list = ["mimo-v2-flash"]
 
 
 # Code Layer Models
-CODE_ARCHITECT_MODEL: str = "gpt-5.2"
+CODE_ARCHITECT_MODEL: str = "gpt-5.1"
 CODE_MANAGER_MODEL: str = "MiniMax-M2.1"
 CODE_WORKER_MODEL: str = "MiniMax-M2.1"
 CODE_INTEGRATOR_MODEL: str = "MiniMax-M2.1"
 
+# Prepare Layer Models
+PREPARE_AGENT_MODEL: str = "MiniMax-M2.1"
+
 # Science Layer Models
-SCIENCE_ARCHITECT_MODEL: str = "gpt-5.2"
+SCIENCE_ARCHITECT_MODEL: str = "MiniMax-M2.1"
 SCIENCE_MANAGER_MODEL: str = "MiniMax-M2.1"
 SCIENCE_WORKER_MODEL: str = "MiniMax-M2.1"
-SCIENCE_INTEGRATOR_MODEL: str = "gpt-5.2"
+SCIENCE_INTEGRATOR_MODEL: str = "MiniMax-M2.1"
 
 # Default fallback
 DEFAULT_MODEL: str = "MiniMax-M2.1"
+
+# Science Layer Configuration
+SCIENCE_MAX_ITERATIONS: int = int(os.environ.get("SCIENCE_MAX_ITERATIONS", "5"))
+
+#
+MEMORY_ENABLED: bool = os.environ.get(
+    "EXPERIMENT_AGENT_MEMORY_ENABLED", "1"
+).strip().lower() in ("1", "true", "yes", "y", "on")
+MEMORY_SHARED_DIR: str = os.path.abspath(
+    os.path.expanduser(
+        os.environ.get(
+            "EXPERIMENT_AGENT_SHARED_MEMORY_DIR",
+            os.path.join(os.path.expanduser("~"), ".researchagent", "shared_memory"),
+        )
+    )
+)
+MEMORY_EMBEDDING_MODEL_PATH: str = os.environ.get(
+    "EXPERIMENT_AGENT_MEMORY_MODEL_PATH",
+    "/hpc_stor03/sjtu_home/hanqi.li/ckpts/huggingface/all-MiniLM-L6-v2",
+)
+MEMORY_LLM_NAME: str = os.environ.get(
+    "EXPERIMENT_AGENT_MEMORY_LLM_NAME", "mimo-v2-flash"
+)
+MEMORY_QUERY_METHOD: str = (
+    os.environ.get("EXPERIMENT_AGENT_MEMORY_QUERY_METHOD", "embedding").strip().lower()
+)
+MEMORY_WRITEBACK_ENABLED: bool = os.environ.get(
+    "EXPERIMENT_AGENT_MEMORY_WRITEBACK", "1"
+).strip().lower() in ("1", "true", "yes", "y", "on")
+MEMORY_TOOL_LOGS_ENABLED: bool = os.environ.get(
+    "EXPERIMENT_AGENT_MEMORY_TOOL_LOGS", "0"
+).strip().lower() in ("1", "true", "yes", "y", "on")
+MEMORY_PROMPT_INJECTION_ENABLED: bool = os.environ.get(
+    "EXPERIMENT_AGENT_MEMORY_PROMPT_INJECTION", "1"
+).strip().lower() in ("1", "true", "yes", "y", "on")
+
+
+MEMORY_MAX_SLOTS_PER_TASK: int = 100
 
 
 # Base directory for all CodeAgent workspaces
@@ -103,8 +144,8 @@ MAX_FIX_ITERATIONS = 50
 ENABLE_TRACING: bool = False
 
 # Timeout settings (in seconds)
-SHELL_COMMAND_TIMEOUT: int = 60
-AGENT_CALL_TIMEOUT: int = 600
+SHELL_COMMAND_TIMEOUT: int = 6000000
+AGENT_CALL_TIMEOUT: int = 6000000
 
 # Logging
 LOG_LEVEL: str = "INFO"
@@ -198,6 +239,48 @@ def get_reference_repos(experiment_id: str) -> List[str]:
     return sorted(repos)
 
 
+def get_venv_path(project_root: str) -> str:
+    """Get the virtual environment path for a project."""
+    return os.path.join(project_root, "venv")
+
+
+def get_venv_python(project_root: str) -> str:
+    """Get the Python executable path in venv."""
+    venv_path = get_venv_path(project_root)
+    return os.path.join(venv_path, "bin", "python")
+
+
+def get_venv_activate_command(project_root: str) -> str:
+    """
+    Get the command to activate venv (for use in bash commands).
+
+    Returns a source command that activates the venv.
+    Example: "source /path/to/project/venv/bin/activate"
+    """
+    venv_path = get_venv_path(project_root)
+    activate_script = os.path.join(venv_path, "bin", "activate")
+    return f"source {activate_script}"
+
+
+def wrap_command_with_venv(command: str, project_root: str) -> str:
+    """
+    Wrap a command to run within the project's venv.
+
+    Args:
+        command: The command to execute
+        project_root: Path to the project directory
+
+    Returns:
+        Command wrapped with venv activation
+
+    Example:
+        Input: "python train.py --epochs 10"
+        Output: "source /path/to/venv/bin/activate && python train.py --epochs 10"
+    """
+    activate_cmd = get_venv_activate_command(project_root)
+    return f"{activate_cmd} && {command}"
+
+
 def get_path_config(experiment_id: str) -> dict:
     """
     Get path configuration dictionary for a specific experiment.
@@ -242,17 +325,16 @@ def ensure_experiment_dirs(experiment_id: str) -> dict:
     os.makedirs(paths["logs_dir"], exist_ok=True)
     os.makedirs(paths["cache_dir"], exist_ok=True)
     os.makedirs(paths["dataset_dir"], exist_ok=True)
+    # Derived directories/files (specs/, templates/, constitution.md) are intentionally NOT
+    # returned here anymore. Use per-layer docs helpers instead:
+    # - layers/code/docs.py
+    # - layers/science/docs.py
+    #
+    # We still ensure these directories exist for backward compatibility with existing layouts.
     specs_dir = os.path.join(paths["workspace_dir"], "specs")
-    os.makedirs(specs_dir, exist_ok=True)
-    paths["specs_dir"] = specs_dir
-
     templates_dir = os.path.join(paths["workspace_dir"], "templates")
+    os.makedirs(specs_dir, exist_ok=True)
     os.makedirs(templates_dir, exist_ok=True)
-    paths["templates_dir"] = templates_dir
-
-    # Per-experiment constitution (spec-kit-like "memory/constitution.md"), but stored directly
-    # under cached/ for this experiment so it can differ across experiments and is resume-friendly.
-    paths["constitution_path"] = os.path.join(paths["cache_dir"], "constitution.md")
 
     return paths
 
@@ -393,6 +475,9 @@ def get_model_config() -> dict:
         Dictionary with model configuration for each agent
     """
     return {
+        "prepare": {
+            "agent": PREPARE_AGENT_MODEL,
+        },
         "code": {
             "architect": CODE_ARCHITECT_MODEL,
             "manager": CODE_MANAGER_MODEL,
@@ -480,6 +565,9 @@ def validate_config() -> tuple:
         "CODE_WORKER_MODEL": CODE_WORKER_MODEL,
         "CODE_INTEGRATOR_MODEL": CODE_INTEGRATOR_MODEL,
     }
+    prepare_models = {
+        "PREPARE_AGENT_MODEL": PREPARE_AGENT_MODEL,
+    }
     science_models = {
         "SCIENCE_ARCHITECT_MODEL": SCIENCE_ARCHITECT_MODEL,
         "SCIENCE_MANAGER_MODEL": SCIENCE_MANAGER_MODEL,
@@ -487,7 +575,11 @@ def validate_config() -> tuple:
         "SCIENCE_INTEGRATOR_MODEL": SCIENCE_INTEGRATOR_MODEL,
     }
 
-    for model_name, model_value in {**code_models, **science_models}.items():
+    for model_name, model_value in {
+        **prepare_models,
+        **code_models,
+        **science_models,
+    }.items():
         if not model_value:
             errors.append(f"{model_name} is not set")
 
@@ -509,6 +601,8 @@ def print_config():
         print(f"  OpenAI API Base: {OPENAI_API_BASE}")
 
     print(f"\n[Model Configuration]")
+    print(f"  Prepare Layer:")
+    print(f"    Agent: {PREPARE_AGENT_MODEL}")
     print(f"  Code Layer:")
     print(f"    Architect: {CODE_ARCHITECT_MODEL}")
     print(f"    Manager: {CODE_MANAGER_MODEL}")
