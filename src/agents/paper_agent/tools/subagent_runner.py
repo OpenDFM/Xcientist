@@ -98,6 +98,7 @@ async def _run(args) -> Dict[str, Any]:
     artifact_dir = (
         _abs(args.artifact_dir) if args.artifact_dir else str(cfg.artifact_dir or "")
     )
+    specs_dir = str(getattr(cfg, "specs_dir", "") or "")
     out_path = _abs(args.output_path)
 
     SecurityContext.set_roots(
@@ -109,12 +110,14 @@ async def _run(args) -> Dict[str, Any]:
 
     if kind == "review":
         agent = PaperReviewerAgent(model=model, max_turns=80, verbose=verbose)
+        if verbose:
+            print(f"🚀 Starting PaperReviewerAgent (model={model})...", flush=True)
         res = await agent.run(
             user_prompt=agent._build_user_prompt(
                 paper_dir=paper_dir, artifact_dir=artifact_dir, output_path=out_path
             ),
             system_prompt=agent._build_system_prompt(
-                paper_dir=paper_dir, artifact_dir=artifact_dir, output_path=out_path
+                paper_dir=paper_dir, artifact_dir=artifact_dir, output_path=out_path, specs_dir=specs_dir
             ),
             paper_dir=paper_dir,
             artifact_dir=artifact_dir,

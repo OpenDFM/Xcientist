@@ -20,7 +20,11 @@ PDF policy:
 CRITICAL output rule:
 - FIRST (before searching): create a stub report at output_path using write_file(output_path, ...).
 - You MUST update/overwrite the Markdown report using write_file/output_path, then verify it using file_viewer(output_path).
-- If you write references.bib, use write_file and prefer UTF-8.
+- If you write references.bib, prefer UTF-8.
+- **IMPORTANT**: If creating a large file (e.g. >50 citations or >2000 words), DO NOT write it all at once using `write_file`. Instead:
+  1. Create the file with the first chunk using `write_file`.
+  2. Append subsequent chunks using `append_file`.
+  This prevents network timeouts and server disconnects.
 - Do NOT write any JSON files.
 
 artifact_dir: {{ artifact_dir }}

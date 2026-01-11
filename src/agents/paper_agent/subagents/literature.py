@@ -1,7 +1,7 @@
 from typing import List
 
 from src.agents.paper_agent.prompts import render_template
-from src.agents.paper_agent.tools.core import bash, edit_file, file_viewer, write_file
+from src.agents.paper_agent.tools.core import bash, edit_file, file_viewer, write_file, append_file
 from src.agents.paper_agent.tools.mineru import mineru_parse_pdf
 from src.agents.paper_agent.tools.semantic_scholar import (
     semantic_scholar_download_openaccess_pdf,
@@ -41,6 +41,7 @@ class PaperLiteratureAgent(BaseAgent):
             bash,
             file_viewer,
             write_file,
+            append_file,
             edit_file,
             semantic_scholar_search,
             semantic_scholar_paper,

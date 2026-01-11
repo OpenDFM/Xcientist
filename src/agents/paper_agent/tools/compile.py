@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from agents import function_tool
 
 from src.agents.paper_agent.tools.vlm import vlm_layout_review_from_pages
+from src.agents.paper_agent.utils.config import PAPER_COMPILE_DOCKER_IMAGE
 
 
 @dataclass
@@ -247,13 +248,51 @@ def _render_pdf_pages_with_pypdfium2(
         return {"success": False, "error": f"render failed: {type(e).__name__}: {e}"}
 
 
+def _run_docker_compile(
+    docker_image: str,
+    paper_dir: str,
+    artifact_dir: str,
+    main_tex_rel: str,
+    compile_dir_rel: str,
+    timeout_sec: int,
+) -> Tuple[int, str, str, float]:
+    uid = os.getuid()
+    gid = os.getgid()
+
+    if not _which("docker"):
+        return 1, "", "Docker command not found", 0.0
+
+    cmd = [
+        "docker",
+        "run",
+        "--rm",
+        "--user",
+        f"{uid}:{gid}",
+        "--network",
+        "none",
+        "-v",
+        f"{paper_dir}:/src",
+        "-v",
+        f"{artifact_dir}:/out",
+        "-w",
+        "/src",
+        docker_image,
+        "latexmk",
+        "-pdf",
+        "-interaction=nonstopmode",
+        "-halt-on-error",
+        "-file-line-error",
+        f"-outdir=/out/{compile_dir_rel}",
+        main_tex_rel,
+    ]
+    return _run_subprocess(cmd, cwd=paper_dir, timeout_sec=timeout_sec)
+
+
 def compile_and_vlm_review_impl(
     paper_dir: str,
     artifact_dir: str,
     main_tex: Optional[str] = None,
     compile_timeout_sec: int = 600,
-    vlm_mode: str = "compile_only",
-    vlm_page_strategy: Optional[dict] = None,
 ) -> Dict[str, Any]:
     paper_dir = os.path.abspath(str(paper_dir or ""))
     artifact_dir = os.path.abspath(str(artifact_dir or ""))
@@ -272,14 +311,23 @@ def compile_and_vlm_review_impl(
         else main_tex_path
     )
 
-    # Toolchain selection: prefer latexmk, fallback to pdflatex, then tectonic.
+    tectonic = _which("tectonic")
     latexmk = _which("latexmk")
     pdflatex = _which("pdflatex")
-    tectonic = _which("tectonic")
 
     toolchain = ""
     cmd: List[str] = []
-    if latexmk:
+    if tectonic:
+        toolchain = "tectonic"
+        cmd = [
+            tectonic,
+            "--keep-intermediates",
+            "--keep-logs",
+            "--outdir",
+            compile_dir,
+            main_tex_used,
+        ]
+    elif latexmk:
         toolchain = "latexmk"
         cmd = [
             latexmk,
@@ -301,16 +349,6 @@ def compile_and_vlm_review_impl(
             f"-output-directory={compile_dir}",
             main_tex_used,
         ]
-    elif tectonic:
-        toolchain = "tectonic"
-        cmd = [
-            tectonic,
-            "--keep-intermediates",
-            "--keep-logs",
-            "--outdir",
-            compile_dir,
-            main_tex_used,
-        ]
     else:
         issue = CompileIssueIndex(
             missing_files=[],
@@ -318,7 +356,7 @@ def compile_and_vlm_review_impl(
             undefined_references=[],
             overfull_hbox=[],
             errors=[
-                "No TeX toolchain found (latexmk/pdflatex/tectonic). Install TeX or load module."
+                "pdflatex not found. Please install TeX Live or similar."
             ],
             warnings=[],
         )
@@ -333,7 +371,7 @@ def compile_and_vlm_review_impl(
             "vlm_layout_review": {
                 "success": False,
                 "skipped": True,
-                "reason": "compile failed",
+                "reason": "compile failed (pdflatex missing)",
             },
         }
 
@@ -369,11 +407,11 @@ def compile_and_vlm_review_impl(
         "reason": "vlm_mode=compile_only",
     }
 
-    if compile_success and str(vlm_mode or "").strip().lower() == "compile_and_review":
-        strategy = vlm_page_strategy or {}
-        dpi = int(strategy.get("dpi", 250))
-        first_n_pages = int(strategy.get("first_n_pages", 3))
-        max_pages = int(strategy.get("max_pages", 10))
+    # Always enable VLM review with fixed strategy
+    if compile_success:
+        dpi = 250
+        first_n_pages = 3
+        max_pages = 10
         render_res = _render_pdf_pages_with_pypdfium2(
             pdf_path=pdf_path,
             out_dir=pages_dir,
@@ -513,32 +551,29 @@ def compile_and_vlm_review(
     artifact_dir: str,
     main_tex: str = "",
     compile_timeout_sec: int = 600,
-    vlm_mode: str = "compile_and_review",
-    vlm_page_strategy: str = "",
 ) -> dict:
     """
-    Compile a LaTeX project into PDF, then run VLM layout review after PDF is generated.
+    Compile a LaTeX project into PDF using pdflatex, then run VLM layout review after PDF is generated.
 
     Notes:
     - For logging/UX, this tool returns:
       - success: bool (mirrors compile_success)
       - message: short human-readable summary
     """
-    strategy_obj = None
-    if isinstance(vlm_page_strategy, str) and vlm_page_strategy.strip():
-        try:
-            strategy_obj = json.loads(vlm_page_strategy)
-        except Exception:
-            strategy_obj = None
-
-    res = compile_and_vlm_review_impl(
-        paper_dir=paper_dir,
-        artifact_dir=artifact_dir,
-        main_tex=(main_tex.strip() or None),
-        compile_timeout_sec=int(compile_timeout_sec),
-        vlm_mode=str(vlm_mode or "compile_and_review"),
-        vlm_page_strategy=strategy_obj,
-    )
+    try:
+        res = compile_and_vlm_review_impl(
+            paper_dir=paper_dir,
+            artifact_dir=artifact_dir,
+            main_tex=(main_tex.strip() or None),
+            compile_timeout_sec=int(compile_timeout_sec),
+        )
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "error": f"compile_and_vlm_review failed: {str(e)}",
+            "traceback": traceback.format_exc()
+        }
     if not isinstance(res, dict):
         return {"success": False, "error": "compile tool returned non-dict result"}
     ok = bool(res.get("compile_success"))
@@ -553,9 +588,27 @@ def compile_and_vlm_review(
     )
     vlm_ok = bool(vlm.get("success")) if isinstance(vlm, dict) else False
     findings = vlm.get("findings") if isinstance(vlm.get("findings"), list) else []
+    
+    # Construct detailed error message
+    error_details = []
+    if isinstance(issues, dict):
+        if issues.get("missing_files"):
+            error_details.append(f"Missing files: {issues['missing_files']}")
+        if issues.get("errors"):
+            # Limit errors to avoid hitting context limits, but give enough info
+            errors = issues['errors']
+            error_details.append(f"LaTeX Errors: {errors[:10]}") 
+
     msg = f"compile_success={ok}, pdf={pdf_path or '(none)'}, issues: errors={err_n}, warnings={warn_n}, vlm_success={vlm_ok}, vlm_findings={len(findings)}"
+    
     res["success"] = ok
     res["message"] = msg
-    if not ok and "error" not in res and err_n:
-        res["error"] = str((issues.get("errors") or ["compile failed"])[0])
+    
+    if not ok and "error" not in res:
+        res["error"] = "; ".join(error_details) if error_details else "Compile failed (check logs for details)"
+        # Also append to message for visibility
+        if error_details:
+             res["message"] += f". Details: {'; '.join(error_details)}"
+             
     return res
+

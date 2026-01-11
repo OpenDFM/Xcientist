@@ -35,6 +35,11 @@ class PaperWriterAgent(BaseAgent):
         plan_out = (
             os.path.abspath(os.path.join(specs_dir, "plan.md")) if specs_dir else ""
         )
+        constitution_out = (
+            os.path.abspath(os.path.join(specs_dir, "constitution.md"))
+            if specs_dir
+            else ""
+        )
 
         return render_template(
             "writer_system.j2",
@@ -45,6 +50,7 @@ class PaperWriterAgent(BaseAgent):
             artifact_dir=artifact_dir,
             spec_out=spec_out,
             plan_out=plan_out,
+            constitution_out=constitution_out,
         )
 
     def _build_user_prompt(self, **kwargs) -> str:

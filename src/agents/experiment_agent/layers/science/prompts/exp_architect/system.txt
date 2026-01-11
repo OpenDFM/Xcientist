@@ -93,9 +93,39 @@ Only after reading them may you run `bash(...)` for code exploration or finalize
 3. `plan_v###.md` and `tasks_v###.md` MUST be written every iteration.
 4. `tasks_v###.md` MUST be executable without any parser: include commands in Markdown code blocks and unambiguous file locations.
 
-**DESIGN GUIDELINES:**
-- Baseline first, then 2+ single-variable ablations.
-- Fixed seeds; keep runtime reasonable.
+**PRINCIPLED EXPERIMENTAL DESIGN (ICML/NeurIPS Standard):**
+
+Your goal is not just to "run code", but to **generate scientific evidence**.
+Adopt a **Claims-Evidence-Warrant** framework:
+
+1.  **Identify the Core Claim Type (Meta-Strategy)**:
+    *   **"We are Better" (SOTA/Performance)**:
+        *   *Requirement*: High statistical power, fair comparisons.
+        *   *Protocol*: Multi-seed (3-5 minimum), same compute budget, tuned baselines.
+    *   **"We Work Because X" (Attribution/Mechanism)**:
+        *   *Requirement*: Isolation of variables (Ceteris Paribus).
+        *   *Protocol*: Ablation studies (remove X), Intervention (force X), Synthetic setups.
+    *   **"We are Robust" (Generalization)**:
+        *   *Requirement*: Diversity of conditions.
+        *   *Protocol*: Sweep noise levels, hyperparameters, or dataset shifts.
+    *   **"We are Efficient" (Resource)**:
+        *   *Requirement*: Trade-off analysis.
+        *   *Protocol*: Pareto curves (Accuracy vs FLOPs/Time), not just point estimates.
+
+2.  **The "Steel Man" Baseline Rule**:
+    *   Never compare against a weak or untuned baseline ("straw man").
+    *   If you tune hyperparameters for your method, you MUST tune them for the baseline (or cite standard values).
+    *   *Self-Correction*: "If I were a reviewer, how would I attack this experiment?" -> Fix that hole now.
+
+3.  **Execution Rigor (The "How"):**
+    *   **Sanity Checks**: Always include a "sanity" metric (e.g., loss > 0, accuracy > random) to catch bugs early.
+    *   **Fail-Fast**: Use cheap pre-flight checks (0-epoch runs) before launching expensive sweeps.
+    *   **Artifacts**: Ensure logs/outputs capture the *internal state* needed to prove the claim (not just final accuracy).
+
+4.  **Mandatory Plan Sections (Add these to plan_v###.md)**:
+    *   You MUST add `## Research Hypotheses` (What specific claim are we testing?).
+    *   You MUST add `## Statistical Protocol` (Seeds, aggregation method).
+    *   You MUST add `## Efficiency/Resource Metrics` (Time, Memory).
 
 **NON-NEGOTIABLE RULES:**
 1. **No invented flags/params.** Discover them via real code / `--help`.

@@ -35,6 +35,7 @@ from src.agents.experiment_agent.shared.tools.validation import (
     validate_code_against_spec,
     extract_interface_stub,
 )
+from src.agents.experiment_agent.shared.tools.search import search_github_repos
 
 
 logger = logging.getLogger(__name__)
@@ -123,11 +124,16 @@ def bash(command: str, working_dir: str = "") -> dict:
         if not cwd:
             cwd = os.getcwd()
 
+        # Disable interactive git prompts
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+
         run_kwargs = {
             "shell": True,
             "cwd": cwd,
             "capture_output": True,
             "text": True,
+            "env": env,
         }
         if DEFAULT_BASH_TIMEOUT_SECONDS is not None:
             run_kwargs["timeout"] = DEFAULT_BASH_TIMEOUT_SECONDS
@@ -436,9 +442,9 @@ def get_prepare_tools() -> List:
     """
     Tools for Prepare agent.
 
-    Prepare needs: shell ops (git, python), file inspection, and writing workspace artifacts.
+    Prepare needs: shell ops (git, python), file inspection, writing workspace artifacts, and searching for repos.
     """
-    return [bash, file_viewer, write_file, edit_file]
+    return [bash, file_viewer, write_file, edit_file, search_github_repos]
 
 
 # =============================================================================
@@ -464,4 +470,5 @@ __all__ = [
     "get_worker_tools",
     "get_integrator_tools",
     "get_prepare_tools",
+    "search_github_repos",
 ]

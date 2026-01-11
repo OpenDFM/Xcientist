@@ -1,7 +1,11 @@
 import base64
 import json
 import os
+import time
 from typing import Any, Dict, List, Optional
+import httpx
+import httpcore
+import openai
 
 from agents import function_tool
 from openai import OpenAI
@@ -25,6 +29,17 @@ def _try_parse_json(text: str) -> Optional[dict]:
     s = text.strip()
     if not s:
         return None
+    
+    # Try to clean markdown code blocks
+    if "```" in s:
+        # Extract content between first ```json (or just ```) and the next ```
+        import re
+        # Pattern to match ```json ... ``` or ``` ... ```
+        pattern = r"```(?:json)?\s*([\s\S]*?)\s*```"
+        match = re.search(pattern, s)
+        if match:
+            s = match.group(1).strip()
+            
     try:
         return json.loads(s)
     except Exception:
@@ -59,12 +74,22 @@ def vlm_layout_review_from_pages(
     client = OpenAI(**client_kwargs)
 
     prompt = (
-        "You are a LaTeX paper layout reviewer. Focus ONLY on aesthetics and readability.\n"
+        "You are a LaTeX paper layout reviewer for a top-tier ML conference (ICML).\n"
+        "Your job is to enforce strict aesthetic and structural guidelines defined in the Constitution.\n"
+        "\n"
+        "Check these specific points:\n"
+        "1. **Page Limit Visual Check**: The paper main body should ideally fill 8 pages. If it looks like 7 pages or less, flag it as a MAJOR issue.\n"
+        "2. **Visual Hierarchy**: Are section headers clear? Are bold terms used effectively without overusing?\n"
+        "3. **Figures**: Are they vector graphics (sharp) or blurry? Are fonts in figures legible (comparable to caption size)?\n"
+        "4. **Tables**: Do they use booktabs (no vertical lines)? Are best results bolded?\n"
+        "5. **Overall Density**: Is the text too dense (wall of text) or too sparse?\n"
+        "\n"
+        "Focus ONLY on aesthetics, layout, and visual structure. Do NOT critique technical content text.\n"
         "Give actionable suggestions tied to page numbers.\n"
-        "Do NOT critique technical content.\n\n"
+        "\n"
         "Return JSON with keys:\n"
         "- reviewed_pages: [int]\n"
-        "- findings: list of {page:int, severity:string, category:string, problem:string, suggestion:string}\n"
+        "- findings: list of {page:int, severity:string(critical|major|minor), category:string, problem:string, suggestion:string}\n"
     )
 
     content: List[dict] = [{"type": "text", "text": prompt}]
@@ -83,9 +108,27 @@ def vlm_layout_review_from_pages(
         }
         if isinstance(extra_body, dict) and extra_body:
             create_kwargs["extra_body"] = extra_body
-        resp = client.chat.completions.create(
-            **create_kwargs,
-        )
+        
+        resp = None
+        max_retries = 10
+        for attempt in range(max_retries):
+            try:
+                resp = client.chat.completions.create(
+                    **create_kwargs,
+                )
+                break
+            except (
+                httpx.RemoteProtocolError, 
+                httpcore.RemoteProtocolError, 
+                openai.APIConnectionError, 
+                openai.InternalServerError, 
+                openai.RateLimitError
+            ) as e:
+                if attempt == max_retries - 1:
+                    raise
+                wait_time = 2.0 * (1.5 ** attempt)
+                time.sleep(wait_time)
+        
         text = ""
         try:
             text = resp.choices[0].message.content or ""

@@ -3,9 +3,9 @@ from typing import List
 from src.agents.paper_agent.prompts import render_template
 from src.agents.paper_agent.tools.checks import check_citations
 from src.agents.paper_agent.tools.compile import compile_and_vlm_review
-from src.agents.paper_agent.tools.core import bash, file_viewer, write_file
+from src.agents.paper_agent.tools.core import bash, file_viewer, write_file, append_file, edit_file
 from src.agents.paper_agent.utils.agent_base import BaseAgent
-
+import os
 
 class PaperReviewerAgent(BaseAgent):
     def __init__(
@@ -22,16 +22,24 @@ class PaperReviewerAgent(BaseAgent):
         paper_dir = str(kwargs.get("paper_dir", "") or "")
         artifact_dir = str(kwargs.get("artifact_dir", "") or "")
         output_path = str(kwargs.get("output_path", "") or "")
+        specs_dir = str(kwargs.get("specs_dir", "") or "")
+        
+        constitution_out = (
+            os.path.abspath(os.path.join(specs_dir, "constitution.md"))
+            if specs_dir
+            else ""
+        )
 
         return render_template(
             "reviewer_system.j2",
             paper_dir=paper_dir,
             artifact_dir=artifact_dir,
             output_path=output_path,
+            constitution_out=constitution_out,
         )
 
     def _build_user_prompt(self, **kwargs) -> str:
         return render_template("reviewer_user.j2")
 
     def _get_tools(self) -> List:
-        return [bash, file_viewer, write_file, compile_and_vlm_review, check_citations]
+        return [bash, file_viewer, write_file, append_file, edit_file, compile_and_vlm_review, check_citations]

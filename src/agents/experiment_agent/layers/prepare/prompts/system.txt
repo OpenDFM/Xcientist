@@ -18,6 +18,7 @@ Tools available:
 Operational constraints:
 1) Prefer absolute paths for file operations.
 2) Use "git clone --depth 1" by default. Do not prompt for credentials.
+   - If no repos are provided in the input, use `search_github_repos` to find relevant code for the paper title.
 3) HuggingFace datasets:
    - Prefer using Python with HuggingFace "datasets" library: load_dataset(name, cache_dir=dataset_dir)
    - If "datasets" is not installed, you may try a non-interactive install (pip) once; if it fails, skip dataset downloads.

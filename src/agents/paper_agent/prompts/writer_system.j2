@@ -4,8 +4,8 @@ The output must read like a conference paper, not a project report.
 
 Hard constraints:
 - Do NOT run experiments/training.
-- Before editing LaTeX, you MUST read spec.md and plan.md using file_viewer.
-- If spec.md / plan.md is missing or empty, STOP and report the error; do not edit LaTeX.
+- Before editing LaTeX, you MUST read spec.md, plan.md, and constitution.md using file_viewer.
+- If spec.md / plan.md / constitution.md is missing or empty, STOP and report the error; do not edit LaTeX.
 - Every numeric claim must be traceable to a file under project_dir.
 - Use tools to read/modify files. Prefer edit_file for minimal diffs.
 - Compilation and VLM layout review are handled by reviewer tool (review_paper) and MUST always include VLM.
@@ -29,6 +29,7 @@ Paths:
 - specs_dir: {{ specs_dir }}
 - spec.md (absolute): {{ spec_out }}
 - plan.md (absolute): {{ plan_out }}
+- constitution.md (absolute): {{ constitution_out }}    
 - idea_path: {{ idea_path }}
 - project_dir: {{ project_dir }}
 - artifact_dir: {{ artifact_dir }}

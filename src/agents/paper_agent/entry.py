@@ -192,6 +192,16 @@ async def run_paper_cycle(
     state_path = paths["state_path"]
     run_config_path = paths["run_config_path"]
 
+    # Copy constitution.md to specs_dir
+    try:
+        constitution_src = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "templates", "constitution.md"
+        )
+        if os.path.exists(constitution_src):
+            shutil.copy2(constitution_src, os.path.join(specs_dir, "constitution.md"))
+    except Exception:
+        pass
+
     template_dir = os.path.abspath(str(template_dir or "")) if template_dir else ""
     idea_md = os.path.abspath(str(idea_md or ""))
     project_dir = os.path.abspath(str(project_dir or ""))
@@ -308,6 +318,7 @@ async def run_paper_cycle(
             paper_dir=str(paper_dir),
             project_dir=str(project_dir),
             artifact_dir=str(artifact_dir),
+            specs_dir=str(specs_dir),
             model=str(model),
             models=dict(effective_models),
             experiment_id=str(experiment_id or ""),

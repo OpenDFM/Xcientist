@@ -282,22 +282,6 @@ class VerboseRunHooks(RunHooks):
                     getattr(llm_response, "output", None)
                 )
 
-            show_reasoning_env = (
-                os.environ.get("SHOW_LLM_REASONING", "").strip().lower()
-            )
-            show_reasoning = show_reasoning_env in ("1", "true", "yes", "y", "on")
-            if show_reasoning and reasoning:
-                truncated_reasoning = _truncate_to_tokens(
-                    str(reasoning), max_tokens=300
-                )
-                if truncated_reasoning:
-                    print(f"{Colors.OKCYAN}🧠 Thinking:{Colors.ENDC}")
-                    print(f"{Colors.WARNING}{truncated_reasoning}{Colors.ENDC}\n")
-            elif show_reasoning and not reasoning:
-                print(
-                    f"{Colors.OKCYAN}🧠 Thinking:{Colors.ENDC} {Colors.WARNING}(no reasoning provided by model/provider){Colors.ENDC}\n"
-                )
-
             if tool_calls:
                 print(
                     f"{Colors.OKCYAN}🔧 Will call tools: {', '.join(tool_calls)}{Colors.ENDC}\n"

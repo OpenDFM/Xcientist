@@ -28,6 +28,9 @@ async def process_stream_events(stream, show_tool_args_delta: bool = False) -> d
     text_chars = 0
     announced_tools = set()
     current_tool = None
+    
+    # Unified Thinking State
+    is_printing_block = False
 
     async for event in stream.stream_events():
         if not hasattr(event, "data"):
@@ -35,14 +38,38 @@ async def process_stream_events(stream, show_tool_args_delta: bool = False) -> d
 
         event_type = type(event.data).__name__
         data = event.data
-
-        # Stream response text
+        
+        # Unified Text/Reasoning Handling
+        is_text_event = False
+        delta_text = ""
+        
+        # Check for ResponseTextDelta (Legacy/Standard)
         if "ResponseTextDelta" in event_type:
             if hasattr(data, "delta") and data.delta:
-                delta = str(data.delta)
-                text_chars += len(delta)
-                print(f"{Colors.OKGREEN}{delta}{Colors.ENDC}", end="", flush=True)
+                delta_text = str(data.delta)
+                is_text_event = True
+        
+        # Check for Raw Events (Reasoning/Content)
+        if hasattr(data, "type"):
+            dtype = getattr(data, "type", "")
+            if dtype in ["response.reasoning_text.delta", "response.reasoning_summary_text.delta", "response.output_text.delta"]:
+                delta = getattr(data, "delta", "")
+                if delta:
+                    delta_text = str(delta)
+                    is_text_event = True
+                    
+        if is_text_event:
+            text_chars += len(delta_text)
+            if not is_printing_block:
+                print(f"\n{Colors.OKCYAN}🧠 Thinking:{Colors.ENDC}\n{Colors.WARNING}", end="", flush=True)
+                is_printing_block = True
+            print(delta_text, end="", flush=True)
             continue
+            
+        # Non-text event: Close block
+        if is_printing_block:
+            print(f"{Colors.ENDC}\n", flush=True)
+            is_printing_block = False
 
         # Stream function/tool call arguments (often noisy; usually prefer hook-based tool printing)
         if "FunctionCallArgumentsDelta" in event_type:
@@ -90,46 +117,8 @@ async def process_stream_events(stream, show_tool_args_delta: bool = False) -> d
             current_tool = None
             continue
 
-        # Fallback for raw response stream events
-        if "RawResponsesStreamEvent" in event_type:
-            if hasattr(data, "data") and hasattr(data.data, "delta"):
-                delta = data.data.delta
-                # If tool calls are present in the delta, do NOT print raw content/args here.
-                # Tool arguments are better shown via the tool hooks, otherwise we get ugly JSON
-                # like {"command": "..."}{"command": "..."} concatenated on one line.
-                if hasattr(delta, "tool_calls") and delta.tool_calls:
-                    try:
-                        for tc in delta.tool_calls:
-                            fn = getattr(tc, "function", None)
-                            name = getattr(fn, "name", None) if fn else None
-                            if name and name != current_tool:
-                                current_tool = name
-                                tool_count += 1
-                                print(
-                                    f"\n{Colors.BOLD}{Colors.OKCYAN}→ LLM requested TOOL: {name}{Colors.ENDC}"
-                                )
-                            # Best-effort args preview
-                            args_val = getattr(fn, "arguments", None) if fn else None
-                            if args_val:
-                                preview = str(args_val).strip().replace("\n", " ")
-                                if len(preview) > 300:
-                                    preview = preview[:297] + "..."
-                                print(f"{Colors.OKBLUE}  args: {preview}{Colors.ENDC}")
-                    except Exception:
-                        pass
-                    continue
-                if hasattr(delta, "content") and delta.content:
-                    content = str(delta.content)
-                    # Drop obvious JSON-like blobs to keep output readable.
-                    if content.lstrip().startswith("{") and '"command"' in content:
-                        continue
-                    text_chars += len(content)
-                    print(
-                        f"{Colors.OKGREEN}{content}{Colors.ENDC}",
-                        end="",
-                        flush=True,
-                    )
-            continue
+    if is_printing_block:
+        print(f"{Colors.ENDC}\n", flush=True)
 
     return {"tool_count": tool_count, "text_chars": text_chars}
 

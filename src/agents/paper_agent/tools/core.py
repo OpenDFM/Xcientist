@@ -164,6 +164,36 @@ def write_file(file_path: str, content: str) -> dict:
 
 
 @function_tool
+def append_file(file_path: str, content: str) -> dict:
+    try:
+        full_path = str(file_path or "")
+        if not os.path.isabs(full_path):
+            root = SecurityContext.get_project_root() or os.getcwd()
+            full_path = os.path.join(root, full_path)
+        if SecurityContext._write_roots and (
+            not SecurityContext._is_within_any_root(
+                full_path, SecurityContext._write_roots
+            )
+        ):
+            return {
+                "success": False,
+                "error": f"append forbidden by SecurityContext: {full_path}",
+            }
+        parent = os.path.dirname(full_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        with open(full_path, "a", encoding="utf-8") as f:
+            f.write(str(content or ""))
+        return {
+            "success": True,
+            "file_path": full_path,
+            "message": f"Appended {len(str(content or ''))} chars",
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@function_tool
 def edit_file(file_path: str, old_string: str, new_string: str) -> dict:
     try:
         full_path = str(file_path or "")
@@ -194,8 +224,8 @@ def edit_file(file_path: str, old_string: str, new_string: str) -> dict:
 
 
 def get_architect_tools() -> List:
-    return [bash, file_viewer, write_file, edit_file]
+    return [bash, file_viewer, write_file, append_file, edit_file]
 
 
 def get_writer_tools() -> List:
-    return [bash, file_viewer, write_file, edit_file]
+    return [bash, file_viewer, write_file, append_file, edit_file]

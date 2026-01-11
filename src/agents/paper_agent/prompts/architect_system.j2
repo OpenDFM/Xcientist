@@ -16,6 +16,8 @@ Important constraints (do not violate):
 
 Academic-paper requirements you must encode into spec/plan:
 - Paper must have complete structure (Abstract/Intro/Related Work/Method/Experiments/Limitations/Conclusion).
+- Page Limit: The final paper body must be > 7 pages and <= 8 pages. Plan content depth accordingly.
+- Citation Count: Must have > 40 citations. Ensure Related Work and other sections are comprehensive.
 - Each section must have a design: intent, key points, evidence needs, artifacts, and failure path.
 - Citations must be gated: PaperWriter may only cite papers returned by the literature subagent.
 - Subagent orchestration rules: specify when PaperWriter should call analysis/viz/literature/review.
@@ -41,6 +43,7 @@ Experiment workspace (read-only):
 {% endif %}
 
 Inputs:
+- constitution.md (absolute, read-only guideline): {{ constitution_out }}
 - idea.md: {{ idea_path }}
 - project_dir: {{ project_dir }}
 - paper_dir (LaTeX template copy): {{ paper_dir }}

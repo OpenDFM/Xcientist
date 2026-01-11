@@ -37,6 +37,10 @@ XIAOMI_API_BASE: str = "https://api.xiaomimimo.com/v1/"
 XIAOMI_MODELS: list = ["mimo-v2-flash"]
 
 LATEX_TEMPLATE_DIR = "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/paper_agent/latex/ICML2025_Template"
+PAPER_COMPILE_DOCKER_IMAGE: Optional[str] = os.environ.get(
+    "PAPER_COMPILE_DOCKER_IMAGE", "texlive/texlive:latest"
+)
+
 
 
 PAPER_ARCHITECT_MODEL = "MiniMax-M2.1"
@@ -63,7 +67,7 @@ def is_xiaomi_model(model_name: str) -> bool:
 def get_openai_config(model: Optional[str] = None) -> dict:
     model_name = str(model or "").strip()
     if not model_name:
-        model_name = str(PAPER_WRITER_MODEL or "").strip() or "gpt-5.2"
+        model_name = str(PAPER_WRITER_MODEL or "").strip() or "gpt-4o"
 
     if is_minimax_model(model_name):
         return {
@@ -118,6 +122,7 @@ class PaperAgentRunConfig:
     paper_dir: str
     project_dir: str
     artifact_dir: str
+    specs_dir: str
     model: str
     models: Dict[str, str] = field(default_factory=dict)
     experiment_id: str = ""
@@ -134,6 +139,7 @@ class PaperAgentRunConfig:
             paper_dir=os.path.abspath(str((d or {}).get("paper_dir", "") or "")),
             project_dir=os.path.abspath(str((d or {}).get("project_dir", "") or "")),
             artifact_dir=os.path.abspath(str((d or {}).get("artifact_dir", "") or "")),
+            specs_dir=os.path.abspath(str((d or {}).get("specs_dir", "") or "")),
             model=str((d or {}).get("model", "") or "gpt-5.2"),
             models=dict((d or {}).get("models", {}) or {}),
             experiment_id=str((d or {}).get("experiment_id", "") or ""),
@@ -194,6 +200,7 @@ def write_run_config(path: str, cfg: PaperAgentRunConfig) -> None:
                 "paper_dir": cfg.paper_dir,
                 "project_dir": cfg.project_dir,
                 "artifact_dir": cfg.artifact_dir,
+                "specs_dir": cfg.specs_dir,
                 "model": cfg.model,
                 "models": cfg.models,
                 "experiment_id": str(cfg.experiment_id or ""),
@@ -254,7 +261,7 @@ def setup_openai_api(model: Optional[str] = None, verbose: bool = False) -> bool
 
         client_kwargs = {
             "api_key": api_key,
-            "timeout": Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0),
+            "timeout": Timeout(connect=10.0, read=120.0, write=60.0, pool=10.0),
             "max_retries": 10,
         }
         base_url = str(cfg.get("base_url", "") or "").strip()

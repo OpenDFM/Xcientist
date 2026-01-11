@@ -1,7 +1,7 @@
 from typing import List
 
 from src.agents.paper_agent.prompts import render_template
-from src.agents.paper_agent.tools.core import bash, edit_file, file_viewer, write_file
+from src.agents.paper_agent.tools.core import bash, edit_file, file_viewer, write_file, append_file
 from src.agents.paper_agent.utils.agent_base import BaseAgent
 
 
@@ -30,4 +30,4 @@ class PaperVizAgent(BaseAgent):
         return render_template("viz_user.j2")
 
     def _get_tools(self) -> List:
-        return [bash, file_viewer, write_file, edit_file]
+        return [bash, file_viewer, write_file, append_file, edit_file]

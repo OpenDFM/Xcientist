@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any, Dict, List, Optional
@@ -18,9 +19,18 @@ def _http_get_json(
     url: str, headers: Optional[dict] = None, timeout_sec: int = 30
 ) -> dict:
     req = urllib.request.Request(url, headers=headers or {}, method="GET")
-    with urllib.request.urlopen(req, timeout=int(timeout_sec)) as resp:
-        raw = resp.read()
-    return json.loads(raw.decode("utf-8", errors="replace"))
+    
+    max_retries = 3
+    for attempt in range(max_retries + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=int(timeout_sec)) as resp:
+                raw = resp.read()
+            return json.loads(raw.decode("utf-8", errors="replace"))
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < max_retries:
+                time.sleep(5 * (attempt + 1))
+                continue
+            raise e
 
 
 def _default_headers() -> dict:
@@ -80,6 +90,14 @@ def semantic_scholar_search(query: str, limit: int = 10, fields: str = "") -> di
     if not fields:
         fields = "title,abstract,year,authors,url,citationCount,influentialCitationCount,isOpenAccess,openAccessPdf,paperId"
 
+    # Auto-fix common field errors
+    fields_list = [f.strip() for f in fields.split(",") if f.strip()]
+    if "doi" in fields_list:
+        fields_list.remove("doi")
+        if "externalIds" not in fields_list:
+            fields_list.append("externalIds")
+    fields = ",".join(fields_list)
+
     url = f"{S2_API_BASE}/graph/v1/paper/search?query={urllib.parse.quote(q)}&limit={int(limit)}&fields={urllib.parse.quote(fields)}"
     try:
         data = _http_get_json(url, headers=_default_headers(), timeout_sec=60)
@@ -108,6 +126,14 @@ def semantic_scholar_paper(paper_id: str, fields: str = "") -> dict:
 
     if not fields:
         fields = "title,abstract,year,authors,url,citationCount,influentialCitationCount,isOpenAccess,openAccessPdf,referenceCount,references.paperId,references.title"
+
+    # Auto-fix common field errors
+    fields_list = [f.strip() for f in fields.split(",") if f.strip()]
+    if "doi" in fields_list:
+        fields_list.remove("doi")
+        if "externalIds" not in fields_list:
+            fields_list.append("externalIds")
+    fields = ",".join(fields_list)
 
     safe_pid = urllib.parse.quote(pid, safe="")
     url = f"{S2_API_BASE}/graph/v1/paper/{safe_pid}?fields={urllib.parse.quote(fields)}"

@@ -29,7 +29,8 @@ ${project_root}
    - stdout_{task_id}.txt
    - stderr_{task_id}.txt
    - meta_{task_id}.json  (must include: task_id, success, returncode, error, notes)
-4. If the main command uses `SCIENCE_RESULT_DIR`, set it to the absolute result dir in the shell command you run.
-5. Finish by printing exactly: EXPERIMENT COMPLETE
+4. When executing an experiment, ALWAYS redirect standard output and error to a log file (e.g., `cmd > run.log 2>&1`) instead of printing directly to the console. After the process finishes, read the log file to verify the experiment results.
+5. If the main command uses `SCIENCE_RESULT_DIR`, set it to the absolute result dir in the shell command you run.
+6. Finish by printing exactly: EXPERIMENT COMPLETE
 
 

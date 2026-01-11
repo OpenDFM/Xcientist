@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import subprocess
 import time
 from typing import Any, Dict
@@ -94,7 +95,8 @@ def _run_subagent(
     output_path = _alloc_output_md_path(kind=str(kind), requested_output_path="")
 
     argv = [
-        "python",
+        sys.executable,
+        "-u",
         "-m",
         "src.agents.paper_agent.tools.subagent_runner",
         "--kind",
@@ -106,27 +108,66 @@ def _run_subagent(
         argv += ["--request", str(request)]
 
     try:
-        # Inherit stdout/stderr so the caller can see live subagent logs.
-        p = subprocess.run(argv, timeout=1800)
+        # Use Popen to stream output in real-time
+        process = subprocess.Popen(
+            argv,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,  # Merge stderr into stdout
+            text=True,
+            bufsize=1,  # Line buffered
+            encoding="utf-8",
+            errors="replace",
+        )
+
+        stdout_chars = []
+        start_time = time.time()
+        timeout_sec = 1800
+        
+        # Use bufsize=0 for unbuffered binary IO if we want strict real-time,
+        # but text=True with bufsize=1 forces line buffering which we are trying to avoid.
+        # Actually, for Popen(text=True), bufsize=0 is not allowed.
+        # So we rely on the subagent using `python -u` (unbuffered stdout) 
+        # AND we must read char-by-char here to avoid waiting for newlines.
+        
+        while True:
+            # Read 1 char at a time to ensure we don't block waiting for a newline
+            # when the subagent is streaming tokens (e.g. "thinking" dots or text).
+            char = process.stdout.read(1)
+            
+            if not char and process.poll() is not None:
+                # Process finished and no more output
+                break
+                
+            if char:
+                print(char, end="", flush=True)
+                stdout_chars.append(char)
+            
+            # Check timeout occasionally (every ~100 chars or if we are idle waiting on read?)
+            # Actually read(1) blocks, so we can't strictly check timeout *during* a read 
+            # unless we use select/poll, but that's OS-dependent.
+            # For now, we check timeout after each char (or lack thereof).
+            if time.time() - start_time > timeout_sec:
+                process.kill()
+                return {
+                    "success": False,
+                    "return_code": 124,
+                    "stdout": "".join(stdout_chars),
+                    "stderr": "timeout",
+                    "result": {},
+                }
+
+        rc = process.poll()
         return {
-            "success": p.returncode == 0,
-            "return_code": p.returncode,
-            "stdout": "",
-            "stderr": "",
+            "success": rc == 0,
+            "return_code": rc,
+            "stdout": "".join(stdout_chars),
+            "stderr": "",  # Merged into stdout
             # We already allocated the md output path deterministically.
             "result": {
                 "kind": str(kind),
                 "md_path": output_path,
                 "output_path": output_path,
             },
-        }
-    except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "return_code": 124,
-            "stdout": "",
-            "stderr": "timeout",
-            "result": {},
         }
     except Exception as e:
         return {"success": False, "error": f"{type(e).__name__}: {e}", "result": {}}

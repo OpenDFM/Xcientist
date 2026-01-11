@@ -56,6 +56,11 @@ class PaperArchitectAgent(BaseAgent):
         plan_out = (
             os.path.abspath(os.path.join(specs_dir, "plan.md")) if specs_dir else ""
         )
+        constitution_out = (
+            os.path.abspath(os.path.join(specs_dir, "constitution.md"))
+            if specs_dir
+            else ""
+        )
 
         return render_template(
             "architect_system.j2",
@@ -65,6 +70,7 @@ class PaperArchitectAgent(BaseAgent):
             specs_dir=specs_dir,
             spec_out=spec_out,
             plan_out=plan_out,
+            constitution_out=constitution_out,
             spec_template=spec_template,
             plan_template=plan_template,
             experiment_id=experiment_id,

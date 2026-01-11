@@ -34,6 +34,3 @@ For each metric: file path + key/regex + rationale.
 - This iteration is identified as `v###`
 - All run artifacts under `_science_runs/step_XXXX/`
 - All summaries under `result/science/iter_v###/`
-
-
-

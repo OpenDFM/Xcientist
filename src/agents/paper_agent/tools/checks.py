@@ -66,57 +66,66 @@ def check_citations(paper_dir: str, bib_file: str = "references.bib") -> Dict[st
         - unused_keys: List[str] (citations in bib but not used in tex)
         - stats: Dict (counts)
     """
-    paper_dir = os.path.abspath(paper_dir)
-    
-    # Locate bib file
-    bib_path = bib_file
-    if not os.path.isabs(bib_path):
-        bib_path = os.path.join(paper_dir, bib_path)
-    
-    # Read BibTeX keys
-    defined_keys = set()
-    if os.path.exists(bib_path):
-        try:
-            with open(bib_path, "r", encoding="utf-8", errors="ignore") as f:
-                bib_content = f.read()
-            defined_keys = _extract_keys_from_bib(bib_content)
-        except Exception as e:
-            return {"valid": False, "error": f"Failed to read bib file: {e}"}
-    else:
-        # If bib file doesn't exist, all citations are undefined (unless none are used)
-        pass
+    try:
+        paper_dir = os.path.abspath(paper_dir)
+        
+        # Locate bib file
+        bib_path = bib_file
+        if not os.path.isabs(bib_path):
+            bib_path = os.path.join(paper_dir, bib_path)
+        
+        # Read BibTeX keys
+        defined_keys = set()
+        if os.path.exists(bib_path):
+            try:
+                with open(bib_path, "r", encoding="utf-8", errors="ignore") as f:
+                    bib_content = f.read()
+                defined_keys = _extract_keys_from_bib(bib_content)
+            except Exception as e:
+                return {"valid": False, "error": f"Failed to read bib file: {e}"}
+        else:
+            # If bib file doesn't exist, all citations are undefined (unless none are used)
+            pass
 
-    # Scan all .tex files
-    used_keys = set()
-    scanned_files = []
-    
-    if not os.path.isdir(paper_dir):
-         return {"valid": False, "error": f"paper_dir not found: {paper_dir}"}
+        # Scan all .tex files
+        used_keys = set()
+        scanned_files = []
+        
+        if not os.path.isdir(paper_dir):
+             return {"valid": False, "error": f"paper_dir not found: {paper_dir}"}
 
-    for root, _, files in os.walk(paper_dir):
-        for file in files:
-            if file.endswith(".tex"):
-                path = os.path.join(root, file)
-                scanned_files.append(os.path.relpath(path, paper_dir))
-                try:
-                    with open(path, "r", encoding="utf-8", errors="ignore") as f:
-                        content = f.read()
-                    keys = _extract_citations_from_tex(content)
-                    used_keys.update(keys)
-                except Exception:
-                    pass
-    
-    missing_keys = sorted(list(used_keys - defined_keys))
-    unused_keys = sorted(list(defined_keys - used_keys))
-    
-    return {
-        "valid": len(missing_keys) == 0,
-        "missing_keys": missing_keys,
-        "unused_keys": unused_keys,
-        "stats": {
-            "n_tex_files": len(scanned_files),
-            "n_citations_used": len(used_keys),
-            "n_citations_defined": len(defined_keys),
-            "bib_path": bib_path
+        for root, _, files in os.walk(paper_dir):
+            for file in files:
+                if file.endswith(".tex"):
+                    path = os.path.join(root, file)
+                    scanned_files.append(os.path.relpath(path, paper_dir))
+                    try:
+                        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                            content = f.read()
+                        keys = _extract_citations_from_tex(content)
+                        used_keys.update(keys)
+                    except Exception:
+                        pass
+        
+        missing_keys = sorted(list(used_keys - defined_keys))
+        unused_keys = sorted(list(defined_keys - used_keys))
+        
+        return {
+            "valid": len(missing_keys) == 0,
+            "missing_keys": missing_keys,
+            "unused_keys": unused_keys,
+            "stats": {
+                "n_tex_files": len(scanned_files),
+                "n_citations_used": len(used_keys),
+                "n_citations_defined": len(defined_keys),
+                "bib_path": bib_path
+            }
         }
-    }
+    except Exception as e:
+        import traceback
+        return {
+            "valid": False,
+            "error": f"Unexpected error in check_citations: {str(e)}",
+            "traceback": traceback.format_exc()
+        }
+

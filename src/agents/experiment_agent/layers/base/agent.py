@@ -194,11 +194,9 @@ class BaseAgent(ABC):
                     print(f"{Colors.OKBLUE}{line}{Colors.ENDC}")
             print("")
 
-        # Stream model output text in real time only for selected agents (debuggability).
-        # Keep all other agents' behavior unchanged.
-        # We disable hook-based LLM response printing in streaming mode to avoid duplicate output.
-        stream_whitelist = {"CodeArchitect", "ExpArchitect"}
-        should_stream = (self.agent_type or "") in stream_whitelist
+        # Stream model output text in real time for all agents to ensure consistent visualization
+        # and avoid timeouts on long reasoning.
+        should_stream = True
         if should_stream and self.verbose:
             prior_ctx = get_current_memory_context()
             ctx_mgr = None

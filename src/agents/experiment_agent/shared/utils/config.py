@@ -55,10 +55,10 @@ XIAOMI_MODELS: list = ["mimo-v2-flash"]
 # )
 # OPENAI_API_BASE: Optional[str] = os.environ.get(
 #     "OPENAI_API_BASE", "https://www.dmxapi.cn/v1"
-
+ 
 
 # Code Layer Models
-CODE_ARCHITECT_MODEL: str = "gpt-5.1"
+CODE_ARCHITECT_MODEL: str = "gpt-5.2"
 CODE_MANAGER_MODEL: str = "MiniMax-M2.1"
 CODE_WORKER_MODEL: str = "MiniMax-M2.1"
 CODE_INTEGRATOR_MODEL: str = "MiniMax-M2.1"
@@ -76,7 +76,7 @@ SCIENCE_INTEGRATOR_MODEL: str = "MiniMax-M2.1"
 DEFAULT_MODEL: str = "MiniMax-M2.1"
 
 # Science Layer Configuration
-SCIENCE_MAX_ITERATIONS: int = int(os.environ.get("SCIENCE_MAX_ITERATIONS", "5"))
+SCIENCE_MAX_ITERATIONS: int = int(os.environ.get("SCIENCE_MAX_ITERATIONS", "20"))
 
 #
 MEMORY_ENABLED: bool = os.environ.get(
@@ -143,9 +143,6 @@ MAX_FIX_ITERATIONS = 50
 # Enable/disable tracing
 ENABLE_TRACING: bool = False
 
-# Timeout settings (in seconds)
-SHELL_COMMAND_TIMEOUT: int = 6000000
-AGENT_CALL_TIMEOUT: int = 6000000
 
 # Logging
 LOG_LEVEL: str = "INFO"
@@ -626,7 +623,6 @@ def print_config():
     print(f"  Max Parallel Workers: {MAX_PARALLEL_WORKERS}")
     print(f"  Max Implementation Attempts: {MAX_IMPLEMENTATION_ATTEMPTS}")
     print(f"  Max Agent Turns: {MAX_AGENT_TURNS}")
-    print(f"  Shell Command Timeout: {SHELL_COMMAND_TIMEOUT}s")
     print(f"  Tracing Enabled: {ENABLE_TRACING}")
     print(f"  Verbose Output: {VERBOSE_OUTPUT}")
 
