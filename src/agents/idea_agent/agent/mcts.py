@@ -968,7 +968,7 @@ class MemoryGuidedMCTS:
                 max_tokens=8192,
             )
             payload = parse_json_response(response)
-            if instance(payload, list):
+            if isinstance(payload, list):
                 payload = payload[0] # Sometimes returns a list of evaluations, we take the first one.
             evaluation = IdeaEvaluation.from_payload(payload)
         except Exception as exc:
