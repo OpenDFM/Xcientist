@@ -5,4 +5,4 @@ export EXPERIMENT_AGENT_MEMORY_WRITEBACK=1
 export AGENT_BASH_TIMEOUT_SECONDS=6000
 
 
-python -m src.agents.paper_agent.main --experiment Merge --resume --template-dir "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/paper_agent/latex/ICML2025_Template"
+python -m src.agents.paper_agent.main --experiment pinn --resume --template-dir "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/paper_agent/latex/ICML2025_Template"

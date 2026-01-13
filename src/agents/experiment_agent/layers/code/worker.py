@@ -389,6 +389,7 @@ Use `bash("grep -rn 'pattern' repo/")` to find code, then `file_viewer` to exami
 
         builder.add_separator()
         builder.add_header("Your Task", level=2)
+        builder.add_text("**IMPORTANT**: If the implementation involves data loading or processing, dataset files should be located in `<workspace>/dataset_candidate/` directory.")
         builder.add_list(
             [
                 f"Use `write_file` to create `{os.path.join(project_root, file_spec.file_path)}`",

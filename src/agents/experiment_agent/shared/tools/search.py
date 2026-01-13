@@ -8,6 +8,7 @@ from agents import function_tool
 from src.agents.experiment_agent.shared.utils.memory_middleware import (
     maybe_augment_tool_result,
 )
+from src.agents.experiment_agent.shared.utils.config import GITHUB_AI_TOKEN
 
 logger = logging.getLogger(__name__)
 
@@ -26,17 +27,14 @@ def search_github_repos(query: str, limit: int = 5) -> Any:
     if not query:
         return []
 
-    # Safe limit
     limit = min(max(1, limit), 10)
     
-    # Construct query
     q = urllib.parse.quote(query)
     url = f"https://api.github.com/search/repositories?q={q}&per_page={limit}&page=1"
     
     headers = {"Accept": "application/vnd.github.v3+json"}
-    token = os.environ.get("GITHUB_AI_TOKEN", "").strip()
-    if token:
-        headers["Authorization"] = f"token {token}"
+    if GITHUB_AI_TOKEN:
+        headers["Authorization"] = f"token {GITHUB_AI_TOKEN}"
     
     try:
         r = requests.get(url, headers=headers, timeout=30)

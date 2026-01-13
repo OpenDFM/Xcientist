@@ -61,13 +61,15 @@ class ExpArchitectAgent(BaseAgent):
         experiment_id: Optional[str] = None,
         dataset_dir: Optional[str] = None,
         doc_paths: Optional[Dict[str, str]] = None,
+        iteration: int = 1,
     ) -> None:
         """
         Write Science iteration docs in Markdown.
 
         Contract:
         - Writes spec/plan/tasks to the absolute paths provided via doc_paths.
-        - Does NOT return JSON; orchestrator should validate files exist.
+        - plan.md: Contains background + completed (iteration 1) or appended completion (iteration > 1)
+        - tasks.md: Contains history table + current iteration tasks
         """
         effective_project_root = project_root or manifest.project_root
         blueprint = code_blueprint
@@ -80,6 +82,7 @@ class ExpArchitectAgent(BaseAgent):
             experiment_id=experiment_id,
             dataset_dir=dataset_dir,
             doc_paths=doc_paths,
+            iteration=iteration,
         )
         user_prompt = self._build_user_prompt(
             manifest=manifest,
@@ -89,6 +92,7 @@ class ExpArchitectAgent(BaseAgent):
             experiment_id=experiment_id,
             dataset_dir=dataset_dir,
             doc_paths=doc_paths,
+            iteration=iteration,
         )
         _ = await self._run_agent(
             user_prompt=user_prompt,
@@ -239,6 +243,7 @@ class ExpArchitectAgent(BaseAgent):
         dataset_dir = kwargs.get("dataset_dir")
         experiment_id = kwargs.get("experiment_id")
         doc_paths: Dict[str, str] = kwargs.get("doc_paths") or {}
+        iteration = kwargs.get("iteration", 1)
 
         scripts_info = ""
         if manifest and manifest.scripts:
@@ -319,6 +324,7 @@ Let the observed formats/splits drive the data loading commands and evaluation c
                 "config_file": str(config_file),
                 "scripts_info": scripts_info.strip("\n") if scripts_info else "",
                 "skeleton_block": skeleton_block.strip("\n") if skeleton_block else "",
+                "iteration": str(iteration),
             },
         )
 
@@ -335,10 +341,12 @@ Let the observed formats/splits drive the data loading commands and evaluation c
         experiment_id = kwargs.get("experiment_id")
         dataset_dir = kwargs.get("dataset_dir")
         doc_paths: Dict[str, str] = kwargs.get("doc_paths") or {}
+        iteration = kwargs.get("iteration", 1)
 
         if experiment_id or dataset_dir:
             builder.add_header("Runtime Context", level=2)
             if experiment_id:
+                builder.add_section("Iteration", f"{iteration}")
                 builder.add_section("Experiment ID", str(experiment_id))
             if dataset_dir:
                 builder.add_section(
@@ -379,47 +387,62 @@ Let the observed formats/splits drive the data loading commands and evaluation c
             builder.add_text("")
             builder.add_text(project_skeleton.strip())
 
-        # Previous results context
-        if previous_results:
-            builder.add_separator()
-            builder.add_header("Previous Experiment Results")
-            builder.add_text("The following experiments have been run:")
-            builder.add_text("")
+        builder.add_separator()
+        builder.add_header("Your Task", level=2)
 
-            for result in previous_results:
-                if hasattr(result, "task_id"):
-                    status = "✓ Success" if result.success else "✗ Failed"
-                    builder.add_text(f"- **{result.task_id}**: {status}")
-                    if hasattr(result, "metrics") and result.metrics:
-                        metrics_str = ", ".join(
-                            f"{k}={v:.4f}" for k, v in result.metrics.items()
-                        )
-                        builder.add_text(f"  Metrics: {metrics_str}")
+        prev_plan_path = doc_paths.get("prev_plan_path") or ""
+        prev_plan_exists = prev_plan_path and os.path.exists(prev_plan_path)
+        prev_tasks_path = doc_paths.get("prev_tasks_path") or ""
+        prev_tasks_exists = prev_tasks_path and os.path.exists(prev_tasks_path)
 
-            builder.add_text("")
+        if iteration > 1 and prev_plan_exists:
             builder.add_text(
-                "**Task:** Design FOLLOW-UP experiments based on these results."
+                "**IMPORTANT**: You are writing an updated plan for a subsequent iteration."
             )
+            builder.add_text("1. Read the previous plan first via `file_viewer`")
+            builder.add_text("2. Keep the '## Background' section mostly unchanged")
+            builder.add_text("3. Update '## Completed' section: summarize what was done in previous iterations")
+            builder.add_text("4. Update '## Next Plan' section: describe what to do in this iteration")
+            builder.add_text("")
         else:
-            builder.add_separator()
-            builder.add_header("Your Task", level=2)
             builder.add_text(
-                "**IMPORTANT**: Dataset files are located in `<workspace>/dataset_candidate/` directory."
+                "**IMPORTANT**: Write the INITIAL plan for the first iteration."
             )
-            builder.add_text(
-                "**GPU Usage**: If experiments need GPU, design commands that first check `nvidia-smi` for GPU memory, then set CUDA_VISIBLE_DEVICES to use the GPU with most available memory."
-            )
+            builder.add_text("Create sections: Background, Completed (what will be done), Next Plan")
             builder.add_text("")
-            builder.add_list(
-                [
-                    "If `Dataset Directory` is provided, inspect it first with 1-2 tool calls and let the observed data format drive the experiment design",
-                    "Explore the codebase using the tools",
-                    "Design 2-5 key experiments to validate the core claims",
-                    "Include a baseline experiment for comparison",
-                    "Output the ExperimentPlan as JSON",
-                ],
-                ordered=True,
-            )
+
+        builder.add_text(
+            "**IMPORTANT**: Dataset files are located in `<workspace>/dataset_candidate/` directory."
+        )
+        builder.add_text(
+            "**GPU Usage**: If experiments need GPU, ALWAYS use GPU. First run `nvidia-smi` to check memory, "
+            "then set `CUDA_VISIBLE_DEVICES` to use the GPU with most available memory. "
+            "Use a single GPU only. Maximize memory usage by setting appropriate batch size."
+        )
+        builder.add_text("")
+
+        if iteration > 1 and prev_tasks_exists:
+            builder.add_text("**Tasks.md Format**:")
+            builder.add_text("- Keep the existing '## Iteration History' table")
+            builder.add_text("- Append a new '## Iteration N Tasks' section for this iteration")
+        else:
+            builder.add_text("**Tasks.md Format**:")
+            builder.add_text("- Create '## Iteration History' table")
+            builder.add_text("- Add '## Iteration N Tasks' section with commands to run")
+
+        builder.add_text("")
+        builder.add_list(
+            [
+                "If `Dataset Directory` is provided, inspect it first with 1-2 tool calls",
+                "Read previous plan if it exists (iteration > 1)",
+                "Design 2-5 experiments for this iteration",
+                "Include a baseline experiment for comparison",
+                "Write plan.md with Background + Completed + Next Plan sections",
+                "Write tasks.md with Iteration History table + current tasks",
+                "Output files to the paths specified above",
+            ],
+            ordered=True,
+        )
 
         return builder.build()
 

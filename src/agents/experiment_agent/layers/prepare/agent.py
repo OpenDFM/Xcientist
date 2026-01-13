@@ -23,7 +23,6 @@ class PrepareReport:
     repos_dir: str
     dataset_dir: str
     idea_md_path: str
-    source_result_path: str
 
 
 class PrepareAgent(BaseAgent):
@@ -55,21 +54,21 @@ class PrepareAgent(BaseAgent):
 
         pb.add_header("Prepare Workspace Task", level=1)
         pb.add_key_value("experiment_id", str(kwargs.get("experiment_id") or ""))
-        pb.add_key_value("result_json_path", str(kwargs.get("result_json_path") or ""))
+        pb.add_key_value("idea_json_path", str(kwargs.get("idea_json_path") or ""))
         pb.add_key_value("workspace_dir", str(kwargs.get("workspace_dir") or ""))
         pb.add_key_value("project_dir", str(kwargs.get("project_dir") or ""))
         pb.add_key_value("repos_dir", str(kwargs.get("repos_dir") or ""))
         pb.add_key_value("dataset_dir", str(kwargs.get("dataset_dir") or ""))
         pb.add_text("")
 
-        pb.add_header("Inputs (parsed from result.json)", level=2)
-        summary = kwargs.get("result_summary") or {}
+        pb.add_header("Inputs (parsed from idea.json)", level=2)
+        summary = kwargs.get("idea_summary") or {}
         try:
             pb.add_code(
                 json.dumps(summary, ensure_ascii=False, indent=2), language="json"
             )
         except Exception:
-            pb.add_text("(failed to dump result_summary)")
+            pb.add_text("(failed to dump idea_summary)")
 
         pb.add_header("Flags", level=2)
         pb.add_list(
@@ -85,7 +84,6 @@ class PrepareAgent(BaseAgent):
         pb.add_header("Required Outputs", level=2)
         pb.add_list(
             [
-                "Write <workspace_dir>/source_result.json (exact JSON from input).",
                 "Write <workspace_dir>/idea.md (English, UTF-8) with required sections.",
                 "Create/ensure repos/ and dataset_candidate/ directories exist.",
                 "**Create Python venv at <project_dir>/venv** for isolated dependency management.",
@@ -100,7 +98,6 @@ class PrepareAgent(BaseAgent):
     async def prepare_workspace(
         self,
         experiment_id: str,
-        result_json_path: str,
         force: bool = False,
         clone_depth: int = 1,
         skip_repos: bool = False,
@@ -108,10 +105,6 @@ class PrepareAgent(BaseAgent):
     ) -> PrepareReport:
         if not experiment_id:
             raise ValueError("experiment_id is required")
-        if not result_json_path:
-            raise ValueError("result_json_path is required")
-        if not os.path.exists(result_json_path):
-            raise FileNotFoundError(result_json_path)
 
         paths = ensure_experiment_dirs(experiment_id)
         workspace_dir = str(paths.get("workspace_dir") or "")
@@ -120,16 +113,15 @@ class PrepareAgent(BaseAgent):
         dataset_dir = str(
             paths.get("dataset_dir") or os.path.join(workspace_dir, "dataset_candidate")
         )
-
+        idea_json_path = os.path.join(workspace_dir, "idea.json")
         idea_md_path = os.path.join(workspace_dir, "idea.md")
-        source_result_path = os.path.join(workspace_dir, "source_result.json")
 
         SecurityContext.set_roots(
             project_root=os.path.abspath(project_dir),
             workspace_root=os.path.abspath(workspace_dir),
         )
 
-        with open(result_json_path, "r", encoding="utf-8") as f:
+        with open(idea_json_path, "r", encoding="utf-8") as f:
             raw_json_text = f.read()
         try:
             data = json.loads(raw_json_text)
@@ -147,12 +139,12 @@ class PrepareAgent(BaseAgent):
         system_prompt = self._build_system_prompt()
         user_prompt = self._build_user_prompt(
             experiment_id=experiment_id,
-            result_json_path=os.path.abspath(result_json_path),
+            idea_json_path=os.path.abspath(idea_json_path),
             workspace_dir=os.path.abspath(workspace_dir),
             project_dir=os.path.abspath(project_dir),
             repos_dir=os.path.abspath(repos_dir),
             dataset_dir=os.path.abspath(dataset_dir),
-            result_summary=summary,
+            idea_summary=summary,
             force=bool(force),
             clone_depth=int(clone_depth),
             skip_repos=bool(skip_repos),
@@ -174,5 +166,4 @@ class PrepareAgent(BaseAgent):
             repos_dir=os.path.abspath(repos_dir),
             dataset_dir=os.path.abspath(dataset_dir),
             idea_md_path=os.path.abspath(idea_md_path),
-            source_result_path=os.path.abspath(source_result_path),
         )

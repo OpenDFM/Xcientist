@@ -36,6 +36,10 @@ from src.agents.experiment_agent.shared.tools.validation import (
     extract_interface_stub,
 )
 from src.agents.experiment_agent.shared.tools.search import search_github_repos
+from src.agents.experiment_agent.shared.tools.minimax_search import (
+    search_web,
+    browse_web,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -442,9 +446,10 @@ def get_prepare_tools() -> List:
     """
     Tools for Prepare agent.
 
-    Prepare needs: shell ops (git, python), file inspection, writing workspace artifacts, and searching for repos.
+    Prepare needs: shell ops (git, python), file inspection, writing workspace artifacts,
+    searching for repos, and web search/browse for dataset research.
     """
-    return [bash, file_viewer, write_file, edit_file, search_github_repos]
+    return [bash, file_viewer, write_file, edit_file, search_github_repos, search_web, browse_web]
 
 
 # =============================================================================
@@ -471,4 +476,6 @@ __all__ = [
     "get_integrator_tools",
     "get_prepare_tools",
     "search_github_repos",
+    "search_web",
+    "browse_web",
 ]

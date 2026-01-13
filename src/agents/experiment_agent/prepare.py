@@ -28,9 +28,6 @@ def get_args():
         "--experiment", "-e", required=True, help="Experiment ID (workspace name)"
     )
     parser.add_argument(
-        "--result-json", required=True, help="Path to CoI-Agent result.json"
-    )
-    parser.add_argument(
         "--force", action="store_true", help="Overwrite idea.md and re-download/clone"
     )
     parser.add_argument(
@@ -48,7 +45,6 @@ async def main_async(args) -> int:
     print_config()
     report = await run_prepare(
         experiment_id=str(args.experiment),
-        result_json_path=str(args.result_json),
         force=bool(args.force),
         clone_depth=int(args.clone_depth),
         skip_repos=bool(args.skip_repos),
@@ -61,7 +57,6 @@ async def main_async(args) -> int:
     print(f"  Workspace: {report.workspace_dir}")
     print(f"  Project dir: {report.project_dir}")
     print(f"  idea.md: {report.idea_md_path}")
-    print(f"  source_result.json: {report.source_result_path}")
     print(f"  Repos dir: {report.repos_dir}")
     print(f"  Dataset dir: {report.dataset_dir}")
     return 0

@@ -38,6 +38,13 @@ MINIMAX_API_BASE: Optional[str] = "https://api.minimaxi.com/v1"
 MINIMAX_MODEL_EXTRA_BODY: dict = {"reasoning_split": True}
 MINIMAX_MODELS: list = ["MiniMax-M2.1"]
 
+# Web Search Configuration (used by search_web and browse_web tools)
+SERPER_API_KEY: Optional[str] = os.environ.get("SERPER_API_KEY", "7c7ca61c4c665f666902d03f3bca49c4b4b5bed4")
+JINA_API_KEY: Optional[str] = os.environ.get("JINA_API_KEY", "jina_923882996800471ebd38585c3883b1f4SPBHYMrJECN63CoYWiCX_2eXin3n")
+
+# GitHub Configuration (used by search_github_repos tool)
+GITHUB_AI_TOKEN: Optional[str] = os.environ.get("GITHUB_AI_TOKEN", "")
+
 XIAOMI_API_KEY: str = "sk-c8bwnop3bi1nahlzx98ga7o0kqgr8u9h0bpv6zri28hp2x20"
 XIAOMI_API_BASE: str = "https://api.xiaomimimo.com/v1/"
 XIAOMI_MODELS: list = ["mimo-v2-flash"]
@@ -58,7 +65,7 @@ XIAOMI_MODELS: list = ["mimo-v2-flash"]
  
 
 # Code Layer Models
-CODE_ARCHITECT_MODEL: str = "gpt-5.2"
+CODE_ARCHITECT_MODEL: str = "gpt-5.1"
 CODE_MANAGER_MODEL: str = "MiniMax-M2.1"
 CODE_WORKER_MODEL: str = "MiniMax-M2.1"
 CODE_INTEGRATOR_MODEL: str = "MiniMax-M2.1"
@@ -596,6 +603,20 @@ def print_config():
     )
     if OPENAI_API_BASE:
         print(f"  OpenAI API Base: {OPENAI_API_BASE}")
+
+    print(f"\n[MiniMax Configuration]")
+    print(
+        f"  MiniMax API Key: {'*' * 10}...{MINIMAX_API_KEY[-4:] if MINIMAX_API_KEY else 'NOT SET'}"
+    )
+    print(f"  MiniMax API Base: {MINIMAX_API_BASE}")
+
+    print(f"\n[Web Search Configuration]")
+    print(
+        f"  Serper API Key: {'*' * 10}...{SERPER_API_KEY[-4:] if SERPER_API_KEY else 'NOT SET'}"
+    )
+    print(
+        f"  Jina API Key: {'*' * 10}...{JINA_API_KEY[-4:] if JINA_API_KEY else 'NOT SET'}"
+    )
 
     print(f"\n[Model Configuration]")
     print(f"  Prepare Layer:")

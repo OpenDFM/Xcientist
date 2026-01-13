@@ -6,7 +6,6 @@ from src.agents.experiment_agent.shared.utils.config import PREPARE_AGENT_MODEL
 
 async def run_prepare(
     experiment_id: str,
-    result_json_path: str,
     force: bool = False,
     clone_depth: int = 1,
     skip_repos: bool = False,
@@ -17,7 +16,6 @@ async def run_prepare(
     agent = PrepareAgent(model=model or PREPARE_AGENT_MODEL, verbose=bool(verbose))
     return await agent.prepare_workspace(
         experiment_id=experiment_id,
-        result_json_path=result_json_path,
         force=bool(force),
         clone_depth=int(clone_depth),
         skip_repos=bool(skip_repos),

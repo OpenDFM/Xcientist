@@ -257,6 +257,37 @@ class ExpWorkerAgent(BaseAgent):
 
         return metrics
 
+    def _get_dataset_info(self, dataset_dir: str) -> str:
+        """
+        Get a summary of the dataset directory content.
+        """
+        if not dataset_dir or not os.path.exists(dataset_dir):
+            return "Dataset directory not found or not specified."
+
+        try:
+            files = os.listdir(dataset_dir)
+            if not files:
+                return "Dataset directory is empty."
+
+            info = []
+            for f in files[:20]:  # Limit to 20 files to avoid context overflow
+                path = os.path.join(dataset_dir, f)
+                if os.path.isdir(path):
+                    info.append(f"{f}/ (directory)")
+                else:
+                    try:
+                        size = os.path.getsize(path)
+                        info.append(f"{f} ({size} bytes)")
+                    except Exception:
+                        info.append(f"{f} (unknown size)")
+
+            if len(files) > 20:
+                info.append(f"... and {len(files) - 20} more files")
+
+            return "\n".join(info)
+        except Exception as e:
+            return f"Error reading dataset directory: {e}"
+
     def _build_system_prompt(self, **kwargs) -> str:
         prompt_path = os.path.join(
             os.path.dirname(__file__), "prompts", "exp_worker", "system.txt"
@@ -279,6 +310,7 @@ class ExpWorkerAgent(BaseAgent):
             "exp_worker",
             "iteration_system.txt",
         )
+        dataset_dir = str(kwargs.get("dataset_dir", "") or "")
         return load_and_render_prompt(
             prompt_path=prompt_path,
             variables={
@@ -290,6 +322,8 @@ class ExpWorkerAgent(BaseAgent):
                 "iteration_result_dir": str(
                     kwargs.get("iteration_result_dir", "") or ""
                 ),
+                "dataset_dir": dataset_dir,
+                "dataset_info": self._get_dataset_info(dataset_dir),
             },
         )
 
@@ -305,20 +339,22 @@ class ExpWorkerAgent(BaseAgent):
         builder.add_header("Science Iteration Execution")
         builder.add_key_value("Project Root", str(project_root))
         builder.add_key_value("Tasks (Markdown)", str(tasks_path))
-        builder.add_key_value("Iteration Result Dir", str(iteration_result_dir))
+        builder.add_key_value("Result Dir", str(iteration_result_dir))
         builder.add_text("")
         builder.add_text(
             "**IMPORTANT**: Dataset files are located in `<workspace>/dataset_candidate/` directory."
         )
         builder.add_text(
-            "**GPU Usage**: If GPU is needed, first run `nvidia-smi` to check GPU memory usage, then select and use the GPU with the most available memory (set CUDA_VISIBLE_DEVICES accordingly)."
+            "**GPU Usage**: If GPU is needed, ALWAYS use GPU. "
+            "First run `nvidia-smi` to check memory, then set `CUDA_VISIBLE_DEVICES` to use the GPU with most available memory. "
+            "Use a single GPU only. Maximize memory usage by setting larger batch size."
         )
         builder.add_text("")
         builder.add_list(
             [
                 "Read tasks.md and execute each command block sequentially.",
-                "Create per-task subfolders under iteration_result_dir/runs/<TASK_ID>/.",
-                "Write result_summary.json at iteration_result_dir/ when finished.",
+                "Create per-task subfolders under <result_dir>/<TASK_ID>/.",
+                "Write result_summary.json at <result_dir>/ when finished.",
                 'Print exactly "ITERATION COMPLETE" as the final line.',
             ],
             ordered=True,
@@ -411,7 +447,7 @@ class ExpWorkerAgent(BaseAgent):
                 "**CRITICAL**: All Python commands MUST use the project's venv: `source {project_root}/venv/bin/activate && <your_command>`",
                 f"Before running, export env var `SCIENCE_RESULT_DIR` to the absolute result dir (`{abs_result_dir}`) for the command.",
                 "**IMPORTANT**: Dataset files should be located in `<workspace>/dataset_candidate/` directory. Look for data files there.",
-                "**GPU Usage**: If GPU is needed, first run `nvidia-smi` to check GPU memory usage, then select and use the GPU with the most available memory (set CUDA_VISIBLE_DEVICES accordingly).",
+                "**GPU Usage**: If GPU is needed, ALWAYS use GPU. First run `nvidia-smi` to check memory, then set `CUDA_VISIBLE_DEVICES` to use the GPU with most available memory. Use a single GPU only. Maximize memory usage by setting larger batch size.",
                 "**Missing Dependencies**: If ImportError or ModuleNotFoundError occurs, install the package: `source {project_root}/venv/bin/activate && pip install <package>`, then retry.",
                 "If the command fails, inspect stdout/stderr, create/fix configs or other inputs under result_dir as needed, and re-run until success or you can provide a clear failure reason.",
                 "Do NOT modify project code outside result_dir. Only write under result_dir.",

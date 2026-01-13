@@ -226,6 +226,7 @@ class CodeIntegratorAgent(BaseAgent):
 
         builder.add_separator()
         builder.add_header("Your Task", level=2)
+        builder.add_text("**IMPORTANT**: If the implementation involves data loading or processing, dataset files should be located in `<workspace>/dataset_candidate/` directory.")
         builder.add_header("Phase 1: Design Alignment and Optimization", level=3)
         builder.add_text(
             "**Critical**: Before running tests, ensure code aligns with design documents."

@@ -169,16 +169,17 @@ class ExpIntegratorAgent(BaseAgent):
         iteration_result_dir: str,
         proposal: Optional[Proposal] = None,
         doc_paths: Optional[Dict[str, str]] = None,
+        iteration: int = 1,
     ) -> ScienceAnalysis:
         """
         Analyze a Markdown-driven iteration.
 
         Inputs are primarily:
-        - iteration_result_dir (must contain result_summary.json and per-task run folders)
+        - iteration_result_dir (contains results for this iteration)
         - constraint docs (idea/spec/plan/tasks) via doc_paths
         """
         builder = PromptBuilder()
-        builder.add_header("Science Iteration Analysis Request")
+        builder.add_header(f"Science Iteration {iteration} Analysis Request")
         builder.add_section("Analysis Goal", str(goal or "").strip())
         builder.add_text("")
         builder.add_key_value("Project Root", str(project_root))
@@ -220,19 +221,20 @@ class ExpIntegratorAgent(BaseAgent):
             "**Context**: Dataset files are located in `<workspace>/dataset_candidate/` directory."
         )
         builder.add_text(
-            "**Context**: If experiments need GPU, they should check `nvidia-smi` first and use CUDA_VISIBLE_DEVICES to select the GPU with most available memory."
+            "**Context**: If experiments need GPU, ALWAYS use GPU. First run `nvidia-smi` to check memory, "
+            "then set `CUDA_VISIBLE_DEVICES` to use the GPU with most available memory. "
+            "Use a single GPU only. Maximize memory usage."
         )
         builder.add_text("")
         builder.add_list(
             [
-                "Use tools to inspect iteration_result_dir (especially result_summary.json and per-task logs).",
-                "Write a concise report in report_md with evidence links (file paths) and key metrics.",
+                "Use tools to inspect iteration_result_dir for results and logs.",
+                "Write a concise report for THIS iteration in report_md.",
+                "Report should include: iteration number, tasks run, metrics achieved, and key findings.",
                 "Decide success (goal achieved) and set verdict supported/refuted/inconclusive.",
-                "If not successful, write actionable next-iteration instructions in feedback_md (Markdown). Your feedback can include:",
-                "  - Experimental design improvements (better hyperparameters, additional experiments, etc.)",
-                "  - Code improvements needed (bug fixes, missing features, performance optimizations, etc.)",
-                "  - Be specific: mention file paths, function names, and concrete suggestions",
-                "Always set optimization_tickets to [] and next_experiments to null.",
+                "If not successful, write actionable instructions in feedback_md for the next iteration.",
+                "Include specific suggestions: hyperparameters, code fixes, additional experiments, etc.",
+                "Set optimization_tickets to [] and next_experiments to null.",
             ],
             ordered=True,
         )
@@ -587,7 +589,9 @@ You can examine result files using these tools if needed.
             "**Context**: Dataset files are located in `<workspace>/dataset_candidate/` directory."
         )
         builder.add_text(
-            "**Context**: If experiments need GPU, they should check `nvidia-smi` first and use CUDA_VISIBLE_DEVICES to select the GPU with most available memory."
+            "**Context**: If experiments need GPU, ALWAYS use GPU. First run `nvidia-smi` to check memory, "
+            "then set `CUDA_VISIBLE_DEVICES` to use the GPU with most available memory. "
+            "Use a single GPU only. Maximize memory usage."
         )
         builder.add_text("")
         builder.add_list(

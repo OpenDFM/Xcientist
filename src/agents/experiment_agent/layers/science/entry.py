@@ -1,19 +1,16 @@
 """
-Science Layer Entry Point (MD-driven, single worker, resumable).
+Science Layer Entry Point (simplified, non-versioned).
 
-This layer is intentionally NOT JSON/DAG-driven.
 The iteration loop is:
-1) Architect writes Markdown docs (spec/plan/tasks) under cached/science/ (versioned)
+1) Architect writes plan.md (background + completed + next plan) and tasks.md (history + current tasks)
 2) Worker executes the full iteration from tasks.md (Markdown, no parser)
-3) Integrator reads iteration results and writes report/feedback (Markdown)
+3) Integrator analyzes results, appends to report.md, and overwrites feedback.md
 
-All source-of-truth docs are stored under:
+All source-of-truth docs stored under:
 - <workspace_root>/cached/science/
-and mirrored to:
-- <workspace_root>/specs/
 
-All iteration results are stored under:
-- <project_root>/result/science/iter_v###/
+All results stored under:
+- <project_root>/result/science/
 """
 
 import os
@@ -57,7 +54,7 @@ async def run_science_cycle(
     max_iterations: int = 5,
     resume: bool = False,
 ) -> Optional[List[Dict]]:
-    print_phase("Science Experimentation (MD-driven)", phase_num=1)
+    print_phase("Science Experimentation (simplified)", phase_num=1)
 
     project_root = code_manifest.project_root
     workspace_root = os.path.dirname(project_root)
@@ -89,7 +86,6 @@ async def run_science_cycle(
     doc_paths = ScienceDocPaths(workspace_root=workspace_root, cache_root=cache_root)
     doc_paths.ensure_dirs()
 
-    # Snapshot idea into cache/science/idea.md for robust resume + prompts
     proposal_text = ""
     try:
         proposal_text = (
@@ -108,7 +104,6 @@ async def run_science_cycle(
         doc_paths=doc_paths,
     )
 
-    # Optional: load code blueprint from cache (for architect's context only)
     code_blueprint: Optional[Blueprint] = None
     try:
         proposal_hash = Cache.hash_proposal(proposal)
@@ -128,8 +123,6 @@ async def run_science_cycle(
 
     all_tickets: List[Dict] = []
     current_iteration = 0
-    resume_incomplete_step = False
-    resume_iteration = 0
 
     if resume and state_manager.load() and state_manager.current_state:
         try:
@@ -138,39 +131,29 @@ async def run_science_cycle(
             )
         except Exception:
             current_iteration = 0
-        if (
-            state_manager.current_state.status != StepStatus.COMPLETED
-            and current_iteration > 0
-        ):
-            resume_incomplete_step = True
-            resume_iteration = current_iteration
-            current_iteration -= 1
 
     while current_iteration < max_iterations:
         current_iteration += 1
-        version = int(current_iteration)
         print_phase(f"Iteration {current_iteration}/{max_iterations}", phase_num=2)
 
-        iteration_result_dir = os.path.join(
-            project_root, "result", "science", f"iter_v{version:03d}"
-        )
-        os.makedirs(iteration_result_dir, exist_ok=True)
+        result_dir = os.path.join(project_root, "result", "science")
+        os.makedirs(result_dir, exist_ok=True)
 
-        spec_out_path = doc_paths.spec_md()
-        plan_out_path = doc_paths.plan_md(version)
-        tasks_out_path = doc_paths.tasks_md(version)
-        prev_plan_path = doc_paths.plan_md(version - 1) if version > 1 else ""
-        prev_tasks_path = doc_paths.tasks_md(version - 1) if version > 1 else ""
-        prev_report_path = doc_paths.report_md(version - 1) if version > 1 else ""
-        prev_feedback_path = doc_paths.feedback_md(version - 1) if version > 1 else ""
+        plan_path = doc_paths.plan_md()
+        tasks_path = doc_paths.tasks_md()
+        report_path = doc_paths.report_md()
+        feedback_path = doc_paths.feedback_md()
 
-        # Create a new state step per iteration (unless resuming the same incomplete step)
-        if not (resume_incomplete_step and current_iteration == resume_iteration):
+        prev_plan_exists = os.path.exists(plan_path) and current_iteration > 1
+        prev_tasks_exists = os.path.exists(tasks_path) and current_iteration > 1
+        prev_report_exists = os.path.exists(report_path) and current_iteration > 1
+
+        if not (resume and state_manager.current_state and state_manager.current_state.status == TaskStatus.COMPLETED):
             next_step_index = state_manager.get_next_step_index()
             step4 = state_manager.format_step4(next_step_index)
-            step_id = f"science_iter_v{version:03d}_step_{step4}"
+            step_id = f"science_iter_{current_iteration}_step_{step4}"
             state_manager.init_state(
-                initial_data={"iteration": version},
+                initial_data={"iteration": current_iteration},
                 blueprint_id=step_id,
                 task_ids=["ARCHITECT", "WORKER", "INTEGRATOR"],
                 step_index=next_step_index,
@@ -178,7 +161,7 @@ async def run_science_cycle(
             state_manager.set_phase(
                 GlobalPhase.PLANNING,
                 meta={
-                    "iteration": version,
+                    "iteration": current_iteration,
                     "plan_id": step_id,
                     "all_tickets": all_tickets,
                 },
@@ -187,10 +170,9 @@ async def run_science_cycle(
         plan_id = (
             state_manager.current_state.blueprint_id
             if state_manager.current_state
-            else f"science_iter_v{version:03d}"
+            else f"science_iter_{current_iteration}"
         )
 
-        # [1/3] Architect
         print("\n[1/3] Writing iteration docs (Architect)...")
         try:
             t = state_manager.get_task("ARCHITECT")
@@ -206,24 +188,16 @@ async def run_science_cycle(
                 architect_doc_paths = {
                     "constitution_path": os.path.join(cache_root, "constitution.md"),
                     "idea_path": doc_paths.idea_md(),
-                    "spec_path": spec_out_path,
-                    "plan_path": plan_out_path,
-                    "tasks_path": tasks_out_path,
-                    "prev_plan_path": (
-                        prev_plan_path if os.path.exists(prev_plan_path) else ""
-                    ),
-                    "prev_tasks_path": (
-                        prev_tasks_path if os.path.exists(prev_tasks_path) else ""
-                    ),
-                    "prev_report_path": (
-                        prev_report_path if os.path.exists(prev_report_path) else ""
-                    ),
-                    "prev_feedback_path": (
-                        prev_feedback_path if os.path.exists(prev_feedback_path) else ""
-                    ),
-                    "spec_out_path": spec_out_path,
-                    "plan_out_path": plan_out_path,
-                    "tasks_out_path": tasks_out_path,
+                    "spec_path": doc_paths.spec_md(),
+                    "plan_path": plan_path,
+                    "tasks_path": tasks_path,
+                    "prev_plan_path": plan_path if prev_plan_exists else "",
+                    "prev_tasks_path": tasks_path if prev_tasks_exists else "",
+                    "prev_report_path": report_path if prev_report_exists else "",
+                    "prev_feedback_path": feedback_path if os.path.exists(feedback_path) else "",
+                    "spec_out_path": doc_paths.spec_md(),
+                    "plan_out_path": plan_path,
+                    "tasks_out_path": tasks_path,
                 }
                 await architect.write_iteration_docs(
                     manifest=code_manifest,
@@ -234,8 +208,9 @@ async def run_science_cycle(
                     experiment_id=experiment_id,
                     dataset_dir=dataset_dir,
                     doc_paths=architect_doc_paths,
+                    iteration=current_iteration,
                 )
-                sync_science_docs_to_specs(doc_paths=doc_paths, version=version)
+                sync_science_docs_to_specs(doc_paths=doc_paths)
                 state_manager.update_task(
                     "ARCHITECT",
                     status=TaskStatus.COMPLETED,
@@ -252,12 +227,11 @@ async def run_science_cycle(
             )
             raise
 
-        # [2/3] Worker
-        print("\n[2/3] Executing iteration (Worker; MD-driven)...")
+        print("\n[2/3] Executing iteration (Worker)...")
         if state_manager.current_state:
             state_manager.set_phase(
                 GlobalPhase.EXECUTION,
-                meta={"iteration": version, "plan_id": plan_id, "stage": "EXECUTION"},
+                meta={"iteration": current_iteration, "plan_id": plan_id, "stage": "EXECUTION"},
             )
         try:
             t = state_manager.get_task("WORKER")
@@ -272,11 +246,11 @@ async def run_science_cycle(
                 )
                 await worker.run_iteration_from_tasks_md(
                     project_root=project_root,
-                    tasks_path=tasks_out_path,
-                    iteration_result_dir=iteration_result_dir,
+                    tasks_path=tasks_path,
+                    iteration_result_dir=result_dir,
                     idea_path=doc_paths.idea_md(),
                     spec_path=doc_paths.spec_md(),
-                    plan_path=plan_out_path,
+                    plan_path=plan_path,
                 )
                 state_manager.update_task(
                     "WORKER",
@@ -294,7 +268,6 @@ async def run_science_cycle(
             )
             raise
 
-        # [3/3] Integrator
         print("\n[3/3] Analyzing results (Integrator)...")
         try:
             t = state_manager.get_task("INTEGRATOR")
@@ -316,22 +289,17 @@ async def run_science_cycle(
                 analysis = await integrator.analyze_iteration_dir(
                     goal=analysis_goal,
                     project_root=project_root,
-                    iteration_result_dir=iteration_result_dir,
+                    iteration_result_dir=result_dir,
                     proposal=proposal,
                     doc_paths={
                         "idea_path": doc_paths.idea_md(),
                         "spec_path": doc_paths.spec_md(),
-                        "plan_path": plan_out_path,
-                        "tasks_path": tasks_out_path,
-                        "prev_report_path": (
-                            prev_report_path if os.path.exists(prev_report_path) else ""
-                        ),
-                        "prev_feedback_path": (
-                            prev_feedback_path
-                            if os.path.exists(prev_feedback_path)
-                            else ""
-                        ),
+                        "plan_path": plan_path,
+                        "tasks_path": tasks_path,
+                        "prev_report_path": report_path if prev_report_exists else "",
+                        "prev_feedback_path": feedback_path if os.path.exists(feedback_path) else "",
                     },
+                    iteration=current_iteration,
                 )
                 state_manager.update_task(
                     "INTEGRATOR",
@@ -349,11 +317,10 @@ async def run_science_cycle(
             )
             raise
 
-        _persist_iteration_docs(
+        _persist_analysis(
             doc_paths=doc_paths,
-            version=version,
             analysis=analysis,
-            iteration_result_dir=iteration_result_dir,
+            iteration=current_iteration,
         )
 
         print(f"\n{'─'*40}")
@@ -365,73 +332,51 @@ async def run_science_cycle(
         if analysis.success:
             state_manager.set_status(
                 StepStatus.COMPLETED,
-                meta={"iteration": version, "analysis": analysis.model_dump()},
+                meta={"iteration": current_iteration, "analysis": analysis.model_dump()},
             )
             print("\n✓ Science goal achieved!")
             return []
 
-        if resume_incomplete_step and current_iteration == resume_iteration:
-            resume_incomplete_step = False
-
         state_manager.set_phase(
             GlobalPhase.VERIFICATION,
             meta={
-                "iteration": version,
+                "iteration": current_iteration,
                 "analysis": analysis.model_dump(),
                 "all_tickets": all_tickets,
             },
         )
 
-        # Check if more iterations are available
         if current_iteration < max_iterations:
-            print(f"\n→ Integrator requested next iteration via feedback.md")
-            print(
-                f"   Continuing to iteration {current_iteration + 1}/{max_iterations}..."
-            )
+            print(f"\n→ Continuing to iteration {current_iteration + 1}/{max_iterations}...")
         else:
-            print(f"\n⚠️  Goal not achieved but max iterations limit reached.")
-            print(f"   Will not proceed to iteration {current_iteration + 1}.")
+            print(f"\n⚠️  Max iterations limit reached.")
 
     print_phase("Science Cycle Complete", phase_num=3)
     print(f"\n⚠️  Max iterations ({max_iterations}) reached without achieving success.")
-    print(
-        "    Consider increasing --max-iterations or reviewing the experimental design."
-    )
-    # Normal completion without emitting optimization tickets.
     return []
 
 
-def _persist_iteration_docs(
+def _persist_analysis(
     doc_paths: ScienceDocPaths,
-    version: int,
     analysis: ScienceAnalysis,
-    iteration_result_dir: str,
+    iteration: int,
 ) -> None:
-    """
-    Persist report/feedback into cache/science (versioned), mirror into specs/, and copy into result/.
-    """
-    report_path = doc_paths.report_md(int(version))
-    feedback_path = doc_paths.feedback_md(int(version))
+    report_path = doc_paths.report_md()
+    feedback_path = doc_paths.feedback_md()
 
     if getattr(analysis, "report_md", ""):
+        prev_report = ""
+        if os.path.exists(report_path):
+            with open(report_path, "r", encoding="utf-8") as f:
+                prev_report = f.read()
         with open(report_path, "w", encoding="utf-8") as f:
+            if prev_report:
+                f.write(prev_report + "\n\n---\n\n")
+            f.write(f"## Iteration {iteration}\n\n")
             f.write(str(getattr(analysis, "report_md", "") or "").rstrip() + "\n")
+
     if getattr(analysis, "feedback_md", ""):
         with open(feedback_path, "w", encoding="utf-8") as f:
             f.write(str(getattr(analysis, "feedback_md", "") or "").rstrip() + "\n")
 
-    sync_science_docs_to_specs(doc_paths=doc_paths, version=int(version))
-
-    os.makedirs(iteration_result_dir, exist_ok=True)
-    if os.path.exists(report_path):
-        with open(report_path, "r", encoding="utf-8") as fsrc:
-            with open(
-                os.path.join(iteration_result_dir, "report.md"), "w", encoding="utf-8"
-            ) as fdst:
-                fdst.write(fsrc.read())
-    if os.path.exists(feedback_path):
-        with open(feedback_path, "r", encoding="utf-8") as fsrc:
-            with open(
-                os.path.join(iteration_result_dir, "feedback.md"), "w", encoding="utf-8"
-            ) as fdst:
-                fdst.write(fsrc.read())
+    sync_science_docs_to_specs(doc_paths=doc_paths)
