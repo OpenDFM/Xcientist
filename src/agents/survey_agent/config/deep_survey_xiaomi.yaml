@@ -1,24 +1,17 @@
 BasicInfo:
-  topic: ""
-  evaluation_save_path: "./outputs/batch_new_code_test/evaluation.txt"
-  save_path: ""
-  save_json_path: ""
-  user_defiend_benchmarks: True
-  topic_path: ./topics/topics.txt
-  AutoSurvey_benchmark: False
-  SurveyGen_benchmark: False
-  sub_benchmark_test: False
-  output_base_dir: ./outputs/batch_new_code_test
+  topic:  Multimodal Large Language Models
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
-  topic_max_retry: 1
+  save_path: ./outputs/test/reference_test-mimo-v2-flash/0110-longerlonger-review-debug.md
+  save_json_path: ./outputs/test/reference_test-mimo-v2-flash/0110-longerlonger-review-debug.json
+  evaluation_save_path: ./outputs/test/reference_test-mimo-v2-flash/0110-longerlonger-review-debug.txt
   debug: True
   error_conservatism_mode: False
 APIInfo:
-  llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f
-  llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
-  llm_model_name: gpt-4o-mini
-  llm_max_context_length: 128000
+  llm_api_key: sk-c1n2jxt2llyucdaac9g09zflyijszu803gr7hhzv083oj2gq
+  llm_api_base_url: https://api.xiaomimimo.com/v1/chat/completions
+  llm_model_name: mimo-v2-flash
+  llm_max_context_length: 160000
   batch_chat_agent_worker: 4
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
   low_flow_mode: False
@@ -28,13 +21,14 @@ APIInfo:
 ModuleInfo:
   WorkCollector:
     download_safe_mode: False
-    max_seed_paper_num: 5
+    cache_enabled: True
+    max_seed_paper_num: 8
     reference_graph_depth: 1
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
     sentence_transformer_batch_size: 32
-    related_work_top_k: 20  # for debug
+    related_work_top_k: 30  # for debug
     log_related_work_num: -1 # set to -1 to log all
-    related_work_threshold: 0.6
+    related_work_threshold: 0.5
     related_work_threshold_for_llm: 4 # 1-5 scale
     relatedness_temperature: 1.0
     RAG_source_use_embedding_filter: True
@@ -43,20 +37,20 @@ ModuleInfo:
   Database:
     default_top_k: 20
   WorkAnalyzer:
-    abstract_only_mode: False
-    abstract_when_full_text_fail: False
-    llm_max_context_overhead_length_in_paper_reading: 20000
+    abstract_only_mode: True
     cache_enabled: True
+    abstract_when_full_text_fail: True
     paper_reading_temperature: 1.0
     paper_reading_max_retry: 5
+    llm_max_context_overhead_length_in_paper_reading: 20000
     clustering_batch_size: 16
     clustering_temperature: 1.0
     clustering_in_steps: True
     clustering_batch_size_in_creation: 32
     clustering_batch_size_in_assignment: 8
     paper_clustering_max_retry: 8
-    paper_clustering_creation_max_retry: 8
-    paper_clustering_assignment_max_retry: 8
+    paper_clustering_creation_max_retry: 3
+    paper_clustering_assignment_max_retry: 10
     propose_question_temperature: 1.0
     anwer_question_temperature: 1.0
     intra_cluster_analysis_max_retry: 2
@@ -75,8 +69,8 @@ ModuleInfo:
     outline_generation_max_retry: 2
     outline_generation_max_retry_in_generation_loop: 6
     subsection_draft_temperature: 1.0
-    subsection_draft_max_retry: 20
-    section_draft_max_retry: 20
+    subsection_draft_max_retry: 10
+    section_draft_max_retry: 10
     section_draft_temperature: 1.0
     draft_refinement_temperature: 1.0
     section_draft_max_error_info_length: 500
@@ -84,17 +78,17 @@ ModuleInfo:
     outline_max_error_info_length: 500
     llm_max_context_overhead_length_generation: 20000
     llm_max_context_overhead_length_outline_generation: 10000
-    subsection_least_words: 700
+    subsection_least_words: 2000
     subsection_least_citations: 15
-    section_least_words: 2000
+    section_least_words: 6000
     section_least_citations: 25
-    draft_length_relax_ratio: 0.6
-    use_full_text_in_survey_generation: True
-    include_other_relevant_papers_RAG_in_outline: False
-    outline_RAG_topk: 20
-    include_other_relevant_papers_RAG: False
-    section_RAG_topk: 20
-    subsection_RAG_topk: 20
+    draft_length_relax_ratio: 0.4
+    use_full_text_in_survey_generation: False
+    include_other_relevant_papers_RAG_in_outline: True
+    outline_RAG_topk: 200
+    include_other_relevant_papers_RAG: True
+    section_RAG_topk: 60
+    subsection_RAG_topk: 60
     use_title_in_draft: True
     enable_review_and_revise: True
     section_review_temperature: 1.0
@@ -103,11 +97,11 @@ ModuleInfo:
     section_revise_temperature: 0.5
     section_revise_retry: 5
     no_suggestion_run_each_iteration: 1
-    max_review_revise_iterations: 30
+    max_review_revise_iterations: 5
     draft_refinement_in_parts: True
     valid_title_min_similarity: 0.5
   Judge:
-    use_different_api_for_judge: False
+    use_different_api_for_judge: True
     model: gpt-4o-mini
     judge_llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f
     judge_llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions

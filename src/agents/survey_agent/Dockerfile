@@ -38,6 +38,14 @@ RUN wget https://mirrors.huaweicloud.com/openjdk/25/openjdk-25_linux-x64_bin.tar
 ENV JAVA_HOME=/opt/jdk-25
 ENV PATH=$JAVA_HOME/bin:$PATH
 
+# for deepsurvey
+RUN pip install hydra-core && \
+    pip install rich && \
+    pip install loguru && \
+    pip install tenacity && \
+    pip install -U sentence-transformers && \
+    pip install hdbscan && \
+
 ENV HF_ENDPOINT=https://hf-mirror.com
 # Download models and update the configuration file
 RUN /bin/bash -c "mineru-models-download -s huggingface -m all"

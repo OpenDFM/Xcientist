@@ -1,16 +1,23 @@
 import hydra
+import sys
+import os
+import re
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
 from utils.rich_logger import get_logger
 from omegaconf import OmegaConf
 from modules.work_collector import WorkCollector
+from modules.database import Database
 from modules.work_analyzer import WorkAnalyzer
 from modules.survey_generator import SurveyGenerator
-from modules.survey_generator import SurveyGenerator
 from modules.judge import Judge
+
+from utils.file_utils import write_domain_header, write_topic_header, write_result, write_domain_result
 
 logger = get_logger("Deep Survey")
 
 
-def run_pipeline(config, work_collector, work_analyzer, survey_generator, judge):
+def run_pipeline(config, work_collector, database, work_analyzer, survey_generator, judge):
     # step 1: related work collection
     logger.info("Collecting related work...")
 
@@ -27,6 +34,10 @@ def run_pipeline(config, work_collector, work_analyzer, survey_generator, judge)
     if config.BasicInfo.debug:
         logger.info(f"Expanded paper IDs: {expanded_paper_ids}")
         
+    logger.info("Building paper embedding database...")
+    database.build_with_graph()
+    logger.info("Paper embedding database built.")
+
     # step 2: comprehend papers
     logger.info("Comprehending papers...")
 
@@ -74,9 +85,14 @@ def run_pipeline(config, work_collector, work_analyzer, survey_generator, judge)
     draft = survey_generator.draft_survey(
         intra_analysis_results, inter_analysis_results, outline #YZY MODIFY from inter_cluster_analysis
     )
+    logger.info("Survey drafting completed.")
 
-    if config.BasicInfo.debug:
-        logger.info(f'DRAFT: {draft}')
+    # if config.BasicInfo.debug:
+    #     logger.info(f'DRAFT: {draft}')
+
+    logger.info("Reviewing and revising survey draft...")
+    draft = survey_generator.review_and_revise_survey(draft, outline)
+    logger.info("Reviewing and revising survey completed.")
 
     # print(draft)
     logger.info("Survey drafting completed.")
@@ -86,13 +102,15 @@ def run_pipeline(config, work_collector, work_analyzer, survey_generator, judge)
     logger.info("Survey refinement completed.")
 
     logger.info("Evaluating survey...")
-    judge.evaluate(survey, references)
+    result = judge.evaluate(survey, references)
     logger.info("Survey evaluation completed.")
 
+    return result
 
 
 
-@hydra.main(config_path="config", config_name="deep_survey", version_base=None)
+
+@hydra.main(config_path="../config", config_name="deep_survey_xiaomi", version_base=None)
 def main(config):
     logger.info("Starting Deep Survey Pipeline")
     logger.yaml(OmegaConf.to_container(config, resolve=True))
@@ -101,23 +119,23 @@ def main(config):
     logger.info("Initializing Work Collector...")
     work_collector = WorkCollector(config)
 
+    logger.info("Initializing Paper Database...")
+    database = Database(config, work_collector)
+
     # initialize the WorkAnalyzer
     logger.info("Initializing Work Analyzer...")
     work_analyzer = WorkAnalyzer(config, work_collector)
 
     # initialize the SurveyGenerator
     logger.info("Initializing Survey Generator...")
-    survey_generator = SurveyGenerator(config, work_analyzer)
+    survey_generator = SurveyGenerator(config, work_analyzer, database)
 
     logger.info("Initializing Survey Judge...")
     survey_judge = Judge(config, work_analyzer)
 
-    run_pipeline(config, work_collector, work_analyzer, survey_generator, survey_judge)
-    # import json
-    # with open('./outputs/multi Agent/test_multiAgent.json', 'r') as f:
-    #     paper = json.load(f)
+    result = run_pipeline(config, work_collector, database, work_analyzer, survey_generator, survey_judge)
+    write_result(config.BasicInfo.evaluation_save_path, config.BasicInfo.topic, result)
     
-    # survey_judge.evaluate(paper['survey'], paper['references'])
 
 if __name__ == "__main__":
     main()

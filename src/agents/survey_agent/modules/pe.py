@@ -66,7 +66,9 @@ Task:
 - Assign a name and a brief summary to each cluster.
 - Aim to create clusters that are as detailed as possible, capturing subtle differences, while still making sense.
 - A single paper may belong to multiple clusters if its research area reasonably intersects with multiple themes (multi-assignment is allowed).
-- Output the full updated cluster list strictly in JSON format.
+- Output the full updated cluster list strictly **in JSON format**!
+- Keep all the existing papers in the clusters; you can reorganize but do not remove any!
+- Add all the new papers to the clusters; do not omit any!
 
 Output format requirements:
 
@@ -80,6 +82,82 @@ Each cluster object should include the following fields:
     - tldr: string, concise summary or TL;DR of the paper
 """
 
+PAPER_CLUSTERING_CREATING = """You are a research assistant specializing in analyzing scientific papers.
+
+**Existing clusters and descriptions**:
+
+{existing_clusters_json}
+
+**New batch of papers** (each with a keynote):
+
+{new_batch_json}
+
+Task:
+- You should adjust existing clusters and descriptions based on the new batch of papers. 
+- If **Existing clusters and descriptions** is empty, create new clusters from scratch based on the new batch of papers.
+- Update the clusters by merging, splitting or adding clusters if needed. Make sure all new papers can be assigned to at least one cluster.
+- Assign a name and a brief summary to each cluster.
+- Aim to create clusters that are as detailed as possible, capturing subtle differences, while still making sense.
+- A single paper may belong to multiple clusters if its research area reasonably intersects with multiple themes (multi-assignment is allowed).
+- Output the full updated cluster list strictly **in JSON format**!
+- You only need to output the clusters name and description; do not list or mention any specific papers!
+
+Output format requirements:
+
+The JSON should be a list of cluster objects.  
+Each cluster object should include the following fields:
+- cluster_name: string, the name of the cluster
+- summary: string, a brief description of the cluster
+
+Output Example (strictly in JSON format):
+[
+  {{
+    "cluster_name": "...",
+    "summary": "...",
+  }},
+  {{
+    "cluster_name": "...",
+    "summary": "...",
+  }}
+]
+"""
+
+PAPER_CLUSTERING_ASSIGNING = """You are a research assistant specializing in analyzing scientific papers.
+
+Clusters and descriptions:
+
+{clusters_json}
+
+batch of papers (each with a keynote):
+
+{batch_json}
+
+Task:
+- Assign each paper in the batch to one or more existing clusters based on their keynotes.
+- A single paper may belong to multiple clusters if its research area reasonably intersects with multiple themes (multi-assignment is allowed).
+- Output strictly **in JSON format** and without any other text!
+
+Output format requirements:
+
+The JSON should be a list of paper objects.  
+Each cluster object should include the following fields:
+- id: string, unique identifier of the paper
+- title: string, title of the paper
+- tldr: string, concise summary or TL;DR of the paper
+- clusters: list of strings, names of clusters the paper belongs to, the name must exactly match the cluster_name in the input clusters_json
+
+Output Example (strictly in JSON format):
+[
+  {{
+    "id": "...",
+    "title": "...",
+    "tldr": "...",
+    "clusters": ["cluster_name_1", "cluster_name_2"]
+  }},
+  ...
+]
+"""
+
 PROPOSE_QUESTIONS_FOR_CLUSTER = """You are an expert research assistant. I will give you a set of closely related papers, each with a keynote.
 
 Your task is to read all the keynotes and propose a list of questions that would help someone deeply understand the ideas in these papers.
@@ -91,6 +169,11 @@ Guidelines:
 - Each question must list the related paper IDs.
 - You are encouraged to think critically, speculate, compare ideas, question assumptions, identify gaps, or propose future directions.
 - Feel free to ask questions that are subtle, unconventional, or creative—your role is to guide deep thinking rather than summarize.
+
+Requirements:
+- Cite paper strictly in format: <paper_title> (like <Attention is All You Need>) when referencing specific papers under key "questions".
+- You are encouraged to cite more papers from the provided content to strengthen your analysis.
+- **Only** cite papers that appear in the provided input.
 
 Input:
 {cluster_content}
@@ -113,6 +196,11 @@ Guidelines:
 - Synthesize information from all the related papers to construct a well-rounded answer.
 - Provide citations to the papers by their IDs when referencing specific information.
 - Aim for clarity, depth, and coherence in your answer.
+
+Requirements:
+- Cite paper strictly in format: <paper_title> (like <Attention is All You Need>) whenever referencing specific papers in your answer.
+- You are encouraged to cite more papers from the provided content to strengthen your analysis.
+- **Only** cite papers that appear in the provided input.
 
 Input:
 Question: {question}
@@ -139,6 +227,9 @@ Optional approaches (not required):
 Requirements:
 - Do not repeat the original text verbatim.
 - Output a concise analytical summary in clear prose.
+- Cite paper strictly in format: <paper_title> (like <Attention is All You Need>) whenever referencing specific papers in your analysis.
+- You are encouraged to cite more papers from the provided content to strengthen your analysis.
+- **Only** cite papers that appear in the provided input.
 
 Input:
 {cluster_analysis_content}
@@ -160,14 +251,16 @@ SURVEY_OUTLINE_GENERATION = """You are an expert research survey generator. Your
    - Merging similar topics/subsections to avoid redundancy.
    - Revising descriptions to reflect key insights, comparisons, trends, and challenges from the analysis results.
    - Supplementing descriptions with relevant points from paper keynotes.
-3. Update "papers_to_use" for each section/subsection, including papers (paper ids) from the current batch and existing outline, ensuring that only paper IDs from the current batch, existing outline or relevant papers analysis are included—no unrelated IDs should appear.
+3. Update "papers_to_use" for each section/subsection, including papers (paper ids) from the current batch and existing outline, ensuring that only paper IDs from the current batch, existing outline ,relevant papers analysis or other relevant papers abstract are included. no unrelated IDs should appear!!
 4. Maintain clarity, logical structure, and a survey-style narrative.
 5. Output strictly in JSON format, as shown below.
+6. The outline should contain at least **7 sections** with at least **4 subsections** each.
 
 **Input:**
 - current outline: {current_outline}
-- relevant papers analysis: {papers_analysis}
+- closely relevant papers analysis: {papers_analysis}
 - new paper keynotes: {paper_keynotes}
+- other relevant papers abstract: {other_relevant_papers}
 
 **Output JSON format:**
 {{
@@ -194,6 +287,98 @@ SURVEY_OUTLINE_GENERATION = """You are an expert research survey generator. Your
 - Ensure that each section/subsection reflects the combined contributions of the analysis results and the keynotes, capturing important insights, trends, and examples.
 """
 
+SURVEY_OUTLINE_GENERATION_OUTLINE_DRAFT = """You are an expert research survey generator. Your task is to generate and iteratively update an existing survey outline using a batch of new paper keynotes, the current outline, and the analysis results of relevant papers for the topic/subtopic being written.
+
+**Guidance:**
+- The analysis results contain summarized insights, comparisons, trends, and key points extracted from prior work. They should be the **important source of guidance** when updating the outline.
+- Paper keynotes are also useful: use them to **supplement, validate, or provide additional details** for the sections/subsections.
+- Balance both sources to create a comprehensive, accurate, and logically organized survey outline.
+
+**Requirements:**
+1. The outline should contain multiple sections, subsections and their descriptions.
+1. Use the current outline as the base structure. Keep existing sections/subsections unless updated or merged. If the current outline is empty, create a new outline from scratch.
+2. The outline should contain at least **7 sections** with at least **4 subsections** in each section.
+3. Update the outline by:
+   - Adding new sections/subsections for emerging topics or trends.
+   - Merging similar topics/subsections to avoid redundancy.
+   - Revising descriptions to reflect key insights, comparisons, trends, and challenges from the analysis results.
+   - Supplementing descriptions with relevant points from paper keynotes.
+4. Make sure most of the corresponding new paper in **new paper keynotes** can be included in at least one subsection or section of the outline.
+5. You are provided with other relevant papers which is retrieved from database, you can use them to better understand and generate.
+6. Maintain clarity, logical structure, and a survey-style narrative.
+7. Output strictly in JSON format, as shown below.
+8. If the current outline does not have enough sections/subsections, add more to meet the requirement.
+
+**Input:**
+- current outline: {current_outline}
+
+- key papers: {paper_keynotes}
+
+- key papers analysis: {papers_analysis}
+
+- other relevant papers: {other_relevant_papers}
+
+**Output JSON format:**
+{{
+    "title" : "Survey_Title",
+    "sections": [
+        {{
+            "title": "Section_title",
+            "description": "Summary of content to include, emphasizing insights, comparisons, and trends from analysis, supplemented by keynotes",
+            "subsections": [
+                {{
+                    "title": "Subsection_title",
+                    "description": "Content description reflecting key insights, trends, comparisons from analysis, supplemented by keynotes",
+                }}
+            ]
+        }}
+]
+}}
+
+**Instruction to LLM:**
+- Use the insights, trends, and comparisons from relevant paper analysis together with points from new paper keynotes to update the outline. Both sources should inform the content of each section/subsection.
+- Add, merge, or revise sections/subsections as appropriate, keeping the outline structured and coherent.
+- Ensure that each section/subsection reflects the combined contributions of the analysis results and the keynotes, capturing important insights, trends, and examples.
+- Only generate the outline in the required JSON format. Do not include specific paper IDs in the outline.
+"""
+
+SURVEY_OUTLINE_GENERATION_PAPER_ASSIGNMENT = """You are an expert research survey writer. Your task is to assign papers to be cited to corresponding sections and subsections.
+
+**Guidance:**
+1. Assign papers based on their relevance to the section and subsection topics.
+2. Make sure citing according to you assignment is reasonable and appropriate and help to provide insights in the survey.
+
+**Requirements:**
+1. Assign EVERY paper in **key papers** to be assigned to one or more corresponding sections or subsections.
+2. The section title and subsection title in your assignment result must EXACTLY match the titles in the current outline.
+3. You can also assign suitable papers in other relevant papers to sections or subsections.
+4. ONLY assign papers that appear in the provided input.
+5. You are provided with key paper analysis. Use them to help better understand and assign papers.
+
+**Input:**
+- outline: {current_outline}
+
+- key papers: {paper_keynotes}
+
+- other relevant papers: {other_relevant_papers}
+
+- key paper analysis: {papers_analysis}
+
+**Output format:**
+[
+  {{
+    "paper_id": "...",
+    "paper_title": "...",
+    "assignment": {{
+        "section_title_1": ["subsection_title_1", "subsection_title_2"],
+        ...
+    }}
+  }},
+  ...
+]
+
+"""
+
 SUBSECTION_DRAFT = """You are writing a subsection of an academic survey paper.
 
 ### Subsection Title:
@@ -210,17 +395,26 @@ You are encouraged to cite more papers from the relevant papers to strengthen yo
 - Subsection description:
 {description}
 
-- Relevant papers:
+- Closely Relevant papers:
 {papers}
+
+- Other Relevant papers:
+{other_relevant_papers}
 
 - Insights from analysis:
 {relevant_analysis}
 
+- Subsection index: 
+This is subsection {subsection_index} of section {section_index} in the overall survey. Please add #### and {subsection_index}.{section_index} before the subsection title in the output.
+
 ### Output:
 - A well-written subsection in several coherent paragraphs.
 - Academic style; focused on synthesis and analysis, not just reporting.
-- Only cite papers that appear in Relevant Papers, using format: (Paper ID: 2023.10567) to cite wherever appropriate.
+- **Only** cite papers that appear in the provided input.
+- Strictly use format: <paper_title> (like <Attention is All You Need>) to cite wherever appropriate.
+- Cite at least **{subsection_least_citations} different papers** for a subsection. You are encouraged to cite more papers to give in-depth analysis..
 - Do not generate a bibliography or reference list here.
+- The content of each subsection should be at least {subsection_least_words} words long!!
 """
 
 SECTION_DRAFT = """You are writing a section of an academic survey paper.
@@ -229,11 +423,13 @@ SECTION_DRAFT = """You are writing a section of an academic survey paper.
 {title}
 
 ### Guidance:
-Write a coherent section that provides a high-level synthesis of its subsections.  
-Use the subsection drafts to highlight insights, trends, comparisons, and relationships between ideas.  
-The section should be academically structured and readable, and it should integrate the content of the subsections rather than simply repeating them.  
-You may also include examples or references from papers to support the discussion, but do not just list papers or subsection texts.
-You are encouraged to cite more papers from the relevant papers to strengthen your points.
+Write a coherent section according to existing subsection drafts.  
+Use the subsection drafts to highlight insights, trends, comparisons, and relationships between ideas.
+The section content should be based on the subsection drafts, you should neither omit important content from the subsections nor simply repeat them.  
+The section should be academically structured and readable, and it should integrate the content of the subsections rather than simply repeating them.
+You should not delete any citations that appear in the subsection drafts. Correct any citation format errors in the subsection drafts.  
+The section should be in correct format with # and index before the section and subsection titles.
+You are encouraged to cite as many papers as possible from the relevant papers to strengthen your points.
 
 ### Information to use:
 - Section description:
@@ -242,22 +438,112 @@ You are encouraged to cite more papers from the relevant papers to strengthen yo
 - Subsection drafts:
 {subsection_drafts}
 
-- Relevant papers:
+- Closely Relevant papers:
 {papers}
+
+- Other Relevant papers:
+{other_relevant_papers}
+
+- Section index: 
+This is section {section_index} in the overall survey. Please add ### and {section_index} before the subsection title in the output.
 
 ### Output:
 - A well-written section in several coherent paragraphs.
 - Academic style; focused on synthesis, comparison, and trends.
-- Only cite papers that appear in Relevant Papers, using format: (Paper ID: 2023.10567) to cite wherever appropriate.
+- **Only** cite papers that appear in the provided input.
+- Strictly use format: <paper_title> (like <Attention is All You Need>) to cite wherever appropriate.
+- Cite at least **{section_least_citations} different papers** for a section. You are encouraged to cite more papers to give in-depth analysis.
 - Do not generate a bibliography or reference list here.
+- The content of each section should be at least {section_least_words} words long!!
 """
 
-DRAFT_REFINEMENT = """You are refining an academic survey paper draft. The draft currently contains paper IDs as citations (e.g., "2406.10252").
+SECTION_REVIEW = """You are an expert reviewer for an academic survey paper concerning topic: {topic}. The draft section may contain inline paper citations in angle brackets (e.g., "<Attention is All You Need>").
+
+### Task:
+1. Read the Draft Text for the given section and perform a short, careful review focused on clarity, logical flow, technical accuracy, and depth for an academic survey.
+2. Produce a clear, specific, and actionable **list of revision suggestion list**. 
+3. Each suggestion should concisely explain *what* to change, *why* and  *how* to implement it. When appropriate, point to the exact sentence or short excerpt from the draft to anchor the suggestion.
+4. You will be provided with the previous and next sections for context. Use them to ensure logical flow and coherence across sections.
+5. Only give suggestions on the current section. 
+6. There are some basic requirements as follow. If the section does not meet any, provide relevant modification suggestions.
+7. If the section is satisfactory, provide an empty suggestion list.
+
+### Requirements:
+1. The section text should have at least {section_least_words} words.  Current section length: {current_section_length} words.
+2. The section title should be in correct format with ### and index before the section title(like ### 1. Introduction).
+3. The subsection titles should be in correct format with #### and index before the subsection title(like #### 1.1 Background). Subsection numbers should be consecutive
+4. All citations in the section must be in correct format: <paper_title> (like <Attention is All You Need>).
+5. The section should be elegantly formatted and have good readability.
+6. The content of the section should be consistent with its title and scope.
+7. The section should be logically coherent and academically styled.
+8. The paragraph should contain sufficient citations to support the viewpoints and provide specific and in-depth analysis
+
+### Input:
+Previous Section:
+{previous_section_text}
+
+Next Section:
+{next_section_text}
+
+Current Section:
+{section_text}
+
+### Output format (exact):
+[
+  "suggestion 1",
+  "suggestion 2",
+  ...
+]
+"""
+
+SECTION_REVISE  = """
+You are a revise assistant. The section content of a survey concerning {topic} is provided below. You must propose at most ONE exact textual substitution per response according to the suggestion of reviewer.
+If you think the document requires changes, choose one that you think is most important to address next, and output ONE JSON object (and nothing else).
+
+**Output format:**
+{{
+    "action":"replace", 
+    "originalText":"<the exact substring to replace>", 
+    "newText":"<the replacement text>"
+}}
+
+The originalText field must match EXACTLY ONE substring in the document.
+If you believe no edits are required, output exactly: {{"action":"done"}}.
+
+Original Section Text:
+{text}
+
+Citation Text:
+{citations}
+
+Guidance:
+- Give one minimal but precise modification.
+- Revise the paragraph to enhance its logicality and depth.
+- Your modifications **MUST** be consistent with the overall structure, logic and the scope(title) of the section.
+
+Revision instructions:
+- You can cite new literature from Citation Text if it helps improve the content's insight or completeness.
+- You can only cite papers from the Citation Text. Make sure the title matches EXACTLY.
+- The modification has multiple iterations, so make minimal changes: prefer a single precise substitution rather than rewriting whole paragraphs.
+
+Reviewer Suggestion:
+{reviewer_suggestion}
+
+Strict rules:
+- The field originalText must be an exact substring of the document (it may include newlines).
+- Output only the JSON object described above. Do NOT output any prose.
+- Do not return arrays. Only one JSON object.
+- Keep the substitution minimal and precise.
+- Any additions that are repetitive, spoil the format, inconsistent with the paragraph logic, or beyond the scope of the content are strictly prohibited
+
+"""
+
+DRAFT_REFINEMENT = """You are refining an academic survey paper draft. The draft currently contains paper titles as citations (e.g., "<Attention is All You Need>").
 
 ### Task:
 1. Refine the draft to improve clarity, coherence, and academic style.
-2. Replace all paper ID citations with format like (Paper ID: 2023.10567) in the draft with numbered references in square brackets, in the order of first appearance.
-3. Each citation number corresponds to a single paper ID.
+2. Replace all paper Title citations in format like <paper_title> (like <Attention is All You Need>) in the draft with numbered references in square brackets, in the order of first appearance.
+3. Each citation number corresponds to a single paper title.
 4. Keep all original content and ideas.
 5. Integrate citations smoothly and naturally within the text.
 
@@ -270,12 +556,41 @@ Provide a **JSON object** with the following structure:
 
 {{
   "refined_survey": "<refined survey text with numbered citations>",
-  "references": [<paper_id for citation 1>, <paper_id for citation 2>, ...]
+  "references": [<paper_title for citation 1>, <paper_title for citation 2>, ...]
 }}
 
 - `refined_survey` is a string containing the survey text with citations replaced by `[number]`.
 - `references` is a list of objects ordered by citation number, each mapping the index to its corresponding paper IDs.
 - Ensure JSON is valid and parsable.
+- Do not generate a bibliography or reference list here.
+"""
+
+DRAFT_REFINEMENT_IN_PARTS = """You are refining an part of academic survey paper draft. The draft currently contains paper titles as citations (e.g., "<Attention is All You Need>").
+
+### Key Task:
+1. Refine the draft to improve clarity, coherence, and academic style.
+2. Imporve the readability of the draft.
+
+### Requirements:
+1. Fix all the citations in other format. The correct citation must be paper title in <> (like <Attention is All You Need>).
+2. Make sure each <> contains only one paper title. Split titles in to seperate <> if one <> contains multiple paper titles.
+3. Keep all original content and ideas. Do not delete any citations.
+4. The format of section title should be ### and index before the section title(like ### 1. Introduction); The format of subsection title should be #### and index before the subsection title(like #### 1.1 Background).
+5. This is {section_index}-th section. Make sure the section and subsection titles in the right format.
+6. You are provided with the previous and next sections for context. Use them to ensure logical flow and coherence across sections.
+7. Directly output the refined draft text. Do not generate any other explanations.
+8. Only refine the draft in Draft Text. Do not modify the previous or next sections.
+
+### Input:
+Previous Section:
+{previous_section_text}
+
+Next Section:
+{next_section_text}
+
+Draft Text:
+{draft_text}
+
 - Do not generate a bibliography or reference list here.
 """
 
@@ -287,7 +602,51 @@ For example, if previous attempt cited non-existent or error papers, avoid citin
 
 ###----EVALUATOR PROMPTS----###
 EVAL_CRITERIA = {
-    # ---------- Core Quality ----------
+    'Coverage':{
+        'description':'Coverage: Coverage assesses the extent to which the survey encapsulates all relevant aspects of the topic, ensuring comprehensive discussion on both central and peripheral topics.',
+        'score 1':'The survey has very limited coverage, only touching on a small portion of the topic and lacking discussion on key areas.',
+        'score 2':'The survey covers some parts of the topic but has noticeable omissions, with significant areas either underrepresented or missing.',
+        'score 3':'The survey is generally comprehensive in coverage but still misses a few key points that are not fully discussed.',
+        'score 4':'The survey covers most key areas of the topic comprehensively, with only very minor topics left out.',
+        'score 5':'The survey comprehensively covers all key and peripheral topics, providing detailed discussions and extensive information.',
+    },
+            
+    'Structure':{
+        'description':'Structure: Structure evaluates the logical organization and coherence of sections and subsections, ensuring that they are logically connected.',
+        'score 1':'The survey lacks logic, with no clear connections between sections, making it difficult to understand the overall framework.',
+        'score 2':'The survey has weak logical flow with some content arranged in a disordered or unreasonable manner.',
+        'score 3':'The survey has a generally reasonable logical structure, with most content arranged orderly, though some links and transitions could be improved such as repeated subsections.',
+        'score 4':'The survey has good logical consistency, with content well arranged and natural transitions, only slightly rigid in a few parts.',
+        'score 5':'The survey is tightly structured and logically clear, with all sections and content arranged most reasonably, and transitions between adajecent sections smooth without redundancy.',
+    },
+            
+    'Relevance':{
+        'description':'Relevance: Relevance measures how well the content of the survey aligns with the research topic and maintain a clear focus.',
+        'score 1':'The content is outdated or unrelated to the field it purports to review, offering no alignment with the topic',
+        'score 2':'The survey is somewhat on topic but with several digressions; the core subject is evident but not consistently adhered to.',
+        'score 3':'The survey is generally on topic, despite a few unrelated details.',
+        'score 4':'The survey is mostly on topic and focused; the narrative has a consistent relevance to the core subject with infrequent digressions.',
+        'score 5':'The survey is exceptionally focused and entirely on topic; the article is tightly centered on the subject, with every piece of information contributing to a comprehensive understanding of the topic.',
+    },
+
+    'Depth':{
+        'description':'Depth: Depth evaluates the level of *technical and analytical rigor* in explaining underlying principles, assumptions, failure modes, trade-offs, and engineering implementations of different methods. It emphasizes *mechanism-level reasoning*, *comparative analysis with clear criteria*, and *actionable synthesis* (not just literature aggregation).',
+        'score 1':'The survey is largely a bibliography or a list of methods/tasks with near-zero technical content. It does not explain how methods work, what assumptions they rely on, or why they differ; comparisons are absent or purely descriptive.',
+        'score 2':'The survey contains minimal technical explanation (mostly high-level intuition or slogans). Comparisons are shallow (e.g., “better/worse” without conditions), key assumptions and limitations are ignored, and there is little to no discussion of implementation details, complexity, or failure cases.',
+        'score 3':'The survey provides basic mechanism-level descriptions for a subset of methods and can state a few meaningful differences. However, analysis remains coarse: trade-offs are not articulated with clear axes (e.g., compute/data/latency/robustness), evidence is not tied to claims, and engineering details (hyperparameters, architectures, training regimes, evaluation setups) are only partially covered.',
+        'score 4':'The survey gives *substantive* technical analysis for most core methods, including explicit trade-off axes (e.g., accuracy vs. efficiency, scalability vs. stability, robustness vs. alignment), common failure modes, and reproducibility-relevant engineering details. It synthesizes patterns across works (not just per-paper summaries) and derives *well-supported* future directions with concrete open problems.',
+        'score 5':'The survey demonstrates *exceptional* depth with rigorous, end-to-end synthesis: it explains methods at the level of objectives/derivations or algorithmic steps, clarifies assumptions and when they break, analyzes empirical outcomes through causal or mechanistic hypotheses, and connects theory ↔ implementation ↔ evaluation. It provides taxonomy-level insights grounded in evidence (e.g., why certain design choices dominate under specific constraints), highlights non-obvious pitfalls and boundary conditions, and proposes *actionable, testable* research directions (including what to measure, how to evaluate, and what would falsify key claims).',
+    },
+
+    'Rigor&Authenticity':{
+        'description':'Rigor&Authenticity: Rigor&Authenticity assesses whether the survey\'s claims are truthful, verifiable, and precisely stated. It evaluates citation integrity, evidence support, correct attribution, numerical/detail accuracy, and the avoidance of hallucinations, fabricated references, or overconfident unsupported assertions. It also checks whether uncertainty and limitations are clearly disclosed, and whether the survey enables readers to trace key statements back to reliable sources.',
+        'score 1':'The survey contains pervasive hallucinations or fabricated content (e.g., non-existent papers, wrong attributions, invented datasets/metrics). Many core claims are unverifiable or false; citations are missing or clearly incorrect; strong conclusions are made without evidence.',
+        'score 2':'The survey shows frequent factual errors or questionable claims. Citations are sparse, mismatched, or low-quality; multiple key details (dates, numbers, method names, benchmarks) appear unreliable or cannot be traced. Uncertainty is rarely acknowledged.',
+        'score 3':'The survey is mostly plausible and broadly accurate, but has several unverified statements or minor inaccuracies. Some important claims lack direct support or use vague referencing; a few citations may be incomplete or weakly connected. Limitations/uncertainty are mentioned but not systematically handled.',
+        'score 4':'The survey is largely factual and carefully grounded. Most nontrivial claims are supported by credible, traceable references; attribution is correct; numerical/details are consistent. Uncertainty, assumptions, and limitations are clearly stated, with only minor lapses (e.g., occasional vague wording or missing support for a small claim).',
+        'score 5':'The survey is exceptionally rigorous and trustworthy. All key claims are verifiable with high-quality sources; citations precisely match statements and are sufficient for tracing. It avoids overgeneralization, clearly distinguishes evidence from speculation, reports uncertainty and boundary conditions, and includes falsification-friendly details (e.g., exact settings, metrics, datasets, versions) enabling independent verification. No fabricated, misleading, or unsupported content is present.',
+    },
+
     "Synthesis Quality": {
         "aspect": "Core Quality",
         "description": "Synthesis quality: distinguishes true integration and conceptual grouping of literature from mere enumeration of papers.",
@@ -442,6 +801,21 @@ EVAL_CRITERIA = {
 }
 
 JUDGE_WITH_CRITERIA_PROMPT = """Here is an academic survey about the topic "{TOPIC}":
+{SURVEY}
+Please evaluate this survey about the topic "{TOPIC}" based on the criterion above provided below, and give a score from 1 to 10 according to the score description: 
+--- 
+Criterion Description: {Criterion_Description} 
+--- 
+Score 1 Description: {Score_1_Description} 
+Score 2 Description: {Score_2_Description} 
+Score 3 Description: {Score_3_Description} 
+Score 4 Description: {Score_4_Description} 
+Score 5 Description: {Score_5_Description} 
+--- 
+Return the score without any other information:
+"""
+
+JUDGE_WITH_CRITERIA_PROMPT_10_DIMENSIONS = """Here is an academic survey about the topic "{TOPIC}":
 {SURVEY}
 Please evaluate this survey about the topic "{TOPIC}" based on the criterion above provided below, and give a score from 1 to 10 according to the score description: 
 --- 

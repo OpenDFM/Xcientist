@@ -19,6 +19,7 @@ def extract_json(text):
         raise ValueError("No JSON found")
     return json.loads(m.group())
 
+
 def is_valid_pdf(path: str) -> bool:
     if not os.path.isfile(path) or os.path.getsize(path) < 2048:
         return False
@@ -30,7 +31,7 @@ def is_valid_pdf(path: str) -> bool:
             tail = f.read()
         if not (head == b"%PDF-" and b"%%EOF" in tail):
             return False
-        pdfium.PdfDocument(path)  # 深一层校验
+        pdfium.PdfDocument(path)
         return True
     except Exception:
         try:

@@ -1,17 +1,17 @@
 from typing import Dict, List
 import os
-from agents.survey_agent.utils.api_call import SemanticScholarAPI, ChatAgent
-from agents.survey_agent.utils.rich_logger import get_logger
-from agents.survey_agent.utils.mineru_utils import parse_doc
+from utils.api_call import SemanticScholarAPI, ChatAgent
+from utils.rich_logger import get_logger
+from utils.mineru_utils import parse_doc
 import requests
 from contextlib import closing
 import pickle
 import networkx as nx
 from sentence_transformers import SentenceTransformer, util
 import torch
-from agents.survey_agent.modules.pe import PAPER_RELATEDNESS_BASED_ON_TITLE_AND_ABSTRACT
+from modules.pe import PAPER_RELATEDNESS_BASED_ON_TITLE_AND_ABSTRACT
 import diskcache as dc
-from agents.survey_agent.utils.utils import get_hash, extract_json, is_valid_pdf
+from utils.utils import get_hash, extract_json, is_valid_pdf
 
 import gc
 
@@ -19,8 +19,13 @@ class WorkCollector:
     def __init__(self, config):
         self.config = config
         self.semantic_scholar_api = SemanticScholarAPI(config)
+        self.cache_path = self.config.BasicInfo.cache_path
         self.chat_agent = ChatAgent(config)
         self.logger = get_logger("WorkCollector")
+        self.paper_abstract_cache = dc.Cache(
+            os.path.join(self.cache_path, "paper_abstracts")
+        )
+        self.graph_paper_ids = set()
 
         # load reference graph
         self.cache_path = self.config.BasicInfo.cache_path
@@ -53,9 +58,12 @@ class WorkCollector:
         self.logger.info(
             f"Downloading and parsing up to {self.config.ModuleInfo.WorkCollector.max_seed_paper_num} papers..."
         )
-        return self.download_and_parse_papers(
+        valid_seed_papers_ids =  self.download_and_parse_papers(
             papers, limit=self.config.ModuleInfo.WorkCollector.max_seed_paper_num
         )
+        self.graph_paper_ids.update(valid_seed_papers_ids)
+        return valid_seed_papers_ids
+
 
     def download_and_parse_papers(self, papers: list, limit: int = -1):
         """
@@ -90,10 +98,16 @@ class WorkCollector:
 
                 elif paper.get("openAccessPdf", {}).get("url"):
                     download_urls.append(paper["openAccessPdf"]["url"])
+                elif self.config.ModuleInfo.WorkAnalyzer.abstract_when_full_text_fail:
+                    self.logger.info(f"No full text PDF found for paper {paper_id}, skipping download but keeping abstract.")
+                    err = self.add_papers_abstracts_in_cache([paper_id])
+                    if not err:
+                        valid_paper_ids.append(paper_id)
+                    continue
                 else:
                     continue
                 paper_title = paper.get("title", paper_id)
-            else:
+            elif isinstance(paper, str):
                 is_arxiv = "." in paper
                 if is_arxiv:
                     paper_id = paper
@@ -101,10 +115,15 @@ class WorkCollector:
                     download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
                 else:
                     paper_id = paper
-                    paper = self.semantic_scholar_api.get_paper_details(
-                        paper,
-                        fields="title,externalIds,openAccessPdf",
-                    )
+                    try:
+                        paper = self.semantic_scholar_api.get_paper_details(
+                            paper,
+                            fields="title,externalIds,openAccessPdf",
+                        )
+                    except Exception as e:
+                        self.logger.error(f"Error fetching paper {paper_id} details from Semantic Scholar: {e}. Skipping.")
+                        continue
+                        
                     if paper_id != paper.get("paperId"):
                         self.logger.warning(
                             f"Paper ID mismatch for {paper_id}, got {paper.get('paperId')} in DOWNLOAD AND PARSE PAPER, skipping."
@@ -128,16 +147,20 @@ class WorkCollector:
                         download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
                     elif paper.get("openAccessPdf", {}).get("url"):
                         download_urls.append(paper["openAccessPdf"]["url"])
+                    elif self.config.ModuleInfo.WorkAnalyzer.abstract_when_full_text_fail:
+                        self.logger.info(f"No full text PDF found for paper {paper_id}, skipping download but keeping abstract.")
+                        err = self.add_papers_abstracts_in_cache([paper_id])
+                        if not err:
+                            valid_paper_ids.append(paper_id)
+                        continue
                     else:
                         continue
-                # WZJ MODIFY: Check if self.reference_graph is None
-                if self.reference_graph:
-                    paper_title = self.reference_graph.nodes.get(paper_id, {}).get(
-                        "title", paper_id
-                    )
-                else:
-                    paper_title = papers[index-1].get("title", paper_id) # For idea_agent, we do not need to use reference_graph.
-
+                
+                paper_title = self.reference_graph.nodes.get(paper_id, {}).get(
+                    "title", paper_id
+                )
+            else:
+                continue
             pdf_path = os.path.join(
                 self.config.BasicInfo.cache_path,
                 "pdf_papers",
@@ -185,10 +208,12 @@ class WorkCollector:
                 else:
                     break
 
-            if not downloaded or not is_valid_pdf(pdf_path):
+            if not downloaded:
                 self.logger.warning(
                     f"Failed to download valid paper {paper_id} from {download_url}"
                 )
+                continue
+            if not is_valid_pdf(pdf_path):
                 self.logger.warning(
                     f"Existing PDF at {pdf_path} is invalid, deleting."
                 )
@@ -330,6 +355,112 @@ class WorkCollector:
         self.logger.info(f"[{title}] Download completed → {filename}")
         return True
 
+    def add_papers_abstracts_in_cache(self, papers: List[str], retry: int = 1):
+        err_papers = []
+        for pid in papers:
+            hash_id = get_hash(pid)
+            # already cached
+            if hash_id in self.paper_abstract_cache:
+                if self.is_valid_abstract(self.paper_abstract_cache[hash_id]["abstract"]):
+                    continue
+
+            # build query id for Semantic Scholar
+            if "." in pid:
+                query_id = f"ARXIV:{pid}"
+            else:
+                query_id = pid
+
+            abstract = ""
+            title = ""
+            
+            # fetch minimal metadata including abstract
+            for attempt in range(retry):
+                try:
+                    paper = self.semantic_scholar_api.get_paper_details(
+                        query_id, fields="abstract,title,externalIds"
+                    )
+                except Exception as e:
+                    self.logger.warning(f"Error fetching paper {pid} details from Semantic Scholar: {e}. Retrying {attempt + 1}/{retry}...")
+                    paper = None
+                if not paper and "." in pid:
+                    try:
+                        self.logger.info(f"Trying arXiv API for paper {pid} as fallback.")
+                        paper = self.arxiv_api.get_paper_details(pid)
+                    except Exception as e:
+                        self.logger.warning(f"Error fetching from arXiv for {pid}: {e}. Retrying {attempt + 1}/{retry}...")
+                        paper = None
+
+                if not paper:
+                    continue
+                    
+                abstract = paper.get("abstract", "") or ""
+                title = paper.get("title", "") or ""
+
+                if not self.is_valid_abstract(abstract):
+                    self.logger.warning(f"No abstract found for {pid}. or abstract too short, len: {len(abstract)}.")
+                    err_papers.append(pid)
+                    continue
+
+                if self.config.BasicInfo.debug:
+                    self.logger.info(f"Add abstract for {pid}: {len(abstract)} chars.")
+                break
+            
+
+            # Store into the same cache structure used for keynotes so downstream code can use get_paper_keynote
+            if self.is_valid_abstract(abstract):
+                self.paper_abstract_cache[hash_id] = {
+                    "paper_id": pid,
+                    "abstract": abstract,
+                    "title": title,
+                }
+            
+                if self.config.BasicInfo.debug:
+                    self.logger.info(f"Cached abstract for {pid}: {len(abstract)} chars.")
+            else:
+                err_papers.append(pid)
+                
+        return err_papers
+
+    def get_paper_title_abstract(self, paper_id: str, retry: int = 3):
+        hash_id = get_hash(paper_id)
+        # already cached
+        if hash_id in self.paper_abstract_cache and self.is_valid_abstract(self.paper_abstract_cache[hash_id]['abstract']):
+            if self.config.BasicInfo.debug:
+                self.logger.info(f"Cache hit for paper {paper_id} abstract, len: {len(self.paper_abstract_cache[hash_id]['abstract'])}")
+            return self.paper_abstract_cache[hash_id]['title'], self.paper_abstract_cache[hash_id]['abstract']
+
+        self.add_papers_abstracts_in_cache([paper_id], retry=retry)
+        if hash_id in self.paper_abstract_cache and self.is_valid_abstract(self.paper_abstract_cache[hash_id]['abstract']):
+            if self.config.BasicInfo.debug:
+                self.logger.info(f"Fetched and cached abstract for paper {paper_id}, len: {len(self.paper_abstract_cache[hash_id]['abstract'])}")
+            return self.paper_abstract_cache[hash_id]['title'], self.paper_abstract_cache[hash_id]['abstract']
+        else:
+            raise ValueError(f"Failed to get valid abstract for paper ID {paper_id} after {retry} retries.")
+
+    def get_paper_title(self, paper_id: str, retry: int = 3):
+        hash_id = get_hash(paper_id)
+        # already cached
+        if hash_id in self.paper_abstract_cache:
+            if self.config.BasicInfo.debug:
+                self.logger.info(f"Cache hit for paper {paper_id} title, len: {len(self.paper_abstract_cache[hash_id]['title'])}")
+            return self.paper_abstract_cache[hash_id]['title']
+
+        self.add_papers_abstracts_in_cache([paper_id], retry=retry)
+        if hash_id in self.paper_abstract_cache:
+            if self.config.BasicInfo.debug:
+                self.logger.info(f"Fetched and cached title for paper {paper_id}, len: {len(self.paper_abstract_cache[hash_id]['title'])}")
+            return self.paper_abstract_cache[hash_id]['title']
+        else:
+            raise ValueError(f"Failed to get valid abstract for paper ID {paper_id} after {retry} retries.")
+
+    def is_valid_abstract(self, abstract: str) -> bool:
+        if not isinstance(abstract, str):
+            return False
+        
+        if not abstract or abstract.strip() == "" or abstract == "abstract not found" or len(abstract) < 50:
+            return False
+        return True
+
     def update_reference_graph(self, seed_paper_ids: List[str]):
         """
         Update the reference graph with new seed paper IDs.
@@ -367,10 +498,14 @@ class WorkCollector:
                 else:
                     fields = "title,year,venue,abstract,authors,externalIds,citations.title,citations.externalIds,citations.year,citations.authors,citations.abstract,citations.venue"
 
-                paper_detail = self.semantic_scholar_api.get_paper_details(
-                    query_id,
-                    fields=fields,
-                )
+                try:
+                    paper_detail = self.semantic_scholar_api.get_paper_details(
+                        query_id,
+                        fields=fields,
+                    )
+                except Exception as e:
+                    self.logger.error(f"Error fetching paper {paper_id} details from Semantic Scholar: {e}. Skipping.")
+                    paper_detail = None
 
                 if not paper_detail:
                     return
@@ -438,6 +573,10 @@ class WorkCollector:
                     related_papers = one_step(paper_id, visited, direction)
                     if related_papers:
                         next_papers.extend(related_papers)
+
+                        if not self.config.ModuleInfo.WorkCollector.RAG_source_use_embedding_filter and \
+                            not self.config.ModuleInfo.WorkCollector.RAG_source_use_LLM_filter:
+                            self.graph_paper_ids.update(related_papers)
                 current_papers = next_papers
 
         traverse(direction="out")
@@ -512,6 +651,9 @@ class WorkCollector:
             references = list(self.reference_graph.successors(seed_pid))
             citations = list(self.reference_graph.predecessors(seed_pid))
             related_pids = references + citations
+            if len(related_pids) == 0:
+                self.logger.warning(f"No related papers found for seed paper {seed_pid}, skipping relatedness computation.")
+                continue
             related_texts = [paper2text(pid) for pid in related_pids]
             related_embeddings = model.encode(
                 related_texts,
@@ -539,6 +681,9 @@ class WorkCollector:
                     >= self.config.ModuleInfo.WorkCollector.related_work_threshold
                 ):
                     saved_papers[seed_pid].add(pid)
+                    if self.config.ModuleInfo.WorkCollector.RAG_source_use_embedding_filter and \
+                        not self.config.ModuleInfo.WorkCollector.RAG_source_use_LLM_filter:
+                        self.graph_paper_ids.add(pid)
 
             saved_papers[seed_pid].difference_update(seed_paper_ids)
 
@@ -618,6 +763,10 @@ class WorkCollector:
                     to_remove.add(related_pid)
             saved_papers[seed_pid].difference_update(to_remove)
 
+        if self.config.ModuleInfo.WorkCollector.RAG_source_use_LLM_filter and \
+            not self.config.ModuleInfo.WorkCollector.RAG_source_downloadable_only:
+            self.graph_paper_ids.update(set().union(*saved_papers.values()))
+
         self.logger.info(
             f"After LLM-based filtering, {len(set().union(*saved_papers.values()))} papers remain with threshold {self.config.ModuleInfo.WorkCollector.related_work_threshold_for_llm}."
         )
@@ -647,4 +796,7 @@ class WorkCollector:
                 f"Related Paper ID: {pid}, Title: {self.reference_graph.nodes[pid].get('title', 'N/A')}"
             )
 
-        return self.download_and_parse_papers(related_paper_ids)
+        valid_expanded_paper_ids = self.download_and_parse_papers(related_paper_ids)
+        self.graph_paper_ids.update(valid_expanded_paper_ids)
+        self.logger.info(f"valid RAG paper ids sources num: {len(self.graph_paper_ids)}")
+        return valid_expanded_paper_ids

@@ -1,0 +1,329 @@
+=== PROMPT ===
+
+You are a revise assistant. The document has been split into sentences (one per line), indexed from 0.
+
+Document lines (JSON array):
+'line 1': '
+    1.'
+'line 2': 'The Modality Interface: From Linear Projections to Deep
+    Fusion and Generative Unification
+
+The architectural design of the modality       
+    interface—the bridge that connects visual encoders with Large Language Models       
+    (LLMs)—has evolved into a central battleground for defining the capabilities of     
+    Multimodal Large Language Models (MLLMs).'
+'line 3': 'While early efforts, such as **<Visual    
+    Instruction Tuning>**, demonstrated the viability of connecting a visual encoder to 
+    an LLM using a simple linear projection layer, the field has rapidly shifted toward 
+    more sophisticated architectures.'
+'line 4': 'These newer designs aim to handle the "modality   
+    gap" more effectively, resulting in a spectrum of interfaces ranging from           
+    specialized compression modules to deep, interleaved fusion strategies.'
+'line 5': 'A        
+    prominent approach involves the use of specialized modules to map visual tokens into
+    the semantic space of the LLM.'
+'line 6': '**<MiniGPT-4>** utilizes Q-Former (inspired by       
+    BLIP-2) to learn a set of learnable queries that aggregate visual features before   
+    they are fed into the LLM.'
+'line 7': 'This method proved that treating visual input as a       
+    sequence of compressed, highly relevant features allows an otherwise frozen LLM to  
+    understand complex modalities, unlocking emergent capabilities like website         
+    generation from sketches.'
+'line 8': 'Similarly, **<KOSMOS-1>** adopts a Perceiver-like         
+    architecture to handle interleaved multimodal inputs within a single Transformer.'
+'line 9': 'By
+    employing a mapping network and special boundary tokens, it effectively unifies     
+    modalities.'
+'line 10': 'However, models relying on complex, pre-trained feature compressors like
+    Q-Former (as seen in **<BLIVA>**, which integrates Q-Former-style embeddings with   
+    patch embeddings to better handle text-rich images) often introduce significant     
+    parameter overhead and latency.'
+'line 11': 'In reaction to this complexity, recent research  
+    has sought to simplify the interface without sacrificing performance.'
+'line 12': '**<mPLUG-Owl2>** introduces a "modality-adaptive module" that preserves             
+    modality-specific features, arguing that strict fusion can degrade text-only        
+    capabilities.'
+'line 13': 'It decouples the visual pathway while still sharing a universal       
+    language decoder.'
+'line 14': 'Conversely, **<FIBER>** argues for "Fusion in the Backbone."'
+'line 15': 'Instead of a separate connector, it interleaves cross-attention layers directly into
+    the LLM’s encoder and decoder context.'
+'line 16': 'This deep fusion allows the model to reason  
+    about visual dependencies dynamically throughout the generation process, rather than
+    relying on a static pre-fusion step.'
+'line 17': 'This trade-off—between specialized, compressed 
+    encoders (**<MiniGPT-4>**) and deep, integrated fusion (**<FIBER>**)—defines the    
+    current tension in interface design.'
+'line 18': 'Simultaneously, a radical shift in          
+    philosophy has emerged, epitomized by **<VisionLLM>**.'
+'line 19': 'This work proposes treating  
+    images as a "foreign language."'
+'line 20': 'Rather than designing complex connectors, it aligns 
+    vision-centric tasks directly with the LLM’s language processing capabilities.'
+'line 21': 'It   
+    uses a language-guided image tokenizer and treats outputs (like bounding boxes) as  
+    text tokens, effectively unifying the architecture into a pure generative text      
+    decoder.'
+'line 22': 'This approach suggests that the modality interface might eventually        
+    disappear entirely, with the LLM handling all modalities natively.'
+'line 23': '**<GIT>** further
+    supports this generative unification, achieving state-of-the-art performance in     
+    image-to-text generation with a simple encoder-decoder architecture that requires no
+    complex modality-specific modules.'
+'line 24': 'This evolution from simple linear projections    
+    (**<Visual Instruction Tuning>**) to specialized compressors (**<MiniGPT-4>**,      
+    **<KOSMOS-1>**), deep fusion (**<FIBER>**, **<mPLUG-Owl2>**), and finally generative
+    unification (**<VisionLLM>**, **<GIT>**) represents the field’s search for the most 
+    efficient way to bridge the visual and linguistic worlds.'
+'line 25': 'However, architectural 
+    innovation cannot compensate for insufficient training data, a point emphasized by  
+    **<Static Augmentation>**.'
+'line 26': 'This paper argues that standard supervised fine-tuning   
+    (SFT) data is often too narrow, limiting the model's ability to generalize across  
+    different instruction styles.'
+'line 27': 'This highlights that the "interface" is not just      
+    architecture; it is also the instructional data that teaches the model how to       
+    utilize that architecture.'
+'line 28': 'Even the most elegant connector, such as the "Spatial    
+    Vision Aggregator (SVA)" proposed in **<Cambrian-1>**, relies on a massive,         
+    high-quality dataset to fine-tune the interaction between visual backbones and the  
+    LLM.'
+'line 29': 'Furthermore, the industry is trending toward architectures that prioritize  
+    "visual grounding"—explicitly linking text to visual regions.'
+'line 30': '**<KOSMOS-2>**        
+    introduced grounding capabilities by training on grounded image-text pairs, allowing
+    the model to output `<region>` tags corresponding to bounding boxes.'
+'line 31': 'While not      
+    strictly an architectural connector change, it alters the output interface to       
+    enforce alignment between the visual and textual streams.'
+'line 32': 'Similarly, **<UniTAB>**   
+    Unifies Text and Box outputs, proposing a shared token sequence that allows for     
+    grounded captioning.'
+'line 33': 'The inclusion of an `<obj>` token represents a structural      
+    change to the interface, enabling the model to explicitly align generated words with
+    visual locations.'
+'line 34': 'The trajectory of research suggests that while early interfaces
+    focused on "how to connect" (via linear layers or projectors), the current focus is 
+    on "how to integrate."'
+'line 35': '**<mPLUG-Owl2>** demonstrates that preserving                
+    modality-specific features is crucial for general intelligence, while **<FIBER>**   
+    suggests that dynamic fusion is key for fine-grained tasks.'
+'line 36': 'As we look at the       
+    evolution from **<Visual Instruction Tuning>**'s linear layer to **<VisionLLM>**'s
+    generative decoder, the interface is transforming from a static bridge into a       
+    dynamic, intelligent router that determines which modality to prioritize and how to 
+    fuse context effectively.'
+'line 37': 'The limitations of current interfaces are also becoming
+    apparent in specific domains.'
+'line 38': 'For example, **<BLIVA>** addresses the failure of     
+    generalist connectors in text-rich images by explicitly injecting patch embeddings  
+    alongside learned query embeddings.'
+'line 39': 'This suggests that "one size fits all"          
+    interfaces may not be optimal.'
+'line 40': 'As the line between the visual encoder and the       
+    language model blurs, exemplified by **<Downscaling Intelligence>**'s proposal for 
+    visual extraction tuning, the modality interface is effectively becoming part of the
+    reasoning engine itself, rather than a mere data conduit.'
+'line 41': 'In conclusion, the     
+    modality interface has moved from a trivial linear layer to a core architectural    
+    component defining the model's reasoning capabilities.'
+'line 42': 'The choice between heavy,   
+    pre-trained connectors and deep, integrated fusion reflects a fundamental debate on 
+    whether visual processing should be heuristically compressed before reaching the LLM
+    or treated as an integral part of the reasoning process.'
+'line 43': 'Works like **<VisionLLM>** 
+    and **<GIT>** suggest the ultimate interface may be the absence of one—a unified    
+    generative space—while current practical architectures like **<Cambrian-1>** and    
+    **<FIBER>** are pushing the boundaries of sophisticated, multi-stage fusion to      
+    maximize performance on complex reasoning tasks.'
+'line 44': '(Word count: ~1650 words)''
+
+
+Revision requests:
+- This text is too short for a scientific survey introduction. Please expand and improve it by expanding on the challenges and recent developments in the field.
+- There are some error and annotation like word count, remove them.
+- The correct form for citation is <title>(like <Attention is All you need). Correct the wrong citation forms. Do not omit any citation.
+- Improve academic tone.
+- Modify the necessary lines to achieve the above.
+- Output in strict JSON format.
+
+Output ONLY a JSON array of edits (no prose). Each edit must be an object with:
+{ "type": "replace" | "insert_before" | "insert_after" | "delete",
+   "line": <int>,
+   "newText": "<string>"
+}
+
+Example (allowed):
+[{"type":"replace","line":0,"newText":"..."}, ...]
+
+=== APPLIED EDITS ===
+[
+  {
+    "type": "replace",
+    "line": 16,
+    "newText": "10. Conclusion\n\nIn conclusion, the modality interface has moved from a trivial linear layer to a core architectural component defining the model's reasoning capabilities. The choice between heavy, pre-trained connectors and deep, integrated fusion reflects a fundamental debate on whether visual processing should be heuristically compressed before reaching the LLM or treated as an integral part of the reasoning process. Works like <VisionLLM> and <GIT> suggest the ultimate interface may be the absence of one—a unified generative space—while current practical architectures like <Cambrian-1> and <FIBER> are pushing the boundaries of sophisticated, multi-stage fusion to maximize performance on complex reasoning tasks. As the field continues to evolve, the interface will likely remain a central battleground for defining the capabilities and efficiency of next-generation multimodal systems."
+  },
+  {
+    "type": "replace",
+    "line": 15,
+    "newText": "9. Emerging Trends and Future Directions\n\nAs the line between the visual encoder and the language model blurs, exemplified by <Downscaling Intelligence>'s proposal for visual extraction tuning, the modality interface is effectively becoming part of the reasoning engine itself, rather than a mere data conduit. This trend toward deeper integration raises important questions about the fundamental nature of multimodal intelligence and whether separate modality-specific components will persist in future architectures."
+  },
+  {
+    "type": "replace",
+    "line": 14,
+    "newText": "The limitations of current interfaces are also becoming apparent in specific domains. For example, <BLIVA> addresses the failure of generalist connectors in text-rich images by explicitly injecting patch embeddings alongside learned query embeddings. This suggests that 'one size fits all' interfaces may not be optimal, and that domain-specific adaptations may be necessary for optimal performance. Text-rich images, medical imaging, scientific diagrams, and artistic content all present unique challenges that require specialized interface designs."
+  },
+  {
+    "type": "replace",
+    "line": 13,
+    "newText": "8. Current Challenges and Domain-Specific Limitations\n\nThe trajectory of research suggests that while early interfaces focused on 'how to connect' (via linear layers or projectors), the current focus is on 'how to integrate' and 'how to ground.' <mPLUG-Owl2> demonstrates that preserving modality-specific features is crucial for general intelligence, while <FIBER> suggests that dynamic fusion is key for fine-grained tasks requiring complex reasoning. As we look at the evolution from <Visual Instruction Tuning>'s linear layer to <VisionLLM>'s generative decoder, the interface is transforming from a static bridge into a dynamic, intelligent router that determines which modality to prioritize and how to fuse context effectively."
+  },
+  {
+    "type": "replace",
+    "line": 12,
+    "newText": "Similarly, <UniTAB> unifies text and box outputs, proposing a shared token sequence that allows for grounded captioning. The inclusion of an `<obj>` token represents a structural change to the interface, enabling the model to explicitly align generated words with visual locations. These approaches address a fundamental challenge in MLLMs: ensuring that language generation is truly grounded in visual evidence rather than relying on linguistic priors or hallucination."
+  },
+  {
+    "type": "replace",
+    "line": 11,
+    "newText": "7. Visual Grounding and Output Alignment\n\nFurthermore, the industry is trending toward architectures that prioritize 'visual grounding'—explicitly linking text to visual regions. <KOSMOS-2> introduced grounding capabilities by training on grounded image-text pairs, allowing the model to output `<region>` tags corresponding to bounding boxes. While not strictly an architectural connector change, it alters the output interface to enforce alignment between the visual and textual streams, enabling more precise and interpretable multimodal reasoning."
+  },
+  {
+    "type": "replace",
+    "line": 10,
+    "newText": "This highlights that the 'interface' is not merely an architectural construct; it is also the instructional data that teaches the model how to utilize that architecture effectively. Even the most elegant connector, such as the 'Spatial Vision Aggregator (SVA)' proposed in <Cambrian-1>, relies on a massive, high-quality dataset to fine-tune the interaction between visual backbones and the LLM. The emergence of large-scale multimodal datasets like LAION, COCO, and specialized instruction-tuning datasets has been as crucial as architectural advances in enabling MLLM capabilities."
+  },
+  {
+    "type": "replace",
+    "line": 9,
+    "newText": "6. The Critical Role of Training Data\n\nHowever, architectural innovation cannot compensate for insufficient training data, a point emphasized by <Static Augmentation>. This paper argues that standard supervised fine-tuning (SFT) data is often too narrow, limiting the model's ability to generalize across different instruction styles, domains, and task formulations. The quality, diversity, and scale of training data fundamentally constrain what any interface architecture can achieve, regardless of its theoretical elegance."
+  },
+  {
+    "type": "replace",
+    "line": 8,
+    "newText": "<GIT> further supports this generative unification philosophy, achieving state-of-the-art performance in image-to-text generation with a simple encoder-decoder architecture that requires no complex modality-specific modules. This evolution from simple linear projections (<Visual Instruction Tuning>) to specialized compressors (<MiniGPT-4>, <KOSMOS-1>), deep fusion (<FIBER>, <mPLUG-Owl2>), and finally generative unification (<VisionLLM>, <GIT>) represents the field's ongoing search for the most efficient way to bridge the visual and linguistic worlds."
+  },
+  {
+    "type": "replace",
+    "line": 7,
+    "newText": "5. Generative Unification Paradigm\n\nSimultaneously, a radical shift in philosophy has emerged, epitomized by <VisionLLM>, which proposes treating images as a 'foreign language.' Rather than designing complex connectors, this approach aligns vision-centric tasks directly with the LLM's language processing capabilities. It uses a language-guided image tokenizer and treats outputs like bounding boxes as text tokens, effectively unifying the architecture into a pure generative text decoder. This approach suggests that the modality interface might eventually disappear entirely, with the LLM handling all modalities natively through a unified token space."
+  },
+  {
+    "type": "replace",
+    "line": 6,
+    "newText": "Conversely, <FIBER> argues for 'Fusion in the Backbone,' proposing that instead of a separate connector, the model should interleave cross-attention layers directly into the LLM's encoder and decoder context. This deep fusion allows the model to reason about visual dependencies dynamically throughout the generation process, rather than relying on a static pre-fusion step. The trade-off between specialized, compressed encoders (<MiniGPT-4>) and deep, integrated fusion (<FIBER>) defines a central tension in current interface design."
+  },
+  {
+    "type": "replace",
+    "line": 5,
+    "newText": "4. Simplification and Modality Preservation\n\nIn reaction to this complexity, recent research has sought to simplify the interface without sacrificing performance. <mPLUG-Owl2> introduces a 'modality-adaptive module' that preserves modality-specific features, arguing that strict fusion can degrade text-only capabilities and harm the model's general linguistic competence. It decouples the visual pathway while still sharing a universal language decoder, allowing the model to maintain strong performance on both multimodal and text-only tasks."
+  },
+  {
+    "type": "replace",
+    "line": 4,
+    "newText": "Similarly, <KOSMOS-1> adopts a Perceiver-like architecture to handle interleaved multimodal inputs within a single Transformer framework. By employing a mapping network and special boundary tokens, it effectively unifies modalities while maintaining computational efficiency. However, models relying on complex, pre-trained feature compressors like Q-Former—as seen in <BLIVA>, which integrates Q-Former-style embeddings with patch embeddings to better handle text-rich images—often introduce significant parameter overhead and inference latency. These computational costs present practical barriers to deployment and scalability."
+  },
+  {
+    "type": "replace",
+    "line": 3,
+    "newText": "3. Specialized Compression Approaches\n\nA prominent line of research involves specialized modules that map visual tokens into the semantic space of the LLM. <MiniGPT-4> exemplifies this approach by utilizing Q-Former, inspired by <BLIP-2>, to learn a set of trainable queries that aggregate and compress visual features before feeding them into the LLM. This method proved that treating visual input as a sequence of compressed, highly relevant features allows an otherwise frozen LLM to understand complex modalities, unlocking emergent capabilities like website generation from sketches and detailed image description."
+  },
+  {
+    "type": "replace",
+    "line": 2,
+    "newText": "Recognizing these limitations, the field rapidly evolved toward more sophisticated architectures designed to bridge the modality gap more effectively. This evolution has produced a spectrum of interface designs, ranging from specialized compression modules that distill visual information into compact representations, to deep interleaved fusion strategies that maintain fine-grained interactions between modalities throughout the reasoning process."
+  },
+  {
+    "type": "replace",
+    "line": 1,
+    "newText": "2. Evolution of Interface Architectures\n\nEarly efforts in multimodal learning, such as <Visual Instruction Tuning>, established the basic paradigm of connecting visual encoders to LLMs through simple linear projection layers. While this approach demonstrated the viability of transferring knowledge from vision models to language models, it suffered from significant limitations, most notably the 'modality gap'—the distributional mismatch between visual and linguistic representations that hinders effective cross-modal understanding."
+  },
+  {
+    "type": "replace",
+    "line": 0,
+    "newText": "1. Introduction\n\nThe rapid advancement of Multimodal Large Language Models (MLLMs) has catalyzed a critical research focus on the modality interface—the architectural bridge connecting visual encoders with Large Language Models (LLMs). This interface represents one of the most fundamental components in multimodal AI, determining how visual information is translated into a format that LLMs can effectively process and reason over. As the field matures from proof-of-concept demonstrations to production-ready systems, the design of these interfaces has evolved from simple linear projections into a complex landscape of specialized compression modules, deep fusion strategies, and increasingly, unified generative architectures."
+  }
+]
+
+=== BLOCKED EDITS ===
+[]
+
+=== FINAL TEXT ===
+
+1. Introduction
+
+The rapid advancement of Multimodal Large Language Models (MLLMs) has catalyzed a critical research focus on the modality interface—the architectural bridge connecting visual encoders with Large Language Models (LLMs). This interface represents one of the most fundamental components in multimodal AI, determining how visual information is translated into a format that LLMs can effectively process and reason over. As the field matures from proof-of-concept demonstrations to production-ready systems, the design of these interfaces has evolved from simple linear projections into a complex landscape of specialized compression modules, deep fusion strategies, and increasingly, unified generative architectures. 2. Evolution of Interface Architectures
+
+Early efforts in multimodal learning, such as <Visual Instruction Tuning>, established the basic paradigm of connecting visual encoders to LLMs through simple linear projection layers. While this approach demonstrated the viability of transferring knowledge from vision models to language models, it suffered from significant limitations, most notably the 'modality gap'—the distributional mismatch between visual and linguistic representations that hinders effective cross-modal understanding. Recognizing these limitations, the field rapidly evolved toward more sophisticated architectures designed to bridge the modality gap more effectively. This evolution has produced a spectrum of interface designs, ranging from specialized compression modules that distill visual information into compact representations, to deep interleaved fusion strategies that maintain fine-grained interactions between modalities throughout the reasoning process. 3. Specialized Compression Approaches
+
+A prominent line of research involves specialized modules that map visual tokens into the semantic space of the LLM. <MiniGPT-4> exemplifies this approach by utilizing Q-Former, inspired by <BLIP-2>, to learn a set of trainable queries that aggregate and compress visual features before feeding them into the LLM. This method proved that treating visual input as a sequence of compressed, highly relevant features allows an otherwise frozen LLM to understand complex modalities, unlocking emergent capabilities like website generation from sketches and detailed image description. Similarly, <KOSMOS-1> adopts a Perceiver-like architecture to handle interleaved multimodal inputs within a single Transformer framework. By employing a mapping network and special boundary tokens, it effectively unifies modalities while maintaining computational efficiency. However, models relying on complex, pre-trained feature compressors like Q-Former—as seen in <BLIVA>, which integrates Q-Former-style embeddings with patch embeddings to better handle text-rich images—often introduce significant parameter overhead and inference latency. These computational costs present practical barriers to deployment and scalability. 4. Simplification and Modality Preservation
+
+In reaction to this complexity, recent research has sought to simplify the interface without sacrificing performance. <mPLUG-Owl2> introduces a 'modality-adaptive module' that preserves modality-specific features, arguing that strict fusion can degrade text-only capabilities and harm the model's general linguistic competence. It decouples the visual pathway while still sharing a universal language decoder, allowing the model to maintain strong performance on both multimodal and text-only tasks. Conversely, <FIBER> argues for 'Fusion in the Backbone,' proposing that instead of a separate connector, the model should interleave cross-attention layers directly into the LLM's encoder and decoder context. This deep fusion allows the model to reason about visual dependencies dynamically throughout the generation process, rather than relying on a static pre-fusion step. The trade-off between specialized, compressed encoders (<MiniGPT-4>) and deep, integrated fusion (<FIBER>) defines a central tension in current interface design. 5. Generative Unification Paradigm
+
+Simultaneously, a radical shift in philosophy has emerged, epitomized by <VisionLLM>, which proposes treating images as a 'foreign language.' Rather than designing complex connectors, this approach aligns vision-centric tasks directly with the LLM's language processing capabilities. It uses a language-guided image tokenizer and treats outputs like bounding boxes as text tokens, effectively unifying the architecture into a pure generative text decoder. This approach suggests that the modality interface might eventually disappear entirely, with the LLM handling all modalities natively through a unified token space. <GIT> further supports this generative unification philosophy, achieving state-of-the-art performance in image-to-text generation with a simple encoder-decoder architecture that requires no complex modality-specific modules. This evolution from simple linear projections (<Visual Instruction Tuning>) to specialized compressors (<MiniGPT-4>, <KOSMOS-1>), deep fusion (<FIBER>, <mPLUG-Owl2>), and finally generative unification (<VisionLLM>, <GIT>) represents the field's ongoing search for the most efficient way to bridge the visual and linguistic worlds. 6. The Critical Role of Training Data
+
+However, architectural innovation cannot compensate for insufficient training data, a point emphasized by <Static Augmentation>. This paper argues that standard supervised fine-tuning (SFT) data is often too narrow, limiting the model's ability to generalize across different instruction styles, domains, and task formulations. The quality, diversity, and scale of training data fundamentally constrain what any interface architecture can achieve, regardless of its theoretical elegance. This highlights that the 'interface' is not merely an architectural construct; it is also the instructional data that teaches the model how to utilize that architecture effectively. Even the most elegant connector, such as the 'Spatial Vision Aggregator (SVA)' proposed in <Cambrian-1>, relies on a massive, high-quality dataset to fine-tune the interaction between visual backbones and the LLM. The emergence of large-scale multimodal datasets like LAION, COCO, and specialized instruction-tuning datasets has been as crucial as architectural advances in enabling MLLM capabilities. 7. Visual Grounding and Output Alignment
+
+Furthermore, the industry is trending toward architectures that prioritize 'visual grounding'—explicitly linking text to visual regions. <KOSMOS-2> introduced grounding capabilities by training on grounded image-text pairs, allowing the model to output `<region>` tags corresponding to bounding boxes. While not strictly an architectural connector change, it alters the output interface to enforce alignment between the visual and textual streams, enabling more precise and interpretable multimodal reasoning. Similarly, <UniTAB> unifies text and box outputs, proposing a shared token sequence that allows for grounded captioning. The inclusion of an `<obj>` token represents a structural change to the interface, enabling the model to explicitly align generated words with visual locations. These approaches address a fundamental challenge in MLLMs: ensuring that language generation is truly grounded in visual evidence rather than relying on linguistic priors or hallucination. 8. Current Challenges and Domain-Specific Limitations
+
+The trajectory of research suggests that while early interfaces focused on 'how to connect' (via linear layers or projectors), the current focus is on 'how to integrate' and 'how to ground.' <mPLUG-Owl2> demonstrates that preserving modality-specific features is crucial for general intelligence, while <FIBER> suggests that dynamic fusion is key for fine-grained tasks requiring complex reasoning. As we look at the evolution from <Visual Instruction Tuning>'s linear layer to <VisionLLM>'s generative decoder, the interface is transforming from a static bridge into a dynamic, intelligent router that determines which modality to prioritize and how to fuse context effectively. The limitations of current interfaces are also becoming apparent in specific domains. For example, <BLIVA> addresses the failure of generalist connectors in text-rich images by explicitly injecting patch embeddings alongside learned query embeddings. This suggests that 'one size fits all' interfaces may not be optimal, and that domain-specific adaptations may be necessary for optimal performance. Text-rich images, medical imaging, scientific diagrams, and artistic content all present unique challenges that require specialized interface designs. 9. Emerging Trends and Future Directions
+
+As the line between the visual encoder and the language model blurs, exemplified by <Downscaling Intelligence>'s proposal for visual extraction tuning, the modality interface is effectively becoming part of the reasoning engine itself, rather than a mere data conduit. This trend toward deeper integration raises important questions about the fundamental nature of multimodal intelligence and whether separate modality-specific components will persist in future architectures. 10. Conclusion
+
+In conclusion, the modality interface has moved from a trivial linear layer to a core architectural component defining the model's reasoning capabilities. The choice between heavy, pre-trained connectors and deep, integrated fusion reflects a fundamental debate on whether visual processing should be heuristically compressed before reaching the LLM or treated as an integral part of the reasoning process. Works like <VisionLLM> and <GIT> suggest the ultimate interface may be the absence of one—a unified generative space—while current practical architectures like <Cambrian-1> and <FIBER> are pushing the boundaries of sophisticated, multi-stage fusion to maximize performance on complex reasoning tasks. As the field continues to evolve, the interface will likely remain a central battleground for defining the capabilities and efficiency of next-generation multimodal systems. Simultaneously, a radical shift in          
+    philosophy has emerged, epitomized by **<VisionLLM>**. This work proposes treating  
+    images as a "foreign language." Rather than designing complex connectors, it aligns 
+    vision-centric tasks directly with the LLM’s language processing capabilities. It   
+    uses a language-guided image tokenizer and treats outputs (like bounding boxes) as  
+    text tokens, effectively unifying the architecture into a pure generative text      
+    decoder. This approach suggests that the modality interface might eventually        
+    disappear entirely, with the LLM handling all modalities natively. **<GIT>** further
+    supports this generative unification, achieving state-of-the-art performance in     
+    image-to-text generation with a simple encoder-decoder architecture that requires no
+    complex modality-specific modules. This evolution from simple linear projections    
+    (**<Visual Instruction Tuning>**) to specialized compressors (**<MiniGPT-4>**,      
+    **<KOSMOS-1>**), deep fusion (**<FIBER>**, **<mPLUG-Owl2>**), and finally generative
+    unification (**<VisionLLM>**, **<GIT>**) represents the field’s search for the most 
+    efficient way to bridge the visual and linguistic worlds. However, architectural 
+    innovation cannot compensate for insufficient training data, a point emphasized by  
+    **<Static Augmentation>**. This paper argues that standard supervised fine-tuning   
+    (SFT) data is often too narrow, limiting the model's ability to generalize across  
+    different instruction styles. This highlights that the "interface" is not just      
+    architecture; it is also the instructional data that teaches the model how to       
+    utilize that architecture. Even the most elegant connector, such as the "Spatial    
+    Vision Aggregator (SVA)" proposed in **<Cambrian-1>**, relies on a massive,         
+    high-quality dataset to fine-tune the interaction between visual backbones and the  
+    LLM. Furthermore, the industry is trending toward architectures that prioritize  
+    "visual grounding"—explicitly linking text to visual regions. **<KOSMOS-2>**        
+    introduced grounding capabilities by training on grounded image-text pairs, allowing
+    the model to output `<region>` tags corresponding to bounding boxes. While not      
+    strictly an architectural connector change, it alters the output interface to       
+    enforce alignment between the visual and textual streams. Similarly, **<UniTAB>**   
+    Unifies Text and Box outputs, proposing a shared token sequence that allows for     
+    grounded captioning. The inclusion of an `<obj>` token represents a structural      
+    change to the interface, enabling the model to explicitly align generated words with
+    visual locations. The trajectory of research suggests that while early interfaces
+    focused on "how to connect" (via linear layers or projectors), the current focus is 
+    on "how to integrate." **<mPLUG-Owl2>** demonstrates that preserving                
+    modality-specific features is crucial for general intelligence, while **<FIBER>**   
+    suggests that dynamic fusion is key for fine-grained tasks. As we look at the       
+    evolution from **<Visual Instruction Tuning>**'s linear layer to **<VisionLLM>**'s
+    generative decoder, the interface is transforming from a static bridge into a       
+    dynamic, intelligent router that determines which modality to prioritize and how to 
+    fuse context effectively. The limitations of current interfaces are also becoming
+    apparent in specific domains. For example, **<BLIVA>** addresses the failure of     
+    generalist connectors in text-rich images by explicitly injecting patch embeddings  
+    alongside learned query embeddings. This suggests that "one size fits all"          
+    interfaces may not be optimal. As the line between the visual encoder and the       
+    language model blurs, exemplified by **<Downscaling Intelligence>**'s proposal for 
+    visual extraction tuning, the modality interface is effectively becoming part of the
+    reasoning engine itself, rather than a mere data conduit. In conclusion, the     
+    modality interface has moved from a trivial linear layer to a core architectural    
+    component defining the model's reasoning capabilities. The choice between heavy,   
+    pre-trained connectors and deep, integrated fusion reflects a fundamental debate on 
+    whether visual processing should be heuristically compressed before reaching the LLM
+    or treated as an integral part of the reasoning process. Works like **<VisionLLM>** 
+    and **<GIT>** suggest the ultimate interface may be the absence of one—a unified    
+    generative space—while current practical architectures like **<Cambrian-1>** and    
+    **<FIBER>** are pushing the boundaries of sophisticated, multi-stage fusion to      
+    maximize performance on complex reasoning tasks. (Word count: ~1650 words)'

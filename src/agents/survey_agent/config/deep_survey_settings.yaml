@@ -3,17 +3,61 @@ BasicInfo:
   evaluation_save_path: "./outputs/batch_new_code_test/evaluation.txt"
   save_path: ""
   save_json_path: ""
-  user_defiend_benchmarks: True
+  user_defiend_benchmarks: False
   topic_path: ./topics/topics.txt
   AutoSurvey_benchmark: False
   SurveyGen_benchmark: False
-  sub_benchmark_test: False
+  sub_benchmark_test: True
   output_base_dir: ./outputs/batch_new_code_test
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
   topic_max_retry: 1
   debug: True
   error_conservatism_mode: False
+  settings:
+    - deep-survey_gpt-4o-mini
+    - deep-survey_gemini-3-flash-preview
+    - deep-survey_gemini-3-pro-thinking
+    - deep-survey_grok-4.1-fast
+    - deep-survey_llama-3.3-70b-instruct
+    - deep-survey_claude-sonnet-4.5
+    - deep-survey_gemini-2.5-flash
+    - deep-survey_deepseek-v3.2
+    - deep-survey_qwen3-vl-32b-instruct
+    - deep-survey_qwen3-235b-a22b
+  output_dirs:
+    - ./outputs/model_test/deep_survey_gpt-4o-mini
+    - ./outputs/model_test/deep_survey_gemini-3-flash
+    - ./outputs/model_test/deep_survey_gemini-3-pro-thinking
+    - ./outputs/model_test/deep_survey_grok-4.1-fast
+    - ./outputs/model_test/deep_survey_llama-3.3-70b-instruct
+    - ./outputs/model_test/deep_survey_claude-sonnet-4.5
+    - ./outputs/model_test/deep_survey_gemini-2.5-flash
+    - ./outputs/model_test/deep_survey_deepseek-v3.2
+    - ./outputs/model_test/deep_survey_qwen3-vl-32b-instruct
+    - ./outputs/model_test/deep_survey_qwen3-235b-a22b
+  models:
+    - gpt-4o-mini
+    - gemini-3-flash
+    - gemini-3-pro-thinking
+    - grok-4.1-fast
+    - llama-3.3-70b-instruct
+    - claude-sonnet-4.5
+    - gemini-2.5-flash
+    - deepseek-v3.2
+    - qwen3-vl-32b-instruct
+    - qwen3-235b-a22b
+  evaluation_save_paths:
+    - ./outputs/model_test/deep_survey_gpt-4o-mini/evaluation.txt
+    - ./outputs/model_test/deep_survey_gemini-3-flash/evaluation.txt
+    - ./outputs/model_test/deep_survey_gemini-3-pro-thinking/evaluation.txt
+    - ./outputs/model_test/deep_survey_grok-4.1-fast/evaluation.txt
+    - ./outputs/model_test/deep_survey_llama-3.3-70b-instruct/evaluation.txt
+    - ./outputs/model_test/deep_survey_claude-sonnet-4.5/evaluation.txt
+    - ./outputs/model_test/deep_survey_gemini-2.5-flash/evaluation.txt
+    - ./outputs/model_test/deep_survey_deepseek-v3.2/evaluation.txt
+    - ./outputs/model_test/deep_survey_qwen3-vl-32b-instruct/evaluation.txt
+    - ./outputs/model_test/deep_survey_qwen3-235b-a22b/evaluation.txt
 APIInfo:
   llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f
   llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
@@ -44,11 +88,11 @@ ModuleInfo:
     default_top_k: 20
   WorkAnalyzer:
     abstract_only_mode: False
-    abstract_when_full_text_fail: False
-    llm_max_context_overhead_length_in_paper_reading: 20000
+    abstract_when_full_text_fail: True
     cache_enabled: True
     paper_reading_temperature: 1.0
     paper_reading_max_retry: 5
+    llm_max_context_overhead_length_in_paper_reading: 20000
     clustering_batch_size: 16
     clustering_temperature: 1.0
     clustering_in_steps: True
@@ -114,6 +158,6 @@ ModuleInfo:
     nli_temperature: 0.1
     citation_quality_threshold: 0.5
     remove_failed_citation_in_eval: True
-    rubrics_eval_10_dimensions: True
-    rubrics_eval_4_dimensions: False
+    rubrics_eval_10_dimensions: False
+    rubrics_eval_4_dimensions: True
     citation_eval: True
