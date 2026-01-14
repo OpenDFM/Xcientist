@@ -15,7 +15,7 @@ BasicInfo:
   debug: True
   error_conservatism_mode: False
 APIInfo:
-  llm_api_key: sk-c1n2jxt2llyucdaac9g09zflyijszu803gr7hhzv083oj2gq
+  llm_api_key: sk-ccvbi9mee9jjkgu6sunujtrcnk8lu78hxqya9en30o4gr56z
   llm_api_base_url: https://api.xiaomimimo.com/v1/chat/completions
   llm_model_name: mimo-v2-flash
   llm_max_context_length: 160000

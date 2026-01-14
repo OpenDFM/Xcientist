@@ -867,6 +867,8 @@ class MemoryGuidedMCTS:
             if not response or not response.strip():
                 raise ValueError("Empty response from generation model")
             payload = parse_json_response(response)
+            if isinstance(payload, list):
+                payload = payload[0] 
             children_payload = payload.get("children", [])[: self.config.branching_factor]
         except Exception as exc:
             self._log(

@@ -92,7 +92,7 @@ class LigAgent(AgentBase):
         run_dir = kwargs.pop("run_dir", None)
         idea_result_path = kwargs.pop("idea_result_path", None)
         rag_config = kwargs.pop("rag_config", None)
-        self.paper_enrichment_timeout = kwargs.pop("paper_enrichment_timeout", 1200)
+        self.paper_enrichment_timeout = kwargs.pop("paper_enrichment_timeout", 7200)
         action_selection_attempts = kwargs.pop("action_selection_attempts", 2)
         super().__init__(*args, **kwargs)
         self.action_space = ["knowledge_aquisition", "advanced_analysis", "idea_generation", "idea_evaluation", "re_analysis_replan"]
@@ -268,9 +268,8 @@ class LigAgent(AgentBase):
                 logger.info("📄 Found Papers:")
                 initial_papers = self._normalize_search_papers(papers, search_keywords)
                 if initial_papers:
-                    #query_papers = self._prepare_query_papers(initial_papers)
-                    #rag_query = self._generate_rag_query(search_keywords, query_papers)
-                    rag_query = "Multimodal Large Language Models spatial reasoning cognitive maps chain-of-thought failure"
+                    query_papers = self._prepare_query_papers(initial_papers)
+                    rag_query = self._generate_rag_query(search_keywords, query_papers)
                     logger.info("🔎 Generated RAG Query: %s", rag_query)
                     rag_hits = self._retrieve_outcome_rag(rag_query)
                     self.memory.setdefault("rag_query", []).append(rag_query)

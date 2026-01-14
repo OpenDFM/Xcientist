@@ -7,7 +7,13 @@ The agent has read these papers (title, abstract, short keynote):
 {papers}
 
 Task:
-- Propose ONE search query string that combines a narrower subtopic with the most critical unresolved problem surfaced by the papers.
+- Propose ONE search query string aimed at surveying METHODS/MECHANISMS/ALGORITHMS (not benchmarks).
+- The query should combine:
+  (1) a narrower subtopic + (2) the most critical unresolved technical problem + (3) a method family / mechanism keyword.
+- Prefer method-oriented terms such as: "architecture", "training objective", "representation", "alignment", "reasoning mechanism",
+  "planning", "retrieval strategy", "memory", "optimization", "calibration", "uncertainty", "self-consistency".
+- Avoid evaluation/benchmark/dataset framing. Do NOT center the query on: "benchmark", "dataset", "leaderboard", "evaluation",
+  "metrics", "ablation", "human study", "user study", "baseline comparison".
 - Keep it specific and technical; avoid generic phrasing.
 - The query must be a single string no longer than 25 words.
 
