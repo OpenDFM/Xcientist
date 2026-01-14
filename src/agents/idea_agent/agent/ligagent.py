@@ -268,8 +268,10 @@ class LigAgent(AgentBase):
                 logger.info("📄 Found Papers:")
                 initial_papers = self._normalize_search_papers(papers, search_keywords)
                 if initial_papers:
-                    query_papers = self._prepare_query_papers(initial_papers)
-                    rag_query = self._generate_rag_query(search_keywords, query_papers)
+                    #query_papers = self._prepare_query_papers(initial_papers)
+                    #rag_query = self._generate_rag_query(search_keywords, query_papers)
+                    rag_query = "Multimodal Large Language Models spatial reasoning cognitive maps chain-of-thought failure"
+                    logger.info("🔎 Generated RAG Query: %s", rag_query)
                     rag_hits = self._retrieve_outcome_rag(rag_query)
                     self.memory.setdefault("rag_query", []).append(rag_query)
                     self.memory.setdefault("rag_hits", []).append(

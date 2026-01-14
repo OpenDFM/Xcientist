@@ -21,7 +21,11 @@ class OutcomeRAG:
         self.config = config
         self.json_path = config.BasicInfo.save_json_path
         self.md_path = config.BasicInfo.save_path
-        self.model = SentenceTransformer(config.ModuleInfo.WorkCollector.sentence_transformer_model)
+        # online
+        # self.model = SentenceTransformer(config.ModuleInfo.WorkCollector.sentence_transformer_model)
+        # offline
+        local_path = "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/idea_agent/.cache/bge-large-en-v1.5"
+        self.model = SentenceTransformer(local_path)
         self.work_collector = work_collector
         self.logger = get_logger("OutcomeRAG")
         try:

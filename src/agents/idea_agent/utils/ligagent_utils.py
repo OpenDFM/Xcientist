@@ -43,7 +43,7 @@ def enrich_papers_with_content(
 
         paper["keynote"] = keynote_data
         logger.info(
-            f"🗒️ Enriched paper {paper.get("title")}: {keynote_data}",
+            f"🗒️ Enriched paper {paper.get('title')}: {keynote_data}",
         )
         storage[pid] = {
             "keynote": keynote_data,
