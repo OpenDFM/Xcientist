@@ -47,7 +47,7 @@ def _load_topics(topics: Sequence[str], topics_file: Optional[str]) -> List[str]
     return sanitized
 
 
-def _run_topic(topic: str, max_turn: int, output_root: str, run_id: str, include_console: bool) -> str:
+def _run_topic(topic: str, max_turn: int, output_root: str, run_id: str, include_console: bool, rag_config: str) -> str:
     run_dir = Path(output_root) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "logs").mkdir(parents=True, exist_ok=True)
@@ -64,7 +64,7 @@ def _run_topic(topic: str, max_turn: int, output_root: str, run_id: str, include
     logger.info("🤖 Hello, I am LigAgent!")
     logger.info("💡 The research topic is %s", topic)
 
-    agent = LigAgent(run_dir=run_dir)
+    agent = LigAgent(run_dir=run_dir, rag_config=rag_config)
     agent.bootstrap_topic(topic)
 
     try:
@@ -123,6 +123,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="If set, also log to the console from each worker process.",
     )
+    parser.add_argument(
+        "--rag-config",
+        type=str,
+        default="config/idea_agent/rag_config.yaml",
+        help="Path to RAG configuration file.",
+    )
     return parser.parse_args()
 
 
@@ -134,6 +140,8 @@ def main() -> None:
 
     parallelism = args.parallelism or len(topics)
     parallelism = max(1, min(parallelism, len(topics)))
+
+    rag_config = args.rag_config
 
     futures = {}
     with ProcessPoolExecutor(max_workers=parallelism) as executor:
@@ -147,6 +155,7 @@ def main() -> None:
                 str(output_root),
                 run_id,
                 args.console_logs,
+                rag_config,
             )
             futures[future] = (topic, output_root / run_id)
 

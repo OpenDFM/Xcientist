@@ -7,11 +7,16 @@ from tqdm import tqdm
 import hashlib
 import json
 import sys
+from typing import Optional, Tuple, Union
+
+
+TimeoutType = Union[float, Tuple[float, float]]
 
 class Semantic:
-    def __init__(self, api_key=None):
+    def __init__(self, api_key=None, timeout: Optional[TimeoutType] = None):
         self.api_key = api_key or os.getenv("S2_API_KEY")
         self.sch = SemanticScholar(api_key=self.api_key) if self.api_key else SemanticScholar()
+        self.timeout: TimeoutType = timeout if timeout is not None else self._parse_timeout_env(os.getenv("S2_API_TIMEOUT"))
         print("🔍 Initializing embedding model for semantic search filtering...")
         local_path = "/home/lococo/project/ResearchAgent/src/agents/idea_agent/.cache/bge-large-en-v1.5"
         self.embed_model =FlagAutoModel.from_finetuned(local_path,
@@ -19,7 +24,29 @@ class Semantic:
                                      use_fp16=True,
                                      devices=['cpu'])
 
-    def search_papers(self, query, limit=10):
+    def _parse_timeout_env(self, value: Optional[str]) -> TimeoutType:
+        """Parse timeout from env.
+
+        Supported formats:
+        - "30" -> 30.0 seconds
+        - "10,60" -> (connect=10.0, read=60.0)
+        """
+        default: TimeoutType = (10.0, 60.0)
+        if not value:
+            return default
+        raw = value.strip()
+        try:
+            if "," in raw:
+                a, b = raw.split(",", 1)
+                return (float(a.strip()), float(b.strip()))
+            return float(raw)
+        except Exception:
+            return default
+
+    def _get_timeout(self, timeout: Optional[TimeoutType]) -> TimeoutType:
+        return timeout if timeout is not None else (self.timeout if self.timeout is not None else (10.0, 60.0))
+
+    def search_papers(self, query, limit=10, timeout: Optional[TimeoutType] = None):
         # prepare cache directory
         cache_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "cache", "semantic_scholar_search")
         os.makedirs(cache_dir, exist_ok=True)
@@ -53,18 +80,29 @@ class Semantic:
             "fields": "title,authors,year,abstract,url,tldr"  
         }
         # import pdb; pdb.set_trace()
-        response = requests.get(URL, headers=headers, params=params)
-        data = response.json()
+        try:
+            response = requests.get(URL, headers=headers, params=params, timeout=self._get_timeout(timeout))
+            response.raise_for_status()
+            data = response.json()
+        except requests.exceptions.Timeout:
+            print(f"⏱️ Semantic Scholar request timed out (timeout={self._get_timeout(timeout)})")
+            return []
+        except requests.exceptions.RequestException as e:
+            print(f"Semantic Scholar request failed: {e}")
+            return []
+        except ValueError as e:
+            print(f"Failed to parse Semantic Scholar response as JSON: {e}")
+            return []
         # import pdb; pdb.set_trace()
         try:
             with open(cache_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2, sort_keys=True)
             return data['data']
         except KeyError:
-            print(data['message'])
+            print(data.get('message', 'Semantic Scholar returned unexpected response.'))
             return []
 
-    def recommend_papers(self, positive_paper_id_list, negative_paper_id_list, limit=500, return_num=10, sort_by="citationCount"):
+    def recommend_papers(self, positive_paper_id_list, negative_paper_id_list, limit=500, return_num=10, sort_by="citationCount", timeout: Optional[TimeoutType] = None):
         print("Fetching recommended papers...\n")
         url = "https://api.semanticscholar.org/recommendations/v1/papers"
         query_params = {
@@ -79,10 +117,21 @@ class Semantic:
 
         api_key = self.api_key
         headers = {"x-api-key": api_key}
+        try:
+            response = requests.post(url, params=query_params, json=data, headers=headers, timeout=self._get_timeout(timeout))
+            response.raise_for_status()
+            response_json = response.json()
+        except requests.exceptions.Timeout:
+            print(f"⏱️ Semantic Scholar request timed out (timeout={self._get_timeout(timeout)})")
+            return []
+        except requests.exceptions.RequestException as e:
+            print(f"Semantic Scholar request failed: {e}")
+            return []
+        except ValueError as e:
+            print(f"Failed to parse Semantic Scholar response as JSON: {e}")
+            return []
 
-        response = requests.post(url, params=query_params, json=data, headers=headers).json()
-
-        papers = response["recommendedPapers"]
+        papers = response_json.get("recommendedPapers", [])
         print(f"Total recommended papers fetched: {len(papers)}\n")
         
 

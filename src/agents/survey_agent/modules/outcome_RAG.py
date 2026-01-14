@@ -215,11 +215,11 @@ def main(cfg):
     rag = OutcomeRAG(cfg, work_collector)
     rag.build_index()
     # content match
-    hits_content = rag.retrieve("application of Multi Modal Large Language Model", top_k=2, mode="content")
+    hits_content = rag.retrieve("Drawbacks of Multimodal Large Language Model", top_k=2, mode="content")
     # title-only match
-    hits_title = rag.retrieve("Core Capabilities", top_k=2, mode="title")
+    hits_title = rag.retrieve("Drawbacks of Multimodal Large Language Model", top_k=2, mode="title")
     # hybrid
-    hits_hybrid = rag.retrieve("Core Capabilities", top_k=2, mode="hybrid", alpha=0.9)
+    hits_hybrid = rag.retrieve("Drawbacks of Multimodal Large Language Model", top_k=2, mode="hybrid", alpha=0.9)
     logger.info("---------[Content]----------")
     rag.log_hits(hits_content, label="Content")
     logger.info("---------[Title]----------")

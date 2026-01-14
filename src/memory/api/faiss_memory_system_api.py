@@ -7,21 +7,21 @@ import logging
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, Field, field_validator, validate_call
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union, Set
-from src.memory.memory_system import (
+from memory.memory_system import (
     FaissVectorStore,
     SemanticRecord,
     EpisodicRecord,
     ProceduralRecord,
     OpenAIClient,
 )
-from src.memory.memory_system.user_prompt import ABSTRACT_EPISODIC_TO_SEMANTIC_PROMPT
-from src.memory.memory_system.utils import (
+from memory.memory_system.user_prompt import ABSTRACT_EPISODIC_TO_SEMANTIC_PROMPT
+from memory.memory_system.utils import (
     now_iso,
     new_id,
     _transfer_dict_to_semantic_text,
 )
-from src.memory.memory_system.denstream import DenStream
-from src.memory.api.base_memory_system_api import (
+from memory.memory_system.denstream import DenStream
+from memory.api.base_memory_system_api import (
     MemorySystem,
     MemorySystemConfig,
     SemanticRecordPayload,

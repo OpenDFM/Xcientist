@@ -7,6 +7,7 @@ from typing import Dict, Iterable, Optional
 from omegaconf import OmegaConf
 
 from agents.survey_agent.modules.work_collector import WorkCollector
+from agents.survey_agent.modules.outcome_RAG import OutcomeRAG
 
 from agents.idea_agent.agent.paper_processing import (
     IdeaPaperAnalyzer,
@@ -26,6 +27,7 @@ class PaperRepository:
         self,
         config_path: Optional[Path | str] = None,
         config: Optional[object] = None,
+        rag_config: Optional[object] = None,
         logger=None,
     ) -> None:
         self.logger = logger
@@ -38,6 +40,10 @@ class PaperRepository:
         self.paper_analyzer = IdeaPaperAnalyzer(
             self.config, self.paper_parser, logger
         )
+        self._outcome_rag: Optional[OutcomeRAG] = None
+
+        assert rag_config is not None, "RAG config must be provided"
+        self.rag_config = OmegaConf.load(str(rag_config))
 
     def _resolve_config_path(self, provided_path, config):
         if config is not None:
@@ -124,3 +130,94 @@ class PaperRepository:
     def get_markdown(self, paper_id: str) -> str:
         """Retrieve the parsed Markdown content for a paper via the local parser."""
         return self.paper_parser.get_markdown(paper_id)
+
+    def retrieve_outcome_rag(
+        self,
+        query: str,
+        top_k: int = 5,
+        mode: str = "content",
+        alpha: float = 0.5,
+        cite_top_k: Optional[int] = None,
+    ):
+        rag = self._get_outcome_rag()
+        if rag.embeddings is None:
+            rag.build_index()
+        return rag.retrieve(
+            query=query,
+            top_k=top_k,
+            mode=mode,
+            alpha=alpha,
+            cite_top_k=cite_top_k,
+        )
+
+    def search_papers_by_title(
+        self,
+        titles: Iterable[str],
+        limit_per_title: int = 1,
+    ) -> list[Dict[str, object]]:
+        results: list[Dict[str, object]] = []
+        seen = set()
+        for title in titles or []:
+            query = (title or "").strip()
+            if not query:
+                continue
+            key = query.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                response = self.work_collector.semantic_scholar_api.search_papers(
+                    query=query,
+                    fields="title,abstract,authors,year,url,tldr,paperId,externalIds,openAccessPdf",
+                )
+            except Exception as exc:
+                if self.logger:
+                    self.logger.warning("Semantic Scholar title search failed for %s: %s", query, exc)
+                continue
+            data = response.get("data", []) if isinstance(response, dict) else []
+            if not data:
+                continue
+            picked = self._pick_best_title_match(query, data[: max(1, limit_per_title)])
+            if picked:
+                record = self._normalize_search_result(picked, query)
+                if record:
+                    results.append(record)
+        return results
+
+    def _get_outcome_rag(self) -> OutcomeRAG:
+        if self._outcome_rag is None:
+            self._outcome_rag = OutcomeRAG(self.rag_config, self.work_collector)
+        return self._outcome_rag
+
+    def _pick_best_title_match(self, query: str, candidates: list[Dict[str, object]]) -> Optional[Dict[str, object]]:
+        lowered = query.strip().lower()
+        for item in candidates:
+            title = (item.get("title") or "").strip().lower()
+            if title and title == lowered:
+                return item
+        return candidates[0] if candidates else None
+
+    def _normalize_search_result(self, paper: Dict[str, object], source_query: str) -> Optional[Dict[str, object]]:
+        if not isinstance(paper, dict):
+            return None
+        title = paper.get("title") or source_query
+        authors_field = paper.get("authors", []) or []
+        if isinstance(authors_field, list):
+            authors = [a.get("name", str(a)) for a in authors_field if a]
+        elif authors_field:
+            authors = [str(authors_field)]
+        else:
+            authors = []
+        tldr = paper.get("tldr")
+        if isinstance(tldr, dict):
+            tldr = tldr.get("text") or tldr.get("summary")
+        return {
+            "title": title,
+            "abstract": paper.get("abstract") or "No abstract available.",
+            "authors": authors,
+            "year": paper.get("year"),
+            "url": paper.get("url") or (paper.get("openAccessPdf") or {}).get("url"),
+            "tldr": tldr,
+            "paper_id": paper.get("paperId") or paper.get("paper_id"),
+            "source_keywords": source_query,
+        }

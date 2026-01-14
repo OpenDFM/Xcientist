@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Tuple, Union, Optional
-from src.memory.memory_system.models import (
+from memory.memory_system.models import (
     SemanticRecord,
     EpisodicRecord,
     ProceduralRecord,
 )
-from src.memory.memory_system.utils import (
+from memory.memory_system.utils import (
     _nomralize_embedding,
     _jsonable_meta,
     compute_overlap_score,

@@ -24,6 +24,7 @@ from agents.idea_agent.utils.ligagent_utils import (
     generate_idea_introduction,
     paper_context_text,
     parse_json_response,
+    summarize_keynote,
     fallback_introduction_text,
 )
 import json
@@ -90,6 +91,7 @@ class LigAgent(AgentBase):
         survey_config_path = kwargs.pop("survey_config_path", None)
         run_dir = kwargs.pop("run_dir", None)
         idea_result_path = kwargs.pop("idea_result_path", None)
+        rag_config = kwargs.pop("rag_config", None)
         self.paper_enrichment_timeout = kwargs.pop("paper_enrichment_timeout", 1200)
         action_selection_attempts = kwargs.pop("action_selection_attempts", 2)
         super().__init__(*args, **kwargs)
@@ -118,6 +120,7 @@ class LigAgent(AgentBase):
         self.paper_repository = PaperRepository(
             config_path=survey_config_path,
             logger=logger,
+            rag_config=rag_config,
         )
 
     def chat(self, prompt: str, model: str = "gpt-4.1", **kwargs) -> str:
@@ -261,38 +264,29 @@ class LigAgent(AgentBase):
         if search_type == "paper_search":
             search_keywords = self.memory["retrieval_keywords"][-1]
             try:
-                papers = self.run_tool(name="semantic_search", query=search_keywords, limit=10) 
+                papers = self.run_tool(name="semantic_search", query=search_keywords, limit=10)
                 logger.info("📄 Found Papers:")
-                new_papers = []
-                if papers and len(papers) > 0:
-                    for i, paper in enumerate(papers, 1):
-                        title = paper.get('title') if isinstance(paper, dict) else str(paper)
-                        logger.info(f"📄 {i}. {title}")
-                        abstract = paper.get('abstract', 'No abstract available.') if isinstance(paper, dict) else 'No abstract available.'
-                        authors_field = paper.get("authors", []) if isinstance(paper, dict) else []
-                        if isinstance(authors_field, list):
-                            authors = [a.get("name", str(a)) for a in authors_field]
-                        elif authors_field:
-                            authors = [str(authors_field)]
-                        else:
-                            authors = []
-                        paper_entry = {
-                            "title": title,
-                            "abstract": abstract,
-                            "authors": authors,
-                            "year": paper.get("year") if isinstance(paper, dict) else None,
-                            "url": paper.get("url") if isinstance(paper, dict) else None,
-                            "tldr": paper.get("tldr") if isinstance(paper, dict) else None,
-                            "paper_id": paper.get("paperId") if isinstance(paper, dict) else None,
-                            "source_keywords": search_keywords,
-                        }
-                        new_papers.append(paper_entry)
-                    self._safely_enrich_papers_with_content(new_papers)
-                    step = (
-                        f"\nIn this knowledge_aquisition action, I acquired {len(papers)} papers "
-                        f"about '{search_keywords}' and fetched their parsed + summarized content."
+                initial_papers = self._normalize_search_papers(papers, search_keywords)
+                if initial_papers:
+                    query_papers = self._prepare_query_papers(initial_papers)
+                    rag_query = self._generate_rag_query(search_keywords, query_papers)
+                    rag_hits = self._retrieve_outcome_rag(rag_query)
+                    self.memory.setdefault("rag_query", []).append(rag_query)
+                    self.memory.setdefault("rag_hits", []).append(
+                        {"query": rag_query, "hits": rag_hits}
                     )
-                    self.memory["references"].append(new_papers)
+                    citation_titles = self._collect_rag_citations(rag_hits)
+                    rag_papers = self._search_papers_from_citations(
+                        citation_titles, rag_query
+                    )
+                    if rag_papers:
+                        self._safely_enrich_papers_with_content(rag_papers)
+                        self.memory["references"].append(rag_papers)
+                    step = (
+                        f"\nIn this knowledge_aquisition action, I read {len(initial_papers)} seed papers, "
+                        f"generated a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
+                        f"and fetched {len(rag_papers)} cited papers for memory."
+                    )
 
                 else:
                     step = f"\nIn this knowledge_aquisition action, I searched for papers about '{search_keywords}' but found none."
@@ -315,6 +309,137 @@ class LigAgent(AgentBase):
                 # step = f"\nIn this knowledge_aquisition action, I attempted to search on website about '{search_keywords}', and received the following response: {data}"
                 step = f"\nIn this knowledge_aquisition action, I acquired several papers about '{search_keywords}'."
             return step
+
+    def _normalize_search_papers(
+        self, papers: List[Any], source_keywords: str
+    ) -> List[Dict[str, Any]]:
+        normalized: List[Dict[str, Any]] = []
+        if not papers:
+            return normalized
+        for i, paper in enumerate(papers, 1):
+            if isinstance(paper, dict):
+                title = paper.get("title") or f"Paper {i}"
+                abstract = paper.get("abstract", "No abstract available.")
+                authors_field = paper.get("authors", [])
+                if isinstance(authors_field, list):
+                    authors = [a.get("name", str(a)) for a in authors_field]
+                elif authors_field:
+                    authors = [str(authors_field)]
+                else:
+                    authors = []
+                paper_entry = {
+                    "title": title,
+                    "abstract": abstract,
+                    "authors": authors,
+                    "year": paper.get("year"),
+                    "url": paper.get("url"),
+                    "tldr": paper.get("tldr"),
+                    "paper_id": paper.get("paperId") or paper.get("paper_id"),
+                    "source_keywords": source_keywords,
+                }
+            else:
+                title = str(paper)
+                paper_entry = {
+                    "title": title,
+                    "abstract": "No abstract available.",
+                    "authors": [],
+                    "year": None,
+                    "url": None,
+                    "tldr": None,
+                    "paper_id": None,
+                    "source_keywords": source_keywords,
+                }
+            logger.info(f"📄 {i}. {paper_entry['title']}")
+            normalized.append(paper_entry)
+        return normalized
+
+    def _prepare_query_papers(
+        self, papers: List[Dict[str, Any]], limit: int = 6
+    ) -> List[Dict[str, Any]]:
+        shortlist = papers[:limit]
+        paper_ids = [paper.get("paper_id") for paper in shortlist if paper.get("paper_id")]
+        prepared = {}
+        if paper_ids:
+            try:
+                prepared = self.paper_repository.prepare_papers(paper_ids)
+            except Exception as exc:
+                logger.warning("⚠️ Failed to prepare papers for query generation: %s", exc)
+        query_papers: List[Dict[str, Any]] = []
+        for paper in shortlist:
+            pid = paper.get("paper_id")
+            keynote = None
+            if pid and prepared.get(pid):
+                keynote = prepared[pid].get("keynote") or prepared[pid]
+            summary = summarize_keynote(keynote, paper.get("abstract"))
+            query_papers.append(
+                {
+                    "title": paper.get("title"),
+                    "abstract": paper.get("abstract"),
+                    "keynote": summary,
+                    "paper_id": pid,
+                }
+            )
+        return query_papers
+
+    def _generate_rag_query(
+        self, topic: str, papers: List[Dict[str, Any]]
+    ) -> str:
+        prompt = PROMPTS["rag_query"].format(
+            topic=topic,
+            papers=json.dumps(papers, ensure_ascii=False, indent=2),
+        )
+        try:
+            response = self.chat(prompt, model=self.model, temperature=0.3, max_tokens=512)
+            try:
+                payload = self._parse_json_response(response)
+                if isinstance(payload, dict) and payload.get("query"):
+                    query = str(payload["query"]).strip()
+                else:
+                    query = str(payload).strip()
+            except Exception:
+                query = (response or "").strip()
+        except Exception as exc:
+            logger.warning("⚠️ Failed to generate RAG query: %s", exc)
+            query = topic
+        if not query:
+            query = topic
+        return query
+
+    def _retrieve_outcome_rag(self, query: str) -> List[Dict[str, Any]]:
+        try:
+            hits = self.paper_repository.retrieve_outcome_rag(query=query, top_k=3)
+        except Exception as exc:
+            logger.warning("⚠️ OutcomeRAG retrieval failed: %s", exc)
+            hits = []
+        return hits
+
+    def _collect_rag_citations(self, hits: List[Dict[str, Any]]) -> List[str]:
+        titles: List[str] = []
+        seen = set()
+        for hit in hits or []:
+            citations = hit.get("citations") or []
+            for title in citations:
+                cleaned = (title or "").strip()
+                if not cleaned:
+                    continue
+                key = cleaned.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                titles.append(cleaned)
+        return titles
+
+    def _search_papers_from_citations(
+        self, titles: List[str], rag_query: str
+    ) -> List[Dict[str, Any]]:
+        if not titles:
+            return []
+        papers = self.paper_repository.search_papers_by_title(titles)
+        papers = [paper for paper in papers if paper.get("paper_id")]
+        for paper in papers:
+            paper["source_keywords"] = rag_query
+        return papers
+
     def _enrich_papers_with_content(self, papers: List[Dict[str, Any]]) -> None:
         enrich_papers_with_content(papers, self.paper_repository, self.memory, logger)
 
@@ -378,7 +503,32 @@ class LigAgent(AgentBase):
         )
 
     def _paper_context_text(self, entries: List[Dict[str, Any]]) -> str:
-        return paper_context_text(entries)
+        base = paper_context_text(entries)
+        rag_context = self._format_rag_context()
+        if rag_context:
+            return f"{base}\n\nRAG excerpts:\n{rag_context}"
+        return base
+
+    def _format_rag_context(self, max_hits: int = 5, max_chars: int = 320) -> str:
+        rag_entries = self.memory.get("rag_hits", [])
+        latest = rag_entries[-1] if rag_entries else None
+        hits = []
+        if isinstance(latest, dict):
+            hits = latest.get("hits") or []
+        elif isinstance(latest, list):
+            hits = latest
+        if not hits:
+            return ""
+        lines = []
+        for idx, hit in enumerate(hits[:max_hits], 1):
+            title = hit.get("title") or f"RAG hit {idx}"
+            snippet = (hit.get("subsection") or "").strip().replace("\n", " ")
+            if len(snippet) > max_chars:
+                snippet = snippet[: max_chars - 3] + "..."
+            citations = hit.get("citations") or []
+            cite_preview = "; ".join(citations[:5]) if citations else "no citations"
+            lines.append(f"{idx}. {title}: {snippet} (citations: {cite_preview})")
+        return "\n".join(lines)
 
     def get_paper_content(self, paper_id: str, include_markdown: bool = True) -> Dict[str, Any]:
         if not paper_id:

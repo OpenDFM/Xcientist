@@ -12,6 +12,7 @@ from agent.prompts.algorithm_structuring import ALGORITHM_STRUCTURING_PROMPT
 from agent.prompts.algorithm_alignment import ALGORITHM_ALIGNMENT_PROMPT
 from agent.prompts.idea_introduction import IDEA_INTRODUCTION_PROMPT
 from agent.prompts.topic_background import TOPIC_BACKGROUND_PROMPT
+from agent.prompts.rag_query import RAG_QUERY_PROMPT
 
 
 PROMPTS = {
@@ -29,4 +30,5 @@ PROMPTS = {
     "algorithm_alignment": ALGORITHM_ALIGNMENT_PROMPT,
     "idea_introduction": IDEA_INTRODUCTION_PROMPT,
     "topic_background": TOPIC_BACKGROUND_PROMPT,
+    "rag_query": RAG_QUERY_PROMPT,
 }

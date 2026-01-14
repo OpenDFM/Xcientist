@@ -2,8 +2,8 @@ BasicInfo:
   topic:  Multimodal Large Language Models
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
-  save_path: ./outputs/test/reference_test-mimo-v2-flash/0106-longerlonger-test-review.md
-  save_json_path: ./outputs/test/reference_test-mimo-v2-flash/0106-longerlonger-test-review.json
+  save_path: /home/lococo/project/ResearchAgent/src/agents/survey_agent/outputs/test/0106-longerlonger-test-review.md
+  save_json_path: /home/lococo/project/ResearchAgent/src/agents/survey_agent/outputs/test/0106-longerlonger-test-review.json
   evaluation_save_path: ./outputs/test/reference_test-mimo-v2-flash/0106-longerlonger-test-review.txt
   debug: True
   error_conservatism_mode: False
@@ -12,7 +12,7 @@ APIInfo:
   llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
   llm_model_name: gpt-4o-mini
   llm_max_context_length: 160000
-  batch_chat_agent_worker: 4
+  batch_chat_agent_worker: 1
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
   low_flow_mode: False
   low_flow_latency: 0
