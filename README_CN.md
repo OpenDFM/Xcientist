@@ -44,8 +44,8 @@ export IDEA_AGENT_RAG_CONFIG="src/agents/survey_agent/config/outcomeRAG.yaml"
 ```bash
 ./run_idea.sh "你的研究主题"
 
-# 显式指定 RAG 配置与并行度
-python src/agents/idea_agent/scripts/run.py --topics "你的研究主题" \
+# 显式指定 RAG 配置与并行度（项目根目录执行）
+python -m src.agents.idea_agent.scripts.run --topics "你的研究主题" \
   --parallelism 1 \
   --rag-config src/agents/survey_agent/config/outcomeRAG.yaml
 ```

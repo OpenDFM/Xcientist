@@ -1,8 +1,7 @@
-from agents.idea_agent.utils.logger import init_logger, get_logger
+from src.agents.idea_agent.utils.logger import init_logger, get_logger
 
 __all__ = [
     "init_logger",
     "get_logger",
 ]
-
 

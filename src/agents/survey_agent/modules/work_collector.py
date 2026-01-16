@@ -1,17 +1,17 @@
 from typing import Dict, List
 import os
-from agents.survey_agent.utils.api_call import SemanticScholarAPI, ChatAgent, ArxivAPI
-from agents.survey_agent.utils.rich_logger import get_logger
-from agents.survey_agent.utils.mineru_utils import parse_doc
+from src.agents.survey_agent.utils.api_call import SemanticScholarAPI, ChatAgent, ArxivAPI
+from src.agents.survey_agent.utils.rich_logger import get_logger
+from src.agents.survey_agent.utils.mineru_utils import parse_doc
 import requests
 from contextlib import closing
 import pickle
 import networkx as nx
 from sentence_transformers import SentenceTransformer, util
 import torch
-from agents.survey_agent.modules.pe import PAPER_RELATEDNESS_BASED_ON_TITLE_AND_ABSTRACT
+from src.agents.survey_agent.modules.pe import PAPER_RELATEDNESS_BASED_ON_TITLE_AND_ABSTRACT
 import diskcache as dc
-from agents.survey_agent.utils.utils import get_hash, extract_json, is_valid_pdf
+from src.agents.survey_agent.utils.utils import get_hash, extract_json, is_valid_pdf
 
 import gc
 

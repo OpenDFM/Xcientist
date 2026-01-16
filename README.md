@@ -4,19 +4,15 @@ ResearchAgent by X-LANCE.
 
 ## Local Package Imports
 
-Some modules are designed to be imported as standalone packages. Run the editable installs once per environment so Python can resolve `agents` and `memory` without tweaking `PYTHONPATH`.
+Some modules are designed to be imported as standalone packages. Run the editable installs once per environment so Python can resolve and `memory` without tweaking `PYTHONPATH`.
 
 ```bash
-python -m pip install -e src/agents
 python -m pip install -e src/memory
 ```
 
 Example usage after installation:
 
 ```python
-# agents package (driven by src/agents/setup.py)
-from agents.idea_agent.utils.mcts_helpers import parse_json_response
-
 # memory package (driven by src/memory/setup.py)
 from memory.memory_system.vectorstore import VectorStore
 ```

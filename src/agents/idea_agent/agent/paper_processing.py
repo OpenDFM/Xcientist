@@ -6,9 +6,9 @@ from typing import Dict, Iterable, List, Optional
 
 import diskcache as dc
 
-from agents.survey_agent.modules.pe import PAPER_DEEP_READING
-from agents.survey_agent.utils.api_call import ChatAgent
-from agents.survey_agent.utils.utils import extract_json
+from src.agents.survey_agent.modules.pe import PAPER_DEEP_READING
+from src.agents.survey_agent.utils.api_call import ChatAgent
+from src.agents.survey_agent.utils.utils import extract_json
 
 
 def resolve_paper_records(work_collector, paper_ids: Iterable[str], logger=None) -> List[Dict[str, object]]:

@@ -18,7 +18,7 @@ from memory.memory_system.utils import (
     _multi_thread_run,
 )
 from agent import get_logger
-from agents.idea_agent.utils.mcts_helpers import (
+from src.agents.idea_agent.utils.mcts_helpers import (
     parse_json_response,
     format_analysis_blob,
     format_edit_operators,

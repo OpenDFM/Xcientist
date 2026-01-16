@@ -12,13 +12,13 @@ from agent.memory import MEMORY_FORMAT, memory_init
 from agent.prompts import PROMPTS
 from agent.mcts import MemoryGuidedMCTS, MCTSConfig
 from agent.paper_repository import PaperRepository
-from agents.idea_agent.utils.idea_helpers import (
+from src.agents.idea_agent.utils.idea_helpers import (
     build_mcts_evolution,
     collect_reference_material,
     derive_pipeline_steps,
     fallback_algorithm_spec,
 )
-from agents.idea_agent.utils.ligagent_utils import (
+from src.agents.idea_agent.utils.ligagent_utils import (
     collect_paper_context_entries,
     enrich_papers_with_content,
     generate_idea_introduction,

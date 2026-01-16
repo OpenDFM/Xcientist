@@ -6,10 +6,10 @@ from typing import Dict, Iterable, Optional
 
 from omegaconf import OmegaConf
 
-from agents.survey_agent.modules.work_collector import WorkCollector
-from agents.survey_agent.modules.outcome_RAG import OutcomeRAG
+from src.agents.survey_agent.modules.work_collector import WorkCollector
+from src.agents.survey_agent.modules.outcome_RAG import OutcomeRAG
 
-from agents.idea_agent.agent.paper_processing import (
+from src.agents.idea_agent.agent.paper_processing import (
     IdeaPaperAnalyzer,
     IdeaPaperParser,
     resolve_paper_records,
