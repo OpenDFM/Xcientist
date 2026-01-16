@@ -4,4 +4,10 @@ export S2_API_KEY="1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ"
 export S2_API_TIMEOUT="60"
 export MINERU_MODEL_SOURCE=modelscope
 
-python src/agents/idea_agent/scripts/run.py --topics "Multimodal Large Language Models" --parallelism 1 --rag-config "src/agents/survey_agent/config/outcomeRAG.yaml"
+export IDEA_AGENT_PARALLELISM="1"
+export IDEA_AGENT_RAG_CONFIG="src/agents/survey_agent/config/outcomeRAG.yaml"
+
+# Example:
+# python src/agents/idea_agent/scripts/run.py --topics "Multimodal Large Language Models" \
+#   --parallelism "$IDEA_AGENT_PARALLELISM" \
+#   --rag-config "$IDEA_AGENT_RAG_CONFIG"
