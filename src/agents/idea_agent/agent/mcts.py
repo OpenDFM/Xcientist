@@ -729,13 +729,30 @@ class MemoryGuidedMCTS:
             parent.children.append(node)
         return node
 
-    def _attach_child(self, parent: IdeaNode, state: IdeaState) -> IdeaNode:
+    def _attach_child(self, parent: IdeaNode, state: IdeaState) -> Optional[IdeaNode]:
         child = self.signature_nodes.get(state.signature)
         if child is None:
-            child = self._new_node(state, depth=parent.depth + 1, parent=parent)
-        elif child not in parent.children:
+            return self._new_node(state, depth=parent.depth + 1, parent=parent)
+        if child is parent or self._is_ancestor(parent, child):
+            self._log(
+                "debug",
+                "[MCTS] Skip attaching signature=%s to avoid cycle (parent=%s child=%s).",
+                state.signature,
+                parent.node_id,
+                child.node_id,
+            )
+            return None
+        if child not in parent.children:
             parent.children.append(child)
         return child
+
+    def _is_ancestor(self, node: IdeaNode, candidate: IdeaNode) -> bool:
+        cursor: Optional[IdeaNode] = node
+        while cursor is not None:
+            if cursor is candidate:
+                return True
+            cursor = cursor.parent
+        return False
 
     def _path_summary(self, path: List[IdeaNode]) -> str:
         steps = []
@@ -882,6 +899,8 @@ class MemoryGuidedMCTS:
         for child_data in children_payload:
             state = self._parse_child_state(child_data)
             child_node = self._attach_child(node, state)
+            if child_node is None:
+                continue
             cached_eval = self._get_best_cached_evaluation(state.signature)
             if cached_eval:
                 child_node.evaluation = cached_eval
@@ -994,8 +1013,12 @@ class MemoryGuidedMCTS:
     def _best_candidate(self, root: IdeaNode) -> Optional[SearchCandidate]:
         candidates: List[SearchCandidate] = []
         stack = [root]
+        visited: Set[int] = set()
         while stack:
             node = stack.pop()
+            if node.node_id in visited:
+                continue
+            visited.add(node.node_id)
             if node.evaluation:
                 candidates.append(SearchCandidate(node=node, evaluation=node.evaluation))
             stack.extend(node.children)
@@ -1011,9 +1034,13 @@ class MemoryGuidedMCTS:
         }
         pareto: Dict[str, Optional[SearchCandidate]] = {k: None for k in by_metric}
         stack = [root]
+        visited_ids: Set[int] = set()
         visited: List[SearchCandidate] = []
         while stack:
             node = stack.pop()
+            if node.node_id in visited_ids:
+                continue
+            visited_ids.add(node.node_id)
             if node.evaluation:
                 visited.append(SearchCandidate(node=node, evaluation=node.evaluation))
             stack.extend(node.children)
