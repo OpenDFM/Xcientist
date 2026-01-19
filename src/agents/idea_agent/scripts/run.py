@@ -8,6 +8,7 @@ from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence
+from uuid import uuid4
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agent.ligagent import LigAgent
@@ -45,6 +46,19 @@ def _load_topics(topics: Sequence[str], topics_file: Optional[str]) -> List[str]
     if not sanitized:
         sanitized = ["Reinforcement Learning for LLM Reasoning"]
     return sanitized
+
+
+def _expand_single_topic_for_parallelism(topics: Sequence[str], parallelism: int) -> List[tuple[str, Optional[int]]]:
+    """Expand topics into (topic, replica_index) pairs.
+
+    If there is only one topic but the user requests `parallelism > 1`, replicate
+    that topic so we can utilize multiple workers.
+    """
+
+    cleaned = [t for t in topics if t]
+    if len(cleaned) == 1 and parallelism > 1:
+        return [(cleaned[0], i) for i in range(parallelism)]
+    return [(t, None) for t in cleaned]
 
 
 def _run_topic(topic: str, max_turn: int, output_root: str, run_id: str, include_console: bool, rag_config: str) -> str:
@@ -138,16 +152,21 @@ def main() -> None:
     output_root = Path(args.output_root).expanduser()
     output_root.mkdir(parents=True, exist_ok=True)
 
-    parallelism = args.parallelism or len(topics)
-    parallelism = max(1, min(parallelism, len(topics)))
+    requested_parallelism = args.parallelism or len(topics)
+    requested_parallelism = max(1, requested_parallelism)
+    expanded = _expand_single_topic_for_parallelism(topics, requested_parallelism)
+    parallelism = max(1, min(requested_parallelism, len(expanded)))
 
     rag_config = args.rag_config
 
     futures = {}
     with ProcessPoolExecutor(max_workers=parallelism) as executor:
-        for topic in topics:
-            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            run_id = f"{_slugify(topic)}-{timestamp}"
+        for topic, replica_index in expanded:
+            timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+            unique = uuid4().hex[:8]
+            run_id = f"{_slugify(topic)}-{timestamp}-{unique}"
+            if replica_index is not None:
+                run_id = f"{run_id}-r{replica_index + 1:02d}"
             future = executor.submit(
                 _run_topic,
                 topic,
