@@ -50,7 +50,6 @@ def enrich_papers_with_content(
             "source_keywords": paper.get("source_keywords"),
             "title": paper.get("title"),
             "abstract": paper.get("abstract"),
-            "authors": paper.get("authors"),
         }
 
 

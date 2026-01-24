@@ -41,6 +41,7 @@ from src.agents.idea_agent.utils.ligagent_helpers import (
     build_algorithm_spec,
     synthesize_reference_summaries,
     suggest_datasets,
+    suggest_baselines,
     sanitize_action_token,
     get_paper_content as load_paper_content,
 )
@@ -244,11 +245,11 @@ class LigAgent(AgentBase):
         if search_type == "paper_search":
             search_keywords = self.memory["retrieval_keywords"][-1]
             try:
-                papers = self.run_tool(name="semantic_search", query=search_keywords, limit=10)
+                papers = self.run_tool(name="semantic_search", query=search_keywords, limit=5)
                 logger.info("📄 Found Papers:")
                 initial_papers = normalize_search_papers(papers, search_keywords, logger)
                 if initial_papers:
-                    query_papers = prepare_query_papers(
+                    '''query_papers = prepare_query_papers(
                         initial_papers, self.paper_repository, logger
                     )
                     rag_query = generate_rag_query(
@@ -282,6 +283,18 @@ class LigAgent(AgentBase):
                         f"\nIn this knowledge_aquisition action, I read {len(initial_papers)} seed papers, "
                         f"generated a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
                         f"and fetched {len(rag_papers)} cited papers for memory."
+                    )'''
+                    safely_enrich_papers_with_content(
+                        initial_papers,
+                        self.paper_enrichment_timeout,
+                        self.paper_repository,
+                        self.memory,
+                        logger,
+                    )
+                    self.memory["references"].append(initial_papers)
+                    step = (
+                        f"\nIn this knowledge_aquisition action, I searched for papers about '{search_keywords}' "
+                        f"and acquired {len(initial_papers)} relevant papers for my research."
                     )
                 else:
                     step = (
@@ -351,7 +364,9 @@ class LigAgent(AgentBase):
             "background_knowledge": self.memory.get("background_knowledge", []),
             "paper_context": paper_context_with_rag(paper_entries, self.memory),
         }
+
         result = self.mcts.search(topic=topic, context=context)
+        
         if not result.best:
             logger.warning("⚠️ MCTS search returned no candidate, falling back to legacy generator.")
             legacy_step = self._legacy_single_idea(topic, paper_entries)
@@ -462,6 +477,16 @@ class LigAgent(AgentBase):
             self.model,
             logger,
         )
+        baselines = suggest_baselines(
+            topic,
+            best_entry,
+            algorithm,
+            references,
+            PROMPTS,
+            self.chat,
+            self.model,
+            logger,
+        )
         introduction = self._generate_idea_introduction(best_entry, paper_entries)
         payload = {
             "title": best_entry.get("title"),
@@ -470,6 +495,7 @@ class LigAgent(AgentBase):
             "algorithm": algorithm,
             "reference_papers": references,
             "datasets": datasets,
+            "baselines": baselines,
             "mcts_evolution": build_mcts_evolution(best_entry),
         }
         best_entry["introduction"] = introduction

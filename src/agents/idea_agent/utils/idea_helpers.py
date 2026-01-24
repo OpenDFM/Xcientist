@@ -1,5 +1,22 @@
+import logging
+import os
+import random
 import re
-from typing import Any, Dict, List
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List, Optional
+
+import requests
+
+
+logger = logging.getLogger(__name__)
+
+SERPER_API_KEY: str = os.environ.get("SERPER_API_KEY", "")
+SERPER_API_ENDPOINT: str = os.environ.get(
+    "SERPER_API_ENDPOINT", "https://google.serper.dev/search"
+)
+SERPER_DEFAULT_RESULTS: int = int(os.environ.get("SERPER_DEFAULT_RESULTS", "10"))
+SERPER_TIMEOUT_SECONDS: float = float(os.environ.get("SERPER_TIMEOUT", "30"))
 
 
 def build_mcts_evolution(best_entry: Dict[str, Any]) -> Dict[str, Any]:
@@ -107,3 +124,124 @@ def fallback_algorithm_spec(idea: Dict[str, Any], inputs: List[str], outputs: Li
         "pipeline": pipeline,
     }
     return [algorithm_entry]
+
+
+def search_google(query: str, api_key: Optional[str] = None, num: int = SERPER_DEFAULT_RESULTS) -> List[Dict[str, Any]]:
+    if not query.strip():
+        return []
+    key = api_key if api_key is not None else SERPER_API_KEY
+    if not key:
+        raise RuntimeError("SERPER_API_KEY is not configured")
+    headers = {
+        "X-API-KEY": key,
+        "Content-Type": "application/json",
+    }
+    payload = {"q": query, "num": num}
+    response = requests.post(
+        SERPER_API_ENDPOINT,
+        headers=headers,
+        json=payload,
+        timeout=SERPER_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    data = response.json() or {}
+    return data.get("organic", []) or []
+
+
+def get_brief_text(contents: List[Dict[str, Any]]) -> str:
+    source_text = ""
+    for content_json in contents:
+        if not isinstance(content_json, dict):
+            continue
+        if "extra_snippets" in content_json and content_json.get("extra_snippets"):
+            snippet = "\n".join(content_json["extra_snippets"])
+        elif "snippet" in content_json:
+            snippet = content_json["snippet"]
+        else:
+            snippet = content_json.get("description", "")
+        title = content_json.get("title", "").strip()
+        url = content_json.get("url") or content_json.get("link", "")
+        source_text += (
+            f"<title>{title}</title>\n"
+            f"<url>{url}</url>\n"
+            f"<snippet>\n{snippet}\n</snippet>\n\n"
+        )
+    return source_text.strip()
+
+
+def get_search_results(query: str, max_retry: int = 3) -> str:
+    source_text = "Search result is empty. Please try again."
+    if not query.strip():
+        return source_text
+    time.sleep(random.uniform(0, 8))
+    for retry_cnt in range(max_retry):
+        try:
+            result = search_google(query)
+            source_text = get_brief_text(result)
+            break
+        except Exception as exc:
+            logger.warning("Search retry %s failed: %s", retry_cnt, exc)
+            time.sleep(random.uniform(1, 8))
+
+    if source_text == "":
+        logger.warning("Search result for query [%s] is empty", query)
+        source_text = "Search result is empty. Please try again."
+    return source_text
+
+
+def get_searches_results(queries: List[str], max_retry: int = 3) -> str:
+    queries = [q for q in queries if q and q.strip()]
+    if not queries:
+        return ""
+    futures = []
+    with ThreadPoolExecutor(max_workers=len(queries)) as executor:
+        for i, query in enumerate(queries):
+            futures.append(
+                executor.submit(
+                    lambda j, q: (j, get_search_results(q, max_retry=max_retry)),
+                    i,
+                    query,
+                )
+            )
+    results = ["" for _ in range(len(queries))]
+    for future in as_completed(futures):
+        i, output_i = future.result()
+        results[i] = output_i
+    output = ""
+    for i, result in enumerate(results):
+        output += (
+            f"--- search result for [{queries[i]}] ---\n"
+            f"{result}\n"
+            f"--- end of search result ---\n\n"
+        )
+    return output.strip()
+
+
+def search_web(queries: List[str], max_retry: int = 3) -> Dict[str, Any]:
+    if not queries:
+        return {"success": False, "error": "No queries provided", "results": ""}
+    try:
+        result = get_searches_results(queries, max_retry=max_retry)
+        return {"success": True, "results": result}
+    except Exception as exc:
+        return {"success": False, "error": str(exc), "results": ""}
+
+
+def parse_search_results(search_text: str) -> List[Dict[str, str]]:
+    if not search_text:
+        return []
+    pattern = re.compile(
+        r"<title>(.*?)</title>\s*<url>(.*?)</url>\s*<snippet>\s*(.*?)\s*</snippet>",
+        re.DOTALL,
+    )
+    results: List[Dict[str, str]] = []
+    for match in pattern.findall(search_text):
+        title, url, snippet = match
+        entry = {
+            "title": (title or "").strip(),
+            "url": (url or "").strip(),
+            "snippet": (snippet or "").strip(),
+        }
+        if entry["title"] or entry["url"] or entry["snippet"]:
+            results.append(entry)
+    return results

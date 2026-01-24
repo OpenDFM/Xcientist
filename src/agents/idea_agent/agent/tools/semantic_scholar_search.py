@@ -17,8 +17,7 @@ class Semantic:
         self.api_key = api_key or os.getenv("S2_API_KEY")
         self.sch = SemanticScholar(api_key=self.api_key) if self.api_key else SemanticScholar()
         self.timeout: TimeoutType = timeout if timeout is not None else self._parse_timeout_env(os.getenv("S2_API_TIMEOUT"))
-        print("🔍 Initializing embedding model for semantic search filtering...")
-        local_path = "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/idea_agent/.cache/bge-large-en-v1.5"
+        local_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".cache", "bge-large-en-v1.5")
         self.embed_model =FlagAutoModel.from_finetuned(local_path,
                                      query_instruction_for_retrieval="Represent this sentence for searching relevant passages:",
                                      use_fp16=True,

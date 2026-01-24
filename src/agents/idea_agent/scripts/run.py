@@ -66,6 +66,8 @@ def _run_topic(topic: str, max_turn: int, output_root: str, run_id: str, include
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "logs").mkdir(parents=True, exist_ok=True)
 
+    print(f"[{topic}] 🏃 Starting run in {run_dir}...")
+
     init_logger(
         log_dir=str(run_dir / "logs"),
         filename="ligagent.log",

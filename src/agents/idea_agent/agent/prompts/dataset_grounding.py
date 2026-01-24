@@ -1,5 +1,5 @@
 DATASET_GROUNDING_PROMPT = """
-You are a dataset strategist. Based on the topic, idea, algorithm spec, and the referenced papers, propose up to five datasets that can be used to evaluate or train the idea.
+You are a dataset strategist. Based on the topic, idea, algorithm spec, referenced papers, and web search snippets, propose 2-5 datasets that can be used to evaluate or train the idea.
 
 Topic: {topic}
 Idea Title: {idea_title}
@@ -10,10 +10,14 @@ Algorithm Spec:
 Reference Papers (JSON):
 {references}
 
+Web Search Snippets:
+{websearch}
+
 Rules:
-- Each dataset must cite one of the provided papers (use its title in `source_paper`).
-- If the paper does not name a dataset explicitly, infer the dataset scope (e.g., "datasets described in …") and explain the inference.
-- Keep descriptions grounded—no hallucinated papers.
+- Prefer datasets explicitly mentioned in the references or web search snippets.
+- If a dataset is inferred, explain the inference briefly in `usage`.
+- Use `source_paper` as a paper title when available; otherwise use "websearch".
+- Do not fabricate URLs; if unknown, use "unknown".
 
 Return a JSON object:
 {{
@@ -27,5 +31,5 @@ Return a JSON object:
     ]
 }}
 
-Limit to at most five entries and keep sentences concise.
+Return between two and five entries and keep sentences concise.
 """
