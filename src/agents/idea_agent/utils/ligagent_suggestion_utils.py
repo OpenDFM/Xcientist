@@ -13,6 +13,17 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from src.agents.idea_agent.utils.idea_helpers import parse_search_results
+from src.agents.idea_agent.agent.prompts import (
+    BASELINE_CANDIDATE_SCORING_PROMPT,
+    BASELINE_IDEA_CARD_PROMPT,
+    BASELINE_QUERY_GENERATION_PROMPT,
+    DATASET_CANDIDATE_SCORING_PROMPT,
+    DATASET_IDEA_CARD_PROMPT,
+    DATASET_QUERY_GENERATION_PROMPT,
+    EXTRACT_CANDIDATE_NAMES_PROMPT,
+    POSTPROCESS_SUGGESTIONS_PROMPT,
+    PREPROCESS_CANDIDATE_NAMES_PROMPT,
+)
 from src.agents.idea_agent.utils.ligagent_utils import (
     extract_baseline_names,
     extract_dataset_names,
@@ -117,29 +128,6 @@ def _log_llm_output(label: str, response: str, logger, max_chars: int = 2000) ->
         print(f"🧠 LLM {label}: {clipped}")
 
 
-def _log_react_event(label: str, message: str, logger, max_chars: int = 1200) -> None:
-    text = str(message or "")
-    if not text:
-        return
-    clipped = text if len(text) <= max_chars else text[:max_chars].rstrip() + "...[truncated]"
-    record = logger.makeRecord(
-        logger.name,
-        logging.INFO,
-        fn="",
-        lno=0,
-        msg="🔎 ReAct %s: %s",
-        args=(label, clipped),
-        exc_info=None,
-    )
-    handled = False
-    for handler in logger.handlers:
-        if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
-            handler.handle(record)
-            handled = True
-    if not handled:
-        print(f"🔎 ReAct {label}: {clipped}")
-
-
 def compact_search_results(search_text: str, limit: int = 10) -> str:
     return _compact_search_results(search_text, limit=limit)
 
@@ -160,13 +148,7 @@ def preprocess_candidate_names(
     seed = [name for name in seed if name and not _is_fragmented_name(name)]
     if not seed:
         return []
-    prompt = (
-        "You are filtering a list of candidate {kind} names. "
-        "Remove irrelevant items, generic terms, or model-only names. "
-        "Keep canonical {kind} names. Deduplicate. Return JSON array of names only."
-        "\nTopic: {topic}\nTask: {task}\nCandidates: {candidates}\n"
-    )
-    payload = prompt.format(
+    payload = PREPROCESS_CANDIDATE_NAMES_PROMPT.format(
         kind=kind,
         topic=topic or "",
         task=idea_card.get("task") or "",
@@ -203,105 +185,6 @@ def preprocess_candidate_names(
     return output
 
 
-def react_websearch(
-    kind: str,
-    seed_names: List[str],
-    topic: str,
-    idea_card: Dict[str, Any],
-    chat_fn,
-    model: str,
-    logger,
-    search_fn: Callable[[List[str], int], Dict[str, Any]],
-    max_steps: int = 5,
-) -> str:
-    if max_steps <= 0:
-        return ""
-    observations: List[str] = []
-    executed: List[str] = []
-    combined_text = ""
-    seed_pool = [name for name in seed_names if name]
-
-    for step in range(1, max_steps + 1):
-        obs_text = "\n".join(observations[-2:]) if observations else "(none)"
-        prompt = (
-            "You are running a multi-step web search for {kind} names. "
-            "At each step, propose one search query or stop.\n"
-            "Rules: Output JSON {{\"think\": \"...\", \"query\": \"...\", \"stop\": false}}. "
-            "The think field should be a chain-of-thought. "
-            "Prefer authoritative sources. Avoid repeating queries.\n"
-            "For datasets, prefer HuggingFace/Kaggle/PapersWithCode. "
-            "For baselines, prefer arXiv/GitHub.\n"
-            "SeedNames: {seed_names}\nTopic: {topic}\nTask: {task}\n"
-            "ExecutedQueries: {executed}\nObservations:\n{obs}\n"
-        )
-        payload = prompt.format(
-            kind=kind,
-            seed_names=json.dumps(seed_pool[:8], ensure_ascii=False),
-            topic=topic or "",
-            task=idea_card.get("task") or "",
-            executed=json.dumps(executed, ensure_ascii=False),
-            obs=obs_text,
-        )
-        query = ""
-        stop = False
-        think = ""
-        try:
-            response = chat_fn(payload, temperature=0.1, max_tokens=200, model=model)
-            _log_llm_output(f"{kind}_react_step_{step}", response, logger)
-            parsed = parse_json_response(response)
-            if isinstance(parsed, dict):
-                stop = bool(parsed.get("stop"))
-                query = str(parsed.get("query") or "").strip()
-                think = str(parsed.get("think") or "").strip()
-        except Exception as exc:  # pragma: no cover - network
-            logger.warning("⚠️ %s ReAct step %s failed: %s", kind.title(), step, exc)
-
-        think = think.strip()
-        if think:
-            think = " ".join(think.split())
-        else:
-            think = "choose next query"
-        _log_react_event(f"{kind} step {step} THINK", think, logger)
-
-        if stop:
-            _log_react_event(f"{kind} step {step} ACT", "stop", logger)
-            break
-
-        if not query:
-            if seed_pool:
-                name = seed_pool.pop(0)
-                if kind == "dataset":
-                    query = f"{name} dataset"
-                else:
-                    query = f"{name} baseline"
-            else:
-                _log_react_event(f"{kind} step {step} ACT", "no query available", logger)
-                break
-
-        key = query.lower().strip()
-        if not key or key in executed:
-            _log_react_event(f"{kind} step {step} ACT", f"skip duplicate query: {query}", logger)
-            continue
-        executed.append(key)
-        _log_react_event(f"{kind} step {step} ACT", f"search: {query}", logger)
-
-        try:
-            payload = search_fn([query], max_retry=3)
-            results_text = payload.get("results", "")
-        except Exception as exc:  # pragma: no cover - network
-            logger.warning("⚠️ %s ReAct search failed: %s", kind.title(), exc)
-            results_text = ""
-        if results_text:
-            combined_text = f"{combined_text}\n{results_text}" if combined_text else results_text
-            observation = _compact_search_results(results_text, limit=6)
-            observations.append(observation)
-            _log_react_event(f"{kind} step {step} OBSERVE", observation or "(empty)", logger)
-        else:
-            _log_react_event(f"{kind} step {step} OBSERVE", "(empty)", logger)
-
-    return combined_text
-
-
 def postprocess_suggestions(
     kind: str,
     items: List[Dict[str, Any]],
@@ -318,16 +201,13 @@ def postprocess_suggestions(
         link = item.get("link") or item.get("url") or ""
         usage = (item.get("usage") or item.get("snippet") or "")[:160]
         preview.append(f"{idx}. name={name} link={link} usage={usage}")
-    prompt = (
-        "You are cleaning a list of suggested {kind}. "
-        "Remove items that are clearly irrelevant, malformed, or not real {kind}s. "
-        "Return JSON array of indices to keep."
-        "\nItems:\n{items}\n"
+    payload = POSTPROCESS_SUGGESTIONS_PROMPT.format(
+        kind=kind,
+        items="\n".join(preview),
+        max_keep=max_keep,
     )
-    payload = prompt.format(kind=kind, items="\n".join(preview))
     try:
         response = chat_fn(payload, temperature=0.1, max_tokens=200, model=model)
-        _log_llm_output(f"{kind}_postprocess", response, logger)
         parsed = parse_json_response(response)
     except Exception as exc:  # pragma: no cover - network
         logger.warning("⚠️ %s postprocess failed: %s", kind.title(), exc)
@@ -713,13 +593,7 @@ def build_baseline_idea_card(
     model: str,
     logger,
 ) -> Dict[str, Any]:
-    prompt = prompts.get("baseline_idea_card")
-    if not prompt:
-        prompt = (
-            "You are structuring an idea for baseline retrieval. "
-            "Return JSON with keys: task, benchmarks, method_family, key_components, evaluation_axes."
-            "\nTopic: {topic}\nIdea: {idea}\nAlgorithm: {algorithm}\nReferences: {references}\n"
-        )
+    prompt = prompts.get("baseline_idea_card") or BASELINE_IDEA_CARD_PROMPT
     payload = prompt.format(
         topic=topic,
         idea=json.dumps(best_entry, ensure_ascii=False, indent=2),
@@ -804,17 +678,7 @@ def build_baseline_queries(
                 queries.append(f"\"{ref_title}\"")
         return _sanitize_queries(queries, limit=10)
 
-    llm_prompt = prompts.get("baseline_query_generation")
-    if not llm_prompt:
-        llm_prompt = (
-            "You are generating web search queries to find strong baselines for a research idea. "
-            "Given the inputs, output JSON: {{\"queries\": [..]}}. "
-            "Rules: 4-6 queries, each <= 5 words; mix broad and specific; include at most 2 queries with site: and at most 2 with github; "
-            "avoid overly long keyword chains; do not include explanations.\n"
-            "Topic: {topic}\nTask: {task}\nIdeaTitle: {idea_title}\nIdeaContext: {idea_context}\n"
-            "Benchmarks: {benchmarks}\nMethodFamily: {method_family}\nKeyComponents: {key_components}\nEvaluationAxes: {evaluation_axes}\n"
-            "ReferenceTitles: {reference_titles}\n"
-        )
+    llm_prompt = prompts.get("baseline_query_generation") or BASELINE_QUERY_GENERATION_PROMPT
 
     reference_titles: List[str] = []
     for ref in references[:3]:
@@ -986,13 +850,7 @@ def extract_candidate_names(
     compact = _compact_search_results(search_text, limit=10)
     if not compact:
         return []
-    prompt = (
-        "You are extracting names from web search snippets. "
-        "Return JSON array of up to {max_names} {kind} names only. "
-        "Prefer canonical names, no commentary."
-        "\nTask: {task}\nSearchResults:\n{results}\n"
-    )
-    payload = prompt.format(
+    payload = EXTRACT_CANDIDATE_NAMES_PROMPT.format(
         max_names=max_names,
         kind=kind,
         task=idea_card.get("task") or "",
@@ -1168,13 +1026,7 @@ def build_dataset_idea_card(
     model: str,
     logger,
 ) -> Dict[str, Any]:
-    prompt = prompts.get("dataset_idea_card")
-    if not prompt:
-        prompt = (
-            "You are structuring a dataset search intent. "
-            "Return JSON with keys: task, domain, data_type, modalities, evaluation_axes, constraints."
-            "\nTopic: {topic}\nIdea: {idea}\nReferences: {references}\n"
-        )
+    prompt = prompts.get("dataset_idea_card") or DATASET_IDEA_CARD_PROMPT
     payload = prompt.format(
         topic=topic,
         idea=json.dumps(best_entry, ensure_ascii=False, indent=2),
@@ -1255,17 +1107,7 @@ def build_dataset_queries(
 
         return _sanitize_queries(queries, limit=10)
 
-    llm_prompt = prompts.get("dataset_query_generation")
-    if not llm_prompt:
-        llm_prompt = (
-            "You are generating web search queries to find datasets. "
-            "Output JSON: {{\"queries\": [..]}}. "
-            "Rules: 4-6 queries, each <= 6 words; all queries targeting Google Dataset Search; "
-            "mix broad and specific; avoid overly long keyword chains; no explanations.\n"
-            "Topic: {topic}\nTask: {task}\nIdeaTitle: {idea_title}\nIdeaContext: {idea_context}\n"
-            "Domain: {domain}\nDataType: {data_type}\nModalities: {modalities}\nEvaluationAxes: {evaluation_axes}\n"
-            "ReferenceTitles: {reference_titles}\n"
-        )
+    llm_prompt = prompts.get("dataset_query_generation") or DATASET_QUERY_GENERATION_PROMPT
 
     reference_titles: List[str] = []
     for ref in references[:3]:
@@ -1341,13 +1183,7 @@ def score_dataset_candidate(
     if page_text:
         evidence_text = f"{evidence_text}\n{page_text[:2000]}"
 
-    prompt = (
-        "You are extracting dataset evidence. Given the idea card and candidate text, "
-        "return JSON with: dataset_name, usage, access, license, dataset_type, evidence_snippets (list), "
-        "match_score (0-5), scale_score (0-5), availability_score (0-5)."
-        "\nIdeaCard: {idea_card}\nCandidateTitle: {title}\nCandidateUrl: {url}\nText: {text}\n"
-    )
-    payload = prompt.format(
+    payload = DATASET_CANDIDATE_SCORING_PROMPT.format(
         idea_card=json.dumps(idea_card, ensure_ascii=False, indent=2),
         title=candidate.get("title", ""),
         url=candidate.get("url", ""),
@@ -1439,13 +1275,7 @@ def score_baseline_candidate(
     page_text = fetch_url_text(candidate.get("url") or "", logger=logger)
     if page_text:
         evidence_text = f"{evidence_text}\n{page_text[:2000]}"
-    prompt = (
-        "You are extracting baseline evidence. Given the idea card and candidate text, "
-        "return JSON with: method_family, setting, reproducibility, evidence_snippets (list), "
-        "match_score (0-5), representativeness_score (0-5), reproducibility_score (0-5)."
-        "\nIdeaCard: {idea_card}\nCandidateTitle: {title}\nCandidateUrl: {url}\nText: {text}\n"
-    )
-    payload = prompt.format(
+    payload = BASELINE_CANDIDATE_SCORING_PROMPT.format(
         idea_card=json.dumps(idea_card, ensure_ascii=False, indent=2),
         title=candidate.get("title", ""),
         url=candidate.get("url", ""),
@@ -1538,3 +1368,29 @@ def select_baseline_candidates(
             if _covers_axis(chosen, axis):
                 covered.add(axis.lower())
     return selected
+
+
+def react_websearch(
+    kind: str,
+    seed_names: List[str],
+    topic: str,
+    idea_card: Dict[str, Any],
+    chat_fn,
+    model: str,
+    logger,
+    search_fn: Callable[[List[str], int], Dict[str, Any]],
+    max_steps: int = 5,
+) -> Dict[str, Any]:
+    from src.agents.idea_agent.utils.ligagent_react_utils import react_websearch as _react_websearch
+
+    return _react_websearch(
+        kind=kind,
+        seed_names=seed_names,
+        topic=topic,
+        idea_card=idea_card,
+        chat_fn=chat_fn,
+        model=model,
+        logger=logger,
+        search_fn=search_fn,
+        max_steps=max_steps,
+    )

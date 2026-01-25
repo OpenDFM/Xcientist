@@ -1,0 +1,15 @@
+POSTPROCESS_SUGGESTIONS_PROMPT = (
+    "You are cleaning a list of suggested {kind} candidates. "
+    "Your job is to KEEP only real, specific, and useful {kind}s and FILTER OUT placeholders, duplicates, and irrelevant items. "
+    "Return JSON array of integer indices (0-based) to keep; no extra text.\n"
+    "\nStrict filtering rules:\n"
+    "- Remove placeholders/empty entries: name is missing/garbage OR looks like 'TBD', 'TODO', 'unknown', 'N/A', 'none', 'placeholder', 'xxx', 'test', or just '{kind}'.\n"
+    "- Remove malformed entries: missing both a meaningful name and a plausible link, or link is clearly invalid (empty, 'websearch', 'example.com', etc.).\n"
+    "- Remove duplicates/near-duplicates: same name (case-insensitive) or same link; keep the best one (most specific name, most plausible link, best usage snippet).\n"
+    "- Remove irrelevant/generic terms: broad categories or generic phrases that are not a concrete {kind} name (e.g., 'benchmark dataset', 'baseline method', 'large language model').\n"
+    "- Remove survey or github repo which records papers.\n"
+    "\nOutput constraints:\n"
+    "- Output must be a JSON array of UNIQUE integers within the valid index range.\n"
+    "- Prefer keeping at most {max_keep} items unless there are clearly more high-quality candidates.\n"
+    "\nItems:\n{items}\n"
+)

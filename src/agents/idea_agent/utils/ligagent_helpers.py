@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Any, Dict, List, Optional, Set
 
 from src.agents.idea_agent.utils.idea_helpers import fallback_algorithm_spec, search_web
+from src.agents.idea_agent.utils.ligagent_react_utils import react_websearch
 from src.agents.idea_agent.utils.ligagent_suggestion_utils import (
     build_baseline_idea_card,
     build_baseline_followup_queries,
@@ -24,7 +26,6 @@ from src.agents.idea_agent.utils.ligagent_suggestion_utils import (
     merge_baseline_candidates,
     postprocess_suggestions,
     preprocess_candidate_names,
-    react_websearch,
     score_dataset_candidate,
     score_baseline_candidate,
     select_dataset_candidates,
@@ -50,6 +51,35 @@ def build_action_lookup(action_aliases: Dict[str, Set[str]]) -> Dict[str, str]:
             if key:
                 lookup[key] = canonical
     return lookup
+
+
+_ARXIV_URL_RE = re.compile(r"https?://(?:export\.)?arxiv\.org/(?:abs|pdf)/[^\s\]>\"')]+", re.IGNORECASE)
+_GITHUB_URL_RE = re.compile(r"https?://github\.com/[^\s\]>\"')]+", re.IGNORECASE)
+
+
+def _extract_first_url(pattern: re.Pattern[str], texts: List[str]) -> str:
+    for text in texts:
+        if not text:
+            continue
+        match = pattern.search(text)
+        if match:
+            return match.group(0)
+    return ""
+
+
+def _is_allowed_dataset_link(link: str) -> bool:
+    lowered = (link or "").lower()
+    return (
+        "huggingface.co/datasets" in lowered
+        or "github.com" in lowered
+        or "paperswithcode.com/dataset" in lowered
+        or "paperwithcodes.com/dataset" in lowered
+    )
+
+
+def _huggingface_search_link(query: str) -> str:
+    safe = (query or "").strip().replace(" ", "%20")
+    return f"https://huggingface.co/datasets?search={safe}"
 
 
 def generate_background_brief(
@@ -649,8 +679,10 @@ def suggest_datasets(
         max_items=5,
     )
     primary_candidates: List[Dict[str, Any]] = []
+    primary_browse: List[Dict[str, Any]] = []
+    primary_found: Set[str] = set()
     if top_from_keynotes:
-        primary_text = react_websearch(
+        primary_result = react_websearch(
             "dataset",
             top_from_keynotes,
             topic,
@@ -661,7 +693,10 @@ def suggest_datasets(
             search_fn=search_web,
             max_steps=5,
         )
+        primary_text = primary_result.get("search_text", "")
         primary_candidates = merge_dataset_candidates(primary_text)
+        primary_browse = primary_result.get("browse_candidates", [])
+        primary_found = {name.lower() for name in primary_result.get("found_names", [])}
         if not primary_candidates:
             fallback_queries = build_dataset_fallback_queries(top_from_keynotes, topic=topic, idea_card=idea_card)
             fallback_payload = search_web(fallback_queries, max_retry=3)
@@ -719,11 +754,15 @@ def suggest_datasets(
         max_items=5,
     )
     keynote_names_lower = {name.lower() for name in top_from_keynotes}
-    dataset_names = [name for name in dataset_names if name.lower() not in keynote_names_lower][:3]
+    avoid_names = set(keynote_names_lower)
+    if primary_found:
+        avoid_names.update(primary_found)
+    dataset_names = [name for name in dataset_names if name.lower() not in avoid_names][:3]
 
     extra_candidates: List[Dict[str, Any]] = []
+    extra_browse: List[Dict[str, Any]] = []
     if dataset_names:
-        search_text = react_websearch(
+        extra_result = react_websearch(
             "dataset",
             dataset_names,
             topic,
@@ -734,7 +773,9 @@ def suggest_datasets(
             search_fn=search_web,
             max_steps=5,
         )
+        search_text = extra_result.get("search_text", "")
         extra_candidates = merge_dataset_candidates(search_text)
+        extra_browse = extra_result.get("browse_candidates", [])
         if not extra_candidates:
             fallback_queries = build_dataset_fallback_queries(dataset_names, topic=topic, idea_card=idea_card)
             fallback_payload = search_web(fallback_queries, max_retry=3)
@@ -751,15 +792,38 @@ def suggest_datasets(
     extra_selected = select_dataset_candidates(extra_scored, target=3)
 
     datasets: List[Dict[str, Any]] = []
+    for cand in primary_browse + extra_browse:
+        name = cand.get("dataset_name") or ""
+        access = cand.get("access_link") or ""
+        if not name or not access or not _is_allowed_dataset_link(access):
+            continue
+        evidence = cand.get("evidence_snippets") or []
+        usage = ""
+        if evidence:
+            usage = str(evidence[0])[:200]
+        datasets.append(
+            {
+                "name": name,
+                "source_paper": "browse",
+                "usage": usage or "Extracted from browse results.",
+                "access": access,
+                "evidence": evidence,
+                "link": access,
+                "scores": {},
+            }
+        )
     for cand in primary_selected[:5]:
+        link = cand.get("access") or cand.get("url") or ""
+        if not _is_allowed_dataset_link(link):
+            continue
         datasets.append(
             {
                 "name": cand.get("dataset_name") or cand.get("title") or derive_label(cand.get("title", "")),
                 "source_paper": "websearch",
                 "usage": cand.get("usage") or cand.get("snippet", "")[:200],
-                "access": cand.get("access") or cand.get("url") or "websearch",
+                "access": link or "websearch",
                 "evidence": cand.get("evidence_snippets") or [],
-                "link": cand.get("url") or "",
+                "link": link or "",
                 "scores": {
                     "match": cand.get("match_score"),
                     "scale": cand.get("scale_score"),
@@ -768,14 +832,17 @@ def suggest_datasets(
             }
         )
     for cand in extra_selected[:3]:
+        link = cand.get("access") or cand.get("url") or ""
+        if not _is_allowed_dataset_link(link):
+            continue
         datasets.append(
             {
                 "name": cand.get("dataset_name") or cand.get("title") or derive_label(cand.get("title", "")),
                 "source_paper": "websearch",
                 "usage": cand.get("usage") or cand.get("snippet", "")[:200],
-                "access": cand.get("access") or cand.get("url") or "websearch",
+                "access": link or "websearch",
                 "evidence": cand.get("evidence_snippets") or [],
-                "link": cand.get("url") or "",
+                "link": link or "",
                 "scores": {
                     "match": cand.get("match_score"),
                     "scale": cand.get("scale_score"),
@@ -786,6 +853,7 @@ def suggest_datasets(
 
     datasets = dedupe_named(datasets, "name", limit=8)
     datasets = postprocess_suggestions("dataset", datasets, chat_fn=chat_fn, model=model, logger=logger, max_keep=8)
+    datasets = [d for d in datasets if _is_allowed_dataset_link(d.get("link") or d.get("access") or "")]
 
     if len(datasets) < 2:
         while len(datasets) < 2:
@@ -796,8 +864,8 @@ def suggest_datasets(
                     "name": query_name,
                     "source_paper": "websearch",
                     "usage": "Requires validation; suggested due to sparse evidence.",
-                    "access": f"https://datasetsearch.research.google.com/search?query={query_name.replace(' ', '%20')}",
-                    "link": f"https://datasetsearch.research.google.com/search?query={query_name.replace(' ', '%20')}",
+                    "access": _huggingface_search_link(query_name),
+                    "link": _huggingface_search_link(query_name),
                 }
             )
     return datasets[:8]
@@ -836,8 +904,10 @@ def suggest_baselines(
         max_items=5,
     )
     primary_candidates: List[Dict[str, Any]] = []
+    primary_browse: List[Dict[str, Any]] = []
+    primary_found: Set[str] = set()
     if top_from_keynotes:
-        primary_text = react_websearch(
+        primary_result = react_websearch(
             "baseline",
             top_from_keynotes,
             topic,
@@ -848,7 +918,10 @@ def suggest_baselines(
             search_fn=search_web,
             max_steps=5,
         )
+        primary_text = primary_result.get("search_text", "")
         primary_candidates = merge_baseline_candidates(primary_text)
+        primary_browse = primary_result.get("browse_candidates", [])
+        primary_found = {name.lower() for name in primary_result.get("found_names", [])}
 
     primary_scored: List[Dict[str, Any]] = []
     for cand in primary_candidates:
@@ -895,7 +968,9 @@ def suggest_baselines(
         logger=logger,
         max_items=6,
     )
-    search_text = react_websearch(
+    if primary_found:
+        baseline_names = [name for name in baseline_names if name.lower() not in primary_found]
+    search_result = react_websearch(
         "baseline",
         baseline_names,
         topic,
@@ -906,7 +981,8 @@ def suggest_baselines(
         search_fn=search_web,
         max_steps=5,
     )
-
+    search_text = search_result.get("search_text", "")
+    extra_browse = search_result.get("browse_candidates", [])
     candidates = merge_baseline_candidates(search_text)
     scored: List[Dict[str, Any]] = []
     for cand in candidates:
@@ -936,17 +1012,64 @@ def suggest_baselines(
         combined = selected[:5]
 
     baselines: List[Dict[str, Any]] = []
-    for cand in combined[:5]:
+    for cand in primary_browse + extra_browse:
+        name = cand.get("paper_title") or ""
+        arxiv = cand.get("arxiv_link") or ""
+        github = cand.get("github_link") or ""
+        if not name or not arxiv or not github:
+            continue
+        evidence = cand.get("evidence_snippets") or []
+        usage = ""
+        if evidence:
+            usage = str(evidence[0])[:200]
         baselines.append(
             {
-                "name": cand.get("title") or derive_label(cand.get("title", "")),
+                "name": name,
+                "source": "browse",
+                "repo_url": github,
+                "usage": usage or "Extracted from browse results.",
+                "evidence": evidence,
+                "link": arxiv or github,
+                "scores": {},
+            }
+        )
+    for cand in combined[:5]:
+        evidence = cand.get("evidence_snippets") or []
+        texts = [
+            cand.get("url") or "",
+            cand.get("snippet") or "",
+            cand.get("usage") or "",
+            cand.get("setting") or "",
+        ]
+        for item in evidence:
+            texts.append(str(item))
+
+        arxiv_link = ""
+        repo_url = ""
+        url = cand.get("url") or ""
+        if "arxiv.org" in url or "export.arxiv.org" in url:
+            arxiv_link = url
+        if "github.com" in url:
+            repo_url = url
+        if not arxiv_link:
+            arxiv_link = _extract_first_url(_ARXIV_URL_RE, texts)
+        if not repo_url:
+            repo_url = _extract_first_url(_GITHUB_URL_RE, texts)
+
+        title = cand.get("title") or derive_label(cand.get("title", ""))
+        if not title or not arxiv_link or not repo_url:
+            continue
+
+        baselines.append(
+            {
+                "name": title,
                 "source": "websearch",
-                "repo_url": cand.get("url") if "github.com" in (cand.get("url") or "") else "",
+                "repo_url": repo_url,
                 "usage": cand.get("usage")
                 or cand.get("setting")
                 or cand.get("snippet", "")[:200],
-                "evidence": cand.get("evidence_snippets") or [],
-                "link": cand.get("url") or "",
+                "evidence": evidence,
+                "link": arxiv_link,
                 "scores": {
                     "match": cand.get("match_score"),
                     "representativeness": cand.get("representativeness_score"),
@@ -957,23 +1080,17 @@ def suggest_baselines(
 
     pre_post_baselines = baselines[:]
     baselines = postprocess_suggestions("baseline", baselines, chat_fn=chat_fn, model=model, logger=logger, max_keep=5)
-    baselines = [b for b in baselines if "github.com" in (b.get("repo_url") or b.get("link") or "")]
+    baselines = [
+        b
+        for b in baselines
+        if (b.get("name") and b.get("repo_url") and b.get("link") and "arxiv.org" in (b.get("link") or ""))
+    ]
     if not baselines:
-        baselines = [b for b in pre_post_baselines if "github.com" in (b.get("repo_url") or b.get("link") or "")][:5]
+        baselines = [
+            b
+            for b in pre_post_baselines
+            if (b.get("name") and b.get("repo_url") and b.get("link") and "arxiv.org" in (b.get("link") or ""))
+        ][:5]
 
     baselines = dedupe_named(baselines, "name")
-    if len(baselines) < 2:
-        while len(baselines) < 2:
-            idx = len(baselines) + 1
-            baselines.append(
-                {
-                    "name": f"{topic or 'Target'} baseline candidate {idx}",
-                    "source": "websearch",
-                    "repo_url": "",
-                    "usage": "Requires validation; suggested due to sparse evidence.",
-                    "evidence": [],
-                    "link": "",
-                    "scores": {},
-                }
-            )
     return baselines[:5]

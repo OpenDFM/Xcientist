@@ -14,6 +14,19 @@ from agent.prompts.algorithm_alignment import ALGORITHM_ALIGNMENT_PROMPT
 from agent.prompts.idea_introduction import IDEA_INTRODUCTION_PROMPT
 from agent.prompts.topic_background import TOPIC_BACKGROUND_PROMPT
 from agent.prompts.rag_query import RAG_QUERY_PROMPT
+from agent.prompts.browse_schema_dataset import BROWSE_SCHEMA_DATASET
+from agent.prompts.browse_schema_baseline import BROWSE_SCHEMA_BASELINE
+from agent.prompts.browse_prompt_template import BROWSE_PROMPT_TEMPLATE
+from agent.prompts.preprocess_candidate_names import PREPROCESS_CANDIDATE_NAMES_PROMPT
+from agent.prompts.react_websearch import REACT_WEBSEARCH_PROMPT
+from agent.prompts.postprocess_suggestions import POSTPROCESS_SUGGESTIONS_PROMPT
+from agent.prompts.extract_candidate_names import EXTRACT_CANDIDATE_NAMES_PROMPT
+from agent.prompts.baseline_idea_card import BASELINE_IDEA_CARD_PROMPT
+from agent.prompts.baseline_query_generation import BASELINE_QUERY_GENERATION_PROMPT
+from agent.prompts.dataset_idea_card import DATASET_IDEA_CARD_PROMPT
+from agent.prompts.dataset_query_generation import DATASET_QUERY_GENERATION_PROMPT
+from agent.prompts.dataset_candidate_scoring import DATASET_CANDIDATE_SCORING_PROMPT
+from agent.prompts.baseline_candidate_scoring import BASELINE_CANDIDATE_SCORING_PROMPT
 
 
 PROMPTS = {
@@ -33,4 +46,8 @@ PROMPTS = {
     "idea_introduction": IDEA_INTRODUCTION_PROMPT,
     "topic_background": TOPIC_BACKGROUND_PROMPT,
     "rag_query": RAG_QUERY_PROMPT,
+    "baseline_idea_card": BASELINE_IDEA_CARD_PROMPT,
+    "baseline_query_generation": BASELINE_QUERY_GENERATION_PROMPT,
+    "dataset_idea_card": DATASET_IDEA_CARD_PROMPT,
+    "dataset_query_generation": DATASET_QUERY_GENERATION_PROMPT,
 }
