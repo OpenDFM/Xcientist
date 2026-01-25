@@ -555,7 +555,7 @@ class IdeaNode:
 
 @dataclass
 class MCTSConfig:
-    max_iterations = 8
+    max_iterations = 2
     max_depth = 4
     branching_factor: int = 3
     exploration_constant: float = 1.15

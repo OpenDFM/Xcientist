@@ -1,15 +1,34 @@
 from __future__ import annotations
 
 import json
-import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Any, Dict, List, Optional, Set
 
-from src.agents.idea_agent.utils.idea_helpers import (
-    fallback_algorithm_spec,
-    parse_search_results,
-    search_web,
+from src.agents.idea_agent.utils.idea_helpers import fallback_algorithm_spec, search_web
+from src.agents.idea_agent.utils.ligagent_suggestion_utils import (
+    build_baseline_idea_card,
+    build_baseline_followup_queries,
+    build_baseline_seed_queries,
+    build_dataset_idea_card,
+    build_dataset_fallback_queries,
+    build_dataset_followup_queries,
+    build_dataset_seed_queries,
+    build_datasetsearch_direct_candidates,
+    collect_top_baseline_names_from_memory,
+    collect_top_dataset_names_from_memory,
+    dedupe_named,
+    derive_label,
+    extract_candidate_names,
+    merge_dataset_candidates,
+    merge_baseline_candidates,
+    postprocess_suggestions,
+    preprocess_candidate_names,
+    react_websearch,
+    score_dataset_candidate,
+    score_baseline_candidate,
+    select_dataset_candidates,
+    select_baseline_candidates,
 )
 from src.agents.idea_agent.utils.ligagent_utils import (
     enrich_papers_with_content,
@@ -607,102 +626,181 @@ def suggest_datasets(
     chat_fn,
     model: str,
     logger,
+    memory: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
-    def _dedupe_named(entries: List[Dict[str, Any]], name_key: str) -> List[Dict[str, Any]]:
-        seen: Set[str] = set()
-        output: List[Dict[str, Any]] = []
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-            name = (entry.get(name_key) or entry.get("title") or "").strip()
-            if not name:
-                continue
-            key = name.lower()
-            if key in seen:
-                continue
-            seen.add(key)
-            entry[name_key] = name
-            output.append(entry)
-            if len(output) >= 5:
-                break
-        return output
+    idea_card = build_dataset_idea_card(
+        topic=topic,
+        best_entry=best_entry,
+        references=references,
+        prompts=prompts,
+        chat_fn=chat_fn,
+        model=model,
+        logger=logger,
+    )
+    top_from_keynotes = collect_top_dataset_names_from_memory(memory, top_k=5)
+    top_from_keynotes = preprocess_candidate_names(
+        "dataset",
+        top_from_keynotes,
+        topic,
+        idea_card,
+        chat_fn=chat_fn,
+        model=model,
+        logger=logger,
+        max_items=5,
+    )
+    primary_candidates: List[Dict[str, Any]] = []
+    if top_from_keynotes:
+        primary_text = react_websearch(
+            "dataset",
+            top_from_keynotes,
+            topic,
+            idea_card,
+            chat_fn=chat_fn,
+            model=model,
+            logger=logger,
+            search_fn=search_web,
+            max_steps=5,
+        )
+        primary_candidates = merge_dataset_candidates(primary_text)
+        if not primary_candidates:
+            fallback_queries = build_dataset_fallback_queries(top_from_keynotes, topic=topic, idea_card=idea_card)
+            fallback_payload = search_web(fallback_queries, max_retry=3)
+            fallback_text = fallback_payload.get("results", "")
+            primary_candidates = merge_dataset_candidates(fallback_text)
+        primary_candidates.extend(
+            build_datasetsearch_direct_candidates(top_from_keynotes, topic=topic, idea_card=idea_card)
+        )
 
-    def _derive_label(title: str) -> str:
-        cleaned = (title or "").strip()
-        for sep in (" - ", " | ", " — ", " – ", ":"):
-            if sep in cleaned:
-                cleaned = cleaned.split(sep, 1)[0].strip()
-        return cleaned
-
-    def _fallback_from_search(search_text: str, max_items: int) -> List[Dict[str, Any]]:
-        results = parse_search_results(search_text)
-        fallback: List[Dict[str, Any]] = []
-        for item in results:
-            name = _derive_label(item.get("title", ""))
-            if not name:
+    primary_scored: List[Dict[str, Any]] = []
+    for cand in primary_candidates:
+        primary_scored.append(score_dataset_candidate(idea_card, cand, chat_fn=chat_fn, model=model, logger=logger))
+    primary_scored.sort(key=lambda c: c.get("total_score", 0), reverse=True)
+    primary_selected = select_dataset_candidates(primary_scored, target=5)
+    if not primary_selected and top_from_keynotes:
+        for name in top_from_keynotes:
+            query_name = name.strip()
+            if not query_name:
                 continue
-            snippet = (item.get("snippet") or "").strip()
-            fallback.append(
+            link = f"https://datasetsearch.research.google.com/search?query={query_name.replace(' ', '%20')}"
+            primary_selected.append(
                 {
-                    "name": name,
-                    "source_paper": "websearch",
-                    "usage": snippet[:200] if snippet else "Referenced in web search results.",
-                    "access": item.get("url") or "websearch",
+                    "title": query_name,
+                    "url": link,
+                    "snippet": "Mentioned in paper keynote data; requires verification.",
                 }
             )
-            if len(fallback) >= max_items:
-                break
-        return fallback
 
-    def _trim_query_context(text: str, max_words: int = 10) -> str:
-        if not text:
-            return ""
-        words = re.findall(r"[A-Za-z0-9][A-Za-z0-9\\-]+", text)
-        if not words:
-            return ""
-        return " ".join(words[:max_words])
-
-    idea_title = best_entry.get("title", "")
-    idea_context = _trim_query_context(
-        best_entry.get("abstract") or best_entry.get("core_contribute") or ""
+    seed_queries = build_dataset_seed_queries(
+        topic=topic,
+        best_entry=best_entry,
+        idea_card=idea_card,
+        references=references,
     )
-    queries: List[str] = []
-    if idea_title:
-        queries.append(f"\"{idea_title}\" dataset")
-    if topic and topic != "unspecified topic":
-        queries.append(f"{topic} dataset benchmark")
-        queries.append(f"{topic} dataset")
-    if idea_context:
-        queries.append(f"{topic} {idea_context} dataset" if topic else f"{idea_context} dataset")
-    for ref in references[:3]:
-        ref_title = (ref.get("title") or "").strip()
-        if ref_title:
-            queries.append(f"\"{ref_title}\" dataset")
-    # Deduplicate queries while preserving order.
-    seen_queries: Set[str] = set()
-    deduped_queries: List[str] = []
-    for query in queries:
-        if query and query not in seen_queries:
-            deduped_queries.append(query)
-            seen_queries.add(query)
-    search_payload = search_web(deduped_queries[:5], max_retry=3)
-    search_text = search_payload.get("results", "")
+    seed_payload = search_web(seed_queries, max_retry=3)
+    seed_text = seed_payload.get("results", "")
 
-    datasets = _fallback_from_search(search_text, max_items=5)
-    datasets = _dedupe_named(datasets, "name")
+    dataset_names = extract_candidate_names(
+        "dataset",
+        idea_card,
+        seed_text,
+        chat_fn=chat_fn,
+        model=model,
+        logger=logger,
+        max_names=8,
+    )
+    dataset_names = preprocess_candidate_names(
+        "dataset",
+        dataset_names,
+        topic,
+        idea_card,
+        chat_fn=chat_fn,
+        model=model,
+        logger=logger,
+        max_items=5,
+    )
+    keynote_names_lower = {name.lower() for name in top_from_keynotes}
+    dataset_names = [name for name in dataset_names if name.lower() not in keynote_names_lower][:3]
+
+    extra_candidates: List[Dict[str, Any]] = []
+    if dataset_names:
+        search_text = react_websearch(
+            "dataset",
+            dataset_names,
+            topic,
+            idea_card,
+            chat_fn=chat_fn,
+            model=model,
+            logger=logger,
+            search_fn=search_web,
+            max_steps=5,
+        )
+        extra_candidates = merge_dataset_candidates(search_text)
+        if not extra_candidates:
+            fallback_queries = build_dataset_fallback_queries(dataset_names, topic=topic, idea_card=idea_card)
+            fallback_payload = search_web(fallback_queries, max_retry=3)
+            fallback_text = fallback_payload.get("results", "")
+            extra_candidates = merge_dataset_candidates(fallback_text)
+        extra_candidates.extend(
+            build_datasetsearch_direct_candidates(dataset_names, topic=topic, idea_card=idea_card)
+        )
+
+    extra_scored: List[Dict[str, Any]] = []
+    for cand in extra_candidates:
+        extra_scored.append(score_dataset_candidate(idea_card, cand, chat_fn=chat_fn, model=model, logger=logger))
+    extra_scored.sort(key=lambda c: c.get("total_score", 0), reverse=True)
+    extra_selected = select_dataset_candidates(extra_scored, target=3)
+
+    datasets: List[Dict[str, Any]] = []
+    for cand in primary_selected[:5]:
+        datasets.append(
+            {
+                "name": cand.get("dataset_name") or cand.get("title") or derive_label(cand.get("title", "")),
+                "source_paper": "websearch",
+                "usage": cand.get("usage") or cand.get("snippet", "")[:200],
+                "access": cand.get("access") or cand.get("url") or "websearch",
+                "evidence": cand.get("evidence_snippets") or [],
+                "link": cand.get("url") or "",
+                "scores": {
+                    "match": cand.get("match_score"),
+                    "scale": cand.get("scale_score"),
+                    "availability": cand.get("availability_score"),
+                },
+            }
+        )
+    for cand in extra_selected[:3]:
+        datasets.append(
+            {
+                "name": cand.get("dataset_name") or cand.get("title") or derive_label(cand.get("title", "")),
+                "source_paper": "websearch",
+                "usage": cand.get("usage") or cand.get("snippet", "")[:200],
+                "access": cand.get("access") or cand.get("url") or "websearch",
+                "evidence": cand.get("evidence_snippets") or [],
+                "link": cand.get("url") or "",
+                "scores": {
+                    "match": cand.get("match_score"),
+                    "scale": cand.get("scale_score"),
+                    "availability": cand.get("availability_score"),
+                },
+            }
+        )
+
+    datasets = dedupe_named(datasets, "name", limit=8)
+    datasets = postprocess_suggestions("dataset", datasets, chat_fn=chat_fn, model=model, logger=logger, max_keep=8)
 
     if len(datasets) < 2:
         while len(datasets) < 2:
             idx = len(datasets) + 1
+            query_name = f"{topic or 'Target'} dataset candidate {idx}"
             datasets.append(
                 {
-                    "name": f"{topic or 'Target'} dataset candidate {idx}",
+                    "name": query_name,
                     "source_paper": "websearch",
                     "usage": "Requires validation; suggested due to sparse evidence.",
-                    "access": "websearch",
+                    "access": f"https://datasetsearch.research.google.com/search?query={query_name.replace(' ', '%20')}",
+                    "link": f"https://datasetsearch.research.google.com/search?query={query_name.replace(' ', '%20')}",
                 }
             )
-    return datasets[:5]
+    return datasets[:8]
 
 
 def suggest_baselines(
@@ -714,96 +812,156 @@ def suggest_baselines(
     chat_fn,
     model: str,
     logger,
+    memory: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
-    def _dedupe_named(entries: List[Dict[str, Any]], name_key: str) -> List[Dict[str, Any]]:
-        seen: Set[str] = set()
-        output: List[Dict[str, Any]] = []
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-            name = (entry.get(name_key) or entry.get("title") or "").strip()
-            if not name:
-                continue
-            key = name.lower()
-            if key in seen:
-                continue
-            seen.add(key)
-            entry[name_key] = name
-            output.append(entry)
-            if len(output) >= 5:
-                break
-        return output
-
-    def _derive_label(title: str) -> str:
-        cleaned = (title or "").strip()
-        for sep in (" - ", " | ", " — ", " – ", ":"):
-            if sep in cleaned:
-                cleaned = cleaned.split(sep, 1)[0].strip()
-        return cleaned
-
-    def _fallback_from_search(search_text: str, max_items: int) -> List[Dict[str, Any]]:
-        results = parse_search_results(search_text)
-        github_first = [r for r in results if "github.com" in (r.get("url") or "")]
-        others = [r for r in results if r not in github_first]
-        ordered = github_first + others
-        fallback: List[Dict[str, Any]] = []
-        for item in ordered:
-            name = _derive_label(item.get("title", ""))
-            if not name:
-                continue
-            url = item.get("url") or ""
-            snippet = (item.get("snippet") or "").strip()
-            fallback.append(
-                {
-                    "name": name,
-                    "source": "websearch",
-                    "repo_url": url if "github.com" in url else "",
-                    "usage": snippet[:200] if snippet else "Referenced in web search results.",
-                }
-            )
-            if len(fallback) >= max_items:
-                break
-        return fallback
-
-    def _trim_query_context(text: str, max_words: int = 10) -> str:
-        if not text:
-            return ""
-        words = re.findall(r"[A-Za-z0-9][A-Za-z0-9\\-]+", text)
-        if not words:
-            return ""
-        return " ".join(words[:max_words])
-
-    idea_title = best_entry.get("title", "")
-    idea_context = _trim_query_context(
-        best_entry.get("abstract") or best_entry.get("core_contribute") or ""
+    idea_card = build_baseline_idea_card(
+        topic=topic,
+        best_entry=best_entry,
+        algorithm=algorithm,
+        references=references,
+        prompts=prompts,
+        chat_fn=chat_fn,
+        model=model,
+        logger=logger,
     )
-    queries: List[str] = []
-    if idea_title:
-        queries.append(f"\"{idea_title}\" baseline github")
-        queries.append(f"\"{idea_title}\" implementation github")
-    if topic and topic != "unspecified topic":
-        queries.append(f"{topic} baseline github")
-        queries.append(f"{topic} state of the art baseline github")
-    if idea_context:
-        queries.append(
-            f"{topic} {idea_context} baseline github" if topic else f"{idea_context} baseline github"
+    top_from_keynotes = collect_top_baseline_names_from_memory(memory, top_k=5)
+    top_from_keynotes = preprocess_candidate_names(
+        "baseline",
+        top_from_keynotes,
+        topic,
+        idea_card,
+        chat_fn=chat_fn,
+        model=model,
+        logger=logger,
+        max_items=5,
+    )
+    primary_candidates: List[Dict[str, Any]] = []
+    if top_from_keynotes:
+        primary_text = react_websearch(
+            "baseline",
+            top_from_keynotes,
+            topic,
+            idea_card,
+            chat_fn=chat_fn,
+            model=model,
+            logger=logger,
+            search_fn=search_web,
+            max_steps=5,
         )
-    for ref in references[:3]:
-        ref_title = (ref.get("title") or "").strip()
-        if ref_title:
-            queries.append(f"\"{ref_title}\" baseline github")
-    seen_queries: Set[str] = set()
-    deduped_queries: List[str] = []
-    for query in queries:
-        if query and query not in seen_queries:
-            deduped_queries.append(query)
-            seen_queries.add(query)
-    search_payload = search_web(deduped_queries[:6], max_retry=3)
-    search_text = search_payload.get("results", "")
+        primary_candidates = merge_baseline_candidates(primary_text)
 
-    baselines = _fallback_from_search(search_text, max_items=5)
-    baselines = _dedupe_named(baselines, "name")
+    primary_scored: List[Dict[str, Any]] = []
+    for cand in primary_candidates:
+        primary_scored.append(score_baseline_candidate(idea_card, cand, chat_fn=chat_fn, model=model, logger=logger))
+    primary_scored.sort(key=lambda c: c.get("total_score", 0), reverse=True)
 
+    def _has_github(candidate: Dict[str, Any]) -> bool:
+        url = (candidate.get("url") or "").lower()
+        if "github.com" in url:
+            return True
+        evidence = candidate.get("evidence_snippets") or []
+        if any("github.com" in str(item).lower() for item in evidence):
+            return True
+        snippet = (candidate.get("snippet") or "").lower()
+        return "github.com" in snippet
+
+    primary_selected = [cand for cand in primary_scored if _has_github(cand)]
+
+    seed_queries = build_baseline_seed_queries(
+        topic=topic,
+        best_entry=best_entry,
+        idea_card=idea_card,
+        references=references,
+    )
+    seed_payload = search_web(seed_queries, max_retry=3)
+    seed_text = seed_payload.get("results", "")
+
+    baseline_names = extract_candidate_names(
+        "baseline",
+        idea_card,
+        seed_text,
+        chat_fn=chat_fn,
+        model=model,
+        logger=logger,
+        max_names=8,
+    )
+    baseline_names = preprocess_candidate_names(
+        "baseline",
+        baseline_names,
+        topic,
+        idea_card,
+        chat_fn=chat_fn,
+        model=model,
+        logger=logger,
+        max_items=6,
+    )
+    search_text = react_websearch(
+        "baseline",
+        baseline_names,
+        topic,
+        idea_card,
+        chat_fn=chat_fn,
+        model=model,
+        logger=logger,
+        search_fn=search_web,
+        max_steps=5,
+    )
+
+    candidates = merge_baseline_candidates(search_text)
+    scored: List[Dict[str, Any]] = []
+    for cand in candidates:
+        scored.append(score_baseline_candidate(idea_card, cand, chat_fn=chat_fn, model=model, logger=logger))
+    scored.sort(key=lambda c: c.get("total_score", 0), reverse=True)
+
+    selected = select_baseline_candidates(scored, idea_card, target=8)
+    fallback_selected = [cand for cand in selected if _has_github(cand)]
+
+    combined: List[Dict[str, Any]] = []
+    seen_keys: Set[str] = set()
+    for cand in primary_selected + fallback_selected:
+        key = (cand.get("url") or cand.get("title") or "").lower().strip()
+        if key and key in seen_keys:
+            continue
+        if key:
+            seen_keys.add(key)
+        combined.append(cand)
+        if len(combined) >= 5:
+            break
+
+    if not combined:
+        combined = fallback_selected[:5]
+    if not combined:
+        combined = primary_selected[:5]
+    if not combined:
+        combined = selected[:5]
+
+    baselines: List[Dict[str, Any]] = []
+    for cand in combined[:5]:
+        baselines.append(
+            {
+                "name": cand.get("title") or derive_label(cand.get("title", "")),
+                "source": "websearch",
+                "repo_url": cand.get("url") if "github.com" in (cand.get("url") or "") else "",
+                "usage": cand.get("usage")
+                or cand.get("setting")
+                or cand.get("snippet", "")[:200],
+                "evidence": cand.get("evidence_snippets") or [],
+                "link": cand.get("url") or "",
+                "scores": {
+                    "match": cand.get("match_score"),
+                    "representativeness": cand.get("representativeness_score"),
+                    "reproducibility": cand.get("reproducibility_score"),
+                },
+            }
+        )
+
+    pre_post_baselines = baselines[:]
+    baselines = postprocess_suggestions("baseline", baselines, chat_fn=chat_fn, model=model, logger=logger, max_keep=5)
+    baselines = [b for b in baselines if "github.com" in (b.get("repo_url") or b.get("link") or "")]
+    if not baselines:
+        baselines = [b for b in pre_post_baselines if "github.com" in (b.get("repo_url") or b.get("link") or "")][:5]
+
+    baselines = dedupe_named(baselines, "name")
     if len(baselines) < 2:
         while len(baselines) < 2:
             idx = len(baselines) + 1
@@ -813,6 +971,9 @@ def suggest_baselines(
                     "source": "websearch",
                     "repo_url": "",
                     "usage": "Requires validation; suggested due to sparse evidence.",
+                    "evidence": [],
+                    "link": "",
+                    "scores": {},
                 }
             )
     return baselines[:5]

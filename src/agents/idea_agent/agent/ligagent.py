@@ -476,6 +476,7 @@ class LigAgent(AgentBase):
             self.chat,
             self.model,
             logger,
+            memory=self.memory,
         )
         baselines = suggest_baselines(
             topic,
@@ -486,6 +487,7 @@ class LigAgent(AgentBase):
             self.chat,
             self.model,
             logger,
+            memory=self.memory,
         )
         introduction = self._generate_idea_introduction(best_entry, paper_entries)
         payload = {

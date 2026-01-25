@@ -39,7 +39,8 @@ class VectorStore(ABC):
 
 class FaissVectorStore(VectorStore):
     def __init__(self, model_path: str = ".cache/all-MiniLM-L6-v2", memory_type: str = "semantic"):
-        self.model = SentenceTransformer(os.path.join(base_dir, model_path))
+        #self.model = SentenceTransformer(os.path.join(base_dir, model_path))
+        self.model = SentenceTransformer("/home/lococo/project/ResearchAgent/src/agents/idea_agent/.cache/bge-large-en-v1.5")
         self.memory_type = memory_type
         self.index = None
         self.dim = None

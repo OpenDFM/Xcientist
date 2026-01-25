@@ -44,7 +44,16 @@ Guidelines:
 - Read the paper carefully and summarize its key contributions, methods, results, and significance.
 - Include your own critical reflections, insights, and possible future directions.
 - Generate a TL;DR paragraph capturing the core idea.
-- Organize the output in JSON format, but do not fix the keys; include whatever fields make sense for this paper.
+- Output MUST be a single JSON object (and nothing else).
+- The JSON object MUST include a top-level key "dataset".
+    - "dataset" should be the dataset(s) used in experiments (string or list of strings).
+    - If the paper uses multiple datasets, list them.
+    - If no dataset is used or it is not specified in the paper, set "dataset" to "unknown".
+- The JSON object MUST include a top-level key "baseline".
+    - "baseline" should be the baseline(s) used in experiments (string or list of strings).
+    - If the paper uses multiple baselines, list them.
+    - If no baseline is used or it is not specified in the paper, set "baseline" to "unknown".
+- Besides "dataset" and "baseline", you may include whatever other top-level fields make sense for this paper.
 - Include relevant examples, observations, or specific results when appropriate.
 - Focus on depth, clarity, and coherence, rather than adhering to a rigid template.
 - Only use information contained in the paper; do not add external knowledge.
