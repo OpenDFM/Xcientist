@@ -51,6 +51,85 @@ def dedupe_named(entries: List[Dict[str, Any]], name_key: str, limit: int = 5) -
     return output
 
 
+_GITHUB_REPO_RE = re.compile(r"https?://github\.com/([^/\s]+)/([^/\s#?]+)", re.IGNORECASE)
+_SEARCH_SECTION_RE = re.compile(
+    r"--- search result for \[(.*?)\] ---\n(.*?)\n--- end of search result ---",
+    re.DOTALL,
+)
+
+
+def _extract_github_repo_url(texts: List[str]) -> str:
+    for text in texts:
+        if not text:
+            continue
+        match = _GITHUB_REPO_RE.search(text)
+        if match:
+            owner = match.group(1).rstrip(").,;:")
+            repo = match.group(2).rstrip(").,;:")
+            return f"https://github.com/{owner}/{repo}"
+    return ""
+
+
+def _split_search_sections(search_text: str) -> Dict[str, str]:
+    sections: Dict[str, str] = {}
+    if not search_text:
+        return sections
+    for query, block in _SEARCH_SECTION_RE.findall(search_text):
+        sections[query] = block.strip()
+    return sections
+
+
+def _pick_github_repo_from_results(results: List[Dict[str, str]]) -> Dict[str, str]:
+    for entry in results:
+        texts = [entry.get("url") or "", entry.get("snippet") or "", entry.get("title") or ""]
+        repo_url = _extract_github_repo_url(texts)
+        if repo_url:
+            return {
+                "repo_url": repo_url,
+                "usage": (entry.get("snippet") or "")[:200],
+                "evidence": [text for text in texts if text],
+            }
+    return {}
+
+
+def collect_graph_baseline_candidates(
+    titles: List[str],
+    search_fn,
+    logger,
+    max_retry: int = 3,
+) -> List[Dict[str, Any]]:
+    if not titles:
+        return []
+    pairs = [(title, f"{title} github") for title in titles if title]
+    if not pairs:
+        return []
+    queries = [query for _, query in pairs]
+    payload = search_fn(queries, max_retry=max_retry)
+    if not payload.get("success"):
+        logger.warning("⚠️ GitHub repo search failed: %s", payload.get("error"))
+        return []
+    sections = _split_search_sections(payload.get("results", ""))
+    output: List[Dict[str, Any]] = []
+    for title, query in pairs:
+        block = sections.get(query, "")
+        results = parse_search_results(block)
+        picked = _pick_github_repo_from_results(results)
+        if not picked:
+            continue
+        output.append(
+            {
+                "name": title,
+                "source": "paper_graph",
+                "repo_url": picked.get("repo_url", ""),
+                "usage": picked.get("usage", ""),
+                "evidence": picked.get("evidence", []),
+                "link": picked.get("repo_url", ""),
+                "scores": {},
+            }
+        )
+    return output
+
+
 def derive_label(title: str) -> str:
     cleaned = (title or "").strip()
     for sep in (" - ", " | ", " — ", " – ", ":"):
@@ -128,6 +207,44 @@ def _log_llm_output(label: str, response: str, logger, max_chars: int = 2000) ->
         print(f"🧠 LLM {label}: {clipped}")
 
 
+_GRAPH_BASELINE_MATCH_PROMPT = (
+    "You are scoring how well a baseline paper matches the idea context. "
+    "Given the idea card and a candidate node's fields (keywords/problem/innovation/scenarios), "
+    "return JSON: {\"match_score\": <0-100 number>} only.\n"
+    "IdeaCard:\n{idea_card}\n"
+    "NodeFields:\n{node_fields}\n"
+)
+
+
+def score_graph_baseline_match(
+    idea_card: Dict[str, Any],
+    node_fields: Dict[str, Any],
+    chat_fn,
+    model: str,
+    logger,
+) -> float:
+    payload = _GRAPH_BASELINE_MATCH_PROMPT.format(
+        idea_card=json.dumps(idea_card, ensure_ascii=False, indent=2),
+        node_fields=json.dumps(node_fields, ensure_ascii=False, indent=2),
+    )
+    try:
+        response = chat_fn(payload, temperature=0.1, max_tokens=200, model=model)
+        _log_llm_output("graph_baseline_match", response, logger)
+        parsed = parse_json_response(response)
+    except Exception as exc:  # pragma: no cover - network
+        logger.warning("⚠️ Graph baseline match scoring failed: %s", exc)
+        return 0.0
+
+    score = 0.0
+    if isinstance(parsed, dict):
+        score = float(parsed.get("match_score", 0) or 0)
+    elif isinstance(parsed, (int, float)):
+        score = float(parsed)
+    if score <= 1.0:
+        score *= 100.0
+    return max(score, 0.0)
+
+
 def compact_search_results(search_text: str, limit: int = 10) -> str:
     return _compact_search_results(search_text, limit=limit)
 
@@ -144,7 +261,7 @@ def preprocess_candidate_names(
 ) -> List[str]:
     if not names:
         return []
-    seed = [_normalize_candidate_name(name) for name in names if name]
+    seed = [name for name in names if name]
     seed = [name for name in seed if name and not _is_fragmented_name(name)]
     if not seed:
         return []
@@ -159,7 +276,7 @@ def preprocess_candidate_names(
         _log_llm_output(f"{kind}_preprocess", response, logger)
         parsed = parse_json_response(response)
         if isinstance(parsed, list):
-            cleaned = [_normalize_candidate_name(str(item)) for item in parsed if str(item).strip()]
+            cleaned = [str(item).strip() for item in parsed if str(item).strip()]
         else:
             cleaned = []
     except Exception as exc:  # pragma: no cover - network
@@ -172,7 +289,6 @@ def preprocess_candidate_names(
     seen: Set[str] = set()
     output: List[str] = []
     for name in cleaned:
-        name = _normalize_candidate_name(name)
         if not name or _is_fragmented_name(name):
             continue
         key = name.lower()
@@ -722,8 +838,7 @@ def build_dataset_seed_queries(
     domain = str(idea_card.get("domain") or "").strip()
     queries: List[str] = []
     if task:
-        queries.append(f"classic datasets for {task}")
-        queries.append(f"popular datasets for {task}")
+        queries.append(f"datasets for {task}")
         queries.append(f"benchmark datasets {task}")
     if domain:
         queries.append(f"{domain} datasets")
@@ -760,10 +875,8 @@ def build_baseline_seed_queries(
     task = (idea_card.get("task") or topic or idea_title).strip()
     queries: List[str] = []
     if task:
-        queries.append(f"classic baselines for {task}")
-        queries.append(f"standard baselines {task}")
-        queries.append(f"benchmark methods {task}")
-        queries.append(f"state of the art {task} baselines")
+        queries.append(f"baselines {task}")
+        queries.append(f"state of the art {task}")
     if idea_title:
         queries.append(f"{idea_title} baseline")
     for ref in references[:2]:
@@ -816,16 +929,6 @@ def parse_search_results_limited(search_text: str, per_query: int = 3) -> List[D
     return limited
 
 
-def _normalize_candidate_name(name: str) -> str:
-    cleaned = re.sub(r"[\\r\\n]+", " ", name or "").strip()
-    cleaned = re.sub(r"\\s{2,}", " ", cleaned)
-    cleaned = re.sub(r"\\b(dataset|datasets|baseline|baselines|benchmark|benchmarks)\\b", "", cleaned, flags=re.I)
-    cleaned = cleaned.strip(" -:;,.")
-    if len(cleaned) > 120:
-        cleaned = cleaned[:120].rstrip()
-    return cleaned
-
-
 
 def _is_fragmented_name(name: str) -> bool:
     tokens = [t for t in (name or "").split() if t]
@@ -861,7 +964,7 @@ def extract_candidate_names(
         _log_llm_output(f"{kind}_name_extraction", response, logger)
         parsed = parse_json_response(response)
         if isinstance(parsed, list):
-            names = [_normalize_candidate_name(str(item)) for item in parsed if str(item).strip()]
+            names = [str(item).strip() for item in parsed if str(item).strip()]
         else:
             names = []
     except Exception as exc:  # pragma: no cover - network
@@ -872,7 +975,6 @@ def extract_candidate_names(
         fallback: List[str] = []
         for item in parse_search_results_limited(search_text, per_query=3)[:12]:
             title = derive_label(item.get("title", ""))
-            title = _normalize_candidate_name(title)
             if title and not _is_fragmented_name(title):
                 fallback.append(title)
             if len(fallback) >= max_names:
@@ -882,16 +984,13 @@ def extract_candidate_names(
     seen: Set[str] = set()
     output: List[str] = []
     for name in names:
-        cleaned = _normalize_candidate_name(name)
-        if not cleaned:
+        if _is_fragmented_name(name):
             continue
-        if _is_fragmented_name(cleaned):
-            continue
-        key = cleaned.lower()
+        key = name.lower()
         if key in seen:
             continue
         seen.add(key)
-        output.append(cleaned)
+        output.append(name)
         if len(output) >= max_names:
             break
     return output
@@ -901,18 +1000,12 @@ def build_dataset_followup_queries(names: List[str], topic: str, idea_card: Dict
     queries: List[str] = []
     for name in names:
         if name:
-            queries.append(f"site:huggingface.co/datasets \"{name}\"")
-            queries.append(f"site:kaggle.com/datasets \"{name}\"")
-            queries.append(f"site:paperswithcode.com/dataset \"{name}\"")
             queries.append(f"\"{name}\" dataset")
     if not queries:
         task = (idea_card.get("task") or topic or "").strip()
         if task:
             queries.append(f"{task} dataset")
             queries.append(f"{task} benchmark dataset")
-            queries.append(f"site:huggingface.co/datasets {task}")
-            queries.append(f"site:kaggle.com/datasets {task}")
-            queries.append(f"site:paperswithcode.com/dataset {task}")
 
     seen: Set[str] = set()
     output: List[str] = []
@@ -936,7 +1029,6 @@ def build_dataset_fallback_queries(names: List[str], topic: str, idea_card: Dict
         if name:
             queries.append(f"\"{name}\" dataset")
             queries.append(f"\"{name}\" benchmark dataset")
-            queries.append(f"{name} data")
     if not queries:
         task = (idea_card.get("task") or topic or "").strip()
         if task:
@@ -991,14 +1083,11 @@ def build_baseline_followup_queries(names: List[str], topic: str, idea_card: Dic
     queries: List[str] = []
     for name in names:
         if name:
-            queries.append(f"site:arxiv.org \"{name}\"")
             queries.append(f"\"{name}\" arxiv")
-            queries.append(f"site:github.com \"{name}\"")
             queries.append(f"\"{name}\" github")
     if not queries:
         task = (idea_card.get("task") or topic or "").strip()
         if task:
-            queries.append(f"site:arxiv.org {task} baseline")
             queries.append(f"{task} baseline github")
 
     seen: Set[str] = set()

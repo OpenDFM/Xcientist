@@ -15,9 +15,9 @@ BasicInfo:
   debug: True
   error_conservatism_mode: False
 APIInfo:
-  llm_api_key: sk-ccvbi9mee9jjkgu6sunujtrcnk8lu78hxqya9en30o4gr56z
-  llm_api_base_url: https://api.xiaomimimo.com/v1/chat/completions
-  llm_model_name: mimo-v2-flash
+  llm_api_key: sk-BWZ0Kqbk3PvdF0zRFf69B63901B84e85A5B4D8B1AfE27e2e
+  llm_api_base_url: https://api.xi-ai.cn/v1
+  llm_model_name: gpt-4.1
   llm_max_context_length: 128000
   batch_chat_agent_worker: 4
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ

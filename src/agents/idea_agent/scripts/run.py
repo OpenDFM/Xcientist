@@ -66,6 +66,7 @@ def _run_topic(topic: str, max_turn: int, output_root: str, run_id: str, include
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "logs").mkdir(parents=True, exist_ok=True)
 
+    os.environ["IDEA_AGENT_TASK_TOPIC"] = topic
     print(f"[{topic}] 🏃 Starting run in {run_dir}...")
 
     init_logger(
@@ -95,8 +96,10 @@ def _run_topic(topic: str, max_turn: int, output_root: str, run_id: str, include
             agent.perform_action(action)
     except (Exception, KeyboardInterrupt):
         logger.info(agent.memory)
-        logger.error("Traceback:\n%s", traceback.format_exc())
-        raise
+        tb = traceback.format_exc()
+        logger.error("Traceback:\n%s", tb)
+        # Ensure the exception is picklable for ProcessPoolExecutor.
+        raise RuntimeError(f"Worker failed for topic '{topic}': {tb}") from None
 
     logger.info("✅ Finished topic '%s'. Results in %s", topic, run_dir)
     return str(run_dir)

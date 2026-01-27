@@ -202,7 +202,7 @@ class LongTermMemoryAccessor:
                 # Create the memory store instance
                 self._stores[memory_type] = FAISSMemorySystem(
                     memory_type=memory_type,
-                    llm_name="mimo-v2-flash",
+                    llm_name="gpt-4.1",
                     backend="openai",
                     **cfg,
                 )
@@ -292,7 +292,7 @@ class LongTermMemoryAccessor:
             self.logger.info("ℹ️ Skipping persistence because semantic store is unavailable.")
             return
         
-        slot_process = SlotProcess(llm_name="mimo-v2-flash", llm_backend="openai") # lazy loading
+        slot_process = SlotProcess(llm_name="gpt-4.1", llm_backend="openai") # lazy loading
         try:
             # 1. Multi-threaded run for contexts transformation
             working_slots = slot_process.transfer_idea_agent_context_to_working_slots(experience)
@@ -555,12 +555,12 @@ class IdeaNode:
 
 @dataclass
 class MCTSConfig:
-    max_iterations = 2
+    max_iterations = 1
     max_depth = 4
     branching_factor: int = 3
     exploration_constant: float = 1.15
-    generation_model: str = "mimo-v2-flash"
-    evaluation_model: str = "mimo-v2-flash"
+    generation_model: str = "gpt-4.1"
+    evaluation_model: str = "gpt-4.1"
     generation_temperature: float = 0.65
     evaluation_temperature: float = 0.0
     min_confidence_for_memory: float = 0.6

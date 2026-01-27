@@ -14,7 +14,6 @@ from src.agents.idea_agent.utils.ligagent_utils import parse_json_response
 from src.agents.idea_agent.utils.ligagent_suggestion_utils import (
     _compact_search_results,
     _log_llm_output,
-    _normalize_candidate_name,
     fetch_url_text,
     parse_search_results_limited,
 )
@@ -77,7 +76,7 @@ def _normalize_browse_candidates(kind: str, payload: Any) -> List[Dict[str, Any]
                 continue
             candidates.append(
                 {
-                    "dataset_name": _normalize_candidate_name(str(name)),
+                    "dataset_name": str(name).strip(),
                     "access_link": str(access).strip(),
                     "evidence_snippets": item.get("evidence_snippets") or [],
                 }
@@ -96,8 +95,8 @@ def _normalize_browse_candidates(kind: str, payload: Any) -> List[Dict[str, Any]
                 continue
             candidates.append(
                 {
-                    "paper_title": _normalize_candidate_name(str(paper_title)),
-                    "baseline_method": _normalize_candidate_name(str(method)) if method else "",
+                    "paper_title": str(paper_title).strip(),
+                    "baseline_method": str(method).strip() if method else "",
                     "arxiv_link": str(arxiv).strip(),
                     "github_link": str(github).strip(),
                     "evidence_snippets": item.get("evidence_snippets") or [],
@@ -170,7 +169,7 @@ def _browse_search_results(
             name = item.get("dataset_name") or ""
         else:
             name = item.get("paper_title") or item.get("baseline_method") or ""
-        name = _normalize_candidate_name(str(name))
+        name = str(name).strip()
         if name:
             names.append(name)
     return "\n\n".join(outputs).strip(), candidates, names

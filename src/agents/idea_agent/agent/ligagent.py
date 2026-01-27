@@ -107,7 +107,7 @@ class LigAgent(AgentBase):
             "re_analysis_replan",
         ]
         self.action_selection_attempts = max(1, action_selection_attempts)
-        self.model = "mimo-v2-flash"
+        self.model = "gpt-4.1"
         self.tools = TOOLS
         self.memory = memory_init()
         self.run_dir = Path(run_dir) if run_dir else Path(__file__).resolve().parent.parent
@@ -227,6 +227,8 @@ class LigAgent(AgentBase):
             if isinstance(retrieval_keywords, str)
             else normalized_topic
         )
+        if not self.memory.get("run_topic"):
+            self.memory["run_topic"] = normalized_topic
         self.memory["topic"].append(normalized_topic)
         self.memory["retrieval_keywords"].append(keywords)
         background = generate_background_brief(

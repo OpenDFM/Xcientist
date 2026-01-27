@@ -2,6 +2,7 @@ from typing import List
 
 MEMORY_FORMAT = {
     "topic": str, # research topic
+    "run_topic": str, # original topic from launcher/env
     "survey": str, # survey of the topic
     "background_knowledge": List[str], # list of background knowledge strings
     "analysis":  List[str], # list of analysis strings
@@ -18,6 +19,7 @@ MEMORY_FORMAT = {
 def memory_init() -> dict:
     memory = {
         "topic": [],
+        "run_topic": "",
         "survey": "",
         "background_knowledge": [],
         "analysis": [],

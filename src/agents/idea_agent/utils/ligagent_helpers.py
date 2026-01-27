@@ -1,22 +1,23 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Any, Dict, List, Optional, Set
 
 from src.agents.idea_agent.utils.idea_helpers import fallback_algorithm_spec, search_web
+from src.agents.idea_agent.utils.graph_baseline_search import rank_method_paper_nodes_weighted
 from src.agents.idea_agent.utils.ligagent_react_utils import react_websearch
 from src.agents.idea_agent.utils.ligagent_suggestion_utils import (
     build_baseline_idea_card,
-    build_baseline_followup_queries,
     build_baseline_seed_queries,
     build_dataset_idea_card,
     build_dataset_fallback_queries,
-    build_dataset_followup_queries,
     build_dataset_seed_queries,
     build_datasetsearch_direct_candidates,
+    collect_graph_baseline_candidates,
     collect_top_baseline_names_from_memory,
     collect_top_dataset_names_from_memory,
     dedupe_named,
@@ -27,6 +28,7 @@ from src.agents.idea_agent.utils.ligagent_suggestion_utils import (
     postprocess_suggestions,
     preprocess_candidate_names,
     score_dataset_candidate,
+    score_graph_baseline_match,
     score_baseline_candidate,
     select_dataset_candidates,
     select_baseline_candidates,
@@ -55,8 +57,6 @@ def build_action_lookup(action_aliases: Dict[str, Set[str]]) -> Dict[str, str]:
 
 _ARXIV_URL_RE = re.compile(r"https?://(?:export\.)?arxiv\.org/(?:abs|pdf)/[^\s\]>\"')]+", re.IGNORECASE)
 _GITHUB_URL_RE = re.compile(r"https?://github\.com/[^\s\]>\"')]+", re.IGNORECASE)
-
-
 def _extract_first_url(pattern: re.Pattern[str], texts: List[str]) -> str:
     for text in texts:
         if not text:
@@ -693,6 +693,8 @@ def suggest_datasets(
             search_fn=search_web,
             max_steps=5,
         )
+        logger.info("🔎 Dataset websearch (primary) found names: %s", primary_result.get("found_names"))
+        logger.info("🔎 Dataset websearch (primary) browse candidates: %s", primary_result.get("browse_candidates"))
         primary_text = primary_result.get("search_text", "")
         primary_candidates = merge_dataset_candidates(primary_text)
         primary_browse = primary_result.get("browse_candidates", [])
@@ -773,6 +775,8 @@ def suggest_datasets(
             search_fn=search_web,
             max_steps=5,
         )
+        logger.info("🔎 Dataset websearch (fallback) found names: %s", extra_result.get("found_names"))
+        logger.info("🔎 Dataset websearch (fallback) browse candidates: %s", extra_result.get("browse_candidates"))
         search_text = extra_result.get("search_text", "")
         extra_candidates = merge_dataset_candidates(search_text)
         extra_browse = extra_result.get("browse_candidates", [])
@@ -882,6 +886,13 @@ def suggest_baselines(
     logger,
     memory: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
+    graph_task = None
+    if memory:
+        graph_task = memory.get("run_topic") or None
+    if not graph_task:
+        graph_task = os.environ.get("IDEA_AGENT_TASK_TOPIC") or None
+    if not graph_task:
+        graph_task = topic
     idea_card = build_baseline_idea_card(
         topic=topic,
         best_entry=best_entry,
@@ -892,6 +903,97 @@ def suggest_baselines(
         model=model,
         logger=logger,
     )
+    graph_ranked = rank_method_paper_nodes_weighted(
+        topic=graph_task,
+        top_k=20,
+        degree_weight=0.05,
+        similarity_weight=0.95,
+    )
+    if graph_ranked:
+        logger.info("🧭 Graph task: %s", graph_task)
+        logger.info(
+            "🧭 Graph top paper titles: %s",
+            ", ".join(item.get("paper_title", "") for item in graph_ranked if item.get("paper_title")),
+        )
+        logger.info(
+            "🧭 Graph scores: %s",
+            "; ".join(
+                f"{item.get('paper_title')} (degree={item.get('degree_score'):.3f}, sim={item.get('similarity_score'):.3f}, w={item.get('score'):.3f})"
+                for item in graph_ranked
+                if item.get("paper_title")
+            ),
+        )
+    graph_queries = [item.get("paper_title") for item in graph_ranked if item.get("paper_title")]
+    if graph_queries:
+        repo_candidates = collect_graph_baseline_candidates(
+            graph_queries,
+            search_fn=search_web,
+            logger=logger,
+            max_retry=3,
+        )
+        repo_map = {cand.get("name", "").lower(): cand for cand in repo_candidates if cand.get("repo_url")}
+        logger.info("🧭 Graph GitHub candidates: %s", [c.get("repo_url") for c in repo_candidates])
+        filtered_nodes: List[Dict[str, Any]] = []
+        for item in graph_ranked:
+            query = (item.get("paper_title") or "").lower()
+            repo = repo_map.get(query)
+            if not repo:
+                continue
+            merged = dict(item)
+            merged["repo_url"] = repo.get("repo_url")
+            merged["evidence"] = repo.get("evidence", [])
+            merged["usage"] = repo.get("usage", "")
+            merged["link"] = repo.get("repo_url")
+            filtered_nodes.append(merged)
+        logger.info("🧭 Graph nodes with GitHub: %s", len(filtered_nodes))
+        if filtered_nodes:
+            for item in filtered_nodes:
+                node_fields = {
+                    "keywords": item.get("keywords", ""),
+                    "problem": item.get("problem", ""),
+                    "innovation": item.get("innovation", ""),
+                    "scenarios": item.get("scenarios", ""),
+                }
+                item["match_score"] = score_graph_baseline_match(
+                    idea_card=idea_card,
+                    node_fields=node_fields,
+                    chat_fn=chat_fn,
+                    model=model,
+                    logger=logger,
+                )
+            filtered_nodes.sort(key=lambda x: x.get("match_score", 0), reverse=True)
+            logger.info(
+                "🧭 Graph rerank scores: %s",
+                "; ".join(
+                    f"{item.get('paper_title')} ({item.get('match_score'):.1f})" for item in filtered_nodes[:5]
+                ),
+            )
+            baselines: List[Dict[str, Any]] = []
+            for item in filtered_nodes[:5]:
+                name = item.get("paper_title") or item.get("title") or ""
+                if not name or not item.get("repo_url"):
+                    continue
+                baselines.append(
+                    {
+                        "name": name,
+                        "source": "paper_graph",
+                        "repo_url": item.get("repo_url", ""),
+                        "usage": item.get("innovation")
+                        or item.get("problem")
+                        or item.get("usage", "")
+                        or "Matched via graph rerank.",
+                        "evidence": item.get("evidence", []),
+                        "link": item.get("link") or item.get("repo_url", ""),
+                        "scores": {
+                            "graph_degree": item.get("degree_score"),
+                            "graph_similarity": item.get("similarity_score"),
+                            "graph_weighted": item.get("score"),
+                            "match": item.get("match_score"),
+                        },
+                    }
+                )
+            if baselines:
+                return baselines
     top_from_keynotes = collect_top_baseline_names_from_memory(memory, top_k=5)
     top_from_keynotes = preprocess_candidate_names(
         "baseline",
@@ -918,6 +1020,8 @@ def suggest_baselines(
             search_fn=search_web,
             max_steps=5,
         )
+        logger.info("🔎 React websearch (primary) found names: %s", primary_result.get("found_names"))
+        logger.info("🔎 React websearch (primary) browse candidates: %s", primary_result.get("browse_candidates"))
         primary_text = primary_result.get("search_text", "")
         primary_candidates = merge_baseline_candidates(primary_text)
         primary_browse = primary_result.get("browse_candidates", [])
@@ -981,6 +1085,8 @@ def suggest_baselines(
         search_fn=search_web,
         max_steps=5,
     )
+    logger.info("🔎 React websearch (fallback) found names: %s", search_result.get("found_names"))
+    logger.info("🔎 React websearch (fallback) browse candidates: %s", search_result.get("browse_candidates"))
     search_text = search_result.get("search_text", "")
     extra_browse = search_result.get("browse_candidates", [])
     candidates = merge_baseline_candidates(search_text)
@@ -1080,16 +1186,12 @@ def suggest_baselines(
 
     pre_post_baselines = baselines[:]
     baselines = postprocess_suggestions("baseline", baselines, chat_fn=chat_fn, model=model, logger=logger, max_keep=5)
-    baselines = [
-        b
-        for b in baselines
-        if (b.get("name") and b.get("repo_url") and b.get("link") and "arxiv.org" in (b.get("link") or ""))
-    ]
+    baselines = [b for b in baselines if (b.get("name") and b.get("repo_url"))]
     if not baselines:
         baselines = [
             b
             for b in pre_post_baselines
-            if (b.get("name") and b.get("repo_url") and b.get("link") and "arxiv.org" in (b.get("link") or ""))
+            if (b.get("name") and b.get("repo_url"))
         ][:5]
 
     baselines = dedupe_named(baselines, "name")
