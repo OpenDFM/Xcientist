@@ -27,6 +27,7 @@ from agent.prompts.dataset_idea_card import DATASET_IDEA_CARD_PROMPT
 from agent.prompts.dataset_query_generation import DATASET_QUERY_GENERATION_PROMPT
 from agent.prompts.dataset_candidate_scoring import DATASET_CANDIDATE_SCORING_PROMPT
 from agent.prompts.baseline_candidate_scoring import BASELINE_CANDIDATE_SCORING_PROMPT
+from agent.prompts.graph_baseline_match import GRAPH_BASELINE_MATCH_PROMPT
 
 
 PROMPTS = {

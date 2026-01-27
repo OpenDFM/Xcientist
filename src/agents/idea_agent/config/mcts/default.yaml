@@ -1,0 +1,13 @@
+mcts:
+  max_iterations: 1
+  max_depth: 4
+  branching_factor: 3
+  exploration_constant: 1.15
+  generation_model: "gpt-4.1"
+  evaluation_model: "gpt-4.1"
+  generation_temperature: 0.65
+  evaluation_temperature: 0.0
+  generation_max_tokens: 8192
+  evaluation_max_tokens: 8192
+  min_confidence_for_memory: 0.6
+  pareto_top_k: 5

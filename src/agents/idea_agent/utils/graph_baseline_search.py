@@ -35,14 +35,6 @@ _STOPWORDS = {
 
 
 @dataclass(frozen=True)
-class MethodNode:
-    node_id: str
-    title: str
-    degree: float
-    tokens: Counter
-
-
-@dataclass(frozen=True)
 class MethodPaperNode:
     node_id: str
     title: str
@@ -54,15 +46,7 @@ class MethodPaperNode:
     degree: float
     tokens: Counter
 
-
-@dataclass(frozen=True)
-class DatasetNode:
-    node_id: str
-    title: str
-    degree: float
-    tokens: Counter
-
-
+# Currently saving the graph as .gexf in the idea_agent.
 def _default_graph_path() -> str:
     return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "paper_graph.gexf"))
 
@@ -110,30 +94,9 @@ def _is_method_paper_node(data: Dict[str, str]) -> bool:
     )
 
 
-def _is_dataset_node(data: Dict[str, str]) -> bool:
-    group = data.get("group")
-    if not isinstance(group, str):
-        return False
-    normalized = group.strip().lower()
-    return normalized in {"benchmark", "dataset"}
-
-
 @lru_cache(maxsize=2)
 def _load_graph(graph_path: str) -> nx.Graph:
     return nx.read_gexf(graph_path)
-
-
-@lru_cache(maxsize=2)
-def _load_method_nodes(graph_path: str) -> List[MethodNode]:
-    graph = _load_graph(graph_path)
-    nodes: List[MethodNode] = []
-    for node_id, data in graph.nodes(data=True):
-        if not _is_method_node(data):
-            continue
-        title = _node_title(node_id, data)
-        tokens = Counter(_tokenize(title))
-        nodes.append(MethodNode(node_id=node_id, title=title, degree=float(graph.degree(node_id)), tokens=tokens))
-    return nodes
 
 
 @lru_cache(maxsize=2)
@@ -161,83 +124,6 @@ def _load_method_paper_nodes(graph_path: str) -> List[MethodPaperNode]:
             )
         )
     return nodes
-
-
-@lru_cache(maxsize=2)
-def _load_dataset_nodes(graph_path: str) -> List[DatasetNode]:
-    graph = _load_graph(graph_path)
-    nodes: List[DatasetNode] = []
-    for node_id, data in graph.nodes(data=True):
-        if not _is_dataset_node(data):
-            continue
-        title = _node_title(node_id, data)
-        tokens = Counter(_tokenize(title))
-        nodes.append(DatasetNode(node_id=node_id, title=title, degree=float(graph.degree(node_id)), tokens=tokens))
-    return nodes
-
-
-def rank_method_nodes_by_degree(
-    graph_path: Optional[str] = None,
-    top_k: int = 5,
-) -> List[Dict[str, float]]:
-    path = graph_path or _default_graph_path()
-    nodes = _load_method_nodes(path)
-    ranked = sorted(nodes, key=lambda item: (-item.degree, item.title))
-    return [
-        {"title": node.title, "degree": node.degree, "score": node.degree}
-        for node in ranked[: max(top_k, 0)]
-    ]
-
-
-def rank_method_nodes_by_similarity(
-    topic: str,
-    graph_path: Optional[str] = None,
-    top_k: int = 5,
-) -> List[Dict[str, float]]:
-    path = graph_path or _default_graph_path()
-    nodes = _load_method_nodes(path)
-    topic_tokens = Counter(_tokenize(topic))
-    scored = []
-    for node in nodes:
-        similarity = _cosine_similarity(topic_tokens, node.tokens)
-        scored.append((similarity, node))
-    scored.sort(key=lambda item: (-item[0], item[1].title))
-    return [
-        {"title": node.title, "similarity": similarity, "score": similarity}
-        for similarity, node in scored[: max(top_k, 0)]
-    ]
-
-
-def rank_method_nodes_weighted(
-    topic: str,
-    graph_path: Optional[str] = None,
-    top_k: int = 5,
-    degree_weight: float = 0.5,
-    similarity_weight: float = 0.5,
-) -> List[Dict[str, float]]:
-    path = graph_path or _default_graph_path()
-    nodes = _load_method_nodes(path)
-    if not nodes:
-        return []
-    max_degree = max((node.degree for node in nodes), default=0.0) or 1.0
-    topic_tokens = Counter(_tokenize(topic))
-    scored = []
-    for node in nodes:
-        degree_score = node.degree / max_degree
-        similarity_score = _cosine_similarity(topic_tokens, node.tokens)
-        combined = degree_weight * degree_score + similarity_weight * similarity_score
-        scored.append((combined, degree_score, similarity_score, node))
-    scored.sort(key=lambda item: (-item[0], item[3].title))
-    return [
-        {
-            "title": node.title,
-            "degree": node.degree,
-            "degree_score": degree_score,
-            "similarity_score": similarity_score,
-            "score": combined,
-        }
-        for combined, degree_score, similarity_score, node in scored[: max(top_k, 0)]
-    ]
 
 
 def rank_method_paper_nodes_weighted(
@@ -277,100 +163,3 @@ def rank_method_paper_nodes_weighted(
         for combined, degree_score, similarity_score, node in scored[: max(top_k, 0)]
     ]
 
-
-def get_top_method_titles(
-    topic: str,
-    graph_path: Optional[str] = None,
-    top_k: int = 5,
-    degree_weight: float = 0.5,
-    similarity_weight: float = 0.5,
-) -> List[str]:
-    ranked = rank_method_nodes_weighted(
-        topic=topic,
-        graph_path=graph_path,
-        top_k=top_k,
-        degree_weight=degree_weight,
-        similarity_weight=similarity_weight,
-    )
-    return [item["title"] for item in ranked if item.get("title")]
-
-
-def rank_dataset_nodes_by_degree(
-    graph_path: Optional[str] = None,
-    top_k: int = 5,
-) -> List[Dict[str, float]]:
-    path = graph_path or _default_graph_path()
-    nodes = _load_dataset_nodes(path)
-    ranked = sorted(nodes, key=lambda item: (-item.degree, item.title))
-    return [
-        {"title": node.title, "degree": node.degree, "score": node.degree}
-        for node in ranked[: max(top_k, 0)]
-    ]
-
-
-def rank_dataset_nodes_by_similarity(
-    topic: str,
-    graph_path: Optional[str] = None,
-    top_k: int = 5,
-) -> List[Dict[str, float]]:
-    path = graph_path or _default_graph_path()
-    nodes = _load_dataset_nodes(path)
-    topic_tokens = Counter(_tokenize(topic))
-    scored = []
-    for node in nodes:
-        similarity = _cosine_similarity(topic_tokens, node.tokens)
-        scored.append((similarity, node))
-    scored.sort(key=lambda item: (-item[0], item[1].title))
-    return [
-        {"title": node.title, "similarity": similarity, "score": similarity}
-        for similarity, node in scored[: max(top_k, 0)]
-    ]
-
-
-def rank_dataset_nodes_weighted(
-    topic: str,
-    graph_path: Optional[str] = None,
-    top_k: int = 5,
-    degree_weight: float = 0.5,
-    similarity_weight: float = 0.5,
-) -> List[Dict[str, float]]:
-    path = graph_path or _default_graph_path()
-    nodes = _load_dataset_nodes(path)
-    if not nodes:
-        return []
-    max_degree = max((node.degree for node in nodes), default=0.0) or 1.0
-    topic_tokens = Counter(_tokenize(topic))
-    scored = []
-    for node in nodes:
-        degree_score = node.degree / max_degree
-        similarity_score = _cosine_similarity(topic_tokens, node.tokens)
-        combined = degree_weight * degree_score + similarity_weight * similarity_score
-        scored.append((combined, degree_score, similarity_score, node))
-    scored.sort(key=lambda item: (-item[0], item[3].title))
-    return [
-        {
-            "title": node.title,
-            "degree": node.degree,
-            "degree_score": degree_score,
-            "similarity_score": similarity_score,
-            "score": combined,
-        }
-        for combined, degree_score, similarity_score, node in scored[: max(top_k, 0)]
-    ]
-
-
-def get_top_dataset_titles(
-    topic: str,
-    graph_path: Optional[str] = None,
-    top_k: int = 5,
-    degree_weight: float = 0.5,
-    similarity_weight: float = 0.5,
-) -> List[str]:
-    ranked = rank_dataset_nodes_weighted(
-        topic=topic,
-        graph_path=graph_path,
-        top_k=top_k,
-        degree_weight=degree_weight,
-        similarity_weight=similarity_weight,
-    )
-    return [item["title"] for item in ranked if item.get("title")]

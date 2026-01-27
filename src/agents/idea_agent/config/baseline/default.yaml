@@ -1,0 +1,44 @@
+baseline:
+  memory_top_k: 5
+  preprocess_max_items: 5
+  seed:
+    extract_max_names: 8
+    preprocess_max_items: 6
+  graph:
+    top_k: 50
+    degree_weight: 0.05
+    similarity_weight: 0.95
+    repo_search_max_retry: 3
+  react:
+    max_steps: 5
+    max_urls: 2
+    browse_max_chars: 18000
+    observation_limit: 6
+    search_max_retry: 3
+    llm:
+      temperature: 0.1
+      step_max_tokens: 200
+      browse_max_tokens: 700
+  llm:
+    temperature: 0.1
+    idea_card_max_tokens: 1200
+    query_generation_max_tokens: 512
+    name_extraction_max_tokens: 300
+    preprocess_max_tokens: 400
+    postprocess_max_tokens: 200
+    graph_match_max_tokens: 200
+    candidate_scoring_max_tokens: 800
+  scoring:
+    fetch_max_chars: 3500
+    page_text_max_chars: 2000
+    evidence_max_chars: 3500
+    github_bonus: 0.5
+    arxiv_bonus: 0.3
+    evidence_github_bonus: 0.2
+    missing_link_penalty: -0.8
+  selection:
+    target: 10
+    combined_limit: 10
+    output_limit: 10
+    postprocess_max_keep: 10
+    dedupe_limit: 10

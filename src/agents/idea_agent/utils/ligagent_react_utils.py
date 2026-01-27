@@ -113,6 +113,8 @@ def _browse_url(
     model: str,
     logger,
     max_chars: int = 18000,
+    temperature: float = 0.1,
+    max_tokens: int = 700,
 ) -> tuple[str, List[Dict[str, Any]]]:
     if not url:
         return "", []
@@ -121,7 +123,7 @@ def _browse_url(
         return "", []
     prompt = _browse_prompt(source_text, browse_query, kind)
     try:
-        response = chat_fn(prompt, temperature=0.1, max_tokens=700, model=model)
+        response = chat_fn(prompt, temperature=temperature, max_tokens=max_tokens, model=model)
         _log_llm_output("browse_answer", response, logger)
         text = (response or "").strip()
         try:
@@ -143,6 +145,9 @@ def _browse_search_results(
     model: str,
     logger,
     max_urls: int = 2,
+    browse_max_chars: int = 18000,
+    temperature: float = 0.1,
+    max_tokens: int = 700,
 ) -> tuple[str, List[Dict[str, Any]], List[str]]:
     results = parse_search_results_limited(search_text, per_query=3)
     urls: List[str] = []
@@ -158,7 +163,17 @@ def _browse_search_results(
     outputs: List[str] = []
     candidates: List[Dict[str, Any]] = []
     for url in urls:
-        answer, extracted = _browse_url(url, browse_query, kind, chat_fn=chat_fn, model=model, logger=logger)
+        answer, extracted = _browse_url(
+            url,
+            browse_query,
+            kind,
+            chat_fn=chat_fn,
+            model=model,
+            logger=logger,
+            max_chars=browse_max_chars,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
         if answer:
             outputs.append(f"--- answer based on [{url}] ---\n{answer}\n--- end of answer ---")
         if extracted:
@@ -185,6 +200,13 @@ def react_websearch(
     logger,
     search_fn: Callable[[List[str], int], Dict[str, Any]],
     max_steps: int = 5,
+    max_urls: int = 2,
+    browse_max_chars: int = 18000,
+    observation_limit: int = 6,
+    search_max_retry: int = 3,
+    llm_temperature: float = 0.1,
+    llm_step_max_tokens: int = 200,
+    llm_browse_max_tokens: int = 700,
 ) -> Dict[str, Any]:
     if max_steps <= 0:
         return {"search_text": "", "browse_candidates": [], "found_names": []}
@@ -215,7 +237,12 @@ def react_websearch(
         stop = False
         think = ""
         try:
-            response = chat_fn(payload, temperature=0.1, max_tokens=200, model=model)
+            response = chat_fn(
+                payload,
+                temperature=llm_temperature,
+                max_tokens=llm_step_max_tokens,
+                model=model,
+            )
             _log_llm_output(f"{kind}_react_step_{step}", response, logger)
             parsed = parse_json_response(response)
             if isinstance(parsed, dict):
@@ -258,14 +285,14 @@ def react_websearch(
         _log_react_event(f"{kind} step {step} ACT", f"search: {query}", logger)
 
         try:
-            payload = search_fn([query], max_retry=3)
+            payload = search_fn([query], max_retry=search_max_retry)
             results_text = payload.get("results", "")
         except Exception as exc:  # pragma: no cover - network
             logger.warning("\u26A0\ufe0f %s ReAct search failed: %s", kind.title(), exc)
             results_text = ""
         if results_text:
             combined_text = f"{combined_text}\n{results_text}" if combined_text else results_text
-            observation = _compact_search_results(results_text, limit=6)
+            observation = _compact_search_results(results_text, limit=observation_limit)
             browse_text, extracted_candidates, extracted_names = _browse_search_results(
                 results_text,
                 browse_query,
@@ -273,7 +300,10 @@ def react_websearch(
                 chat_fn=chat_fn,
                 model=model,
                 logger=logger,
-                max_urls=2,
+                max_urls=max_urls,
+                browse_max_chars=browse_max_chars,
+                temperature=llm_temperature,
+                max_tokens=llm_browse_max_tokens,
             )
             if browse_text:
                 combined_text = f"{combined_text}\n{browse_text}"

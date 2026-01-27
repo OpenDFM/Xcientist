@@ -24,6 +24,7 @@ from src.agents.idea_agent.agent.prompts import (
     POSTPROCESS_SUGGESTIONS_PROMPT,
     PREPROCESS_CANDIDATE_NAMES_PROMPT,
 )
+from src.agents.idea_agent.agent.prompts.graph_baseline_match import GRAPH_BASELINE_MATCH_PROMPT
 from src.agents.idea_agent.utils.ligagent_utils import (
     extract_baseline_names,
     extract_dataset_names,
@@ -207,28 +208,21 @@ def _log_llm_output(label: str, response: str, logger, max_chars: int = 2000) ->
         print(f"🧠 LLM {label}: {clipped}")
 
 
-_GRAPH_BASELINE_MATCH_PROMPT = (
-    "You are scoring how well a baseline paper matches the idea context. "
-    "Given the idea card and a candidate node's fields (keywords/problem/innovation/scenarios), "
-    "return JSON: {\"match_score\": <0-100 number>} only.\n"
-    "IdeaCard:\n{idea_card}\n"
-    "NodeFields:\n{node_fields}\n"
-)
-
-
 def score_graph_baseline_match(
     idea_card: Dict[str, Any],
     node_fields: Dict[str, Any],
     chat_fn,
     model: str,
     logger,
+    temperature: float = 0.1,
+    max_tokens: int = 200,
 ) -> float:
-    payload = _GRAPH_BASELINE_MATCH_PROMPT.format(
+    payload = GRAPH_BASELINE_MATCH_PROMPT.format(
         idea_card=json.dumps(idea_card, ensure_ascii=False, indent=2),
         node_fields=json.dumps(node_fields, ensure_ascii=False, indent=2),
     )
     try:
-        response = chat_fn(payload, temperature=0.1, max_tokens=200, model=model)
+        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
         _log_llm_output("graph_baseline_match", response, logger)
         parsed = parse_json_response(response)
     except Exception as exc:  # pragma: no cover - network
@@ -237,7 +231,12 @@ def score_graph_baseline_match(
 
     score = 0.0
     if isinstance(parsed, dict):
-        score = float(parsed.get("match_score", 0) or 0)
+        if "match_score" in parsed:
+            score = float(parsed.get("match_score", 0) or 0)
+        elif "weighted_score" in parsed:
+            score = float(parsed.get("weighted_score", 0) or 0)
+            if score <= 5.0:
+                score = score / 5.0 * 100.0
     elif isinstance(parsed, (int, float)):
         score = float(parsed)
     if score <= 1.0:
@@ -258,6 +257,8 @@ def preprocess_candidate_names(
     model: str,
     logger,
     max_items: int = 8,
+    temperature: float = 0.1,
+    max_tokens: int = 400,
 ) -> List[str]:
     if not names:
         return []
@@ -272,7 +273,7 @@ def preprocess_candidate_names(
         candidates=json.dumps(seed[:max_items * 2], ensure_ascii=False),
     )
     try:
-        response = chat_fn(payload, temperature=0.1, max_tokens=400, model=model)
+        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
         _log_llm_output(f"{kind}_preprocess", response, logger)
         parsed = parse_json_response(response)
         if isinstance(parsed, list):
@@ -308,6 +309,8 @@ def postprocess_suggestions(
     model: str,
     logger,
     max_keep: int = 5,
+    temperature: float = 0.1,
+    max_tokens: int = 200,
 ) -> List[Dict[str, Any]]:
     if not items:
         return []
@@ -323,7 +326,7 @@ def postprocess_suggestions(
         max_keep=max_keep,
     )
     try:
-        response = chat_fn(payload, temperature=0.1, max_tokens=200, model=model)
+        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
         parsed = parse_json_response(response)
     except Exception as exc:  # pragma: no cover - network
         logger.warning("⚠️ %s postprocess failed: %s", kind.title(), exc)
@@ -708,6 +711,8 @@ def build_baseline_idea_card(
     chat_fn,
     model: str,
     logger,
+    temperature: float = 0.1,
+    max_tokens: int = 1200,
 ) -> Dict[str, Any]:
     prompt = prompts.get("baseline_idea_card") or BASELINE_IDEA_CARD_PROMPT
     payload = prompt.format(
@@ -717,7 +722,7 @@ def build_baseline_idea_card(
         references=json.dumps(references[:6], ensure_ascii=False, indent=2),
     )
     try:
-        response = chat_fn(payload, temperature=0.1, max_tokens=1200, model=model)
+        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
         _log_llm_output("baseline_idea_card", response, logger)
         parsed = parse_json_response(response)
         if isinstance(parsed, dict):
@@ -742,6 +747,8 @@ def build_baseline_queries(
     chat_fn,
     model: str,
     logger,
+    temperature: float = 0.1,
+    max_tokens: int = 512,
 ) -> List[str]:
     idea_title = best_entry.get("title", "")
     idea_context = trim_query_context(best_entry.get("abstract") or best_entry.get("core_contribute") or "")
@@ -814,7 +821,7 @@ def build_baseline_queries(
         reference_titles=json.dumps(reference_titles, ensure_ascii=False),
     )
     try:
-        response = chat_fn(llm_payload, temperature=0.1, max_tokens=512, model=model)
+        response = chat_fn(llm_payload, temperature=temperature, max_tokens=max_tokens, model=model)
         _log_llm_output("baseline_query_generation", response, logger)
         parsed = parse_json_response(response)
         llm_queries = _sanitize_queries(parsed, limit=10)
@@ -949,6 +956,8 @@ def extract_candidate_names(
     model: str,
     logger,
     max_names: int = 8,
+    temperature: float = 0.1,
+    max_tokens: int = 300,
 ) -> List[str]:
     compact = _compact_search_results(search_text, limit=10)
     if not compact:
@@ -960,7 +969,7 @@ def extract_candidate_names(
         results=compact,
     )
     try:
-        response = chat_fn(payload, temperature=0.1, max_tokens=300, model=model)
+        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
         _log_llm_output(f"{kind}_name_extraction", response, logger)
         parsed = parse_json_response(response)
         if isinstance(parsed, list):
@@ -1114,6 +1123,8 @@ def build_dataset_idea_card(
     chat_fn,
     model: str,
     logger,
+    temperature: float = 0.1,
+    max_tokens: int = 800,
 ) -> Dict[str, Any]:
     prompt = prompts.get("dataset_idea_card") or DATASET_IDEA_CARD_PROMPT
     payload = prompt.format(
@@ -1122,7 +1133,7 @@ def build_dataset_idea_card(
         references=json.dumps(references[:6], ensure_ascii=False, indent=2),
     )
     try:
-        response = chat_fn(payload, temperature=0.1, max_tokens=800, model=model)
+        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
         _log_llm_output("dataset_idea_card", response, logger)
         parsed = parse_json_response(response)
         if isinstance(parsed, dict):
@@ -1148,6 +1159,8 @@ def build_dataset_queries(
     chat_fn,
     model: str,
     logger,
+    temperature: float = 0.1,
+    max_tokens: int = 512,
 ) -> List[str]:
     idea_title = best_entry.get("title", "")
     idea_context = trim_query_context(best_entry.get("abstract") or best_entry.get("core_contribute") or "")
@@ -1217,7 +1230,7 @@ def build_dataset_queries(
     )
     llm_queries: List[str] = []
     try:
-        response = chat_fn(llm_payload, temperature=0.1, max_tokens=512, model=model)
+        response = chat_fn(llm_payload, temperature=temperature, max_tokens=max_tokens, model=model)
         _log_llm_output("dataset_query_generation", response, logger)
         parsed = parse_json_response(response)
         llm_queries = _sanitize_queries(parsed, limit=10)
@@ -1266,20 +1279,31 @@ def score_dataset_candidate(
     chat_fn,
     model: str,
     logger,
+    temperature: float = 0.1,
+    max_tokens: int = 700,
+    fetch_max_chars: int = 2500,
+    page_text_max_chars: int = 2000,
+    evidence_max_chars: int = 3500,
+    bonus_huggingface: float = 0.5,
+    bonus_kaggle: float = 0.4,
+    bonus_paperswithcode: float = 0.4,
+    bonus_datasetsearch: float = 0.2,
 ) -> Dict[str, Any]:
     evidence_text = candidate.get("snippet") or ""
-    page_text = fetch_url_text(candidate.get("url") or "", logger=logger, max_chars=2500)
+    page_text = fetch_url_text(
+        candidate.get("url") or "", logger=logger, max_chars=fetch_max_chars
+    )
     if page_text:
-        evidence_text = f"{evidence_text}\n{page_text[:2000]}"
+        evidence_text = f"{evidence_text}\n{page_text[:page_text_max_chars]}"
 
     payload = DATASET_CANDIDATE_SCORING_PROMPT.format(
         idea_card=json.dumps(idea_card, ensure_ascii=False, indent=2),
         title=candidate.get("title", ""),
         url=candidate.get("url", ""),
-        text=evidence_text[:3500],
+        text=evidence_text[:evidence_max_chars],
     )
     try:
-        response = chat_fn(payload, temperature=0.1, max_tokens=700, model=model)
+        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
         _log_llm_output("dataset_candidate_scoring", response, logger)
         parsed = parse_json_response(response)
         if isinstance(parsed, dict):
@@ -1296,13 +1320,13 @@ def score_dataset_candidate(
         total = 0.0
     url = candidate.get("url") or ""
     if "huggingface.co/datasets" in url:
-        total += 0.5
+        total += bonus_huggingface
     if "kaggle.com/datasets" in url:
-        total += 0.4
+        total += bonus_kaggle
     if "paperswithcode.com/dataset" in url:
-        total += 0.4
+        total += bonus_paperswithcode
     if "datasetsearch.research.google.com" in url:
-        total += 0.2
+        total += bonus_datasetsearch
     candidate["total_score"] = total
     candidate["evidence_snippets"] = candidate.get("evidence_snippets") or []
     return candidate
@@ -1359,19 +1383,30 @@ def score_baseline_candidate(
     chat_fn,
     model: str,
     logger,
+    temperature: float = 0.1,
+    max_tokens: int = 800,
+    fetch_max_chars: int = 3500,
+    page_text_max_chars: int = 2000,
+    evidence_max_chars: int = 3500,
+    bonus_github: float = 0.5,
+    bonus_arxiv: float = 0.3,
+    bonus_evidence_github: float = 0.2,
+    missing_link_penalty: float = -0.8,
 ) -> Dict[str, Any]:
     evidence_text = candidate.get("snippet") or ""
-    page_text = fetch_url_text(candidate.get("url") or "", logger=logger)
+    page_text = fetch_url_text(
+        candidate.get("url") or "", logger=logger, max_chars=fetch_max_chars
+    )
     if page_text:
-        evidence_text = f"{evidence_text}\n{page_text[:2000]}"
+        evidence_text = f"{evidence_text}\n{page_text[:page_text_max_chars]}"
     payload = BASELINE_CANDIDATE_SCORING_PROMPT.format(
         idea_card=json.dumps(idea_card, ensure_ascii=False, indent=2),
         title=candidate.get("title", ""),
         url=candidate.get("url", ""),
-        text=evidence_text[:3500],
+        text=evidence_text[:evidence_max_chars],
     )
     try:
-        response = chat_fn(payload, temperature=0.1, max_tokens=800, model=model)
+        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
         _log_llm_output("baseline_candidate_scoring", response, logger)
         parsed = parse_json_response(response)
         if isinstance(parsed, dict):
@@ -1388,15 +1423,15 @@ def score_baseline_candidate(
         total = 0.0
     url = candidate.get("url") or ""
     if "github.com" in url:
-        total += 0.5
+        total += bonus_github
     if "arxiv.org" in url or "export.arxiv.org" in url:
-        total += 0.3
+        total += bonus_arxiv
     evidence_lower = evidence_text.lower()
     if "github.com" in evidence_lower and "github.com" not in url:
-        total += 0.2
+        total += bonus_evidence_github
     if ("github.com" not in url and "arxiv.org" not in url and "export.arxiv.org" not in url and
             "github.com" not in evidence_lower and "arxiv.org" not in evidence_lower):
-        total -= 0.8
+        total += missing_link_penalty
     candidate["total_score"] = total
     candidate["evidence_snippets"] = candidate.get("evidence_snippets") or []
     return candidate
@@ -1469,6 +1504,13 @@ def react_websearch(
     logger,
     search_fn: Callable[[List[str], int], Dict[str, Any]],
     max_steps: int = 5,
+    max_urls: int = 2,
+    browse_max_chars: int = 18000,
+    observation_limit: int = 6,
+    search_max_retry: int = 3,
+    llm_temperature: float = 0.1,
+    llm_step_max_tokens: int = 200,
+    llm_browse_max_tokens: int = 700,
 ) -> Dict[str, Any]:
     from src.agents.idea_agent.utils.ligagent_react_utils import react_websearch as _react_websearch
 
@@ -1482,4 +1524,11 @@ def react_websearch(
         logger=logger,
         search_fn=search_fn,
         max_steps=max_steps,
+        max_urls=max_urls,
+        browse_max_chars=browse_max_chars,
+        observation_limit=observation_limit,
+        search_max_retry=search_max_retry,
+        llm_temperature=llm_temperature,
+        llm_step_max_tokens=llm_step_max_tokens,
+        llm_browse_max_tokens=llm_browse_max_tokens,
     )

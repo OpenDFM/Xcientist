@@ -12,7 +12,9 @@ from uuid import uuid4
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agent.ligagent import LigAgent
+from agent.ligagent_flow import run_agent_loop
 from agent import init_logger, get_logger
+from src.agents.idea_agent.utils.config_loader import load_idea_agent_config, get_config_value
 
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent / "runs"
@@ -61,7 +63,15 @@ def _expand_single_topic_for_parallelism(topics: Sequence[str], parallelism: int
     return [(t, None) for t in cleaned]
 
 
-def _run_topic(topic: str, max_turn: int, output_root: str, run_id: str, include_console: bool, rag_config: str) -> str:
+def _run_topic(
+    topic: str,
+    max_turn: int,
+    output_root: str,
+    run_id: str,
+    include_console: bool,
+    rag_config: str,
+    config_path: Optional[str],
+) -> str:
     run_dir = Path(output_root) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "logs").mkdir(parents=True, exist_ok=True)
@@ -81,19 +91,12 @@ def _run_topic(topic: str, max_turn: int, output_root: str, run_id: str, include
     logger.info("🤖 Hello, I am LigAgent!")
     logger.info("💡 The research topic is %s", topic)
 
-    agent = LigAgent(run_dir=run_dir, rag_config=rag_config)
+    config = load_idea_agent_config(config_path)
+    agent = LigAgent(run_dir=run_dir, rag_config=rag_config, config=config)
     agent.bootstrap_topic(topic)
 
     try:
-        for turn in range(max_turn):
-            logger.info("========================================")
-            logger.info("Turn %d:", turn + 1)
-            logger.info("🧠 Selecting action...")
-            if not agent.memory["steps"]:
-                action = "knowledge_aquisition"
-            else:
-                action = agent.select_action(observation=agent.memory["steps"][-1])
-            agent.perform_action(action)
+        run_agent_loop(agent, max_turn, logger)
     except (Exception, KeyboardInterrupt):
         logger.info(agent.memory)
         tb = traceback.format_exc()
@@ -122,8 +125,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-turns",
         type=int,
-        default=4,
-        help="Maximum planner turns per topic.",
+        default=None,
+        help="Maximum planner turns per topic (overrides config).",
     )
     parser.add_argument(
         "--parallelism",
@@ -148,12 +151,24 @@ def parse_args() -> argparse.Namespace:
         default="config/idea_agent/rag_config.yaml",
         help="Path to RAG configuration file.",
     )
+    parser.add_argument(
+        "--idea-config",
+        type=str,
+        default=None,
+        help="Path to idea agent Hydra config file.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     topics = _load_topics(args.topics, args.topics_file)
+    config = load_idea_agent_config(args.idea_config)
+    max_turns = (
+        args.max_turns
+        if args.max_turns is not None
+        else get_config_value(config, "run.max_turns", 4)
+    )
     output_root = Path(args.output_root).expanduser()
     output_root.mkdir(parents=True, exist_ok=True)
 
@@ -175,11 +190,12 @@ def main() -> None:
             future = executor.submit(
                 _run_topic,
                 topic,
-                args.max_turns,
+                max_turns,
                 str(output_root),
                 run_id,
                 args.console_logs,
                 rag_config,
+                args.idea_config,
             )
             futures[future] = (topic, output_root / run_id)
 

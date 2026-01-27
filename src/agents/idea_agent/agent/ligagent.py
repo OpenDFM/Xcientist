@@ -1,24 +1,19 @@
 from agent.base import AgentBase
 from agent import get_logger
 
-logger = get_logger()
-logger.info("🤖 Initializing LigAgent...")
-
 from typing import Any, Dict, Literal, List, Optional, Set
 from pathlib import Path
 import time
 import json
 import http.client
+from dataclasses import fields
 
 from agent.tools import TOOLS
 from agent.memory import memory_init
 from agent.prompts import PROMPTS
 from agent.mcts import MemoryGuidedMCTS, MCTSConfig
 from agent.paper_repository import PaperRepository
-from src.agents.idea_agent.utils.idea_helpers import (
-    build_mcts_evolution,
-    collect_reference_material,
-)
+from agent.ligagent_flow import persist_final_idea
 from src.agents.idea_agent.utils.ligagent_utils import (
     collect_paper_context_entries,
     generate_idea_introduction,
@@ -38,14 +33,12 @@ from src.agents.idea_agent.utils.ligagent_helpers import (
     normalize_analysis_entry,
     ingest_analysis_background,
     latest_analysis_seed_ideas,
-    build_algorithm_spec,
-    synthesize_reference_summaries,
-    suggest_datasets,
-    suggest_baselines,
     sanitize_action_token,
     get_paper_content as load_paper_content,
 )
+from src.agents.idea_agent.utils.config_loader import load_idea_agent_config, get_config_value
 
+logger = get_logger()
 
 class LigAgent(AgentBase):
     ACTION_ALIASES: Dict[str, Set[str]] = {
@@ -90,14 +83,33 @@ class LigAgent(AgentBase):
         return self._action_lookup.get(sanitized)
 
     def __init__(self, *args, **kwargs):
-        chat_max_retries = kwargs.pop("chat_max_retries", 3)
-        chat_retry_backoff = kwargs.pop("chat_retry_backoff", 2.0)
+        config = kwargs.pop("config", None)
+        config_path = kwargs.pop("config_path", None)
+        if config is None:
+            config = load_idea_agent_config(config_path)
+        self.config = config
+
+        chat_max_retries = kwargs.pop(
+            "chat_max_retries",
+            get_config_value(config, "agent.chat_max_retries", 3),
+        )
+        chat_retry_backoff = kwargs.pop(
+            "chat_retry_backoff",
+            get_config_value(config, "agent.chat_retry_backoff", 2.0),
+        )
         survey_config_path = kwargs.pop("survey_config_path", None)
         run_dir = kwargs.pop("run_dir", None)
         idea_result_path = kwargs.pop("idea_result_path", None)
         rag_config = kwargs.pop("rag_config", None)
-        self.paper_enrichment_timeout = kwargs.pop("paper_enrichment_timeout", 7200)
-        action_selection_attempts = kwargs.pop("action_selection_attempts", 2)
+        self.paper_enrichment_timeout = kwargs.pop(
+            "paper_enrichment_timeout",
+            get_config_value(config, "agent.paper_enrichment_timeout_sec", 7200),
+        )
+        action_selection_attempts = kwargs.pop(
+            "action_selection_attempts",
+            get_config_value(config, "agent.action_selection_attempts", 2),
+        )
+        model = kwargs.pop("model", None)
         super().__init__(*args, **kwargs)
         self.action_space = [
             "knowledge_aquisition",
@@ -107,7 +119,9 @@ class LigAgent(AgentBase):
             "re_analysis_replan",
         ]
         self.action_selection_attempts = max(1, action_selection_attempts)
-        self.model = "gpt-4.1"
+        if model is None:
+            model = get_config_value(config, "agent.model", "gpt-4.1")
+        self.model = model
         self.tools = TOOLS
         self.memory = memory_init()
         self.run_dir = Path(run_dir) if run_dir else Path(__file__).resolve().parent.parent
@@ -120,11 +134,19 @@ class LigAgent(AgentBase):
         self.chat_max_retries = chat_max_retries
         self.chat_retry_backoff = chat_retry_backoff
         self._action_lookup = build_action_lookup(self.ACTION_ALIASES)
+        self.semantic_search_limit = get_config_value(config, "agent.semantic_search_limit", 5)
+        self.idea_context_limit = get_config_value(config, "agent.idea_context_limit", 10)
+        self.introduction_context_limit = get_config_value(config, "agent.introduction_context_limit", 6)
+        mcts_config = MCTSConfig()
+        for field in fields(MCTSConfig):
+            override = get_config_value(config, f"mcts.{field.name}", None)
+            if override is not None:
+                setattr(mcts_config, field.name, override)
         self.mcts = MemoryGuidedMCTS(
             chat_fn=self.chat,
             generation_prompt=PROMPTS["mcts_generation"],
             evaluation_prompt=PROMPTS["mcts_evaluation"],
-            config=MCTSConfig(),
+            config=mcts_config,
             logger=logger,
         )
         self.paper_repository = PaperRepository(
@@ -177,9 +199,6 @@ class LigAgent(AgentBase):
         )
 
     def perform_action(self, action: str, **kwargs) -> Any:
-        """
-        Dispatch an action to the corresponding method, forwarding positional and keyword arguments.
-        """
         logger.info(f"🚀 Performing action: {action}...")
         resolved_action = self._canonical_action(action)
         if not resolved_action:
@@ -215,9 +234,6 @@ class LigAgent(AgentBase):
 
         raise ValueError(f"Unknown action: {action}")
 
-    def select_memory(self, action: str = "", info: dict = {}) -> str:
-        pass
-
     def bootstrap_topic(self, topic: str, retrieval_keywords: Optional[str] = None) -> None:
         normalized_topic = (topic or "").strip()
         if not normalized_topic:
@@ -247,7 +263,11 @@ class LigAgent(AgentBase):
         if search_type == "paper_search":
             search_keywords = self.memory["retrieval_keywords"][-1]
             try:
-                papers = self.run_tool(name="semantic_search", query=search_keywords, limit=5)
+                papers = self.run_tool(
+                    name="semantic_search",
+                    query=search_keywords,
+                    limit=self.semantic_search_limit,
+                )
                 logger.info("📄 Found Papers:")
                 initial_papers = normalize_search_papers(papers, search_keywords, logger)
                 if initial_papers:
@@ -355,7 +375,9 @@ class LigAgent(AgentBase):
     def idea_generation(self, **kwargs) -> None:
         topic = self.memory["topic"][-1] if self.memory["topic"] else "unspecified topic"
         paper_entries = collect_paper_context_entries(
-            self.memory, self.memory.get("references", []), limit=10
+            self.memory,
+            self.memory.get("references", []),
+            limit=self.idea_context_limit,
         )
         idea_history = list(self.memory.get("idea_pool", []))
         seed_ideas = latest_analysis_seed_ideas(self.memory)
@@ -447,75 +469,25 @@ class LigAgent(AgentBase):
     def _persist_final_idea(
         self, best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]]
     ) -> None:
-        topic = self.memory["topic"][-1] if self.memory["topic"] else "unspecified topic"
-        raw_refs = collect_reference_material(self.memory.get("references", []))
-        algorithm = build_algorithm_spec(
-            best_entry,
-            topic,
-            raw_refs,
-            self.memory,
-            PROMPTS,
-            self.chat,
-            self.model,
-            logger,
-        )
-        references = synthesize_reference_summaries(
-            topic,
-            best_entry,
-            algorithm,
-            raw_refs,
-            PROMPTS,
-            self.chat,
-            self.model,
-            logger,
-        )
-        datasets = suggest_datasets(
-            topic,
-            best_entry,
-            algorithm,
-            references,
-            PROMPTS,
-            self.chat,
-            self.model,
-            logger,
+        persist_final_idea(
+            best_entry=best_entry,
+            paper_entries=paper_entries,
             memory=self.memory,
+            idea_result_path=self.idea_result_path,
+            chat_fn=self.chat,
+            model=self.model,
+            logger=logger,
+            prompts=PROMPTS,
+            config=self.config,
         )
-        baselines = suggest_baselines(
-            topic,
-            best_entry,
-            algorithm,
-            references,
-            PROMPTS,
-            self.chat,
-            self.model,
-            logger,
-            memory=self.memory,
-        )
-        introduction = self._generate_idea_introduction(best_entry, paper_entries)
-        payload = {
-            "title": best_entry.get("title"),
-            "abstract": best_entry.get("abstract"),
-            "introduction": introduction,
-            "algorithm": algorithm,
-            "reference_papers": references,
-            "datasets": datasets,
-            "baselines": baselines,
-            "mcts_evolution": build_mcts_evolution(best_entry),
-        }
-        best_entry["introduction"] = introduction
-        self.memory["idea_result"] = payload
-        try:
-            with open(self.idea_result_path, "w", encoding="utf-8") as f:
-                json.dump(payload, f, ensure_ascii=False, indent=2)
-            logger.info(f"💾 Saved idea result to {self.idea_result_path}")
-        except OSError as exc:
-            logger.error(f"⚠️ Failed to persist idea_result.json: {exc}")
 
     def _generate_idea_introduction(
         self, best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]]
     ) -> str:
         entries = paper_entries or collect_paper_context_entries(
-            self.memory, self.memory.get("references", []), limit=6
+            self.memory,
+            self.memory.get("references", []),
+            limit=self.introduction_context_limit,
         )
         topic = self.memory["topic"][-1] if self.memory["topic"] else "unspecified topic"
         return generate_idea_introduction(

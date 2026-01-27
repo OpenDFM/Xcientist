@@ -39,6 +39,10 @@ from src.agents.idea_agent.utils.ligagent_utils import (
     paper_context_text,
     summarize_keynote,
 )
+from src.agents.idea_agent.utils.config_loader import get_config_value
+
+_ARXIV_URL_RE = re.compile(r"https?://(?:export\.)?arxiv\.org/(?:abs|pdf)/[^\s\]>\"')]+", re.IGNORECASE)
+_GITHUB_URL_RE = re.compile(r"https?://github\.com/[^\s\]>\"')]+", re.IGNORECASE)
 
 
 def sanitize_action_token(action: str) -> str:
@@ -55,8 +59,6 @@ def build_action_lookup(action_aliases: Dict[str, Set[str]]) -> Dict[str, str]:
     return lookup
 
 
-_ARXIV_URL_RE = re.compile(r"https?://(?:export\.)?arxiv\.org/(?:abs|pdf)/[^\s\]>\"')]+", re.IGNORECASE)
-_GITHUB_URL_RE = re.compile(r"https?://github\.com/[^\s\]>\"')]+", re.IGNORECASE)
 def _extract_first_url(pattern: re.Pattern[str], texts: List[str]) -> str:
     for text in texts:
         if not text:
@@ -657,7 +659,60 @@ def suggest_datasets(
     model: str,
     logger,
     memory: Optional[Dict[str, Any]] = None,
+    config: Optional[object] = None,
 ) -> List[Dict[str, Any]]:
+    llm_temperature = get_config_value(config, "dataset.llm.temperature", 0.1)
+    idea_card_max_tokens = get_config_value(config, "dataset.llm.idea_card_max_tokens", 800)
+    query_generation_max_tokens = get_config_value(
+        config, "dataset.llm.query_generation_max_tokens", 512
+    )
+    name_extraction_max_tokens = get_config_value(
+        config, "dataset.llm.name_extraction_max_tokens", 300
+    )
+    preprocess_max_tokens = get_config_value(config, "dataset.llm.preprocess_max_tokens", 400)
+    postprocess_max_tokens = get_config_value(config, "dataset.llm.postprocess_max_tokens", 200)
+    candidate_scoring_max_tokens = get_config_value(
+        config, "dataset.llm.candidate_scoring_max_tokens", 700
+    )
+    memory_top_k = get_config_value(config, "dataset.memory_top_k", 5)
+    preprocess_max_items = get_config_value(config, "dataset.preprocess_max_items", 5)
+    seed_extract_max_names = get_config_value(config, "dataset.seed.extract_max_names", 8)
+    seed_preprocess_max_items = get_config_value(config, "dataset.seed.preprocess_max_items", 5)
+    seed_keep_names = get_config_value(config, "dataset.seed.keep_names", 3)
+    react_max_steps = get_config_value(config, "dataset.react.max_steps", 5)
+    react_max_urls = get_config_value(config, "dataset.react.max_urls", 2)
+    react_browse_max_chars = get_config_value(config, "dataset.react.browse_max_chars", 18000)
+    react_observation_limit = get_config_value(config, "dataset.react.observation_limit", 6)
+    react_search_max_retry = get_config_value(
+        config,
+        "dataset.react.search_max_retry",
+        get_config_value(config, "search.max_retry", 3),
+    )
+    react_llm_temperature = get_config_value(config, "dataset.react.llm.temperature", 0.1)
+    react_step_max_tokens = get_config_value(config, "dataset.react.llm.step_max_tokens", 200)
+    react_browse_max_tokens = get_config_value(
+        config, "dataset.react.llm.browse_max_tokens", 700
+    )
+    search_max_retry = get_config_value(config, "search.max_retry", 3)
+    primary_target = get_config_value(config, "dataset.selection.primary_target", 5)
+    extra_target = get_config_value(config, "dataset.selection.extra_target", 3)
+    output_limit = get_config_value(config, "dataset.selection.output_limit", 8)
+    postprocess_max_keep = get_config_value(config, "dataset.selection.postprocess_max_keep", 8)
+    dedupe_limit = get_config_value(config, "dataset.selection.dedupe_limit", 8)
+    min_results = get_config_value(config, "dataset.selection.min_results", 2)
+    score_fetch_max_chars = get_config_value(config, "dataset.scoring.fetch_max_chars", 2500)
+    score_page_text_max_chars = get_config_value(
+        config, "dataset.scoring.page_text_max_chars", 2000
+    )
+    score_evidence_max_chars = get_config_value(
+        config, "dataset.scoring.evidence_max_chars", 3500
+    )
+    score_bonus_hf = get_config_value(config, "dataset.scoring.bonus.huggingface", 0.5)
+    score_bonus_kaggle = get_config_value(config, "dataset.scoring.bonus.kaggle", 0.4)
+    score_bonus_pwc = get_config_value(config, "dataset.scoring.bonus.paperswithcode", 0.4)
+    score_bonus_datasetsearch = get_config_value(
+        config, "dataset.scoring.bonus.datasetsearch", 0.2
+    )
     idea_card = build_dataset_idea_card(
         topic=topic,
         best_entry=best_entry,
@@ -666,8 +721,10 @@ def suggest_datasets(
         chat_fn=chat_fn,
         model=model,
         logger=logger,
+        temperature=llm_temperature,
+        max_tokens=idea_card_max_tokens,
     )
-    top_from_keynotes = collect_top_dataset_names_from_memory(memory, top_k=5)
+    top_from_keynotes = collect_top_dataset_names_from_memory(memory, top_k=memory_top_k)
     top_from_keynotes = preprocess_candidate_names(
         "dataset",
         top_from_keynotes,
@@ -676,7 +733,9 @@ def suggest_datasets(
         chat_fn=chat_fn,
         model=model,
         logger=logger,
-        max_items=5,
+        max_items=preprocess_max_items,
+        temperature=llm_temperature,
+        max_tokens=preprocess_max_tokens,
     )
     primary_candidates: List[Dict[str, Any]] = []
     primary_browse: List[Dict[str, Any]] = []
@@ -691,7 +750,14 @@ def suggest_datasets(
             model=model,
             logger=logger,
             search_fn=search_web,
-            max_steps=5,
+            max_steps=react_max_steps,
+            max_urls=react_max_urls,
+            browse_max_chars=react_browse_max_chars,
+            observation_limit=react_observation_limit,
+            search_max_retry=react_search_max_retry,
+            llm_temperature=react_llm_temperature,
+            llm_step_max_tokens=react_step_max_tokens,
+            llm_browse_max_tokens=react_browse_max_tokens,
         )
         logger.info("🔎 Dataset websearch (primary) found names: %s", primary_result.get("found_names"))
         logger.info("🔎 Dataset websearch (primary) browse candidates: %s", primary_result.get("browse_candidates"))
@@ -701,7 +767,7 @@ def suggest_datasets(
         primary_found = {name.lower() for name in primary_result.get("found_names", [])}
         if not primary_candidates:
             fallback_queries = build_dataset_fallback_queries(top_from_keynotes, topic=topic, idea_card=idea_card)
-            fallback_payload = search_web(fallback_queries, max_retry=3)
+            fallback_payload = search_web(fallback_queries, max_retry=search_max_retry)
             fallback_text = fallback_payload.get("results", "")
             primary_candidates = merge_dataset_candidates(fallback_text)
         primary_candidates.extend(
@@ -710,9 +776,26 @@ def suggest_datasets(
 
     primary_scored: List[Dict[str, Any]] = []
     for cand in primary_candidates:
-        primary_scored.append(score_dataset_candidate(idea_card, cand, chat_fn=chat_fn, model=model, logger=logger))
+        primary_scored.append(
+            score_dataset_candidate(
+                idea_card,
+                cand,
+                chat_fn=chat_fn,
+                model=model,
+                logger=logger,
+                temperature=llm_temperature,
+                max_tokens=candidate_scoring_max_tokens,
+                fetch_max_chars=score_fetch_max_chars,
+                page_text_max_chars=score_page_text_max_chars,
+                evidence_max_chars=score_evidence_max_chars,
+                bonus_huggingface=score_bonus_hf,
+                bonus_kaggle=score_bonus_kaggle,
+                bonus_paperswithcode=score_bonus_pwc,
+                bonus_datasetsearch=score_bonus_datasetsearch,
+            )
+        )
     primary_scored.sort(key=lambda c: c.get("total_score", 0), reverse=True)
-    primary_selected = select_dataset_candidates(primary_scored, target=5)
+    primary_selected = select_dataset_candidates(primary_scored, target=primary_target)
     if not primary_selected and top_from_keynotes:
         for name in top_from_keynotes:
             query_name = name.strip()
@@ -733,7 +816,7 @@ def suggest_datasets(
         idea_card=idea_card,
         references=references,
     )
-    seed_payload = search_web(seed_queries, max_retry=3)
+    seed_payload = search_web(seed_queries, max_retry=search_max_retry)
     seed_text = seed_payload.get("results", "")
 
     dataset_names = extract_candidate_names(
@@ -743,7 +826,9 @@ def suggest_datasets(
         chat_fn=chat_fn,
         model=model,
         logger=logger,
-        max_names=8,
+        max_names=seed_extract_max_names,
+        temperature=llm_temperature,
+        max_tokens=name_extraction_max_tokens,
     )
     dataset_names = preprocess_candidate_names(
         "dataset",
@@ -753,13 +838,17 @@ def suggest_datasets(
         chat_fn=chat_fn,
         model=model,
         logger=logger,
-        max_items=5,
+        max_items=seed_preprocess_max_items,
+        temperature=llm_temperature,
+        max_tokens=preprocess_max_tokens,
     )
     keynote_names_lower = {name.lower() for name in top_from_keynotes}
     avoid_names = set(keynote_names_lower)
     if primary_found:
         avoid_names.update(primary_found)
-    dataset_names = [name for name in dataset_names if name.lower() not in avoid_names][:3]
+    dataset_names = [
+        name for name in dataset_names if name.lower() not in avoid_names
+    ][:seed_keep_names]
 
     extra_candidates: List[Dict[str, Any]] = []
     extra_browse: List[Dict[str, Any]] = []
@@ -773,7 +862,14 @@ def suggest_datasets(
             model=model,
             logger=logger,
             search_fn=search_web,
-            max_steps=5,
+            max_steps=react_max_steps,
+            max_urls=react_max_urls,
+            browse_max_chars=react_browse_max_chars,
+            observation_limit=react_observation_limit,
+            search_max_retry=react_search_max_retry,
+            llm_temperature=react_llm_temperature,
+            llm_step_max_tokens=react_step_max_tokens,
+            llm_browse_max_tokens=react_browse_max_tokens,
         )
         logger.info("🔎 Dataset websearch (fallback) found names: %s", extra_result.get("found_names"))
         logger.info("🔎 Dataset websearch (fallback) browse candidates: %s", extra_result.get("browse_candidates"))
@@ -782,7 +878,7 @@ def suggest_datasets(
         extra_browse = extra_result.get("browse_candidates", [])
         if not extra_candidates:
             fallback_queries = build_dataset_fallback_queries(dataset_names, topic=topic, idea_card=idea_card)
-            fallback_payload = search_web(fallback_queries, max_retry=3)
+            fallback_payload = search_web(fallback_queries, max_retry=search_max_retry)
             fallback_text = fallback_payload.get("results", "")
             extra_candidates = merge_dataset_candidates(fallback_text)
         extra_candidates.extend(
@@ -791,9 +887,26 @@ def suggest_datasets(
 
     extra_scored: List[Dict[str, Any]] = []
     for cand in extra_candidates:
-        extra_scored.append(score_dataset_candidate(idea_card, cand, chat_fn=chat_fn, model=model, logger=logger))
+        extra_scored.append(
+            score_dataset_candidate(
+                idea_card,
+                cand,
+                chat_fn=chat_fn,
+                model=model,
+                logger=logger,
+                temperature=llm_temperature,
+                max_tokens=candidate_scoring_max_tokens,
+                fetch_max_chars=score_fetch_max_chars,
+                page_text_max_chars=score_page_text_max_chars,
+                evidence_max_chars=score_evidence_max_chars,
+                bonus_huggingface=score_bonus_hf,
+                bonus_kaggle=score_bonus_kaggle,
+                bonus_paperswithcode=score_bonus_pwc,
+                bonus_datasetsearch=score_bonus_datasetsearch,
+            )
+        )
     extra_scored.sort(key=lambda c: c.get("total_score", 0), reverse=True)
-    extra_selected = select_dataset_candidates(extra_scored, target=3)
+    extra_selected = select_dataset_candidates(extra_scored, target=extra_target)
 
     datasets: List[Dict[str, Any]] = []
     for cand in primary_browse + extra_browse:
@@ -816,7 +929,7 @@ def suggest_datasets(
                 "scores": {},
             }
         )
-    for cand in primary_selected[:5]:
+    for cand in primary_selected[:primary_target]:
         link = cand.get("access") or cand.get("url") or ""
         if not _is_allowed_dataset_link(link):
             continue
@@ -835,7 +948,7 @@ def suggest_datasets(
                 },
             }
         )
-    for cand in extra_selected[:3]:
+    for cand in extra_selected[:extra_target]:
         link = cand.get("access") or cand.get("url") or ""
         if not _is_allowed_dataset_link(link):
             continue
@@ -855,12 +968,21 @@ def suggest_datasets(
             }
         )
 
-    datasets = dedupe_named(datasets, "name", limit=8)
-    datasets = postprocess_suggestions("dataset", datasets, chat_fn=chat_fn, model=model, logger=logger, max_keep=8)
+    datasets = dedupe_named(datasets, "name", limit=dedupe_limit)
+    datasets = postprocess_suggestions(
+        "dataset",
+        datasets,
+        chat_fn=chat_fn,
+        model=model,
+        logger=logger,
+        max_keep=postprocess_max_keep,
+        temperature=llm_temperature,
+        max_tokens=postprocess_max_tokens,
+    )
     datasets = [d for d in datasets if _is_allowed_dataset_link(d.get("link") or d.get("access") or "")]
 
-    if len(datasets) < 2:
-        while len(datasets) < 2:
+    if len(datasets) < min_results:
+        while len(datasets) < min_results:
             idx = len(datasets) + 1
             query_name = f"{topic or 'Target'} dataset candidate {idx}"
             datasets.append(
@@ -872,7 +994,7 @@ def suggest_datasets(
                     "link": _huggingface_search_link(query_name),
                 }
             )
-    return datasets[:8]
+    return datasets[:output_limit]
 
 
 def suggest_baselines(
@@ -885,7 +1007,63 @@ def suggest_baselines(
     model: str,
     logger,
     memory: Optional[Dict[str, Any]] = None,
+    config: Optional[object] = None,
 ) -> List[Dict[str, Any]]:
+    llm_temperature = get_config_value(config, "baseline.llm.temperature", 0.1)
+    idea_card_max_tokens = get_config_value(config, "baseline.llm.idea_card_max_tokens", 1200)
+    query_generation_max_tokens = get_config_value(
+        config, "baseline.llm.query_generation_max_tokens", 512
+    )
+    name_extraction_max_tokens = get_config_value(
+        config, "baseline.llm.name_extraction_max_tokens", 300
+    )
+    preprocess_max_tokens = get_config_value(config, "baseline.llm.preprocess_max_tokens", 400)
+    postprocess_max_tokens = get_config_value(config, "baseline.llm.postprocess_max_tokens", 200)
+    graph_match_max_tokens = get_config_value(config, "baseline.llm.graph_match_max_tokens", 200)
+    candidate_scoring_max_tokens = get_config_value(
+        config, "baseline.llm.candidate_scoring_max_tokens", 800
+    )
+    memory_top_k = get_config_value(config, "baseline.memory_top_k", 5)
+    preprocess_max_items = get_config_value(config, "baseline.preprocess_max_items", 5)
+    seed_extract_max_names = get_config_value(config, "baseline.seed.extract_max_names", 8)
+    seed_preprocess_max_items = get_config_value(config, "baseline.seed.preprocess_max_items", 6)
+    graph_top_k = get_config_value(config, "baseline.graph.top_k", 20)
+    graph_degree_weight = get_config_value(config, "baseline.graph.degree_weight", 0.05)
+    graph_similarity_weight = get_config_value(config, "baseline.graph.similarity_weight", 0.95)
+    graph_repo_search_max_retry = get_config_value(config, "baseline.graph.repo_search_max_retry", 3)
+    react_max_steps = get_config_value(config, "baseline.react.max_steps", 5)
+    react_max_urls = get_config_value(config, "baseline.react.max_urls", 2)
+    react_browse_max_chars = get_config_value(config, "baseline.react.browse_max_chars", 18000)
+    react_observation_limit = get_config_value(config, "baseline.react.observation_limit", 6)
+    react_search_max_retry = get_config_value(
+        config,
+        "baseline.react.search_max_retry",
+        get_config_value(config, "search.max_retry", 3),
+    )
+    react_llm_temperature = get_config_value(config, "baseline.react.llm.temperature", 0.1)
+    react_step_max_tokens = get_config_value(config, "baseline.react.llm.step_max_tokens", 200)
+    react_browse_max_tokens = get_config_value(config, "baseline.react.llm.browse_max_tokens", 700)
+    search_max_retry = get_config_value(config, "search.max_retry", 3)
+    selection_target = get_config_value(config, "baseline.selection.target", 8)
+    selection_combined_limit = get_config_value(config, "baseline.selection.combined_limit", 5)
+    selection_output_limit = get_config_value(config, "baseline.selection.output_limit", 5)
+    postprocess_max_keep = get_config_value(config, "baseline.selection.postprocess_max_keep", 5)
+    dedupe_limit = get_config_value(config, "baseline.selection.dedupe_limit", 5)
+    score_fetch_max_chars = get_config_value(config, "baseline.scoring.fetch_max_chars", 3500)
+    score_page_text_max_chars = get_config_value(
+        config, "baseline.scoring.page_text_max_chars", 2000
+    )
+    score_evidence_max_chars = get_config_value(
+        config, "baseline.scoring.evidence_max_chars", 3500
+    )
+    score_bonus_github = get_config_value(config, "baseline.scoring.github_bonus", 0.5)
+    score_bonus_arxiv = get_config_value(config, "baseline.scoring.arxiv_bonus", 0.3)
+    score_bonus_evidence_github = get_config_value(
+        config, "baseline.scoring.evidence_github_bonus", 0.2
+    )
+    score_missing_penalty = get_config_value(
+        config, "baseline.scoring.missing_link_penalty", -0.8
+    )
     graph_task = None
     if memory:
         graph_task = memory.get("run_topic") or None
@@ -902,12 +1080,14 @@ def suggest_baselines(
         chat_fn=chat_fn,
         model=model,
         logger=logger,
+        temperature=llm_temperature,
+        max_tokens=idea_card_max_tokens,
     )
     graph_ranked = rank_method_paper_nodes_weighted(
         topic=graph_task,
-        top_k=20,
-        degree_weight=0.05,
-        similarity_weight=0.95,
+        top_k=graph_top_k,
+        degree_weight=graph_degree_weight,
+        similarity_weight=graph_similarity_weight,
     )
     if graph_ranked:
         logger.info("🧭 Graph task: %s", graph_task)
@@ -929,7 +1109,7 @@ def suggest_baselines(
             graph_queries,
             search_fn=search_web,
             logger=logger,
-            max_retry=3,
+            max_retry=graph_repo_search_max_retry,
         )
         repo_map = {cand.get("name", "").lower(): cand for cand in repo_candidates if cand.get("repo_url")}
         logger.info("🧭 Graph GitHub candidates: %s", [c.get("repo_url") for c in repo_candidates])
@@ -960,16 +1140,19 @@ def suggest_baselines(
                     chat_fn=chat_fn,
                     model=model,
                     logger=logger,
+                    temperature=llm_temperature,
+                    max_tokens=graph_match_max_tokens,
                 )
             filtered_nodes.sort(key=lambda x: x.get("match_score", 0), reverse=True)
             logger.info(
                 "🧭 Graph rerank scores: %s",
                 "; ".join(
-                    f"{item.get('paper_title')} ({item.get('match_score'):.1f})" for item in filtered_nodes[:5]
+                    f"{item.get('paper_title')} ({item.get('match_score'):.1f})"
+                    for item in filtered_nodes[:selection_output_limit]
                 ),
             )
             baselines: List[Dict[str, Any]] = []
-            for item in filtered_nodes[:5]:
+            for item in filtered_nodes[:selection_output_limit]:
                 name = item.get("paper_title") or item.get("title") or ""
                 if not name or not item.get("repo_url"):
                     continue
@@ -994,7 +1177,7 @@ def suggest_baselines(
                 )
             if baselines:
                 return baselines
-    top_from_keynotes = collect_top_baseline_names_from_memory(memory, top_k=5)
+    top_from_keynotes = collect_top_baseline_names_from_memory(memory, top_k=memory_top_k)
     top_from_keynotes = preprocess_candidate_names(
         "baseline",
         top_from_keynotes,
@@ -1003,7 +1186,9 @@ def suggest_baselines(
         chat_fn=chat_fn,
         model=model,
         logger=logger,
-        max_items=5,
+        max_items=preprocess_max_items,
+        temperature=llm_temperature,
+        max_tokens=preprocess_max_tokens,
     )
     primary_candidates: List[Dict[str, Any]] = []
     primary_browse: List[Dict[str, Any]] = []
@@ -1018,7 +1203,14 @@ def suggest_baselines(
             model=model,
             logger=logger,
             search_fn=search_web,
-            max_steps=5,
+            max_steps=react_max_steps,
+            max_urls=react_max_urls,
+            browse_max_chars=react_browse_max_chars,
+            observation_limit=react_observation_limit,
+            search_max_retry=react_search_max_retry,
+            llm_temperature=react_llm_temperature,
+            llm_step_max_tokens=react_step_max_tokens,
+            llm_browse_max_tokens=react_browse_max_tokens,
         )
         logger.info("🔎 React websearch (primary) found names: %s", primary_result.get("found_names"))
         logger.info("🔎 React websearch (primary) browse candidates: %s", primary_result.get("browse_candidates"))
@@ -1029,7 +1221,24 @@ def suggest_baselines(
 
     primary_scored: List[Dict[str, Any]] = []
     for cand in primary_candidates:
-        primary_scored.append(score_baseline_candidate(idea_card, cand, chat_fn=chat_fn, model=model, logger=logger))
+        primary_scored.append(
+            score_baseline_candidate(
+                idea_card,
+                cand,
+                chat_fn=chat_fn,
+                model=model,
+                logger=logger,
+                temperature=llm_temperature,
+                max_tokens=candidate_scoring_max_tokens,
+                fetch_max_chars=score_fetch_max_chars,
+                page_text_max_chars=score_page_text_max_chars,
+                evidence_max_chars=score_evidence_max_chars,
+                bonus_github=score_bonus_github,
+                bonus_arxiv=score_bonus_arxiv,
+                bonus_evidence_github=score_bonus_evidence_github,
+                missing_link_penalty=score_missing_penalty,
+            )
+        )
     primary_scored.sort(key=lambda c: c.get("total_score", 0), reverse=True)
 
     def _has_github(candidate: Dict[str, Any]) -> bool:
@@ -1050,7 +1259,7 @@ def suggest_baselines(
         idea_card=idea_card,
         references=references,
     )
-    seed_payload = search_web(seed_queries, max_retry=3)
+    seed_payload = search_web(seed_queries, max_retry=search_max_retry)
     seed_text = seed_payload.get("results", "")
 
     baseline_names = extract_candidate_names(
@@ -1060,7 +1269,9 @@ def suggest_baselines(
         chat_fn=chat_fn,
         model=model,
         logger=logger,
-        max_names=8,
+        max_names=seed_extract_max_names,
+        temperature=llm_temperature,
+        max_tokens=name_extraction_max_tokens,
     )
     baseline_names = preprocess_candidate_names(
         "baseline",
@@ -1070,7 +1281,9 @@ def suggest_baselines(
         chat_fn=chat_fn,
         model=model,
         logger=logger,
-        max_items=6,
+        max_items=seed_preprocess_max_items,
+        temperature=llm_temperature,
+        max_tokens=preprocess_max_tokens,
     )
     if primary_found:
         baseline_names = [name for name in baseline_names if name.lower() not in primary_found]
@@ -1083,7 +1296,14 @@ def suggest_baselines(
         model=model,
         logger=logger,
         search_fn=search_web,
-        max_steps=5,
+        max_steps=react_max_steps,
+        max_urls=react_max_urls,
+        browse_max_chars=react_browse_max_chars,
+        observation_limit=react_observation_limit,
+        search_max_retry=react_search_max_retry,
+        llm_temperature=react_llm_temperature,
+        llm_step_max_tokens=react_step_max_tokens,
+        llm_browse_max_tokens=react_browse_max_tokens,
     )
     logger.info("🔎 React websearch (fallback) found names: %s", search_result.get("found_names"))
     logger.info("🔎 React websearch (fallback) browse candidates: %s", search_result.get("browse_candidates"))
@@ -1092,10 +1312,27 @@ def suggest_baselines(
     candidates = merge_baseline_candidates(search_text)
     scored: List[Dict[str, Any]] = []
     for cand in candidates:
-        scored.append(score_baseline_candidate(idea_card, cand, chat_fn=chat_fn, model=model, logger=logger))
+        scored.append(
+            score_baseline_candidate(
+                idea_card,
+                cand,
+                chat_fn=chat_fn,
+                model=model,
+                logger=logger,
+                temperature=llm_temperature,
+                max_tokens=candidate_scoring_max_tokens,
+                fetch_max_chars=score_fetch_max_chars,
+                page_text_max_chars=score_page_text_max_chars,
+                evidence_max_chars=score_evidence_max_chars,
+                bonus_github=score_bonus_github,
+                bonus_arxiv=score_bonus_arxiv,
+                bonus_evidence_github=score_bonus_evidence_github,
+                missing_link_penalty=score_missing_penalty,
+            )
+        )
     scored.sort(key=lambda c: c.get("total_score", 0), reverse=True)
 
-    selected = select_baseline_candidates(scored, idea_card, target=8)
+    selected = select_baseline_candidates(scored, idea_card, target=selection_target)
     fallback_selected = [cand for cand in selected if _has_github(cand)]
 
     combined: List[Dict[str, Any]] = []
@@ -1107,15 +1344,15 @@ def suggest_baselines(
         if key:
             seen_keys.add(key)
         combined.append(cand)
-        if len(combined) >= 5:
+        if len(combined) >= selection_combined_limit:
             break
 
     if not combined:
-        combined = fallback_selected[:5]
+        combined = fallback_selected[:selection_combined_limit]
     if not combined:
-        combined = primary_selected[:5]
+        combined = primary_selected[:selection_combined_limit]
     if not combined:
-        combined = selected[:5]
+        combined = selected[:selection_combined_limit]
 
     baselines: List[Dict[str, Any]] = []
     for cand in primary_browse + extra_browse:
@@ -1139,7 +1376,7 @@ def suggest_baselines(
                 "scores": {},
             }
         )
-    for cand in combined[:5]:
+    for cand in combined[:selection_output_limit]:
         evidence = cand.get("evidence_snippets") or []
         texts = [
             cand.get("url") or "",
@@ -1185,14 +1422,23 @@ def suggest_baselines(
         )
 
     pre_post_baselines = baselines[:]
-    baselines = postprocess_suggestions("baseline", baselines, chat_fn=chat_fn, model=model, logger=logger, max_keep=5)
+    baselines = postprocess_suggestions(
+        "baseline",
+        baselines,
+        chat_fn=chat_fn,
+        model=model,
+        logger=logger,
+        max_keep=postprocess_max_keep,
+        temperature=llm_temperature,
+        max_tokens=postprocess_max_tokens,
+    )
     baselines = [b for b in baselines if (b.get("name") and b.get("repo_url"))]
     if not baselines:
         baselines = [
             b
             for b in pre_post_baselines
             if (b.get("name") and b.get("repo_url"))
-        ][:5]
+        ][:selection_output_limit]
 
-    baselines = dedupe_named(baselines, "name")
-    return baselines[:5]
+    baselines = dedupe_named(baselines, "name", limit=dedupe_limit)
+    return baselines[:selection_output_limit]

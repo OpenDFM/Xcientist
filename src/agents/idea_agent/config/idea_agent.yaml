@@ -1,0 +1,8 @@
+defaults:
+  - agent: default
+  - run: default
+  - mcts: default
+  - baseline: default
+  - dataset: default
+  - search: default
+  - _self_

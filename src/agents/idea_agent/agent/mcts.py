@@ -555,14 +555,16 @@ class IdeaNode:
 
 @dataclass
 class MCTSConfig:
-    max_iterations = 1
-    max_depth = 4
+    max_iterations: int = 1
+    max_depth: int = 4
     branching_factor: int = 3
     exploration_constant: float = 1.15
     generation_model: str = "gpt-4.1"
     evaluation_model: str = "gpt-4.1"
     generation_temperature: float = 0.65
     evaluation_temperature: float = 0.0
+    generation_max_tokens: int = 8192
+    evaluation_max_tokens: int = 8192
     min_confidence_for_memory: float = 0.6
     pareto_top_k: int = 5
 
@@ -878,7 +880,7 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.generation_model,
                 temperature=self.config.generation_temperature,
-                max_tokens=8192,
+                max_tokens=self.config.generation_max_tokens,
             )
             self._log("debug", "[MCTS] Generation response: %s", response)
             if not response or not response.strip():
@@ -986,7 +988,7 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.evaluation_model,
                 temperature=self.config.evaluation_temperature,
-                max_tokens=8192,
+                max_tokens=self.config.evaluation_max_tokens,
             )
             payload = parse_json_response(response)
             if isinstance(payload, list):
