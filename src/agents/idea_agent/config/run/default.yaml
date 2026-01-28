@@ -1,2 +1,8 @@
 run:
   max_turns: 4
+  parallelism: 1
+  output_root: "runs"
+  console_logs: false
+  rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
+  topics: []
+  topics_file: null

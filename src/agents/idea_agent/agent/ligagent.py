@@ -83,28 +83,15 @@ class LigAgent(AgentBase):
         return self._action_lookup.get(sanitized)
 
     def __init__(self, *args, **kwargs):
+        # Configure from provided config or load from file
         config = kwargs.pop("config", None)
-        config_path = kwargs.pop("config_path", None)
-        if config is None:
-            config = load_idea_agent_config(config_path)
         self.config = config
 
-        chat_max_retries = kwargs.pop(
-            "chat_max_retries",
-            get_config_value(config, "agent.chat_max_retries", 3),
-        )
-        chat_retry_backoff = kwargs.pop(
-            "chat_retry_backoff",
-            get_config_value(config, "agent.chat_retry_backoff", 2.0),
-        )
+        chat_max_retries = get_config_value(config, "agent.chat_max_retries", 3)
+        chat_retry_backoff = get_config_value(config, "agent.chat_retry_backoff", 2.0)
         survey_config_path = kwargs.pop("survey_config_path", None)
         run_dir = kwargs.pop("run_dir", None)
-        idea_result_path = kwargs.pop("idea_result_path", None)
         rag_config = kwargs.pop("rag_config", None)
-        self.paper_enrichment_timeout = kwargs.pop(
-            "paper_enrichment_timeout",
-            get_config_value(config, "agent.paper_enrichment_timeout_sec", 7200),
-        )
         action_selection_attempts = kwargs.pop(
             "action_selection_attempts",
             get_config_value(config, "agent.action_selection_attempts", 2),
@@ -124,19 +111,20 @@ class LigAgent(AgentBase):
         self.model = model
         self.tools = TOOLS
         self.memory = memory_init()
+
+        # Result persistence paths
         self.run_dir = Path(run_dir) if run_dir else Path(__file__).resolve().parent.parent
         self.run_dir.mkdir(parents=True, exist_ok=True)
-        if idea_result_path:
-            self.idea_result_path = Path(idea_result_path)
-        else:
-            self.idea_result_path = self.run_dir / "idea_result.json"
+        self.idea_result_path = self.run_dir / "idea_result.json"
         self.idea_result_path.parent.mkdir(parents=True, exist_ok=True)
+
         self.chat_max_retries = chat_max_retries
         self.chat_retry_backoff = chat_retry_backoff
         self._action_lookup = build_action_lookup(self.ACTION_ALIASES)
         self.semantic_search_limit = get_config_value(config, "agent.semantic_search_limit", 5)
         self.idea_context_limit = get_config_value(config, "agent.idea_context_limit", 10)
         self.introduction_context_limit = get_config_value(config, "agent.introduction_context_limit", 6)
+
         mcts_config = MCTSConfig()
         for field in fields(MCTSConfig):
             override = get_config_value(config, f"mcts.{field.name}", None)
@@ -148,6 +136,11 @@ class LigAgent(AgentBase):
             evaluation_prompt=PROMPTS["mcts_evaluation"],
             config=mcts_config,
             logger=logger,
+        )
+
+        self.paper_enrichment_timeout = kwargs.pop(
+            "paper_enrichment_timeout",
+            get_config_value(config, "agent.paper_enrichment_timeout_sec", 7200),
         )
         self.paper_repository = PaperRepository(
             config_path=survey_config_path,
@@ -271,7 +264,7 @@ class LigAgent(AgentBase):
                 logger.info("📄 Found Papers:")
                 initial_papers = normalize_search_papers(papers, search_keywords, logger)
                 if initial_papers:
-                    '''query_papers = prepare_query_papers(
+                    query_papers = prepare_query_papers(
                         initial_papers, self.paper_repository, logger
                     )
                     rag_query = generate_rag_query(
@@ -305,7 +298,7 @@ class LigAgent(AgentBase):
                         f"\nIn this knowledge_aquisition action, I read {len(initial_papers)} seed papers, "
                         f"generated a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
                         f"and fetched {len(rag_papers)} cited papers for memory."
-                    )'''
+                    )
                     safely_enrich_papers_with_content(
                         initial_papers,
                         self.paper_enrichment_timeout,

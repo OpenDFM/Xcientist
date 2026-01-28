@@ -6,7 +6,10 @@ import hashlib
 import itertools
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Set
+
+from omegaconf import OmegaConf
 from tqdm import tqdm
 
 from memory.api.faiss_memory_system_api import FAISSMemorySystem
@@ -553,20 +556,40 @@ class IdeaNode:
         return " | ".join(steps)
 
 
+def _load_mcts_defaults() -> Dict[str, Any]:
+    config_path = Path(__file__).resolve().parents[1] / "config" / "mcts" / "default.yaml"
+    config = OmegaConf.load(config_path)
+    mcts_config = config.get("mcts") if hasattr(config, "get") else None
+    if mcts_config is None:
+        return {}
+    try:
+        return OmegaConf.to_container(mcts_config, resolve=True) or {}
+    except Exception:
+        return dict(mcts_config) if isinstance(mcts_config, dict) else {}
+
+
+_MCTS_DEFAULTS = _load_mcts_defaults()
+
+
+def _mcts_default(key: str, fallback: Any) -> Any:
+    value = _MCTS_DEFAULTS.get(key, fallback)
+    return fallback if value is None else value
+
+
 @dataclass
 class MCTSConfig:
-    max_iterations: int = 1
-    max_depth: int = 4
-    branching_factor: int = 3
-    exploration_constant: float = 1.15
-    generation_model: str = "gpt-4.1"
-    evaluation_model: str = "gpt-4.1"
-    generation_temperature: float = 0.65
-    evaluation_temperature: float = 0.0
-    generation_max_tokens: int = 8192
-    evaluation_max_tokens: int = 8192
-    min_confidence_for_memory: float = 0.6
-    pareto_top_k: int = 5
+    max_iterations: int = _mcts_default("max_iterations", 128)
+    max_depth: int = _mcts_default("max_depth", 4)
+    branching_factor: int = _mcts_default("branching_factor", 3)
+    exploration_constant: float = _mcts_default("exploration_constant", 1.15)
+    generation_model: str = _mcts_default("generation_model", "gpt-4.1")
+    evaluation_model: str = _mcts_default("evaluation_model", "gpt-4.1")
+    generation_temperature: float = _mcts_default("generation_temperature", 0.65)
+    evaluation_temperature: float = _mcts_default("evaluation_temperature", 0.0)
+    generation_max_tokens: int = _mcts_default("generation_max_tokens", 8192)
+    evaluation_max_tokens: int = _mcts_default("evaluation_max_tokens", 8192)
+    min_confidence_for_memory: float = _mcts_default("min_confidence_for_memory", 0.6)
+    pareto_top_k: int = _mcts_default("pareto_top_k", 5)
 
 
 @dataclass

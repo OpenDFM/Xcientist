@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 import re
@@ -18,6 +17,7 @@ from src.agents.idea_agent.utils.config_loader import load_idea_agent_config, ge
 
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent / "runs"
+IDEA_AGENT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _slugify(value: str) -> str:
@@ -51,12 +51,6 @@ def _load_topics(topics: Sequence[str], topics_file: Optional[str]) -> List[str]
 
 
 def _expand_single_topic_for_parallelism(topics: Sequence[str], parallelism: int) -> List[tuple[str, Optional[int]]]:
-    """Expand topics into (topic, replica_index) pairs.
-
-    If there is only one topic but the user requests `parallelism > 1`, replicate
-    that topic so we can utilize multiple workers.
-    """
-
     cleaned = [t for t in topics if t]
     if len(cleaned) == 1 and parallelism > 1:
         return [(cleaned[0], i) for i in range(parallelism)]
@@ -70,7 +64,6 @@ def _run_topic(
     run_id: str,
     include_console: bool,
     rag_config: str,
-    config_path: Optional[str],
 ) -> str:
     run_dir = Path(output_root) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -91,7 +84,7 @@ def _run_topic(
     logger.info("🤖 Hello, I am LigAgent!")
     logger.info("💡 The research topic is %s", topic)
 
-    config = load_idea_agent_config(config_path)
+    config = load_idea_agent_config()
     agent = LigAgent(run_dir=run_dir, rag_config=rag_config, config=config)
     agent.bootstrap_topic(topic)
 
@@ -108,76 +101,54 @@ def _run_topic(
     return str(run_dir)
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run LigAgent for one or more topics in parallel.")
-    parser.add_argument(
-        "--topics",
-        nargs="*",
-        default=[],
-        help="Topic strings to explore (can be repeated).",
-    )
-    parser.add_argument(
-        "--topics-file",
-        type=str,
-        default=None,
-        help="Optional path to a text/JSON file containing topics (one per line or JSON list).",
-    )
-    parser.add_argument(
-        "--max-turns",
-        type=int,
-        default=None,
-        help="Maximum planner turns per topic (overrides config).",
-    )
-    parser.add_argument(
-        "--parallelism",
-        type=int,
-        default=None,
-        help="Maximum number of concurrent topics. Defaults to len(topics).",
-    )
-    parser.add_argument(
-        "--output-root",
-        type=str,
-        default=str(DEFAULT_OUTPUT_ROOT),
-        help="Directory where per-topic run folders (logs/results) are stored.",
-    )
-    parser.add_argument(
-        "--console-logs",
-        action="store_true",
-        help="If set, also log to the console from each worker process.",
-    )
-    parser.add_argument(
-        "--rag-config",
-        type=str,
-        default="config/idea_agent/rag_config.yaml",
-        help="Path to RAG configuration file.",
-    )
-    parser.add_argument(
-        "--idea-config",
-        type=str,
-        default=None,
-        help="Path to idea agent Hydra config file.",
-    )
-    return parser.parse_args()
+def _load_run_defaults(config: Optional[object]) -> dict:
+    return {
+        "topics": get_config_value(config, "run.topics", []),
+        "topics_file": get_config_value(config, "run.topics_file", None),
+        "max_turns": get_config_value(config, "run.max_turns", None),
+        "parallelism": get_config_value(config, "run.parallelism", None),
+        "output_root": get_config_value(config, "run.output_root", str(DEFAULT_OUTPUT_ROOT)),
+        "console_logs": get_config_value(config, "run.console_logs", False),
+        "rag_config": get_config_value(config, "run.rag_config", "src/agents/survey_agent/config/outcomeRAG.yaml"),
+    }
+
+
+def _apply_env_config(config: Optional[object]) -> None:
+    if config is None:
+        return
+    env_map = {
+        "OPENAI_API_KEY": "env.openai_api_key",
+        "OPENAI_BASE_URL": "env.openai_base_url",
+        "S2_API_KEY": "env.s2_api_key",
+        "S2_API_TIMEOUT": "env.s2_api_timeout",
+        "SERPER_API_KEY": "env.serper_api_key",
+        "MINERU_MODEL_SOURCE": "env.mineru_model_source",
+    }
+    for env_var, key in env_map.items():
+        value = get_config_value(config, key, None)
+        if value is None:
+            continue
+        os.environ[env_var] = str(value)
 
 
 def main() -> None:
-    args = parse_args()
-    topics = _load_topics(args.topics, args.topics_file)
-    config = load_idea_agent_config(args.idea_config)
-    max_turns = (
-        args.max_turns
-        if args.max_turns is not None
-        else get_config_value(config, "run.max_turns", 4)
-    )
-    output_root = Path(args.output_root).expanduser()
+    config = load_idea_agent_config()
+    _apply_env_config(config)
+    defaults = _load_run_defaults(config)
+    topics = _load_topics(defaults["topics"], defaults["topics_file"])
+    max_turns = defaults["max_turns"] if defaults["max_turns"] is not None else 4
+    output_root = Path(defaults["output_root"]).expanduser()
+    if not output_root.is_absolute():
+        output_root = IDEA_AGENT_ROOT / output_root
     output_root.mkdir(parents=True, exist_ok=True)
 
-    requested_parallelism = args.parallelism or len(topics)
+    requested_parallelism = defaults["parallelism"] or len(topics)
     requested_parallelism = max(1, requested_parallelism)
     expanded = _expand_single_topic_for_parallelism(topics, requested_parallelism)
     parallelism = max(1, min(requested_parallelism, len(expanded)))
 
-    rag_config = args.rag_config
+    rag_config = defaults["rag_config"]
+    include_console = defaults["console_logs"]
 
     futures = {}
     with ProcessPoolExecutor(max_workers=parallelism) as executor:
@@ -193,9 +164,8 @@ def main() -> None:
                 max_turns,
                 str(output_root),
                 run_id,
-                args.console_logs,
+                include_console,
                 rag_config,
-                args.idea_config,
             )
             futures[future] = (topic, output_root / run_id)
 

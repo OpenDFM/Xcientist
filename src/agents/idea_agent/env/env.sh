@@ -9,6 +9,4 @@ export IDEA_AGENT_PARALLELISM="1"
 export IDEA_AGENT_RAG_CONFIG="src/agents/survey_agent/config/outcomeRAG.yaml"
 
 
-python src/agents/idea_agent/scripts/run.py --topics "Diffusion Models for RL in Games" \
---parallelism "$IDEA_AGENT_PARALLELISM" \
---rag-config "$IDEA_AGENT_RAG_CONFIG"
+python src/agents/idea_agent/scripts/run.py

@@ -9,6 +9,7 @@ from src.agents.idea_agent.utils.idea_helpers import build_mcts_evolution, colle
 from src.agents.idea_agent.utils.ligagent_helpers import (
     build_algorithm_spec,
     suggest_baselines,
+    suggest_datasets,
     synthesize_reference_summaries,
 )
 from src.agents.idea_agent.utils.config_loader import get_config_value
@@ -65,20 +66,18 @@ def persist_final_idea(
         model,
         logger,
     )
-    # Keep dataset flow consistent with previous behavior.
-    datasets = {}
-    # datasets = suggest_datasets(
-    #     topic,
-    #     best_entry,
-    #     algorithm,
-    #     references,
-    #     prompts,
-    #     chat_fn,
-    #     model,
-    #     logger,
-    #     memory=memory,
-    #     config=config,
-    # )
+    datasets = suggest_datasets(
+        topic,
+         best_entry,
+         algorithm,
+         references,
+         prompts,
+         chat_fn,
+         model,
+         logger,
+         memory=memory,
+         config=config,
+     )
     baselines = suggest_baselines(
         topic,
         best_entry,
