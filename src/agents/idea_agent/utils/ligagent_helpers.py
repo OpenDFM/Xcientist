@@ -178,11 +178,13 @@ def normalize_search_papers(
 
 
 def prepare_query_papers(
-    papers: List[Dict[str, Any]],
+    papers: Optional[List[Dict[str, Any]]],
     paper_repository,
     logger,
     limit: int = 6,
 ) -> List[Dict[str, Any]]:
+    if not papers:
+        return []
     shortlist = papers[:limit]
     paper_ids = [paper.get("paper_id") for paper in shortlist if paper.get("paper_id")]
     prepared = {}
@@ -216,10 +218,12 @@ def generate_rag_query(
     chat_fn,
     model: str,
     logger,
+    mature_idea: Optional[str] = None,
 ) -> str:
     prompt = prompts["rag_query"].format(
         topic=topic,
-        papers=json.dumps(papers, ensure_ascii=False, indent=2),
+        mature_idea=(mature_idea or "").strip(),
+        papers=json.dumps(papers, ensure_ascii=False, indent=2) if papers is not None else "[]",
     )
     try:
         response = chat_fn(prompt, model=model, temperature=0.3, max_tokens=512)
@@ -252,7 +256,7 @@ def collect_rag_citations(hits: List[Dict[str, Any]]) -> List[str]:
     titles: List[str] = []
     seen = set()
     for hit in hits or []:
-        citations = hit.get("citations") or []
+        citations = hit.get("citations", [])
         for title in citations:
             cleaned = (title or "").strip()
             if not cleaned:
@@ -263,6 +267,13 @@ def collect_rag_citations(hits: List[Dict[str, Any]]) -> List[str]:
             seen.add(key)
             titles.append(cleaned)
     return titles
+
+def collect_rag_contents(hits: List[Dict[str, Any]]) -> List[str]:
+    contents: List[str] = []
+    for hit in hits or []:
+        subsection = hit.get("subsection", "").strip()
+        contents.append(subsection)
+    return contents
 
 
 def search_papers_from_citations(
@@ -325,7 +336,7 @@ def safely_enrich_papers_with_content(
     if not papers:
         return
     timeout = max(30, int(timeout or 0))
-    executor = ThreadPoolExecutor(max_workers=1)
+    executor = ThreadPoolExecutor(max_workers=10)
     future = executor.submit(
         enrich_papers_with_content, papers, paper_repository, memory, logger
     )

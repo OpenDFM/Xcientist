@@ -1,49 +1,94 @@
-ADVANCED_ANALYSIS_PROMPT = """
+ADVANCED_ANALYSIS_PROMPT_SURVEY_LED_WITH_PAPERS = """
 You are the lead author preparing an ICML-caliber paper on the topic "{topic}".
-You have curated the following paper capsules (title, abstract, metadata):
+
+Mature idea (optional; if empty, ignore):
+{mature_idea}
+
+You have:
+(1) Survey contents (PRIMARY source of problem framing, clusters, and gaps):
+{survey_contents}
+
+(2) Curated paper capsules (SECONDARY source; use for evidence, baselines, feasibility details, and concrete instantiations ONLY):
 {papers}
 
-Treat this as a mini literature review followed by moonshot ideation. Perform the steps below explicitly before answering:
-1. Map the dominant method clusters, contrasting their assumptions, supervision signals, and compute budgets.
-2. Stress-test the clusters to expose unresolved limitations, evaluation blind spots, and why those issues persist.
-3. Brainstorm bold, non-incremental hypotheses that could unlock new capabilities (think novel mechanisms, new training contracts, or cross-discipline transfers). Each hypothesis must cite at least one supporting paper anchor but must go materially beyond it.
-4. Identify what experimental or theoretical tooling would be required to validate those hypotheses at a top-tier (ICML/NeurIPS) standard.
+Core principle (must follow):
+- Survey drives the agenda: method clusters + unresolved gaps + evaluation blind spots MUST be derived from survey_contents.
+- Papers may refine or substantiate the survey-derived gaps, but MUST NOT redefine the agenda or introduce a new main axis not present in the survey framing.
+- Any idea seed MUST directly address at least one SURVEY gap/blind spot and explicitly show how it improves over the survey’s identified limitations.
+- If mature_idea is provided, align clusters/gaps/idea seeds to its scope and mechanisms without changing the survey-led axis.
 
-Return STRICT JSON (no prose) with the schema:
+Perform the steps below explicitly before answering:
+1) Survey-led clustering:
+   Map the dominant method clusters mentioned in the survey. For each cluster, summarize:
+   - assumptions
+   - supervision/training signals
+   - compute/latency/memory budgets (as described or implied by the survey)
+   Papers can be used only to add concrete examples, representative baselines, or implementation constraints for clusters already defined by the survey.
+
+2) Gap-first stress test (survey is the ground truth for "what is missing"):
+   Extract unresolved limitations + evaluation blind spots from the survey, and explain why they persist.
+   You MAY use papers to corroborate a gap (e.g., show multiple papers still exhibit the limitation), but you MUST keep the gap statement aligned with survey framing.
+
+3) Moonshot ideation constrained by survey gaps:
+   Propose bold, non-incremental hypotheses that directly target the extracted SURVEY gaps.
+   Every hypothesis must:
+   - Cite at least one SURVEY anchor (section/subsection/paragraph or quote fragment).
+   - Optionally cite paper anchors that support feasibility or highlight the persistence of the gap.
+   - Go materially beyond the survey’s suggested fixes while staying on the same axis.
+
+4) Validation tooling:
+   Specify what experiments/protocols/tools are required to validate each hypothesis at ICML/NeurIPS bar.
+   Evaluation ideas are allowed only if they are tightly coupled to proving the proposed MECHANISM (not as the primary contribution).
+
+Return STRICT JSON (no prose, no Markdown) with the schema:
 {{
-    "key_methods": ["..."],
-    "existing_problems": ["..."],
-    "evaluation_gaps": [
-        {{
-            "gap": "concise description of a measurement blind spot",
-            "why_it_matters": "impact on reliability or scientific insight",
-            "icml_expectation": "what the ICML bar would demand instead"
-        }}
-    ],
-    "future_directions": ["..."],  # incremental yet useful next steps
-    "divergent_idea_seeds": [
-        {{
-            "title": "short memorable name",
-            "hypothesis": "what new capability emerges",
-            "why_it_is_not_incremental": "specific contrast vs known tricks (e.g., gating/MoE/ensembles)",
-            "method_sketch": "core mechanism, modules, or objective",
-            "evaluation_plan": "new protocol/dataset/stress-test to validate it",
-            "risk": "dominant scientific or engineering risk",
-            "supporting_papers": ["paper title or id anchors"]
-        }}
-    ],
-    "cross_domain_inspiration": [
-        {{
-            "source_field": "e.g., control theory, neuroscience",
-            "transferable_mechanism": "what we borrow",
-            "application_hook": "how it maps to the current topic"
-        }}
-    ],
-    "tldr": "≤50 word synthesis tying gaps to moonshot opportunities"
+  "key_methods": ["..."],                          // survey-led cluster names or dominant families
+  "existing_problems": ["..."],                    // survey-led limitations (can be supported by papers)
+  "evaluation_gaps": [
+    {{
+      "gap": "concise description of a measurement blind spot (MUST originate from survey_contents)",
+      "why_it_matters": "impact on reliability or scientific insight",
+      "icml_expectation": "what the ICML bar would demand instead"
+    }}
+  ],
+  "future_directions": ["..."],                    // incremental but useful; must still be anchored in survey
+  "divergent_idea_seeds": [
+    {{
+      "title": "short memorable name",
+      "hypothesis": "what new capability emerges",
+      "why_it_is_not_incremental": "specific contrast vs known tricks (gating/MoE/ensembles/etc.)",
+      "method_sketch": "core mechanism, modules, or objective (must explicitly target a named survey gap)",
+      "evaluation_plan": "protocol/stress-test to validate it (must close the survey gap; include fair baselines)",
+      "risk": "dominant scientific or engineering risk",
+      "supporting_papers": ["SURVEY_ANCHOR:...", "PAPER_ANCHOR:..."]
+    }}
+  ],
+  "cross_domain_inspiration": [
+    {{
+      "source_field": "e.g., control theory, neuroscience",
+      "transferable_mechanism": "what we borrow (you may name concepts if used to address a survey gap)",
+      "application_hook": "explicit mapping: which survey gap/cluster it improves and how"
+    }}
+  ],
+  "tldr": "≤50 word synthesis tying SURVEY gaps to the proposed moonshots"
 }}
 
-Rules:
-- Always put at least three divergent_idea_seeds; force yourself to be expansive.
-- If you cannot find enough explicit paper evidence, point to adjacent subfields in supporting_papers.
+Rules (hard):
+- Always output at least three divergent_idea_seeds; they must be mutually distinct.
+- Every divergent_idea_seed MUST:
+  (a) cite at least one SURVEY_ANCHOR and name which evaluation_gaps/existing_problems it addresses,
+  (b) propose a concrete mechanism change (module/objective/training contract), not just instrumentation,
+  (c) keep the main axis consistent with survey framing (no agenda reset from papers).
+- Papers may contribute:
+  - representative baselines and fair comparison protocol details,
+  - feasibility constraints (latency/memory/compute),
+  - evidence that a survey gap persists across recent works.
+  Papers may NOT contribute:
+  - a new main problem statement that is absent from survey,
+  - a new core mechanism term as the central novelty unless you explicitly tie it to a named survey gap and explain why the gap demands it.
+- If survey_contents lacks explicit anchors, create anchors by quoting a short distinctive phrase from the survey and prefix it with "SURVEY_QUOTE:".
 - Keep the JSON valid and free of commentary.
 """
+
+# Backward-compatible alias expected by prompt registry/imports.
+ADVANCED_ANALYSIS_PROMPT = ADVANCED_ANALYSIS_PROMPT_SURVEY_LED_WITH_PAPERS

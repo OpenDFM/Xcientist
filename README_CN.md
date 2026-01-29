@@ -42,8 +42,8 @@ run:
 
 **示例：API 环境配置**
 ```yaml
-# src/agents/idea_agent/config/env/default.yaml
-env:
+# src/agents/idea_agent/config/run/default.yaml
+run:
   openai_api_key: "your-api-key"
   openai_base_url: "https://api.example.com/v1"
   s2_api_key: "your-s2-key"
@@ -51,7 +51,6 @@ env:
   serper_api_key: "your-serper-key"
   mineru_model_source: null
 ```
-> 提示：API Key 请避免提交到公开仓库。
 
 **进阶示例：MCTS 搜索参数**
 ```yaml
@@ -61,8 +60,8 @@ mcts:
   max_depth: 5
   branching_factor: 4
   exploration_constant: 1.2
-  generation_model: "gpt-4.1"
-  evaluation_model: "gpt-4.1"
+  generation_model: "gpt-5-mini"
+  evaluation_model: "gpt-5.2"
   generation_temperature: 0.7
 ```
 

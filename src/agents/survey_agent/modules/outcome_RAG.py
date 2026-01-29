@@ -2,9 +2,11 @@ import os
 import re
 import sys
 from typing import List, Dict, Optional
+from pathlib import Path
 
 import torch
 import hydra
+import os
 from sentence_transformers import SentenceTransformer, util
 import json
 
@@ -24,7 +26,7 @@ class OutcomeRAG:
         # online
         # self.model = SentenceTransformer(config.ModuleInfo.WorkCollector.sentence_transformer_model)
         # offline
-        local_path = "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/idea_agent/.cache/bge-large-en-v1.5"
+        local_path = str(Path(__file__).resolve().parent.parent.parent / "idea_agent/.cache/bge-large-en-v1.5")
         self.model = SentenceTransformer(local_path)
         self.work_collector = work_collector
         self.logger = get_logger("OutcomeRAG")

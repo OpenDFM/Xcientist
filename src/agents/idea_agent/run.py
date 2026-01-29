@@ -9,15 +9,15 @@ from pathlib import Path
 from typing import Iterable, List, Optional, Sequence
 from uuid import uuid4
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from agent.ligagent import LigAgent
-from agent.ligagent_flow import run_agent_loop
-from agent import init_logger, get_logger
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from src.agents.idea_agent.agent.ligagent import LigAgent
+from src.agents.idea_agent.agent.ligagent_flow import run_agent_loop
 from src.agents.idea_agent.utils.config_loader import load_idea_agent_config, get_config_value
 
+from agent import init_logger, get_logger
 
-DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent.parent / "runs"
-IDEA_AGENT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"
+IDEA_AGENT_ROOT = Path(__file__).resolve().parent
 
 
 def _slugify(value: str) -> str:
@@ -46,7 +46,7 @@ def _load_topics(topics: Sequence[str], topics_file: Optional[str]) -> List[str]
                 resolved.extend(line.strip() for line in text.splitlines() if line.strip())
     sanitized = [topic.strip() for topic in resolved if topic and topic.strip()]
     if not sanitized:
-        sanitized = ["Reinforcement Learning for LLM Reasoning"]
+        raise ValueError("No valid topics found from inputs! Please check your configuration.")
     return sanitized
 
 
@@ -117,12 +117,12 @@ def _apply_env_config(config: Optional[object]) -> None:
     if config is None:
         return
     env_map = {
-        "OPENAI_API_KEY": "env.openai_api_key",
-        "OPENAI_BASE_URL": "env.openai_base_url",
-        "S2_API_KEY": "env.s2_api_key",
-        "S2_API_TIMEOUT": "env.s2_api_timeout",
-        "SERPER_API_KEY": "env.serper_api_key",
-        "MINERU_MODEL_SOURCE": "env.mineru_model_source",
+        "OPENAI_API_KEY": "run.openai_api_key",
+        "OPENAI_BASE_URL": "run.openai_base_url",
+        "S2_API_KEY": "run.s2_api_key",
+        "S2_API_TIMEOUT": "run.s2_api_timeout",
+        "SERPER_API_KEY": "run.serper_api_key",
+        "MINERU_MODEL_SOURCE": "run.mineru_model_source",
     }
     for env_var, key in env_map.items():
         value = get_config_value(config, key, None)

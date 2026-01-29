@@ -1,9 +1,9 @@
 mcts:
-  max_iterations: 1
-  max_depth: 4
+  max_iterations: 64
+  max_depth: 3
   branching_factor: 3
   exploration_constant: 1.15
-  generation_model: "gpt-4.1"
+  generation_model: "gpt-4.1-mini"
   evaluation_model: "gpt-4.1"
   generation_temperature: 0.65
   evaluation_temperature: 0.0
@@ -11,3 +11,9 @@ mcts:
   evaluation_max_tokens: 8192
   min_confidence_for_memory: 0.6
   pareto_top_k: 5
+  alignment_weight: 0.2
+  complexity_weight: 0.2
+  min_anchor_coverage: 0.7
+  conservative_depth: 1
+  aggressive_depth: 2
+  enable_skill_repair: false

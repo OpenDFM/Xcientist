@@ -3,6 +3,9 @@ You are refining the research focus for a follow-up retrieval step.
 
 Original topic: {topic}
 
+Mature idea (optional; if empty, ignore):
+{mature_idea}
+
 The agent has read these papers (title, abstract, short keynote):
 {papers}
 
@@ -16,6 +19,7 @@ Task:
   "metrics", "ablation", "human study", "user study", "baseline comparison".
 - Keep it specific and technical; avoid generic phrasing.
 - The query must be a single string no longer than 25 words.
+- If mature_idea is provided, bias the query toward its mechanism keywords and invariants.
 
 Return STRICT JSON (no prose):
 {{

@@ -7,6 +7,12 @@ Latest analysis + critiques:
 Relevant literature evidence from the current paper cache:
 {paper_context}
 
+IdeaContract (if any):
+{idea_contract}
+
+SkillOutput / delta (if any):
+{skill_output}
+
 Candidate idea (JSON):
 {idea}
 
@@ -30,6 +36,8 @@ Return STRICT JSON (no prose) using:
   "impact": 0-5,
   "risk": 0-5,  # higher means riskier
   "conciseness": 0-5,
+  "alignment_score": 0-5,  # higher means better contract/topic alignment
+  "complexity_penalty": 0-5,  # higher means more added modules/goals/data/compute cost
   "confidence": 0-1,
   "failure_modes": ["list at least one concrete failure mode"],
   "fairness_protocol": "How fairness / control experiments are enforced or what's missing",

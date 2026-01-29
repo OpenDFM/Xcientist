@@ -7,7 +7,7 @@ from typing import Any, Optional
 from omegaconf import OmegaConf
 
 DEFAULT_CONFIG_PATH = (
-    Path(__file__).resolve().parents[1] / "config" / "idea_agent.yaml"
+    Path(__file__).resolve().parents[1] / "config" / "run" / "default.yaml"
 )
 
 

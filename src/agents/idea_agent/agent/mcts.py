@@ -25,153 +25,47 @@ from src.agents.idea_agent.utils.mcts_helpers import (
     parse_json_response,
     format_analysis_blob,
     format_edit_operators,
+    clip_text,
+)
+from src.agents.idea_agent.utils.mcts_runtime import (
+    AGGRESSIVE_OPERATOR_NAMES,
+    ANTI_PATTERN_CONSTRAINTS,
+    CONSERVATIVE_OPERATOR_NAMES,
+    MODERATE_OPERATOR_NAMES,
+    EDIT_OPERATORS,
+    EditOperator,
+    ExperimentPatch,
+    IdeaContract,
+    InvariantImpact,
+    MemoryBundle,
+    MemorySnippet,
+    SkillDelta,
+    SkillOutput,
+    SkillValidation,
+    attach_child,
+    best_candidate,
+    build_root_state,
+    cache_evaluation,
+    fallback_child_payloads,
+    get_best_cached_evaluation,
+    get_cached_evaluation,
+    log_message,
+    maybe_record_experience,
+    new_node,
+    pareto_candidates,
+    parse_child_state,
+    path_cache_key,
+    path_summary,
+    reset_search_state,
 )
 
 MAX_IDEA_TEXT = 800
 MAX_RATIONALE_TEXT = 600
 MAX_TITLE_TEXT = 256
-MAX_LIST_ENTRIES = 12
+MAX_LIST_ENTRIES = 10
 MAX_REF_TEXT = 96
-ELLIPSIS = "..."
-
-
-def _clip_text(value: Any, limit: int = MAX_IDEA_TEXT) -> str:
-    text = "" if value is None else str(value).strip()
-    if limit <= 0:
-        return text
-    if len(text) <= limit:
-        return text
-    return text[: max(1, limit - 1)] + ELLIPSIS
 
 module_logger = get_logger()
-
-
-@dataclass
-class EditOperator:
-    name: str
-    description: str
-    defects: List[str]
-    guardrails: List[str]
-
-
-EDIT_OPERATORS: List[EditOperator] = [
-    EditOperator(
-        name="mechanism-commit-innovation",
-        description="Introduce a concrete architectural or algorithmic intervention (new module, coupling, or training signal) and argue how it fixes the defect while outlining the validation harness.",
-        defects=["stagnant_novelty", "unclear_mechanism", "validation_gap"],
-        guardrails=[
-            "must name the exact component being added/rewired and why it targets the defect",
-            "must define the success metric and experiment that proves the mechanism works",
-            "tie the intervention to at least one risk or failure surfaced earlier",
-        ],
-    ),
-    EditOperator(
-        name="counterfactual-contrast",
-        description="Prototype counterfactual generators or rare-regime samplers that feed new signals into the learning pipeline, forcing the model to handle unseen physics or boundary cases.",
-        defects=["missing_edge_cases", "weak_generalization", "dataset_bias"],
-        guardrails=["limit to 1-2 new synthetic channels per iteration", "log how the new sampler plugs into training/eval"],
-    ),
-    EditOperator(
-        name="adaptive-constraint-hybridization",
-        description="Hybridize hard/soft constraints or controllers by adding a new auxiliary head, penalty, or differentiable solver coupling that directly enforces domain rules.",
-        defects=["constraint_drift", "physical_invalidity", "weak_regularization"],
-        guardrails=[
-            "clearly state the additional constraint signal and how it is computed",
-            "prove it does not explode training cost without justification",
-        ],
-    ),
-    EditOperator(
-        name="surgical-modularity",
-        description="Split the method into orthogonal, swappable modules and re-solve the weakest block with a new mechanism (e.g., delegate geometry encoder, solver head, or monitor).",
-        defects=["feature_dumping", "monolithic_design", "harder_to_ablate"],
-        guardrails=["touch only one block", "outline interface contracts and how modules communicate"],
-    ),
-    EditOperator(
-        name="data-contract-repair",
-        description="Repair data or supervision contracts (coverage, labeling, alignment) before adding model tricks, potentially by inserting new labeling heads or contract tests.",
-        defects=["data_quality", "label_noise", "missing_contracts"],
-        guardrails=["state measurable contract tests", "forbid new model components unless the contract gap is proven"],
-    ),
-    EditOperator(
-        name="multi-scale-coordinator",
-        description="Introduce a coordinator/controller that fuses predictions from different scales or modalities, committing to a routing, aggregation, or scheduling mechanism.",
-        defects=["scale_mismatch", "coordination_failure", "latency_bottleneck"],
-        guardrails=["describe routing policy and how conflicts are resolved", "quantify added latency or compute budget"],
-    ),
-    EditOperator(
-        name="self-supervised-corrector",
-        description="Attach a corrective model (teacher, diffusion prior, energy head) that learns residuals or invariants without extra labels, producing explicit correction signals.",
-        defects=["systematic_bias", "silent_failure", "drift"],
-        guardrails=["specify the self-supervised loss and how corrections are injected", "explain how over-correction is prevented"],
-    ),
-    EditOperator(
-        name="theory-transfer-injection",
-        description="Port a principled mechanism or constraint from another discipline (control theory, info theory, neuro, geometry) and fuse it as a first-class module or objective.",
-        defects=["stagnant_novelty", "theory_gap", "weak_generalization"],
-        guardrails=[
-            "identify the exact theorem/mechanism you are borrowing and how it plugs into the pipeline",
-            "spell out the new capability it enables beyond gating or ensembling baselines",
-        ],
-    ),
-    EditOperator(
-        name="evaluation-contract-overhaul",
-        description="Redesign the evaluation/training contract (stress datasets, protocol, reward shaping) so that new failure modes are surfaced and optimized.",
-        defects=["evaluation_blindspot", "weak_accountability", "missing_contracts"],
-        guardrails=[
-            "describe concrete datasets/protocols introduced and the defect they expose",
-            "clarify how the new contract integrates with training/inference cost ceilings",
-        ],
-    ),
-]
-
-ANTI_PATTERN_CONSTRAINTS = [
-    "No feature dumping: every add-on must map to a measured defect.",
-    "Always declare baseline + ablation protocols for fairness.",
-    "Describe at least one deliberate failure-mode surfacing plan.",
-    "Constrain resource usage; note instrumentation for guardrails.",
-    "Avoid trivial gating/ensembling tweaks; if an incremental safeguard is unavoidable, tag it 'incremental' and explain why it is temporary.",
-    "Ensure at least one child is a moonshot-level mechanism or evaluation-contract overhaul suitable for ICML/NeurIPS novelty expectations.",
-]
-
-
-@dataclass
-class MemorySnippet:
-    identifier: str
-    title: str
-    detail: str
-    tags: List[str] = field(default_factory=list)
-
-    def to_prompt_line(self) -> str:
-        tags_str = f" tags={','.join(self.tags)}" if self.tags else ""
-        return f"[{self.identifier}] {self.title}{tags_str}: {self.detail}"
-
-
-@dataclass
-class MemoryBundle:
-    field_knowledge: List[MemorySnippet] = field(default_factory=list)
-    anti_patterns: List[MemorySnippet] = field(default_factory=list)
-    fix_recipes: List[MemorySnippet] = field(default_factory=list)
-
-    def to_prompt_block(self) -> str:
-        sections = []
-        if self.field_knowledge:
-            sections.append("== Field Knowledge ==")
-            sections.extend(snippet.to_prompt_line() for snippet in self.field_knowledge)
-        if self.anti_patterns:
-            sections.append("== Anti-patterns ==")
-            sections.extend(snippet.to_prompt_line() for snippet in self.anti_patterns)
-        if self.fix_recipes:
-            sections.append("== Fix Recipes ==")
-            sections.extend(snippet.to_prompt_line() for snippet in self.fix_recipes)
-        if not sections:
-            return "No validated memory snippets matched. Rely on analysis context only."
-        return "\n".join(sections)
-
-    def referenced_ids(self) -> List[str]:
-        ids = []
-        for bank in (self.field_knowledge, self.anti_patterns, self.fix_recipes):
-            ids.extend(snippet.identifier for snippet in bank)
-        return ids
 
 
 class LongTermMemoryAccessor:
@@ -359,22 +253,24 @@ class IdeaState:
     target_defects: List[str]
     rationale: str
     memory_refs: List[str] = field(default_factory=list)
+    skill_output: Optional[Dict[str, Any]] = None
+    skill_metrics: Dict[str, Any] = field(default_factory=dict)
     signature: str = field(init=False)
 
     def __post_init__(self) -> None:
-        self.title = _clip_text(self.title, MAX_TITLE_TEXT)
-        self.abstract = _clip_text(self.abstract, MAX_IDEA_TEXT)
-        self.core_contribution = _clip_text(self.core_contribution, MAX_IDEA_TEXT)
-        self.method = _clip_text(self.method, MAX_IDEA_TEXT)
-        self.experiments = _clip_text(self.experiments, MAX_IDEA_TEXT)
-        self.risks = _clip_text(self.risks, MAX_IDEA_TEXT)
-        self.rationale = _clip_text(self.rationale, MAX_RATIONALE_TEXT)
-        self.tags = [_clip_text(tag, 48) for tag in self.tags[:MAX_LIST_ENTRIES]]
+        self.title = clip_text(self.title, MAX_TITLE_TEXT)
+        self.abstract = clip_text(self.abstract, MAX_IDEA_TEXT)
+        self.core_contribution = clip_text(self.core_contribution, MAX_IDEA_TEXT)
+        self.method = clip_text(self.method, MAX_IDEA_TEXT)
+        self.experiments = clip_text(self.experiments, MAX_IDEA_TEXT)
+        self.risks = clip_text(self.risks, MAX_IDEA_TEXT)
+        self.rationale = clip_text(self.rationale, MAX_RATIONALE_TEXT)
+        self.tags = [clip_text(tag, 48) for tag in self.tags[:MAX_LIST_ENTRIES]]
         self.target_defects = [
-            _clip_text(defect, 48) for defect in self.target_defects[:MAX_LIST_ENTRIES]
+            clip_text(defect, 48) for defect in self.target_defects[:MAX_LIST_ENTRIES]
         ]
         self.memory_refs = [
-            _clip_text(ref, MAX_REF_TEXT) for ref in self.memory_refs[:MAX_LIST_ENTRIES]
+            clip_text(ref, MAX_REF_TEXT) for ref in self.memory_refs[:MAX_LIST_ENTRIES]
         ]
         canonical = "|".join(
             [
@@ -387,7 +283,7 @@ class IdeaState:
         self.signature = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     def describe(self) -> str:
-        return (
+        base = (
             f"Title: {self.title}\n"
             f"Abstract: {self.abstract}\n"
             f"Core Contribution: {self.core_contribution}\n"
@@ -397,9 +293,15 @@ class IdeaState:
             f"Tags: {', '.join(self.tags)}\n"
             f"Operator: {self.operator} targeting {self.target_defects or ['unspecified']}"
         )
+        if self.skill_output:
+            delta = self.skill_output.get("delta", {})
+            intervention = delta.get("intervention", "")
+            mechanism = delta.get("mechanism", "")
+            return f"{base}\nDelta: {intervention}\nMechanism: {mechanism}"
+        return base
 
     def to_payload(self) -> Dict[str, Any]:
-        return {
+        payload = {
             "title": self.title,
             "abstract": self.abstract,
             "core_contribute": self.core_contribution,
@@ -412,6 +314,11 @@ class IdeaState:
             "memory_refs": self.memory_refs,
             "rationale": self.rationale,
         }
+        if self.skill_output:
+            payload["skill_output"] = self.skill_output
+        if self.skill_metrics:
+            payload["skill_metrics"] = self.skill_metrics
+        return payload
 
 
 @dataclass
@@ -422,20 +329,24 @@ class IdeaEvaluation:
     impact: float
     risk: float
     conciseness: float
+    alignment_score: float
+    complexity_penalty: float
     confidence: float
     failure_modes: List[str]
     fairness_protocol: str
     feedback: str
     defect_fix_summary: str
     lift_estimate: float
+    alignment_weight: float = 0.2
+    complexity_weight: float = 0.2
 
     def __post_init__(self) -> None:
         self.failure_modes = [
-            _clip_text(mode, 160) for mode in (self.failure_modes or [])[:MAX_LIST_ENTRIES]
+            clip_text(mode, 160) for mode in (self.failure_modes or [])[:MAX_LIST_ENTRIES]
         ]
-        self.fairness_protocol = _clip_text(self.fairness_protocol, MAX_IDEA_TEXT)
-        self.feedback = _clip_text(self.feedback, MAX_IDEA_TEXT)
-        self.defect_fix_summary = _clip_text(self.defect_fix_summary, MAX_IDEA_TEXT)
+        self.fairness_protocol = clip_text(self.fairness_protocol, MAX_IDEA_TEXT)
+        self.feedback = clip_text(self.feedback, MAX_IDEA_TEXT)
+        self.defect_fix_summary = clip_text(self.defect_fix_summary, MAX_IDEA_TEXT)
 
     @classmethod
     def from_payload(cls, payload: Dict[str, Any]) -> "IdeaEvaluation":
@@ -461,6 +372,8 @@ class IdeaEvaluation:
             impact=_num("impact"),
             risk=_num("risk"),
             conciseness=_num("conciseness"),
+            alignment_score=_num("alignment_score"),
+            complexity_penalty=_num("complexity_penalty"),
             confidence=max(0.0, min(1.0, _num("confidence"))),
             failure_modes=_list("failure_modes"),
             fairness_protocol=str(payload.get("fairness_protocol", "")),
@@ -477,6 +390,8 @@ class IdeaEvaluation:
             "impact": self.impact,
             "risk": self.risk,
             "conciseness": self.conciseness,
+            "alignment_score": self.alignment_score,
+            "complexity_penalty": self.complexity_penalty,
             "confidence": self.confidence,
             "failure_modes": self.failure_modes,
             "fairness_protocol": self.fairness_protocol,
@@ -494,8 +409,9 @@ class IdeaEvaluation:
             + 0.15 * self.clarity
             + 0.10 * self.conciseness
         )
-        penalty = 0.2 * self.risk
-        return positive - penalty
+        penalty = 0.2 * self.risk + self.complexity_weight * self.complexity_penalty
+        bonus = self.alignment_weight * self.alignment_score
+        return positive + bonus - penalty
 
 
 @dataclass
@@ -506,11 +422,11 @@ class OperatorApplication:
     memory_refs: List[str]
 
     def __post_init__(self) -> None:
-        self.operator = _clip_text(self.operator, 80)
-        self.defects = [_clip_text(defect, 48) for defect in self.defects[:MAX_LIST_ENTRIES]]
-        self.rationale = _clip_text(self.rationale, MAX_RATIONALE_TEXT)
+        self.operator = clip_text(self.operator, 80)
+        self.defects = [clip_text(defect, 48) for defect in self.defects[:MAX_LIST_ENTRIES]]
+        self.rationale = clip_text(self.rationale, MAX_RATIONALE_TEXT)
         self.memory_refs = [
-            _clip_text(ref, MAX_REF_TEXT) for ref in self.memory_refs[:MAX_LIST_ENTRIES]
+            clip_text(ref, MAX_REF_TEXT) for ref in self.memory_refs[:MAX_LIST_ENTRIES]
         ]
 
 
@@ -590,6 +506,12 @@ class MCTSConfig:
     evaluation_max_tokens: int = _mcts_default("evaluation_max_tokens", 8192)
     min_confidence_for_memory: float = _mcts_default("min_confidence_for_memory", 0.6)
     pareto_top_k: int = _mcts_default("pareto_top_k", 5)
+    alignment_weight: float = _mcts_default("alignment_weight", 0.2)
+    complexity_weight: float = _mcts_default("complexity_weight", 0.2)
+    min_anchor_coverage: float = _mcts_default("min_anchor_coverage", 0.7)
+    conservative_depth: int = _mcts_default("conservative_depth", 1)
+    aggressive_depth: int = _mcts_default("aggressive_depth", 2)
+    enable_skill_repair: bool = _mcts_default("enable_skill_repair", False)
 
 
 @dataclass
@@ -613,6 +535,7 @@ class SearchResult:
     trace: List[Dict[str, Any]]
     cache_size: int
     experiences: List[Dict[str, Any]]
+    idea_contract: Optional[Dict[str, Any]] = None
 
 
 class MemoryGuidedMCTS:
@@ -621,6 +544,10 @@ class MemoryGuidedMCTS:
         chat_fn: Callable[..., str],
         generation_prompt: str,
         evaluation_prompt: str,
+        contract_prompt: Optional[str] = None,
+        skill_generation_prompt: Optional[str] = None,
+        anchor_refiner_prompt: Optional[str] = None,
+        skill_repair_prompt: Optional[str] = None,
         config: Optional[MCTSConfig] = None,
         memory_accessor: Optional[LongTermMemoryAccessor] = None,
         logger: Optional[logging.Logger] = None,
@@ -629,6 +556,10 @@ class MemoryGuidedMCTS:
         self.chat_fn = chat_fn
         self.generation_prompt = generation_prompt
         self.evaluation_prompt = evaluation_prompt
+        self.contract_prompt = contract_prompt
+        self.skill_generation_prompt = skill_generation_prompt
+        self.anchor_refiner_prompt = anchor_refiner_prompt
+        self.skill_repair_prompt = skill_repair_prompt
         self.config = config or MCTSConfig()
         self.logger = logger or module_logger
         self.log_sink = log_sink
@@ -641,41 +572,458 @@ class MemoryGuidedMCTS:
         self.topic: str = ""
         self.analysis_blob: str = ""
         self.paper_context: str = ""
+        self.contract: Optional[IdeaContract] = None
+        self.contract_mode: bool = False
 
-    def _log(self, level: str, message: str, *args: Any) -> None:
-        log_fn = getattr(self.logger, level, self.logger.info)
+    def _operator_pool_for_depth(self, depth: int) -> List[EditOperator]:
+        if depth <= self.config.conservative_depth:
+            allowed = CONSERVATIVE_OPERATOR_NAMES
+        elif depth >= self.config.aggressive_depth:
+            allowed = CONSERVATIVE_OPERATOR_NAMES | MODERATE_OPERATOR_NAMES | AGGRESSIVE_OPERATOR_NAMES
+        else:
+            allowed = CONSERVATIVE_OPERATOR_NAMES | MODERATE_OPERATOR_NAMES
+        return [op for op in EDIT_OPERATORS if op.name in allowed]
+
+    def _build_contract(self, mature_idea: str) -> Optional[IdeaContract]:
+        if not self.contract_prompt:
+            return None
+        prompt = self.contract_prompt.format(mature_idea=mature_idea)
         try:
-            log_fn(message, *args)
-        except Exception:
-            self.logger.exception("MCTS logging failure for message: %s", message)
-        if self.log_sink:
-            try:
-                formatted = message % args if args else message
-            except Exception:
-                formatted = f"{message} | args={args}"
-            try:
-                self.log_sink(level, formatted)
-            except Exception as exc:
-                self.logger.debug("⚠️  MCTS log sink failed: %s", exc)
+            response = self.chat_fn(
+                prompt,
+                model=self.config.generation_model,
+                temperature=0.0,
+                max_tokens=min(2048, self.config.generation_max_tokens),
+            )
+            payload = parse_json_response(response)
+            if isinstance(payload, list):
+                payload = payload[0]
+            return IdeaContract.from_payload(payload)
+        except Exception as exc:
+            log_message(self.logger, self.log_sink, "warning", "⚠️  Contract build failed: %s", exc)
+            return None
 
-    def _reset_search_state(self) -> None:
-        """
-        Drop cached nodes/evaluations between searches so long-running agents
-        do not accumulate an ever-growing tree across topics.
-        """
-        self.signature_nodes = {}
-        self.evaluation_cache = {}
-        self.experience_cache.clear()
-        self.trace = []
-        self._id_iter = itertools.count()
+    def _contract_node_summary(self, node: IdeaNode) -> str:
+        if not node.state.skill_output:
+            return node.state.describe()
+        delta = node.state.skill_output.get("delta", {})
+        exp_patch = node.state.skill_output.get("experiment_patch", {})
+        return (
+            f"Title: {node.state.title}\n"
+            f"Delta intervention: {delta.get('intervention','')}\n"
+            f"Delta mechanism: {delta.get('mechanism','')}\n"
+            f"Experiment patch: {exp_patch}\n"
+            f"Risks: {node.state.risks}"
+        )
+
+    def _normalize_list(self, raw: Any) -> List[str]:
+        if isinstance(raw, list):
+            return [str(item).strip() for item in raw if str(item).strip()]
+        if isinstance(raw, str):
+            text = raw.strip()
+            if not text:
+                return []
+            if "," in text:
+                return [seg.strip() for seg in text.split(",") if seg.strip()]
+            return [text]
+        return []
+
+    def _match_invariant_key(self, key: str, contract: IdeaContract) -> Optional[str]:
+        if not key:
+            return None
+        key = str(key).strip()
+        if not key:
+            return None
+        ids = {inv.inv_id for inv in contract.invariants()}
+        if key in ids:
+            return key
+        lowered = key.lower()
+        for inv in contract.invariants():
+            if lowered == inv.inv_id.lower():
+                return inv.inv_id
+        for inv in contract.invariants():
+            text_lower = inv.text.lower()
+            if lowered in text_lower or text_lower in lowered:
+                return inv.inv_id
+        return None
+
+    def _normalize_anchor_mapping(
+        self, raw: Any, contract: IdeaContract
+    ) -> Dict[str, str]:
+        mapping: Dict[str, str] = {}
+        if isinstance(raw, dict):
+            items = raw.items()
+        elif isinstance(raw, list):
+            items = []
+            for item in raw:
+                if isinstance(item, dict):
+                    items.append((item.get("invariant_id") or item.get("invariant"), item.get("anchor") or item.get("mapping")))
+        else:
+            items = []
+        for key, value in items:
+            inv_id = self._match_invariant_key(str(key), contract)
+            if not inv_id:
+                continue
+            mapping[inv_id] = str(value).strip()
+        return mapping
+
+    def _normalize_invariant_impact(
+        self, raw: Any, contract: IdeaContract
+    ) -> Dict[str, InvariantImpact]:
+        impact: Dict[str, InvariantImpact] = {}
+        entries: List[Tuple[Any, Any]] = []
+        if isinstance(raw, dict):
+            entries = list(raw.items())
+        elif isinstance(raw, list):
+            for item in raw:
+                if isinstance(item, dict):
+                    key = item.get("invariant_id") or item.get("invariant")
+                    entries.append((key, item))
+        for key, value in entries:
+            inv_id = self._match_invariant_key(str(key), contract)
+            if not inv_id:
+                continue
+            if isinstance(value, dict):
+                status = str(value.get("status", "")).strip().lower()
+                reason = str(value.get("reason", "")).strip()
+                compensation = str(value.get("compensation", "")).strip()
+            else:
+                status = str(value).strip().lower()
+                reason = ""
+                compensation = ""
+            impact[inv_id] = InvariantImpact(status=status or "preserve", reason=reason, compensation=compensation)
+        return impact
+
+    def _parse_skill_output(self, data: Dict[str, Any], contract: IdeaContract) -> Optional[SkillOutput]:
+        if not isinstance(data, dict):
+            return None
+        delta_raw = data.get("delta") or {}
+        exp_raw = data.get("experiment_patch") or {}
+        delta = SkillDelta(
+            intervention=clip_text(delta_raw.get("intervention", ""), MAX_IDEA_TEXT),
+            mechanism=clip_text(delta_raw.get("mechanism", ""), MAX_IDEA_TEXT),
+            implementation_notes=clip_text(delta_raw.get("implementation_notes", ""), MAX_IDEA_TEXT),
+        )
+        regression = self._normalize_list(
+            exp_raw.get("regression_tests") or exp_raw.get("regression_test") or exp_raw.get("regression")
+        )
+        ablation = self._normalize_list(
+            exp_raw.get("ablation_tests") or exp_raw.get("ablation_test") or exp_raw.get("ablation")
+        )
+        stress = self._normalize_list(
+            exp_raw.get("stress_tests") or exp_raw.get("stress_test") or exp_raw.get("stress")
+        )
+        experiment_patch = ExperimentPatch(
+            regression_tests=regression,
+            ablation_tests=ablation,
+            stress_tests=stress,
+        )
+        risk_patch = self._normalize_list(data.get("risk_patch"))
+        introduced = self._normalize_list(data.get("introduced_concepts"))
+        anchor_mapping = self._normalize_anchor_mapping(data.get("anchor_mapping"), contract)
+        invariant_impact = self._normalize_invariant_impact(data.get("invariant_impact"), contract)
+        memory_refs = self._normalize_list(data.get("memory_refs"))
+        budget_impact = data.get("budget_impact") if isinstance(data.get("budget_impact"), dict) else {}
+        return SkillOutput(
+            delta=delta,
+            experiment_patch=experiment_patch,
+            risk_patch=risk_patch,
+            introduced_concepts=introduced,
+            anchor_mapping=anchor_mapping,
+            invariant_impact=invariant_impact,
+            memory_refs=memory_refs,
+            budget_impact=budget_impact,
+            raw=data,
+        )
+
+    def _estimate_mechanism_count(self, text: str) -> int:
+        cleaned = (text or "").strip().lower()
+        if not cleaned:
+            return 0
+        separators = [" and ", " + ", " plus ", " coupled with ", " combined with ", " & ", ";"]
+        count = 1
+        for sep in separators:
+            count += cleaned.count(sep)
+        return count
+
+    def _compute_complexity_penalty(self, skill: SkillOutput) -> float:
+        text = " ".join(
+            [
+                skill.delta.intervention,
+                skill.delta.mechanism,
+                skill.delta.implementation_notes,
+                " ".join(skill.experiment_patch.regression_tests),
+                " ".join(skill.experiment_patch.ablation_tests),
+                " ".join(skill.experiment_patch.stress_tests),
+            ]
+        ).lower()
+        penalty = 0
+        for keyword in [
+            "new module",
+            "additional module",
+            "auxiliary head",
+            "extra head",
+            "new head",
+            "objective",
+            "loss",
+            "data channel",
+            "dataset",
+            "compute",
+            "latency",
+            "memory",
+            "params",
+        ]:
+            if keyword in text:
+                penalty += 1
+        penalty += max(0, self._estimate_mechanism_count(skill.delta.mechanism) - 1) * 2
+        penalty += len(skill.introduced_concepts)
+        if skill.budget_impact:
+            penalty += 1
+        return min(5.0, float(penalty))
+
+    def _compute_alignment_score(self, skill: SkillOutput, contract: IdeaContract, anchor_coverage: float) -> float:
+        total = len(contract.invariants())
+        if total == 0:
+            return 5.0
+        preserve = 0
+        modify = 0
+        for inv in contract.invariants():
+            impact = skill.invariant_impact.get(inv.inv_id)
+            if not impact:
+                continue
+            status = impact.status.lower()
+            if status == "preserve":
+                preserve += 1
+            elif status == "modify":
+                modify += 1
+        ratio = (preserve + 0.5 * modify) / max(1, total)
+        score = 5.0 * (0.6 * ratio + 0.4 * anchor_coverage)
+        return max(0.0, min(5.0, score))
+
+    def _budget_exceeded(self, contract: IdeaContract, skill: SkillOutput) -> bool:
+        if not contract.budget_ceiling:
+            return False
+        budget = contract.budget_ceiling
+        if skill.budget_impact:
+            for key, ceiling in budget.items():
+                impact = skill.budget_impact.get(key)
+                if impact is None:
+                    continue
+                if isinstance(ceiling, (int, float)) and isinstance(impact, (int, float)):
+                    if impact > ceiling:
+                        return True
+                if isinstance(impact, str) and any(token in impact.lower() for token in ["exceed", "over", ">", "increase"]):
+                    return True
+            return False
+        # fallback heuristic based on implementation notes
+        notes = skill.delta.implementation_notes.lower()
+        if any(token in notes for token in ["exceed", "over budget", "too expensive", "budget breach"]):
+            return True
+        return False
+
+    def _validate_skill_output(self, skill: SkillOutput, contract: IdeaContract) -> SkillValidation:
+        errors: List[str] = []
+        warnings: List[str] = []
+
+        if len(skill.introduced_concepts) > 2:
+            errors.append("introduced_concepts exceeds 2")
+
+        if not skill.experiment_patch.regression_tests:
+            errors.append("experiment_patch missing regression_tests")
+        if not skill.experiment_patch.ablation_tests:
+            errors.append("experiment_patch missing ablation_tests")
+        if not skill.experiment_patch.stress_tests:
+            errors.append("experiment_patch missing stress_tests")
+
+        invariant_ids = contract.invariant_ids()
+        mapped_ids = set(skill.anchor_mapping.keys())
+        total_invariants = len(invariant_ids)
+        anchor_coverage = (
+            len(mapped_ids & set(invariant_ids)) / total_invariants if total_invariants else 1.0
+        )
+        if anchor_coverage < self.config.min_anchor_coverage:
+            errors.append("anchor_mapping coverage below threshold")
+
+        for inv in invariant_ids:
+            impact = skill.invariant_impact.get(inv)
+            if not impact:
+                errors.append(f"invariant_impact missing entry for {inv}")
+                continue
+            status = impact.status.lower()
+            if status == "violate":
+                errors.append(f"invariant {inv} marked violate")
+            if status == "modify" and not impact.compensation:
+                errors.append(f"invariant {inv} modify requires compensation")
+
+        mechanism_count = self._estimate_mechanism_count(skill.delta.mechanism)
+        if mechanism_count == 0:
+            errors.append("delta.mechanism missing")
+        elif mechanism_count > 1:
+            errors.append("main mechanism count > 1")
+
+        if self._budget_exceeded(contract, skill):
+            errors.append("budget_ceiling exceeded")
+
+        alignment_score = self._compute_alignment_score(skill, contract, anchor_coverage)
+        complexity_penalty = self._compute_complexity_penalty(skill)
+
+        return SkillValidation(
+            ok=not errors,
+            errors=errors,
+            warnings=warnings,
+            alignment_score=alignment_score,
+            complexity_penalty=complexity_penalty,
+            anchor_coverage=anchor_coverage,
+        )
+
+    def _attempt_skill_repair(
+        self,
+        skill_output: SkillOutput,
+        errors: List[str],
+        parent_state: IdeaState,
+        contract: IdeaContract,
+    ) -> Optional[SkillOutput]:
+        if not (self.config.enable_skill_repair and self.skill_repair_prompt):
+            return None
+        prompt = self.skill_repair_prompt.format(
+            idea_contract=contract.to_prompt_block(),
+            parent_idea=json.dumps(parent_state.to_payload(), ensure_ascii=False, indent=2),
+            skill_output=json.dumps(skill_output.to_dict(), ensure_ascii=False, indent=2),
+            errors="; ".join(errors),
+        )
+        try:
+            response = self.chat_fn(
+                prompt,
+                model=self.config.generation_model,
+                temperature=self.config.generation_temperature,
+                max_tokens=min(2048, self.config.generation_max_tokens),
+            )
+            payload = parse_json_response(response)
+            return self._parse_skill_output(payload, contract)
+        except Exception as exc:
+            log_message(self.logger, self.log_sink, "warning", "⚠️  Skill repair failed: %s", exc)
+            return None
+
+    def _materialize_child_state(
+        self,
+        parent_state: IdeaState,
+        skill_output: SkillOutput,
+        contract: IdeaContract,
+        operator: str,
+        target_defects: List[str],
+    ) -> Optional[IdeaState]:
+        if not self.anchor_refiner_prompt:
+            return None
+        prompt = self.anchor_refiner_prompt.format(
+            idea_contract=contract.to_prompt_block(),
+            parent_idea=json.dumps(parent_state.to_payload(), ensure_ascii=False, indent=2),
+            skill_output=json.dumps(skill_output.to_dict(), ensure_ascii=False, indent=2),
+        )
+        try:
+            response = self.chat_fn(
+                prompt,
+                model=self.config.generation_model,
+                temperature=self.config.generation_temperature,
+                max_tokens=self.config.generation_max_tokens,
+            )
+            payload = parse_json_response(response)
+            if isinstance(payload, list):
+                payload = payload[0]
+            tags = payload.get("tags")
+            return IdeaState(
+                title=str(payload.get("title", "Untitled idea")).strip(),
+                abstract=str(payload.get("abstract", "")).strip(),
+                core_contribution=str(payload.get("core_contribution", "")).strip(),
+                method=str(payload.get("method", "")).strip(),
+                experiments=str(payload.get("experiments", "")).strip(),
+                risks=str(payload.get("risks", "")).strip(),
+                tags=tags if isinstance(tags, list) else [str(tags)] if tags else [operator],
+                operator=operator,
+                target_defects=target_defects,
+                rationale=skill_output.delta.intervention,
+                memory_refs=skill_output.memory_refs,
+                skill_output=skill_output.to_dict(),
+            )
+        except Exception as exc:
+            log_message(self.logger, self.log_sink, "warning", "⚠️  Anchor refiner failed: %s", exc)
+            return None
+
+    def _fallback_skill_payloads(
+        self,
+        node: IdeaNode,
+        bundle: MemoryBundle,
+        operators: List[EditOperator],
+        contract: IdeaContract,
+    ) -> List[Dict[str, Any]]:
+        referenced_ids = bundle.referenced_ids()
+        invariants = contract.invariant_ids()
+        anchor_mapping = {inv: "preserve via parent mechanism/experiment" for inv in invariants}
+        invariant_impact = {
+            inv: {"status": "preserve", "reason": "contract preservation", "compensation": ""}
+            for inv in invariants
+        }
+        experiment_patch = {
+            "regression_tests": [
+                "Reproduce parent key metrics under the same protocol/invariants."
+            ],
+            "ablation_tests": ["Remove the delta intervention and compare to parent baseline."],
+            "stress_tests": ["Stress test failure modes aligned to evaluation invariants."],
+        }
+        payloads: List[Dict[str, Any]] = []
+        for idx, op in enumerate(operators[: self.config.branching_factor]):
+            payloads.append(
+                {
+                    "operator": op.name,
+                    "target_defects": op.defects,
+                    "skill_output": {
+                        "delta": {
+                            "intervention": f"Apply {op.name} to refine the parent mechanism without leaving allowed_axes.",
+                            "mechanism": f"Single {op.name} intervention anchored to {node.state.title}.",
+                            "implementation_notes": "Keep implementation within budget ceiling; no extra modules beyond the single intervention.",
+                        },
+                        "experiment_patch": experiment_patch,
+                        "risk_patch": ["Fallback delta; validate carefully for contract alignment."],
+                        "introduced_concepts": [],
+                        "anchor_mapping": anchor_mapping,
+                        "invariant_impact": invariant_impact,
+                        "memory_refs": referenced_ids,
+                    },
+                }
+            )
+        return payloads
 
     def search(self, topic: str, context: Dict[str, Any]) -> SearchResult:
-        self._reset_search_state()
+        reset_search_state(self)
         self.topic = topic
         self.analysis_blob = format_analysis_blob(context.get("analysis", []))
         self.paper_context = context.get("paper_context") or "No curated papers available yet."
-        root_state = self._build_root_state(topic, context)
-        root = self._new_node(root_state, depth=0, parent=None)
+        self.contract = None
+        self.contract_mode = False
+        mature_idea = (context.get("mature_idea") or "").strip()
+        if mature_idea:
+            contract = self._build_contract(mature_idea)
+            if contract:
+                self.contract = contract
+                self.contract_mode = True
+                context = dict(context)
+                context["idea_contract"] = contract
+            else:
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "warning",
+                    "⚠️  Contract mode requested but contract build failed; falling back to legacy MCTS.",
+                )
+        root_state = build_root_state(topic, context, IdeaState)
+        root = new_node(
+            root_state,
+            depth=0,
+            parent=None,
+            signature_nodes=self.signature_nodes,
+            id_iter=self._id_iter,
+            idea_node_cls=IdeaNode,
+            operator_application_cls=OperatorApplication,
+        )
         experiences = []
 
         for iteration in tqdm(range(self.config.max_iterations)):
@@ -692,7 +1040,7 @@ class MemoryGuidedMCTS:
             if evaluation is None:
                 continue
             self._backpropagate(rollout_path, evaluation)
-            path_summary = self._path_summary(rollout_path)
+            rollout_summary = path_summary(rollout_path)
             transformation = target.transformation
             defects = list(transformation.defects) if transformation and transformation.defects else []
             operator = transformation.operator if transformation else "unknown"
@@ -709,15 +1057,17 @@ class MemoryGuidedMCTS:
                     "rationale": transformation.rationale if transformation else "",
                     "score": evaluation.composite,
                     "visits": target.visits,
-                    "path": path_summary,
+                    "path": rollout_summary,
                     "action_summary": action_summary,
                     "evaluation": {**evaluation.to_dict(), "composite": evaluation.composite},
                     "signature": target.state.signature,
+                    "skill_output": target.state.skill_output,
+                    "skill_metrics": target.state.skill_metrics,
                 }
             )
 
-        best = self._best_candidate(root)
-        pareto = self._pareto_candidates(root)
+        best = best_candidate(root, SearchCandidate)
+        pareto = pareto_candidates(root, SearchCandidate)
     
         cache_entries = sum(len(entries) for entries in self.evaluation_cache.values())
         return SearchResult(
@@ -726,146 +1076,7 @@ class MemoryGuidedMCTS:
             trace=self.trace,
             cache_size=cache_entries,
             experiences=experiences,
-        )
-
-    def _new_node(
-        self,
-        state: IdeaState,
-        depth: int,
-        parent: Optional[IdeaNode],
-    ) -> IdeaNode:
-        existing = self.signature_nodes.get(state.signature)
-        if existing:
-            return existing
-        node = IdeaNode(
-            node_id=next(self._id_iter),
-            state=state,
-            depth=depth,
-            parent=parent,
-            transformation=OperatorApplication(
-                operator=state.operator,
-                defects=state.target_defects,
-                rationale=state.rationale,
-                memory_refs=state.memory_refs,
-            ),
-        )
-        self.signature_nodes[state.signature] = node
-        if parent:
-            parent.children.append(node)
-        return node
-
-    def _attach_child(self, parent: IdeaNode, state: IdeaState) -> Optional[IdeaNode]:
-        child = self.signature_nodes.get(state.signature)
-        if child is None:
-            return self._new_node(state, depth=parent.depth + 1, parent=parent)
-        if child is parent or self._is_ancestor(parent, child):
-            self._log(
-                "debug",
-                "[MCTS] Skip attaching signature=%s to avoid cycle (parent=%s child=%s).",
-                state.signature,
-                parent.node_id,
-                child.node_id,
-            )
-            return None
-        if child not in parent.children:
-            parent.children.append(child)
-        return child
-
-    def _is_ancestor(self, node: IdeaNode, candidate: IdeaNode) -> bool:
-        cursor: Optional[IdeaNode] = node
-        while cursor is not None:
-            if cursor is candidate:
-                return True
-            cursor = cursor.parent
-        return False
-
-    def _path_summary(self, path: List[IdeaNode]) -> str:
-        steps = []
-        for hop in path:
-            defects = hop.transformation.defects or ["unspecified"]
-            steps.append(
-                f"{hop.state.title} [{hop.transformation.operator}] -> defects {defects}"
-            )
-        return _clip_text(" | ".join(steps), 1024)
-
-    def _path_cache_key(self, signature: str, path_summary: str) -> str:
-        raw = f"{signature}|{path_summary}"
-        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-    def _get_cached_evaluation(self, signature: str, path_key: str) -> Optional[IdeaEvaluation]:
-        sig_cache = self.evaluation_cache.get(signature)
-        if not sig_cache:
-            return None
-        return sig_cache.get(path_key)
-
-    def _cache_evaluation(self, signature: str, path_key: str, evaluation: IdeaEvaluation) -> None:
-        self.evaluation_cache.setdefault(signature, {})[path_key] = evaluation
-
-    def _get_best_cached_evaluation(self, signature: str) -> Optional[IdeaEvaluation]:
-        sig_cache = self.evaluation_cache.get(signature)
-        if not sig_cache:
-            return None
-        return max(sig_cache.values(), key=lambda ev: ev.composite)
-
-    def _maybe_record_experience(
-        self,
-        path_key: str,
-        node: IdeaNode,
-        evaluation: IdeaEvaluation,
-        path_summary: str,
-        experiences: List[Dict[str, Any]],
-    ) -> None:
-        if path_key in self.experience_cache:
-            return
-        experience = self._harvest_experience(node, evaluation, path_summary)
-        if not experience:
-            return
-        self.memory_accessor.persist_experience(experience)
-        experiences.append(experience)
-        self.experience_cache.add(path_key)
-
-    def _build_root_state(self, topic: str, context: Dict[str, Any]) -> IdeaState:
-        idea_pool = context.get("idea_pool") or []
-        background = context.get("background_knowledge") or []
-        if idea_pool:
-            latest = idea_pool[-1]
-            if isinstance(latest, dict):
-                title = latest.get("title", f"{topic} seed idea")
-                abstract = latest.get("abstract") or json.dumps(latest, ensure_ascii=False)[:200]
-                core = latest.get("core_contribute") or latest.get("core_contribution", "")
-                method = latest.get("methodology") or latest.get("method", "")
-                experiments = latest.get("experiment_design") or latest.get("experiments", "")
-                risks = latest.get("risks", latest.get("evaluation", {}))
-                tags = latest.get("tags") or ["seed"]
-            else:
-                title = f"{topic} prior idea"
-                abstract = str(latest)
-                core = abstract
-                method = ""
-                experiments = ""
-                risks = ""
-                tags = ["seed"]
-        else:
-            title = f"{topic} baseline"
-            abstract = background[-1] if background else "Kick-off seed idea from analysis."
-            core = "Seed idea derived from current analysis and background knowledge."
-            method = "Synthesize referenced methods, highlight open limitations."
-            experiments = "Use current baselines and publicly reported setups."
-            risks = "Need fairness checks and failure-mode surfacing."
-            tags = ["seed"]
-
-        return IdeaState(
-            title=title,
-            abstract=str(abstract),
-            core_contribution=str(core),
-            method=str(method),
-            experiments=str(experiments),
-            risks=str(risks),
-            tags=[str(t) for t in tags] if isinstance(tags, list) else [str(tags)],
-            operator="seed",
-            target_defects=["unexplored_gap"],
-            rationale="Starting point from existing idea pool or analysis.",
-            memory_refs=[],
+            idea_contract=self.contract.to_dict() if self.contract else None,
         )
 
     def _select(self, node: IdeaNode) -> Tuple[IdeaNode, List[IdeaNode]]:
@@ -884,6 +1095,11 @@ class MemoryGuidedMCTS:
         return current, path
 
     def _expand(self, node: IdeaNode, path: List[IdeaNode]) -> Tuple[Optional[IdeaNode], List[IdeaNode]]:
+        if self.contract_mode:
+            return self._expand_contract(node, path)
+        return self._expand_legacy(node, path)
+
+    def _expand_legacy(self, node: IdeaNode, path: List[IdeaNode]) -> Tuple[Optional[IdeaNode], List[IdeaNode]]:
         bundle = self.memory_accessor.retrieve_bundle(
             query=f"{self.topic}\n{node.state.title}\n{node.state.core_contribution}"
         )
@@ -896,7 +1112,6 @@ class MemoryGuidedMCTS:
             max_children=self.config.branching_factor,
             constraints="\n".join(ANTI_PATTERN_CONSTRAINTS),
         )
-        prompt += "\n Directly output JSON. DO NOT include any commentary outside the JSON."
         children_payload: List[Dict[str, Any]]
         try:
             response = self.chat_fn(
@@ -905,7 +1120,7 @@ class MemoryGuidedMCTS:
                 temperature=self.config.generation_temperature,
                 max_tokens=self.config.generation_max_tokens,
             )
-            self._log("debug", "[MCTS] Generation response: %s", response)
+            log_message(self.logger, self.log_sink, "debug", "[MCTS] Generation response: %s", response)
             if not response or not response.strip():
                 raise ValueError("Empty response from generation model")
             payload = parse_json_response(response)
@@ -913,20 +1128,36 @@ class MemoryGuidedMCTS:
                 payload = payload[0] 
             children_payload = payload.get("children", [])[: self.config.branching_factor]
         except Exception as exc:
-            self._log(
+            log_message(
+                self.logger,
+                self.log_sink,
                 "warning",
                 "⚠️  Expansion failed: %s. Falling back to heuristic children.",
                 exc,
             )
-            children_payload = self._fallback_child_payloads(node, bundle)
+            children_payload = fallback_child_payloads(
+                node,
+                bundle,
+                EDIT_OPERATORS,
+                self.config.branching_factor,
+            )
 
         new_child: Optional[IdeaNode] = None
         for child_data in children_payload:
-            state = self._parse_child_state(child_data)
-            child_node = self._attach_child(node, state)
+            state = parse_child_state(child_data, IdeaState)
+            child_node = attach_child(
+                node,
+                state,
+                signature_nodes=self.signature_nodes,
+                id_iter=self._id_iter,
+                idea_node_cls=IdeaNode,
+                operator_application_cls=OperatorApplication,
+                logger=self.logger,
+                log_sink=self.log_sink,
+            )
             if child_node is None:
                 continue
-            cached_eval = self._get_best_cached_evaluation(state.signature)
+            cached_eval = get_best_cached_evaluation(state.signature, self.evaluation_cache)
             if cached_eval:
                 child_node.evaluation = cached_eval
             if new_child is None and child_node.visits == 0:
@@ -939,70 +1170,168 @@ class MemoryGuidedMCTS:
             return new_child, path + [new_child]
         return node, path
 
-    def _parse_child_state(self, data: Dict[str, Any]) -> IdeaState:
-        def _list(key: str) -> List[str]:
-            raw = data.get(key, [])
-            if isinstance(raw, list):
-                return [str(x) for x in raw]
-            if isinstance(raw, str):
-                return [raw]
-            return []
-
-        return IdeaState(
-            title=str(data.get("title", "Untitled idea")).strip(),
-            abstract=str(data.get("abstract", "")).strip(),
-            core_contribution=str(data.get("core_contribution", data.get("core_contribute", ""))).strip(),
-            method=str(data.get("method", "")).strip(),
-            experiments=str(data.get("experiments", data.get("experiment_design", ""))).strip(),
-            risks=str(data.get("risks", "")).strip(),
-            tags=_list("tags") or ["mcts-child"],
-            operator=str(data.get("operator", "unknown")).strip(),
-            target_defects=_list("target_defects"),
-            rationale=str(data.get("rationale", "")).strip(),
-            memory_refs=_list("memory_refs"),
+    def _expand_contract(self, node: IdeaNode, path: List[IdeaNode]) -> Tuple[Optional[IdeaNode], List[IdeaNode]]:
+        if not self.contract:
+            return self._expand_legacy(node, path)
+        bundle = self.memory_accessor.retrieve_bundle(
+            query=f"{self.topic}\n{node.state.title}\n{node.state.core_contribution}"
         )
-
-    def _fallback_child_payloads(self, node: IdeaNode, bundle: MemoryBundle) -> List[Dict[str, Any]]:
-        """
-        Deterministically craft child payloads when the language model fails to expand a node.
-        Ensures the tree keeps growing instead of aborting the search loop.
-        """
-        payloads: List[Dict[str, Any]] = []
-        referenced_ids = bundle.referenced_ids()
-        parent_title = node.state.title
-        parent_gap = node.state.core_contribution or node.state.abstract
-        base_tags = node.state.tags or []
-        for idx, op in enumerate(EDIT_OPERATORS[: self.config.branching_factor]):
-            payloads.append(
-                {
-                    "title": f"{parent_title} | {op.name.replace('-', ' ').title()} #{idx+1}",
-                    "abstract": f"Apply {op.description} to stress {parent_title} against {', '.join(op.defects)}.",
-                    "core_contribution": f"Operationalize {op.name} to fix {', '.join(op.defects)} highlighted in '{parent_title}'.",
-                    "method": f"Modify the parent method focusing on {parent_gap} via {op.description}.",
-                    "experiments": f"Design ablations that validate the {op.name} intervention on the parent idea.",
-                    "risks": "Heuristic fallback idea; validate with full generation later.",
-                    "tags": list({*base_tags, op.name}),
-                    "operator": op.name,
-                    "target_defects": op.defects,
-                    "memory_refs": referenced_ids,
-                }
+        operator_pool = self._operator_pool_for_depth(node.depth)
+        prompt_template = self.skill_generation_prompt or self.generation_prompt
+        prompt = prompt_template.format(
+            topic=self.topic,
+            current_summary=self._contract_node_summary(node),
+            paper_context=self.paper_context,
+            memory_bundle=bundle.to_prompt_block(),
+            edit_operators=format_edit_operators(operator_pool),
+            max_children=self.config.branching_factor,
+            constraints="\n".join(ANTI_PATTERN_CONSTRAINTS),
+            idea_contract=self.contract.to_prompt_block(),
+        )
+        children_payload: List[Dict[str, Any]]
+        try:
+            response = self.chat_fn(
+                prompt,
+                model=self.config.generation_model,
+                temperature=self.config.generation_temperature,
+                max_tokens=self.config.generation_max_tokens,
             )
-        return payloads
+            log_message(self.logger, self.log_sink, "debug", "[MCTS] Skill generation response: %s", response)
+            if not response or not response.strip():
+                raise ValueError("Empty response from generation model")
+            payload = parse_json_response(response)
+            if isinstance(payload, list):
+                payload = payload[0]
+            children_payload = payload.get("children", [])[: self.config.branching_factor]
+        except Exception as exc:
+            log_message(
+                self.logger,
+                self.log_sink,
+                "warning",
+                "⚠️  Contract expansion failed: %s. Falling back to heuristic skill deltas.",
+                exc,
+            )
+            children_payload = self._fallback_skill_payloads(
+                node,
+                bundle,
+                operator_pool,
+                self.contract,
+            )
+
+        new_child: Optional[IdeaNode] = None
+        allowed_names = {op.name for op in operator_pool}
+        for child_data in children_payload:
+            operator = str(child_data.get("operator", "")).strip()
+            if operator not in allowed_names:
+                continue
+            target_defects = self._normalize_list(child_data.get("target_defects")) or ["unspecified_defect"]
+            skill_data = child_data.get("skill_output") or {}
+            skill_output = self._parse_skill_output(skill_data, self.contract)
+            if not skill_output:
+                continue
+            validation = self._validate_skill_output(skill_output, self.contract)
+            if not validation.ok:
+                repaired = self._attempt_skill_repair(
+                    skill_output,
+                    validation.errors,
+                    node.state,
+                    self.contract,
+                )
+                if repaired:
+                    validation = self._validate_skill_output(repaired, self.contract)
+                    if validation.ok:
+                        skill_output = repaired
+                if not validation.ok:
+                    log_message(
+                        self.logger,
+                        self.log_sink,
+                        "debug",
+                        "[MCTS] Pruned child from operator=%s due to violations: %s",
+                        operator,
+                        "; ".join(validation.errors),
+                    )
+                    continue
+            child_state = self._materialize_child_state(
+                parent_state=node.state,
+                skill_output=skill_output,
+                contract=self.contract,
+                operator=operator,
+                target_defects=target_defects,
+            )
+            if not child_state:
+                continue
+            child_state.skill_metrics = {
+                "alignment_score": validation.alignment_score,
+                "complexity_penalty": validation.complexity_penalty,
+                "anchor_coverage": validation.anchor_coverage,
+            }
+            child_node = attach_child(
+                node,
+                child_state,
+                signature_nodes=self.signature_nodes,
+                id_iter=self._id_iter,
+                idea_node_cls=IdeaNode,
+                operator_application_cls=OperatorApplication,
+                logger=self.logger,
+                log_sink=self.log_sink,
+            )
+            if child_node is None:
+                continue
+            cached_eval = get_best_cached_evaluation(child_state.signature, self.evaluation_cache)
+            if cached_eval:
+                child_node.evaluation = cached_eval
+            if new_child is None and child_node.visits == 0:
+                new_child = child_node
+
+        node.expanded = True
+        if new_child is None and node.children:
+            new_child = min(node.children, key=lambda c: c.visits)
+        if new_child:
+            return new_child, path + [new_child]
+        return node, path
 
     def _simulate(self, node: IdeaNode, path: List[IdeaNode], experiences: List[Dict[str, Any]]) -> Optional[IdeaEvaluation]:
-        path_summary_text = self._path_summary(path)
-        path_key = self._path_cache_key(node.state.signature, path_summary_text)
-        cached_evaluation = self._get_cached_evaluation(node.state.signature, path_key)
+        path_summary_text = path_summary(path)
+        path_key = path_cache_key(node.state.signature, path_summary_text)
+        cached_evaluation = get_cached_evaluation(
+            node.state.signature,
+            path_key,
+            self.evaluation_cache,
+        )
         if cached_evaluation:
+            cached_evaluation.alignment_weight = self.config.alignment_weight
+            cached_evaluation.complexity_weight = self.config.complexity_weight
+            if self.contract_mode and node.state.skill_metrics:
+                cached_evaluation.alignment_score = node.state.skill_metrics.get(
+                    "alignment_score", cached_evaluation.alignment_score
+                )
+                cached_evaluation.complexity_penalty = node.state.skill_metrics.get(
+                    "complexity_penalty", cached_evaluation.complexity_penalty
+                )
             node.evaluation = cached_evaluation
             node.latest_path_summary = path_summary_text
-            self._maybe_record_experience(path_key, node, cached_evaluation, path_summary_text, experiences)
+            maybe_record_experience(
+                path_key,
+                node,
+                cached_evaluation,
+                path_summary_text,
+                experiences,
+                self.experience_cache,
+                self.memory_accessor,
+                self.config.min_confidence_for_memory,
+            )
             return cached_evaluation
 
         prompt = self.evaluation_prompt.format(
             topic=self.topic,
             analysis=self.analysis_blob,
             paper_context=self.paper_context,
+            idea_contract=self.contract.to_prompt_block() if self.contract else "None",
+            skill_output=json.dumps(
+                node.state.skill_output, ensure_ascii=False, indent=2
+            )
+            if node.state.skill_output
+            else "null",
             idea=json.dumps(node.state.to_payload(), ensure_ascii=False, indent=2),
             path_summary=path_summary_text,
         )
@@ -1017,15 +1346,34 @@ class MemoryGuidedMCTS:
             if isinstance(payload, list):
                 payload = payload[0] # Sometimes returns a list of evaluations, we take the first one.
             evaluation = IdeaEvaluation.from_payload(payload)
+            evaluation.alignment_weight = self.config.alignment_weight
+            evaluation.complexity_weight = self.config.complexity_weight
         except Exception as exc:
-            self._log("warning", "⚠️  Simulation failed: %s", exc)
+            log_message(self.logger, self.log_sink, "warning", "⚠️  Simulation failed: %s", exc)
             return None
 
-        self._cache_evaluation(node.state.signature, path_key, evaluation)
+        if self.contract_mode and node.state.skill_metrics:
+            evaluation.alignment_score = node.state.skill_metrics.get(
+                "alignment_score", evaluation.alignment_score
+            )
+            evaluation.complexity_penalty = node.state.skill_metrics.get(
+                "complexity_penalty", evaluation.complexity_penalty
+            )
+
+        cache_evaluation(node.state.signature, path_key, evaluation, self.evaluation_cache)
         node.evaluation = evaluation
         node.latest_path_summary = path_summary_text
 
-        self._maybe_record_experience(path_key, node, evaluation, path_summary_text, experiences)
+        maybe_record_experience(
+            path_key,
+            node,
+            evaluation,
+            path_summary_text,
+            experiences,
+            self.experience_cache,
+            self.memory_accessor,
+            self.config.min_confidence_for_memory,
+        )
 
         return evaluation
 
@@ -1034,59 +1382,3 @@ class MemoryGuidedMCTS:
         for hop in reversed(path):
             hop.visits += 1
             hop.value_sum += score
-
-    def _best_candidate(self, root: IdeaNode) -> Optional[SearchCandidate]:
-        candidates: List[SearchCandidate] = []
-        stack = [root]
-        visited: Set[int] = set()
-        while stack:
-            node = stack.pop()
-            if node.node_id in visited:
-                continue
-            visited.add(node.node_id)
-            if node.evaluation:
-                candidates.append(SearchCandidate(node=node, evaluation=node.evaluation))
-            stack.extend(node.children)
-        if not candidates:
-            return None
-        return max(candidates, key=lambda c: c.evaluation.composite)
-
-    def _pareto_candidates(self, root: IdeaNode) -> Dict[str, Optional[SearchCandidate]]:
-        by_metric = {
-            "novel": lambda ev: ev.novelty,
-            "feasible": lambda ev: ev.feasibility,
-            "concise": lambda ev: ev.conciseness,
-        }
-        pareto: Dict[str, Optional[SearchCandidate]] = {k: None for k in by_metric}
-        stack = [root]
-        visited_ids: Set[int] = set()
-        visited: List[SearchCandidate] = []
-        while stack:
-            node = stack.pop()
-            if node.node_id in visited_ids:
-                continue
-            visited_ids.add(node.node_id)
-            if node.evaluation:
-                visited.append(SearchCandidate(node=node, evaluation=node.evaluation))
-            stack.extend(node.children)
-
-        for label, scorer in by_metric.items():
-            if visited:
-                pareto[label] = max(visited, key=lambda c, s=scorer: s(c.evaluation))
-        return pareto
-
-    def _harvest_experience(self, node: IdeaNode, evaluation: IdeaEvaluation, path_summary: str) -> Optional[Dict[str, Any]]:
-        if evaluation.confidence > self.config.min_confidence_for_memory:
-            experience = {
-                    "defect": ", ".join(node.state.target_defects) or evaluation.defect_fix_summary,
-                    "action": node.state.operator,
-                    "lift": round(evaluation.lift_estimate, 2),
-                    "idea": node.state.title,
-                    "context": path_summary,
-                    "feedback": evaluation.feedback,
-                    "tags": node.state.tags + ["defect_fix"],
-                }
-
-            return experience
-        else:
-            return None

@@ -113,6 +113,8 @@ def persist_final_idea(
         "baselines": baselines,
         "mcts_evolution": build_mcts_evolution(best_entry),
     }
+    if best_entry.get("idea_contract"):
+        payload["idea_contract"] = best_entry.get("idea_contract")
     best_entry["introduction"] = introduction
     memory["idea_result"] = payload
     try:

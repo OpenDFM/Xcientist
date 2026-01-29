@@ -1,5 +1,5 @@
-from agent.base import AgentBase
-from agent import get_logger
+from src.agents.idea_agent.agent.base import AgentBase
+from src.agents.idea_agent.agent import get_logger
 
 from typing import Any, Dict, Literal, List, Optional, Set
 from pathlib import Path
@@ -8,12 +8,12 @@ import json
 import http.client
 from dataclasses import fields
 
-from agent.tools import TOOLS
-from agent.memory import memory_init
-from agent.prompts import PROMPTS
-from agent.mcts import MemoryGuidedMCTS, MCTSConfig
-from agent.paper_repository import PaperRepository
-from agent.ligagent_flow import persist_final_idea
+from src.agents.idea_agent.agent.tools import TOOLS
+from src.agents.idea_agent.agent.memory import memory_init
+from src.agents.idea_agent.agent.prompts import PROMPTS
+from src.agents.idea_agent.agent.mcts import MemoryGuidedMCTS, MCTSConfig
+from src.agents.idea_agent.agent.paper_repository import PaperRepository
+from src.agents.idea_agent.agent.ligagent_flow import persist_final_idea
 from src.agents.idea_agent.utils.ligagent_utils import (
     collect_paper_context_entries,
     generate_idea_introduction,
@@ -27,6 +27,7 @@ from src.agents.idea_agent.utils.ligagent_helpers import (
     generate_rag_query,
     retrieve_outcome_rag,
     collect_rag_citations,
+    collect_rag_contents,
     search_papers_from_citations,
     safely_enrich_papers_with_content,
     paper_context_with_rag,
@@ -36,7 +37,7 @@ from src.agents.idea_agent.utils.ligagent_helpers import (
     sanitize_action_token,
     get_paper_content as load_paper_content,
 )
-from src.agents.idea_agent.utils.config_loader import load_idea_agent_config, get_config_value
+from src.agents.idea_agent.utils.config_loader import get_config_value
 
 logger = get_logger()
 
@@ -132,8 +133,12 @@ class LigAgent(AgentBase):
                 setattr(mcts_config, field.name, override)
         self.mcts = MemoryGuidedMCTS(
             chat_fn=self.chat,
-            generation_prompt=PROMPTS["mcts_generation"],
-            evaluation_prompt=PROMPTS["mcts_evaluation"],
+            generation_prompt=PROMPTS.get("mcts_generation"),
+            evaluation_prompt=PROMPTS.get("mcts_evaluation"),
+            contract_prompt=PROMPTS.get("mcts_contract"),
+            skill_generation_prompt=PROMPTS.get("mcts_generation_contract"),
+            anchor_refiner_prompt=PROMPTS.get("mcts_anchor_refiner"),
+            skill_repair_prompt=PROMPTS.get("mcts_skill_repair"),
             config=mcts_config,
             logger=logger,
         )
@@ -255,33 +260,28 @@ class LigAgent(AgentBase):
     ) -> str:
         if search_type == "paper_search":
             search_keywords = self.memory["retrieval_keywords"][-1]
-            try:
-                papers = self.run_tool(
-                    name="semantic_search",
-                    query=search_keywords,
-                    limit=self.semantic_search_limit,
-                )
-                logger.info("📄 Found Papers:")
-                initial_papers = normalize_search_papers(papers, search_keywords, logger)
-                if initial_papers:
-                    query_papers = prepare_query_papers(
-                        initial_papers, self.paper_repository, logger
-                    )
+            topic = self.memory["topic"][-1] if self.memory.get("topic") else search_keywords
+            mature_idea = get_config_value(self.config, "run.mature_idea", "")
+            # If a mature idea is provided, use it to generate a focused RAG query directly
+            if len(mature_idea) > 0 and mature_idea.strip():
+                try:
                     rag_query = generate_rag_query(
-                        search_keywords,
-                        query_papers,
+                        topic,
+                        [],
                         PROMPTS,
                         self.chat,
                         self.model,
                         logger,
+                        mature_idea=mature_idea,
                     )
-                    logger.info("🔎 Generated RAG Query: %s", rag_query)
+                    logger.info("🔎 Generated RAG Query (mature idea): %s", rag_query)
                     rag_hits = retrieve_outcome_rag(rag_query, self.paper_repository, logger)
                     self.memory.setdefault("rag_query", []).append(rag_query)
                     self.memory.setdefault("rag_hits", []).append(
                         {"query": rag_query, "hits": rag_hits}
                     )
                     citation_titles = collect_rag_citations(rag_hits)
+                    survey_contents = collect_rag_contents(rag_hits)
                     rag_papers = search_papers_from_citations(
                         citation_titles, rag_query, self.paper_repository
                     )
@@ -294,23 +294,88 @@ class LigAgent(AgentBase):
                             logger,
                         )
                         self.memory["references"].append(rag_papers)
+                        self.memory["rag_contents"].append(survey_contents)
+                        step = (
+                            f"\nIn this knowledge_aquisition action, I used the mature idea to generate "
+                            f"a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
+                            f"and fetched {len(rag_papers)} cited papers for memory."
+                        )
+                    else:
+                        self.memory.setdefault("rag_contents", []).append(survey_contents)
+                        step = (
+                            f"\nIn this knowledge_aquisition action, I used the mature idea to generate "
+                            f"a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
+                            "but found no cited papers to fetch."
+                        )
+                except Exception as e:
+                    logger.error(f"Error during mature-idea RAG retrieval: {e}")
                     step = (
-                        f"\nIn this knowledge_aquisition action, I read {len(initial_papers)} seed papers, "
-                        f"generated a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
-                        f"and fetched {len(rag_papers)} cited papers for memory."
+                        "\nIn this knowledge_aquisition action, mature-idea RAG retrieval failed; "
+                        "skipping paper search."
                     )
-                    safely_enrich_papers_with_content(
-                        initial_papers,
-                        self.paper_enrichment_timeout,
-                        self.paper_repository,
-                        self.memory,
+                return step
+            # Otherwise, perform standard paper search flow
+            try:
+                papers = self.run_tool(
+                    name="semantic_search",
+                    query=search_keywords,
+                    limit=self.semantic_search_limit,
+                )
+                logger.info("📄 Found Papers:")
+                mature_idea = get_config_value(self.config, "run.mature_idea", "")
+                initial_papers = normalize_search_papers(papers, search_keywords, logger)
+                if initial_papers:
+                    query_papers = prepare_query_papers(
+                        initial_papers, self.paper_repository, logger
+                    )
+                    rag_query = generate_rag_query(
+                        search_keywords,
+                        query_papers,
+                        PROMPTS,
+                        self.chat,
+                        self.model,
                         logger,
+                        mature_idea=mature_idea if len(mature_idea) > 0 else None,
                     )
-                    self.memory["references"].append(initial_papers)
-                    step = (
-                        f"\nIn this knowledge_aquisition action, I searched for papers about '{search_keywords}' "
-                        f"and acquired {len(initial_papers)} relevant papers for my research."
+                    logger.info("🔎 Generated RAG Query: %s", rag_query)
+                    rag_hits = retrieve_outcome_rag(rag_query, self.paper_repository, logger)
+                    self.memory.setdefault("rag_query", []).append(rag_query)
+                    self.memory.setdefault("rag_hits", []).append(
+                        {"query": rag_query, "hits": rag_hits}
                     )
+                    citation_titles = collect_rag_citations(rag_hits)
+                    survey_contents = collect_rag_contents(rag_hits)
+                    rag_papers = search_papers_from_citations(
+                        citation_titles, rag_query, self.paper_repository
+                    )
+                    if rag_papers:
+                        safely_enrich_papers_with_content(
+                            rag_papers,
+                            self.paper_enrichment_timeout,
+                            self.paper_repository,
+                            self.memory,
+                            logger,
+                        )
+                        self.memory["references"].append(rag_papers)
+                        self.memory["rag_contents"].append(survey_contents)
+                        step = (
+                            f"\nIn this knowledge_aquisition action, I read {len(initial_papers)} seed papers, "
+                            f"generated a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
+                            f"and fetched {len(rag_papers)} cited papers for memory."
+                        )
+                    else:
+                        safely_enrich_papers_with_content(
+                            initial_papers,
+                            self.paper_enrichment_timeout,
+                            self.paper_repository,
+                            self.memory,
+                            logger,
+                        )
+                        self.memory["references"].append(initial_papers)
+                        step = (
+                            f"\nIn this knowledge_aquisition action, I searched for papers about '{search_keywords}' "
+                            f"and acquired {len(initial_papers)} relevant papers for my research."
+                        )
                 else:
                     step = (
                         f"\nIn this knowledge_aquisition action, I searched for papers about '{search_keywords}' "
@@ -346,8 +411,11 @@ class LigAgent(AgentBase):
     def advanced_analysis(self, **kwargs) -> None:
         topic = self.memory["topic"][-1] if self.memory["topic"] else "unspecified topic"
         references = self.memory["references"][-1] if self.memory["references"] else []
+        mature_idea = get_config_value(self.config, "run.mature_idea", "")
         prompt = PROMPTS["advanced_analysis"].format(
             topic=topic,
+            mature_idea=(mature_idea or "").strip(),
+            survey_contents="\n".join(self.memory["rag_contents"][-1]) if self.memory.get("rag_contents") else "",
             papers=json.dumps(references, ensure_ascii=False, indent=2)
             if references
             else "[]",
@@ -366,7 +434,7 @@ class LigAgent(AgentBase):
         return step
 
     def idea_generation(self, **kwargs) -> None:
-        topic = self.memory["topic"][-1] if self.memory["topic"] else "unspecified topic"
+        topic = self.memory["topic"][-1]
         paper_entries = collect_paper_context_entries(
             self.memory,
             self.memory.get("references", []),
@@ -375,12 +443,15 @@ class LigAgent(AgentBase):
         idea_history = list(self.memory.get("idea_pool", []))
         seed_ideas = latest_analysis_seed_ideas(self.memory)
         idea_context = idea_history if idea_history else seed_ideas
+        mature_idea = get_config_value(self.config, "run.mature_idea", "")
         context = {
             "analysis": self.memory.get("analysis", []),
             "idea_pool": idea_context,
             "background_knowledge": self.memory.get("background_knowledge", []),
             "paper_context": paper_context_with_rag(paper_entries, self.memory),
         }
+        if isinstance(mature_idea, str) and mature_idea.strip():
+            context["mature_idea"] = mature_idea.strip()
 
         result = self.mcts.search(topic=topic, context=context)
         
@@ -398,6 +469,9 @@ class LigAgent(AgentBase):
             label: cand.to_dict() if cand else None for label, cand in result.pareto.items()
         }
         best_entry["search_trace"] = result.trace
+        if result.idea_contract:
+            best_entry["idea_contract"] = result.idea_contract
+            self.memory.setdefault("idea_contracts", []).append(result.idea_contract)
         self.memory["idea_pool"].append(best_entry)
         self.memory.setdefault("evaluations", []).append(best_payload["evaluation"])
         self.memory.setdefault("ltm_experiences", []).extend(result.experiences)

@@ -50,3 +50,11 @@ def format_edit_operators(edit_operators: List[Any]) -> str:
             f"- {op.name}: {op.description} | targets {', '.join(op.defects)} | guardrails: {', '.join(op.guardrails)}"
         )
     return "\n".join(lines)
+
+def clip_text(value: Any, limit: int = 800) -> str:
+    text = "" if value is None else str(value).strip()
+    if limit <= 0:
+        return text
+    if len(text) <= limit:
+        return text
+    return text[: max(1, limit - 1)] + "..."
