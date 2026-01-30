@@ -137,6 +137,8 @@ def collect_paper_context_entries(
     storage = memory.get("paper_contents", {})
     if not storage:
         return []
+    limit = int(limit or 0)
+    no_limit = limit <= 0
 
     ordered_ids: List[str] = []
     for batch in reference_batches or []:
@@ -152,15 +154,17 @@ def collect_paper_context_entries(
 
     entries: List[Dict[str, Any]] = []
     for pid in ordered_ids:
-        if len(entries) >= limit:
+        if not no_limit and len(entries) >= limit:
             break
         data = storage.get(pid)
         if not data:
             continue
         keynote = data.get("keynote")
-        summary = summarize_keynote(keynote, data.get("abstract"))
+        summary = data.get("summary") or summarize_keynote(keynote, data.get("abstract"))
         source = "parsed"
-        if isinstance(keynote, dict) and keynote.get("source"):
+        if data.get("compression") == "compressed":
+            source = "compressed"
+        elif isinstance(keynote, dict) and keynote.get("source"):
             source = keynote["source"]
         entries.append(
             {

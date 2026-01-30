@@ -30,6 +30,7 @@ from src.agents.idea_agent.utils.ligagent_helpers import (
     collect_rag_contents,
     search_papers_from_citations,
     safely_enrich_papers_with_content,
+    filter_and_compress_papers,
     paper_context_with_rag,
     normalize_analysis_entry,
     ingest_analysis_background,
@@ -299,12 +300,23 @@ class LigAgent(AgentBase):
                             self.memory,
                             logger,
                         )
+                        rag_papers = filter_and_compress_papers(
+                            topic=topic,
+                            mature_idea=mature_idea,
+                            papers=rag_papers,
+                            memory=self.memory,
+                            prompts=PROMPTS,
+                            chat_fn=self.chat,
+                            model=self.model,
+                            logger=logger,
+                            top_k=5,
+                        )
                         self.memory["references"].append(rag_papers)
                         self.memory["rag_contents"].append(survey_contents)
                         step = (
                             f"\nIn this knowledge_aquisition action, I used the mature idea to generate "
                             f"a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
-                            f"and fetched {len(rag_papers)} cited papers for memory."
+                            f"and curated {len(rag_papers)} cited papers for memory."
                         )
                     else:
                         self.memory.setdefault("rag_contents", []).append(survey_contents)
@@ -355,19 +367,31 @@ class LigAgent(AgentBase):
                         citation_titles, rag_query, self.paper_repository
                     )
                     if rag_papers:
+                        combined_papers = initial_papers + rag_papers
                         safely_enrich_papers_with_content(
-                            rag_papers,
+                            combined_papers,
                             self.paper_enrichment_timeout,
                             self.paper_repository,
                             self.memory,
                             logger,
                         )
-                        self.memory["references"].append(rag_papers)
+                        curated_papers = filter_and_compress_papers(
+                            topic=topic,
+                            mature_idea=mature_idea,
+                            papers=combined_papers,
+                            memory=self.memory,
+                            prompts=PROMPTS,
+                            chat_fn=self.chat,
+                            model=self.model,
+                            logger=logger,
+                            top_k=5,
+                        )
+                        self.memory["references"].append(curated_papers)
                         self.memory["rag_contents"].append(survey_contents)
                         step = (
                             f"\nIn this knowledge_aquisition action, I read {len(initial_papers)} seed papers, "
                             f"generated a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
-                            f"and fetched {len(rag_papers)} cited papers for memory."
+                            f"and curated {len(curated_papers)} papers for memory."
                         )
                     else:
                         safely_enrich_papers_with_content(
@@ -377,10 +401,21 @@ class LigAgent(AgentBase):
                             self.memory,
                             logger,
                         )
-                        self.memory["references"].append(initial_papers)
+                        curated_papers = filter_and_compress_papers(
+                            topic=topic,
+                            mature_idea=mature_idea,
+                            papers=initial_papers,
+                            memory=self.memory,
+                            prompts=PROMPTS,
+                            chat_fn=self.chat,
+                            model=self.model,
+                            logger=logger,
+                            top_k=5,
+                        )
+                        self.memory["references"].append(curated_papers)
                         step = (
                             f"\nIn this knowledge_aquisition action, I searched for papers about '{search_keywords}' "
-                            f"and acquired {len(initial_papers)} relevant papers for my research."
+                            f"and curated {len(curated_papers)} relevant papers for my research."
                         )
                 else:
                     step = (
@@ -441,10 +476,13 @@ class LigAgent(AgentBase):
 
     def idea_generation(self, **kwargs) -> None:
         topic = self.memory["topic"][-1]
+        reference_batches = self.memory.get("references", [])
+        latest_batch = reference_batches[-1] if reference_batches else []
+        batch_list = [latest_batch] if latest_batch else reference_batches
         paper_entries = collect_paper_context_entries(
             self.memory,
-            self.memory.get("references", []),
-            limit=self.idea_context_limit,
+            batch_list,
+            limit=0,
         )
         idea_history = list(self.memory.get("idea_pool", []))
         seed_ideas = latest_analysis_seed_ideas(self.memory)

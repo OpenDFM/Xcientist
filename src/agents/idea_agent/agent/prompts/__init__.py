@@ -32,6 +32,7 @@ from src.agents.idea_agent.agent.prompts.dataset_query_generation import DATASET
 from src.agents.idea_agent.agent.prompts.dataset_candidate_scoring import DATASET_CANDIDATE_SCORING_PROMPT
 from src.agents.idea_agent.agent.prompts.baseline_candidate_scoring import BASELINE_CANDIDATE_SCORING_PROMPT
 from src.agents.idea_agent.agent.prompts.graph_baseline_match import GRAPH_BASELINE_MATCH_PROMPT
+from src.agents.idea_agent.agent.prompts.paper_filtering import PAPER_FILTERING_PROMPT
 
 
 PROMPTS = {
@@ -59,4 +60,5 @@ PROMPTS = {
     "baseline_query_generation": BASELINE_QUERY_GENERATION_PROMPT,
     "dataset_idea_card": DATASET_IDEA_CARD_PROMPT,
     "dataset_query_generation": DATASET_QUERY_GENERATION_PROMPT,
+    "paper_filtering": PAPER_FILTERING_PROMPT,
 }
