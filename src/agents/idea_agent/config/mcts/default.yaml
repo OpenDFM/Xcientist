@@ -1,6 +1,6 @@
 mcts:
-  max_iterations: 8
-  max_depth: 3
+  max_iterations: 256
+  max_depth: 4
   branching_factor: 3
   exploration_constant: 1.15
   generation_model: "gpt-5-mini"

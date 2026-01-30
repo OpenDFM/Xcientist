@@ -2,7 +2,7 @@ run:
   max_turns: 4
   parallelism: 1
   output_root: "runs"
-  console_logs: false
+  console_logs: true
   rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
   openai_api_key: "sk-BWZ0Kqbk3PvdF0zRFf69B63901B84e85A5B4D8B1AfE27e2e"
   openai_base_url: "https://api.xi-ai.cn/v1"
@@ -10,7 +10,7 @@ run:
   s2_api_timeout: "60"
   serper_api_key: "7c7ca61c4c665f666902d03f3bca49c4b4b5bed4"
   serper_api_endpoint: "https://google.serper.dev/search"
-  mineru_model_source: "huggingface"
+  mineru_model_source: "modelscope"
   topics: ["Diffusion Models for Reinforcement Learning in Games"]
   mature_idea: "CtrlFlow replaces step-wise dynamics modeling in online MBRL with a conditional flow-matching trajectory generator that directly learns to sample high-return trajectories from initial states, using controllability (minimum control-energy via a non-linear controllability Gramian) plus value guidance to avoid long-horizon model-error compounding and improve sample efficiency."
   #"mature_idea": ""

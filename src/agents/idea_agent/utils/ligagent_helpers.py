@@ -244,9 +244,9 @@ def generate_rag_query(
     return query
 
 
-def retrieve_outcome_rag(query: str, paper_repository, logger) -> List[Dict[str, Any]]:
+def retrieve_outcome_rag(query: str, top_k: int, paper_repository, logger) -> List[Dict[str, Any]]:
     try:
-        hits = paper_repository.retrieve_outcome_rag(query=query, top_k=1)
+        hits = paper_repository.retrieve_outcome_rag(query=query, top_k=top_k)
     except Exception as exc:  # pragma: no cover - network
         logger.warning("⚠️ OutcomeRAG retrieval failed: %s", exc)
         hits = []

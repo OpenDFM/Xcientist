@@ -60,47 +60,98 @@ class SemanticScholarAPI:
         self.logger = get_logger("SemanticScholarAPI")
         self.config = config
 
-    def search_papers(self, query: str, fields: str, retry_time: int = 0):
-        retry = (retry_time == self.config.APIInfo.semantic_scholar_api_max_retry)
+    def _normalize_paper_id(self, paper_id: str) -> str:
+        pid = str(paper_id or "").strip()
+        if not pid:
+            return pid
+        lowered = pid.lower()
+        if lowered.startswith("arxiv:"):
+            return f"ARXIV:{pid.split(':', 1)[1].strip()}"
+        # If it already contains a prefix (e.g., DOI:, CorpusId:), keep as-is.
+        if ":" in pid:
+            return pid
+        # Normalize common arXiv IDs like 2505.11711 -> ARXIV:2505.11711
+        if pid.count(".") == 1:
+            left, right = pid.split(".", 1)
+            if left.isdigit() and right.isdigit():
+                return f"ARXIV:{pid}"
+        return pid
 
+    def search_papers(self, query: str, fields: str, retry_time: int = 0):
+        max_retry = self.config.APIInfo.semantic_scholar_api_max_retry
         url = f"{self.base_url}/paper/search"
         params = {"query": query, "fields": fields}
-        response = requests.get(url, headers=self.headers, params=params)
-        if response.status_code == 200:
-            return response.json()
-        elif response.status_code == 429:
-            self.logger.info(
-                "Rate limit exceeded. Waiting 60 seconds before retrying..."
-            )
-            time.sleep(60)
-            return self.search_papers(query, fields, retry_time)
-        else:
-            if retry:
-                return self.search_papers(query, fields, retry_time + 1)
-            else:
-                self.logger.error(f"Error occurs in search_papers. Status code: {response.status_code}")
+
+        for attempt in range(retry_time, max_retry + 1):
+            try:
+                response = requests.get(
+                    url, headers=self.headers, params=params, timeout=30
+                )
+            except requests.RequestException as e:
+                self.logger.warning(
+                    f"Semantic Scholar request failed ({attempt + 1}/{max_retry + 1}): {e}"
+                )
+                if attempt < max_retry:
+                    time.sleep(min(5 * (attempt + 1), 30))
+                    continue
                 return None
+
+            if response.status_code == 200:
+                return response.json()
+            if response.status_code == 429:
+                self.logger.info(
+                    "Rate limit exceeded. Waiting 60 seconds before retrying..."
+                )
+                time.sleep(60)
+                continue
+
+            self.logger.error(
+                f"Error occurs in search_papers. Status code: {response.status_code}"
+            )
+            if attempt < max_retry:
+                time.sleep(min(5 * (attempt + 1), 30))
+                continue
+            return None
 
     def get_paper_details(self, paper_id: str, fields: str, retry_time: int = 0):
-        retry = (retry_time == self.config.APIInfo.semantic_scholar_api_max_retry)
+        max_retry = self.config.APIInfo.semantic_scholar_api_max_retry
+        normalized_id = self._normalize_paper_id(paper_id)
+        url = f"{self.base_url}/paper/{normalized_id}?fields={fields}"
 
-        url = f"{self.base_url}/paper/{paper_id}?fields={fields}"
-        response = requests.get(url, headers=self.headers)
-        if response.status_code == 200:
-            return response.json()
-        elif response.status_code == 429:
-            self.logger.info(
-                "Rate limit exceeded. Waiting 60 seconds before retrying..."
+        for attempt in range(retry_time, max_retry + 1):
+            try:
+                response = requests.get(url, headers=self.headers, timeout=30)
+            except requests.RequestException as e:
+                self.logger.warning(
+                    f"Semantic Scholar request failed ({attempt + 1}/{max_retry + 1}): {e}"
+                )
+                if attempt < max_retry:
+                    time.sleep(min(5 * (attempt + 1), 30))
+                    continue
+                raise ValueError(
+                    f"Failed to fetch paper details for {paper_id} from Semantic Scholar"
+                )
+
+            if response.status_code == 200:
+                return response.json()
+            if response.status_code == 429:
+                self.logger.info(
+                    "Rate limit exceeded. Waiting 60 seconds before retrying..."
+                )
+                time.sleep(60)
+                continue
+
+            self.logger.error(
+                "Error occurs in get_paper_details for %s. Status code: %s",
+                normalized_id,
+                response.status_code,
             )
-            time.sleep(60)
-            return self.get_paper_details(paper_id, fields, retry_time)
-        else:
-            self.logger.error(f"Error occurs in get_paper_details. Status code: {response.status_code}")
-            if retry:
-                return self.get_paper_details(paper_id, fields, retry_time + 1)
-            else:
-                raise ValueError(f"Failed to fetch paper details for {paper_id} from Semantic Scholar")
-                return None
+            if attempt < max_retry:
+                time.sleep(min(5 * (attempt + 1), 30))
+                continue
+            raise ValueError(
+                f"Failed to fetch paper details for {paper_id} from Semantic Scholar"
+            )
 
 
 class ChatAgent:

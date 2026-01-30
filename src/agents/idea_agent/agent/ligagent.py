@@ -281,7 +281,7 @@ class LigAgent(AgentBase):
                         mature_idea=mature_idea,
                     )
                     logger.info("🔎 Generated RAG Query (mature idea): %s", rag_query)
-                    rag_hits = retrieve_outcome_rag(rag_query, self.paper_repository, logger)
+                    rag_hits = retrieve_outcome_rag(query=rag_query, top_k=5, paper_repository=self.paper_repository, logger=logger)
                     self.memory.setdefault("rag_query", []).append(rag_query)
                     self.memory.setdefault("rag_hits", []).append(
                         {"query": rag_query, "hits": rag_hits}
@@ -344,7 +344,7 @@ class LigAgent(AgentBase):
                         mature_idea=mature_idea if len(mature_idea) > 0 else None,
                     )
                     logger.info("🔎 Generated RAG Query: %s", rag_query)
-                    rag_hits = retrieve_outcome_rag(rag_query, self.paper_repository, logger)
+                    rag_hits = retrieve_outcome_rag(query=rag_query, top_k=5, paper_repository=self.paper_repository, logger=logger)
                     self.memory.setdefault("rag_query", []).append(rag_query)
                     self.memory.setdefault("rag_hits", []).append(
                         {"query": rag_query, "hits": rag_hits}
