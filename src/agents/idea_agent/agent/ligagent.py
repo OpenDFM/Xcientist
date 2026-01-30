@@ -271,7 +271,7 @@ class LigAgent(AgentBase):
             # If a mature idea is provided, use it to generate a focused RAG query directly
             if len(mature_idea) > 0 and mature_idea.strip():
                 try:
-                    '''rag_query = generate_rag_query(
+                    rag_query = generate_rag_query(
                         topic,
                         [],
                         PROMPTS,
@@ -279,8 +279,7 @@ class LigAgent(AgentBase):
                         self.model,
                         logger,
                         mature_idea=mature_idea,
-                    )'''
-                    rag_query = "diffusion world model architecture for high-fidelity image-space dynamics and uncertainty calibration in reinforcement learning agents for games"
+                    )
                     logger.info("🔎 Generated RAG Query (mature idea): %s", rag_query)
                     rag_hits = retrieve_outcome_rag(rag_query, self.paper_repository, logger)
                     self.memory.setdefault("rag_query", []).append(rag_query)
