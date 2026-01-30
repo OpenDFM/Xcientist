@@ -122,6 +122,7 @@ def _apply_env_config(config: Optional[object]) -> None:
         "S2_API_KEY": "run.s2_api_key",
         "S2_API_TIMEOUT": "run.s2_api_timeout",
         "SERPER_API_KEY": "run.serper_api_key",
+        "SERPER_API_ENDPOINT": "run.serper_api_endpoint",
         "MINERU_MODEL_SOURCE": "run.mineru_model_source",
     }
     for env_var, key in env_map.items():

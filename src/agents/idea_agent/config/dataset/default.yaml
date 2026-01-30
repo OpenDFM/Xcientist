@@ -11,6 +11,7 @@ dataset:
     browse_max_chars: 18000
     observation_limit: 6
     search_max_retry: 3
+    force_seed_queries: true
     llm:
       temperature: 0.1
       step_max_tokens: 200

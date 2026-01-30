@@ -15,7 +15,6 @@ from tqdm import tqdm
 from memory.api.faiss_memory_system_api import FAISSMemorySystem
 from memory.api.slot_process_api import SlotProcess
 from memory.memory_system.models import SemanticRecord, EpisodicRecord, ProceduralRecord
-from memory.memory_system.working_slot import WorkingSlot
 from memory.memory_system.utils import (
     _safe_dump_str,
     _multi_thread_run,
@@ -67,177 +66,23 @@ MAX_REF_TEXT = 96
 
 module_logger = get_logger()
 
+def _load_mcts_defaults() -> Dict[str, Any]:
+    config_path = Path(__file__).resolve().parents[1] / "config" / "mcts" / "default.yaml"
+    config = OmegaConf.load(config_path)
+    mcts_config = config.get("mcts") if hasattr(config, "get") else None
+    if mcts_config is None:
+        return {}
+    try:
+        return OmegaConf.to_container(mcts_config, resolve=True) or {}
+    except Exception:
+        return dict(mcts_config) if isinstance(mcts_config, dict) else {}
 
-class LongTermMemoryAccessor:
-    def __init__(
-        self,
-        semantic_cfg: Optional[Dict[str, Any]] = None,
-        episodic_cfg: Optional[Dict[str, Any]] = None,
-        procedural_cfg: Optional[Dict[str, Any]] = None,
-        logger: Optional[logging.Logger] = None,
-    ) -> None:
-        self.semantic_cfg = semantic_cfg or {}
-        self.episodic_cfg = episodic_cfg or {}
-        self.procedural_cfg = procedural_cfg or {}
-        self.logger = logger or module_logger
-        self._stores: Dict[str, Optional[FAISSMemorySystem]] = {
-            "semantic": None,
-            "episodic": None,
-            "procedural": None,
-        }
+_MCTS_DEFAULTS = _load_mcts_defaults()
 
-    def _get_store(self, memory_type: str) -> Optional[FAISSMemorySystem]:
-        if memory_type not in self._stores:
-            return None
-        if self._stores[memory_type] is None:
-            cfg = {
-                "semantic": self.semantic_cfg,
-                "episodic": self.episodic_cfg,
-                "procedural": self.procedural_cfg,
-            }.get(memory_type, {})
-            try:
-                # Create the memory store instance
-                self._stores[memory_type] = FAISSMemorySystem(
-                    memory_type=memory_type,
-                    llm_name="gpt-4.1",
-                    backend="openai",
-                    **cfg,
-                )
-            except Exception as exc:
-                self.logger.warning(
-                    "⚠️  Unable to initialize %s memory store: %s",
-                    memory_type,
-                    exc,
-                )
-                self._stores[memory_type] = None
-        return self._stores[memory_type]
 
-    def _query_store(
-        self,
-        store: FAISSMemorySystem,
-        query: str,
-        limit: int,
-        prefix: str,
-    ) -> List[MemorySnippet]:
-        snippets: List[MemorySnippet] = []
-        try:
-            records_with_scores = store.query(
-                query_text=query,
-                method="embedding",
-                limit=limit,
-                agent_id="idea_agent",
-                threshold=0.4,
-            )
-        except Exception as exc:
-            self.logger.warning("⚠️  Memory query failed (%s): %s", prefix, exc)
-            return snippets
-
-        for idx, (_, record) in enumerate(records_with_scores, start=1):
-            if not record:
-                continue
-            identifier = f"{prefix}#{idx}"
-
-            if isinstance(record, SemanticRecord):
-                title = record.summary
-                detail = record.detail
-            elif isinstance(record, EpisodicRecord):
-                title = record.summary
-                detail = _safe_dump_str(record.detail)
-            else:
-                title = record.name
-                detail = record.description
-                
-            snippets.append(
-                MemorySnippet(
-                    identifier=identifier,
-                    title=title[:80],
-                    detail=str(detail)[:400],
-                    tags=list(getattr(record, "tags", []) or []),
-                )
-            )
-        return snippets
-
-    def retrieve_bundle(self, query: str, limit: int = 3) -> MemoryBundle:
-        bundle = MemoryBundle()
-        semantic = self._get_store("semantic")
-        episodic = self._get_store("episodic")
-        procedural = self._get_store("procedural")
-
-        if semantic:
-            bundle.field_knowledge = self._query_store(
-                semantic, query, limit, prefix="Field"
-            )
-        if episodic:
-            bundle.anti_patterns = self._query_store(
-                episodic, query, limit, prefix="Pattern"
-            )
-        if procedural:
-            bundle.fix_recipes = self._query_store(
-                procedural, query, limit, prefix="Recipe"
-            )
-
-        return bundle
-
-    def persist_experience(self, experience: Dict[str, Any], max_workers: int = 20) -> None:
-        if not experience:
-            return
-
-        semantic = self._get_store("semantic")
-        episodic = self._get_store("episodic")
-        procedural = self._get_store("procedural")
-        if not semantic and not episodic and not procedural:
-            self.logger.info("ℹ️ Skipping persistence because semantic store is unavailable.")
-            return
-        
-        slot_process = SlotProcess(llm_name="gpt-4.1", llm_backend="openai") # lazy loading
-        try:
-            # 1. Multi-threaded run for contexts transformation
-            working_slots = slot_process.transfer_idea_agent_context_to_working_slots(experience)
-            self.logger.info(
-                "[MCTS] Transferred experience to working slots (count=%d)",
-                len(working_slots),
-            )
-            # 2. Multi-threaded run for slots filter and route
-            _multi_thread_run(slot_process._multi_thread_filter_and_route_slot, working_slots, max_workers)
-            # 3. Multi-threaded run for experience persistence
-            _multi_thread_run(slot_process._multi_thread_transfer_slot_to_memory, slot_process.routed_slot_container, max_workers)
-        except Exception as exc:
-            self.logger.warning("⚠️  Failed to persist experience: %s", exc)
-            return
-
-        semantic_records: List[SemanticRecord] = []
-        episodic_records: List[EpisodicRecord] = []
-        procedural_records: List[ProceduralRecord] = []
-        for memory in slot_process.memory_dict:
-            if memory["memory_type"] == "semantic" and semantic:
-                semantic_records.append(semantic.instantiate_sem_record(**memory["input"]))
-            elif memory["memory_type"] == "episodic" and episodic:
-                episodic_records.append(episodic.instantiate_epi_record(**memory["input"]))
-            elif memory["memory_type"] == "procedural" and procedural:
-                procedural_records.append(procedural.instantiate_proc_record(**memory["input"]))
-        
-        if semantic and len(semantic_records) > 0:
-            try:
-                semantic.add(semantic_records, agent_id="idea_agent")
-            except Exception as exc:
-                self.logger.warning("⚠️  Failed to persist semantic records: %s", exc)
-        if episodic and len(episodic_records) > 0:
-            try:
-                episodic.add(episodic_records, agent_id="idea_agent")
-            except Exception as exc:
-                self.logger.warning("⚠️  Failed to persist episodic records: %s", exc)
-        if procedural and len(procedural_records) > 0:
-            try:
-                procedural.add(procedural_records, agent_id="idea_agent")
-            except Exception as exc:
-                self.logger.warning("⚠️  Failed to persist procedural records: %s", exc)
-
-        self.logger.debug(
-            "[MCTS] Persisted records -> semantic=%d | episodic=%d | procedural=%d",
-            len(semantic_records),
-            len(episodic_records),
-            len(procedural_records),
-        )
+def _mcts_default(key: str, fallback: Any) -> Any:
+    value = _MCTS_DEFAULTS.get(key, fallback)
+    return fallback if value is None else value
 
 
 @dataclass
@@ -470,28 +315,7 @@ class IdeaNode:
                 f"{hop.state.title} [{hop.transformation.operator}] -> defects {hop.transformation.defects}"
             )
         return " | ".join(steps)
-
-
-def _load_mcts_defaults() -> Dict[str, Any]:
-    config_path = Path(__file__).resolve().parents[1] / "config" / "mcts" / "default.yaml"
-    config = OmegaConf.load(config_path)
-    mcts_config = config.get("mcts") if hasattr(config, "get") else None
-    if mcts_config is None:
-        return {}
-    try:
-        return OmegaConf.to_container(mcts_config, resolve=True) or {}
-    except Exception:
-        return dict(mcts_config) if isinstance(mcts_config, dict) else {}
-
-
-_MCTS_DEFAULTS = _load_mcts_defaults()
-
-
-def _mcts_default(key: str, fallback: Any) -> Any:
-    value = _MCTS_DEFAULTS.get(key, fallback)
-    return fallback if value is None else value
-
-
+    
 @dataclass
 class MCTSConfig:
     max_iterations: int = _mcts_default("max_iterations", 128)
@@ -501,7 +325,7 @@ class MCTSConfig:
     generation_model: str = _mcts_default("generation_model", "gpt-4.1")
     evaluation_model: str = _mcts_default("evaluation_model", "gpt-4.1")
     generation_temperature: float = _mcts_default("generation_temperature", 0.65)
-    evaluation_temperature: float = _mcts_default("evaluation_temperature", 0.0)
+    evaluation_temperature: float = _mcts_default("evaluation_temperature", 0.01)
     generation_max_tokens: int = _mcts_default("generation_max_tokens", 8192)
     evaluation_max_tokens: int = _mcts_default("evaluation_max_tokens", 8192)
     min_confidence_for_memory: float = _mcts_default("min_confidence_for_memory", 0.6)
@@ -536,6 +360,223 @@ class SearchResult:
     cache_size: int
     experiences: List[Dict[str, Any]]
     idea_contract: Optional[Dict[str, Any]] = None
+
+
+class LongTermMemoryAccessor:
+    def __init__(
+        self,
+        semantic_cfg: Optional[Dict[str, Any]] = None,
+        episodic_cfg: Optional[Dict[str, Any]] = None,
+        procedural_cfg: Optional[Dict[str, Any]] = None,
+        logger: Optional[logging.Logger] = None,
+    ) -> None:
+        self.semantic_cfg = semantic_cfg or {}
+        self.episodic_cfg = episodic_cfg or {}
+        self.procedural_cfg = procedural_cfg or {}
+        self.logger = logger or module_logger
+        self._stores: Dict[str, Optional[FAISSMemorySystem]] = {
+            "semantic": None,
+            "episodic": None,
+            "procedural": None,
+        }
+
+    def _get_store(self, memory_type: str) -> Optional[FAISSMemorySystem]:
+        if memory_type not in self._stores:
+            return None
+        if self._stores[memory_type] is None:
+            cfg = {
+                "semantic": self.semantic_cfg,
+                "episodic": self.episodic_cfg,
+                "procedural": self.procedural_cfg,
+            }.get(memory_type, {})
+            try:
+                # Create the memory store instance
+                self._stores[memory_type] = FAISSMemorySystem(
+                    memory_type=memory_type,
+                    llm_name="gpt-4.1-mini",
+                    backend="openai",
+                    **cfg,
+                )
+            except Exception as exc:
+                log_message(
+                    self.logger,
+                    None,
+                    "warning",
+                    "⚠️  Unable to initialize %s memory store: %s",
+                    memory_type,
+                    exc,
+                )
+                self._stores[memory_type] = None
+        return self._stores[memory_type]
+
+    def _query_store(
+        self,
+        store: FAISSMemorySystem,
+        query: str,
+        limit: int,
+        prefix: str,
+    ) -> List[MemorySnippet]:
+        snippets: List[MemorySnippet] = []
+        try:
+            records_with_scores = store.query(
+                query_text=query,
+                method="embedding",
+                limit=limit,
+                agent_id="idea_agent",
+                threshold=0.4,
+            )
+        except Exception as exc:
+            log_message(
+                self.logger,
+                None,
+                "warning",
+                "⚠️  Memory query failed (%s): %s",
+                prefix,
+                exc,
+            )
+            return snippets
+
+        for idx, (_, record) in enumerate(records_with_scores, start=1):
+            if not record:
+                continue
+            identifier = f"{prefix}#{idx}"
+
+            if isinstance(record, SemanticRecord):
+                title = record.summary
+                detail = record.detail
+            elif isinstance(record, EpisodicRecord):
+                title = record.summary
+                detail = _safe_dump_str(record.detail)
+            else:
+                title = record.name
+                detail = record.description
+                
+            snippets.append(
+                MemorySnippet(
+                    identifier=identifier,
+                    title=title[:80],
+                    detail=str(detail)[:400],
+                    tags=list(getattr(record, "tags", []) or []),
+                )
+            )
+        return snippets
+
+    def retrieve_bundle(self, query: str, limit: int = 3) -> MemoryBundle:
+        bundle = MemoryBundle()
+        semantic = self._get_store("semantic")
+        episodic = self._get_store("episodic")
+        procedural = self._get_store("procedural")
+
+        if semantic:
+            bundle.field_knowledge = self._query_store(
+                semantic, query, limit, prefix="Field"
+            )
+        if episodic:
+            bundle.anti_patterns = self._query_store(
+                episodic, query, limit, prefix="Pattern"
+            )
+        if procedural:
+            bundle.fix_recipes = self._query_store(
+                procedural, query, limit, prefix="Recipe"
+            )
+
+        return bundle
+
+    def persist_experience(self, experience: Dict[str, Any], max_workers: int = 20) -> None:
+        if not experience:
+            return
+
+        semantic = self._get_store("semantic")
+        episodic = self._get_store("episodic")
+        procedural = self._get_store("procedural")
+        if not semantic and not episodic and not procedural:
+            log_message(
+                self.logger,
+                None,
+                "info",
+                "ℹ️ Skipping persistence because semantic store is unavailable.",
+            )
+            return
+        
+        slot_process = SlotProcess(llm_name="gpt-4.1", llm_backend="openai") # lazy loading
+        try:
+            # 1. Multi-threaded run for contexts transformation
+            working_slots = slot_process.transfer_idea_agent_context_to_working_slots(experience)
+            log_message(
+                self.logger,
+                None,
+                "info",
+                "[MCTS] Transferred experience to working slots (count=%d)",
+                len(working_slots),
+            )
+            # 2. Multi-threaded run for slots filter and route
+            _multi_thread_run(slot_process._multi_thread_filter_and_route_slot, working_slots, max_workers)
+            # 3. Multi-threaded run for experience persistence
+            _multi_thread_run(slot_process._multi_thread_transfer_slot_to_memory, slot_process.routed_slot_container, max_workers)
+        except Exception as exc:
+            log_message(
+                self.logger,
+                None,
+                "warning",
+                "⚠️  Failed to persist experience: %s",
+                exc,
+            )
+            return
+
+        semantic_records: List[SemanticRecord] = []
+        episodic_records: List[EpisodicRecord] = []
+        procedural_records: List[ProceduralRecord] = []
+        for memory in slot_process.memory_dict:
+            if memory["memory_type"] == "semantic" and semantic:
+                semantic_records.append(semantic.instantiate_sem_record(**memory["input"]))
+            elif memory["memory_type"] == "episodic" and episodic:
+                episodic_records.append(episodic.instantiate_epi_record(**memory["input"]))
+            elif memory["memory_type"] == "procedural" and procedural:
+                procedural_records.append(procedural.instantiate_proc_record(**memory["input"]))
+        
+        if semantic and len(semantic_records) > 0:
+            try:
+                semantic.add(semantic_records, agent_id="idea_agent")
+            except Exception as exc:
+                log_message(
+                    self.logger,
+                    None,
+                    "warning",
+                    "⚠️  Failed to persist semantic records: %s",
+                    exc,
+                )
+        if episodic and len(episodic_records) > 0:
+            try:
+                episodic.add(episodic_records, agent_id="idea_agent")
+            except Exception as exc:
+                log_message(
+                    self.logger,
+                    None,
+                    "warning",
+                    "⚠️  Failed to persist episodic records: %s",
+                    exc,
+                )
+        if procedural and len(procedural_records) > 0:
+            try:
+                procedural.add(procedural_records, agent_id="idea_agent")
+            except Exception as exc:
+                log_message(
+                    self.logger,
+                    None,
+                    "warning",
+                    "⚠️  Failed to persist procedural records: %s",
+                    exc,
+                )
+
+        log_message(
+            self.logger,
+            None,
+            "info",
+            "[MCTS] Persisted records -> semantic=%d | episodic=%d | procedural=%d",
+            len(semantic_records),
+            len(episodic_records),
+            len(procedural_records),
+        )
 
 
 class MemoryGuidedMCTS:
@@ -592,8 +633,8 @@ class MemoryGuidedMCTS:
             response = self.chat_fn(
                 prompt,
                 model=self.config.generation_model,
-                temperature=0.0,
-                max_tokens=min(2048, self.config.generation_max_tokens),
+                temperature=0.01,
+                max_output_tokens=min(2048, self.config.generation_max_tokens),
             )
             payload = parse_json_response(response)
             if isinstance(payload, list):
@@ -896,7 +937,7 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.generation_model,
                 temperature=self.config.generation_temperature,
-                max_tokens=min(2048, self.config.generation_max_tokens),
+                max_output_tokens=min(2048, self.config.generation_max_tokens),
             )
             payload = parse_json_response(response)
             return self._parse_skill_output(payload, contract)
@@ -924,7 +965,7 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.generation_model,
                 temperature=self.config.generation_temperature,
-                max_tokens=self.config.generation_max_tokens,
+                max_output_tokens=self.config.generation_max_tokens,
             )
             payload = parse_json_response(response)
             if isinstance(payload, list):
@@ -1030,14 +1071,66 @@ class MemoryGuidedMCTS:
             leaf, path = self._select(root)
             current_depth = len(path) - 1
             if current_depth >= self.config.max_depth:
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "info",
+                    "[MCTS] Iteration %d generation skipped (max_depth=%d) leaf_id=%s depth=%d",
+                    iteration,
+                    self.config.max_depth,
+                    leaf.node_id,
+                    current_depth,
+                )
                 target = leaf
                 rollout_path = path
             else:
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "info",
+                    "[MCTS] Iteration %d generation start leaf_id=%s depth=%d",
+                    iteration,
+                    leaf.node_id,
+                    current_depth,
+                )
                 target, rollout_path = self._expand(leaf, path)
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "info",
+                    "[MCTS] Iteration %d generation done target_id=%s path_depth=%d children=%d",
+                    iteration,
+                    target.node_id if target else "None",
+                    (len(rollout_path) - 1) if rollout_path else -1,
+                    len(leaf.children),
+                )
             if target is None:
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "info",
+                    "[MCTS] Iteration %d evaluate skipped (no target)",
+                    iteration,
+                )
                 continue
+            log_message(
+                self.logger,
+                self.log_sink,
+                "info",
+                "[MCTS] Iteration %d evaluate start node_id=%s path_depth=%d",
+                iteration,
+                target.node_id,
+                len(rollout_path) - 1,
+            )
             evaluation = self._simulate(target, rollout_path, experiences)
             if evaluation is None:
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "info",
+                    "[MCTS] Iteration %d evaluate skipped (no evaluation)",
+                    iteration,
+                )
                 continue
             self._backpropagate(rollout_path, evaluation)
             rollout_summary = path_summary(rollout_path)
@@ -1118,9 +1211,9 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.generation_model,
                 temperature=self.config.generation_temperature,
-                max_tokens=self.config.generation_max_tokens,
+                max_output_tokens=min(2048, self.config.generation_max_tokens),
             )
-            log_message(self.logger, self.log_sink, "debug", "[MCTS] Generation response: %s", response)
+            log_message(self.logger, self.log_sink, "info", "[MCTS] Generation response: %s", response)
             if not response or not response.strip():
                 raise ValueError("Empty response from generation model")
             payload = parse_json_response(response)
@@ -1194,9 +1287,8 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.generation_model,
                 temperature=self.config.generation_temperature,
-                max_tokens=self.config.generation_max_tokens,
+                max_output_tokens=min(2048, self.config.generation_max_tokens),
             )
-            log_message(self.logger, self.log_sink, "debug", "[MCTS] Skill generation response: %s", response)
             if not response or not response.strip():
                 raise ValueError("Empty response from generation model")
             payload = parse_json_response(response)
@@ -1245,7 +1337,7 @@ class MemoryGuidedMCTS:
                     log_message(
                         self.logger,
                         self.log_sink,
-                        "debug",
+                        "info",
                         "[MCTS] Pruned child from operator=%s due to violations: %s",
                         operator,
                         "; ".join(validation.errors),
@@ -1299,6 +1391,14 @@ class MemoryGuidedMCTS:
             self.evaluation_cache,
         )
         if cached_evaluation:
+            log_message(
+                self.logger,
+                self.log_sink,
+                "info",
+                "[MCTS] Simulate cache hit for signature=%s path_key=%s",
+                node.state.signature,
+                path_key,
+            )
             cached_evaluation.alignment_weight = self.config.alignment_weight
             cached_evaluation.complexity_weight = self.config.complexity_weight
             if self.contract_mode and node.state.skill_metrics:
@@ -1310,6 +1410,7 @@ class MemoryGuidedMCTS:
                 )
             node.evaluation = cached_evaluation
             node.latest_path_summary = path_summary_text
+            prev_len = len(experiences)
             maybe_record_experience(
                 path_key,
                 node,
@@ -1320,8 +1421,28 @@ class MemoryGuidedMCTS:
                 self.memory_accessor,
                 self.config.min_confidence_for_memory,
             )
+            if len(experiences) > prev_len:
+                experience = experiences[-1]
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "info",
+                    "[MCTS] Memory recorded (cache) defect=%s action=%s lift=%s idea=%s",
+                    experience.get("defect"),
+                    experience.get("action"),
+                    experience.get("lift"),
+                    experience.get("idea"),
+                )
             return cached_evaluation
 
+        log_message(
+            self.logger,
+            self.log_sink,
+            "info",
+            "[MCTS] Simulate start for signature=%s path_key=%s",
+            node.state.signature,
+            path_key,
+        )
         prompt = self.evaluation_prompt.format(
             topic=self.topic,
             analysis=self.analysis_blob,
@@ -1340,7 +1461,7 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.evaluation_model,
                 temperature=self.config.evaluation_temperature,
-                max_tokens=self.config.evaluation_max_tokens,
+                max_output_tokens=self.config.evaluation_max_tokens,
             )
             payload = parse_json_response(response)
             if isinstance(payload, list):
@@ -1350,6 +1471,14 @@ class MemoryGuidedMCTS:
             evaluation.complexity_weight = self.config.complexity_weight
         except Exception as exc:
             log_message(self.logger, self.log_sink, "warning", "⚠️  Simulation failed: %s", exc)
+            log_message(
+                self.logger,
+                self.log_sink,
+                "info",
+                "[MCTS] Simulate returning None for signature=%s path_key=%s",
+                node.state.signature,
+                path_key,
+            )
             return None
 
         if self.contract_mode and node.state.skill_metrics:
@@ -1363,7 +1492,17 @@ class MemoryGuidedMCTS:
         cache_evaluation(node.state.signature, path_key, evaluation, self.evaluation_cache)
         node.evaluation = evaluation
         node.latest_path_summary = path_summary_text
+        log_message(
+            self.logger,
+            self.log_sink,
+            "info",
+            "[MCTS] Simulate success for signature=%s path_key=%s score=%.4f",
+            node.state.signature,
+            path_key,
+            evaluation.composite,
+        )
 
+        prev_len = len(experiences)
         maybe_record_experience(
             path_key,
             node,
@@ -1374,6 +1513,18 @@ class MemoryGuidedMCTS:
             self.memory_accessor,
             self.config.min_confidence_for_memory,
         )
+        if len(experiences) > prev_len:
+            experience = experiences[-1]
+            log_message(
+                self.logger,
+                self.log_sink,
+                "info",
+                "[MCTS] Memory recorded defect=%s action=%s lift=%s idea=%s",
+                experience.get("defect"),
+                experience.get("action"),
+                experience.get("lift"),
+                experience.get("idea"),
+            )
 
         return evaluation
 

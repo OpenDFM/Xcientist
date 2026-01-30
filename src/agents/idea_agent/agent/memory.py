@@ -9,11 +9,12 @@ MEMORY_FORMAT = {
     "references": List[dict], # list of reference dicts
     "rag_query": List[str], # list of refined queries for outcome RAG
     "rag_hits": List[dict], # list of outcome RAG hits
+    "rag_contents": List[str], # list of survey content strings
     "paper_contents": dict, # mapping from paper_id -> parsed content metadata
     "idea_pool": List[str], # list of research ideas
     "dialogue": dict, # dialogue history
     "steps": List[str], # list of steps taken
-    "memory_structure": dict # structure of the memory
+    "memory_structure": dict, # structure of the memory
 }
 
 def memory_init() -> dict:
@@ -26,6 +27,7 @@ def memory_init() -> dict:
         "references": [],
         "rag_query": [],
         "rag_hits": [],
+        "rag_contents": [],
         "idea_pool": [],
         "evaluations": [],
         "retrieval_keywords": [],

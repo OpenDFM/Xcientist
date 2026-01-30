@@ -63,14 +63,14 @@ class AgentBase:
             raise ValueError(f"Action '{action}' not in action_space")
         raise NotImplementedError("perform_action must be implemented by subclasses")
 
-    def chat(self, prompt: str, model: str="gpt-4.1", **kwargs) -> str:
+    def chat(self, prompt: str, model: str="gpt-5-mini", **kwargs) -> str:
         """
         Interact with the chat model using the given prompt.
         Returns the response text.
         """
-        response = self.chat_model.chat.completions.create(
+        response = self.chat_model.responses.create(
             model=model,
-            messages=[{"role": "user", "content": prompt}],
+            input=prompt,
             **kwargs
         )
-        return response.choices[0].message.content
+        return response.output_text

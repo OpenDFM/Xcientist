@@ -215,14 +215,14 @@ def score_graph_baseline_match(
     model: str,
     logger,
     temperature: float = 0.1,
-    max_tokens: int = 200,
+    max_output_tokens: int = 200,
 ) -> float:
     payload = GRAPH_BASELINE_MATCH_PROMPT.format(
         idea_card=json.dumps(idea_card, ensure_ascii=False, indent=2),
         node_fields=json.dumps(node_fields, ensure_ascii=False, indent=2),
     )
     try:
-        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
+        response = chat_fn(payload, temperature=temperature, max_output_tokens=max_output_tokens, model=model)
         _log_llm_output("graph_baseline_match", response, logger)
         parsed = parse_json_response(response)
     except Exception as exc:  # pragma: no cover - network
@@ -258,7 +258,7 @@ def preprocess_candidate_names(
     logger,
     max_items: int = 8,
     temperature: float = 0.1,
-    max_tokens: int = 400,
+    max_output_tokens: int = 400,
 ) -> List[str]:
     if not names:
         return []
@@ -273,7 +273,7 @@ def preprocess_candidate_names(
         candidates=json.dumps(seed[:max_items * 2], ensure_ascii=False),
     )
     try:
-        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
+        response = chat_fn(payload, temperature=temperature, max_output_tokens=max_output_tokens, model=model)
         _log_llm_output(f"{kind}_preprocess", response, logger)
         parsed = parse_json_response(response)
         if isinstance(parsed, list):
@@ -310,7 +310,7 @@ def postprocess_suggestions(
     logger,
     max_keep: int = 5,
     temperature: float = 0.1,
-    max_tokens: int = 200,
+    max_output_tokens: int = 200,
 ) -> List[Dict[str, Any]]:
     if not items:
         return []
@@ -326,7 +326,7 @@ def postprocess_suggestions(
         max_keep=max_keep,
     )
     try:
-        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
+        response = chat_fn(payload, temperature=temperature, max_output_tokens=max_output_tokens, model=model)
         parsed = parse_json_response(response)
     except Exception as exc:  # pragma: no cover - network
         logger.warning("⚠️ %s postprocess failed: %s", kind.title(), exc)
@@ -712,7 +712,7 @@ def build_baseline_idea_card(
     model: str,
     logger,
     temperature: float = 0.1,
-    max_tokens: int = 1200,
+    max_output_tokens: int = 1200,
 ) -> Dict[str, Any]:
     prompt = prompts.get("baseline_idea_card") or BASELINE_IDEA_CARD_PROMPT
     payload = prompt.format(
@@ -722,7 +722,7 @@ def build_baseline_idea_card(
         references=json.dumps(references[:6], ensure_ascii=False, indent=2),
     )
     try:
-        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
+        response = chat_fn(payload, temperature=temperature, max_output_tokens=max_output_tokens, model=model)
         _log_llm_output("baseline_idea_card", response, logger)
         parsed = parse_json_response(response)
         if isinstance(parsed, dict):
@@ -748,7 +748,7 @@ def build_baseline_queries(
     model: str,
     logger,
     temperature: float = 0.1,
-    max_tokens: int = 512,
+    max_output_tokens: int = 512,
 ) -> List[str]:
     idea_title = best_entry.get("title", "")
     idea_context = trim_query_context(best_entry.get("abstract") or best_entry.get("core_contribute") or "")
@@ -821,7 +821,7 @@ def build_baseline_queries(
         reference_titles=json.dumps(reference_titles, ensure_ascii=False),
     )
     try:
-        response = chat_fn(llm_payload, temperature=temperature, max_tokens=max_tokens, model=model)
+        response = chat_fn(llm_payload, temperature=temperature, max_output_tokens=max_output_tokens, model=model)
         _log_llm_output("baseline_query_generation", response, logger)
         parsed = parse_json_response(response)
         llm_queries = _sanitize_queries(parsed, limit=10)
@@ -957,7 +957,7 @@ def extract_candidate_names(
     logger,
     max_names: int = 8,
     temperature: float = 0.1,
-    max_tokens: int = 300,
+    max_output_tokens: int = 300,
 ) -> List[str]:
     compact = _compact_search_results(search_text, limit=10)
     if not compact:
@@ -969,7 +969,7 @@ def extract_candidate_names(
         results=compact,
     )
     try:
-        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
+        response = chat_fn(payload, temperature=temperature, max_output_tokens=max_output_tokens, model=model)
         _log_llm_output(f"{kind}_name_extraction", response, logger)
         parsed = parse_json_response(response)
         if isinstance(parsed, list):
@@ -1124,7 +1124,7 @@ def build_dataset_idea_card(
     model: str,
     logger,
     temperature: float = 0.1,
-    max_tokens: int = 800,
+    max_output_tokens: int = 800,
 ) -> Dict[str, Any]:
     prompt = prompts.get("dataset_idea_card") or DATASET_IDEA_CARD_PROMPT
     payload = prompt.format(
@@ -1133,7 +1133,7 @@ def build_dataset_idea_card(
         references=json.dumps(references[:6], ensure_ascii=False, indent=2),
     )
     try:
-        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
+        response = chat_fn(payload, temperature=temperature, max_output_tokens=max_output_tokens, model=model)
         _log_llm_output("dataset_idea_card", response, logger)
         parsed = parse_json_response(response)
         if isinstance(parsed, dict):
@@ -1160,7 +1160,7 @@ def build_dataset_queries(
     model: str,
     logger,
     temperature: float = 0.1,
-    max_tokens: int = 512,
+    max_output_tokens: int = 512,
 ) -> List[str]:
     idea_title = best_entry.get("title", "")
     idea_context = trim_query_context(best_entry.get("abstract") or best_entry.get("core_contribute") or "")
@@ -1230,7 +1230,7 @@ def build_dataset_queries(
     )
     llm_queries: List[str] = []
     try:
-        response = chat_fn(llm_payload, temperature=temperature, max_tokens=max_tokens, model=model)
+        response = chat_fn(llm_payload, temperature=temperature, max_output_tokens=max_output_tokens, model=model)
         _log_llm_output("dataset_query_generation", response, logger)
         parsed = parse_json_response(response)
         llm_queries = _sanitize_queries(parsed, limit=10)
@@ -1280,7 +1280,7 @@ def score_dataset_candidate(
     model: str,
     logger,
     temperature: float = 0.1,
-    max_tokens: int = 700,
+    max_output_tokens: int = 700,
     fetch_max_chars: int = 2500,
     page_text_max_chars: int = 2000,
     evidence_max_chars: int = 3500,
@@ -1303,7 +1303,7 @@ def score_dataset_candidate(
         text=evidence_text[:evidence_max_chars],
     )
     try:
-        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
+        response = chat_fn(payload, temperature=temperature, max_output_tokens=max_output_tokens, model=model)
         _log_llm_output("dataset_candidate_scoring", response, logger)
         parsed = parse_json_response(response)
         if isinstance(parsed, dict):
@@ -1384,7 +1384,7 @@ def score_baseline_candidate(
     model: str,
     logger,
     temperature: float = 0.1,
-    max_tokens: int = 800,
+    max_output_tokens: int = 800,
     fetch_max_chars: int = 3500,
     page_text_max_chars: int = 2000,
     evidence_max_chars: int = 3500,
@@ -1406,7 +1406,7 @@ def score_baseline_candidate(
         text=evidence_text[:evidence_max_chars],
     )
     try:
-        response = chat_fn(payload, temperature=temperature, max_tokens=max_tokens, model=model)
+        response = chat_fn(payload, temperature=temperature, max_output_tokens=max_output_tokens, model=model)
         _log_llm_output("baseline_candidate_scoring", response, logger)
         parsed = parse_json_response(response)
         if isinstance(parsed, dict):

@@ -7,7 +7,7 @@ Mature idea:
 Return STRICT JSON with:
 {{
   "scope_statement": "...",
-  "thesis": "...",
+  "thesis": "concise paper-style title (<= 12 words, no colon)",
   "core_claims": ["...","..."],
   "mechanism_invariants": ["..."],
   "evaluation_invariants": ["..."],

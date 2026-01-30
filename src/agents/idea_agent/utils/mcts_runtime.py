@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Set
 
@@ -544,7 +545,7 @@ def build_root_state(
         core_claims = getattr(contract, "core_claims", []) if contract else []
         mechanism_invariants = getattr(contract, "mechanism_invariants", []) if contract else []
         evaluation_invariants = getattr(contract, "evaluation_invariants", []) if contract else []
-        title = thesis or f"{topic} mature idea"
+        title = thesis or _short_title_from_mature_idea(mature_idea, topic)
         core = thesis or (core_claims[0] if core_claims else "Mature idea core contribution.")
         method = (
             "Preserve mechanism invariants: "
@@ -616,6 +617,39 @@ def build_root_state(
         rationale="Starting point from existing idea pool or analysis.",
         memory_refs=[],
     )
+
+
+def _short_title_from_mature_idea(mature_idea: str, topic: str) -> str:
+    text = (mature_idea or "").strip()
+    if not text:
+        return f"{topic} mature idea"
+    first = re.split(r"[.!?。！？]\s+", text, maxsplit=1)[0].strip()
+    if not first:
+        first = text
+    lowered = first.lower()
+    prefixes = [
+        "a mature direction in",
+        "a mature idea in",
+        "a mature idea is",
+        "a mature direction is",
+        "this work",
+        "this idea",
+        "we propose",
+        "we present",
+    ]
+    for prefix in prefixes:
+        if lowered.startswith(prefix):
+            first = first[len(prefix) :].lstrip(" :,-")
+            lowered = first.lower()
+            break
+    if " is to " in lowered:
+        first = first.split(" is to ", 1)[1].strip()
+    if " to " in lowered and len(first.split()) > 14:
+        first = first.split(" to ", 1)[0].strip()
+    words = first.split()
+    if len(words) > 12:
+        first = " ".join(words[:12]).strip()
+    return first or f"{topic} mature idea"
 
 
 def parse_child_state(data: Dict[str, Any], idea_state_cls: Any) -> Any:

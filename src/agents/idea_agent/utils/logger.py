@@ -15,7 +15,7 @@ _logger: Optional[logging.Logger] = None
 def init_logger(
     log_dir: Optional[str] = None,
     filename: str = _DEFAULT_LOG_FILE,
-    level: int = logging.INFO,
+    level: int = logging.DEBUG,
     include_console: bool = True,
     include_timestamp: bool = True,
     timestamp_format: str = "%Y%m%d_%H%M%S",

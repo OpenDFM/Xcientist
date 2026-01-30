@@ -11,9 +11,9 @@ baseline:
     repo_search_max_retry: 3
   react:
     max_steps: 5
-    max_urls: 2
+    max_urls: 5
     browse_max_chars: 18000
-    observation_limit: 6
+    observation_limit: 10
     search_max_retry: 3
     llm:
       temperature: 0.1

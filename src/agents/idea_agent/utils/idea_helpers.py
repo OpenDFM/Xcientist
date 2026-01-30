@@ -5,19 +5,9 @@ import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional
-
 import requests
 
-
 logger = logging.getLogger(__name__)
-
-SERPER_API_KEY: str = os.environ.get("SERPER_API_KEY", "")
-SERPER_API_ENDPOINT: str = os.environ.get(
-    "SERPER_API_ENDPOINT", "https://google.serper.dev/search"
-)
-SERPER_DEFAULT_RESULTS: int = int(os.environ.get("SERPER_DEFAULT_RESULTS", "10"))
-SERPER_TIMEOUT_SECONDS: float = float(os.environ.get("SERPER_TIMEOUT", "30"))
-
 
 def build_mcts_evolution(best_entry: Dict[str, Any]) -> Dict[str, Any]:
     trace = best_entry.get("search_trace") or []
@@ -126,10 +116,12 @@ def fallback_algorithm_spec(idea: Dict[str, Any], inputs: List[str], outputs: Li
     return [algorithm_entry]
 
 
-def search_google(query: str, api_key: Optional[str] = None, num: int = SERPER_DEFAULT_RESULTS) -> List[Dict[str, Any]]:
+def search_google(query: str, num: int = 10) -> List[Dict[str, Any]]:
+    SERPER_API_KEY = os.environ.get("SERPER_API_KEY")
+    SERPER_API_ENDPOINT = os.environ.get("SERPER_API_ENDPOINT")
     if not query.strip():
         return []
-    key = api_key if api_key is not None else SERPER_API_KEY
+    key = SERPER_API_KEY
     if not key:
         raise RuntimeError("SERPER_API_KEY is not configured")
     headers = {
@@ -141,7 +133,7 @@ def search_google(query: str, api_key: Optional[str] = None, num: int = SERPER_D
         SERPER_API_ENDPOINT,
         headers=headers,
         json=payload,
-        timeout=SERPER_TIMEOUT_SECONDS,
+        timeout=30,
     )
     response.raise_for_status()
     data = response.json() or {}

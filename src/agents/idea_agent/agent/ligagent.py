@@ -153,11 +153,16 @@ class LigAgent(AgentBase):
             rag_config=rag_config,
         )
 
-    def chat(self, prompt: str, model: str = "gpt-4.1", **kwargs) -> str:
+    def chat(self, prompt: str, model: str = "gpt-5-mini", **kwargs) -> str:
         last_exc: Optional[Exception] = None
         for attempt in range(1, self.chat_max_retries + 1):
             try:
-                return super().chat(prompt, model=model, **kwargs)
+                # Special handling for GPT-5 models
+                if "gpt-5" in model:
+                    kwargs["temperature"] = 1.0
+                    return super().chat(prompt, model=model, reasoning={"effort": "low"}, **kwargs)
+                else:
+                    return super().chat(prompt, model=model, **kwargs)
             except Exception as exc:
                 last_exc = exc
                 wait = self.chat_retry_backoff ** (attempt - 1)
@@ -181,6 +186,7 @@ class LigAgent(AgentBase):
                 step=observation,
                 invalid_action=invalid_action or "",
             )
+
             response = self.chat(prompt, model=self.model)
             resolved = self._canonical_action(response)
             if resolved:
@@ -265,7 +271,7 @@ class LigAgent(AgentBase):
             # If a mature idea is provided, use it to generate a focused RAG query directly
             if len(mature_idea) > 0 and mature_idea.strip():
                 try:
-                    rag_query = generate_rag_query(
+                    '''rag_query = generate_rag_query(
                         topic,
                         [],
                         PROMPTS,
@@ -273,7 +279,8 @@ class LigAgent(AgentBase):
                         self.model,
                         logger,
                         mature_idea=mature_idea,
-                    )
+                    )'''
+                    rag_query = "diffusion world model architecture for high-fidelity image-space dynamics and uncertainty calibration in reinforcement learning agents for games"
                     logger.info("🔎 Generated RAG Query (mature idea): %s", rag_query)
                     rag_hits = retrieve_outcome_rag(rag_query, self.paper_repository, logger)
                     self.memory.setdefault("rag_query", []).append(rag_query)
@@ -421,7 +428,7 @@ class LigAgent(AgentBase):
             else "[]",
         )
         raw_response = self._parse_json_response(
-            self.chat(prompt, model=self.model, max_tokens=4096)
+            self.chat(prompt, model=self.model, max_output_tokens=4096)
         )
         response = normalize_analysis_entry(raw_response)
         logger.info(f"📝 Advanced Analysis Result:\n{response}")

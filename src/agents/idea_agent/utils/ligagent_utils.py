@@ -216,7 +216,7 @@ def generate_idea_introduction(
         papers=json.dumps(entries, ensure_ascii=False, indent=2),
     )
     try:
-        response = chat_fn(prompt, temperature=0.3, max_tokens=2048, model=model)
+        response = chat_fn(prompt, temperature=0.3, max_output_tokens=2048, model=model)
         payload = parse_json_response(response)
         intro = payload.get("introduction") or payload.get("intro")
         if intro:

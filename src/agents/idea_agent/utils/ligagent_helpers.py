@@ -74,6 +74,7 @@ def _is_allowed_dataset_link(link: str) -> bool:
     return (
         "huggingface.co/datasets" in lowered
         or "github.com" in lowered
+        or "raw.githubusercontent.com" in lowered
         or "paperswithcode.com/dataset" in lowered
         or "paperwithcodes.com/dataset" in lowered
     )
@@ -226,7 +227,7 @@ def generate_rag_query(
         papers=json.dumps(papers, ensure_ascii=False, indent=2) if papers is not None else "[]",
     )
     try:
-        response = chat_fn(prompt, model=model, temperature=0.3, max_tokens=512)
+        response = chat_fn(prompt, model=model, temperature=0.3, max_output_tokens=512)
         try:
             payload = parse_json_response(response)
             if isinstance(payload, dict) and payload.get("query"):
@@ -245,7 +246,7 @@ def generate_rag_query(
 
 def retrieve_outcome_rag(query: str, paper_repository, logger) -> List[Dict[str, Any]]:
     try:
-        hits = paper_repository.retrieve_outcome_rag(query=query, top_k=3)
+        hits = paper_repository.retrieve_outcome_rag(query=query, top_k=1)
     except Exception as exc:  # pragma: no cover - network
         logger.warning("⚠️ OutcomeRAG retrieval failed: %s", exc)
         hits = []
@@ -586,7 +587,7 @@ def build_algorithm_spec(
     )
     prompt += "\n Directly output JSON."
     try:
-        response = chat_fn(prompt, temperature=0.01, max_tokens=4096, model=model)
+        response = chat_fn(prompt, temperature=0.01, max_output_tokens=4096, model=model)
         payload = parse_json_response(response)
         candidate = payload.get("algorithms", payload)
         if isinstance(candidate, list) and candidate:
@@ -619,7 +620,7 @@ def align_algorithms_with_idea(
     )
     prompt += "\nDirectly output JSON."
     try:
-        response = chat_fn(prompt, temperature=0.01, max_tokens=2048, model=model)
+        response = chat_fn(prompt, temperature=0.01, max_output_tokens=2048, model=model)
         payload = parse_json_response(response)
         candidate = payload.get("algorithms", payload)
         if isinstance(candidate, list) and candidate:
@@ -650,7 +651,7 @@ def synthesize_reference_summaries(
     )
     prompt += "\n Directly output JSON."
     try:
-        response = chat_fn(prompt, temperature=0.01, max_tokens=4096, model=model)
+        response = chat_fn(prompt, temperature=0.01, max_output_tokens=4096, model=model)
         payload = parse_json_response(response)
         candidate = payload.get("reference_papers", payload)
         if isinstance(candidate, list):
@@ -694,6 +695,9 @@ def suggest_datasets(
     react_max_urls = get_config_value(config, "dataset.react.max_urls", 2)
     react_browse_max_chars = get_config_value(config, "dataset.react.browse_max_chars", 18000)
     react_observation_limit = get_config_value(config, "dataset.react.observation_limit", 6)
+    react_force_seed_queries = get_config_value(
+        config, "dataset.react.force_seed_queries", False
+    )
     react_search_max_retry = get_config_value(
         config,
         "dataset.react.search_max_retry",
@@ -733,7 +737,7 @@ def suggest_datasets(
         model=model,
         logger=logger,
         temperature=llm_temperature,
-        max_tokens=idea_card_max_tokens,
+        max_output_tokens=idea_card_max_tokens,
     )
     top_from_keynotes = collect_top_dataset_names_from_memory(memory, top_k=memory_top_k)
     top_from_keynotes = preprocess_candidate_names(
@@ -746,7 +750,7 @@ def suggest_datasets(
         logger=logger,
         max_items=preprocess_max_items,
         temperature=llm_temperature,
-        max_tokens=preprocess_max_tokens,
+        max_output_tokens=preprocess_max_tokens,
     )
     primary_candidates: List[Dict[str, Any]] = []
     primary_browse: List[Dict[str, Any]] = []
@@ -769,6 +773,7 @@ def suggest_datasets(
             llm_temperature=react_llm_temperature,
             llm_step_max_tokens=react_step_max_tokens,
             llm_browse_max_tokens=react_browse_max_tokens,
+            force_seed_queries=react_force_seed_queries,
         )
         logger.info("🔎 Dataset websearch (primary) found names: %s", primary_result.get("found_names"))
         logger.info("🔎 Dataset websearch (primary) browse candidates: %s", primary_result.get("browse_candidates"))
@@ -795,7 +800,7 @@ def suggest_datasets(
                 model=model,
                 logger=logger,
                 temperature=llm_temperature,
-                max_tokens=candidate_scoring_max_tokens,
+                max_output_tokens=candidate_scoring_max_tokens,
                 fetch_max_chars=score_fetch_max_chars,
                 page_text_max_chars=score_page_text_max_chars,
                 evidence_max_chars=score_evidence_max_chars,
@@ -839,7 +844,7 @@ def suggest_datasets(
         logger=logger,
         max_names=seed_extract_max_names,
         temperature=llm_temperature,
-        max_tokens=name_extraction_max_tokens,
+        max_output_tokens=name_extraction_max_tokens,
     )
     dataset_names = preprocess_candidate_names(
         "dataset",
@@ -851,7 +856,7 @@ def suggest_datasets(
         logger=logger,
         max_items=seed_preprocess_max_items,
         temperature=llm_temperature,
-        max_tokens=preprocess_max_tokens,
+        max_output_tokens=preprocess_max_tokens,
     )
     keynote_names_lower = {name.lower() for name in top_from_keynotes}
     avoid_names = set(keynote_names_lower)
@@ -881,6 +886,7 @@ def suggest_datasets(
             llm_temperature=react_llm_temperature,
             llm_step_max_tokens=react_step_max_tokens,
             llm_browse_max_tokens=react_browse_max_tokens,
+            force_seed_queries=react_force_seed_queries,
         )
         logger.info("🔎 Dataset websearch (fallback) found names: %s", extra_result.get("found_names"))
         logger.info("🔎 Dataset websearch (fallback) browse candidates: %s", extra_result.get("browse_candidates"))
@@ -906,7 +912,7 @@ def suggest_datasets(
                 model=model,
                 logger=logger,
                 temperature=llm_temperature,
-                max_tokens=candidate_scoring_max_tokens,
+                max_output_tokens=candidate_scoring_max_tokens,
                 fetch_max_chars=score_fetch_max_chars,
                 page_text_max_chars=score_page_text_max_chars,
                 evidence_max_chars=score_evidence_max_chars,
@@ -923,12 +929,43 @@ def suggest_datasets(
     for cand in primary_browse + extra_browse:
         name = cand.get("dataset_name") or ""
         access = cand.get("access_link") or ""
-        if not name or not access or not _is_allowed_dataset_link(access):
+        if not name or not access:
             continue
         evidence = cand.get("evidence_snippets") or []
+        description = cand.get("dataset_description") or ""
+        is_dataset = cand.get("is_dataset")
+        license_name = cand.get("license") or ""
         usage = ""
-        if evidence:
+        if description:
+            usage = str(description).strip()[:200]
+        elif evidence:
             usage = str(evidence[0])[:200]
+        if isinstance(is_dataset, bool):
+            tag = "dataset" if is_dataset else "not a dataset"
+            usage = f"{usage} ({tag})".strip() if usage else f"Marked as {tag}."
+        snippet_text = description or (str(evidence[0]) if evidence else "")
+        browse_candidate = {
+            "title": name,
+            "url": access,
+            "snippet": snippet_text,
+            "evidence_snippets": evidence,
+        }
+        scored = score_dataset_candidate(
+            idea_card,
+            browse_candidate,
+            chat_fn=chat_fn,
+            model=model,
+            logger=logger,
+            temperature=llm_temperature,
+            max_output_tokens=candidate_scoring_max_tokens,
+            fetch_max_chars=score_fetch_max_chars,
+            page_text_max_chars=score_page_text_max_chars,
+            evidence_max_chars=score_evidence_max_chars,
+            bonus_huggingface=score_bonus_hf,
+            bonus_kaggle=score_bonus_kaggle,
+            bonus_paperswithcode=score_bonus_pwc,
+            bonus_datasetsearch=score_bonus_datasetsearch,
+        )
         datasets.append(
             {
                 "name": name,
@@ -936,13 +973,21 @@ def suggest_datasets(
                 "usage": usage or "Extracted from browse results.",
                 "access": access,
                 "evidence": evidence,
+                "description": description,
+                "is_dataset": is_dataset,
+                "license": license_name,
                 "link": access,
-                "scores": {},
+                "scores": {
+                    "match": scored.get("match_score"),
+                    "scale": scored.get("scale_score"),
+                    "availability": scored.get("availability_score"),
+                    "total": scored.get("total_score"),
+                },
             }
         )
     for cand in primary_selected[:primary_target]:
         link = cand.get("access") or cand.get("url") or ""
-        if not _is_allowed_dataset_link(link):
+        if link and not _is_allowed_dataset_link(link):
             continue
         datasets.append(
             {
@@ -961,7 +1006,7 @@ def suggest_datasets(
         )
     for cand in extra_selected[:extra_target]:
         link = cand.get("access") or cand.get("url") or ""
-        if not _is_allowed_dataset_link(link):
+        if link and not _is_allowed_dataset_link(link):
             continue
         datasets.append(
             {
@@ -988,9 +1033,14 @@ def suggest_datasets(
         logger=logger,
         max_keep=postprocess_max_keep,
         temperature=llm_temperature,
-        max_tokens=postprocess_max_tokens,
+        max_output_tokens=postprocess_max_tokens,
     )
-    datasets = [d for d in datasets if _is_allowed_dataset_link(d.get("link") or d.get("access") or "")]
+    datasets = [
+        d
+        for d in datasets
+        if not (d.get("link") or d.get("access"))
+        or _is_allowed_dataset_link(d.get("link") or d.get("access") or "")
+    ]
 
     if len(datasets) < min_results:
         while len(datasets) < min_results:
@@ -1005,7 +1055,21 @@ def suggest_datasets(
                     "link": _huggingface_search_link(query_name),
                 }
             )
-    return datasets[:output_limit]
+    # Filter out datasets with match score
+    filtered: List[Dict[str, Any]] = []
+    for item in datasets:
+        scores = item.get("scores") or {}
+        match = scores.get("match")
+        if match is None:
+            match = item.get("match_score")
+        try:
+            match_value = float(match)
+        except (TypeError, ValueError):
+            match_value = None
+        if match_value is None or match_value < 3.0:
+            continue
+        filtered.append(item)
+    return filtered[:output_limit]
 
 
 def suggest_baselines(
@@ -1092,7 +1156,7 @@ def suggest_baselines(
         model=model,
         logger=logger,
         temperature=llm_temperature,
-        max_tokens=idea_card_max_tokens,
+        max_output_tokens=idea_card_max_tokens,
     )
     graph_ranked = rank_method_paper_nodes_weighted(
         topic=graph_task,
@@ -1152,7 +1216,7 @@ def suggest_baselines(
                     model=model,
                     logger=logger,
                     temperature=llm_temperature,
-                    max_tokens=graph_match_max_tokens,
+                    max_output_tokens=graph_match_max_tokens,
                 )
             filtered_nodes.sort(key=lambda x: x.get("match_score", 0), reverse=True)
             logger.info(
@@ -1199,7 +1263,7 @@ def suggest_baselines(
         logger=logger,
         max_items=preprocess_max_items,
         temperature=llm_temperature,
-        max_tokens=preprocess_max_tokens,
+        max_output_tokens=preprocess_max_tokens,
     )
     primary_candidates: List[Dict[str, Any]] = []
     primary_browse: List[Dict[str, Any]] = []
@@ -1240,7 +1304,7 @@ def suggest_baselines(
                 model=model,
                 logger=logger,
                 temperature=llm_temperature,
-                max_tokens=candidate_scoring_max_tokens,
+                max_output_tokens=candidate_scoring_max_tokens,
                 fetch_max_chars=score_fetch_max_chars,
                 page_text_max_chars=score_page_text_max_chars,
                 evidence_max_chars=score_evidence_max_chars,
@@ -1282,7 +1346,7 @@ def suggest_baselines(
         logger=logger,
         max_names=seed_extract_max_names,
         temperature=llm_temperature,
-        max_tokens=name_extraction_max_tokens,
+        max_output_tokens=name_extraction_max_tokens,
     )
     baseline_names = preprocess_candidate_names(
         "baseline",
@@ -1294,7 +1358,7 @@ def suggest_baselines(
         logger=logger,
         max_items=seed_preprocess_max_items,
         temperature=llm_temperature,
-        max_tokens=preprocess_max_tokens,
+        max_output_tokens=preprocess_max_tokens,
     )
     if primary_found:
         baseline_names = [name for name in baseline_names if name.lower() not in primary_found]
@@ -1331,7 +1395,7 @@ def suggest_baselines(
                 model=model,
                 logger=logger,
                 temperature=llm_temperature,
-                max_tokens=candidate_scoring_max_tokens,
+                max_output_tokens=candidate_scoring_max_tokens,
                 fetch_max_chars=score_fetch_max_chars,
                 page_text_max_chars=score_page_text_max_chars,
                 evidence_max_chars=score_evidence_max_chars,
@@ -1441,7 +1505,7 @@ def suggest_baselines(
         logger=logger,
         max_keep=postprocess_max_keep,
         temperature=llm_temperature,
-        max_tokens=postprocess_max_tokens,
+        max_output_tokens=postprocess_max_tokens,
     )
     baselines = [b for b in baselines if (b.get("name") and b.get("repo_url"))]
     if not baselines:

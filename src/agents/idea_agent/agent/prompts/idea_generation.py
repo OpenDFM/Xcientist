@@ -8,6 +8,8 @@ Here are the most relevant papers (title + distilled content) you MUST ground th
 {papers}
 
 Now, please brainstorm and provide one novel and feasible research idea that addresses the identified gaps and explicitly leverages insights from the listed papers. Each idea should conclude with an abstract, core contribution, main methodology, and experiment design.
+The title MUST follow academic paper title conventions: concise (<= 12 words), no colon, no subtitle, no excessive detail, and no marketing phrasing.
+Prefer a short, specific noun phrase with key technical terms.
 Your response should be a JSON in the following format:
 {{
     "title": "Research Idea",
