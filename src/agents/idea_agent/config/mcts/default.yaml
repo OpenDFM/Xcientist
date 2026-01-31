@@ -1,6 +1,6 @@
 mcts:
-  max_iterations: 16
-  max_depth: 4
+  max_iterations: 128
+  max_depth: 3
   branching_factor: 3
   exploration_constant: 1.15
   generation_model: "gpt-5-mini"
@@ -14,8 +14,12 @@ mcts:
   alignment_weight: 0.2
   contract_alignment_weight: 0.5
   complexity_weight: 0.2
+  novelty_weight: 0.3
+  impact_weight: 0.25
+  feasibility_weight: 0.2
+  clarity_weight: 0.15
+  conciseness_weight: 0.1
+  risk_weight: 0.2
   min_anchor_coverage: 0.5
   conservative_depth: 1
   aggressive_depth: 2
-  enable_skill_repair: true
-  force_skill_repair: true

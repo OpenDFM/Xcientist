@@ -272,7 +272,7 @@ class LigAgent(AgentBase):
             # If a mature idea is provided, use it to generate a focused RAG query directly
             if len(mature_idea) > 0 and mature_idea.strip():
                 try:
-                    '''rag_query = generate_rag_query(
+                    rag_query = generate_rag_query(
                         topic,
                         [],
                         PROMPTS,
@@ -280,10 +280,9 @@ class LigAgent(AgentBase):
                         self.model,
                         logger,
                         mature_idea=mature_idea,
-                    )'''
-                    rag_query = "trajectory-conditioned diffusion models for reinforcement learning long-horizon error compounding controllability-guided planning architecture"
+                    )
                     logger.info("🔎 Generated RAG Query (mature idea): %s", rag_query)
-                    rag_hits = retrieve_outcome_rag(query=rag_query, top_k=1, paper_repository=self.paper_repository, logger=logger)
+                    rag_hits = retrieve_outcome_rag(query=rag_query, top_k=5, paper_repository=self.paper_repository, logger=logger)
                     self.memory.setdefault("rag_query", []).append(rag_query)
                     self.memory.setdefault("rag_hits", []).append(
                         {"query": rag_query, "hits": rag_hits}
@@ -463,7 +462,7 @@ class LigAgent(AgentBase):
             else "[]",
         )
         raw_response = self._parse_json_response(
-            self.chat(prompt, model=self.model, max_output_tokens=4096)
+            self.chat(prompt, model=self.model, max_output_tokens=8192)
         )
         response = normalize_analysis_entry(raw_response)
         logger.info(f"📝 Advanced Analysis Result:\n{response}")
