@@ -331,11 +331,13 @@ class MCTSConfig:
     min_confidence_for_memory: float = _mcts_default("min_confidence_for_memory", 0.6)
     pareto_top_k: int = _mcts_default("pareto_top_k", 5)
     alignment_weight: float = _mcts_default("alignment_weight", 0.2)
+    contract_alignment_weight: float = _mcts_default("contract_alignment_weight", 0.2)
     complexity_weight: float = _mcts_default("complexity_weight", 0.2)
     min_anchor_coverage: float = _mcts_default("min_anchor_coverage", 0.7)
     conservative_depth: int = _mcts_default("conservative_depth", 1)
     aggressive_depth: int = _mcts_default("aggressive_depth", 2)
     enable_skill_repair: bool = _mcts_default("enable_skill_repair", False)
+    force_skill_repair: bool = _mcts_default("force_skill_repair", False)
 
 
 @dataclass
@@ -613,6 +615,7 @@ class MemoryGuidedMCTS:
         self.topic: str = ""
         self.analysis_blob: str = ""
         self.paper_context: str = ""
+        self.mature_idea: str = ""
         self.contract: Optional[IdeaContract] = None
         self.contract_mode: bool = False
 
@@ -1041,6 +1044,7 @@ class MemoryGuidedMCTS:
         self.contract = None
         self.contract_mode = False
         mature_idea = (context.get("mature_idea") or "").strip()
+        self.mature_idea = mature_idea
         if mature_idea:
             contract = self._build_contract(mature_idea)
             if contract:
@@ -1235,6 +1239,8 @@ class MemoryGuidedMCTS:
                 self.config.branching_factor,
             )
 
+        payload_count = len(children_payload)
+        pre_children = len(node.children)
         new_child: Optional[IdeaNode] = None
         for child_data in children_payload:
             state = parse_child_state(child_data, IdeaState)
@@ -1255,6 +1261,16 @@ class MemoryGuidedMCTS:
                 child_node.evaluation = cached_eval
             if new_child is None and child_node.visits == 0:
                 new_child = child_node
+        log_message(
+            self.logger,
+            self.log_sink,
+            "info",
+            "[MCTS] Expansion summary (legacy) payloads=%d children_before=%d children_after=%d new_children=%d",
+            payload_count,
+            pre_children,
+            len(node.children),
+            len(node.children) - pre_children,
+        )
         node.expanded = True
         if new_child is None and node.children:
             # All children seen before; pick the least explored one.
@@ -1269,10 +1285,11 @@ class MemoryGuidedMCTS:
         bundle = self.memory_accessor.retrieve_bundle(
             query=f"{self.topic}\n{node.state.title}\n{node.state.core_contribution}"
         )
-        operator_pool = self._operator_pool_for_depth(node.depth)
+        operator_pool = EDIT_OPERATORS
         prompt_template = self.skill_generation_prompt or self.generation_prompt
         prompt = prompt_template.format(
             topic=self.topic,
+            mature_idea=self.mature_idea or "None",
             current_summary=self._contract_node_summary(node),
             paper_context=self.paper_context,
             memory_bundle=bundle.to_prompt_block(),
@@ -1310,39 +1327,16 @@ class MemoryGuidedMCTS:
                 self.contract,
             )
 
+        payload_count = len(children_payload)
+        pre_children = len(node.children)
         new_child: Optional[IdeaNode] = None
-        allowed_names = {op.name for op in operator_pool}
         for child_data in children_payload:
             operator = str(child_data.get("operator", "")).strip()
-            if operator not in allowed_names:
-                continue
             target_defects = self._normalize_list(child_data.get("target_defects")) or ["unspecified_defect"]
             skill_data = child_data.get("skill_output") or {}
             skill_output = self._parse_skill_output(skill_data, self.contract)
             if not skill_output:
                 continue
-            validation = self._validate_skill_output(skill_output, self.contract)
-            if not validation.ok:
-                repaired = self._attempt_skill_repair(
-                    skill_output,
-                    validation.errors,
-                    node.state,
-                    self.contract,
-                )
-                if repaired:
-                    validation = self._validate_skill_output(repaired, self.contract)
-                    if validation.ok:
-                        skill_output = repaired
-                if not validation.ok:
-                    log_message(
-                        self.logger,
-                        self.log_sink,
-                        "info",
-                        "[MCTS] Pruned child from operator=%s due to violations: %s",
-                        operator,
-                        "; ".join(validation.errors),
-                    )
-                    continue
             child_state = self._materialize_child_state(
                 parent_state=node.state,
                 skill_output=skill_output,
@@ -1352,11 +1346,6 @@ class MemoryGuidedMCTS:
             )
             if not child_state:
                 continue
-            child_state.skill_metrics = {
-                "alignment_score": validation.alignment_score,
-                "complexity_penalty": validation.complexity_penalty,
-                "anchor_coverage": validation.anchor_coverage,
-            }
             child_node = attach_child(
                 node,
                 child_state,
@@ -1374,6 +1363,16 @@ class MemoryGuidedMCTS:
                 child_node.evaluation = cached_eval
             if new_child is None and child_node.visits == 0:
                 new_child = child_node
+        log_message(
+            self.logger,
+            self.log_sink,
+            "info",
+            "[MCTS] Expansion summary (contract) payloads=%d children_before=%d children_after=%d new_children=%d",
+            payload_count,
+            pre_children,
+            len(node.children),
+            len(node.children) - pre_children,
+        )
 
         node.expanded = True
         if new_child is None and node.children:
@@ -1399,15 +1398,13 @@ class MemoryGuidedMCTS:
                 node.state.signature,
                 path_key,
             )
-            cached_evaluation.alignment_weight = self.config.alignment_weight
+            alignment_weight = (
+                self.config.contract_alignment_weight
+                if self.contract_mode
+                else self.config.alignment_weight
+            )
+            cached_evaluation.alignment_weight = alignment_weight
             cached_evaluation.complexity_weight = self.config.complexity_weight
-            if self.contract_mode and node.state.skill_metrics:
-                cached_evaluation.alignment_score = node.state.skill_metrics.get(
-                    "alignment_score", cached_evaluation.alignment_score
-                )
-                cached_evaluation.complexity_penalty = node.state.skill_metrics.get(
-                    "complexity_penalty", cached_evaluation.complexity_penalty
-                )
             node.evaluation = cached_evaluation
             node.latest_path_summary = path_summary_text
             prev_len = len(experiences)
@@ -1445,6 +1442,7 @@ class MemoryGuidedMCTS:
         )
         prompt = self.evaluation_prompt.format(
             topic=self.topic,
+            mature_idea=self.mature_idea or "None",
             analysis=self.analysis_blob,
             paper_context=self.paper_context,
             idea_contract=self.contract.to_prompt_block() if self.contract else "None",
@@ -1467,7 +1465,12 @@ class MemoryGuidedMCTS:
             if isinstance(payload, list):
                 payload = payload[0] # Sometimes returns a list of evaluations, we take the first one.
             evaluation = IdeaEvaluation.from_payload(payload)
-            evaluation.alignment_weight = self.config.alignment_weight
+            alignment_weight = (
+                self.config.contract_alignment_weight
+                if self.contract_mode
+                else self.config.alignment_weight
+            )
+            evaluation.alignment_weight = alignment_weight
             evaluation.complexity_weight = self.config.complexity_weight
         except Exception as exc:
             log_message(self.logger, self.log_sink, "warning", "⚠️  Simulation failed: %s", exc)
@@ -1480,14 +1483,6 @@ class MemoryGuidedMCTS:
                 path_key,
             )
             return None
-
-        if self.contract_mode and node.state.skill_metrics:
-            evaluation.alignment_score = node.state.skill_metrics.get(
-                "alignment_score", evaluation.alignment_score
-            )
-            evaluation.complexity_penalty = node.state.skill_metrics.get(
-                "complexity_penalty", evaluation.complexity_penalty
-            )
 
         cache_evaluation(node.state.signature, path_key, evaluation, self.evaluation_cache)
         node.evaluation = evaluation

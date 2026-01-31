@@ -4,6 +4,9 @@ Do NOT rewrite a full paper. Output only minimal, checkable SkillOutput deltas.
 
 Topic: {topic}
 
+Mature idea context (center the children around this, but do NOT self-censor if you deviate):
+{mature_idea}
+
 IdeaContract (frozen, cannot be violated):
 {idea_contract}
 
@@ -19,14 +22,15 @@ Allowed operators (choose ONE per child, never invent new ones):
 Global constraints (NEVER violate):
 {constraints}
 
-Hard rules for each child:
-- Output ONLY SkillOutput; no full-paper rewrite.
-- introduced_concepts length <= 2.
-- main mechanism count must be 1 (no multi-mechanism chimera).
-- anchor_mapping must cover >=70% of invariants (use invariant IDs).
-- invariant_impact cannot contain "violate".
-- experiment_patch MUST include: regression_tests, ablation_tests, stress_tests.
-- If budget_ceiling exists, include budget impact in implementation_notes and stay within it.
+Guidelines for each child (do your best, but NEVER return an empty children list):
+- Output SkillOutput only; no full-paper rewrite.
+- Prefer a single core mechanism; if you need extra steps, place them in implementation_notes.
+- Include experiment_patch with regression/ablation/stress tests whenever possible.
+- Try to reference invariants via anchor_mapping/invariant_impact, but if unsure, still output a child.
+- If budget_ceiling exists, mention budget impact in implementation_notes.
+
+Return up to {max_children} mutually distinct children centered on the mature idea.
+If a child drifts away from the mature idea, still output it (do NOT self-censor); the evaluator will penalize misalignment later.
 
 STRICT OUTPUT: valid JSON with schema:
 {{

@@ -1,6 +1,8 @@
 MCTS_IDEA_EVALUATION_PROMPT = """
 You score research ideas encountered during a memory-guided MCTS search.
 Topic: {topic}
+Mature idea (alignment target):
+{mature_idea}
 Latest analysis + critiques:
 {analysis}
 
@@ -27,6 +29,8 @@ ICML bar reminders:
 - If the core contribution is only a new protocol/benchmark/dataset, cap novelty ≤ 1 and impact ≤ 1 unless the response also introduces a concrete algorithmic method enabled by that protocol.
 
 Judge the idea across multi-dimensional criteria. Enforce fairness (explicit baselines, ablations), guard against resource dumping, and highlight uncovered failure modes. Reward concrete algorithmic/mechanistic innovations; penalize responses that only add analysis/instrumentation/protocol tweaks without a new intervention (novelty <= 2 in those cases).
+
+Alignment is critical in contract mode: if the idea drifts from the mature idea or violates the contract spirit, set alignment_score low (0-1) and mention the drift in feedback. If it stays centered on the mature idea, reward alignment_score.
 
 Return STRICT JSON (no prose) using:
 {{

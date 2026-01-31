@@ -24,4 +24,8 @@ Return STRICT JSON with the corrected SkillOutput only:
   "invariant_impact": {{"M1": {{"status": "preserve|modify", "reason": "...", "compensation": "..."}}}},
   "memory_refs": ["Field#1"]
 }}
+
+Additional repair rules:
+- mechanism must be a single, atomic clause. Do NOT use conjunctions ("and", "+", "&", "plus", ";") in the mechanism field.
+- If multiple steps are needed, keep mechanism atomic and move the extra steps to implementation_notes.
 """
