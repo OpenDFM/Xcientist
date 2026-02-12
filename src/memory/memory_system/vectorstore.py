@@ -4,6 +4,7 @@ from memory.memory_system.models import SemanticRecord, EpisodicRecord, Procedur
 from memory.memory_system.utils import _nomralize_embedding, _jsonable_meta, compute_overlap_score
 from sentence_transformers import SentenceTransformer
 from rank_bm25 import BM25Okapi
+from pathlib import Path
 
 import numpy as np
 import json, os
@@ -40,7 +41,8 @@ class VectorStore(ABC):
 class FaissVectorStore(VectorStore):
     def __init__(self, model_path: str = ".cache/all-MiniLM-L6-v2", memory_type: str = "semantic"):
         #self.model = SentenceTransformer(os.path.join(base_dir, model_path))
-        self.model = SentenceTransformer("/home/lococo/project/ResearchAgent/src/agents/idea_agent/.cache/bge-large-en-v1.5")
+        local_path = Path(__file__).resolve().parent / model_path
+        self.model = SentenceTransformer(str(local_path))
         self.memory_type = memory_type
         self.index = None
         self.dim = None

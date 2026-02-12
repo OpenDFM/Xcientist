@@ -189,6 +189,14 @@ class IdeaEvaluation:
     risk_weight: float
     alignment_weight: float
     complexity_weight: float
+    novelty_weight: float = 0.30
+    impact_weight: float = 0.25
+    feasibility_weight: float = 0.20
+    clarity_weight: float = 0.15
+    conciseness_weight: float = 0.10
+    risk_weight: float = 0.20
+    alignment_weight: float = 0.2
+    complexity_weight: float = 0.2
 
     def __post_init__(self) -> None:
         self.failure_modes = [
@@ -258,7 +266,13 @@ class IdeaEvaluation:
             + self.feasibility_weight * self.feasibility
             + self.clarity_weight * self.clarity
             + self.conciseness_weight * self.conciseness
+            self.novelty_weight * self.novelty
+            + self.impact_weight * self.impact
+            + self.feasibility_weight * self.feasibility
+            + self.clarity_weight * self.clarity
+            + self.conciseness_weight * self.conciseness
         )
+        penalty = self.risk_weight * self.risk + self.complexity_weight * self.complexity_penalty
         penalty = self.risk_weight * self.risk + self.complexity_weight * self.complexity_penalty
         bonus = self.alignment_weight * self.alignment_score
         return positive + bonus - penalty
@@ -344,11 +358,15 @@ class MCTSConfig:
     clarity_weight: float = _mcts_default("clarity_weight", 0.15)
     conciseness_weight: float = _mcts_default("conciseness_weight", 0.10)
     risk_weight: float = _mcts_default("risk_weight", 0.20)
+    novelty_weight: float = _mcts_default("novelty_weight", 0.30)
+    impact_weight: float = _mcts_default("impact_weight", 0.25)
+    feasibility_weight: float = _mcts_default("feasibility_weight", 0.20)
+    clarity_weight: float = _mcts_default("clarity_weight", 0.15)
+    conciseness_weight: float = _mcts_default("conciseness_weight", 0.10)
+    risk_weight: float = _mcts_default("risk_weight", 0.20)
     min_anchor_coverage: float = _mcts_default("min_anchor_coverage", 0.7)
     conservative_depth: int = _mcts_default("conservative_depth", 1)
     aggressive_depth: int = _mcts_default("aggressive_depth", 2)
-    enable_skill_repair: bool = _mcts_default("enable_skill_repair", False)
-    force_skill_repair: bool = _mcts_default("force_skill_repair", False)
 
 
 @dataclass
@@ -648,7 +666,7 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.generation_model,
                 temperature=0.01,
-                max_output_tokens=min(2048, self.config.generation_max_tokens),
+                max_output_tokens=self.config.generation_max_tokens,
             )
             payload = parse_json_response(response)
             if isinstance(payload, list):
@@ -855,109 +873,6 @@ class MemoryGuidedMCTS:
         score = 5.0 * (0.6 * ratio + 0.4 * anchor_coverage)
         return max(0.0, min(5.0, score))
 
-    def _budget_exceeded(self, contract: IdeaContract, skill: SkillOutput) -> bool:
-        if not contract.budget_ceiling:
-            return False
-        budget = contract.budget_ceiling
-        if skill.budget_impact:
-            for key, ceiling in budget.items():
-                impact = skill.budget_impact.get(key)
-                if impact is None:
-                    continue
-                if isinstance(ceiling, (int, float)) and isinstance(impact, (int, float)):
-                    if impact > ceiling:
-                        return True
-                if isinstance(impact, str) and any(token in impact.lower() for token in ["exceed", "over", ">", "increase"]):
-                    return True
-            return False
-        # fallback heuristic based on implementation notes
-        notes = skill.delta.implementation_notes.lower()
-        if any(token in notes for token in ["exceed", "over budget", "too expensive", "budget breach"]):
-            return True
-        return False
-
-    def _validate_skill_output(self, skill: SkillOutput, contract: IdeaContract) -> SkillValidation:
-        errors: List[str] = []
-        warnings: List[str] = []
-
-        if len(skill.introduced_concepts) > 2:
-            errors.append("introduced_concepts exceeds 2")
-
-        if not skill.experiment_patch.regression_tests:
-            errors.append("experiment_patch missing regression_tests")
-        if not skill.experiment_patch.ablation_tests:
-            errors.append("experiment_patch missing ablation_tests")
-        if not skill.experiment_patch.stress_tests:
-            errors.append("experiment_patch missing stress_tests")
-
-        invariant_ids = contract.invariant_ids()
-        mapped_ids = set(skill.anchor_mapping.keys())
-        total_invariants = len(invariant_ids)
-        anchor_coverage = (
-            len(mapped_ids & set(invariant_ids)) / total_invariants if total_invariants else 1.0
-        )
-        if anchor_coverage < self.config.min_anchor_coverage:
-            errors.append("anchor_mapping coverage below threshold")
-
-        for inv in invariant_ids:
-            impact = skill.invariant_impact.get(inv)
-            if not impact:
-                errors.append(f"invariant_impact missing entry for {inv}")
-                continue
-            status = impact.status.lower()
-            if status == "violate":
-                errors.append(f"invariant {inv} marked violate")
-            if status == "modify" and not impact.compensation:
-                errors.append(f"invariant {inv} modify requires compensation")
-
-        mechanism_count = self._estimate_mechanism_count(skill.delta.mechanism)
-        if mechanism_count == 0:
-            errors.append("delta.mechanism missing")
-        elif mechanism_count > 1:
-            errors.append("main mechanism count > 1")
-
-        if self._budget_exceeded(contract, skill):
-            errors.append("budget_ceiling exceeded")
-
-        alignment_score = self._compute_alignment_score(skill, contract, anchor_coverage)
-        complexity_penalty = self._compute_complexity_penalty(skill)
-
-        return SkillValidation(
-            ok=not errors,
-            errors=errors,
-            warnings=warnings,
-            alignment_score=alignment_score,
-            complexity_penalty=complexity_penalty,
-            anchor_coverage=anchor_coverage,
-        )
-
-    def _attempt_skill_repair(
-        self,
-        skill_output: SkillOutput,
-        errors: List[str],
-        parent_state: IdeaState,
-        contract: IdeaContract,
-    ) -> Optional[SkillOutput]:
-        if not (self.config.enable_skill_repair and self.skill_repair_prompt):
-            return None
-        prompt = self.skill_repair_prompt.format(
-            idea_contract=contract.to_prompt_block(),
-            parent_idea=json.dumps(parent_state.to_payload(), ensure_ascii=False, indent=2),
-            skill_output=json.dumps(skill_output.to_dict(), ensure_ascii=False, indent=2),
-            errors="; ".join(errors),
-        )
-        try:
-            response = self.chat_fn(
-                prompt,
-                model=self.config.generation_model,
-                temperature=self.config.generation_temperature,
-                max_output_tokens=min(2048, self.config.generation_max_tokens),
-            )
-            payload = parse_json_response(response)
-            return self._parse_skill_output(payload, contract)
-        except Exception as exc:
-            log_message(self.logger, self.log_sink, "warning", "⚠️  Skill repair failed: %s", exc)
-            return None
 
     def _materialize_child_state(
         self,
@@ -1226,7 +1141,7 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.generation_model,
                 temperature=self.config.generation_temperature,
-                max_output_tokens=min(2048, self.config.generation_max_tokens),
+                max_output_tokens=self.config.generation_max_tokens,
             )
             log_message(self.logger, self.log_sink, "info", "[MCTS] Generation response: %s", response)
             if not response or not response.strip():
@@ -1315,7 +1230,14 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.generation_model,
                 temperature=self.config.generation_temperature,
-                max_output_tokens=min(2048, self.config.generation_max_tokens),
+                max_output_tokens=self.config.generation_max_tokens,
+            )
+            log_message(
+                self.logger,
+                self.log_sink,
+                "info",
+                "[MCTS] Generation response (contract): %s",
+                response,
             )
             log_message(
                 self.logger,
@@ -1330,8 +1252,23 @@ class MemoryGuidedMCTS:
             if isinstance(payload, list):
                 if not payload:
                     raise ValueError("Empty list payload from generation model")
+                if not payload:
+                    raise ValueError("Empty list payload from generation model")
                 payload = payload[0]
             children_payload = payload.get("children", [])[: self.config.branching_factor]
+            if not children_payload:
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "warning",
+                    "⚠️  Contract expansion returned empty children; falling back to heuristic skill deltas.",
+                )
+                children_payload = self._fallback_skill_payloads(
+                    node,
+                    bundle,
+                    operator_pool,
+                    self.contract,
+                )
             if not children_payload:
                 log_message(
                     self.logger,
