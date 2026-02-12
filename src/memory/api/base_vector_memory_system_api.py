@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from pydantic import BaseModel, Field, field_validator, validate_call
+from pydantic import BaseModel, Field
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union
 
 from memory.memory_system import (
@@ -10,7 +10,7 @@ from memory.memory_system import (
 )
 
 
-class MemorySystemConfig(BaseModel):
+class VectorMemorySystemConfig(BaseModel):
     memory_type: Literal["semantic", "episodic", "procedural", "working"] = "semantic"
     model_path: str = Field(".cache/all-MiniLM-L6-v2", description="Path to the model used for vector embeddings.")
     llm_name: str = Field("gpt-4o-mini", description="Name of the LLM model to be used.")
@@ -43,7 +43,7 @@ class ProceduralRecordPayload(BaseModel):
     tags: Optional[Iterable[str]] = Field(None, description="Tags associated with the ProceduralRecord.")
 
 
-class MemorySystem(ABC):
+class VectorMemorySystem(ABC):
     @abstractmethod
     def instantiate_sem_record(self, **kwargs) -> SemanticRecord:
         ...

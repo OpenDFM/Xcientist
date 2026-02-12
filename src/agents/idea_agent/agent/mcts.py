@@ -79,7 +79,6 @@ def _load_mcts_defaults() -> Dict[str, Any]:
 
 _MCTS_DEFAULTS = _load_mcts_defaults()
 
-
 def _mcts_default(key: str, fallback: Any) -> Any:
     value = _MCTS_DEFAULTS.get(key, fallback)
     return fallback if value is None else value
@@ -110,9 +109,9 @@ class IdeaState:
         self.experiments = clip_text(self.experiments, MAX_IDEA_TEXT)
         self.risks = clip_text(self.risks, MAX_IDEA_TEXT)
         self.rationale = clip_text(self.rationale, MAX_RATIONALE_TEXT)
-        self.tags = [clip_text(tag, 48) for tag in self.tags[:MAX_LIST_ENTRIES]]
+        self.tags = [clip_text(tag, MAX_IDEA_TEXT) for tag in self.tags[:MAX_LIST_ENTRIES]]
         self.target_defects = [
-            clip_text(defect, 48) for defect in self.target_defects[:MAX_LIST_ENTRIES]
+            clip_text(defect, MAX_IDEA_TEXT) for defect in self.target_defects[:MAX_LIST_ENTRIES]
         ]
         self.memory_refs = [
             clip_text(ref, MAX_REF_TEXT) for ref in self.memory_refs[:MAX_LIST_ENTRIES]
@@ -182,19 +181,25 @@ class IdeaEvaluation:
     feedback: str
     defect_fix_summary: str
     lift_estimate: float
-    alignment_weight: float = 0.2
-    complexity_weight: float = 0.2
+    novelty_weight: float
+    impact_weight: float
+    feasibility_weight: float
+    clarity_weight: float
+    conciseness_weight: float
+    risk_weight: float
+    alignment_weight: float
+    complexity_weight: float
 
     def __post_init__(self) -> None:
         self.failure_modes = [
-            clip_text(mode, 160) for mode in (self.failure_modes or [])[:MAX_LIST_ENTRIES]
+            clip_text(mode, MAX_IDEA_TEXT) for mode in (self.failure_modes or [])[:MAX_LIST_ENTRIES]
         ]
         self.fairness_protocol = clip_text(self.fairness_protocol, MAX_IDEA_TEXT)
         self.feedback = clip_text(self.feedback, MAX_IDEA_TEXT)
         self.defect_fix_summary = clip_text(self.defect_fix_summary, MAX_IDEA_TEXT)
 
     @classmethod
-    def from_payload(cls, payload: Dict[str, Any]) -> "IdeaEvaluation":
+    def from_payload(cls, payload: Dict[str, Any]) -> IdeaEvaluation:
         def _num(key: str, default: float = 0.0) -> float:
             val = payload.get(key, default)
             try:
@@ -248,13 +253,13 @@ class IdeaEvaluation:
     @property
     def composite(self) -> float:
         positive = (
-            0.30 * self.novelty
-            + 0.25 * self.impact
-            + 0.20 * self.feasibility
-            + 0.15 * self.clarity
-            + 0.10 * self.conciseness
+            self.novelty_weight * self.novelty
+            + self.impact_weight * self.impact
+            + self.feasibility_weight * self.feasibility
+            + self.clarity_weight * self.clarity
+            + self.conciseness_weight * self.conciseness
         )
-        penalty = 0.2 * self.risk + self.complexity_weight * self.complexity_penalty
+        penalty = self.risk_weight * self.risk + self.complexity_weight * self.complexity_penalty
         bonus = self.alignment_weight * self.alignment_score
         return positive + bonus - penalty
 
@@ -267,8 +272,8 @@ class OperatorApplication:
     memory_refs: List[str]
 
     def __post_init__(self) -> None:
-        self.operator = clip_text(self.operator, 80)
-        self.defects = [clip_text(defect, 48) for defect in self.defects[:MAX_LIST_ENTRIES]]
+        self.operator = clip_text(self.operator, MAX_IDEA_TEXT)
+        self.defects = [clip_text(defect, MAX_IDEA_TEXT) for defect in self.defects[:MAX_LIST_ENTRIES]]
         self.rationale = clip_text(self.rationale, MAX_RATIONALE_TEXT)
         self.memory_refs = [
             clip_text(ref, MAX_REF_TEXT) for ref in self.memory_refs[:MAX_LIST_ENTRIES]
@@ -322,8 +327,8 @@ class MCTSConfig:
     max_depth: int = _mcts_default("max_depth", 4)
     branching_factor: int = _mcts_default("branching_factor", 3)
     exploration_constant: float = _mcts_default("exploration_constant", 1.15)
-    generation_model: str = _mcts_default("generation_model", "gpt-4.1")
-    evaluation_model: str = _mcts_default("evaluation_model", "gpt-4.1")
+    generation_model: str = _mcts_default("generation_model", "gpt-5-mini")
+    evaluation_model: str = _mcts_default("evaluation_model", "gpt-5.2")
     generation_temperature: float = _mcts_default("generation_temperature", 0.65)
     evaluation_temperature: float = _mcts_default("evaluation_temperature", 0.01)
     generation_max_tokens: int = _mcts_default("generation_max_tokens", 8192)
@@ -333,6 +338,12 @@ class MCTSConfig:
     alignment_weight: float = _mcts_default("alignment_weight", 0.2)
     contract_alignment_weight: float = _mcts_default("contract_alignment_weight", 0.2)
     complexity_weight: float = _mcts_default("complexity_weight", 0.2)
+    novelty_weight: float = _mcts_default("novelty_weight", 0.30)
+    impact_weight: float = _mcts_default("impact_weight", 0.25)
+    feasibility_weight: float = _mcts_default("feasibility_weight", 0.20)
+    clarity_weight: float = _mcts_default("clarity_weight", 0.15)
+    conciseness_weight: float = _mcts_default("conciseness_weight", 0.10)
+    risk_weight: float = _mcts_default("risk_weight", 0.20)
     min_anchor_coverage: float = _mcts_default("min_anchor_coverage", 0.7)
     conservative_depth: int = _mcts_default("conservative_depth", 1)
     aggressive_depth: int = _mcts_default("aggressive_depth", 2)
@@ -364,7 +375,7 @@ class SearchResult:
     idea_contract: Optional[Dict[str, Any]] = None
 
 
-class LongTermMemoryAccessor:
+class VectorMemoryAccessor:
     def __init__(
         self,
         semantic_cfg: Optional[Dict[str, Any]] = None,
@@ -592,7 +603,7 @@ class MemoryGuidedMCTS:
         anchor_refiner_prompt: Optional[str] = None,
         skill_repair_prompt: Optional[str] = None,
         config: Optional[MCTSConfig] = None,
-        memory_accessor: Optional[LongTermMemoryAccessor] = None,
+        memory_accessor: Optional[VectorMemoryAccessor] = None,
         logger: Optional[logging.Logger] = None,
         log_sink: Optional[Callable[[str, str], None]] = None,
     ) -> None:
@@ -606,7 +617,7 @@ class MemoryGuidedMCTS:
         self.config = config or MCTSConfig()
         self.logger = logger or module_logger
         self.log_sink = log_sink
-        self.memory_accessor = memory_accessor or LongTermMemoryAccessor(logger=self.logger)
+        self.memory_accessor = memory_accessor or VectorMemoryAccessor(logger=self.logger)
         self._id_iter = itertools.count()
         self.signature_nodes: Dict[str, IdeaNode] = {}
         self.evaluation_cache: Dict[str, Dict[str, IdeaEvaluation]] = {}
@@ -1306,12 +1317,34 @@ class MemoryGuidedMCTS:
                 temperature=self.config.generation_temperature,
                 max_output_tokens=min(2048, self.config.generation_max_tokens),
             )
+            log_message(
+                self.logger,
+                self.log_sink,
+                "info",
+                "[MCTS] Generation response (contract): %s",
+                response,
+            )
             if not response or not response.strip():
                 raise ValueError("Empty response from generation model")
             payload = parse_json_response(response)
             if isinstance(payload, list):
+                if not payload:
+                    raise ValueError("Empty list payload from generation model")
                 payload = payload[0]
             children_payload = payload.get("children", [])[: self.config.branching_factor]
+            if not children_payload:
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "warning",
+                    "⚠️  Contract expansion returned empty children; falling back to heuristic skill deltas.",
+                )
+                children_payload = self._fallback_skill_payloads(
+                    node,
+                    bundle,
+                    operator_pool,
+                    self.contract,
+                )
         except Exception as exc:
             log_message(
                 self.logger,
@@ -1405,6 +1438,12 @@ class MemoryGuidedMCTS:
             )
             cached_evaluation.alignment_weight = alignment_weight
             cached_evaluation.complexity_weight = self.config.complexity_weight
+            cached_evaluation.novelty_weight = self.config.novelty_weight
+            cached_evaluation.impact_weight = self.config.impact_weight
+            cached_evaluation.feasibility_weight = self.config.feasibility_weight
+            cached_evaluation.clarity_weight = self.config.clarity_weight
+            cached_evaluation.conciseness_weight = self.config.conciseness_weight
+            cached_evaluation.risk_weight = self.config.risk_weight
             node.evaluation = cached_evaluation
             node.latest_path_summary = path_summary_text
             prev_len = len(experiences)
@@ -1465,13 +1504,15 @@ class MemoryGuidedMCTS:
             if isinstance(payload, list):
                 payload = payload[0] # Sometimes returns a list of evaluations, we take the first one.
             evaluation = IdeaEvaluation.from_payload(payload)
-            alignment_weight = (
-                self.config.contract_alignment_weight
-                if self.contract_mode
-                else self.config.alignment_weight
-            )
-            evaluation.alignment_weight = alignment_weight
+            
+            evaluation.alignment_weight = self.config.contract_alignment_weight if self.contract_mode else self.config.alignment_weight
             evaluation.complexity_weight = self.config.complexity_weight
+            evaluation.novelty_weight = self.config.novelty_weight
+            evaluation.impact_weight = self.config.impact_weight
+            evaluation.feasibility_weight = self.config.feasibility_weight
+            evaluation.clarity_weight = self.config.clarity_weight
+            evaluation.conciseness_weight = self.config.conciseness_weight
+            evaluation.risk_weight = self.config.risk_weight
         except Exception as exc:
             log_message(self.logger, self.log_sink, "warning", "⚠️  Simulation failed: %s", exc)
             log_message(

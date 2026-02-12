@@ -2,8 +2,6 @@ import os
 import shutil
 import sys
 
-from abc import ABC, abstractmethod
-from pydantic import BaseModel, Field, field_validator, validate_call
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union
 from memory.memory_system import (
     FaissVectorStore,
@@ -15,14 +13,14 @@ from memory.memory_system import (
 from memory.memory_system.user_prompt import ABSTRACT_EPISODIC_TO_SEMANTIC_PROMPT
 from memory.memory_system.utils import now_iso, new_id, _transfer_dict_to_semantic_text, _parse_json_response
 from memory.memory_system.denstream import DenStream
-from memory.api.base_memory_system_api import MemorySystem, MemorySystemConfig, SemanticRecordPayload, EpisodicRecordPayload, ProceduralRecordPayload
+from memory.api.base_vector_memory_system_api import VectorMemorySystem, VectorMemorySystemConfig, SemanticRecordPayload, EpisodicRecordPayload, ProceduralRecordPayload
 from collections import defaultdict
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-class FAISSMemorySystem(MemorySystem):
+class FAISSMemorySystem(VectorMemorySystem):
     def __init__(self, **kwargs):
-        cfg = MemorySystemConfig(**kwargs)
+        cfg = VectorMemorySystemConfig(**kwargs)
 
         self.memory_type = cfg.memory_type
         self.vector_store = FaissVectorStore(cfg.model_path, self.memory_type)
@@ -35,39 +33,39 @@ class FAISSMemorySystem(MemorySystem):
             self.cluster_machine = DenStream(eps=cfg.eps, beta=cfg.beta, mu=cfg.mu)
 
     def instantiate_sem_record(self, **kwargs) -> SemanticRecord:
-        cfg = SemanticRecordPayload(**kwargs)
+        payload = SemanticRecordPayload(**kwargs)
         record = SemanticRecord(
             id=new_id("sem"),
-            summary=cfg.summary,
-            detail=cfg.detail,
-            tags=cfg.tags,
+            summary=payload.summary,
+            detail=payload.detail,
+            tags=payload.tags,
             created_at=now_iso(),
             updated_at=now_iso(),
         )
         return record
     
     def instantiate_epi_record(self, **kwargs) -> EpisodicRecord:
-        cfg = EpisodicRecordPayload(**kwargs)
+        payload = EpisodicRecordPayload(**kwargs)
         record = EpisodicRecord(
             id=new_id("epi"),
-            stage=cfg.stage,
-            summary=cfg.summary,
-            detail=cfg.detail,
-            tags=cfg.tags,
+            stage=payload.stage,
+            summary=payload.summary,
+            detail=payload.detail,
+            tags=payload.tags,
             created_at=now_iso(),
         )
         record.embedding = self.vector_store._embed(_transfer_dict_to_semantic_text(record.detail))        
         return record
 
     def instantiate_proc_record(self, **kwargs) -> ProceduralRecord:
-        cfg = ProceduralRecordPayload(**kwargs)
+        payload = ProceduralRecordPayload(**kwargs)
         record = ProceduralRecord(
             id=new_id("proc"),
-            name=cfg.name,
-            description=cfg.description,
-            steps=cfg.steps,
-            code=cfg.code,
-            tags=cfg.tags,
+            name=payload.name,
+            description=payload.description,
+            steps=payload.steps,
+            code=payload.code,
+            tags=payload.tags,
             created_at=now_iso(),
             updated_at=now_iso(),
         )
@@ -124,14 +122,10 @@ class FAISSMemorySystem(MemorySystem):
         except Exception as e:
             print(f"Error updating memories: {e}")
             return False
-        self.vector_store.update(memories) # Update new memory to FAISS vectorstore.
-        return True
     
     def delete(self, mids: List[str]) -> bool:
         try:
             self.vector_store.delete(mids)
-            '''if self.memory_type == "episodic":
-                self.cluster_machine = DenStream() # Reset clustering machine'''
             return True
         except Exception as e:
             print(f"Error deleting memories: {e}")
