@@ -14,7 +14,7 @@ dependencies:
   - dav1d=1.2.1=hd590300_0
   - eigen=3.4.0=h171cf75_1
   - expat=2.7.3=h7354ed3_4
-  - faiss=1.9.0=py310he38f182_0_cpu
+  - faiss=1.9.0
   - faiss-cpu=1.9.0=h718b53a_0
   - ffmpeg=6.1.1=hecf7045_5
   - fontconfig=2.15.0=h2c49b7f_0
@@ -100,8 +100,8 @@ dependencies:
   - mysql-common=9.3.0=h9e076cb_4
   - mysql-libs=9.3.0=h6ecde68_4
   - ncurses=6.5=h7934f7d_0
-  - numpy=1.26.4=py310hb13e2d6_0
-  - opencv=4.12.0=py310h37535c1_1
+  - numpy=1.26.4
+  - opencv=4.12.0
   - openh264=2.6.0=hc22cd8d_0
   - openjpeg=2.5.4=h55fea9a_0
   - openldap=2.6.10=he970967_0
@@ -116,12 +116,12 @@ dependencies:
   - python_abi=3.10=2_cp310
   - qtbase=6.9.2=hd13baf8_5
   - readline=8.3=hc2a1206_0
-  - setuptools=80.9.0=py310h06a4308_0
+  - setuptools=80.9.0
   - spirv-tools=2025.4=hb700be7_0
   - sqlite=3.51.0=h2a70700_0
   - tesseract=5.2.0=h6a678d5_2
   - tk=8.6.15=h54e0aa7_0
-  - wheel=0.45.1=py310h06a4308_0
+  - wheel=0.45.1
   - xcb-util=0.4.1=h4f16b4b_2
   - xcb-util-cursor=0.1.6=hb03c661_0
   - xcb-util-image=0.4.0=hb711507_2
@@ -258,7 +258,7 @@ dependencies:
       - matplotlib-inline==0.2.1
       - mcp==1.25.0
       - mdurl==0.1.2
-      - memory==0.1.0
+      - -e ./src/memory
       - mineru==2.7.0
       - mineru-vl-utils==0.1.19.1
       - mistune==3.2.0
@@ -343,7 +343,6 @@ dependencies:
       - regex==2025.11.3
       - reportlab==4.4.7
       - requests==2.32.5
-      - research-agents==0.1.0
       - rich==14.2.0
       - robust-downloader==0.0.2
       - rpds-py==0.30.0

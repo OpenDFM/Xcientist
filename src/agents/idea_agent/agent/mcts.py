@@ -266,11 +266,6 @@ class IdeaEvaluation:
             + self.feasibility_weight * self.feasibility
             + self.clarity_weight * self.clarity
             + self.conciseness_weight * self.conciseness
-            self.novelty_weight * self.novelty
-            + self.impact_weight * self.impact
-            + self.feasibility_weight * self.feasibility
-            + self.clarity_weight * self.clarity
-            + self.conciseness_weight * self.conciseness
         )
         penalty = self.risk_weight * self.risk + self.complexity_weight * self.complexity_penalty
         penalty = self.risk_weight * self.risk + self.complexity_weight * self.complexity_penalty
