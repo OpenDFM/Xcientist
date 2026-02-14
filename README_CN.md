@@ -1,8 +1,42 @@
 # Research Agent 使用指南
 
+[English](README.md) | [中文](README_CN.md)
+
 ## 概述
 
-Research Agent 是一个由三个子代理组成的科研辅助系统，支持从想法生成、实验执行到论文撰写的完整研究流程。
+X-Scientist 是一个由三个子代理组成的科研辅助系统，支持从想法生成、实验执行到论文撰写的完整研究流程。
+
+## 环境重建
+
+建议优先使用 **conda + environment.yml**，可最大程度复现你当前环境（包含 conda 包与 pip 包）。
+
+### 方法一：conda + environment.yml（推荐）
+
+适用于希望尽量一致复现本项目运行环境的场景。
+
+```bash
+conda env create -f environment.yml
+conda activate research-agent
+```
+
+如果环境名冲突，可指定新名称：
+
+```bash
+conda env create -f environment.yml -n research-agent-copy
+conda activate research-agent-copy
+```
+
+### 方法二：pip + requirements.txt
+
+适用于仅使用 pip 方式安装依赖的场景（对 conda 二进制依赖的复现能力较弱）。
+
+```bash
+conda create -n research-agent python=3.10 -y
+conda activate research-agent
+
+# 在项目根目录安装依赖
+pip install -r requirements.txt
+```
 
 ## 三个 Agent
 
