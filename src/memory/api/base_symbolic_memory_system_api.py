@@ -15,7 +15,6 @@ def _new_symbolic_id(prefix: str = "sym") -> str:
 
 
 class SymbolicMemorySystemConfig(BaseModel):
-    memory_type: Literal["symbolic"] = "symbolic"
     lexical_weight: float = Field(
         0.45,
         ge=0.0,

@@ -12,7 +12,6 @@ mcts:
   min_confidence_for_memory: 0.6
   pareto_top_k: 5
   alignment_weight: 0.2
-  contract_alignment_weight: 0.5
   complexity_weight: 0.2
   novelty_weight: 0.3
   impact_weight: 0.25
@@ -20,6 +19,6 @@ mcts:
   clarity_weight: 0.15
   conciseness_weight: 0.1
   risk_weight: 0.2
-  min_anchor_coverage: 0.5
-  conservative_depth: 1
-  aggressive_depth: 2
+  protocol_weight: 0.15
+  skill_prior_memory_path: "output/idea_skill_priors"
+  skill_prior_success_threshold: 0.6

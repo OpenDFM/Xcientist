@@ -29,7 +29,6 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
     def __init__(self, **kwargs):
         cfg = SymbolicMemorySystemConfig(**kwargs)
         self.cfg = cfg
-        self.memory_type = cfg.memory_type
 
         self._records: Dict[int, SymbolicRecord] = {}
         self.fidmap2mid: Dict[int, str] = {}

@@ -43,14 +43,6 @@ def format_analysis_blob(analysis: List[Any]) -> str:
     return str(latest)
 
 
-def format_edit_operators(edit_operators: List[Any]) -> str:
-    lines = []
-    for op in edit_operators:
-        lines.append(
-            f"- {op.name}: {op.description} | targets {', '.join(op.defects)} | guardrails: {', '.join(op.guardrails)}"
-        )
-    return "\n".join(lines)
-
 def clip_text(value: Any, limit: int = 800) -> str:
     text = "" if value is None else str(value).strip()
     if limit <= 0:

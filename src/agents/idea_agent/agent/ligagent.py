@@ -136,10 +136,6 @@ class LigAgent(AgentBase):
             chat_fn=self.chat,
             generation_prompt=PROMPTS.get("mcts_generation"),
             evaluation_prompt=PROMPTS.get("mcts_evaluation"),
-            contract_prompt=PROMPTS.get("mcts_contract"),
-            skill_generation_prompt=PROMPTS.get("mcts_generation_contract"),
-            anchor_refiner_prompt=PROMPTS.get("mcts_anchor_refiner"),
-            skill_repair_prompt=PROMPTS.get("mcts_skill_repair"),
             config=mcts_config,
             logger=logger,
         )
@@ -500,9 +496,8 @@ class LigAgent(AgentBase):
         result = self.mcts.search(topic=topic, context=context)
         
         if not result.best:
-            logger.warning("⚠️ MCTS search returned no candidate, falling back to legacy generator.")
-            legacy_step = self._legacy_single_idea(topic, paper_entries)
-            return legacy_step
+            logger.warning("⚠️ MCTS search returned no candidate; keeping current idea pool unchanged.")
+            return "\nIn this idea_generation action, MCTS returned no candidate and no fallback legacy path was used."
 
         best_payload = result.best.to_dict()
         best_entry = best_payload["idea"]
@@ -513,9 +508,6 @@ class LigAgent(AgentBase):
             label: cand.to_dict() if cand else None for label, cand in result.pareto.items()
         }
         best_entry["search_trace"] = result.trace
-        if result.idea_contract:
-            best_entry["idea_contract"] = result.idea_contract
-            self.memory.setdefault("idea_contracts", []).append(result.idea_contract)
         self.memory["idea_pool"].append(best_entry)
         self.memory.setdefault("evaluations", []).append(best_payload["evaluation"])
         self.memory.setdefault("ltm_experiences", []).extend(result.experiences)
@@ -533,20 +525,6 @@ class LigAgent(AgentBase):
             f"Pareto set -> {pareto_summary}. Persisted {len(result.experiences)} defect→fix lifts to long-term memory."
         )
         return step
-
-    def _legacy_single_idea(self, topic: str, paper_entries: List[Dict[str, Any]]) -> str:
-        prompt = PROMPTS["idea_generation"].format(
-            topic=topic,
-            analysis=self.memory.get("analysis", []),
-            ideas=self.memory.get("idea_pool", []),
-            papers=json.dumps(paper_entries, ensure_ascii=False, indent=2),
-        )
-        response = self._parse_json_response(self.chat(prompt, model=self.model))
-        self.memory["idea_pool"].append(response)
-        return (
-            "\nIn this idea_generation action, I generated new research ideas via fallback prompt:\n💡 "
-            f"{response}"
-        )
 
     def idea_evaluation(self, **kwargs) -> None:
         prompt = PROMPTS["idea_evaluation"].format(

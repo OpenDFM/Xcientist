@@ -4,11 +4,7 @@ from src.agents.idea_agent.agent.prompts.advanced_analysis import ADVANCED_ANALY
 from src.agents.idea_agent.agent.prompts.idea_generation import IDEA_GENERATION_PROMPT
 from src.agents.idea_agent.agent.prompts.idea_evaluation import IDEA_EVALUATION_PROMPT
 from src.agents.idea_agent.agent.prompts.mcts_generation import MCTS_IDEA_GENERATION_PROMPT
-from src.agents.idea_agent.agent.prompts.mcts_generation_contract import MCTS_IDEA_SKILL_GENERATION_PROMPT
-from src.agents.idea_agent.agent.prompts.mcts_contract import MCTS_IDEA_CONTRACT_PROMPT
 from src.agents.idea_agent.agent.prompts.mcts_evaluation import MCTS_IDEA_EVALUATION_PROMPT
-from src.agents.idea_agent.agent.prompts.mcts_anchor_refiner import MCTS_ANCHOR_REFINER_PROMPT
-from src.agents.idea_agent.agent.prompts.mcts_skill_repair import MCTS_IDEA_SKILL_REPAIR_PROMPT
 from src.agents.idea_agent.agent.prompts.re_analysis_replan import RE_ANALYSIS_REPLAN_PROMPT
 from src.agents.idea_agent.agent.prompts.reference_grounding import REFERENCE_GROUNDING_PROMPT
 from src.agents.idea_agent.agent.prompts.dataset_grounding import DATASET_GROUNDING_PROMPT
@@ -42,11 +38,7 @@ PROMPTS = {
     "idea_generation": IDEA_GENERATION_PROMPT,
     "idea_evaluation": IDEA_EVALUATION_PROMPT,
     "mcts_generation": MCTS_IDEA_GENERATION_PROMPT,
-    "mcts_generation_contract": MCTS_IDEA_SKILL_GENERATION_PROMPT,
-    "mcts_contract": MCTS_IDEA_CONTRACT_PROMPT,
     "mcts_evaluation": MCTS_IDEA_EVALUATION_PROMPT,
-    "mcts_anchor_refiner": MCTS_ANCHOR_REFINER_PROMPT,
-    "mcts_skill_repair": MCTS_IDEA_SKILL_REPAIR_PROMPT,
     "re_analysis_replan": RE_ANALYSIS_REPLAN_PROMPT,
     "reference_grounding": REFERENCE_GROUNDING_PROMPT,
     "dataset_grounding": DATASET_GROUNDING_PROMPT,

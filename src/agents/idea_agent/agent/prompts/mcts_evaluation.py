@@ -1,7 +1,7 @@
 MCTS_IDEA_EVALUATION_PROMPT = """
 You score research ideas encountered during a memory-guided MCTS search.
 Topic: {topic}
-Mature idea (alignment target):
+Mature idea (optional alignment anchor):
 {mature_idea}
 Latest analysis + critiques:
 {analysis}
@@ -9,44 +9,41 @@ Latest analysis + critiques:
 Relevant literature evidence from the current paper cache:
 {paper_context}
 
-IdeaContract (if any):
-{idea_contract}
+Compiled component-level edit plan for this node:
+{edit_plan}
 
-SkillOutput / delta (if any):
-{skill_output}
+Current skill prior / constraints for the chosen edit-operator skill:
+{skill_prior}
 
 Candidate idea (JSON):
 {idea}
 
-If available, the rewrite path describing applied operators:
+Rewrite path:
 {path_summary}
 
-ICML bar reminders:
-- Reward ideas that introduce brand-new mechanisms, training contracts, or cross-domain theory transfers with higher novelty/impact.
-- Penalize "just add a gate/MoE/ensemble" tweaks (novelty ≤ 1, impact ≤ 2) unless the idea explicitly offers a new scientific insight.
-- Elevate proposals that overhaul evaluation contracts or surface new failure science; note this inside feedback.
-- Explicitly call out if the idea fails the ICML bar due to lack of mechanism clarity, missing evaluation, or excessive incrementalism.
-- If the core contribution is only a new protocol/benchmark/dataset, cap novelty ≤ 1 and impact ≤ 1 unless the response also introduces a concrete algorithmic method enabled by that protocol.
+Scoring policy:
+- Prefer concrete mechanism-level edits over vague incremental changes.
+- Reward plans that include explicit ADD_PROTOCOL-based regression, ablation, and stress tests.
+- Penalize plans that add components without clear gating when budget risk is visible.
+- Penalize feature dumping and unsupported complexity jumps.
+- If the idea drifts from topic constraints, reduce alignment_score.
 
-Judge the idea across multi-dimensional criteria. Enforce fairness (explicit baselines, ablations), guard against resource dumping, and highlight uncovered failure modes. Reward concrete algorithmic/mechanistic innovations; penalize responses that only add analysis/instrumentation/protocol tweaks without a new intervention (novelty <= 2 in those cases).
-
-Alignment is critical in contract mode: if the idea drifts from the mature idea or violates the contract spirit, set alignment_score low (0-1) and mention the drift in feedback. If it stays centered on the mature idea, reward alignment_score.
-
-Return STRICT JSON (no prose) using:
+Return STRICT JSON (no prose):
 {{
   "novelty": 0-5,
   "feasibility": 0-5,
   "clarity": 0-5,
   "impact": 0-5,
-  "risk": 0-5,  # higher means riskier
+  "risk": 0-5,
   "conciseness": 0-5,
-  "alignment_score": 0-5,  # higher means better contract/topic alignment
-  "complexity_penalty": 0-5,  # higher means more added modules/goals/data/compute cost
+  "alignment_score": 0-5,
+  "complexity_penalty": 0-5,
+  "protocol_score": 0-5,
   "confidence": 0-1,
-  "failure_modes": ["list at least one concrete failure mode"],
-  "fairness_protocol": "How fairness / control experiments are enforced or what's missing",
-  "feedback": "Actionable critique referencing defects/operators",
-  "defect_fix_summary": "Which defect was addressed and why the operator helps",
-  "lift_estimate": 0-100  # expected % improvement over parent baseline
+  "failure_modes": ["at least one concrete failure mode"],
+  "fairness_protocol": "How fairness/control experiments are enforced or what is missing",
+  "feedback": "Actionable critique referencing defects, skill choice, and component edits",
+  "defect_fix_summary": "Which defect was addressed and why the selected skill helps",
+  "lift_estimate": 0-100
 }}
 """

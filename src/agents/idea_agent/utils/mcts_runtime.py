@@ -5,114 +5,120 @@ import itertools
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence, Set
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from src.agents.idea_agent.utils.mcts_helpers import clip_text
 
 
+class AtomicEditOp(str, Enum):
+    ADD_COMPONENT = "ADD_COMPONENT"
+    REMOVE_COMPONENT = "REMOVE_COMPONENT"
+    REPLACE_COMPONENT = "REPLACE_COMPONENT"
+    REWIRE = "REWIRE"
+    GATE_COMPONENT = "GATE_COMPONENT"
+    ADD_PROTOCOL = "ADD_PROTOCOL"
+
+
+ATOMIC_OP_VALUES: Set[str] = {op.value for op in AtomicEditOp}
+
+
 @dataclass
-class EditOperator:
+class ComponentEdit:
+    op: AtomicEditOp
+    component: str
+    target: str = ""
+    condition: str = ""
+    details: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "op": self.op.value,
+            "component": self.component,
+            "target": self.target,
+            "condition": self.condition,
+            "details": self.details,
+        }
+
+
+@dataclass
+class ValidationProtocol:
+    regression_tests: List[str] = field(default_factory=list)
+    ablation_tests: List[str] = field(default_factory=list)
+    stress_tests: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "regression_tests": self.regression_tests,
+            "ablation_tests": self.ablation_tests,
+            "stress_tests": self.stress_tests,
+        }
+
+
+@dataclass
+class EditPlan:
+    skill_name: str
+    objective: str
+    target_defects: List[str]
+    component_edits: List[ComponentEdit]
+    validation: ValidationProtocol
+    guardrails: List[str]
+    memory_refs: List[str]
+    estimated_budget_delta: Dict[str, float]
+    compile_notes: str
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "skill_name": self.skill_name,
+            "objective": self.objective,
+            "target_defects": self.target_defects,
+            "component_edits": [edit.to_dict() for edit in self.component_edits],
+            "validation": self.validation.to_dict(),
+            "guardrails": self.guardrails,
+            "memory_refs": self.memory_refs,
+            "estimated_budget_delta": self.estimated_budget_delta,
+            "compile_notes": self.compile_notes,
+        }
+
+
+@dataclass
+class EditOperatorSkill:
     name: str
     description: str
-    defects: List[str]
-    guardrails: List[str]
+    defects: List[str] = field(default_factory=list)
+    guardrails: List[str] = field(default_factory=list)
+    atomic_blueprint: List[str] = field(default_factory=list)
+    required_protocols: List[str] = field(default_factory=list)
+    avoid_combinations: List[str] = field(default_factory=list)
+    source_path: str = ""
+
+    def to_prompt_line(self) -> str:
+        defects = ", ".join(self.defects) if self.defects else "unspecified"
+        blueprint = ", ".join(self.atomic_blueprint) if self.atomic_blueprint else "none"
+        guardrails = ", ".join(self.guardrails) if self.guardrails else "none"
+        return (
+            f"- {self.name}: {self.description} | defects={defects} "
+            f"| blueprint={blueprint} | guardrails={guardrails}"
+        )
 
 
-EDIT_OPERATORS: List[EditOperator] = [
-    EditOperator(
-        name="mechanism-commit-innovation",
-        description="Introduce a concrete architectural or algorithmic intervention (new module, coupling, or training signal) and argue how it fixes the defect while outlining the validation harness.",
-        defects=["stagnant_novelty", "unclear_mechanism", "validation_gap"],
-        guardrails=[
-            "must name the exact component being added/rewired and why it targets the defect",
-            "must define the success metric and experiment that proves the mechanism works",
-            "tie the intervention to at least one risk or failure surfaced earlier",
-        ],
-    ),
-    EditOperator(
-        name="counterfactual-contrast",
-        description="Prototype counterfactual generators or rare-regime samplers that feed new signals into the learning pipeline, forcing the model to handle unseen physics or boundary cases.",
-        defects=["missing_edge_cases", "weak_generalization", "dataset_bias"],
-        guardrails=["limit to 1-2 new synthetic channels per iteration", "log how the new sampler plugs into training/eval"],
-    ),
-    EditOperator(
-        name="adaptive-constraint-hybridization",
-        description="Hybridize hard/soft constraints or controllers by adding a new auxiliary head, penalty, or differentiable solver coupling that directly enforces domain rules.",
-        defects=["constraint_drift", "physical_invalidity", "weak_regularization"],
-        guardrails=[
-            "clearly state the additional constraint signal and how it is computed",
-            "prove it does not explode training cost without justification",
-        ],
-    ),
-    EditOperator(
-        name="surgical-modularity",
-        description="Split the method into orthogonal, swappable modules and re-solve the weakest block with a new mechanism (e.g., delegate geometry encoder, solver head, or monitor).",
-        defects=["feature_dumping", "monolithic_design", "harder_to_ablate"],
-        guardrails=["touch only one block", "outline interface contracts and how modules communicate"],
-    ),
-    EditOperator(
-        name="data-contract-repair",
-        description="Repair data or supervision contracts (coverage, labeling, alignment) before adding model tricks, potentially by inserting new labeling heads or contract tests.",
-        defects=["data_quality", "label_noise", "missing_contracts"],
-        guardrails=["state measurable contract tests", "forbid new model components unless the contract gap is proven"],
-    ),
-    EditOperator(
-        name="multi-scale-coordinator",
-        description="Introduce a coordinator/controller that fuses predictions from different scales or modalities, committing to a routing, aggregation, or scheduling mechanism.",
-        defects=["scale_mismatch", "coordination_failure", "latency_bottleneck"],
-        guardrails=["describe routing policy and how conflicts are resolved", "quantify added latency or compute budget"],
-    ),
-    EditOperator(
-        name="self-supervised-corrector",
-        description="Attach a corrective model (teacher, diffusion prior, energy head) that learns residuals or invariants without extra labels, producing explicit correction signals.",
-        defects=["systematic_bias", "silent_failure", "drift"],
-        guardrails=["specify the self-supervised loss and how corrections are injected", "explain how over-correction is prevented"],
-    ),
-    EditOperator(
-        name="theory-transfer-injection",
-        description="Port a principled mechanism or constraint from another discipline (control theory, info theory, neuro, geometry) and fuse it as a first-class module or objective.",
-        defects=["stagnant_novelty", "theory_gap", "weak_generalization"],
-        guardrails=[
-            "identify the exact theorem/mechanism you are borrowing and how it plugs into the pipeline",
-            "spell out the new capability it enables beyond gating or ensembling baselines",
-        ],
-    ),
-    EditOperator(
-        name="evaluation-contract-overhaul",
-        description="Redesign the evaluation/training contract (stress datasets, protocol, reward shaping) so that new failure modes are surfaced and optimized.",
-        defects=["evaluation_blindspot", "weak_accountability", "missing_contracts"],
-        guardrails=[
-            "describe concrete datasets/protocols introduced and the defect they expose",
-            "clarify how the new contract integrates with training/inference cost ceilings",
-        ],
-    ),
-]
+@dataclass
+class SkillUsagePrior:
+    attempts: int = 0
+    successes: int = 0
+    reward_ema: float = 0.5
+    prior: float = 0.5
+    rule_constraints: List[str] = field(default_factory=list)
 
-EDIT_OPERATOR_INDEX: Dict[str, EditOperator] = {op.name: op for op in EDIT_OPERATORS}
-CONSERVATIVE_OPERATOR_NAMES: Set[str] = {
-    "mechanism-commit-innovation",
-    "surgical-modularity",
-    "data-contract-repair",
-    "self-supervised-corrector",
-}
-MODERATE_OPERATOR_NAMES: Set[str] = {
-    "counterfactual-contrast",
-    "adaptive-constraint-hybridization",
-    "multi-scale-coordinator",
-}
-AGGRESSIVE_OPERATOR_NAMES: Set[str] = {
-    "theory-transfer-injection",
-    "evaluation-contract-overhaul",
-}
-
-ANTI_PATTERN_CONSTRAINTS = [
-    "No feature dumping: every add-on must map to a measured defect.",
-    "Always declare baseline + ablation protocols for fairness.",
-    "Describe at least one deliberate failure-mode surfacing plan.",
-    "Constrain resource usage; note instrumentation for guardrails.",
-    "Avoid trivial gating/ensembling tweaks; if an incremental safeguard is unavoidable, tag it 'incremental' and explain why it is temporary.",
-    "Ensure at least one child is a moonshot-level mechanism or evaluation-contract overhaul suitable for ICML/NeurIPS novelty expectations.",
-]
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "attempts": self.attempts,
+            "successes": self.successes,
+            "reward_ema": self.reward_ema,
+            "prior": self.prior,
+            "rule_constraints": self.rule_constraints,
+        }
 
 
 @dataclass
@@ -134,7 +140,7 @@ class MemoryBundle:
     fix_recipes: List[MemorySnippet] = field(default_factory=list)
 
     def to_prompt_block(self) -> str:
-        sections = []
+        sections: List[str] = []
         if self.field_knowledge:
             sections.append("== Field Knowledge ==")
             sections.extend(snippet.to_prompt_line() for snippet in self.field_knowledge)
@@ -149,207 +155,505 @@ class MemoryBundle:
         return "\n".join(sections)
 
     def referenced_ids(self) -> List[str]:
-        ids = []
+        ids: List[str] = []
         for bank in (self.field_knowledge, self.anti_patterns, self.fix_recipes):
             ids.extend(snippet.identifier for snippet in bank)
         return ids
 
 
-@dataclass(frozen=True)
-class InvariantSpec:
-    inv_id: str
-    kind: str
-    text: str
+DEFAULT_SKILL_TEMPLATES_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "agent"
+    / "skills"
+    / "DEFAULT_SKILL_TEMPLATES.json"
+)
 
 
-@dataclass(frozen=True)
-class IdeaContract:
-    scope_statement: str
-    thesis: str
-    core_claims: List[str]
-    mechanism_invariants: List[str]
-    evaluation_invariants: List[str]
-    non_goals: List[str]
-    budget_ceiling: Dict[str, Any]
-    allowed_axes: List[str]
-    contract_id: str = field(init=False)
+def _load_default_skill_templates(path: Path) -> Dict[str, Dict[str, Any]]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    normalized: Dict[str, Dict[str, Any]] = {}
+    for key, value in payload.items():
+        name = str(key).strip()
+        if not name or not isinstance(value, dict):
+            continue
+        normalized[name] = value
+    return normalized
 
-    def __post_init__(self) -> None:
-        canonical = json.dumps(
-            {
-                "scope_statement": self.scope_statement,
-                "thesis": self.thesis,
-                "core_claims": self.core_claims,
-                "mechanism_invariants": self.mechanism_invariants,
-                "evaluation_invariants": self.evaluation_invariants,
-                "non_goals": self.non_goals,
-                "budget_ceiling": self.budget_ceiling,
-                "allowed_axes": self.allowed_axes,
-            },
-            ensure_ascii=False,
-            sort_keys=True,
-        )
-        object.__setattr__(
-            self, "contract_id", hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-        )
 
-    @classmethod
-    def from_payload(cls, payload: Dict[str, Any]) -> "IdeaContract":
-        def _list(key: str, limit: int) -> List[str]:
-            raw = payload.get(key, [])
-            if isinstance(raw, str):
-                raw = [raw]
-            if not isinstance(raw, list):
-                return []
-            return [clip_text(item, 400) for item in raw if item][:limit]
+DEFAULT_SKILL_TEMPLATES: Dict[str, Dict[str, Any]] = _load_default_skill_templates(
+    DEFAULT_SKILL_TEMPLATES_PATH
+)
 
-        budget = payload.get("budget_ceiling") or {}
-        if not isinstance(budget, dict):
-            budget = {}
+ANTI_PATTERN_CONSTRAINTS: List[str] = [
+    "No feature dumping: every component edit must map to a measured defect.",
+    "Always include fair regression + ablation checks; stress test high-risk paths.",
+    "Constrain compute/latency budgets with explicit gating for expensive modules.",
+    "Prefer mechanism clarity over loosely coupled add-ons.",
+]
 
-        return cls(
-            scope_statement=clip_text(payload.get("scope_statement", ""), 800),
-            thesis=clip_text(payload.get("thesis", ""), 800),
-            core_claims=_list("core_claims", 4),
-            mechanism_invariants=_list("mechanism_invariants", 6),
-            evaluation_invariants=_list("evaluation_invariants", 6),
-            non_goals=_list("non_goals", 8),
-            budget_ceiling=budget,
-            allowed_axes=_list("allowed_axes", 8),
-        )
 
-    def invariants(self) -> List[InvariantSpec]:
-        items: List[InvariantSpec] = []
-        for idx, text in enumerate(self.mechanism_invariants, start=1):
-            items.append(InvariantSpec(inv_id=f"M{idx}", kind="mechanism", text=text))
-        for idx, text in enumerate(self.evaluation_invariants, start=1):
-            items.append(InvariantSpec(inv_id=f"E{idx}", kind="evaluation", text=text))
-        return items
+class SkillCatalog:
+    def __init__(self, skill_root: Optional[Path] = None) -> None:
+        if skill_root is None:
+            skill_root = (
+                Path(__file__).resolve().parents[1]
+                / "agent"
+                / "skills"
+                / "edit_operator_skills"
+            )
+        self.skill_root = skill_root
+        self.skills: Dict[str, EditOperatorSkill] = {}
+        self.priors: Dict[str, SkillUsagePrior] = {}
+        self._load()
 
-    def invariant_ids(self) -> List[str]:
-        return [inv.inv_id for inv in self.invariants()]
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "scope_statement": self.scope_statement,
-            "thesis": self.thesis,
-            "core_claims": self.core_claims,
-            "mechanism_invariants": self.mechanism_invariants,
-            "evaluation_invariants": self.evaluation_invariants,
-            "non_goals": self.non_goals,
-            "budget_ceiling": self.budget_ceiling,
-            "allowed_axes": self.allowed_axes,
-            "contract_id": self.contract_id,
-        }
-
-    def to_prompt_block(self) -> str:
-        lines = [
-            f"Scope: {self.scope_statement}",
-            f"Thesis: {self.thesis}",
-            "Core claims:",
-        ]
-        for claim in self.core_claims:
-            lines.append(f"- {claim}")
-        lines.append("Mechanism invariants:")
-        for inv in self.invariants():
-            if inv.kind != "mechanism":
+    def _load(self) -> None:
+        loaded: Dict[str, EditOperatorSkill] = {}
+        if self.skill_root.exists():
+            for skill_file in sorted(self.skill_root.glob("*/SKILL.md")):
+                parsed = self._parse_skill_file(skill_file)
+                if parsed:
+                    loaded[parsed.name] = parsed
+        for name, payload in DEFAULT_SKILL_TEMPLATES.items():
+            if name in loaded:
                 continue
-            lines.append(f"- {inv.inv_id}: {inv.text}")
-        lines.append("Evaluation invariants:")
-        for inv in self.invariants():
-            if inv.kind != "evaluation":
+            loaded[name] = EditOperatorSkill(
+                name=name,
+                description=payload["description"],
+                defects=list(payload.get("defects", [])),
+                guardrails=list(payload.get("guardrails", [])),
+                atomic_blueprint=list(payload.get("atomic_blueprint", [])),
+                required_protocols=list(payload.get("required_protocols", [])),
+                avoid_combinations=list(payload.get("avoid_combinations", [])),
+                source_path="builtin-default",
+            )
+        self.skills = loaded
+        for name in self.skills:
+            self.priors.setdefault(name, SkillUsagePrior())
+
+    def _parse_skill_file(self, path: Path) -> Optional[EditOperatorSkill]:
+        text = path.read_text(encoding="utf-8")
+        frontmatter, body = _split_frontmatter(text)
+        name = str(frontmatter.get("name", "")).strip() or path.parent.name
+        description = str(frontmatter.get("description", "")).strip()
+        sections = _parse_markdown_sections(body)
+        defects = sections.get("defect_tags", []) or sections.get("defects", [])
+        guardrails = sections.get("guardrails", [])
+        atomic_blueprint = sections.get("atomic_blueprint", [])
+        required_protocols = sections.get("required_protocols", [])
+        avoid_combinations = sections.get("avoid_combinations", [])
+
+        template = DEFAULT_SKILL_TEMPLATES.get(name, {})
+        if not description:
+            description = str(template.get("description", ""))
+        if not defects:
+            defects = list(template.get("defects", []))
+        if not guardrails:
+            guardrails = list(template.get("guardrails", []))
+        if not atomic_blueprint:
+            atomic_blueprint = list(template.get("atomic_blueprint", []))
+        if not required_protocols:
+            required_protocols = list(template.get("required_protocols", []))
+        if not description:
+            return None
+
+        return EditOperatorSkill(
+            name=name,
+            description=description,
+            defects=defects,
+            guardrails=guardrails,
+            atomic_blueprint=atomic_blueprint,
+            required_protocols=required_protocols,
+            avoid_combinations=avoid_combinations,
+            source_path=str(path),
+        )
+
+    def list_skills(self) -> List[EditOperatorSkill]:
+        return [self.skills[key] for key in sorted(self.skills.keys())]
+
+    def format_for_prompt(self, skills: Optional[Sequence[EditOperatorSkill]] = None) -> str:
+        chosen = list(skills) if skills is not None else self.list_skills()
+        if not chosen:
+            return "No edit-operator skills available."
+        return "\n".join(skill.to_prompt_line() for skill in chosen)
+
+    def select_skills(
+        self,
+        defect_tags: Sequence[str],
+        budget: Dict[str, Any],
+        max_children: int,
+    ) -> List[EditOperatorSkill]:
+        defects = {str(tag).strip().lower() for tag in defect_tags if str(tag).strip()}
+        if not defects:
+            defects = {"unexplored_gap"}
+
+        scored: List[Tuple[float, EditOperatorSkill]] = []
+        budget_tight = _is_budget_tight(budget)
+        for skill in self.skills.values():
+            skill_defects = {d.lower() for d in skill.defects}
+            overlap = len(defects & skill_defects)
+            defect_score = overlap / max(1, len(defects))
+            prior = self.priors.get(skill.name, SkillUsagePrior()).prior
+            gate_score = 0.0
+            uses_gate = any(step.startswith("GATE_COMPONENT") for step in skill.atomic_blueprint)
+            if budget_tight and uses_gate:
+                gate_score = 1.0
+            elif not budget_tight:
+                gate_score = 0.5
+            total = 0.45 * defect_score + 0.40 * prior + 0.15 * gate_score
+            scored.append((total, skill))
+
+        scored.sort(key=lambda item: item[0], reverse=True)
+        picked = [skill for _, skill in scored[: max(1, max_children)]]
+        if not picked:
+            return self.list_skills()[: max(1, max_children)]
+        return picked
+
+    def compile_plan(
+        self,
+        skill: EditOperatorSkill,
+        parent_title: str,
+        parent_components: Sequence[str],
+        target_defects: Sequence[str],
+        budget: Dict[str, Any],
+        memory_refs: Sequence[str],
+    ) -> EditPlan:
+        parsed_steps = [_parse_blueprint_step(step) for step in skill.atomic_blueprint]
+        parsed_steps = [step for step in parsed_steps if step is not None]
+
+        component_edits: List[ComponentEdit] = []
+        validation = ValidationProtocol()
+
+        required_protocols = {
+            token.lower().strip()
+            for token in skill.required_protocols
+            if token and token.strip()
+        }
+
+        for step in parsed_steps:
+            op = step["op"]
+            if op == AtomicEditOp.ADD_PROTOCOL.value:
+                protocols = step.get("protocols", [])
+                for protocol in protocols:
+                    required_protocols.add(protocol.lower().strip())
                 continue
-            lines.append(f"- {inv.inv_id}: {inv.text}")
-        if self.non_goals:
-            lines.append("Non-goals:")
-            lines.extend(f"- {ng}" for ng in self.non_goals)
-        if self.allowed_axes:
-            lines.append("Allowed axes:")
-            lines.extend(f"- {ax}" for ax in self.allowed_axes)
-        if self.budget_ceiling:
-            lines.append(f"Budget ceiling: {self.budget_ceiling}")
-        return "\n".join(lines)
+            component_edits.append(
+                ComponentEdit(
+                    op=AtomicEditOp(op),
+                    component=step.get("component", ""),
+                    target=step.get("target", ""),
+                    condition=step.get("condition", ""),
+                    details=step.get("details", ""),
+                )
+            )
+
+        if _is_budget_tight(budget):
+            has_gate = any(edit.op == AtomicEditOp.GATE_COMPONENT for edit in component_edits)
+            if not has_gate:
+                gate_target = next(
+                    (
+                        edit.component
+                        for edit in component_edits
+                        if edit.op in {AtomicEditOp.ADD_COMPONENT, AtomicEditOp.REPLACE_COMPONENT}
+                    ),
+                    parent_components[0] if parent_components else "primary_module",
+                )
+                component_edits.append(
+                    ComponentEdit(
+                        op=AtomicEditOp.GATE_COMPONENT,
+                        component=gate_target,
+                        condition="if_compute_or_latency_budget_tight",
+                        details="Auto-added budget gate.",
+                    )
+                )
+
+        if not required_protocols:
+            required_protocols = {"regression", "ablation", "stress"}
+
+        for protocol in sorted(required_protocols):
+            test_text = _default_protocol_text(protocol, skill.name, parent_title, target_defects)
+            if protocol == "regression":
+                validation.regression_tests.append(test_text)
+            elif protocol == "ablation":
+                validation.ablation_tests.append(test_text)
+            else:
+                validation.stress_tests.append(test_text)
+            component_edits.append(
+                ComponentEdit(
+                    op=AtomicEditOp.ADD_PROTOCOL,
+                    component=protocol,
+                    details=test_text,
+                )
+            )
+
+        objective_defect = next(iter(target_defects), "unspecified_defect")
+        estimated_budget_delta = _estimate_budget_delta(component_edits)
+        plan = EditPlan(
+            skill_name=skill.name,
+            objective=f"Use {skill.name} to address {objective_defect}",
+            target_defects=[str(tag) for tag in target_defects] or skill.defects[:1] or ["unspecified_defect"],
+            component_edits=component_edits,
+            validation=validation,
+            guardrails=list(skill.guardrails),
+            memory_refs=[str(ref) for ref in memory_refs][:6],
+            estimated_budget_delta=estimated_budget_delta,
+            compile_notes=(
+                f"Compiled from skill '{skill.name}' with blueprint ops={len(skill.atomic_blueprint)}; "
+                f"source={skill.source_path or 'builtin'}"
+            ),
+        )
+        return plan
+
+    def update_prior(
+        self,
+        skill_name: str,
+        reward: float,
+        feedback: str,
+        failure_modes: Sequence[str],
+        success_threshold: float = 0.6,
+    ) -> SkillUsagePrior:
+        prior = self.priors.setdefault(skill_name, SkillUsagePrior())
+        prior.attempts += 1
+        clipped_reward = max(0.0, min(1.0, reward))
+        if clipped_reward >= max(0.0, min(1.0, success_threshold)):
+            prior.successes += 1
+        prior.reward_ema = 0.8 * prior.reward_ema + 0.2 * clipped_reward
+        beta_mean = (prior.successes + 1.0) / (prior.attempts + 2.0)
+        prior.prior = 0.55 * beta_mean + 0.45 * prior.reward_ema
+
+        feedback_l = (feedback or "").lower()
+        if "budget" in feedback_l and "gate" not in " ".join(prior.rule_constraints).lower():
+            prior.rule_constraints.append("Prefer adding explicit GATE_COMPONENT when budget risk appears.")
+        for failure in failure_modes:
+            text = str(failure).strip()
+            if not text:
+                continue
+            rule = f"Avoid failure mode: {text}"
+            if rule not in prior.rule_constraints:
+                prior.rule_constraints.append(rule)
+        prior.rule_constraints = prior.rule_constraints[:8]
+        return prior
 
 
-@dataclass
-class SkillDelta:
-    intervention: str
-    mechanism: str
-    implementation_notes: str
+def _split_frontmatter(text: str) -> Tuple[Dict[str, str], str]:
+    stripped = text.lstrip()
+    if not stripped.startswith("---"):
+        return {}, text
 
-    def to_dict(self) -> Dict[str, Any]:
+    lines = stripped.splitlines()
+    frontmatter: Dict[str, str] = {}
+    if len(lines) < 3:
+        return frontmatter, text
+
+    end_idx = None
+    for idx in range(1, len(lines)):
+        if lines[idx].strip() == "---":
+            end_idx = idx
+            break
+        line = lines[idx]
+        if ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        frontmatter[key.strip()] = value.strip().strip('"').strip("'")
+
+    if end_idx is None:
+        return frontmatter, text
+    body = "\n".join(lines[end_idx + 1 :])
+    return frontmatter, body
+
+
+def _parse_markdown_sections(body: str) -> Dict[str, List[str]]:
+    sections: Dict[str, List[str]] = {}
+    current: Optional[str] = None
+    for raw_line in body.splitlines():
+        line = raw_line.rstrip()
+        if line.startswith("## "):
+            title = line[3:].strip().lower().replace(" ", "_")
+            current = title
+            sections.setdefault(current, [])
+            continue
+        if current is None:
+            continue
+        stripped = line.strip()
+        if stripped.startswith("- "):
+            sections[current].append(stripped[2:].strip())
+    return sections
+
+
+def _parse_blueprint_step(step: str) -> Optional[Dict[str, Any]]:
+    raw = (step or "").strip()
+    if not raw:
+        return None
+    match = re.match(r"^(?P<op>[A-Z_]+)\((?P<body>.*)\)$", raw)
+    if not match:
+        return None
+
+    op = match.group("op").strip()
+    body = match.group("body").strip()
+    if op not in ATOMIC_OP_VALUES:
+        return None
+
+    if op == AtomicEditOp.ADD_PROTOCOL.value:
+        protocols = [token.strip().lower() for token in body.split(",") if token.strip()]
+        return {"op": op, "protocols": protocols or ["regression", "ablation", "stress"]}
+
+    if op == AtomicEditOp.REWIRE.value:
+        if "->" in body:
+            source, target = [segment.strip() for segment in body.split("->", 1)]
+        else:
+            source, target = body, "downstream"
         return {
-            "intervention": self.intervention,
-            "mechanism": self.mechanism,
-            "implementation_notes": self.implementation_notes,
+            "op": op,
+            "component": source,
+            "target": target,
+            "details": f"Rewire {source} -> {target}",
         }
 
-
-@dataclass
-class ExperimentPatch:
-    regression_tests: List[str]
-    ablation_tests: List[str]
-    stress_tests: List[str]
-
-    def to_dict(self) -> Dict[str, Any]:
+    if op == AtomicEditOp.REPLACE_COMPONENT.value:
+        if "->" in body:
+            old_component, new_component = [segment.strip() for segment in body.split("->", 1)]
+        else:
+            old_component, new_component = body, f"{body}_replacement"
         return {
-            "regression_tests": self.regression_tests,
-            "ablation_tests": self.ablation_tests,
-            "stress_tests": self.stress_tests,
+            "op": op,
+            "component": new_component,
+            "target": old_component,
+            "details": f"Replace {old_component} with {new_component}",
         }
 
-
-@dataclass
-class InvariantImpact:
-    status: str
-    reason: str
-    compensation: str = ""
-
-    def to_dict(self) -> Dict[str, Any]:
+    if op == AtomicEditOp.GATE_COMPONENT.value:
+        parts = [segment.strip() for segment in body.split(",", 1)]
+        component = parts[0] if parts else "component"
+        condition = parts[1] if len(parts) > 1 else "if_budget_or_risk_requires"
         return {
-            "status": self.status,
-            "reason": self.reason,
-            "compensation": self.compensation,
+            "op": op,
+            "component": component,
+            "condition": condition,
+            "details": f"Gate {component} under condition '{condition}'",
         }
 
-
-@dataclass
-class SkillOutput:
-    delta: SkillDelta
-    experiment_patch: ExperimentPatch
-    risk_patch: List[str]
-    introduced_concepts: List[str]
-    anchor_mapping: Dict[str, str]
-    invariant_impact: Dict[str, InvariantImpact]
-    memory_refs: List[str]
-    budget_impact: Dict[str, Any] = field(default_factory=dict)
-    raw: Dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> Dict[str, Any]:
-        if self.raw:
-            return self.raw
-        return {
-            "delta": self.delta.to_dict(),
-            "experiment_patch": self.experiment_patch.to_dict(),
-            "risk_patch": self.risk_patch,
-            "introduced_concepts": self.introduced_concepts,
-            "anchor_mapping": self.anchor_mapping,
-            "invariant_impact": {
-                key: val.to_dict() for key, val in self.invariant_impact.items()
-            },
-            "memory_refs": self.memory_refs,
-            "budget_impact": self.budget_impact,
-        }
+    component = body.strip() or "component"
+    return {"op": op, "component": component, "details": f"{op} on {component}"}
 
 
-@dataclass
-class SkillValidation:
-    ok: bool
-    errors: List[str]
-    warnings: List[str]
-    alignment_score: float = 0.0
-    complexity_penalty: float = 0.0
-    anchor_coverage: float = 0.0
+def _default_protocol_text(
+    protocol: str,
+    skill_name: str,
+    parent_title: str,
+    target_defects: Sequence[str],
+) -> str:
+    defect = next((str(tag) for tag in target_defects if str(tag).strip()), "target defect")
+    if protocol == "regression":
+        return (
+            f"Run regression against parent '{parent_title}' and verify no degradation on core metrics while fixing {defect}."
+        )
+    if protocol == "ablation":
+        return (
+            f"Ablate the {skill_name} delta to isolate contribution and confirm defect-level lift on {defect}."
+        )
+    return (
+        f"Stress test {skill_name} under worst-case conditions tied to {defect} and record failure boundaries."
+    )
+
+
+def _is_budget_tight(budget: Dict[str, Any]) -> bool:
+    if not isinstance(budget, dict):
+        return False
+    numeric_values: List[float] = []
+    for key in ("compute", "latency", "memory", "token", "wall_clock", "gpu_hours"):
+        value = budget.get(key)
+        if value is None:
+            continue
+        try:
+            numeric_values.append(float(value))
+        except (TypeError, ValueError):
+            continue
+    if not numeric_values:
+        return False
+    return any(val <= 1.0 for val in numeric_values)
+
+
+def _estimate_budget_delta(component_edits: Sequence[ComponentEdit]) -> Dict[str, float]:
+    compute = 0.0
+    latency = 0.0
+    memory = 0.0
+    for edit in component_edits:
+        if edit.op == AtomicEditOp.ADD_COMPONENT:
+            compute += 0.15
+            latency += 0.10
+            memory += 0.12
+        elif edit.op == AtomicEditOp.REMOVE_COMPONENT:
+            compute -= 0.12
+            latency -= 0.08
+            memory -= 0.10
+        elif edit.op == AtomicEditOp.REPLACE_COMPONENT:
+            compute += 0.05
+            latency += 0.04
+            memory += 0.05
+        elif edit.op == AtomicEditOp.REWIRE:
+            compute += 0.02
+            latency += 0.02
+        elif edit.op == AtomicEditOp.GATE_COMPONENT:
+            compute -= 0.05
+            latency -= 0.03
+        elif edit.op == AtomicEditOp.ADD_PROTOCOL:
+            compute += 0.03
+            latency += 0.01
+    return {
+        "compute": round(compute, 4),
+        "latency": round(latency, 4),
+        "memory": round(memory, 4),
+    }
+
+
+def apply_edit_plan_to_components(
+    components: Sequence[str],
+    edit_plan: EditPlan,
+) -> List[str]:
+    ordered = [str(comp) for comp in components if str(comp).strip()]
+    existing = list(ordered)
+
+    def _contains(name: str) -> bool:
+        return any(name == item for item in existing)
+
+    for edit in edit_plan.component_edits:
+        component = edit.component.strip()
+        target = edit.target.strip()
+        if edit.op == AtomicEditOp.ADD_COMPONENT:
+            if component and not _contains(component):
+                existing.append(component)
+        elif edit.op == AtomicEditOp.REMOVE_COMPONENT:
+            if component:
+                existing = [item for item in existing if item != component]
+        elif edit.op == AtomicEditOp.REPLACE_COMPONENT:
+            if target:
+                replaced = False
+                for idx, item in enumerate(existing):
+                    if item == target:
+                        existing[idx] = component or target
+                        replaced = True
+                        break
+                if not replaced and component and not _contains(component):
+                    existing.append(component)
+            elif component and not _contains(component):
+                existing.append(component)
+        elif edit.op == AtomicEditOp.REWIRE:
+            # REWIRE affects topology, not component inventory.
+            continue
+        elif edit.op == AtomicEditOp.GATE_COMPONENT:
+            if component and not _contains(component):
+                existing.append(component)
+        elif edit.op == AtomicEditOp.ADD_PROTOCOL:
+            # Protocols are first-class edits but not structural components.
+            continue
+
+    return existing
 
 
 def log_message(
@@ -376,10 +680,6 @@ def log_message(
 
 
 def reset_search_state(mcts: Any) -> None:
-    """
-    Drop cached nodes/evaluations between searches so long-running agents
-    do not accumulate an ever-growing tree across topics.
-    """
     mcts.signature_nodes = {}
     mcts.evaluation_cache = {}
     mcts.experience_cache.clear()
@@ -463,13 +763,11 @@ def is_ancestor(node: Any, candidate: Any) -> bool:
     return False
 
 
-def path_summary(path: Sequence[Any], limit: int = 1024) -> str:
-    steps = []
+def path_summary(path: Sequence[Any], limit: int = 2048) -> str:
+    steps: List[str] = []
     for hop in path:
         defects = hop.transformation.defects or ["unspecified"]
-        steps.append(
-            f"{hop.state.title} [{hop.transformation.operator}] -> defects {defects}"
-        )
+        steps.append(f"{hop.state.title} [{hop.transformation.operator}] -> defects {defects}")
     return clip_text(" | ".join(steps), limit)
 
 
@@ -538,54 +836,31 @@ def build_root_state(
     context: Dict[str, Any],
     idea_state_cls: Any,
 ) -> Any:
-    mature_idea = (context.get("mature_idea") or "").strip()
-    contract = context.get("idea_contract")
-    if mature_idea:
-        thesis = getattr(contract, "thesis", "") if contract else ""
-        core_claims = getattr(contract, "core_claims", []) if contract else []
-        mechanism_invariants = getattr(contract, "mechanism_invariants", []) if contract else []
-        evaluation_invariants = getattr(contract, "evaluation_invariants", []) if contract else []
-        title = thesis or _short_title_from_mature_idea(mature_idea, topic)
-        core = thesis or (core_claims[0] if core_claims else "Mature idea core contribution.")
-        method = (
-            "Preserve mechanism invariants: "
-            + "; ".join(mechanism_invariants)
-            if mechanism_invariants
-            else "Preserve the mature idea mechanism."
-        )
-        experiments = (
-            "Preserve evaluation invariants: "
-            + "; ".join(evaluation_invariants)
-            if evaluation_invariants
-            else "Preserve the mature idea evaluation protocol."
-        )
-        risks = "Risk of contract drift or mechanism chimera."
-        tags = ["mature", "contract"]
-        return idea_state_cls(
-            title=title,
-            abstract=str(mature_idea),
-            core_contribution=str(core),
-            method=str(method),
-            experiments=str(experiments),
-            risks=str(risks),
-            tags=tags,
-            operator="seed",
-            target_defects=["contract_anchor"],
-            rationale="Rooted in mature idea contract.",
-            memory_refs=[],
-        )
-
     idea_pool = context.get("idea_pool") or []
     background = context.get("background_knowledge") or []
+    defect_tags = context.get("defect_tags") or ["unexplored_gap"]
+    budget = context.get("budget") if isinstance(context.get("budget"), dict) else {}
+    if not budget:
+        budget = {"compute": 1.0, "latency": 1.0, "memory": 1.0}
+    components = context.get("components") if isinstance(context.get("components"), list) else []
+    if not components:
+        components = [
+            "backbone_model",
+            "retriever",
+            "objective",
+            "data_pipeline",
+            "evaluation_harness",
+        ]
+
     if idea_pool:
         latest = idea_pool[-1]
         if isinstance(latest, dict):
             title = latest.get("title", f"{topic} seed idea")
             abstract = latest.get("abstract", "")
-            core = latest.get("core_contribution", "")
-            method = latest.get("method", "")
-            experiments = latest.get("experiments", "")
-            risks = latest.get("risks", latest.get("evaluation", {}))
+            core = latest.get("core_contribution", latest.get("core_contribute", ""))
+            method = latest.get("method", latest.get("methodology", ""))
+            experiments = latest.get("experiments", latest.get("experiment_design", ""))
+            risks = latest.get("risks", latest.get("evaluation", ""))
             tags = latest.get("tags")
         else:
             title = f"{topic} prior idea"
@@ -599,13 +874,13 @@ def build_root_state(
         title = f"{topic} baseline"
         abstract = background[-1] if background else "Kick-off seed idea from analysis."
         core = "Seed idea derived from current analysis and background knowledge."
-        method = "Synthesize referenced methods, highlight open limitations."
-        experiments = "Use current baselines and publicly reported setups."
+        method = "Synthesize referenced methods and expose unresolved bottlenecks."
+        experiments = "Use reported baselines and add defect-oriented checks."
         risks = "Need fairness checks and failure-mode surfacing."
         tags = ["seed"]
 
     return idea_state_cls(
-        title=title,
+        title=str(title),
         abstract=str(abstract),
         core_contribution=str(core),
         method=str(method),
@@ -613,110 +888,13 @@ def build_root_state(
         risks=str(risks),
         tags=[str(t) for t in tags] if isinstance(tags, list) else [str(tags)],
         operator="seed",
-        target_defects=["unexplored_gap"],
+        target_defects=[str(tag) for tag in defect_tags],
         rationale="Starting point from existing idea pool or analysis.",
         memory_refs=[],
+        budget=budget,
+        components=components,
+        paper_graph_context=str(context.get("paper_context") or ""),
     )
-
-
-def _short_title_from_mature_idea(mature_idea: str, topic: str) -> str:
-    text = (mature_idea or "").strip()
-    if not text:
-        return f"{topic} mature idea"
-    first = re.split(r"[.!?。！？]\s+", text, maxsplit=1)[0].strip()
-    if not first:
-        first = text
-    lowered = first.lower()
-    prefixes = [
-        "a mature direction in",
-        "a mature idea in",
-        "a mature idea is",
-        "a mature direction is",
-        "this work",
-        "this idea",
-        "we propose",
-        "we present",
-    ]
-    for prefix in prefixes:
-        if lowered.startswith(prefix):
-            first = first[len(prefix) :].lstrip(" :,-")
-            lowered = first.lower()
-            break
-    if " is to " in lowered:
-        first = first.split(" is to ", 1)[1].strip()
-    if " to " in lowered and len(first.split()) > 14:
-        first = first.split(" to ", 1)[0].strip()
-    words = first.split()
-    if len(words) > 12:
-        first = " ".join(words[:12]).strip()
-    return first or f"{topic} mature idea"
-
-
-def parse_child_state(data: Dict[str, Any], idea_state_cls: Any) -> Any:
-    def _list(key: str) -> List[str]:
-        raw = data.get(key, [])
-        if isinstance(raw, list):
-            return [str(x) for x in raw]
-        if isinstance(raw, str):
-            return [raw]
-        return []
-
-    return idea_state_cls(
-        title=str(data.get("title", "Untitled idea")).strip(),
-        abstract=str(data.get("abstract", "")).strip(),
-        core_contribution=str(
-            data.get("core_contribution", data.get("core_contribute", ""))
-        ).strip(),
-        method=str(data.get("method", "")).strip(),
-        experiments=str(data.get("experiments", data.get("experiment_design", ""))).strip(),
-        risks=str(data.get("risks", "")).strip(),
-        tags=_list("tags") or ["mcts-child"],
-        operator=str(data.get("operator", "unknown")).strip(),
-        target_defects=_list("target_defects"),
-        rationale=str(data.get("rationale", "")).strip(),
-        memory_refs=_list("memory_refs"),
-    )
-
-
-def fallback_child_payloads(
-    node: Any,
-    bundle: Any,
-    edit_operators: Sequence[Any],
-    branching_factor: int,
-) -> List[Dict[str, Any]]:
-    """
-    Deterministically craft child payloads when the language model fails to expand a node.
-    Ensures the tree keeps growing instead of aborting the search loop.
-    """
-    payloads: List[Dict[str, Any]] = []
-    referenced_ids = bundle.referenced_ids()
-    parent_title = node.state.title
-    parent_gap = node.state.core_contribution or node.state.abstract
-    base_tags = node.state.tags or []
-    for idx, op in enumerate(edit_operators[:branching_factor]):
-        payloads.append(
-            {
-                "title": f"{parent_title} | {op.name.replace('-', ' ').title()} #{idx+1}",
-                "abstract": (
-                    f"Apply {op.description} to stress {parent_title} against {', '.join(op.defects)}."
-                ),
-                "core_contribution": (
-                    f"Operationalize {op.name} to fix {', '.join(op.defects)} highlighted in '{parent_title}'."
-                ),
-                "method": (
-                    f"Modify the parent method focusing on {parent_gap} via {op.description}."
-                ),
-                "experiments": (
-                    f"Design ablations that validate the {op.name} intervention on the parent idea."
-                ),
-                "risks": "Heuristic fallback idea; validate with full generation later.",
-                "tags": list({*base_tags, op.name}),
-                "operator": op.name,
-                "target_defects": op.defects,
-                "memory_refs": referenced_ids,
-            }
-        )
-    return payloads
 
 
 def best_candidate(root: Any, candidate_cls: Any) -> Optional[Any]:
@@ -776,6 +954,7 @@ def harvest_experience(
             "context": path_summary_text,
             "feedback": evaluation.feedback,
             "tags": node.state.tags + ["defect_fix"],
+            "edit_plan": node.state.edit_plan,
         }
         return experience
     return None

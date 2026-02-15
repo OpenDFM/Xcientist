@@ -1,0 +1,204 @@
+{
+  "mechanism-commit-innovation": {
+    "description": "Commit to a concrete mechanism change and validate it with fair and stress-tested experiments.",
+    "defects": [
+      "stagnant_novelty",
+      "unclear_mechanism",
+      "validation_gap"
+    ],
+    "guardrails": [
+      "Name the exact component being added/rewired and why it fixes the defect.",
+      "Include fair baselines and at least one failure-mode stress test."
+    ],
+    "atomic_blueprint": [
+      "ADD_COMPONENT(core_mechanism_module)",
+      "REWIRE(backbone_model -> core_mechanism_module)",
+      "GATE_COMPONENT(core_mechanism_module, if_compute_budget_allows)",
+      "ADD_PROTOCOL(regression,ablation,stress)"
+    ],
+    "required_protocols": [
+      "regression",
+      "ablation",
+      "stress"
+    ]
+  },
+  "counterfactual-contrast": {
+    "description": "Add counterfactual or rare-regime data components and inject them into train/eval flow.",
+    "defects": [
+      "missing_edge_cases",
+      "weak_generalization",
+      "dataset_bias"
+    ],
+    "guardrails": [
+      "Limit newly added data channels to avoid uncontrolled complexity.",
+      "Show where the counterfactual channel is injected into training and evaluation."
+    ],
+    "atomic_blueprint": [
+      "ADD_COMPONENT(counterfactual_sampler)",
+      "REWIRE(counterfactual_sampler -> training_pipeline)",
+      "ADD_PROTOCOL(regression,ablation,stress)"
+    ],
+    "required_protocols": [
+      "regression",
+      "ablation",
+      "stress"
+    ]
+  },
+  "adaptive-constraint-hybridization": {
+    "description": "Hybridize constraints/penalties with the objective while controlling side effects.",
+    "defects": [
+      "constraint_drift",
+      "physical_invalidity",
+      "weak_regularization"
+    ],
+    "guardrails": [
+      "Keep the added constraint measurable and tied to a single objective term.",
+      "Use gating to disable the new constraint under unfavorable budget or data regimes."
+    ],
+    "atomic_blueprint": [
+      "ADD_COMPONENT(constraint_penalty_module)",
+      "REWIRE(constraint_penalty_module -> objective)",
+      "GATE_COMPONENT(constraint_penalty_module, when_constraint_confident)",
+      "ADD_PROTOCOL(regression,ablation,stress)"
+    ],
+    "required_protocols": [
+      "regression",
+      "ablation",
+      "stress"
+    ]
+  },
+  "surgical-modularity": {
+    "description": "Touch only one weak block via replace/rewire and prove improvement with focused ablation.",
+    "defects": [
+      "feature_dumping",
+      "monolithic_design",
+      "harder_to_ablate"
+    ],
+    "guardrails": [
+      "Touch exactly one module-level block.",
+      "Include a mandatory ablation isolating the touched block."
+    ],
+    "atomic_blueprint": [
+      "REPLACE_COMPONENT(weak_block -> modular_block)",
+      "REWIRE(modular_block -> downstream_interface)",
+      "ADD_PROTOCOL(regression,ablation)"
+    ],
+    "required_protocols": [
+      "regression",
+      "ablation"
+    ]
+  },
+  "data-contract-repair": {
+    "description": "Repair supervision/data contract first; only add modules when contract repair alone is insufficient.",
+    "defects": [
+      "data_quality",
+      "label_noise",
+      "missing_contracts"
+    ],
+    "guardrails": [
+      "Prioritize protocol fixes before architecture changes.",
+      "Document measurable contract checks."
+    ],
+    "atomic_blueprint": [
+      "ADD_PROTOCOL(regression,ablation,stress)",
+      "ADD_COMPONENT(contract_checker)",
+      "GATE_COMPONENT(contract_checker, when_contract_violation_detected)"
+    ],
+    "required_protocols": [
+      "regression",
+      "ablation",
+      "stress"
+    ]
+  },
+  "multi-scale-coordinator": {
+    "description": "Add a coordinator for cross-scale routing/aggregation and control overhead with gating.",
+    "defects": [
+      "scale_mismatch",
+      "coordination_failure",
+      "latency_bottleneck"
+    ],
+    "guardrails": [
+      "Specify routing conflict resolution and added latency constraints.",
+      "Gate coordinator usage for budget-sensitive scenarios."
+    ],
+    "atomic_blueprint": [
+      "ADD_COMPONENT(multi_scale_coordinator)",
+      "REWIRE(multi_scale_coordinator -> prediction_router)",
+      "GATE_COMPONENT(multi_scale_coordinator, when_multi_scale_signal_strong)",
+      "ADD_PROTOCOL(regression,ablation,stress)"
+    ],
+    "required_protocols": [
+      "regression",
+      "ablation",
+      "stress"
+    ]
+  },
+  "self-supervised-corrector": {
+    "description": "Add a self-supervised corrector to learn residuals/invariants and inject corrections safely.",
+    "defects": [
+      "systematic_bias",
+      "silent_failure",
+      "drift"
+    ],
+    "guardrails": [
+      "Define correction injection points and anti-overcorrection controls.",
+      "Use stress tests to expose residual failure pockets."
+    ],
+    "atomic_blueprint": [
+      "ADD_COMPONENT(self_supervised_corrector)",
+      "REWIRE(self_supervised_corrector -> prediction_head)",
+      "GATE_COMPONENT(self_supervised_corrector, when_confidence_gap_detected)",
+      "ADD_PROTOCOL(regression,ablation,stress)"
+    ],
+    "required_protocols": [
+      "regression",
+      "ablation",
+      "stress"
+    ]
+  },
+  "theory-transfer-injection": {
+    "description": "Inject a theory-backed mechanism from another domain as a first-class component.",
+    "defects": [
+      "stagnant_novelty",
+      "theory_gap",
+      "weak_generalization"
+    ],
+    "guardrails": [
+      "State the transferred mechanism and where it is wired into the system.",
+      "Use gating and stress tests to ensure added theory module is controllable."
+    ],
+    "atomic_blueprint": [
+      "ADD_COMPONENT(theory_transfer_module)",
+      "REWIRE(theory_transfer_module -> training_objective)",
+      "GATE_COMPONENT(theory_transfer_module, when_transfer_signal_reliable)",
+      "ADD_PROTOCOL(regression,ablation,stress)"
+    ],
+    "required_protocols": [
+      "regression",
+      "ablation",
+      "stress"
+    ]
+  },
+  "evaluation-contract-overhaul": {
+    "description": "Reshape evaluation/training contracts first, then optionally adjust components based on contract failures.",
+    "defects": [
+      "evaluation_blindspot",
+      "weak_accountability",
+      "missing_contracts"
+    ],
+    "guardrails": [
+      "Ensure protocol changes directly expose previously hidden failure modes.",
+      "Keep model changes secondary to evaluation contract repair."
+    ],
+    "atomic_blueprint": [
+      "ADD_PROTOCOL(regression,ablation,stress)",
+      "REPLACE_COMPONENT(legacy_evaluator -> contract_evaluator)",
+      "GATE_COMPONENT(contract_evaluator, when_budget_allows)"
+    ],
+    "required_protocols": [
+      "regression",
+      "ablation",
+      "stress"
+    ]
+  }
+}
