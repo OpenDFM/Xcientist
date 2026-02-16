@@ -109,15 +109,18 @@ class EditOperatorSkill:
     atomic_blueprint: List[str] = field(default_factory=list)
     required_protocols: List[str] = field(default_factory=list)
     avoid_combinations: List[str] = field(default_factory=list)
+    execution_logic: List[str] = field(default_factory=list)
     source_path: str = ""
 
     def to_prompt_line(self) -> str:
         defects = ", ".join(self.defects) if self.defects else "unspecified"
         blueprint = ", ".join(self.atomic_blueprint) if self.atomic_blueprint else "none"
         guardrails = ", ".join(self.guardrails) if self.guardrails else "none"
+        exec_logic = " | ".join(self.execution_logic) if self.execution_logic else "none"
         return (
             f"- {self.name}: {self.description} | defects={defects} "
-            f"| blueprint={blueprint} | guardrails={guardrails}"
+            f"| blueprint={blueprint} | guardrails={guardrails} "
+            f"| execution_logic={exec_logic}"
         )
 
 
@@ -249,6 +252,7 @@ class SkillCatalog:
                 atomic_blueprint=list(payload.get("atomic_blueprint", [])),
                 required_protocols=list(payload.get("required_protocols", [])),
                 avoid_combinations=list(payload.get("avoid_combinations", [])),
+                execution_logic=list(payload.get("execution_logic", [])),
                 source_path="builtin-default",
             )
         self.skills = loaded
@@ -266,6 +270,7 @@ class SkillCatalog:
         atomic_blueprint = sections.get("atomic_blueprint", [])
         required_protocols = sections.get("required_protocols", [])
         avoid_combinations = sections.get("avoid_combinations", [])
+        execution_logic = sections.get("execution_logic", [])
 
         template = DEFAULT_SKILL_TEMPLATES.get(name, {})
         if not description:
@@ -278,6 +283,8 @@ class SkillCatalog:
             atomic_blueprint = list(template.get("atomic_blueprint", []))
         if not required_protocols:
             required_protocols = list(template.get("required_protocols", []))
+        if not execution_logic:
+            execution_logic = list(template.get("execution_logic", []))
         if not description:
             return None
 
@@ -289,6 +296,7 @@ class SkillCatalog:
             atomic_blueprint=atomic_blueprint,
             required_protocols=required_protocols,
             avoid_combinations=avoid_combinations,
+            execution_logic=execution_logic,
             source_path=str(path),
         )
 
@@ -503,6 +511,9 @@ def _parse_markdown_sections(body: str) -> Dict[str, List[str]]:
         stripped = line.strip()
         if stripped.startswith("- "):
             sections[current].append(stripped[2:].strip())
+        elif re.match(r"^\d+\.\s", stripped):
+            # Support numbered lists (e.g. "1. Step description")
+            sections[current].append(re.sub(r"^\d+\.\s", "", stripped).strip())
     return sections
 
 
