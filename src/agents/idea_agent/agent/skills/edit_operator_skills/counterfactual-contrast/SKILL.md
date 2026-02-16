@@ -25,3 +25,8 @@ description: Inject counterfactual data components and rewire train/eval flow so
 
 ## avoid_combinations
 - REMOVE_COMPONENT(training_pipeline) in the same plan
+
+## execution_logic
+1. Identify the defect from `defect_tags`.
+2. Generate the solution by **instantiating** the `atomic_blueprint`.
+3. Format: `FUNCTION_NAME(ARGUMENTS) -> REASONING`

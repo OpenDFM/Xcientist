@@ -25,3 +25,8 @@ description: Repair data/supervision contract first, then add minimal components
 
 ## avoid_combinations
 - ADD_COMPONENT(large_new_backbone) in the same plan
+
+## execution_logic
+1. Identify the defect from `defect_tags`.
+2. Generate the solution by **instantiating** the `atomic_blueprint`.
+3. Format: `FUNCTION_NAME(ARGUMENTS) -> REASONING`

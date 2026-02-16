@@ -22,6 +22,24 @@ class AtomicEditOp(str, Enum):
 
 
 ATOMIC_OP_VALUES: Set[str] = {op.value for op in AtomicEditOp}
+# Descriptions for each atomic edit operation, used in prompt formatting and skill documentation.
+ATOMIC_OP_DESCRIPTIONS: Dict[str, str] = {
+    AtomicEditOp.ADD_COMPONENT: "Introduce a new module or sub-module into the architecture. ",
+    AtomicEditOp.REMOVE_COMPONENT: "Delete an existing module from the architecture. ",
+    AtomicEditOp.REPLACE_COMPONENT: "Swap an existing module with a new implementation. ",
+    AtomicEditOp.REWIRE: "Change how two components are connected (data flow, gradient path, or API coupling). ",
+    AtomicEditOp.GATE_COMPONENT: "Wrap a component with a conditional activation gate (e.g., budget, reliability, or confidence check). ",
+    AtomicEditOp.ADD_PROTOCOL: "Attach a validation protocol (regression, ablation, or stress test) to the plan. "
+}
+
+
+def format_op_descriptions() -> str:
+    """Return a human-readable reference block describing every atomic edit operation."""
+    lines = ["Atomic edit operation reference:"]
+    for op in AtomicEditOp:
+        desc = ATOMIC_OP_DESCRIPTIONS.get(op, "No description.")
+        lines.append(f"  - {op.value}: {desc}")
+    return "\n".join(lines)
 
 
 @dataclass
@@ -281,7 +299,9 @@ class SkillCatalog:
         chosen = list(skills) if skills is not None else self.list_skills()
         if not chosen:
             return "No edit-operator skills available."
-        return "\n".join(skill.to_prompt_line() for skill in chosen)
+        op_ref = format_op_descriptions()
+        skill_lines = "\n".join(skill.to_prompt_line() for skill in chosen)
+        return f"{op_ref}\n\nAvailable edit-operator skills:\n{skill_lines}"
 
     def select_skills(
         self,
