@@ -21,12 +21,15 @@ Candidate idea (JSON):
 Rewrite path:
 {path_summary}
 
+{defect_registry}
+
 Scoring policy:
 - Prefer concrete mechanism-level edits over vague incremental changes.
 - Reward plans that include explicit ADD_PROTOCOL-based regression, ablation, and stress tests.
 - Penalize plans that add components without clear gating when budget risk is visible.
 - Penalize feature dumping and unsupported complexity jumps.
 - If the idea drifts from topic constraints, reduce alignment_score.
+- In "detected_defects", list ALL defect tags from the registry above that still apply to this idea AFTER the proposed edit. Choose only from the canonical tags.
 
 Return STRICT JSON (no prose):
 {{
@@ -44,6 +47,7 @@ Return STRICT JSON (no prose):
   "fairness_protocol": "How fairness/control experiments are enforced or what is missing",
   "feedback": "Actionable critique referencing defects, skill choice, and component edits",
   "defect_fix_summary": "Which defect was addressed and why the selected skill helps",
+  "detected_defects": ["canonical_defect_tag_1", "canonical_defect_tag_2"],
   "lift_estimate": 0-100
 }}
 """

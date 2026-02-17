@@ -42,6 +42,132 @@ def format_op_descriptions() -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# Defect Registry – canonical defect tags used across all edit-operator skills.
+# The evaluator references this registry to output structured defect tags.
+# ---------------------------------------------------------------------------
+DEFECT_REGISTRY: Dict[str, str] = {
+    # mechanism-commit-innovation / theory-transfer-injection
+    "stagnant_novelty": (
+        "The idea lacks a genuinely new mechanism; contributions feel incremental "
+        "or re-package known techniques without a clear novel insight."
+    ),
+    "unclear_mechanism": (
+        "The core algorithmic mechanism is vaguely described or under-specified, "
+        "making it hard to reproduce or evaluate the contribution."
+    ),
+    "validation_gap": (
+        "The experimental protocol is missing critical checks such as ablations, "
+        "stress tests, or fair baselines needed to support the claims."
+    ),
+    # counterfactual-contrast
+    "missing_edge_cases": (
+        "The method is not tested on rare, adversarial, or boundary-condition inputs "
+        "that are necessary to establish robustness."
+    ),
+    "weak_generalization": (
+        "Evidence that the approach transfers across domains, distributions, or "
+        "scales is insufficient or absent."
+    ),
+    "dataset_bias": (
+        "Training or evaluation data contains systematic biases that may inflate "
+        "reported performance or hide failure modes."
+    ),
+    # adaptive-constraint-hybridization
+    "constraint_drift": (
+        "Constraints or regularization terms shift or decay during training, "
+        "undermining the intended structural guarantees."
+    ),
+    "physical_invalidity": (
+        "Model outputs violate known physical laws, domain invariants, or "
+        "hard constraints that the application requires."
+    ),
+    "weak_regularization": (
+        "Regularization is too loose, causing overfitting, mode collapse, or "
+        "uncontrolled capacity growth."
+    ),
+    # surgical-modularity
+    "feature_dumping": (
+        "Multiple components or features are added simultaneously without "
+        "individual justification, making ablation impossible."
+    ),
+    "monolithic_design": (
+        "The architecture is a single tightly-coupled block, resisting modular "
+        "analysis, replacement, or incremental improvement."
+    ),
+    "harder_to_ablate": (
+        "Design choices make it difficult to isolate the effect of any single "
+        "component through ablation studies."
+    ),
+    # data-contract-repair
+    "data_quality": (
+        "Input data suffers from noise, missing values, mislabelling, or "
+        "distribution issues that propagate into model errors."
+    ),
+    "label_noise": (
+        "Ground-truth labels are unreliable, inconsistent, or systematically "
+        "corrupted, weakening supervised learning signals."
+    ),
+    "missing_contracts": (
+        "There are no explicit data or evaluation contracts specifying what "
+        "inputs, outputs, and invariants must hold."
+    ),
+    # multi-scale-coordinator
+    "scale_mismatch": (
+        "The model operates at a single resolution or scale while the problem "
+        "requires multi-scale reasoning or aggregation."
+    ),
+    "coordination_failure": (
+        "Multiple sub-modules or branches fail to coordinate their predictions, "
+        "causing conflicts, redundancy, or information loss."
+    ),
+    "latency_bottleneck": (
+        "A specific component or data path introduces unacceptable latency, "
+        "blocking real-time or large-scale deployment."
+    ),
+    # self-supervised-corrector
+    "systematic_bias": (
+        "The model consistently over- or under-predicts in a structured pattern "
+        "that a targeted correction could mitigate."
+    ),
+    "silent_failure": (
+        "The system produces confident but wrong outputs without raising any "
+        "flag, making errors hard to detect downstream."
+    ),
+    "drift": (
+        "Model performance degrades over time as the data distribution shifts "
+        "away from the training regime."
+    ),
+    # theory-transfer-injection
+    "theory_gap": (
+        "The method lacks grounding in established theory that could provide "
+        "convergence guarantees, error bounds, or interpretability."
+    ),
+    # evaluation-contract-overhaul
+    "evaluation_blindspot": (
+        "The evaluation protocol misses important dimensions such as fairness, "
+        "calibration, out-of-distribution performance, or efficiency."
+    ),
+    "weak_accountability": (
+        "There is no mechanism to attribute failures to specific components, "
+        "data slices, or design decisions."
+    ),
+    # default fallback used when no context-specific defect is identified
+    "unexplored_gap": (
+        "No specific defect has been identified yet; the idea space is still "
+        "being explored and requires targeted analysis."
+    ),
+}
+
+
+def format_defect_registry() -> str:
+    """Return a human-readable reference block listing every canonical defect tag and its description."""
+    lines = ["Canonical defect tag registry (use ONLY these tags in detected_defects):"]
+    for tag, desc in DEFECT_REGISTRY.items():
+        lines.append(f"  - {tag}: {desc}")
+    return "\n".join(lines)
+
+
 @dataclass
 class ComponentEdit:
     op: AtomicEditOp

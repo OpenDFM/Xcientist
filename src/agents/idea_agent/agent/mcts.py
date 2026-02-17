@@ -34,6 +34,7 @@ from src.agents.idea_agent.utils.mcts_runtime import (
     best_candidate,
     build_root_state,
     cache_evaluation,
+    format_defect_registry,
     get_best_cached_evaluation,
     get_cached_evaluation,
     log_message,
@@ -219,6 +220,7 @@ class IdeaEvaluation:
     fairness_protocol: str
     feedback: str
     defect_fix_summary: str
+    detected_defects: List[str]
     lift_estimate: float
     novelty_weight: float = 0.30
     impact_weight: float = 0.25
@@ -238,6 +240,10 @@ class IdeaEvaluation:
         self.fairness_protocol = clip_text(self.fairness_protocol, MAX_IDEA_TEXT)
         self.feedback = clip_text(self.feedback, MAX_IDEA_TEXT)
         self.defect_fix_summary = clip_text(self.defect_fix_summary, MAX_IDEA_TEXT)
+        self.detected_defects = [
+            clip_text(tag, MAX_IDEA_TEXT)
+            for tag in (self.detected_defects or [])[:MAX_LIST_ENTRIES]
+        ]
         self.confidence = max(0.0, min(1.0, _safe_float(self.confidence, 0.0)))
 
     @classmethod
@@ -268,6 +274,7 @@ class IdeaEvaluation:
             fairness_protocol=str(payload.get("fairness_protocol", "")),
             feedback=str(payload.get("feedback", "")),
             defect_fix_summary=str(payload.get("defect_fix_summary", "")),
+            detected_defects=_list("detected_defects"),
             lift_estimate=max(0.0, _num("lift_estimate", 0.0)),
         )
 
@@ -287,6 +294,7 @@ class IdeaEvaluation:
             "fairness_protocol": self.fairness_protocol,
             "feedback": self.feedback,
             "defect_fix_summary": self.defect_fix_summary,
+            "detected_defects": self.detected_defects,
             "lift_estimate": self.lift_estimate,
         }
 
@@ -959,6 +967,7 @@ class MemoryGuidedMCTS:
             skill_prior=json.dumps(self._skill_prior_for_prompt(node.state.operator), ensure_ascii=False, indent=2),
             idea=json.dumps(node.state.to_payload(), ensure_ascii=False, indent=2),
             path_summary=path_summary_text,
+            defect_registry=format_defect_registry(),
         )
 
         try:
