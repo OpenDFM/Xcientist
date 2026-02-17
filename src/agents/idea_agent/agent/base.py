@@ -70,7 +70,7 @@ class AgentBase:
         """
         response = self.chat_model.responses.create(
             model=model,
-            input=prompt,
+            input=[{"role": "user", "content": prompt}],
             **kwargs
         )
         return response.output_text

@@ -22,8 +22,12 @@ from memory.memory_system.models import EpisodicRecord, ProceduralRecord, Semant
 from memory.memory_system.utils import _multi_thread_run, _safe_dump_str
 from agent import get_logger
 from src.agents.idea_agent.utils.mcts_helpers import clip_text, format_analysis_blob, parse_json_response
+from src.agents.idea_agent.agent.prompts.skill_instantiation import SKILL_INSTANTIATION_PROMPT
+from src.agents.idea_agent.agent.prompts.component_extraction import COMPONENT_EXTRACTION_PROMPT
 from src.agents.idea_agent.utils.mcts_runtime import (
     ANTI_PATTERN_CONSTRAINTS,
+    AtomicEditOp,
+    ComponentEdit,
     EditPlan,
     MemoryBundle,
     MemorySnippet,
@@ -52,6 +56,8 @@ MAX_RATIONALE_TEXT = 700
 MAX_TITLE_TEXT = 256
 MAX_LIST_ENTRIES = 16
 MAX_REF_TEXT = 128
+MIN_COMPONENTS = 1
+MAX_COMPONENTS = 5
 
 module_logger = get_logger()
 
@@ -622,7 +628,6 @@ class MemoryGuidedMCTS:
     def __init__(
         self,
         chat_fn: Callable[..., str],
-        generation_prompt: str,
         evaluation_prompt: str,
         config: Optional[MCTSConfig] = None,
         memory_accessor: Optional[VectorMemoryAccessor] = None,
@@ -630,7 +635,6 @@ class MemoryGuidedMCTS:
         log_sink: Optional[Callable[[str, str], None]] = None,
     ) -> None:
         self.chat_fn = chat_fn
-        self.generation_prompt = generation_prompt
         self.evaluation_prompt = evaluation_prompt
 
         self.config = config or MCTSConfig()
@@ -653,6 +657,7 @@ class MemoryGuidedMCTS:
         self.analysis_blob: str = ""
         self.paper_context: str = ""
         self.mature_idea: str = ""
+        self._mature_idea_components: List[str] = []
 
         self._load_skill_prior_memory()
 
@@ -778,22 +783,26 @@ class MemoryGuidedMCTS:
         self,
         parent_state: IdeaState,
         plan: EditPlan,
+        instantiated: Optional[Dict[str, Any]] = None,
     ) -> IdeaState:
         new_components = apply_edit_plan_to_components(parent_state.components, plan)
         next_budget = self._apply_budget_delta(parent_state.budget, plan.estimated_budget_delta)
 
-        title = f"{parent_state.title} | {plan.skill_name.replace('-', ' ').title()}"
-        abstract = (
+        inst = instantiated or {}
+        # Use LLM-generated content if available, otherwise fall back to plan-template text
+        title = inst.get("title") or f"{parent_state.title} | {plan.skill_name.replace('-', ' ').title()}"
+        abstract = inst.get("abstract") or (
             f"Component-level macro action '{plan.skill_name}' targets defects "
             f"{', '.join(plan.target_defects)} via {len(plan.component_edits)} atomic edits."
         )
-        core = plan.objective
-        method = self._plan_to_method_text(plan)
-        experiments = self._plan_to_experiment_text(plan)
-        risks = (
+        core = inst.get("core_contribution") or plan.objective
+        method = inst.get("method") or self._plan_to_method_text(plan)
+        experiments = inst.get("experiments") or self._plan_to_experiment_text(plan)
+        risks = inst.get("risks") or (
             f"Guardrails: {'; '.join(plan.guardrails)} | "
             f"Budget delta: {plan.estimated_budget_delta}"
         )
+        rationale = inst.get("rationale") or plan.compile_notes
         tags = _dedupe_keep_order(parent_state.tags + [plan.skill_name] + plan.target_defects)
 
         return IdeaState(
@@ -806,7 +815,7 @@ class MemoryGuidedMCTS:
             tags=tags,
             operator=plan.skill_name,
             target_defects=plan.target_defects,
-            rationale=plan.compile_notes,
+            rationale=rationale,
             memory_refs=plan.memory_refs,
             budget=next_budget,
             components=new_components,
@@ -816,6 +825,7 @@ class MemoryGuidedMCTS:
                 "skill_prior_before": self._skill_prior_for_prompt(plan.skill_name),
                 "guardrails": plan.guardrails,
                 "constraints": ANTI_PATTERN_CONSTRAINTS,
+                "llm_instantiated": bool(inst),
             },
         )
 
@@ -833,6 +843,50 @@ class MemoryGuidedMCTS:
             )
             path.append(current)
         return current, path
+
+    def _instantiate_skill_plan(
+        self,
+        plan: EditPlan,
+        parent_state: IdeaState,
+        bundle: MemoryBundle,
+    ) -> Optional[Dict[str, Any]]:
+        """Call LLM to instantiate a compiled skill plan into concrete, topic-specific content."""
+        component_edits_text = self._plan_to_method_text(plan)
+        validation_text = self._plan_to_experiment_text(plan)
+
+        prompt = SKILL_INSTANTIATION_PROMPT.format(
+            topic=self.topic,
+            mature_idea=self.mature_idea or "None",
+            parent_summary=parent_state.describe(),
+            parent_components=", ".join(parent_state.components) if parent_state.components else "None",
+            paper_context=self.paper_context,
+            memory_bundle=bundle.to_prompt_block(),
+            skill_name=plan.skill_name,
+            plan_objective=plan.objective,
+            target_defects=", ".join(plan.target_defects),
+            component_edits=component_edits_text,
+            validation_protocols=validation_text,
+            guardrails="; ".join(plan.guardrails) if plan.guardrails else "None",
+        )
+        try:
+            response = self.chat_fn(
+                prompt,
+                model=self.config.generation_model,
+                temperature=self.config.generation_temperature,
+                max_output_tokens=self.config.generation_max_tokens,
+            )
+            payload = parse_json_response(response)
+            if isinstance(payload, list):
+                payload = payload[0]
+            if not isinstance(payload, dict):
+                return None
+            return payload
+        except Exception as exc:
+            log_message(
+                self.logger, self.log_sink, "warning",
+                "\u26a0\ufe0f  Skill instantiation failed for %s: %s", plan.skill_name, exc,
+            )
+            return None
 
     def _expand(self, node: IdeaNode, path: List[IdeaNode]) -> Tuple[Optional[IdeaNode], List[IdeaNode]]:
         bundle = self.memory_accessor.retrieve_bundle(
@@ -852,6 +906,27 @@ class MemoryGuidedMCTS:
         pre_children = len(node.children)
         new_child: Optional[IdeaNode] = None
 
+        log_message(
+            self.logger,
+            self.log_sink,
+            "info",
+            "[MCTS] Expand: selected %d skill candidate(s) for defects=%s",
+            len(skill_candidates),
+            ", ".join(node.state.target_defects),
+        )
+        for idx, sk in enumerate(skill_candidates):
+            blueprint_str = ", ".join(sk.atomic_blueprint) if sk.atomic_blueprint else "none"
+            log_message(
+                self.logger,
+                self.log_sink,
+                "info",
+                "[MCTS] Expand: skill[%d] name=%s | description=%s | atomic_blueprint=[%s]",
+                idx,
+                sk.name,
+                sk.description,
+                blueprint_str,
+            )
+
         for skill in skill_candidates:
             plan = self.skill_catalog.compile_plan(
                 skill=skill,
@@ -864,7 +939,154 @@ class MemoryGuidedMCTS:
             prior_constraints = self.skill_catalog.priors.get(skill.name, SkillUsagePrior()).rule_constraints
             if prior_constraints:
                 plan.guardrails = _dedupe_keep_order(plan.guardrails + list(prior_constraints))
-            child_state = self._materialize_child_state(node.state, plan)
+
+            # Filter forbidden atomic ops based on current component count
+            current_count = len(node.state.components)
+            filtered_edits: List[ComponentEdit] = []
+            for edit in plan.component_edits:
+                if current_count <= MIN_COMPONENTS and edit.op == AtomicEditOp.REMOVE_COMPONENT:
+                    log_message(
+                        self.logger,
+                        self.log_sink,
+                        "info",
+                        "[MCTS] Expand: skill=%s BLOCKED %s on '%s' (component_count=%d <= MIN=%d)",
+                        skill.name,
+                        edit.op.value,
+                        edit.component,
+                        current_count,
+                        MIN_COMPONENTS,
+                    )
+                    continue
+                if current_count >= MAX_COMPONENTS and edit.op in (
+                    AtomicEditOp.ADD_COMPONENT,
+                    AtomicEditOp.GATE_COMPONENT,
+                ):
+                    # ADD_COMPONENT and GATE_COMPONENT both grow the component list
+                    log_message(
+                        self.logger,
+                        self.log_sink,
+                        "info",
+                        "[MCTS] Expand: skill=%s BLOCKED %s on '%s' (component_count=%d >= MAX=%d)",
+                        skill.name,
+                        edit.op.value,
+                        edit.component,
+                        current_count,
+                        MAX_COMPONENTS,
+                    )
+                    continue
+                # Track how the count will change for subsequent edits
+                if edit.op == AtomicEditOp.ADD_COMPONENT:
+                    current_count += 1
+                elif edit.op == AtomicEditOp.REMOVE_COMPONENT:
+                    current_count -= 1
+                elif edit.op == AtomicEditOp.GATE_COMPONENT:
+                    current_count += 1  # gate may add a wrapper component
+                filtered_edits.append(edit)
+            plan.component_edits = filtered_edits
+
+            # LLM instantiation: fill concrete content into the compiled plan
+            instantiated = self._instantiate_skill_plan(plan, node.state, bundle)
+
+            # Apply component_mapping from LLM instantiation to plan.component_edits
+            if instantiated and isinstance(instantiated.get("component_mapping"), dict):
+                mapping = instantiated["component_mapping"]
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "info",
+                    "[MCTS] Expand: skill=%s component_mapping=%s",
+                    skill.name,
+                    json.dumps(mapping, ensure_ascii=False),
+                )
+                # Apply edit_reasons from LLM instantiation to plan.component_edits
+                edit_reasons = instantiated.get("edit_reasons")
+                if isinstance(edit_reasons, list):
+                    for reason_idx, edit in enumerate(plan.component_edits):
+                        if reason_idx < len(edit_reasons) and isinstance(edit_reasons[reason_idx], str):
+                            edit.reason = edit_reasons[reason_idx]
+
+                for edit in plan.component_edits:
+                    if edit.component in mapping:
+                        edit.component = mapping[edit.component]
+                    if edit.target and edit.target in mapping:
+                        edit.target = mapping[edit.target]
+                    # Rebuild details with mapped names
+                    if edit.op == AtomicEditOp.REWIRE:
+                        edit.details = f"Rewire {edit.component} -> {edit.target}"
+                    elif edit.op == AtomicEditOp.REPLACE_COMPONENT:
+                        edit.details = f"Replace {edit.target} with {edit.component}"
+                    elif edit.op == AtomicEditOp.GATE_COMPONENT:
+                        cond = f" under condition '{edit.condition}'" if edit.condition else ""
+                        edit.details = f"Gate {edit.component}{cond}"
+                    elif edit.op == AtomicEditOp.ADD_COMPONENT:
+                        edit.details = f"ADD_COMPONENT on {edit.component}"
+
+            # Log the atomic operations in the compiled plan
+            protocol_names: List[str] = []
+            for edit_idx, edit in enumerate(plan.component_edits):
+                # Collect ADD_PROTOCOL ops into a single summary line
+                if edit.op == AtomicEditOp.ADD_PROTOCOL:
+                    protocol_names.append(edit.component)
+                    continue
+                op_dict = {
+                    "op": edit.op.value if hasattr(edit.op, 'value') else edit.op,
+                    "component": edit.component,
+                    "target": edit.target,
+                    "condition": edit.condition,
+                    "details": edit.details or "",
+                    "reason": edit.reason or "",
+                }
+                op_str = json.dumps(op_dict, ensure_ascii=False, indent=2)
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "info",
+                    "[MCTS] Expand: skill=%s atomic_op[%d]\n%s",
+                    skill.name,
+                    edit_idx,
+                    op_str,
+                )
+            if protocol_names:
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "info",
+                    "[MCTS] Expand: skill=%s protocols=[%s]",
+                    skill.name,
+                    ", ".join(protocol_names),
+                )
+
+            # Log the skill instantiation output
+            if instantiated:
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "info",
+                    "[MCTS] Expand: skill=%s instantiation output keys=%s",
+                    skill.name,
+                    list(instantiated.keys()),
+                )
+                for k, v in instantiated.items():
+                    log_message(
+                        self.logger,
+                        self.log_sink,
+                        "info",
+                        "[MCTS] Expand: skill=%s output[%s]=%s",
+                        skill.name,
+                        k,
+                        str(v) if v else "",
+                    )
+            else:
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "warning",
+                    "[MCTS] Expand: skill=%s instantiation returned no output",
+                    skill.name,
+                )
+
+            child_state = self._materialize_child_state(node.state, plan, instantiated)
+
             child_node = attach_child(
                 node,
                 child_state,
@@ -894,6 +1116,17 @@ class MemoryGuidedMCTS:
             len(node.children),
             len(node.children) - pre_children,
         )
+        # Log component count for each child idea
+        for child in node.children[pre_children:]:
+            log_message(
+                self.logger,
+                self.log_sink,
+                "info",
+                "[MCTS] Expand: child idea=%s component_count=%d components=%s",
+                child.state.title[:80],
+                len(child.state.components),
+                child.state.components,
+            )
 
         if new_child is None and node.children:
             new_child = min(node.children, key=lambda c: c.visits)
@@ -1103,6 +1336,37 @@ class MemoryGuidedMCTS:
             hop.visits += 1
             hop.value_sum += score
 
+    def _extract_mature_idea_components(self, mature_idea: str, topic: str) -> List[str]:
+        """Use LLM to extract 1-5 key components from the mature idea."""
+        prompt = COMPONENT_EXTRACTION_PROMPT.format(
+            mature_idea=mature_idea,
+            topic=topic,
+        )
+        try:
+            response = self.chat_fn(
+                prompt,
+                model=self.config.generation_model,
+                temperature=0.3,
+                max_output_tokens=512,
+            )
+            payload = parse_json_response(response)
+            if isinstance(payload, list):
+                payload = payload[0]
+            if isinstance(payload, dict):
+                raw = payload.get("components", [])
+                if isinstance(raw, list):
+                    components = [str(c).strip() for c in raw if str(c).strip()]
+                    # Enforce 1-5 range
+                    components = components[:MAX_COMPONENTS]
+                    if components:
+                        return components
+        except Exception as exc:
+            log_message(
+                self.logger, self.log_sink, "warning",
+                "⚠️  Component extraction from mature idea failed: %s", exc,
+            )
+        return []
+
     def search(self, topic: str, context: Dict[str, Any]) -> SearchResult:
         reset_search_state(self)
         self.topic = topic
@@ -1110,7 +1374,32 @@ class MemoryGuidedMCTS:
         self.paper_context = context.get("paper_context") or "No curated papers available yet."
         self.mature_idea = (context.get("mature_idea") or "").strip()
 
+        # Extract components from mature idea if provided
+        self._mature_idea_components = []
+        if self.mature_idea:
+            self._mature_idea_components = self._extract_mature_idea_components(
+                self.mature_idea, topic
+            )
+            if self._mature_idea_components:
+                context["components"] = self._mature_idea_components
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "info",
+                    "[MCTS] Extracted %d component(s) from mature idea: %s",
+                    len(self._mature_idea_components),
+                    self._mature_idea_components,
+                )
+
         root_state = build_root_state(topic, context, IdeaState)
+        log_message(
+            self.logger,
+            self.log_sink,
+            "info",
+            "[MCTS] Root state component_count=%d components=%s",
+            len(root_state.components),
+            root_state.components,
+        )
         root = new_node(
             root_state,
             depth=0,

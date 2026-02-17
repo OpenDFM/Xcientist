@@ -125,7 +125,6 @@ class LigAgent(AgentBase):
         self._action_lookup = build_action_lookup(self.ACTION_ALIASES)
         self.semantic_search_limit = get_config_value(config, "agent.semantic_search_limit", 5)
         self.idea_context_limit = get_config_value(config, "agent.idea_context_limit", 10)
-        self.introduction_context_limit = get_config_value(config, "agent.introduction_context_limit", 6)
 
         mcts_config = MCTSConfig()
         for field in fields(MCTSConfig):
@@ -134,7 +133,6 @@ class LigAgent(AgentBase):
                 setattr(mcts_config, field.name, override)
         self.mcts = MemoryGuidedMCTS(
             chat_fn=self.chat,
-            generation_prompt=PROMPTS.get("mcts_generation"),
             evaluation_prompt=PROMPTS.get("mcts_evaluation"),
             config=mcts_config,
             logger=logger,
@@ -278,7 +276,7 @@ class LigAgent(AgentBase):
                         mature_idea=mature_idea,
                     )
                     logger.info("🔎 Generated RAG Query (mature idea): %s", rag_query)
-                    rag_hits = retrieve_outcome_rag(query=rag_query, top_k=5, paper_repository=self.paper_repository, logger=logger)
+                    rag_hits = retrieve_outcome_rag(query=rag_query, top_k=1, paper_repository=self.paper_repository, logger=logger)
                     self.memory.setdefault("rag_query", []).append(rag_query)
                     self.memory.setdefault("rag_hits", []).append(
                         {"query": rag_query, "hits": rag_hits}
@@ -478,7 +476,6 @@ class LigAgent(AgentBase):
         paper_entries = collect_paper_context_entries(
             self.memory,
             batch_list,
-            limit=0,
         )
         idea_history = list(self.memory.get("idea_pool", []))
         seed_ideas = latest_analysis_seed_ideas(self.memory)
@@ -576,7 +573,6 @@ class LigAgent(AgentBase):
         entries = paper_entries or collect_paper_context_entries(
             self.memory,
             self.memory.get("references", []),
-            limit=self.introduction_context_limit,
         )
         topic = self.memory["topic"][-1] if self.memory["topic"] else "unspecified topic"
         return generate_idea_introduction(

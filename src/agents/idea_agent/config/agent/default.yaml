@@ -6,4 +6,4 @@ agent:
   paper_enrichment_timeout_sec: 7200
   semantic_search_limit: 5
   idea_context_limit: 10
-  introduction_context_limit: 6
+

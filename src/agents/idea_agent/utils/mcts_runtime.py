@@ -175,6 +175,7 @@ class ComponentEdit:
     target: str = ""
     condition: str = ""
     details: str = ""
+    reason: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -183,6 +184,7 @@ class ComponentEdit:
             "target": self.target,
             "condition": self.condition,
             "details": self.details,
+            "reason": self.reason,
         }
 
 

@@ -132,13 +132,16 @@ def enrich_papers_with_content(
 def collect_paper_context_entries(
     memory: Dict[str, Any],
     reference_batches: List[List[Dict[str, Any]]],
-    limit: int = 6,
 ) -> List[Dict[str, Any]]:
+    """Collect all paper context entries from memory.
+
+    Since papers are already processed upstream (top-5 fully read, the rest
+    compressed), no truncation limit is needed — every stored paper is
+    included in the returned list.
+    """
     storage = memory.get("paper_contents", {})
     if not storage:
         return []
-    limit = int(limit or 0)
-    no_limit = limit <= 0
 
     ordered_ids: List[str] = []
     for batch in reference_batches or []:
@@ -154,8 +157,6 @@ def collect_paper_context_entries(
 
     entries: List[Dict[str, Any]] = []
     for pid in ordered_ids:
-        if not no_limit and len(entries) >= limit:
-            break
         data = storage.get(pid)
         if not data:
             continue

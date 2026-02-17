@@ -12,7 +12,6 @@ from src.agents.idea_agent.utils.ligagent_helpers import (
     suggest_datasets,
     synthesize_reference_summaries,
 )
-from src.agents.idea_agent.utils.config_loader import get_config_value
 from src.agents.idea_agent.utils.ligagent_utils import (
     collect_paper_context_entries,
     generate_idea_introduction,
@@ -90,9 +89,8 @@ def persist_final_idea(
         memory=memory,
         config=config,
     )
-    introduction_limit = get_config_value(config, "agent.introduction_context_limit", 6)
     entries = paper_entries or collect_paper_context_entries(
-        memory, memory.get("references", []), limit=introduction_limit
+        memory, memory.get("references", [])
     )
     introduction = generate_idea_introduction(
         chat_fn=chat_fn,
