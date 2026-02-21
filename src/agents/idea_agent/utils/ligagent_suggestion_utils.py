@@ -351,13 +351,13 @@ def postprocess_suggestions(
     return filtered[:max_keep]
 
 
-def collect_top_dataset_names_from_memory(memory: Optional[Dict[str, Any]], top_k: int = 5) -> List[str]:
-    if not memory:
+def collect_top_dataset_names_from_memory(artifact: Optional[Dict[str, Any]], top_k: int = 5) -> List[str]:
+    if not artifact:
         return []
-    counts = memory.get("dataset_mentions") or {}
-    display = memory.get("dataset_mentions_display") or {}
+    counts = artifact.get("dataset_mentions") or {}
+    display = artifact.get("dataset_mentions_display") or {}
     if not counts:
-        storage = memory.get("paper_contents") or {}
+        storage = artifact.get("paper_contents") or {}
         for entry in storage.values():
             keynote = entry.get("keynote") if isinstance(entry, dict) else None
             for dataset_name in extract_dataset_names(keynote):
@@ -371,13 +371,13 @@ def collect_top_dataset_names_from_memory(memory: Optional[Dict[str, Any]], top_
     return [display.get(name, name) for name, _ in ordered[:top_k]]
 
 
-def collect_top_baseline_names_from_memory(memory: Optional[Dict[str, Any]], top_k: int = 5) -> List[str]:
-    if not memory:
+def collect_top_baseline_names_from_memory(artifact: Optional[Dict[str, Any]], top_k: int = 5) -> List[str]:
+    if not artifact:
         return []
-    counts = memory.get("baseline_mentions") or {}
-    display = memory.get("baseline_mentions_display") or {}
+    counts = artifact.get("baseline_mentions") or {}
+    display = artifact.get("baseline_mentions_display") or {}
     if not counts:
-        storage = memory.get("paper_contents") or {}
+        storage = artifact.get("paper_contents") or {}
         for entry in storage.values():
             keynote = entry.get("keynote") if isinstance(entry, dict) else None
             for baseline_name in extract_baseline_names(keynote):

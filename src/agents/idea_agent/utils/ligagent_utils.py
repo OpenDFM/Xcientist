@@ -63,7 +63,7 @@ def extract_baseline_names(keynote_data: Any) -> List[str]:
 def enrich_papers_with_content(
     papers: List[Dict[str, Any]],
     paper_repository,
-    memory: Dict[str, Any],
+    artifact: Dict[str, Any],
     logger,
 ) -> None:
     if not papers:
@@ -77,7 +77,7 @@ def enrich_papers_with_content(
         logger.warning("Failed to prepare parsed papers: %s", exc)
         return
 
-    storage = memory.setdefault("paper_contents", {})
+    storage = artifact.setdefault("paper_contents", {})
     for paper in papers:
         pid = paper.get("paper_id")
         if not pid:
@@ -108,15 +108,15 @@ def enrich_papers_with_content(
             "abstract": paper.get("abstract"),
         }
 
-        dataset_counts = memory.setdefault("dataset_mentions", {})
-        dataset_display = memory.setdefault("dataset_mentions_display", {})
+        dataset_counts = artifact.setdefault("dataset_mentions", {})
+        dataset_display = artifact.setdefault("dataset_mentions_display", {})
         for dataset_name in extract_dataset_names(keynote_data):
             key = dataset_name.lower()
             dataset_counts[key] = dataset_counts.get(key, 0) + 1
             dataset_display.setdefault(key, dataset_name)
 
-        baseline_counts = memory.setdefault("baseline_mentions", {})
-        baseline_display = memory.setdefault("baseline_mentions_display", {})
+        baseline_counts = artifact.setdefault("baseline_mentions", {})
+        baseline_display = artifact.setdefault("baseline_mentions_display", {})
         for baseline_name in extract_baseline_names(keynote_data):
             key = baseline_name.lower()
             baseline_counts[key] = baseline_counts.get(key, 0) + 1
@@ -130,7 +130,7 @@ def enrich_papers_with_content(
 
 
 def collect_paper_context_entries(
-    memory: Dict[str, Any],
+    artifact: Dict[str, Any],
     reference_batches: List[List[Dict[str, Any]]],
 ) -> List[Dict[str, Any]]:
     """Collect all paper context entries from memory.
@@ -139,7 +139,7 @@ def collect_paper_context_entries(
     compressed), no truncation limit is needed — every stored paper is
     included in the returned list.
     """
-    storage = memory.get("paper_contents", {})
+    storage = artifact.get("paper_contents", {})
     if not storage:
         return []
 

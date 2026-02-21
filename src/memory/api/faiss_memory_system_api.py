@@ -13,12 +13,12 @@ from memory.memory_system import (
 from memory.memory_system.user_prompt import ABSTRACT_EPISODIC_TO_SEMANTIC_PROMPT
 from memory.memory_system.utils import now_iso, new_id, _transfer_dict_to_semantic_text, _parse_json_response
 from memory.memory_system.denstream import DenStream
-from memory.api.base_vector_memory_system_api import VectorMemorySystem, VectorMemorySystemConfig, SemanticRecordPayload, EpisodicRecordPayload, ProceduralRecordPayload
+from memory.api.base_vector_memory_system_api import BaseVectorMemorySystem, VectorMemorySystemConfig, SemanticRecordPayload, EpisodicRecordPayload, ProceduralRecordPayload
 from collections import defaultdict
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-class FAISSMemorySystem(VectorMemorySystem):
+class FAISSMemorySystem(BaseVectorMemorySystem):
     def __init__(self, **kwargs):
         cfg = VectorMemorySystemConfig(**kwargs)
 

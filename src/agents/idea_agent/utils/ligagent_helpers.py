@@ -226,7 +226,7 @@ def filter_and_compress_papers(
     topic: str,
     mature_idea: Optional[str],
     papers: List[Dict[str, Any]],
-    memory: Dict[str, Any],
+    artifact: Dict[str, Any],
     prompts: Dict[str, str],
     chat_fn,
     model: str,
@@ -240,7 +240,7 @@ def filter_and_compress_papers(
         logger.warning("⚠️ paper_filtering prompt missing; skipping LLM triage.")
         return papers
 
-    storage = memory.setdefault("paper_contents", {})
+    storage = artifact.setdefault("paper_contents", {})
     candidates: List[Dict[str, Any]] = []
     paper_map: Dict[str, Dict[str, Any]] = {}
     for idx, paper in enumerate(papers, 1):
@@ -461,10 +461,10 @@ def search_papers_from_citations(
 
 def fallback_paper_summaries(
     papers: List[Dict[str, Any]],
-    memory: Dict[str, Any],
+    artifact: Dict[str, Any],
     reason: str,
 ) -> None:
-    storage = memory.setdefault("paper_contents", {})
+    storage = artifact.setdefault("paper_contents", {})
     for paper in papers:
         if not isinstance(paper, dict):
             continue
@@ -499,7 +499,7 @@ def safely_enrich_papers_with_content(
     papers: List[Dict[str, Any]],
     timeout: int,
     paper_repository,
-    memory: Dict[str, Any],
+    artifact: Dict[str, Any],
     logger,
 ) -> None:
     if not papers:
@@ -507,7 +507,7 @@ def safely_enrich_papers_with_content(
     timeout = max(30, int(timeout or 0))
     executor = ThreadPoolExecutor(max_workers=10)
     future = executor.submit(
-        enrich_papers_with_content, papers, paper_repository, memory, logger
+        enrich_papers_with_content, papers, paper_repository, artifact, logger
     )
     try:
         future.result(timeout=timeout)
@@ -517,16 +517,16 @@ def safely_enrich_papers_with_content(
             "⚠️ Paper enrichment exceeded %ss. Falling back to lightweight summaries.",
             timeout,
         )
-        fallback_paper_summaries(papers, memory, reason="timeout_fallback")
+        fallback_paper_summaries(papers, artifact, reason="timeout_fallback")
     except Exception as exc:  # pragma: no cover - network
         logger.warning("⚠️ Paper enrichment failed: %s", exc)
-        fallback_paper_summaries(papers, memory, reason="error_fallback")
+        fallback_paper_summaries(papers, artifact, reason="error_fallback")
     finally:
         executor.shutdown(wait=False)
 
 
-def format_rag_context(memory: Dict[str, Any], max_hits: int = 5, max_chars: int = 320) -> str:
-    rag_entries = memory.get("rag_hits", [])
+def format_rag_context(artifact: Dict[str, Any], max_hits: int = 5, max_chars: int = 320) -> str:
+    rag_entries = artifact.get("rag_hits", [])
     latest = rag_entries[-1] if rag_entries else None
     hits = []
     if isinstance(latest, dict):
@@ -547,11 +547,11 @@ def format_rag_context(memory: Dict[str, Any], max_hits: int = 5, max_chars: int
     return "\n".join(lines)
 
 def format_survey_context(
-    memory: Dict[str, Any],
+    artifact: Dict[str, Any],
     max_items: int = 5,
     max_chars: int = 360,
 ) -> str:
-    contents = memory.get("rag_contents", [])
+    contents = artifact.get("rag_contents", [])
     latest = contents[-1] if contents else None
     if isinstance(latest, list):
         items = latest
@@ -571,10 +571,10 @@ def format_survey_context(
     return "\n".join(lines)
 
 
-def paper_context_with_rag(entries: List[Dict[str, Any]], memory: Dict[str, Any]) -> str:
+def paper_context_with_rag(entries: List[Dict[str, Any]], artifact: Dict[str, Any]) -> str:
     base = paper_context_text(entries)
-    rag_context = format_rag_context(memory)
-    survey_context = format_survey_context(memory)
+    rag_context = format_rag_context(artifact)
+    survey_context = format_survey_context(artifact)
     sections = [base]
     if rag_context:
         sections.append(f"RAG excerpts:\n{rag_context}")
@@ -586,13 +586,13 @@ def paper_context_with_rag(entries: List[Dict[str, Any]], memory: Dict[str, Any]
 def get_paper_content(
     paper_id: str,
     include_markdown: bool,
-    memory: Dict[str, Any],
+    artifact: Dict[str, Any],
     paper_repository,
     logger,
 ) -> Dict[str, Any]:
     if not paper_id:
         return {}
-    stored = memory.setdefault("paper_contents", {}).get(paper_id, {}).copy()
+    stored = artifact.setdefault("paper_contents", {}).get(paper_id, {}).copy()
     stored["paper_id"] = paper_id
     if include_markdown:
         try:
@@ -630,7 +630,7 @@ def normalize_analysis_entry(response: Any) -> Dict[str, Any]:
     }
 
 
-def ingest_analysis_background(analysis_entry: Dict[str, Any], memory: Dict[str, Any]) -> None:
+def ingest_analysis_background(analysis_entry: Dict[str, Any], artifact: Dict[str, Any]) -> None:
     if not isinstance(analysis_entry, dict):
         return
     seeds = (
@@ -656,7 +656,7 @@ def ingest_analysis_background(analysis_entry: Dict[str, Any], memory: Dict[str,
         background_lines.append(snippet)
     if not background_lines:
         return
-    background_store = memory.setdefault("background_knowledge", [])
+    background_store = artifact.setdefault("background_knowledge", [])
     existing = set(background_store)
     for line in background_lines:
         if line and line not in existing:
@@ -664,10 +664,10 @@ def ingest_analysis_background(analysis_entry: Dict[str, Any], memory: Dict[str,
             existing.add(line)
 
 
-def latest_analysis_seed_ideas(memory: Dict[str, Any]) -> List[Dict[str, Any]]:
-    if not memory.get("analysis"):
+def latest_analysis_seed_ideas(artifact: Dict[str, Any]) -> List[Dict[str, Any]]:
+    if not artifact.get("analysis"):
         return []
-    latest = memory["analysis"][-1]
+    latest = artifact["analysis"][-1]
     if not isinstance(latest, dict):
         return []
     seeds = latest.get("divergent_idea_seeds") or latest.get("moonshot_hypotheses") or []
@@ -725,18 +725,18 @@ def build_algorithm_spec(
     idea: Dict[str, Any],
     topic: str,
     raw_references: List[Dict[str, Any]],
-    memory: Dict[str, Any],
+    artifact: Dict[str, Any],
     prompts: Dict[str, str],
     chat_fn,
     model: str,
     logger,
 ) -> List[Dict[str, Any]]:
-    analysis_entries = memory.get("analysis", [])
+    analysis_entries = artifact.get("analysis", [])
     latest_analysis = analysis_entries[-1] if analysis_entries else {}
     base_inputs: List[str] = []
     if topic and topic != "unspecified topic":
         base_inputs.append(f"Topic focus: {topic}")
-    retrieval_history = memory.get("retrieval_keywords", [])
+    retrieval_history = artifact.get("retrieval_keywords", [])
     if retrieval_history:
         base_inputs.append(f"Latest retrieval keywords: {retrieval_history[-1]}")
     if isinstance(latest_analysis, dict):
@@ -866,7 +866,7 @@ def suggest_datasets(
     chat_fn,
     model: str,
     logger,
-    memory: Optional[Dict[str, Any]] = None,
+    artifact: Optional[Dict[str, Any]] = None,
     config: Optional[object] = None,
 ) -> List[Dict[str, Any]]:
     llm_temperature = get_config_value(config, "dataset.llm.temperature", 0.1)
@@ -935,7 +935,7 @@ def suggest_datasets(
         temperature=llm_temperature,
         max_output_tokens=idea_card_max_tokens,
     )
-    top_from_keynotes = collect_top_dataset_names_from_memory(memory, top_k=memory_top_k)
+    top_from_keynotes = collect_top_dataset_names_from_memory(artifact, top_k=memory_top_k)
     top_from_keynotes = preprocess_candidate_names(
         "dataset",
         top_from_keynotes,
@@ -1277,7 +1277,7 @@ def suggest_baselines(
     chat_fn,
     model: str,
     logger,
-    memory: Optional[Dict[str, Any]] = None,
+    artifact: Optional[Dict[str, Any]] = None,
     config: Optional[object] = None,
 ) -> List[Dict[str, Any]]:
     llm_temperature = get_config_value(config, "baseline.llm.temperature", 0.1)
@@ -1336,8 +1336,8 @@ def suggest_baselines(
         config, "baseline.scoring.missing_link_penalty", -0.8
     )
     graph_task = None
-    if memory:
-        graph_task = memory.get("run_topic") or None
+    if artifact:
+        graph_task = artifact.get("run_topic") or None
     if not graph_task:
         graph_task = os.environ.get("IDEA_AGENT_TASK_TOPIC") or None
     if not graph_task:
@@ -1448,7 +1448,7 @@ def suggest_baselines(
                 )
             if baselines:
                 return baselines
-    top_from_keynotes = collect_top_baseline_names_from_memory(memory, top_k=memory_top_k)
+    top_from_keynotes = collect_top_baseline_names_from_memory(artifact, top_k=memory_top_k)
     top_from_keynotes = preprocess_candidate_names(
         "baseline",
         top_from_keynotes,

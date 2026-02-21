@@ -24,17 +24,17 @@ def run_agent_loop(agent, max_turns: int, logger) -> None:
         logger.info("========================================")
         logger.info("Turn %d:", turn + 1)
         logger.info("🧠 Selecting action...")
-        if not agent.memory["steps"]:
+        if not agent.artifact["steps"]:
             action = "knowledge_aquisition"
         else:
-            action = agent.select_action(observation=agent.memory["steps"][-1])
+            action = agent.select_action(observation=agent.artifact["steps"][-1])
         agent.perform_action(action)
 
 
 def persist_final_idea(
     best_entry: Dict[str, Any],
     paper_entries: List[Dict[str, Any]],
-    memory: Dict[str, Any],
+    artifact: Dict[str, Any],
     idea_result_path: Path,
     chat_fn,
     model: str,
@@ -43,13 +43,13 @@ def persist_final_idea(
     config: Optional[object] = None,
 ) -> Dict[str, Any]:
     prompts = prompts or PROMPTS
-    topic = memory["topic"][-1] if memory.get("topic") else "unspecified topic"
-    raw_refs = collect_reference_material(memory.get("references", []))
+    topic = artifact["topic"][-1] if artifact.get("topic") else "unspecified topic"
+    raw_refs = collect_reference_material(artifact.get("references", []))
     algorithm = build_algorithm_spec(
         best_entry,
         topic,
         raw_refs,
-        memory,
+        artifact,
         prompts,
         chat_fn,
         model,
@@ -74,7 +74,7 @@ def persist_final_idea(
          chat_fn,
          model,
          logger,
-         memory=memory,
+         artifact=artifact,
          config=config,
      )
     baselines = suggest_baselines(
@@ -86,11 +86,11 @@ def persist_final_idea(
         chat_fn,
         model,
         logger,
-        memory=memory,
+        artifact=artifact,
         config=config,
     )
     entries = paper_entries or collect_paper_context_entries(
-        memory, memory.get("references", [])
+        artifact, artifact.get("references", [])
     )
     introduction = generate_idea_introduction(
         chat_fn=chat_fn,
@@ -114,7 +114,7 @@ def persist_final_idea(
     if best_entry.get("idea_contract"):
         payload["idea_contract"] = best_entry.get("idea_contract")
     best_entry["introduction"] = introduction
-    memory["idea_result"] = payload
+    artifact["idea_result"] = payload
     try:
         idea_result_path.parent.mkdir(parents=True, exist_ok=True)
         with open(idea_result_path, "w", encoding="utf-8") as f:

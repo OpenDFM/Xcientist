@@ -9,7 +9,7 @@ import http.client
 from dataclasses import fields
 
 from src.agents.idea_agent.agent.tools import TOOLS
-from src.agents.idea_agent.agent.memory import memory_init
+from src.agents.idea_agent.agent.artifacts import artifact_init
 from src.agents.idea_agent.agent.prompts import PROMPTS
 from src.agents.idea_agent.agent.mcts import MemoryGuidedMCTS, MCTSConfig
 from src.agents.idea_agent.agent.paper_repository import PaperRepository
@@ -39,6 +39,11 @@ from src.agents.idea_agent.utils.ligagent_helpers import (
     get_paper_content as load_paper_content,
 )
 from src.agents.idea_agent.utils.config_loader import get_config_value
+from memory.api.component_taxonomy import (
+    ContextSignature,
+    extract_component_families,
+    extract_context_signature,
+)
 
 logger = get_logger()
 
@@ -112,7 +117,7 @@ class LigAgent(AgentBase):
             model = get_config_value(config, "agent.model", "gpt-4.1")
         self.model = model
         self.tools = TOOLS
-        self.memory = memory_init()
+        self.artifact = artifact_init()
 
         # Result persistence paths
         self.run_dir = Path(run_dir) if run_dir else Path(__file__).resolve().parent.parent
@@ -207,27 +212,27 @@ class LigAgent(AgentBase):
         if action == "knowledge_aquisition":
             logger.info("🔍 Due to API and web request rate limits, this process may take some time...")
             step = self.knowledge_aquisition(**kwargs)
-            self.memory["steps"].append(step)
+            self.artifact["steps"].append(step)
             logger.info(step)
             return step
         if action == "advanced_analysis":
             step = self.advanced_analysis(**kwargs)
-            self.memory["steps"].append(step)
+            self.artifact["steps"].append(step)
             logger.info(step)
             return step
         if action == "idea_generation":
             step = self.idea_generation(**kwargs)
-            self.memory["steps"].append(step)
+            self.artifact["steps"].append(step)
             logger.info(step)
             return step
         if action == "idea_evaluation":
             step = self.idea_evaluation(**kwargs)
-            self.memory["steps"].append(step)
+            self.artifact["steps"].append(step)
             logger.info(step)
             return step
         if action == "re_analysis_replan":
             step = self.re_analysis_replan(**kwargs)
-            self.memory["steps"].append(step)
+            self.artifact["steps"].append(step)
             logger.info(step)
             return step
 
@@ -242,10 +247,10 @@ class LigAgent(AgentBase):
             if isinstance(retrieval_keywords, str)
             else normalized_topic
         )
-        if not self.memory.get("run_topic"):
-            self.memory["run_topic"] = normalized_topic
-        self.memory["topic"].append(normalized_topic)
-        self.memory["retrieval_keywords"].append(keywords)
+        if not self.artifact.get("run_topic"):
+            self.artifact["run_topic"] = normalized_topic
+        self.artifact["topic"].append(normalized_topic)
+        self.artifact["retrieval_keywords"].append(keywords)
         background = generate_background_brief(
             normalized_topic,
             PROMPTS,
@@ -254,14 +259,14 @@ class LigAgent(AgentBase):
             logger,
         )
         if background:
-            self.memory["background_knowledge"].append(background)
+            self.artifact["background_knowledge"].append(background)
 
     def knowledge_aquisition(
         self, search_type: Literal["paper_search", "website"] = "paper_search"
     ) -> str:
         if search_type == "paper_search":
-            search_keywords = self.memory["retrieval_keywords"][-1]
-            topic = self.memory["topic"][-1] if self.memory.get("topic") else search_keywords
+            search_keywords = self.artifact["retrieval_keywords"][-1]
+            topic = self.artifact["topic"][-1] if self.artifact.get("topic") else search_keywords
             mature_idea = get_config_value(self.config, "run.mature_idea", "")
             # If a mature idea is provided, use it to generate a focused RAG query directly
             if len(mature_idea) > 0 and mature_idea.strip():
@@ -276,9 +281,9 @@ class LigAgent(AgentBase):
                         mature_idea=mature_idea,
                     )
                     logger.info("🔎 Generated RAG Query (mature idea): %s", rag_query)
-                    rag_hits = retrieve_outcome_rag(query=rag_query, top_k=1, paper_repository=self.paper_repository, logger=logger)
-                    self.memory.setdefault("rag_query", []).append(rag_query)
-                    self.memory.setdefault("rag_hits", []).append(
+                    rag_hits = retrieve_outcome_rag(query=rag_query, top_k=5, paper_repository=self.paper_repository, logger=logger)
+                    self.artifact.setdefault("rag_query", []).append(rag_query)
+                    self.artifact.setdefault("rag_hits", []).append(
                         {"query": rag_query, "hits": rag_hits}
                     )
                     citation_titles = collect_rag_citations(rag_hits)
@@ -291,29 +296,29 @@ class LigAgent(AgentBase):
                             rag_papers,
                             self.paper_enrichment_timeout,
                             self.paper_repository,
-                            self.memory,
+                            self.artifact,
                             logger,
                         )
                         rag_papers = filter_and_compress_papers(
                             topic=topic,
                             mature_idea=mature_idea,
                             papers=rag_papers,
-                            memory=self.memory,
+                            artifact=self.artifact,
                             prompts=PROMPTS,
                             chat_fn=self.chat,
                             model=self.model,
                             logger=logger,
                             top_k=5,
                         )
-                        self.memory["references"].append(rag_papers)
-                        self.memory["rag_contents"].append(survey_contents)
+                        self.artifact["references"].append(rag_papers)
+                        self.artifact["rag_contents"].append(survey_contents)
                         step = (
                             f"\nIn this knowledge_aquisition action, I used the mature idea to generate "
                             f"a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
                             f"and curated {len(rag_papers)} cited papers for memory."
                         )
                     else:
-                        self.memory.setdefault("rag_contents", []).append(survey_contents)
+                        self.artifact.setdefault("rag_contents", []).append(survey_contents)
                         step = (
                             f"\nIn this knowledge_aquisition action, I used the mature idea to generate "
                             f"a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
@@ -351,8 +356,8 @@ class LigAgent(AgentBase):
                     )
                     logger.info("🔎 Generated RAG Query: %s", rag_query)
                     rag_hits = retrieve_outcome_rag(query=rag_query, top_k=5, paper_repository=self.paper_repository, logger=logger)
-                    self.memory.setdefault("rag_query", []).append(rag_query)
-                    self.memory.setdefault("rag_hits", []).append(
+                    self.artifact.setdefault("rag_query", []).append(rag_query)
+                    self.artifact.setdefault("rag_hits", []).append(
                         {"query": rag_query, "hits": rag_hits}
                     )
                     citation_titles = collect_rag_citations(rag_hits)
@@ -366,22 +371,22 @@ class LigAgent(AgentBase):
                             combined_papers,
                             self.paper_enrichment_timeout,
                             self.paper_repository,
-                            self.memory,
+                            self.artifact,
                             logger,
                         )
                         curated_papers = filter_and_compress_papers(
                             topic=topic,
                             mature_idea=mature_idea,
                             papers=combined_papers,
-                            memory=self.memory,
+                            artifact=self.artifact,
                             prompts=PROMPTS,
                             chat_fn=self.chat,
                             model=self.model,
                             logger=logger,
                             top_k=5,
                         )
-                        self.memory["references"].append(curated_papers)
-                        self.memory["rag_contents"].append(survey_contents)
+                        self.artifact["references"].append(curated_papers)
+                        self.artifact["rag_contents"].append(survey_contents)
                         step = (
                             f"\nIn this knowledge_aquisition action, I read {len(initial_papers)} seed papers, "
                             f"generated a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
@@ -392,21 +397,21 @@ class LigAgent(AgentBase):
                             initial_papers,
                             self.paper_enrichment_timeout,
                             self.paper_repository,
-                            self.memory,
+                            self.artifact,
                             logger,
                         )
                         curated_papers = filter_and_compress_papers(
                             topic=topic,
                             mature_idea=mature_idea,
                             papers=initial_papers,
-                            memory=self.memory,
+                            artifact=self.artifact,
                             prompts=PROMPTS,
                             chat_fn=self.chat,
                             model=self.model,
                             logger=logger,
                             top_k=5,
                         )
-                        self.memory["references"].append(curated_papers)
+                        self.artifact["references"].append(curated_papers)
                         step = (
                             f"\nIn this knowledge_aquisition action, I searched for papers about '{search_keywords}' "
                             f"and curated {len(curated_papers)} relevant papers for my research."
@@ -420,7 +425,7 @@ class LigAgent(AgentBase):
                 logger.error(f"Error during paper search: {e}")
 
                 conn = http.client.HTTPSConnection("google.serper.dev")
-                payload = json.dumps({"q": self.memory["retrieval_keywords"][-1]})
+                payload = json.dumps({"q": self.artifact["retrieval_keywords"][-1]})
                 headers = {
                     "X-API-KEY": "7854e42317727ecbf17d214f5a96c420dbcdd9cf",
                     "Content-Type": "application/json",
@@ -438,19 +443,19 @@ class LigAgent(AgentBase):
         return load_paper_content(
             paper_id,
             include_markdown,
-            self.memory,
+            self.artifact,
             self.paper_repository,
             logger,
         )
 
     def advanced_analysis(self, **kwargs) -> None:
-        topic = self.memory["topic"][-1] if self.memory["topic"] else "unspecified topic"
-        references = self.memory["references"][-1] if self.memory["references"] else []
+        topic = self.artifact["topic"][-1] if self.artifact["topic"] else "unspecified topic"
+        references = self.artifact["references"][-1] if self.artifact["references"] else []
         mature_idea = get_config_value(self.config, "run.mature_idea", "")
         prompt = PROMPTS["advanced_analysis"].format(
             topic=topic,
             mature_idea=(mature_idea or "").strip(),
-            survey_contents="\n".join(self.memory["rag_contents"][-1]) if self.memory.get("rag_contents") else "",
+            survey_contents="\n".join(self.artifact["rag_contents"][-1]) if self.artifact.get("rag_contents") else "",
             papers=json.dumps(references, ensure_ascii=False, indent=2)
             if references
             else "[]",
@@ -460,8 +465,8 @@ class LigAgent(AgentBase):
         )
         response = normalize_analysis_entry(raw_response)
         logger.info(f"📝 Advanced Analysis Result:\n{response}")
-        self.memory["analysis"].append(response)
-        ingest_analysis_background(response, self.memory)
+        self.artifact["analysis"].append(response)
+        ingest_analysis_background(response, self.artifact)
         step = (
             "\nIn this advanced_analysis action, I analyzed the collected papers and summarized my findings: "
             f"{response.get('tldr', 'No TL;DR provided.')}"
@@ -469,26 +474,29 @@ class LigAgent(AgentBase):
         return step
 
     def idea_generation(self, **kwargs) -> None:
-        topic = self.memory["topic"][-1]
-        reference_batches = self.memory.get("references", [])
+        topic = self.artifact["topic"][-1]
+        reference_batches = self.artifact.get("references", [])
         latest_batch = reference_batches[-1] if reference_batches else []
         batch_list = [latest_batch] if latest_batch else reference_batches
         paper_entries = collect_paper_context_entries(
-            self.memory,
+            self.artifact,
             batch_list,
         )
-        idea_history = list(self.memory.get("idea_pool", []))
-        seed_ideas = latest_analysis_seed_ideas(self.memory)
+        idea_history = list(self.artifact.get("idea_pool", []))
+        seed_ideas = latest_analysis_seed_ideas(self.artifact)
         idea_context = idea_history if idea_history else seed_ideas
         mature_idea = get_config_value(self.config, "run.mature_idea", "")
         context = {
-            "analysis": self.memory.get("analysis", []),
+            "analysis": self.artifact.get("analysis", []),
             "idea_pool": idea_context,
-            "background_knowledge": self.memory.get("background_knowledge", []),
-            "paper_context": paper_context_with_rag(paper_entries, self.memory),
+            "background_knowledge": self.artifact.get("background_knowledge", []),
+            "paper_context": paper_context_with_rag(paper_entries, self.artifact),
         }
         if isinstance(mature_idea, str) and mature_idea.strip():
             context["mature_idea"] = mature_idea.strip()
+
+        # Inject external component×op priors into symbolic memory before MCTS
+        self._inject_symbolic_priors(topic, context)
 
         result = self.mcts.search(topic=topic, context=context)
         
@@ -505,9 +513,9 @@ class LigAgent(AgentBase):
             label: cand.to_dict() if cand else None for label, cand in result.pareto.items()
         }
         best_entry["search_trace"] = result.trace
-        self.memory["idea_pool"].append(best_entry)
-        self.memory.setdefault("evaluations", []).append(best_payload["evaluation"])
-        self.memory.setdefault("ltm_experiences", []).extend(result.experiences)
+        self.artifact["idea_pool"].append(best_entry)
+        self.artifact.setdefault("evaluations", []).append(best_payload["evaluation"])
+        self.artifact.setdefault("ltm_experiences", []).extend(result.experiences)
         pareto_lines = []
         for label, cand in result.pareto.items():
             if cand:
@@ -525,10 +533,10 @@ class LigAgent(AgentBase):
 
     def idea_evaluation(self, **kwargs) -> None:
         prompt = PROMPTS["idea_evaluation"].format(
-            topic=self.memory["topic"][-1], idea=self.memory["idea_pool"][-1]
+            topic=self.artifact["topic"][-1], idea=self.artifact["idea_pool"][-1]
         )
         response = self._parse_json_response(self.chat(prompt, model=self.model))
-        self.memory["idea_pool"][-1]["evaluation"] = response
+        self.artifact["idea_pool"][-1]["evaluation"] = response
         step = (
             "\nIn this idea_evaluation action, I evaluated the generated research ideas:\n✅ "
             f"{response}"
@@ -537,14 +545,14 @@ class LigAgent(AgentBase):
 
     def re_analysis_replan(self, **kwargs) -> None:
         prompt = PROMPTS["re_analysis_replan"].format(
-            topic=self.memory["topic"][-1],
-            idea=self.memory["idea_pool"][-1],
-            last_queries=self.memory["retrieval_keywords"],
-            topics=self.memory["topic"],
+            topic=self.artifact["topic"][-1],
+            idea=self.artifact["idea_pool"][-1],
+            last_queries=self.artifact["retrieval_keywords"],
+            topics=self.artifact["topic"],
         )
         response = self._parse_json_response(self.chat(prompt, model=self.model))
-        self.memory["topic"].append(response["new_topic"])
-        self.memory["retrieval_keywords"].append(response["search_keywords"])
+        self.artifact["topic"].append(response["new_topic"])
+        self.artifact["retrieval_keywords"].append(response["search_keywords"])
         step = (
             "\nIn this re_analysis_replan action, I replanned my research topic to "
             f"'{response['new_topic']}' and decided to search for new information using keywords "
@@ -558,7 +566,7 @@ class LigAgent(AgentBase):
         persist_final_idea(
             best_entry=best_entry,
             paper_entries=paper_entries,
-            memory=self.memory,
+            artifact=self.artifact,
             idea_result_path=self.idea_result_path,
             chat_fn=self.chat,
             model=self.model,
@@ -571,10 +579,10 @@ class LigAgent(AgentBase):
         self, best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]]
     ) -> str:
         entries = paper_entries or collect_paper_context_entries(
-            self.memory,
-            self.memory.get("references", []),
+            self.artifact,
+            self.artifact.get("references", []),
         )
-        topic = self.memory["topic"][-1] if self.memory["topic"] else "unspecified topic"
+        topic = self.artifact["topic"][-1] if self.artifact["topic"] else "unspecified topic"
         return generate_idea_introduction(
             chat_fn=self.chat,
             prompt_template=PROMPTS["idea_introduction"],
@@ -587,3 +595,100 @@ class LigAgent(AgentBase):
 
     def _parse_json_response(self, raw: str) -> Dict[str, Any]:
         return parse_json_response(raw)
+
+    # ──────────────────────────────────────────────────────────────────────
+    #  Symbolic memory injection: component × op priors
+    # ──────────────────────────────────────────────────────────────────────
+
+    def _inject_symbolic_priors(
+        self,
+        topic: str,
+        context: Dict[str, Any],
+    ) -> None:
+        """Inject component×op priors into ``self.mcts.symbolic_memory``.
+
+        This is the single entry-point where external signals are translated
+        into :class:`SymbolicRecord` instances that ``compute_action_priors``
+        can consume during MCTS expand.
+
+        Two signal sources are consumed:
+
+        1. **Experiment-agent ablation results** – stored under
+           ``self.artifact["ablation_results"]``.  Each entry is a dict::
+
+               {
+                   "component": "uncertainty_weighted_loss",
+                   "op": "remove",          # add | remove | replace | ...
+                   "delta_score": -0.12,     # observed Δ metric
+                   "method_context": "...",  # optional, for family extraction
+                   "context_signature": {},   # optional ContextSignature dict
+                   "confidence": 0.8,
+               }
+
+        2. **Paper-graph conclusions** – stored under
+           ``self.artifact["paper_graph_priors"]``.  Same schema, but typically
+           lower confidence and coarser ``context_signature``.
+
+        Override or extend this method to plug in additional signal sources.
+        """
+        sym = self.mcts.symbolic_memory
+        injected = 0
+
+        for source_key, source_label in [
+            ("ablation_results", "experiment_ablation"),
+            ("paper_graph_priors", "paper_graph"),
+        ]:
+            entries = self.artifact.get(source_key, [])
+            if not entries:
+                continue
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                component = str(entry.get("component", "")).strip()
+                main_op = str(entry.get("op", "")).strip().lower()
+                delta = entry.get("delta_score")
+                if not component or not main_op or delta is None:
+                    continue
+
+                method_text = str(entry.get("method_context", ""))
+                families = extract_component_families([component], method_text)
+                component_family = families[0].get("family", "") if families else ""
+
+                ctx_sig_raw = entry.get("context_signature")
+                ctx_sig_dict = dict(ctx_sig_raw) if isinstance(ctx_sig_raw, dict) else {}
+
+                confidence = max(0.0, min(1.0, float(entry.get("confidence", 0.5))))
+
+                try:
+                    record = sym.instantiate_symbolic_record(
+                        summary=f"{main_op} on {component} -> delta={float(delta):+.4f}",
+                        pattern=f"component={component}; op={main_op}",
+                        conditions=[],
+                        actions=[f"{main_op}:{component}"],
+                        rationale=str(entry.get("rationale", "")),
+                        expected_outcomes=[],
+                        anti_patterns=[],
+                        tags=[source_label, main_op, component],
+                        priority=max(0.0, min(1.0, abs(float(delta)))),
+                        confidence=confidence,
+                        source=source_label,
+                        support_count=int(entry.get("support_count", 1)),
+                        metadata={"topic": topic, "raw_entry": entry},
+                        component_family=component_family,
+                        main_op=main_op,
+                        context_signature=ctx_sig_dict,
+                        delta_score=float(delta),
+                    )
+                    sym.upsert_normal_records([record], agent_id="idea_agent")
+                    injected += 1
+                except Exception as exc:
+                    logger.warning(
+                        "⚠️  Failed to inject symbolic prior for %s/%s: %s",
+                        component, main_op, exc,
+                    )
+
+        if injected:
+            logger.info(
+                "[LigAgent] Injected %d symbolic prior(s) into MCTS symbolic memory.",
+                injected,
+            )

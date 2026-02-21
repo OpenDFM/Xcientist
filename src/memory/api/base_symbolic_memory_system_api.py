@@ -94,6 +94,43 @@ class SymbolicRecordPayload(BaseModel):
         description="Arbitrary metadata for filtering and debugging.",
     )
 
+    # ── component-family indexed fields ──
+    component_family: str = Field(
+        "",
+        description=(
+            "Primary component family this record targets, in the form "
+            "'{macro_role}.{sub_type}' (e.g. 'constraint.uncertainty_weighted')."
+        ),
+    )
+    family_pair: str = Field(
+        "",
+        description=(
+            "Optional secondary component family forming a pair with the primary "
+            "(e.g. 'retrieval.hybrid_dense' when the primary is 'representation.embedding')."
+        ),
+    )
+    main_op: str = Field(
+        "",
+        description=(
+            "The component-level main operation type: add, remove, replace, "
+            "rewire, gate, tune, compose, split."
+        ),
+    )
+    context_signature: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Compressed state features of the parent node at recording time "
+            "(macro_roles_present, buckets, defect_profile, budget_pressure, etc.)."
+        ),
+    )
+    delta_score: float = Field(
+        0.0,
+        description=(
+            "Observed Δscore (composite improvement) from applying this "
+            "component-level action in the recorded context."
+        ),
+    )
+
 
 class SymbolicRecord(BaseModel):
     id: str = Field(default_factory=_new_symbolic_id)
@@ -112,6 +149,13 @@ class SymbolicRecord(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
     created_at: str = ""
     updated_at: str = ""
+
+    # ── component-family indexed fields ──
+    component_family: str = ""
+    family_pair: str = ""
+    main_op: str = ""
+    context_signature: Dict[str, Any] = Field(default_factory=dict)
+    delta_score: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump()
@@ -135,6 +179,11 @@ class SymbolicRecord(BaseModel):
         source: Optional[str] = None,
         support_count: Optional[int] = None,
         metadata: Optional[Dict[str, Any]] = None,
+        component_family: Optional[str] = None,
+        family_pair: Optional[str] = None,
+        main_op: Optional[str] = None,
+        context_signature: Optional[Dict[str, Any]] = None,
+        delta_score: Optional[float] = None,
     ) -> None:
         if summary is not None:
             self.summary = summary
@@ -162,6 +211,16 @@ class SymbolicRecord(BaseModel):
             self.support_count = max(1, int(support_count))
         if metadata is not None:
             self.metadata = dict(metadata)
+        if component_family is not None:
+            self.component_family = component_family
+        if family_pair is not None:
+            self.family_pair = family_pair
+        if main_op is not None:
+            self.main_op = main_op
+        if context_signature is not None:
+            self.context_signature = dict(context_signature)
+        if delta_score is not None:
+            self.delta_score = float(delta_score)
         self.updated_at = _now_iso()
 
 
@@ -241,6 +300,30 @@ class SymbolicMemorySystem(ABC):
         agent_id: str = "",
     ) -> List[Tuple[float, SymbolicRecord]]:
         ...
+
+    def retrieve_hierarchical(
+        self,
+        target_family: str = "",
+        context_sig: Optional[Any] = None,
+        main_op: str = "",
+        limit: int = 10,
+        threshold: float = 0.0,
+        agent_id: str = "",
+    ) -> List[Tuple[float, SymbolicRecord]]:
+        """Three-level hierarchical retrieval (exact family -> macro_role ->
+        defect/bucket fallback).  Optional; subclasses may override."""
+        raise NotImplementedError
+
+    def compute_action_priors(
+        self,
+        target_family: str,
+        context_sig: Optional[Any] = None,
+        limit: int = 20,
+        agent_id: str = "",
+    ) -> Dict[str, float]:
+        """Compute per-main_op prior gains (expected delta-score) for PUCT.
+        Optional; subclasses may override."""
+        raise NotImplementedError
 
     @abstractmethod
     def save(self, path: str) -> bool:

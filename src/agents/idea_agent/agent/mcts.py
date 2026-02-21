@@ -18,6 +18,11 @@ from tqdm import tqdm
 from memory.api.faiss_memory_system_api import FAISSMemorySystem
 from memory.api.slot_process_api import SlotProcess
 from memory.api.symbolic_memory_system_api import SymbolicMemorySystem
+from memory.api.component_taxonomy import (
+    ContextSignature,
+    extract_component_families,
+    extract_context_signature,
+)
 from memory.memory_system.models import EpisodicRecord, ProceduralRecord, SemanticRecord
 from memory.memory_system.utils import _multi_thread_run, _safe_dump_str
 from agent import get_logger
@@ -645,7 +650,6 @@ class MemoryGuidedMCTS:
         self.skill_catalog = SkillCatalog()
         self.symbolic_memory = SymbolicMemorySystem()
         self.symbolic_memory_path = Path(self.config.skill_prior_memory_path)
-        self._symbolic_dirty = False
 
         self._id_iter = itertools.count()
         self.signature_nodes: Dict[str, IdeaNode] = {}
@@ -662,53 +666,20 @@ class MemoryGuidedMCTS:
         self._load_skill_prior_memory()
 
     def _load_skill_prior_memory(self) -> None:
+        """Load the symbolic memory store so that compute_action_priors is available
+        during expand.  The store is populated externally (e.g. from experiment
+        ablation results or paper-graph conclusions) — not from within MCTS.
+        """
         try:
             if not self.symbolic_memory_path.exists():
                 return
-            loaded = self.symbolic_memory.load(str(self.symbolic_memory_path))
-            if not loaded:
-                return
-            records, _ = self.symbolic_memory.get_last_k_records(300)
-            for payload in records:
-                if not isinstance(payload, dict):
-                    continue
-                metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
-                skill_name = str(metadata.get("skill_name", "")).strip()
-                if not skill_name or skill_name not in self.skill_catalog.priors:
-                    continue
-                prior = self.skill_catalog.priors[skill_name]
-                prior.attempts = max(prior.attempts, int(metadata.get("attempts", prior.attempts) or prior.attempts))
-                prior.successes = max(prior.successes, int(metadata.get("successes", prior.successes) or prior.successes))
-                prior.reward_ema = max(prior.reward_ema, _safe_float(metadata.get("reward_ema"), prior.reward_ema))
-                prior.prior = max(prior.prior, _safe_float(metadata.get("prior"), prior.prior))
-                anti_patterns = payload.get("anti_patterns") if isinstance(payload.get("anti_patterns"), list) else []
-                for item in anti_patterns:
-                    rule = f"Avoid failure mode: {str(item).strip()}"
-                    if rule not in prior.rule_constraints:
-                        prior.rule_constraints.append(rule)
-                prior.rule_constraints = prior.rule_constraints[:8]
+            self.symbolic_memory.load(str(self.symbolic_memory_path))
         except Exception as exc:
             log_message(
                 self.logger,
                 self.log_sink,
                 "warning",
-                "⚠️  Unable to load skill prior memory: %s",
-                exc,
-            )
-
-    def _persist_skill_prior_memory(self) -> None:
-        if not self._symbolic_dirty:
-            return
-        try:
-            self.symbolic_memory_path.mkdir(parents=True, exist_ok=True)
-            self.symbolic_memory.save(str(self.symbolic_memory_path))
-            self._symbolic_dirty = False
-        except Exception as exc:
-            log_message(
-                self.logger,
-                self.log_sink,
-                "warning",
-                "⚠️  Unable to save skill prior memory: %s",
+                "⚠️  Unable to load symbolic memory store: %s",
                 exc,
             )
 
@@ -829,6 +800,37 @@ class MemoryGuidedMCTS:
             },
         )
 
+    # ──────────────────────────────────────────────────────────────────────
+    #  ContextSignature extraction from IdeaNode
+    # ──────────────────────────────────────────────────────────────────────
+
+    def _extract_context_sig(self, node: IdeaNode) -> ContextSignature:
+        """Build a ContextSignature from the current node state.
+
+        Uses the node's evaluation (if available) as discretised signal
+        sources and the node's state fields for structural / trajectory /
+        budget features.
+        """
+        eval_scores: Dict[str, float] = {}
+        if node.evaluation is not None:
+            eval_scores = {
+                "novelty": node.evaluation.novelty,
+                "feasibility": node.evaluation.feasibility,
+                "impact": node.evaluation.impact,
+                "risk": node.evaluation.risk,
+                "complexity_penalty": node.evaluation.complexity_penalty,
+            }
+
+        return extract_context_signature(
+            components=node.state.components,
+            method_text=node.state.method,
+            evaluation_scores=eval_scores,
+            budget=node.state.budget,
+            last_operator=node.state.operator,
+            depth=node.depth,
+            defects=node.state.target_defects,
+        )
+
     def _select(self, node: IdeaNode) -> Tuple[IdeaNode, List[IdeaNode]]:
         current = node
         path = [node]
@@ -896,11 +898,61 @@ class MemoryGuidedMCTS:
                 f"defects={','.join(node.state.target_defects)}"
             )
         )
+        # --- Compute symbolic-memory action priors for PUCT boosting ---
+        parent_ctx_sig = self._extract_context_sig(node)
+        # Build per-component family priors from symbolic memory
+        component_families = extract_component_families(
+            node.state.components, node.state.method
+        )
+        action_priors: Dict[str, float] = {}
+        for cf in component_families:
+            family = cf.get("family", "")
+            if not family:
+                continue
+            priors = self.symbolic_memory.compute_action_priors(
+                target_family=family,
+                context_sig=parent_ctx_sig,
+                limit=20,
+                agent_id="idea_agent",
+            )
+            for op, delta in priors.items():
+                # Accumulate max prior per main_op across all component families
+                if op not in action_priors or delta > action_priors[op]:
+                    action_priors[op] = delta
+
+        if action_priors:
+            log_message(
+                self.logger,
+                self.log_sink,
+                "info",
+                "[MCTS] Expand: symbolic memory action priors=%s",
+                {op: round(v, 4) for op, v in action_priors.items()},
+            )
+
         skill_candidates = self.skill_catalog.select_skills(
             defect_tags=node.state.target_defects,
             budget=node.state.budget,
             max_children=self.config.branching_factor,
         )
+
+        # Re-rank skill_candidates using symbolic memory action_priors so that
+        # operators whose atomic ops have higher prior boost are tried first.
+        if action_priors:
+            def _skill_prior_boost(sk: Any) -> float:
+                ops = {
+                    step.split("(")[0].strip().lower()
+                    for step in (sk.atomic_blueprint or [])
+                }
+                return max((action_priors.get(op, 0.0) for op in ops), default=0.0)
+
+            skill_candidates = sorted(skill_candidates, key=_skill_prior_boost, reverse=True)
+            log_message(
+                self.logger,
+                self.log_sink,
+                "info",
+                "[MCTS] Expand: skills re-ranked by prior_boost: %s",
+                [(sk.name, round(_skill_prior_boost(sk), 4)) for sk in skill_candidates],
+            )
 
         payload_count = len(skill_candidates)
         pre_children = len(node.children)
@@ -939,6 +991,27 @@ class MemoryGuidedMCTS:
             prior_constraints = self.skill_catalog.priors.get(skill.name, SkillUsagePrior()).rule_constraints
             if prior_constraints:
                 plan.guardrails = _dedupe_keep_order(plan.guardrails + list(prior_constraints))
+
+            # Boost plan priority using symbolic memory action priors
+            if action_priors:
+                plan_ops = set()
+                for edit in plan.component_edits:
+                    op_val = edit.op.value if hasattr(edit.op, 'value') else str(edit.op)
+                    plan_ops.add(op_val.lower().strip())
+                prior_boost = max(
+                    (action_priors.get(op, 0.0) for op in plan_ops),
+                    default=0.0,
+                )
+                if prior_boost > 0:
+                    log_message(
+                        self.logger,
+                        self.log_sink,
+                        "info",
+                        "[MCTS] Expand: skill=%s receives symbolic prior boost=%.4f from ops=%s",
+                        skill.name,
+                        prior_boost,
+                        plan_ops,
+                    )
 
             # Filter forbidden atomic ops based on current component count
             current_count = len(node.state.components)
@@ -1261,59 +1334,6 @@ class MemoryGuidedMCTS:
 
         return evaluation
 
-    def _record_skill_prior_memory(
-        self,
-        node: IdeaNode,
-        evaluation: IdeaEvaluation,
-        prior: SkillUsagePrior,
-    ) -> None:
-        if node.state.operator == "seed":
-            return
-
-        plan = node.state.edit_plan or {}
-        edits = plan.get("component_edits") if isinstance(plan.get("component_edits"), list) else []
-        action_tokens = [node.state.operator]
-        for edit in edits:
-            if not isinstance(edit, dict):
-                continue
-            op = str(edit.get("op", "")).strip()
-            component = str(edit.get("component", "")).strip()
-            if op:
-                action_tokens.append(f"{op}:{component}" if component else op)
-
-        try:
-            record = self.symbolic_memory.instantiate_symbolic_record(
-                summary=f"Skill prior update for {node.state.operator}",
-                pattern=f"topic={self.topic}; defects={','.join(node.state.target_defects)}",
-                conditions=node.state.target_defects,
-                actions=action_tokens,
-                rationale=evaluation.feedback,
-                expected_outcomes=[evaluation.defect_fix_summary],
-                anti_patterns=evaluation.failure_modes,
-                tags=["edit_operator_skill", node.state.operator],
-                priority=max(0.0, min(1.0, evaluation.composite / 5.0)),
-                confidence=max(0.0, min(1.0, prior.prior)),
-                source="mcts_backprop",
-                support_count=max(1, prior.attempts),
-                metadata={
-                    "skill_name": node.state.operator,
-                    "prior": prior.prior,
-                    "reward_ema": prior.reward_ema,
-                    "attempts": prior.attempts,
-                    "successes": prior.successes,
-                },
-            )
-            self.symbolic_memory.upsert_normal_records([record], agent_id="idea_agent")
-            self._symbolic_dirty = True
-        except Exception as exc:
-            log_message(
-                self.logger,
-                self.log_sink,
-                "warning",
-                "⚠️  Failed to upsert skill prior symbolic memory: %s",
-                exc,
-            )
-
     def _update_skill_prior(self, node: IdeaNode, evaluation: IdeaEvaluation) -> None:
         skill_name = node.state.operator
         if not skill_name or skill_name == "seed":
@@ -1328,7 +1348,6 @@ class MemoryGuidedMCTS:
             success_threshold=self.config.skill_prior_success_threshold,
         )
         node.state.skill_metrics["skill_prior_after"] = prior.to_dict()
-        self._record_skill_prior_memory(node, evaluation, prior)
 
     def _backpropagate(self, path: List[IdeaNode], evaluation: IdeaEvaluation) -> None:
         score = evaluation.composite
@@ -1457,8 +1476,6 @@ class MemoryGuidedMCTS:
                     "skill_metrics": target.state.skill_metrics,
                 }
             )
-
-        self._persist_skill_prior_memory()
 
         best = best_candidate(root, SearchCandidate)
         pareto = pareto_candidates(root, SearchCandidate)

@@ -43,7 +43,7 @@ class ProceduralRecordPayload(BaseModel):
     tags: Optional[Iterable[str]] = Field(None, description="Tags associated with the ProceduralRecord.")
 
 
-class VectorMemorySystem(ABC):
+class BaseVectorMemorySystem(ABC):
     @abstractmethod
     def instantiate_sem_record(self, **kwargs) -> SemanticRecord:
         ...

@@ -1,6 +1,6 @@
 from typing import List
 
-MEMORY_FORMAT = {
+ARTIFACT_FORMAT = {
     "topic": str, # research topic
     "run_topic": str, # original topic from launcher/env
     "survey": str, # survey of the topic
@@ -14,11 +14,11 @@ MEMORY_FORMAT = {
     "idea_pool": List[str], # list of research ideas
     "dialogue": dict, # dialogue history
     "steps": List[str], # list of steps taken
-    "memory_structure": dict, # structure of the memory
+    "artifact_structure": dict, # structure of the artifact
 }
 
-def memory_init() -> dict:
-    memory = {
+def artifact_init() -> dict:
+    artifact = {
         "topic": [],
         "run_topic": "",
         "survey": "",
@@ -34,6 +34,6 @@ def memory_init() -> dict:
         "paper_contents": {},
         "dialogue": {},
         "steps": [],
-        "memory_structure": {}
+        "artifact_structure": {}
     }
-    return memory
+    return artifact

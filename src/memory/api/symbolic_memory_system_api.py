@@ -1,8 +1,37 @@
+"""Symbolic memory system indexed by component_family.
+
+Each memory record contains:
+- **component_family**: the target component family (``{macro_role}.{sub_type}``)
+- **family_pair**: optional secondary family (forming a family pair)
+- **main_op**: the component-level primary operation type
+- **context_signature**: structured query features compressed from the parent
+  node state (structural features, discretised signals, trajectory features,
+  budget / contract context)
+- **delta_score**: the observed composite-score improvement from applying this
+  component-level action in the recorded context
+
+Retrieval is executed hierarchically during the *expand* phase:
+1. **Exact family match** -- records whose ``component_family`` exactly
+   matches the query target.
+2. **Macro-role fallback** -- if insufficient results, broaden to all records
+   sharing the same ``macro_role``.
+3. **Defect / bucket fallback** -- if still insufficient, scan all records and
+   rank by defect-profile and bucket overlap.
+
+Candidates are ranked by:
+    structural_match x condition_match x reliability x local_priority
+
+The ranked results are converted to per-``main_op`` prior gains (estimated
+delta-score under the current parent state), which serve as *action priors*
+in PUCT rather than replacing Q-values.
+"""
 import json
+import math
 import os
 import re
+from collections import defaultdict
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Literal
+from typing import Any, Dict, List, Optional, Tuple, Literal, Sequence
 from uuid import uuid4
 
 from memory.api.base_symbolic_memory_system_api import (
@@ -10,6 +39,11 @@ from memory.api.base_symbolic_memory_system_api import (
     SymbolicMemorySystemConfig,
     SymbolicRecordPayload,
     SymbolicRecord,
+)
+from memory.api.component_taxonomy import (
+    MACRO_ROLE_NAMES,
+    ContextSignature,
+    parse_component_family,
 )
 from memory.memory_system.utils import (
     _safe_dump_str,
@@ -25,7 +59,86 @@ def _new_id(prefix: str) -> str:
     return f"{prefix}_{uuid4().hex[:8]}"
 
 
+# ---------------------------------------------------------------------------
+#  Scoring helpers
+# ---------------------------------------------------------------------------
+
+def _reliability_score(record: SymbolicRecord) -> float:
+    """Combine confidence and support_count into a [0, 1] reliability score.
+
+    reliability = confidence * (1 - 1 / (1 + log2(support_count)))
+    A single observation yields ~0; many observations converge to confidence.
+    """
+    sc = max(record.support_count, 1)
+    support_factor = 1.0 - 1.0 / (1.0 + math.log2(sc))
+    return record.confidence * max(0.0, support_factor)
+
+
+def _condition_match_score(
+    query_sig: ContextSignature,
+    record: SymbolicRecord,
+) -> float:
+    """Score how well the record's stored conditions match *query_sig*.
+
+    The record's ``context_signature`` (stored at recording time) is compared
+    against the current parent-node context via
+    ``ContextSignature.structural_match_score``.  If the record has no stored
+    signature, a fallback heuristic based on textual conditions is used.
+    """
+    stored_raw = record.context_signature
+    if stored_raw:
+        stored_sig = (
+            stored_raw
+            if isinstance(stored_raw, ContextSignature)
+            else ContextSignature.from_dict(stored_raw)
+        )
+        return query_sig.structural_match_score(stored_sig)
+
+    # Fallback: lightweight text overlap between conditions and query fields
+    cond_text = " ".join(record.conditions).lower()
+    if not cond_text:
+        return 0.5  # neutral when no conditions recorded
+
+    query_tokens = set()
+    query_tokens.update(query_sig.macro_roles_present)
+    query_tokens.update(query_sig.defect_profile)
+    query_tokens.add(query_sig.coverage_bucket)
+    query_tokens.add(query_sig.stability_bucket)
+    query_tokens.add(query_sig.cost_bucket)
+    query_tokens.add(query_sig.budget_pressure)
+    if query_sig.last_main_op:
+        query_tokens.add(query_sig.last_main_op)
+    query_tokens.discard("")
+
+    if not query_tokens:
+        return 0.5
+    hits = sum(1 for t in query_tokens if t in cond_text)
+    return hits / len(query_tokens)
+
+
+# ============================================================================
+#  Main class
+# ============================================================================
+
 class SymbolicMemorySystem(BaseSymbolicMemorySystem):
+    """Component-family indexed symbolic memory system.
+
+    Each memory record contains:
+    - **component_family**: the target component family
+    - **family_pair**: optional secondary family (family pair)
+    - **main_op**: the component-level primary operation type
+    - **context_signature**: structured query features compressed from the
+      parent-node state
+    - **delta_score**: expected delta-score of executing the action under the
+      recorded context
+
+    Retrieval is executed hierarchically:
+    1. exact family match
+    2. macro_role fallback
+    3. defect / bucket-level fallback
+    4. lexical / embedding fine-ranking
+    """
+
     def __init__(self, **kwargs):
         cfg = SymbolicMemorySystemConfig(**kwargs)
         self.cfg = cfg
@@ -34,6 +147,62 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
         self.fidmap2mid: Dict[int, str] = {}
         self.midmap2fid: Dict[str, int] = {}
         self._next_id = 0
+
+        # -- secondary indexes (accelerate hierarchical retrieval) --
+        self._family_index: Dict[str, List[int]] = {}   # family -> [fid, ...]
+        self._role_index: Dict[str, List[int]] = {}     # macro_role -> [fid, ...]
+        self._mainop_index: Dict[str, List[int]] = {}   # main_op -> [fid, ...]
+
+    # ──────────────────────────────────────────────────────────────────────────
+    #  Index maintenance
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def _index_record(self, fid: int, record: SymbolicRecord) -> None:
+        """Add a record to the secondary indexes."""
+        family = (record.component_family or "").strip().lower()
+        if family:
+            self._family_index.setdefault(family, [])
+            if fid not in self._family_index[family]:
+                self._family_index[family].append(fid)
+            role, _ = parse_component_family(family)
+            self._role_index.setdefault(role, [])
+            if fid not in self._role_index[role]:
+                self._role_index[role].append(fid)
+        main_op = (record.main_op or "").strip().lower()
+        if main_op:
+            self._mainop_index.setdefault(main_op, [])
+            if fid not in self._mainop_index[main_op]:
+                self._mainop_index[main_op].append(fid)
+
+    def _unindex_record(self, fid: int, record: SymbolicRecord) -> None:
+        """Remove a record from the secondary indexes."""
+        family = (record.component_family or "").strip().lower()
+        if family and family in self._family_index:
+            self._family_index[family] = [f for f in self._family_index[family] if f != fid]
+            if not self._family_index[family]:
+                del self._family_index[family]
+            role, _ = parse_component_family(family)
+            if role in self._role_index:
+                self._role_index[role] = [f for f in self._role_index[role] if f != fid]
+                if not self._role_index[role]:
+                    del self._role_index[role]
+        main_op = (record.main_op or "").strip().lower()
+        if main_op and main_op in self._mainop_index:
+            self._mainop_index[main_op] = [f for f in self._mainop_index[main_op] if f != fid]
+            if not self._mainop_index[main_op]:
+                del self._mainop_index[main_op]
+
+    def _rebuild_indexes(self) -> None:
+        """Fully rebuild secondary indexes from ``_records``."""
+        self._family_index.clear()
+        self._role_index.clear()
+        self._mainop_index.clear()
+        for fid, record in self._records.items():
+            self._index_record(fid, record)
+
+    # ──────────────────────────────────────────────────────────────────────────
+    #  Record instantiation
+    # ──────────────────────────────────────────────────────────────────────────
 
     def instantiate_symbolic_record(self, **kwargs) -> SymbolicRecord:
         payload = SymbolicRecordPayload(**kwargs)
@@ -53,6 +222,11 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
             source=payload.source,
             support_count=payload.support_count,
             metadata=dict(payload.metadata or {}),
+            component_family=payload.component_family,
+            family_pair=payload.family_pair,
+            main_op=payload.main_op,
+            context_signature=dict(payload.context_signature or {}),
+            delta_score=payload.delta_score,
             created_at=timestamp,
             updated_at=timestamp,
         )
@@ -96,7 +270,11 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
                     record.id = f"{record.id}_{agent_id}"
                 if record.id in self.midmap2fid:
                     fid = self.midmap2fid[record.id]
+                    old_record = self._records.get(fid)
+                    if old_record:
+                        self._unindex_record(fid, old_record)
                     self._records[fid] = record
+                    self._index_record(fid, record)
                     continue
 
                 fid = self._next_id
@@ -104,6 +282,7 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
                 self._records[fid] = record
                 self.fidmap2mid[fid] = record.id
                 self.midmap2fid[record.id] = fid
+                self._index_record(fid, record)
             return True
         except Exception as exc:
             print(f"Error adding symbolic memories: {exc}")
@@ -119,8 +298,12 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
                 fid = self.midmap2fid.get(memory.id)
                 if fid is None:
                     continue
+                old_record = self._records.get(fid)
+                if old_record:
+                    self._unindex_record(fid, old_record)
                 memory.updated_at = _now_iso()
                 self._records[fid] = memory
+                self._index_record(fid, memory)
             return True
         except Exception as exc:
             print(f"Error updating symbolic memories: {exc}")
@@ -133,7 +316,9 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
                 if fid is None:
                     continue
                 self.fidmap2mid.pop(fid, None)
-                self._records.pop(fid, None)
+                old_record = self._records.pop(fid, None)
+                if old_record:
+                    self._unindex_record(fid, old_record)
             return True
         except Exception as exc:
             print(f"Error deleting symbolic memories: {exc}")
@@ -174,6 +359,10 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
                 self.update([target])
             else:
                 self.add([record], agent_id=agent_id)
+
+    # ──────────────────────────────────────────────────────────────────────────
+    #  Generic query (text-based, backward-compatible)
+    # ──────────────────────────────────────────────────────────────────────────
 
     def query(
         self,
@@ -237,6 +426,98 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
             agent_id=agent_id,
         )
 
+    # ──────────────────────────────────────────────────────────────────────────
+    #  Hierarchical retrieval for the expand phase
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def retrieve_hierarchical(
+        self,
+        target_family: str = "",
+        context_sig: Optional[ContextSignature] = None,
+        main_op: str = "",
+        limit: int = 5,
+        threshold: float = 0.0,
+        agent_id: str = "",
+    ) -> List[Tuple[float, SymbolicRecord]]:
+        """Three-level hierarchical retrieval.
+
+        Cascade:
+        1. **Exact family** -- records whose ``component_family`` matches
+           *target_family* exactly.
+        2. **Macro-role fallback** -- all records sharing the same macro_role
+           as *target_family*.
+        3. **Defect / bucket fallback** -- remaining records ranked by
+           defect-profile and bucket overlap with *context_sig*.
+
+        Within each level, candidates are scored by::
+
+            structural_match * condition_match * reliability * local_priority
+
+        Records with ``score < threshold`` are discarded.
+
+        Args:
+            target_family: component_family to query (e.g.
+                ``"constraint.uncertainty_weighted"``).
+            context_sig: ContextSignature extracted from the parent-node state.
+            main_op: optional filter to restrict results to a specific main_op.
+            limit: maximum number of results to return.
+            threshold: minimum score to include a candidate.
+            agent_id: restrict to records tagged with this agent.
+
+        Returns:
+            Sorted list of ``(score, SymbolicRecord)`` tuples, highest first.
+        """
+        if self.size == 0:
+            return []
+
+        context_sig = context_sig or ContextSignature()
+        target_family_l = (target_family or "").strip().lower()
+        target_role, _ = parse_component_family(target_family_l) if target_family_l else ("", "")
+        main_op_l = (main_op or "").strip().lower()
+
+        scored: Dict[int, Tuple[float, SymbolicRecord]] = {}
+
+        def _score_candidate(fid: int, tier_bonus: float) -> None:
+            """Score a single candidate and store if above threshold."""
+            if fid in scored:
+                return
+            record = self._records.get(fid)
+            if record is None:
+                return
+            if agent_id and not str(record.id).endswith(f"_{agent_id}"):
+                return
+            if main_op_l and (record.main_op or "").strip().lower() != main_op_l:
+                return
+
+            struct_match = _condition_match_score(context_sig, record)
+            cond_match = self._condition_text_relevance(context_sig, record)
+            reliability = _reliability_score(record)
+            local_priority = record.priority
+
+            raw = struct_match * cond_match * max(reliability, 0.05) * (0.4 + 0.6 * local_priority)
+            # Apply tier bonus (exact family > macro_role > global fallback)
+            final = min(1.0, raw + tier_bonus)
+            if final >= threshold:
+                scored[fid] = (float(final), record)
+
+        # --- Level 1: exact family match ---
+        if target_family_l and target_family_l in self._family_index:
+            for fid in self._family_index[target_family_l]:
+                _score_candidate(fid, tier_bonus=0.15)
+
+        # --- Level 2: macro_role fallback ---
+        if len(scored) < limit and target_role and target_role in self._role_index:
+            for fid in self._role_index[target_role]:
+                _score_candidate(fid, tier_bonus=0.05)
+
+        # --- Level 3: defect / bucket global fallback ---
+        if len(scored) < limit:
+            for fid in self._records:
+                _score_candidate(fid, tier_bonus=0.0)
+
+        ranked = sorted(scored.values(), key=lambda x: x[0], reverse=True)
+        return ranked[: max(0, min(limit, len(ranked)))]
+
     def retrieve_priors_for_expand(
         self,
         topic: str,
@@ -245,7 +526,44 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
         limit: int = 5,
         threshold: float = 0.0,
         agent_id: str = "",
+        *,
+        target_family: str = "",
+        context_sig: Optional[ContextSignature] = None,
     ) -> List[Tuple[float, SymbolicRecord]]:
+        """Retrieve priors for the expand phase.
+
+        When *target_family* and *context_sig* are provided, uses the
+        three-level hierarchical retrieval (``retrieve_hierarchical``).
+        Otherwise falls back to the legacy text-based retrieval with
+        operator / defect boosting.
+
+        Args:
+            topic: free text describing the current expansion target.
+            operator: optional operator / skill name to boost.
+            defects: list of current defect labels.
+            limit: maximum number of results.
+            threshold: minimum score cutoff.
+            agent_id: restrict to records from this agent.
+            target_family: (keyword-only) component_family for hierarchical
+                retrieval.
+            context_sig: (keyword-only) ContextSignature from the parent node
+                for structural matching.
+
+        Returns:
+            Sorted ``[(score, SymbolicRecord), ...]``, highest first.
+        """
+        # ---- hierarchical path (preferred) ----
+        if target_family or context_sig:
+            return self.retrieve_hierarchical(
+                target_family=target_family,
+                context_sig=context_sig,
+                main_op=operator,
+                limit=limit,
+                threshold=threshold,
+                agent_id=agent_id,
+            )
+
+        # ---- legacy text-based path ----
         defects = defects or []
         query_text = "\n".join([topic, operator, *defects]).strip()
         candidates = self.query(
@@ -289,6 +607,51 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
         boosted.sort(key=lambda item: item[0], reverse=True)
         return boosted[: max(0, min(limit, len(boosted)))]
 
+    # ──────────────────────────────────────────────────────────────────────────
+    #  Action-prior computation for PUCT
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def compute_action_priors(
+        self,
+        target_family: str,
+        context_sig: ContextSignature,
+        limit: int = 20,
+        agent_id: str = "",
+    ) -> Dict[str, float]:
+
+        candidates = self.retrieve_hierarchical(
+            target_family=target_family,
+            context_sig=context_sig,
+            limit=limit,
+            threshold=0.0,
+            agent_id=agent_id,
+        )
+
+        if not candidates:
+            return {}
+
+        # Accumulate weighted delta_score per main_op
+        op_weight_sum: Dict[str, float] = defaultdict(float)
+        op_delta_sum: Dict[str, float] = defaultdict(float)
+
+        for score, record in candidates:
+            op = (record.main_op or "").strip().lower()
+            if not op:
+                continue
+            weight = score  # score already encodes struct*cond*reliability*priority
+            op_weight_sum[op] += weight
+            op_delta_sum[op] += weight * record.delta_score
+
+        priors: Dict[str, float] = {}
+        for op in op_weight_sum:
+            w = op_weight_sum[op]
+            if w > 1e-9:
+                priors[op] = op_delta_sum[op] / w
+
+        return priors
+
+
+
     def save(self, path: str) -> bool:
         try:
             os.makedirs(path, exist_ok=True)
@@ -325,12 +688,20 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
 
             if self._next_id <= 0 and self._records:
                 self._next_id = max(self._records.keys()) + 1
+
+            # Rebuild secondary indexes after loading
+            self._rebuild_indexes()
             return True
         except Exception as exc:
             print(f"Error loading symbolic memories: {exc}")
             return False
 
+    # ──────────────────────────────────────────────────────────────────────────
+    #  Internal scoring helpers
+    # ──────────────────────────────────────────────────────────────────────────
+
     def _record_text(self, record: SymbolicRecord) -> str:
+        """Concatenate all textual fields of a record into a single string."""
         blocks = [
             record.summary,
             record.pattern,
@@ -387,6 +758,43 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
             return float(1.0 / (1.0 + age_days / 30.0))
         except ValueError:
             return 0.3
+
+    def _condition_text_relevance(
+        self,
+        context_sig: ContextSignature,
+        record: SymbolicRecord,
+    ) -> float:
+        """Lightweight relevance between context_sig fields and record's
+        textual conditions / anti_patterns / tags.
+
+        Returns a score in [0, 1].
+        """
+        text_pool = " ".join([
+            " ".join(record.conditions),
+            " ".join(record.anti_patterns),
+            " ".join(record.tags),
+            record.pattern or "",
+        ]).lower()
+
+        if not text_pool.strip():
+            return 0.5  # neutral when record has no textual signals
+
+        tokens: List[str] = []
+        tokens.extend(context_sig.macro_roles_present)
+        tokens.extend(context_sig.defect_profile)
+        tokens.append(context_sig.coverage_bucket)
+        tokens.append(context_sig.stability_bucket)
+        tokens.append(context_sig.cost_bucket)
+        tokens.append(context_sig.budget_pressure)
+        if context_sig.last_main_op:
+            tokens.append(context_sig.last_main_op)
+        tokens = [t.lower() for t in tokens if t]
+
+        if not tokens:
+            return 0.5
+
+        hits = sum(1 for t in tokens if t in text_pool)
+        return max(0.1, hits / len(tokens))
 
     def _match_filters(self, record: SymbolicRecord, filters: Optional[Dict]) -> bool:
         if not filters:
