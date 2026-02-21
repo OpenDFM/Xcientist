@@ -23,12 +23,19 @@ Rewrite path:
 
 {defect_registry}
 
+Component-level symbolic memory insights (from past MCTS iterations):
+{symbolic_memory_hints}
+
 Scoring policy:
 - Prefer concrete mechanism-level edits over vague incremental changes.
 - Reward plans that include explicit ADD_PROTOCOL-based regression, ablation, and stress tests.
 - Penalize plans that add components without clear gating when budget risk is visible.
 - Penalize feature dumping and unsupported complexity jumps.
 - If the idea drifts from topic constraints, reduce alignment_score.
+- When symbolic memory hints are available, use them to calibrate scores:
+  * Positive-delta records for the same component family suggest the approach is promising — credit novelty/impact.
+  * Negative-delta records or listed anti-patterns signal known failure modes — increase risk/complexity_penalty accordingly.
+  * If the edit plan contradicts a high-confidence anti-pattern, note it explicitly in feedback.
 - In "detected_defects", list ALL defect tags from the registry above that still apply to this idea AFTER the proposed edit. Choose only from the canonical tags.
 
 Return STRICT JSON (no prose):

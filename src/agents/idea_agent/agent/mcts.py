@@ -1207,6 +1207,68 @@ class MemoryGuidedMCTS:
             return new_child, path + [new_child]
         return node, path
 
+
+    def _build_symbolic_eval_hints(self, node: IdeaNode) -> str:
+        """Query component-level symbolic memory to build evaluation hints.
+
+        For each component family present in the node's state, retrieves the
+        most relevant symbolic records.  The resulting text block tells the
+        evaluator LLM what has historically worked or failed for these
+        component families so it can calibrate its scores accordingly.
+        """
+        component_families = extract_component_families(
+            node.state.components, node.state.method
+        )
+        if not component_families:
+            return "No symbolic memory hints available."
+
+        ctx_sig = self._extract_context_sig(node)
+
+        hints_parts: List[str] = []
+        seen_record_ids: Set[str] = set()
+
+        for cf in component_families:
+            family = cf.get("family", "")
+            if not family:
+                continue
+
+            records = self.symbolic_memory.retrieve_hierarchical(
+                target_family=family,
+                context_sig=ctx_sig,
+                limit=5,
+                threshold=0.05,
+                agent_id="idea_agent",
+            )
+            if not records:
+                continue
+
+            family_lines: List[str] = [f"  Component family: {family}"]
+            for score, rec in records:
+                if rec.id in seen_record_ids:
+                    continue
+                seen_record_ids.add(rec.id)
+
+                delta_tag = f"+{rec.delta_score:.2f}" if rec.delta_score >= 0 else f"{rec.delta_score:.2f}"
+                line = (
+                    f"    - [{rec.main_op}] {rec.summary}  "
+                    f"(delta={delta_tag}, conf={rec.confidence:.2f}, score={score:.3f})"
+                )
+                if rec.anti_patterns:
+                    line += f"  anti-patterns: {'; '.join(rec.anti_patterns[:3])}"
+                family_lines.append(line)
+            if len(family_lines) > 1:
+                hints_parts.append("\n".join(family_lines))
+
+        if not hints_parts:
+            return "No symbolic memory hints available."
+
+        header = (
+            "Historical symbolic memory records for the component families "
+            "in this idea (positive delta = previously beneficial, "
+            "negative delta = previously harmful):"
+        )
+        return header + "\n" + "\n".join(hints_parts)
+
     def _simulate(
         self,
         node: IdeaNode,
@@ -1259,6 +1321,17 @@ class MemoryGuidedMCTS:
                 )
             return cached_evaluation
 
+        symbolic_hints = self._build_symbolic_eval_hints(node)
+        if symbolic_hints and symbolic_hints != "No symbolic memory hints available.":
+            log_message(
+                self.logger,
+                self.log_sink,
+                "info",
+                "[MCTS] Simulate: injecting symbolic memory hints for node=%s (families=%d)",
+                node.state.title[:60],
+                symbolic_hints.count("Component family:"),
+            )
+
         prompt = self.evaluation_prompt.format(
             topic=self.topic,
             mature_idea=self.mature_idea or "None",
@@ -1274,6 +1347,7 @@ class MemoryGuidedMCTS:
             idea=json.dumps(node.state.to_payload(), ensure_ascii=False, indent=2),
             path_summary=path_summary_text,
             defect_registry=format_defect_registry(),
+            symbolic_memory_hints=symbolic_hints,
         )
 
         try:

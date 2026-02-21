@@ -258,6 +258,102 @@ best  = best_candidate(root)      # highest composite score
 | **Contract mode** | Root state derived from `mature_idea`; expansion restricted to incremental changes within the declared mechanism |
 | **Anti-pattern guard** | `ANTI_PATTERN_CONSTRAINTS` blocks previously failed patterns via `format_defect_registry` |
 | **LTM write-back** | Only when `evaluation.confidence > min_confidence_for_memory` (default `0.6`) |
+| **Symbolic memory (prospective)** | See §5.5 — in `_expand()`: quantitative action prior re-ranks skill candidates *before* any LLM call, guiding which operators are tried first |
+| **Symbolic memory (retrospective)** | See §5.5 — in `_simulate()`: component-level records retrieved for the *already-determined* node inject historical hints into the evaluation prompt to calibrate LLM scoring |
+
+### 5.5 Symbolic Memory — Two Complementary Modes
+
+`SymbolicMemorySystem` is the most structurally distinct memory mechanism in LigAgent. It operates in **two complementary modes** that map onto different phases of the MCTS loop:
+
+| Mode | Phase | Role |
+|------|-------|------|
+| **Prospective** | `_expand()` | Action prior — re-ranks skill candidates *before* any LLM call |
+| **Retrospective** | `_simulate()` | Evaluation hints — injects component-level history into the scoring prompt *after* the node is determined |
+
+Unlike the FAISS `MemoryBundle` (which always injects free-form text into the LLM prompt), the symbolic memory provides **structured, quantitative signals** calibrated to the exact components present in each node.
+
+---
+
+#### Prospective mode — `_expand()` as action prior $P(s,a)$
+
+Before the LLM generates any child node, the symbolic memory votes on which skill operators are most promising for the current component families:
+
+```
+For each node being expanded:
+1. extract component families from node.state.components + method text
+   → component_families = extract_component_families(...)
+
+2. build ContextSignature from node's evaluation scores, budget,
+   last operator, depth, defects
+   → parent_ctx_sig = _extract_context_sig(node)
+
+3. for each component family:
+       action_priors += symbolic_memory.compute_action_priors(
+           target_family=family,
+           context_sig=parent_ctx_sig,
+           limit=20,
+           agent_id="idea_agent",
+       )
+   → accumulate max prior delta per atomic operator across all families
+
+4. re-rank skill_candidates:
+       prior_boost(skill) = max(action_priors[op] for op in skill.atomic_blueprint)
+       skill_candidates = sorted(skill_candidates, key=prior_boost, reverse=True)
+   → skills whose atomic ops have historically higher delta_score are tried first
+
+5. for each compiled plan:
+       append SkillUsagePrior.rule_constraints to plan.guardrails
+   → rule-level constraints injected as hard guardrails
+```
+
+This is analogous to the policy network prior $P(s, a)$ in AlphaZero: it biases the tree search toward historically effective operators _before_ any rollout, with no extra LLM cost.
+
+---
+
+#### Retrospective mode — `_simulate()` as evaluation calibration
+
+Once `_expand()` has fixed the child node's components, `_simulate()` uses those same component families to look up what has _historically happened_ when similar components were present — and feeds that context into the evaluation LLM:
+
+```
+For the node produced by _expand():
+1. extract component families from node.state.components + method text
+   → component_families = extract_component_families(...)
+
+2. build ContextSignature for the child node
+   → ctx_sig = _extract_context_sig(node)
+
+3. for each component family:
+       records = symbolic_memory.retrieve_hierarchical(
+           target_family=family,
+           context_sig=ctx_sig,
+           limit=5,
+           threshold=0.05,
+       )
+   → retrieve top-k SymbolicRecords with score, delta, anti-patterns
+
+4. format records into a text block (symbolic_memory_hints):
+     "Component family: constraint.uncertainty_weighted
+       - [replace] Replacing static threshold with learned gate  (delta=+0.31, conf=0.85)
+       - [add]     Adding uncertainty-calibration head  (delta=+0.18, conf=0.72)"
+
+5. inject into evaluation prompt as {symbolic_memory_hints}:
+   → positive-delta records  → credit novelty / impact upward
+   → negative-delta records  → increase risk / complexity_penalty
+   → high-confidence anti-patterns contradicted by the plan → flagged in feedback
+```
+
+This retrospective signal lets the evaluator LLM distinguish between "this component arrangement has a known track record of success" and "this pattern has previously led to failure" — calibrating scores _without_ the agent needing to rediscover these facts through additional rollouts.
+
+---
+
+**What `SymbolicMemorySystem` stores:**
+
+- Structured `SymbolicRecord` objects keyed by `(component_family, ContextSignature, agent_id)`
+- Each record captures: `summary`, `pattern`, `conditions`, `actions`, `anti_patterns`, `main_op`, `delta_score`, `confidence`
+- Populated externally (ablation results or paper-graph analysis), not by MCTS internal writes
+- Persisted at `mcts.skill_prior_memory_path` (default `output/idea_skill_priors`)
+- Loaded at startup via `MemoryGuidedMCTS.__init__` → `_load_skill_prior_memory()`
+- Cold-start fallback: prospective mode falls back to uniform skill ordering; retrospective mode injects a neutral placeholder (`"No symbolic memory hints available."`)
 
 ---
 
@@ -301,17 +397,40 @@ payload → artifact["idea_result"] → idea_result.json
 
 ## 7. Long-Term Memory
 
-LTM is powered by a `FAISSMemorySystem` + `SymbolicMemorySystem` (via the `memory` package).
+LTM uses two structurally different memory systems that play complementary roles during MCTS expansion:
 
-| Store | Purpose |
-|-------|---------|
-| **Semantic** | Field knowledge and prior successful ideas |
-| **Episodic** | Anti-patterns and defect records |
-| **Procedural** | Fix recipes for known defect classes |
+### 7.1 FAISS Vector Memory — `VectorMemoryAccessor` (text injection)
 
-Write-back condition: `evaluation.confidence > mcts.min_confidence_for_memory` (default `0.6`).
+Powered by `FAISSMemorySystem` (three stores via the `memory` package):
 
-Memory bundles are injected into MCTS expansion prompts via `MemoryBundle`, providing "corrective priors" that bias the search away from known failure modes.
+| Store | Content | Role in MCTS |
+|-------|---------|-------------|
+| **Semantic** | Field knowledge, prior successful ideas | Context for expansion prompt |
+| **Episodic** | Anti-patterns, defect records | Negative examples in prompt |
+| **Procedural** | Fix recipes for known defect classes | Repair suggestions in prompt |
+
+At each `_expand()` call, `memory_accessor.retrieve_bundle(query)` fetches a `MemoryBundle` (top-k passages from all three stores). This bundle is serialised as text and injected into the LLM expansion prompt, steering the LLM away from known failure modes.
+
+**Write-back condition**: `evaluation.confidence > mcts.min_confidence_for_memory` (default `0.6`)
+
+### 7.2 Symbolic Memory — `SymbolicMemorySystem` (action prior)
+
+This is a **separate, non-vector system** that stores structured operator-outcome records indexed by `(component_family, ContextSignature, agent_id)`. It acts as a **quantitative prior distribution over atomic edit operators**, directly reranking which skill candidates are expanded first — _without_ going through the LLM.
+
+See §5.5 for the full expand-time mechanism. Key properties:
+
+- Records are keyed by exact `(component_family, context_sig)` tuples, not by embedding similarity
+- Populated externally (e.g., from ablation results or paper-graph conclusions), not from MCTS internal writes
+- Loaded at startup from `mcts.skill_prior_memory_path` (`output/idea_skill_priors` by default)
+- Falls back gracefully to uniform skill ordering when empty (cold start)
+
+**Summary of roles:**
+
+| System | Signal type | When it acts | How it influences MCTS |
+|--------|------------|-------------|------------------------|
+| `VectorMemoryAccessor` | Text passages (semantic / episodic / procedural) | Inside the LLM `_expand()` prompt | Steers LLM generation via prompt context |
+| `SymbolicMemorySystem` (prospective) | Float priors per `(family, context_sig, op)` | Before the LLM call in `_expand()` | Re-ranks which skills/operators are tried first (prior-guided tree policy) |
+| `SymbolicMemorySystem` (retrospective) | Structured records with delta/anti-patterns per component family | Inside the LLM `_simulate()` prompt | Calibrates evaluation scores by surfacing historical success/failure patterns |
 
 ---
 

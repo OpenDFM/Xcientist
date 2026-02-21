@@ -1,5 +1,3 @@
----
-
 # LigAgent — Idea Agent 系统文档（中文版）
 
 > 版本：2.0.0
@@ -253,6 +251,102 @@ best = best_candidate(root)       # 取综合得分最高节点
 | **合约模式** | 根节点由 `mature_idea` 派生；扩展限制为指定机制内的增量改动 |
 | **反模式防护** | `ANTI_PATTERN_CONSTRAINTS` 通过 `format_defect_registry` 屏蔽已知失败模式 |
 | **LTM 写回** | 仅当 `evaluation.confidence > min_confidence_for_memory`（默认 0.6）时写入 |
+| **符号记忆（前瞻模式）** | 见 §5.5 — 在 `_expand()` 中作为量化动作先验，在 LLM 调用*之前*对 skill 候选重排，引导哪个算子优先被尝试 |
+| **符号记忆（回溯模式）** | 见 §5.5 — 在 `_simulate()` 中，针对已确定节点的 component families 检索历史记录，注入评估提示词以校准 LLM 打分 |
+
+### 5.5 符号记忆的两种互补模式
+
+`SymbolicMemorySystem` 是 LigAgent 中结构上最独特的记忆机制，在 MCTS 循环的**两个不同阶段**发挥作用：
+
+| 模式 | 阶段 | 作用 |
+|------|------|------|
+| **前瞻（Prospective）** | `_expand()` | 动作先验——在 LLM 调用*之前*对 skill 候选重排 |
+| **回溯（Retrospective）** | `_simulate()` | 评估校准——在节点已确定*之后*，将组件历史注入打分提示词 |
+
+与 FAISS `MemoryBundle`（总是向 LLM 注入自由文本）不同，符号记忆提供的是**与当前节点 component 精确对应的结构化量化信号**。
+
+---
+
+#### 前瞻模式 — `_expand()` 中的动作先验 $P(s,a)$
+
+在 LLM 生成任何子节点之前，符号记忆对当前 component families 最有效的算子进行投票：
+
+```
+对每个待扩展节点：
+1. 从 node.state.components + method 文本中提取 component families
+   → component_families = extract_component_families(...)
+
+2. 从节点的 evaluation 分数、budget、上一算子、深度、缺陷标签
+   构建 ContextSignature
+   → parent_ctx_sig = _extract_context_sig(node)
+
+3. 对每个 component family:
+       action_priors += symbolic_memory.compute_action_priors(
+           target_family=family,
+           context_sig=parent_ctx_sig,
+           limit=20,
+           agent_id="idea_agent",
+       )
+   → 跨所有 family 累积每个原子算子的最大 prior delta
+
+4. 对 skill_candidates 重新排名：
+       prior_boost(skill) = max(action_priors[op] for op in skill.atomic_blueprint)
+       skill_candidates = sorted(skill_candidates, key=prior_boost, reverse=True)
+   → 历史上 delta_score 更高的算子对应的 skill 优先扩展
+
+5. 对每个由 skill 编译的 plan：
+       将 SkillUsagePrior.rule_constraints 追加到 plan.guardrails
+   → 规则级约束注入为硬性 guardrail
+```
+
+这类似于 AlphaZero 策略网络提供的动作先验 $P(s, a)$：在任何 rollout 开始前，以无额外 LLM 开销的方式将树搜索偏向历史有效算子。
+
+---
+
+#### 回溯模式 — `_simulate()` 中的评估校准
+
+`_expand()` 已确定子节点的 components 后，`_simulate()` 利用相同的 component families 查询该组合的历史表现，并将结论注入评估 LLM：
+
+```
+对 _expand() 产生的子节点：
+1. 从 node.state.components + method 文本中提取 component families
+   → component_families = extract_component_families(...)
+
+2. 为子节点构建 ContextSignature
+   → ctx_sig = _extract_context_sig(node)
+
+3. 对每个 component family：
+       records = symbolic_memory.retrieve_hierarchical(
+           target_family=family,
+           context_sig=ctx_sig,
+           limit=5,
+           threshold=0.05,
+       )
+   → 检索 top-k SymbolicRecord（含 score、delta、anti_patterns）
+
+4. 将记录格式化为文本块（symbolic_memory_hints）：
+     "Component family: constraint.uncertainty_weighted
+       - [replace] 用可学习门控替换静态阈值  (delta=+0.31, conf=0.85)
+       - [add]     增加不确定性校准头  (delta=+0.18, conf=0.72)"
+
+5. 注入评估提示词 {symbolic_memory_hints}：
+   → 正 delta 记录  → 评估时对 novelty / impact 适当加分
+   → 负 delta 记录  → 提高 risk / complexity_penalty
+   → 高置信反模式与方案相悖 → 在 feedback 中显式标注
+```
+
+这一回溯信号使评估 LLM 能区分"该 component 组合有成功先例"与"该模式历史上导致失败"，从而校准打分——无需通过额外 rollout 重新发现这些规律。
+
+---
+
+**`SymbolicMemorySystem` 存储的内容：**
+
+- 以 `(component_family, ContextSignature, agent_id)` 为键的结构化 `SymbolicRecord` 对象
+- 每条记录包含：`summary`、`pattern`、`conditions`、`actions`、`anti_patterns`、`main_op`、`delta_score`、`confidence`
+- 由外部填充（如实验消融结果或论文图谱分析），不由 MCTS 内部自动写入
+- 持久化路径：`mcts.skill_prior_memory_path`（默认 `output/idea_skill_priors`）
+- 在 `MemoryGuidedMCTS.__init__` 时通过 `_load_skill_prior_memory()` 加载
+- 冷启动回退：前瞻模式退化为均匀排序；回溯模式注入中性占位符（`"No symbolic memory hints available."`）
 
 ---
 
@@ -296,17 +390,40 @@ payload → artifact["idea_result"] → idea_result.json
 
 ## 7. 长期记忆（LTM）
 
-LTM 由 `FAISSMemorySystem` + `SymbolicMemorySystem`（`memory` 包）驱动。
+LTM 使用两套结构不同的记忆系统，在 MCTS 扩展阶段发挥互补作用：
 
-| 存储 | 用途 |
-|------|------|
-| **语义存储（Semantic）** | 领域知识与历史成功想法 |
-| **情节存储（Episodic）** | 反模式与缺陷记录 |
-| **程序存储（Procedural）** | 已知缺陷的修复方案 |
+### 7.1 FAISS 向量记忆 — `VectorMemoryAccessor`（文本注入）
 
-写回条件：`evaluation.confidence > mcts.min_confidence_for_memory`（默认 0.6）。
+由 `FAISSMemorySystem` 驱动，包含三个子存储（来自 `memory` 包）：
 
-`MemoryBundle` 在 MCTS 扩展提示中注入"修正先验"，使搜索偏离已知失败模式。
+| 存储 | 内容 | 在 MCTS 中的作用 |
+|------|------|----------------|
+| **语义存储（Semantic）** | 领域知识、历史成功想法 | 注入扩展提示词，提供背景上下文 |
+| **情节存储（Episodic）** | 反模式、缺陷记录 | 注入扩展提示词，提供负面示例 |
+| **程序存储（Procedural）** | 已知缺陷类的修复方案 | 注入扩展提示词，提供修复建议 |
+
+每次 `_expand()` 调用时，`memory_accessor.retrieve_bundle(query)` 从三个存储中检索 top-k 文本段，序列化为 `MemoryBundle` 后注入 LLM 扩展提示词，引导 LLM 生成远离已知失败模式的子节点。
+
+**写回条件**：`evaluation.confidence > mcts.min_confidence_for_memory`（默认 0.6）
+
+### 7.2 符号记忆 — `SymbolicMemorySystem`（动作先验）
+
+这是一套**独立的非向量系统**，以 `(component_family, ContextSignature, agent_id)` 为键存储结构化算子-结果记录。它充当**对原子编辑算子的量化先验分布**，在 LLM 调用之前直接对 skill 候选进行重新排名。
+
+完整的 `_expand()` 时序机制见 §5.5。核心特性：
+
+- 以精确的 `(component_family, context_sig)` 元组为键，而非向量相似度
+- 由外部填充（如消融实验结果或论文图谱分析），不由 MCTS 内部自动写入
+- 启动时从 `mcts.skill_prior_memory_path`（默认 `output/idea_skill_priors`）加载
+- 为空（冷启动）时优雅回退为均匀排序
+
+**三套系统角色对比：**
+
+| 系统 | 信号类型 | 作用时机 | 对 MCTS 的影响方式 |
+|------|---------|---------|------------------|
+| `VectorMemoryAccessor` | 文本段落（语义 / 情节 / 程序） | 进入 LLM `_expand()` 提示词内部 | 通过提示词上下文引导 LLM 生成 |
+| `SymbolicMemorySystem`（前瞻） | 每个 `(family, context_sig, op)` 的浮点先验值 | `_expand()` LLM 调用之前 | 对 skill 扩展顺序重排（先验引导树策略） |
+| `SymbolicMemorySystem`（回溯） | 含 delta / anti-patterns 的结构化记录（按 component family 索引） | `_simulate()` LLM 调用之前 | 将历史成败样本注入评估提示词，校准 LLM 打分 |
 
 ---
 
@@ -435,3 +552,5 @@ python src/agents/idea_agent/run.py
 4. **`idea_generation`** — Memory-Guided MCTS 运行；最优节点写入 `artifact["idea_pool"]`。
 5. **`persist_final_idea`** — 综合算法描述、参考文献、数据集、基线和引言 → 写出 `idea_result.json`。
 6. **后续轮次** — LLM 选择 `idea_evaluation`（精化）或 `re_analysis_replan`（转换方向），直至 `max_turns` 耗尽。
+
+---
