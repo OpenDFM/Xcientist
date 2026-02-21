@@ -692,3 +692,46 @@ class LigAgent(AgentBase):
                 "[LigAgent] Injected %d symbolic prior(s) into MCTS symbolic memory.",
                 injected,
             )
+
+    # ──────────────────────────────────────────────────────────────────────
+    #  External prior ingestion entry-points  (not yet implemented)
+    # ──────────────────────────────────────────────────────────────────────
+
+    def ingest_ablation_results(self, results: List[Dict[str, Any]]) -> None:
+        """Write experiment-agent ablation results into the artifact so that
+        ``_inject_symbolic_priors`` can consume them on the next
+        ``idea_generation`` call.
+
+        Expected schema for each entry in ``results``::
+
+            {
+                "component":        str,   # e.g. "uncertainty_weighted_loss"
+                "op":               str,   # add | remove | replace | ...
+                "delta_score":      float, # observed Δ metric
+                "method_context":   str,   # optional free-text for family extraction
+                "context_signature": dict, # optional ContextSignature fields
+                "confidence":       float, # [0, 1]
+                "rationale":        str,   # optional
+                "support_count":    int,   # optional, default 1
+            }
+        """
+        raise NotImplementedError(
+            "ingest_ablation_results is not yet implemented. "
+            "Populate self.artifact['ablation_results'] with a list of dicts "
+            "matching the schema described in the docstring."
+        )
+
+    def ingest_paper_graph_priors(self, priors: List[Dict[str, Any]]) -> None:
+        """Write paper-graph derived priors into the artifact so that
+        ``_inject_symbolic_priors`` can consume them on the next
+        ``idea_generation`` call.
+
+        Expected schema for each entry in ``priors``: identical to
+        :meth:`ingest_ablation_results`, but typically with lower
+        ``confidence`` and coarser ``context_signature``.
+        """
+        raise NotImplementedError(
+            "ingest_paper_graph_priors is not yet implemented. "
+            "Populate self.artifact['paper_graph_priors'] with a list of dicts "
+            "matching the schema described in the docstring."
+        )

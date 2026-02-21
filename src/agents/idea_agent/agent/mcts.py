@@ -1481,6 +1481,26 @@ class MemoryGuidedMCTS:
         pareto = pareto_candidates(root, SearchCandidate)
         cache_entries = sum(len(entries) for entries in self.evaluation_cache.values())
 
+        # Persist injected symbolic priors to disk so they survive across runs
+        try:
+            self.symbolic_memory_path.parent.mkdir(parents=True, exist_ok=True)
+            self.symbolic_memory.save(str(self.symbolic_memory_path))
+            log_message(
+                self.logger,
+                self.log_sink,
+                "info",
+                "[MCTS] Symbolic memory saved to %s",
+                self.symbolic_memory_path,
+            )
+        except Exception as exc:
+            log_message(
+                self.logger,
+                self.log_sink,
+                "warning",
+                "⚠️  Failed to save symbolic memory: %s",
+                exc,
+            )
+
         return SearchResult(
             best=best,
             pareto=pareto,

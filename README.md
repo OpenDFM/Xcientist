@@ -19,13 +19,6 @@ conda env create -f environment.yml
 conda activate research-agent
 ```
 
-If the environment name already exists, create with a new name:
-
-```bash
-conda env create -f environment.yml -n research-agent-copy
-conda activate research-agent-copy
-```
-
 ### Method 2: pip + requirements.txt
 
 Use this when you only want pip-based dependency installation (weaker reproducibility for conda binary dependencies).
@@ -42,76 +35,81 @@ pip install -r requirements.txt
 
 ### 1. Idea Agent
 
-**Purpose**: Generates innovative research ideas from given topics and background knowledge.
+**Purpose**: Generates innovative research ideas from given topics via a Memory-Guided MCTS pipeline.
+
+**Workflow**:
+
+The agent runs a fixed multi-turn loop. Turn 1 is always `knowledge_aquisition`; subsequent turns are selected by the LLM from the action space:
+
+| Action | Role |
+|--------|------|
+| `knowledge_aquisition` | Semantic Scholar seed → RAG query → OutcomeRAG retrieval → citation expansion → enrich & filter papers |
+| `advanced_analysis` | LLM extracts key methods, pain points, and open questions from curated papers |
+| `idea_generation` | Memory-Guided MCTS search produces the best idea; triggers `persist_final_idea` |
+| `idea_evaluation` | Standalone LLM scoring of the latest idea |
+| `re_analysis_replan` | Expands topic and retrieval keywords when the current direction is exhausted |
 
 **Inputs**:
-- `run.topics`: list of research topics (configured in `src/agents/idea_agent/config/run/default.yaml`)
-- `run.mature_idea` (optional): enables **Contract mode**, where the MCTS root is derived from the mature idea and constrained by a contract
+- `run.topics`: list of research topics (`src/agents/idea_agent/config/run/default.yaml`)
+- `run.mature_idea` (optional): enables **Contract mode** — MCTS root is derived from the mature idea and all expansions stay within its mechanism
 
 **Outputs**:
-- `runs/<topic-timestamp>/idea_result.json`: idea result in JSON
-- `runs/<topic-timestamp>/logs/ligagent.log`: runtime logs
+- `runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json`: final idea (title, abstract, introduction, algorithm, reference_papers, datasets, baselines, mcts_evolution)
+- `runs/<topic-slug>-<timestamp>-<uuid>/logs/ligagent.log`: full run log
 
-**Retrieval flow (with RAG)**:
-- Get seed papers from Semantic Scholar → generate RAG query → Survey Agent OutcomeRAG retrieves survey subsections → extract citation titles and map back to paperId → parse/summarize and write to memory.
+**Config location**: `src/agents/idea_agent/config/` (edit YAML directly)
 
-**Config location**: `src/agents/idea_agent/config/` (editing YAML directly is recommended)
+Key config files:
+- `src/agents/idea_agent/config/run/default.yaml` — runtime params: **topics / max_turns / parallelism / rag_config / mature_idea**
+- `src/agents/idea_agent/config/mcts/default.yaml` — MCTS: **max_iterations / max_depth / branching_factor / generation_model / evaluation_model**
+- `src/agents/idea_agent/config/dataset/default.yaml` — dataset retrieval/scoring
+- `src/agents/idea_agent/config/baseline/default.yaml` — baseline retrieval/scoring
 
-Most commonly used configs:
-- `src/agents/idea_agent/config/run/default.yaml` (runtime params: **topics / parallelism / rag_config**, etc.)
-- `src/agents/idea_agent/config/dataset/default.yaml` (dataset retrieval/scoring params)
-- `src/agents/idea_agent/config/baseline/default.yaml` (baseline retrieval/scoring params)
-- `src/agents/idea_agent/config/mcts/default.yaml` (search strategy and model params)
-
-**Example: runtime parameters (most frequently changed)**
+**Runtime config (`run/default.yaml`)**:
 ```yaml
-# src/agents/idea_agent/config/run/default.yaml
 run:
-	topics:
-		- "Diffusion Models for RL in Games"
-	parallelism: 1
-	rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
-	max_turns: 4
-	output_root: "runs"
-	console_logs: false
-	# Optional: enable Contract mode (mature-idea constraints)
-	# mature_idea: "..."
+  topics:
+    - "Diffusion Models for Reinforcement Learning in Games"
+  max_turns: 4          # max agent turns per topic
+  parallelism: 1        # concurrent workers (1 = serial)
+  output_root: "runs"   # relative to idea_agent root
+  console_logs: true
+  rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
+  # Optional: enable Contract mode
+  # mature_idea: "..."
+
+  # API credentials
+  openai_api_key: "your-api-key"
+  openai_base_url: "https://api.example.com/v1"
+  s2_api_key: "your-s2-key"
+  s2_api_timeout: "60"
+  serper_api_key: "your-serper-key"
+  mineru_model_source: "modelscope"
 ```
 
-**Example: API environment configuration**
+**MCTS config (`mcts/default.yaml`)**:
 ```yaml
-# src/agents/idea_agent/config/run/default.yaml
-run:
-	openai_api_key: "your-api-key"
-	openai_base_url: "https://api.example.com/v1"
-	s2_api_key: "your-s2-key"
-	s2_api_timeout: 60
-	serper_api_key: "your-serper-key"
-	mineru_model_source: null
-```
-
-**Advanced example: MCTS search parameters**
-```yaml
-# src/agents/idea_agent/config/mcts/default.yaml
 mcts:
-	max_iterations: 2
-	max_depth: 5
-	branching_factor: 4
-	exploration_constant: 1.2
-	generation_model: "gpt-5-mini"
-	evaluation_model: "gpt-5.2"
-	generation_temperature: 0.7
+  max_iterations: 128
+  max_depth: 3
+  branching_factor: 3
+  exploration_constant: 1.15
+  generation_model: "gpt-5-mini"
+  evaluation_model: "gpt-5.2"
+  generation_temperature: 0.7
+  evaluation_temperature: 0.001
+  min_confidence_for_memory: 0.6   # LTM write-back threshold
 ```
 
-**RAG config (Survey Agent OutcomeRAG)**:
-- `run.rag_config`: path to the OutcomeRAG config (must include valid `save_path` / `save_json_path` pointing to generated survey outputs).
-- Example: `src/agents/survey_agent/config/outcomeRAG.yaml` (update paths based on your actual survey outputs).
+**RAG config**: `run.rag_config` must point to a valid OutcomeRAG config whose `save_path` / `save_json_path` reference existing survey outputs.
+
+> For a detailed description of LigAgent internals (Artifact structure, MCTS mechanisms, persist_final_idea flow, LTM, etc.), see `src/agents/idea_agent/README.md`.
 
 **Usage**:
 ```bash
 ./run_idea.sh
+# or
 python src/agents/idea_agent/run.py
-
 ```
 
 ---
@@ -237,7 +235,7 @@ ResearchAgent/
 │   ├── idea_agent/
 │   │   ├── config/            # Idea Agent configs (run/mcts/dataset/baseline, etc.)
 │   │   ├── run.py             # Idea Agent entry
-│   │   └── runs/              # Output directory
+│   │   └── runs/              # Output: runs/<slug-timestamp-uuid>/{idea_result.json,logs/}
 │   ├── experiment_agent/
 │   │   ├── shared/utils/config.py  # Global config
 │   │   ├── workspaces/        # Experiment workspace
@@ -255,7 +253,7 @@ ResearchAgent/
 ```
 1. Idea Agent
 	 Input: research topics + background knowledge
-	 Output: runs/<topic-timestamp>/idea_result.json
+	 Output: runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json
    
 	 ↓ (idea_result.json → workspaces/{exp}/idea.json)
 
@@ -277,10 +275,10 @@ ResearchAgent/
 ```bash
 # Step 1: Generate research ideas
 ./run_idea.sh
-# Output: src/agents/idea_agent/runs/<topic-timestamp>/idea_result.json
+# Output: src/agents/idea_agent/runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json
 
 # Step 2: Run experiment (automatically copies idea_result.json to workspace/my_exp/idea.json)
-./run_experiment.sh --experiment my_exp --idea-json src/agents/idea_agent/runs/<topic-timestamp>/idea_result.json --prepare
+./run_experiment.sh --experiment my_exp --idea-json src/agents/idea_agent/runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json --prepare
 
 # Step 3: Write paper
 ./run_paper.sh

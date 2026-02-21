@@ -1,4 +1,4 @@
-# Research Agent 使用指南
+# X-Scientist 使用指南
 
 [English](README.md) | [中文](README_CN.md)
 
@@ -19,13 +19,6 @@ conda env create -f environment.yml
 conda activate research-agent
 ```
 
-如果环境名冲突，可指定新名称：
-
-```bash
-conda env create -f environment.yml -n research-agent-copy
-conda activate research-agent-copy
-```
-
 ### 方法二：pip + requirements.txt
 
 适用于仅使用 pip 方式安装依赖的场景（对 conda 二进制依赖的复现能力较弱）。
@@ -42,76 +35,81 @@ pip install -r requirements.txt
 
 ### 1. Idea Agent（想法生成）
 
-**作用**：基于给定主题和背景知识，生成创新性研究想法。
+**作用**：通过 Memory-Guided MCTS 流水线，从给定研究主题中生成创新性研究想法。
+
+**工作流程**：
+
+Agent 运行固定的多轮循环。第 1 轮固定执行 `knowledge_aquisition`，后续轮次由 LLM 从动作空间中自主选择：
+
+| 动作 | 作用 |
+|------|------|
+| `knowledge_aquisition` | Semantic Scholar 种子检索 → 生成 RAG 查询 → OutcomeRAG 检索 → 引用扩展 → 丰富并筛选论文 |
+| `advanced_analysis` | LLM 从精选论文中提取关键方法、痛点与开放问题 |
+| `idea_generation` | Memory-Guided MCTS 搜索产出最优想法；触发 `persist_final_idea` |
+| `idea_evaluation` | 对最新想法进行独立 LLM 评分 |
+| `re_analysis_replan` | 当前方向耗尽时，扩展 topic 与检索关键词 |
 
 **输入**：
 - `run.topics`：研究主题列表（在 `src/agents/idea_agent/config/run/default.yaml` 中配置）
-- `run.mature_idea`（可选）：若提供，将触发 **Contract 模式**，MCTS 根节点由 mature idea 派生并受合约约束
+- `run.mature_idea`（可选）：开启 **Contract 模式** — MCTS 根节点由成熟想法派生，所有扩展在其机制范围内进行
 
 **输出**：
-- `runs/<topic-时间戳>/idea_result.json`：研究想法JSON结果
-- `runs/<topic-时间戳>/logs/ligagent.log`：运行日志
-
-**检索流程（含 RAG）**：
-- Semantic Scholar 获取 seed papers → 生成 RAG query → Survey Agent OutcomeRAG 检索 survey 子章节 → 抽取引用标题并反查 paperId → 解析/摘要后写入 memory。
+- `runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json`：最终想法（含 title、abstract、introduction、algorithm、reference_papers、datasets、baselines、mcts_evolution）
+- `runs/<topic-slug>-<timestamp>-<uuid>/logs/ligagent.log`：完整运行日志
 
 **配置位置**：`src/agents/idea_agent/config/`（推荐直接改 YAML）
 
-最常用的配置在：
-- `src/agents/idea_agent/config/run/default.yaml`（运行参数：**topics / parallelism / rag_config** 等）
-- `src/agents/idea_agent/config/dataset/default.yaml`（数据集检索/评分参数）
-- `src/agents/idea_agent/config/baseline/default.yaml`（baseline 检索/评分参数）
-- `src/agents/idea_agent/config/mcts/default.yaml`（搜索策略与模型参数）
+主要配置文件：
+- `src/agents/idea_agent/config/run/default.yaml` — 运行时参数：**topics / max_turns / parallelism / rag_config / mature_idea**
+- `src/agents/idea_agent/config/mcts/default.yaml` — MCTS：**max_iterations / max_depth / branching_factor / generation_model / evaluation_model**
+- `src/agents/idea_agent/config/dataset/default.yaml` — 数据集检索/评分参数
+- `src/agents/idea_agent/config/baseline/default.yaml` — baseline 检索/评分参数
 
-**示例：运行参数（最常改）**
+**运行时配置（`run/default.yaml`）**：
 ```yaml
-# src/agents/idea_agent/config/run/default.yaml
 run:
   topics:
-    - "Diffusion Models for RL in Games"
-  parallelism: 1
+    - "Diffusion Models for Reinforcement Learning in Games"
+  max_turns: 4          # 每个 topic 最多运行轮次
+  parallelism: 1        # 并发 worker 数（1 = 串行）
+  output_root: "runs"   # 相对于 idea_agent 根目录
+  console_logs: true
   rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
-  max_turns: 4
-  output_root: "runs"
-  console_logs: false
-  # 可选：开启 Contract 模式（成熟想法约束）
+  # 可选：开启 Contract 模式
   # mature_idea: "..."
-```
 
-**示例：API 环境配置**
-```yaml
-# src/agents/idea_agent/config/run/default.yaml
-run:
+  # API 凭据
   openai_api_key: "your-api-key"
   openai_base_url: "https://api.example.com/v1"
   s2_api_key: "your-s2-key"
-  s2_api_timeout: 60
+  s2_api_timeout: "60"
   serper_api_key: "your-serper-key"
-  mineru_model_source: null
+  mineru_model_source: "modelscope"
 ```
 
-**进阶示例：MCTS 搜索参数**
+**MCTS 配置（`mcts/default.yaml`）**：
 ```yaml
-# src/agents/idea_agent/config/mcts/default.yaml
 mcts:
-  max_iterations: 2
-  max_depth: 5
-  branching_factor: 4
-  exploration_constant: 1.2
+  max_iterations: 128
+  max_depth: 3
+  branching_factor: 3
+  exploration_constant: 1.15
   generation_model: "gpt-5-mini"
   evaluation_model: "gpt-5.2"
   generation_temperature: 0.7
+  evaluation_temperature: 0.001
+  min_confidence_for_memory: 0.6   # LTM 写回置信度门控
 ```
 
-**RAG 配置（Survey Agent OutcomeRAG）**：
-- `run.rag_config`：OutcomeRAG 配置路径（必须包含有效的 `save_path` / `save_json_path`，指向已生成的 survey 输出）。
-- 示例：`src/agents/survey_agent/config/outcomeRAG.yaml`（请根据实际 survey 输出修改路径）。
+**RAG 配置**：`run.rag_config` 必须指向有效的 OutcomeRAG 配置，且其中的 `save_path` / `save_json_path` 须指向已生成的 survey 输出。
+
+> LigAgent 内部机制（Artifact 结构、MCTS 详解、persist_final_idea 流程、LTM 等）详见 `src/agents/idea_agent/README.md`。
 
 **用法**：
 ```bash
 ./run_idea.sh
+# 或
 python src/agents/idea_agent/run.py
-
 ```
 
 ---
@@ -237,7 +235,7 @@ ResearchAgent/
 │   ├── idea_agent/
 │   │   ├── config/            # Idea Agent配置（run/mcts/dataset/baseline等）
 │   │   ├── run.py             # Idea Agent入口
-│   │   └── runs/              # 输出目录
+│   │   └── runs/              # 输出：runs/<slug-timestamp-uuid>/{idea_result.json,logs/}
 │   ├── experiment_agent/
 │   │   ├── shared/utils/config.py  # 全局配置
 │   │   ├── workspaces/        # 实验工作空间
@@ -255,7 +253,7 @@ ResearchAgent/
 ```
 1. Idea Agent
    输入: 研究主题 + 背景知识
-   输出: runs/<topic-时间戳>/idea_result.json
+   输出: runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json
    
    ↓ (idea_result.json → workspaces/{exp}/idea.json)
 
@@ -277,10 +275,10 @@ ResearchAgent/
 ```bash
 # Step 1: 生成研究想法
 ./run_idea.sh
-# 输出: src/agents/idea_agent/runs/<topic-时间戳>/idea_result.json
+# 输出: src/agents/idea_agent/runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json
 
 # Step 2: 执行实验（自动将idea_result.json复制到workspace/my_exp/idea.json）
-./run_experiment.sh --experiment my_exp --idea-json src/agents/idea_agent/runs/<topic-时间戳>/idea_result.json --prepare
+./run_experiment.sh --experiment my_exp --idea-json src/agents/idea_agent/runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json --prepare
 
 # Step 3: 撰写论文
 ./run_paper.sh

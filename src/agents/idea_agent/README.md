@@ -1,124 +1,192 @@
-# LigAgent# Idea Agent System Design: Memory-Guided Idea Evolution
-> Version: 1.0.0
-> Date: 2026-01-12
+# LigAgent — Idea Agent System
+
+> Version: 2.0.0
+> Date: 2026-02-21
 > Context: Automated Scientific Idea Discovery (LigAgent)
 
-## 目录 (Table of Contents)
+---
 
-1. 架构总览 (High-Level Architecture)
-2. 记忆与知识层 (Memory & Knowledge Layer)
-3. 树搜索引擎 (Memory-Guided MCTS)
-4. 行为协议 (Action Protocols)
-5. 工具定义 (Tools)
-6. 输出工件 (Artifacts)
-7. 关键设计原则 (Design Principles)
-8. 快速上手指南 (Quickstart Guide)
+## Table of Contents
 
-## 1. 架构总览 (High-Level Architecture)
+1. [Architecture Overview](#1-architecture-overview)
+2. [Agent Lifecycle](#2-agent-lifecycle)
+3. [Artifact / Working Memory](#3-artifact--working-memory)
+4. [Five-Action Protocol](#4-five-action-protocol)
+5. [Memory-Guided MCTS](#5-memory-guided-mcts)
+6. [Idea Persistence (persist_final_idea)](#6-idea-persistence-persist_final_idea)
+7. [Long-Term Memory](#7-long-term-memory)
+8. [Configuration Reference](#8-configuration-reference)
+9. [Output Artifacts](#9-output-artifacts)
+10. [Quickstart Guide](#10-quickstart-guide)
 
-Idea Agent 将研究灵感生成建模为**“知识获取 → 分析归纳 → MCTS 搜索 → 评估落地”**的循环流程。
-核心驱动是一个**Memory-Guided MCTS**，并将外部文献检索与长期记忆检索统一为“上下文燃料”。
-当提供 `run.mature_idea` 时，会进入 **Contract 模式**：MCTS 根节点由成熟想法派生，并受到合约约束（机制不漂移、评估不偏航）。
+---
+
+## 1. Architecture Overview
+
+LigAgent models research-idea generation as a closed loop of **"Knowledge Acquisition → Analysis → MCTS Search → Evaluation → Persistence"**.
+The core driver is a **Memory-Guided MCTS** engine.
+External literature retrieval (Semantic Scholar) and survey-level RAG (Survey Agent OutcomeRAG) are unified as "context fuel."
+
+When `run.mature_idea` is set in the config, the agent enters **Contract mode**: the MCTS root is initialised from the mature idea and all expansions are constrained not to drift from its mechanism.
 
 ```mermaid
 graph TD
-    subgraph "LigAgent Core"
-        A[Topic Bootstrap] --> B{LLM Action Selector}
-        B -->|knowledge_aquisition| C[Paper Search Tool]
-        B -->|advanced_analysis| D[Analysis Synthesizer]
-        B -->|idea_generation| E[Memory-Guided MCTS]
-        B -->|idea_evaluation| F[Idea Evaluator]
-        B -->|re_analysis_replan| G[Topic Replanner]
+    subgraph "run.py Entry"
+        S[topics / config] --> B[bootstrap_topic]
+        B --> L[run_agent_loop]
     end
 
-    subgraph "Knowledge & Memory"
-        C --> H[PaperRepository]
-        H --> I[(Parsed Papers Cache)]
-        E --> J[Long-Term Memory]
-        D --> K[(Short-Term Memory)]
-        E --> K
-        F --> K
-        G --> K
+    subgraph "LigAgent Core (per turn)"
+        L -->|turn 1| KA[knowledge_aquisition]
+        L -->|LLM selects| AA[advanced_analysis]
+        L -->|LLM selects| IG[idea_generation MCTS]
+        L -->|LLM selects| IE[idea_evaluation]
+        L -->|LLM selects| RR[re_analysis_replan]
     end
 
-    E --> L[idea_result.json]
-    K --> B
+    subgraph "External Retrieval"
+        KA --> SS[Semantic Scholar]
+        KA --> ORAG[OutcomeRAG]
+        ORAG --> CT[Citation Title Expansion]
+        CT --> PR[PaperRepository]
+    end
+
+    subgraph "Artifact (Working Memory)"
+        KA --> AR[artifact.references]
+        AR --> AA
+        AA --> AN[artifact.analysis]
+        AN --> IG
+        IG --> IP[artifact.idea_pool]
+        IP --> IE
+        IE --> EV[artifact.evaluations]
+    end
+
+    IG --> PFI[persist_final_idea]
+    PFI --> OUT[idea_result.json]
 ```
-
-在 **knowledge_aquisition** 阶段，LigAgent 会调用 Survey Agent 的 **OutcomeRAG**，从已有 survey 输出中检索相关子章节并抽取引用，用于补强参考文献与上下文。
 
 ---
 
-## 2. 记忆与知识层 (Memory & Knowledge Layer)
+## 2. Agent Lifecycle
 
-### 2.1 短期记忆 (Working Memory)
-**定位**：每次运行的“工作记忆”。用于追踪主题、检索关键词、分析、候选想法与步骤日志。
+### 2.1 Entry Point — `run.py`
 
-**Memory Layout (`src/agents/idea_agent/agent/memory.py`)**:
+`run.py` is the sole entry point. It:
+
+1. Loads the merged config via `load_idea_agent_config()`.
+2. Applies API-key env-vars from config (`OPENAI_API_KEY`, `S2_API_KEY`, etc.).
+3. Expands topics + parallelism into `(topic, replica_index)` pairs.
+4. Spawns a `ProcessPoolExecutor` and calls `_run_topic` for every pair.
+5. Each worker writes its output to `<output_root>/<slug-timestamp-uuid>/`.
+
+### 2.2 `_run_topic` (worker)
+
+1. Creates `<run_dir>/logs/` directory.
+2. Initialises file logger → `logs/ligagent.log`.
+3. Instantiates `LigAgent(run_dir, rag_config, config)`.
+4. Calls `agent.bootstrap_topic(topic)` — generates a background brief and primes `artifact["topic"]` and `artifact["retrieval_keywords"]`.
+5. Calls `run_agent_loop(agent, max_turns, logger)`.
+
+### 2.3 `run_agent_loop`
+
+```
+Turn 1  →  action = "knowledge_aquisition"  (always forced)
+Turn N  →  action = agent.select_action(artifact["steps"][-1])   (LLM decides)
+```
+
+Each turn calls `agent.perform_action(action)`, which appends a step summary string to `artifact["steps"]`.
+
+---
+
+## 3. Artifact / Working Memory
+
+`artifact` is a plain Python dict, initialised by `artifact_init()`, and is the single source of truth throughout one run.
+
 ```python
-memory = {
-    "topic": [],
-    "survey": "",
-    "background_knowledge": [],
-    "analysis": [],
-    "references": [],
-    "rag_query": [],
-    "rag_hits": [],
-    "idea_pool": [],
-    "evaluations": [],
-    "retrieval_keywords": [],
-    "paper_contents": {},
-    "dialogue": {},
-    "steps": [],
-    "memory_structure": {}
+artifact = {
+    "topic":               [],   # list of active topic strings (appended by bootstrap / replan)
+    "run_topic":           "",   # original topic string from launcher
+    "survey":              "",   # (reserved) survey text
+    "background_knowledge":[],   # LLM-generated background brief(s)
+    "analysis":            [],   # structured analysis entries (from advanced_analysis)
+    "references":          [],   # list-of-lists of curated paper dicts
+    "rag_query":           [],   # refined OutcomeRAG queries
+    "rag_hits":            [],   # {"query": ..., "hits": [...]} per retrieval round
+    "rag_contents":        [],   # extracted survey subsection texts
+    "paper_contents":      {},   # paperId → parsed-content metadata
+    "idea_pool":           [],   # MCTS winner dicts per idea_generation call
+    "evaluations":         [],   # standalone evaluation results
+    "retrieval_keywords":  [],   # keyword strings used for Semantic Scholar
+    "dialogue":            {},   # (reserved) dialogue history
+    "steps":               [],   # human-readable step summaries
+    "artifact_structure":  {},   # (reserved) structural metadata
 }
 ```
 
-### 2.2 文献仓库 (Paper Repository)
-**定位**：轻量化文献解析层，复用 Survey Agent 的下载与解析能力，同时避免全量 survey 图的开销。
+---
 
-**Pipeline**:
-1. `semantic_search` 获取 seed papers（标题/摘要）。
-2. `PaperRepository.prepare_papers()` + `IdeaPaperAnalyzer.ensure_keynotes()` 生成 seed keynotes，用于构造 `rag_query`。
-3. `OutcomeRAG.retrieve()` 读取 Survey Agent 的 survey 输出（`save_path`/`save_json_path`）并检索相关子章节。
-4. 抽取子章节中的引用标题，调用 `PaperRepository.search_papers_by_title()` 反查 paperId。
-5. 对引用论文执行 `prepare_papers()`，并将结果写入 `memory["references"]`、`memory["paper_contents"]`、`memory["rag_query"]`、`memory["rag_hits"]`。
+## 4. Five-Action Protocol
 
-> **RAG 配置说明**：OutcomeRAG 来自 Survey Agent，需要单独的 `rag_config`（必填，例如 `src/agents/survey_agent/config/outcomeRAG.yaml`），且其中的 `save_path` / `save_json_path` 必须指向已生成的 survey 输出文件。
+### 4.1 `knowledge_aquisition`
 
-### 2.3 长期记忆 (Long-Term Memory)
-**定位**：跨 run 的“经验记忆”，用于在 MCTS 扩展与评估阶段提供缺陷修复、反例与成功范式。
+**Always the first action of a run.**
 
-**Memory Bundle**:
-- Semantic Store: Field knowledge
-- Episodic Store: Anti-patterns
-- Procedural Store: Fix recipes
+#### Standard path (no mature_idea)
 
-**Persist 条件**:
-- 仅当评估 `confidence > min_confidence_for_memory` 时，才写入 LTM。
+1. **Semantic Scholar seed** — `run_tool("semantic_search", query=retrieval_keywords[-1], limit=N)` returns up to N papers.
+2. **Keynote generation** — `PaperRepository.prepare_papers()` parses the seed papers; keynotes are extracted by `IdeaPaperAnalyzer.ensure_keynotes()`.
+3. **RAG query generation** — LLM synthesises a focused query from the seed keynotes (`generate_rag_query`).
+4. **OutcomeRAG retrieval** — `OutcomeRAG.retrieve(rag_query, top_k=5)` reads Survey Agent outputs and returns relevant subsections.
+5. **Citation expansion** — `collect_rag_citations` extracts citation titles from subsections; `search_papers_from_citations` maps titles back to paperIds via `PaperRepository.search_papers_by_title()`.
+6. **Enrichment** — `safely_enrich_papers_with_content` fetches full text for seed + cited papers (with configurable timeout).
+7. **Filtering** — `filter_and_compress_papers` scores and retains top-k papers.
+8. **Writes** — `artifact["references"]`, `artifact["rag_query"]`, `artifact["rag_hits"]`, `artifact["rag_contents"]`, `artifact["paper_contents"]`.
+
+#### Contract path (mature_idea set)
+
+RAG query is generated directly from `mature_idea` (skips Semantic Scholar seed). Only OutcomeRAG + citation expansion are performed.
 
 ---
 
-## 3. 树搜索引擎 (Memory-Guided MCTS)
+### 4.2 `advanced_analysis`
 
-MCTS 的根节点来自 `idea_pool` 或最新分析摘要，随后通过“编辑算子”迭代扩展，最终选出最优方案并回写经验。
+- **Input** — `artifact["references"][-1]`
+- **Process** — LLM analyses curated papers, extracts key methods, pain points, and future directions.
+- **Writes** — `artifact["analysis"]`, `artifact["background_knowledge"]`.
 
-### 3.1 节点结构 (Idea Node)
+---
+
+### 4.3 `idea_generation`
+
+Runs **Memory-Guided MCTS** (see §5) on the current analysis + idea pool.
+
+- **Input** — `artifact["analysis"]`, `artifact["idea_pool"]`, `artifact["paper_contents"]`, `artifact["background_knowledge"]`, optionally `run.mature_idea`.
+- **Writes** — `artifact["idea_pool"]` (best MCTS node), `artifact["evaluations"]`.
+- **Side effect** — triggers `persist_final_idea` (see §6), which writes `idea_result.json`.
+
+---
+
+### 4.4 `idea_evaluation`
+
+Standalone evaluation of `artifact["idea_pool"][-1]` using LLM scoring. Updates `idea_pool[-1]["evaluation"]`.
+
+---
+
+### 4.5 `re_analysis_replan`
+
+Triggered when the current search direction is exhausted.
+
+- **Input** — `artifact["idea_pool"][-1]`, current `topic`, current `retrieval_keywords`.
+- **Writes** — appends new entries to `artifact["topic"]` and `artifact["retrieval_keywords"]`, enabling the next `knowledge_aquisition` to search a fresh angle.
+
+---
+
+## 5. Memory-Guided MCTS
+
+### 5.1 Core Data Structures
+
 ```python
-class IdeaNode:
-    state: IdeaState
-    parent: Optional[IdeaNode]
-    children: List[IdeaNode]
-    visits: int
-    value_sum: float
-    evaluation: Optional[IdeaEvaluation]
-
-    def uct_value(self, parent_visits, exploration_constant):
-        return (value_sum / visits) + c * sqrt(log(parent_visits) / visits)
-```
-
-### 3.2 状态载荷 (IdeaState)
-```python
+@dataclass
 class IdeaState:
     title: str
     abstract: str
@@ -127,165 +195,250 @@ class IdeaState:
     experiments: str
     risks: str
     tags: List[str]
-    operator: str
+    operator: str          # edit operator that produced this state
     target_defects: List[str]
     rationale: str
+    components: List[str]  # structured mechanism components (1–5)
+    edit_plan: Optional[Dict]
+    skill_metrics: Dict
+    # signature hash is computed automatically via __post_init__
+
+class IdeaNode:
+    state: IdeaState
+    parent: Optional[IdeaNode]
+    children: List[IdeaNode]
+    visits: int
+    value_sum: float
+    evaluation: Optional[IdeaEvaluation]
+
+    def uct_value(self, parent_visits, c):
+        return (value_sum / visits) + c * sqrt(log(parent_visits) / visits)
 ```
 
-### 3.3 评估信号 (IdeaEvaluation)
+### 5.2 Evaluation Signal
+
 ```python
+@dataclass
 class IdeaEvaluation:
-    novelty: float
-    feasibility: float
-    clarity: float
-    impact: float
-    risk: float
-    conciseness: float
-    confidence: float
+    novelty:      float   # weight 0.30
+    impact:       float   # weight 0.25
+    feasibility:  float   # weight 0.20
+    clarity:      float   # weight 0.15
+    conciseness:  float   # weight 0.10
+    risk:         float   # penalty  0.20
+    confidence:   float   # gates LTM write-back
 
     @property
     def composite(self):
-        return 0.30*novelty + 0.25*impact + 0.20*feasibility + 0.15*clarity + 0.10*conciseness - 0.2*risk
+        return (0.30*novelty + 0.25*impact + 0.20*feasibility
+                + 0.15*clarity + 0.10*conciseness - 0.20*risk)
 ```
 
-### 3.4 关键机制
-- **扩展阶段**：基于 `EDIT_OPERATORS` 提议新的 idea 子节点；Contract 模式下只允许合约内的单机制增量。
-- **模拟评估**：LLM 评分 + 结构化 JSON 输出；命中缓存会复用已有评估。
-- **回传更新**：平均值 + UCT 探索平衡。
-- **经验沉淀**：符合置信度阈值时写入 Long-Term Memory。
+### 5.3 Search Loop
+
+```
+Root ← build_root_state(analysis, idea_pool, context, [mature_idea])
+for iter in range(max_iterations):
+    node  = select(root)          # UCT traversal
+    child = expand(node)          # LLM proposes state via EDIT_OPERATORS
+    score = simulate(child)       # LLM evaluates; cache if identical signature
+    backpropagate(child, score)
+    maybe_record_experience(child, min_confidence_for_memory)
+best  = best_candidate(root)      # highest composite score
+```
+
+### 5.4 Key Mechanisms
+
+| Mechanism | Detail |
+|-----------|--------|
+| **Edit operators** | `REFINE`, `PIVOT`, `COMPOSE`, `SIMPLIFY`, `SCOPE`, `EXTEND` — LLM selects the most appropriate operator at each expansion |
+| **Component editing** | Each idea is decomposed into 1–5 mechanism `components`; `apply_edit_plan_to_components` applies atomic edits |
+| **Evaluation cache** | Identical `IdeaState.signature` → reuse cached `IdeaEvaluation`; avoid redundant LLM calls |
+| **Pareto candidates** | `pareto_candidates` selects top-k nodes by composite score before final selection |
+| **Contract mode** | Root state derived from `mature_idea`; expansion restricted to incremental changes within the declared mechanism |
+| **Anti-pattern guard** | `ANTI_PATTERN_CONSTRAINTS` blocks previously failed patterns via `format_defect_registry` |
+| **LTM write-back** | Only when `evaluation.confidence > min_confidence_for_memory` (default `0.6`) |
 
 ---
 
-## 4. 行为协议 (Action Protocols)
+## 6. Idea Persistence (`persist_final_idea`)
 
-LigAgent 在每轮根据 `memory["steps"]` 决定下一步行动，形成可复现的多阶段 pipeline。
+Called automatically at the end of `idea_generation` once the best MCTS node is selected.
 
-### 4.1 knowledge_aquisition
-**场景**：检索论文、构建初始文献上下文。
+```
+best_entry
+    ├─ build_algorithm_spec(...)            → structured algorithm/method description
+    ├─ synthesize_reference_summaries(...)  → curated reference list with summaries
+    ├─ suggest_datasets(...)                → dataset recommendations with match scores
+    ├─ suggest_baselines(...)               → baseline recommendations with match scores
+    └─ generate_idea_introduction(...)      → LaTeX-ready introduction paragraph
 
-**输入**：`retrieval_keywords[-1]`
-**流程**：Semantic Scholar seed → 生成 `rag_query` → OutcomeRAG 检索子章节 → 引用标题扩展 → parse/keynote。
-**输出**：`memory["references"]`, `memory["paper_contents"]`, `memory["rag_query"]`, `memory["rag_hits"]`
+payload → artifact["idea_result"] → idea_result.json
+```
 
-### 4.2 advanced_analysis
-**场景**：对文献进行结构化分析，产出关键方法/痛点/未来方向。
-
-**输入**：`memory["references"]`
-**输出**：`memory["analysis"]`, `memory["background_knowledge"]`
-
-### 4.3 idea_generation (MCTS)
-**场景**：基于当前 topic + memory 上下文进行 MCTS 搜索，产出最优 idea。
-
-**输入**：`analysis`, `idea_pool`, `paper_context`, `background_knowledge`
-**可选输入**：`mature_idea`（触发 Contract 模式）
-**输出**：`memory["idea_pool"]`, `memory["evaluations"]`, `idea_result.json`
-
-### 4.4 idea_evaluation
-**场景**：对已生成的 idea 进行进一步评估。
-
-**输入**：`memory["idea_pool"][-1]`
-**输出**：更新 `idea_pool[-1]["evaluation"]`
-
-### 4.5 re_analysis_replan
-**场景**：当当前路径不足时，重新设定 topic 与检索关键词。
-
-**输入**：`memory["idea_pool"][-1]`, `retrieval_keywords`, `topic`
-**输出**：新增 `topic`, `retrieval_keywords` 条目
-
----
-
-## 5. 工具定义 (Tools)
-
-Idea Agent 使用轻量 tool 接口与外部检索交互。
-
-#### Tool 1: `semantic_search(query, limit=10)`
-*   **场景**: 拉取论文元数据与摘要。
-*   **来源**: Semantic Scholar API + 本地缓存。
-*   **输出**: 论文列表 (title, abstract, authors, year, url)。
-
-#### Tool 2: `semantic_recommend(positive_ids, negative_ids, ...)`
-*   **场景**: 根据已知论文推荐更多文献。
-*   **输出**: 论文列表 (排序可按引用/最新/相关性)。
-
-#### Tool 3: `OutcomeRAG.retrieve(query, top_k=3, mode="content")`
-*   **场景**: 从 Survey Agent 输出的 survey markdown 中检索子章节，并抽取引用标题用于扩展参考文献。
-*   **来源**: Survey Agent OutcomeRAG（需要 `rag_config`）。
-*   **输出**: 子章节文本 + citation 标题列表。
-
-#### Tool 4: `search_web(queries)`
-*   **场景**: 通过 Serper 执行 Web 搜索（datasets / baselines / references）。
-*   **输出**: 搜索结果文本（用于 ReAct browse 与候选打分）。
-
----
-
-## 6. 输出工件 (Artifacts)
-
-### 6.1 idea_result.json
-Idea Agent 的最终产物，包含完整 idea、方法设计、参考文献、数据集与 MCTS 轨迹。
+### Output schema (`idea_result.json`)
 
 ```json
 {
   "title": "...",
   "abstract": "...",
   "introduction": "...",
-  "algorithm": ["..."],
+  "algorithm": ["step 1 ...", "step 2 ..."],
   "reference_papers": [{"title": "...", "summary": "..."}],
   "datasets": [{"name": "...", "usage": "...", "scores": {"match": 4}}],
   "baselines": [{"name": "...", "scores": {"match": 40}}],
   "mcts_evolution": {
     "best_path": "...",
     "iterations": [{"iteration": 0, "title": "...", "score": 1.2}]
-  }
+  },
+  "idea_contract": "..."
 }
 ```
 
-### 6.2 Logs & Runs
-`run.py` 会为每个 topic 生成独立 run 目录，包含：
-- `logs/ligagent.log`
-- `idea_result.json`
+> `idea_contract` is only present in Contract mode runs.
 
 ---
 
-## 7. 关键设计原则 (Design Principles)
+## 7. Long-Term Memory
 
-1. **MCTS 驱动创新**：不是一次生成，而是系统化探索与演化。
-2. **记忆即策略**：短期记忆提供上下文，长期记忆提供“范式纠偏”。
-3. **文献先行**：所有想法必须通过文献 grounding 进行约束与补强。
-4. **可追溯与可复现**：search_trace + idea_result 提供完整溯源。
+LTM is powered by a `FAISSMemorySystem` + `SymbolicMemorySystem` (via the `memory` package).
+
+| Store | Purpose |
+|-------|---------|
+| **Semantic** | Field knowledge and prior successful ideas |
+| **Episodic** | Anti-patterns and defect records |
+| **Procedural** | Fix recipes for known defect classes |
+
+Write-back condition: `evaluation.confidence > mcts.min_confidence_for_memory` (default `0.6`).
+
+Memory bundles are injected into MCTS expansion prompts via `MemoryBundle`, providing "corrective priors" that bias the search away from known failure modes.
 
 ---
 
-## 8. 快速上手指南 (Quickstart Guide)
+## 8. Configuration Reference
 
-本节面向第一次使用 LigAgent 的读者，目标是在 5-10 分钟内跑通一次完整流程。
+### 8.1 `config/run/default.yaml` — Runtime parameters
 
-### 8.1 准备环境
-- **API Key**: `OPENAI_API_KEY` (用于 LLM 推理)
-- **可选**: `S2_API_KEY` (用于 Semantic Scholar 检索，缺失时会降级)
-- **配置路径**: `IDEA_AGENT_SURVEY_CONFIG` (可选，默认使用 Survey Agent 的 deep_survey.yaml)
-- **RAG 配置**: `--rag-config` 指向 Survey Agent OutcomeRAG 配置（需包含有效的 `save_path` / `save_json_path`）
+```yaml
+run:
+  topics:
+    - "Diffusion Models for Reinforcement Learning in Games"
+  max_turns: 4          # max agent turns per topic
+  parallelism: 1        # concurrent workers (1 = serial)
+  output_root: "runs"   # relative to idea_agent root
+  console_logs: true    # echo logs to stdout
+  rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
 
-### 8.2 最快运行一次
-```bash
-python src/agents/idea_agent/run.py --topics "Graph Reasoning for LLMs" --max-turns 3 \
-  --rag-config src/agents/survey_agent/config/outcomeRAG.yaml
+  # Optional — enables Contract mode
+  mature_idea: "..."
+
+  # API credentials (can also be set via environment variables)
+  openai_api_key: "..."
+  openai_base_url: "..."
+  s2_api_key: "..."
+  s2_api_timeout: "60"
+  serper_api_key: "..."
+  serper_api_endpoint: "..."
+  mineru_model_source: "modelscope"
 ```
 
-### 8.3 运行会发生什么
-1. **knowledge_aquisition**: semantic search → OutcomeRAG → 引用扩展，填充 `memory["references"]`、`memory["paper_contents"]`、`memory["rag_query"]`、`memory["rag_hits"]`。
-2. **advanced_analysis**: 生成领域分析与关键问题。
-3. **idea_generation**: 运行 Memory-Guided MCTS 并产出候选 idea。
-4. **idea_evaluation**: 对最佳 idea 进行结构化打分。
+### 8.2 `config/mcts/default.yaml` — MCTS search parameters
 
-> 如果 agent 判断当前方向不足，会触发 `re_analysis_replan` 以扩展 topic 与检索关键词。
+```yaml
+mcts:
+  max_iterations: 128
+  max_depth: 3
+  branching_factor: 3
+  exploration_constant: 1.15
+  generation_model: "gpt-5-mini"
+  evaluation_model: "gpt-5.2"
+  generation_temperature: 0.7
+  evaluation_temperature: 0.001
+  generation_max_tokens: 8192
+  evaluation_max_tokens: 8192
+  min_confidence_for_memory: 0.6   # LTM write-back threshold
+  pareto_top_k: 5
+  # Composite score weights
+  novelty_weight: 0.30
+  impact_weight: 0.25
+  feasibility_weight: 0.20
+  clarity_weight: 0.15
+  conciseness_weight: 0.10
+  risk_weight: 0.20
+```
 
-### 8.4 产物在哪里
-- `runs/<topic-slug-时间戳>/idea_result.json`：最终 idea 与 MCTS 搜索轨迹。
-- `runs/<topic-slug-时间戳>/logs/ligagent.log`：完整运行日志。
+### 8.3 `config/dataset/default.yaml` & `config/baseline/default.yaml`
 
-### 8.5 如何调整效果
-- **扩展搜索深度**: `src/agents/idea_agent/config/mcts/default.yaml` 的 `max_depth`。
-- **增加迭代次数**: `max_iterations`。
-- **更改模型**: `generation_model / evaluation_model`。
-- **数据集/基线检索参数**: `src/agents/idea_agent/config/dataset/default.yaml` / `baseline/default.yaml`。
-- **限制成本**: 降低 `--max-turns` 或减少 `branching_factor`。
+Control retrieval and scoring for dataset/baseline suggestions in `persist_final_idea`.
+
+### 8.4 `config/agent/` — Agent-level parameters
+
+Controls `model`, `chat_max_retries`, `chat_retry_backoff`, `semantic_search_limit`, `idea_context_limit`, `paper_enrichment_timeout_sec`, `action_selection_attempts`.
+
+---
+
+## 9. Output Artifacts
+
+Each topic run produces an isolated directory:
+
+```
+runs/
+└── <topic-slug>-<YYYYMMDD-HHmmss-μs>-<uuid8>/
+    ├── idea_result.json   # final idea + MCTS trace
+    └── logs/
+        └── ligagent.log   # full run log
+```
+
+> When `parallelism > 1` with a single topic, the run_id also includes a `-rNN` replica suffix (e.g. `-r01`, `-r02`).
+
+---
+
+## 10. Quickstart Guide
+
+### Step 1 — Configure API keys
+
+Edit `src/agents/idea_agent/config/run/default.yaml`:
+
+```yaml
+run:
+  openai_api_key: "sk-..."
+  openai_base_url: "https://api.example.com/v1"
+  s2_api_key: "..."
+  serper_api_key: "..."
+```
+
+### Step 2 — Set your topic
+
+```yaml
+run:
+  topics:
+    - "Graph Reasoning for LLMs"
+```
+
+### Step 3 — (Optional) Point RAG at existing survey output
+
+```yaml
+run:
+  rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
+  # ensure save_path / save_json_path inside that file point to real survey outputs
+```
+
+### Step 4 — Run
+
+```bash
+# From project root
+./run_idea.sh
+# or
+python src/agents/idea_agent/run.py
+```
+
+### What happens step by step
+
+1. **Bootstrap** — LLM generates a background brief; `retrieval_keywords` is primed.
+2. **`knowledge_aquisition`** — Semantic Scholar seed → RAG query → OutcomeRAG → citation expansion → enrich → filter → `artifact["references"]` populated.
+3. **`advanced_analysis`** — LLM identifies key methods, pain points, open questions → `artifact["analysis"]`.
+4. **`idea_generation`** — Memory-Guided MCTS runs; winner written to `artifact["idea_pool"]`.
+5. **`persist_final_idea`** — Algorithm spec, references, datasets, baselines, and introduction are synthesised → `idea_result.json` written.
+6. **Subsequent turns** — LLM selects `idea_evaluation` to refine, or `re_analysis_replan` to pivot topic, until `max_turns` is reached.
+
+---
