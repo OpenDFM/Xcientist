@@ -715,10 +715,27 @@ class LigAgent(AgentBase):
                 "support_count":    int,   # optional, default 1
             }
         """
-        raise NotImplementedError(
-            "ingest_ablation_results is not yet implemented. "
-            "Populate self.artifact['ablation_results'] with a list of dicts "
-            "matching the schema described in the docstring."
+        if not results:
+            return
+        valid: List[Dict[str, Any]] = []
+        for entry in results:
+            if not isinstance(entry, dict):
+                logger.warning("[LigAgent] ingest_ablation_results: skipping non-dict entry %r", entry)
+                continue
+            if not entry.get("component") or not entry.get("op") or entry.get("delta_score") is None:
+                logger.warning(
+                    "[LigAgent] ingest_ablation_results: skipping entry missing required fields "
+                    "(component/op/delta_score): %r",
+                    entry,
+                )
+                continue
+            valid.append(dict(entry))
+        existing: List[Dict[str, Any]] = self.artifact.get("ablation_results", [])
+        self.artifact["ablation_results"] = existing + valid
+        logger.info(
+            "[LigAgent] ingest_ablation_results: added %d record(s), total=%d",
+            len(valid),
+            len(self.artifact["ablation_results"]),
         )
 
     def ingest_paper_graph_priors(self, priors: List[Dict[str, Any]]) -> None:
@@ -730,8 +747,25 @@ class LigAgent(AgentBase):
         :meth:`ingest_ablation_results`, but typically with lower
         ``confidence`` and coarser ``context_signature``.
         """
-        raise NotImplementedError(
-            "ingest_paper_graph_priors is not yet implemented. "
-            "Populate self.artifact['paper_graph_priors'] with a list of dicts "
-            "matching the schema described in the docstring."
+        if not priors:
+            return
+        valid: List[Dict[str, Any]] = []
+        for entry in priors:
+            if not isinstance(entry, dict):
+                logger.warning("[LigAgent] ingest_paper_graph_priors: skipping non-dict entry %r", entry)
+                continue
+            if not entry.get("component") or not entry.get("op") or entry.get("delta_score") is None:
+                logger.warning(
+                    "[LigAgent] ingest_paper_graph_priors: skipping entry missing required fields "
+                    "(component/op/delta_score): %r",
+                    entry,
+                )
+                continue
+            valid.append(dict(entry))
+        existing: List[Dict[str, Any]] = self.artifact.get("paper_graph_priors", [])
+        self.artifact["paper_graph_priors"] = existing + valid
+        logger.info(
+            "[LigAgent] ingest_paper_graph_priors: added %d record(s), total=%d",
+            len(valid),
+            len(self.artifact["paper_graph_priors"]),
         )
