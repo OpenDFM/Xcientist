@@ -69,12 +69,6 @@ class LigAgent(AgentBase):
             "ideageneration",
             "idea-generation",
         },
-        "idea_evaluation": {
-            "idea_evaluation",
-            "idea evaluation",
-            "ideaevaluation",
-            "idea-evaluation",
-        },
         "re_analysis_replan": {
             "re_analysis_replan",
             "re analysis replan",
@@ -109,7 +103,6 @@ class LigAgent(AgentBase):
             "knowledge_aquisition",
             "advanced_analysis",
             "idea_generation",
-            "idea_evaluation",
             "re_analysis_replan",
         ]
         self.action_selection_attempts = max(1, action_selection_attempts)
@@ -130,6 +123,11 @@ class LigAgent(AgentBase):
         self._action_lookup = build_action_lookup(self.ACTION_ALIASES)
         self.semantic_search_limit = get_config_value(config, "agent.semantic_search_limit", 5)
         self.idea_context_limit = get_config_value(config, "agent.idea_context_limit", 10)
+
+        # Initialize mature_idea in artifact from config (user-provided) if available
+        initial_mature_idea = get_config_value(config, "run.mature_idea", "")
+        if isinstance(initial_mature_idea, str) and initial_mature_idea.strip():
+            self.artifact["mature_idea"] = initial_mature_idea.strip()
 
         mcts_config = MCTSConfig()
         for field in fields(MCTSConfig):
@@ -176,32 +174,6 @@ class LigAgent(AgentBase):
                 time.sleep(wait)
         raise last_exc if last_exc else RuntimeError("Chat failed without exception detail.")
 
-    def select_action(self, observation: Any) -> str:
-        invalid_action: Optional[str] = None
-        for attempt in range(1, self.action_selection_attempts + 1):
-            template_key = "action_selection" if attempt == 1 else "action_retry"
-            template = PROMPTS.get(template_key, PROMPTS["action_selection"])
-            prompt = template.format(
-                action_space=self.action_space,
-                step=observation,
-                invalid_action=invalid_action or "",
-            )
-
-            response = self.chat(prompt, model=self.model)
-            resolved = self._canonical_action(response)
-            if resolved:
-                return resolved
-            invalid_action = response
-            logger.warning(
-                "⚠️ Invalid action '%s' (attempt %d/%d). Reminding agent of allowed actions.",
-                response,
-                attempt,
-                self.action_selection_attempts,
-            )
-        raise ValueError(
-            f"Unable to obtain a valid action after {self.action_selection_attempts} attempts (last response: {invalid_action})"
-        )
-
     def perform_action(self, action: str, **kwargs) -> Any:
         logger.info(f"🚀 Performing action: {action}...")
         resolved_action = self._canonical_action(action)
@@ -222,11 +194,6 @@ class LigAgent(AgentBase):
             return step
         if action == "idea_generation":
             step = self.idea_generation(**kwargs)
-            self.artifact["steps"].append(step)
-            logger.info(step)
-            return step
-        if action == "idea_evaluation":
-            step = self.idea_evaluation(**kwargs)
             self.artifact["steps"].append(step)
             logger.info(step)
             return step
@@ -267,7 +234,7 @@ class LigAgent(AgentBase):
         if search_type == "paper_search":
             search_keywords = self.artifact["retrieval_keywords"][-1]
             topic = self.artifact["topic"][-1] if self.artifact.get("topic") else search_keywords
-            mature_idea = get_config_value(self.config, "run.mature_idea", "")
+            mature_idea = self.artifact.get("mature_idea", "")
             # If a mature idea is provided, use it to generate a focused RAG query directly
             if len(mature_idea) > 0 and mature_idea.strip():
                 try:
@@ -339,7 +306,7 @@ class LigAgent(AgentBase):
                     limit=self.semantic_search_limit,
                 )
                 logger.info("📄 Found Papers:")
-                mature_idea = get_config_value(self.config, "run.mature_idea", "")
+                mature_idea = self.artifact.get("mature_idea", "")
                 initial_papers = normalize_search_papers(papers, search_keywords, logger)
                 if initial_papers:
                     query_papers = prepare_query_papers(
@@ -451,7 +418,7 @@ class LigAgent(AgentBase):
     def advanced_analysis(self, **kwargs) -> None:
         topic = self.artifact["topic"][-1] if self.artifact["topic"] else "unspecified topic"
         references = self.artifact["references"][-1] if self.artifact["references"] else []
-        mature_idea = get_config_value(self.config, "run.mature_idea", "")
+        mature_idea = self.artifact.get("mature_idea", "")
         prompt = PROMPTS["advanced_analysis"].format(
             topic=topic,
             mature_idea=(mature_idea or "").strip(),
@@ -485,7 +452,7 @@ class LigAgent(AgentBase):
         idea_history = list(self.artifact.get("idea_pool", []))
         seed_ideas = latest_analysis_seed_ideas(self.artifact)
         idea_context = idea_history if idea_history else seed_ideas
-        mature_idea = get_config_value(self.config, "run.mature_idea", "")
+        mature_idea = self.artifact.get("mature_idea", "")
         context = {
             "analysis": self.artifact.get("analysis", []),
             "idea_pool": idea_context,
@@ -531,32 +498,42 @@ class LigAgent(AgentBase):
         )
         return step
 
-    def idea_evaluation(self, **kwargs) -> None:
-        prompt = PROMPTS["idea_evaluation"].format(
-            topic=self.artifact["topic"][-1], idea=self.artifact["idea_pool"][-1]
-        )
-        response = self._parse_json_response(self.chat(prompt, model=self.model))
-        self.artifact["idea_pool"][-1]["evaluation"] = response
-        step = (
-            "\nIn this idea_evaluation action, I evaluated the generated research ideas:\n✅ "
-            f"{response}"
-        )
-        return step
-
     def re_analysis_replan(self, **kwargs) -> None:
+        # Gather analysis and ablation evidence for component-level revision
+        analysis = self.artifact["analysis"][-1] if self.artifact["analysis"] else {}
+        ablation_results = self.artifact.get("ablation_results", [])
+        mature_idea = self.artifact.get("mature_idea", "")
+        topic = self.artifact["topic"][-1]
+
         prompt = PROMPTS["re_analysis_replan"].format(
-            topic=self.artifact["topic"][-1],
-            idea=self.artifact["idea_pool"][-1],
-            last_queries=self.artifact["retrieval_keywords"],
-            topics=self.artifact["topic"],
+            topic=topic,
+            mature_idea=mature_idea or "(no mature idea yet)",
+            analysis=json.dumps(analysis, ensure_ascii=False, indent=2) if isinstance(analysis, dict) else str(analysis),
+            ablation_results=json.dumps(ablation_results, ensure_ascii=False, indent=2) if ablation_results else "[]",
         )
         response = self._parse_json_response(self.chat(prompt, model=self.model))
-        self.artifact["topic"].append(response["new_topic"])
-        self.artifact["retrieval_keywords"].append(response["search_keywords"])
+
+        # Store component-level decisions for traceability
+        component_decisions = response.get("component_decisions", [])
+        self.artifact.setdefault("component_decisions", []).extend(component_decisions)
+
+        # Update mature_idea in artifact so that MCTS uses it as root node
+        if response.get("mature_idea"):
+            self.artifact["mature_idea"] = response["mature_idea"]
+
+        # Update search keywords if new mechanisms were introduced
+        search_kw = response.get("search_keywords", "")
+        if search_kw:
+            self.artifact["retrieval_keywords"].append(search_kw)
+
+        n_decisions = len(component_decisions)
+        decision_summary = "; ".join(
+            f"{d['component']}\u2192{d['decision']}" for d in component_decisions if isinstance(d, dict)
+        ) or "no component decisions"
         step = (
-            "\nIn this re_analysis_replan action, I replanned my research topic to "
-            f"'{response['new_topic']}' and decided to search for new information using keywords "
-            f"'{response['search_keywords']}'."
+            f"\nIn this re_analysis_replan action, I made {n_decisions} component-level "
+            f"modification(s) based on ablation evidence: [{decision_summary}]. "
+            f"Updated mature idea for MCTS root node."
         )
         return step
 
@@ -595,10 +572,6 @@ class LigAgent(AgentBase):
 
     def _parse_json_response(self, raw: str) -> Dict[str, Any]:
         return parse_json_response(raw)
-
-    # ──────────────────────────────────────────────────────────────────────
-    #  Symbolic memory injection: component × op priors
-    # ──────────────────────────────────────────────────────────────────────
 
     def _inject_symbolic_priors(
         self,

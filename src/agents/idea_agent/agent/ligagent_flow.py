@@ -19,15 +19,27 @@ from src.agents.idea_agent.utils.ligagent_utils import (
 
 
 def run_agent_loop(agent, max_turns: int, logger) -> None:
-    """Run the main planner loop for a LigAgent instance."""
-    for turn in range(max_turns):
+    """Run the main planner loop for a LigAgent instance.
+
+    The execution flow is deterministic:
+    - If rag_hits is empty (no prior literature retrieval):
+        knowledge_aquisition -> advanced_analysis -> idea_generation
+    - If rag_hits is non-empty (literature already available):
+        advanced_analysis -> re_analysis_replan -> idea_generation
+    """
+    rag_hits = agent.artifact.get("rag_hits", [])
+    has_rag = bool(rag_hits and any(rag_hits))
+
+    if has_rag:
+        flow = ["advanced_analysis", "re_analysis_replan", "idea_generation"]
+        logger.info("📋 rag_hits present — using flow: %s", " -> ".join(flow))
+    else:
+        flow = ["knowledge_aquisition", "advanced_analysis", "idea_generation"]
+        logger.info("📋 rag_hits empty — using flow: %s", " -> ".join(flow))
+
+    for turn, action in enumerate(flow):
         logger.info("========================================")
-        logger.info("Turn %d:", turn + 1)
-        logger.info("🧠 Selecting action...")
-        if not agent.artifact["steps"]:
-            action = "knowledge_aquisition"
-        else:
-            action = agent.select_action(observation=agent.artifact["steps"][-1])
+        logger.info("Turn %d: %s", turn + 1, action)
         agent.perform_action(action)
 
 

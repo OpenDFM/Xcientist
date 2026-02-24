@@ -40,20 +40,6 @@ class AgentBase:
                 raise TypeError(f"Tool '{name}' is not callable and has no 'run' method")
         return result
 
-    def select_action(self, observation: Any) -> str:
-        """
-        Choose an action given an observation.
-        Default implementation is a stub; override in subclasses.
-        """
-        raise NotImplementedError("select_action must be implemented by subclasses")
-
-    def select_memory(self, observation: Any) -> str:
-        """
-        Choose a memory given an observation.
-        Default implementation is a stub; override in subclasses.
-        """
-        raise NotImplementedError("select_memory must be implemented by subclasses")
-
     def perform_action(self, action: str, **params) -> Any:
         """
         Perform a chosen action. 

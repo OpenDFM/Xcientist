@@ -4,6 +4,7 @@ ARTIFACT_FORMAT = {
     "topic": str, # research topic
     "run_topic": str, # original topic from launcher/env
     "survey": str, # survey of the topic
+    "mature_idea": str, # mature idea text (user-provided or from re_analysis_replan)
     "background_knowledge": List[str], # list of background knowledge strings
     "analysis":  List[str], # list of analysis strings
     "references": List[dict], # list of reference dicts
@@ -22,6 +23,7 @@ def artifact_init() -> dict:
         "topic": [],
         "run_topic": "",
         "survey": "",
+        "mature_idea": "",
         "background_knowledge": [],
         "analysis": [],
         "references": [],
