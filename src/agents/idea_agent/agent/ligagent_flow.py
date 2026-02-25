@@ -18,7 +18,7 @@ from src.agents.idea_agent.utils.ligagent_utils import (
 )
 
 
-def run_agent_loop(agent, max_turns: int, logger) -> None:
+def run_agent_loop(agent, logger) -> None:
     """Run the main planner loop for a LigAgent instance.
 
     The execution flow is deterministic:

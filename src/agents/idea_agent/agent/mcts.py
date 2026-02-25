@@ -192,11 +192,8 @@ class IdeaState:
         payload = {
             "title": self.title,
             "abstract": self.abstract,
-            "core_contribute": self.core_contribution,
             "core_contribution": self.core_contribution,
-            "methodology": self.method,
             "method": self.method,
-            "experiment_design": self.experiments,
             "experiments": self.experiments,
             "risks": self.risks,
             "tags": self.tags,
@@ -258,7 +255,11 @@ class IdeaEvaluation:
         self.confidence = max(0.0, min(1.0, _safe_float(self.confidence, 0.0)))
 
     @classmethod
-    def from_payload(cls, payload: Dict[str, Any]) -> "IdeaEvaluation":
+    def from_payload(
+        cls,
+        payload: Dict[str, Any],
+        weights: Optional[Dict[str, float]] = None,
+    ) -> "IdeaEvaluation":
         def _num(key: str, default: float = 0.0) -> float:
             return _safe_float(payload.get(key, default), default)
 
@@ -270,6 +271,7 @@ class IdeaEvaluation:
                 return [raw]
             return []
 
+        w = weights or {}
         return cls(
             novelty=_num("novelty"),
             feasibility=_num("feasibility"),
@@ -287,6 +289,15 @@ class IdeaEvaluation:
             defect_fix_summary=str(payload.get("defect_fix_summary", "")),
             detected_defects=_list("detected_defects"),
             lift_estimate=max(0.0, _num("lift_estimate", 0.0)),
+            novelty_weight=w.get("novelty_weight", 0.30),
+            impact_weight=w.get("impact_weight", 0.25),
+            feasibility_weight=w.get("feasibility_weight", 0.20),
+            clarity_weight=w.get("clarity_weight", 0.15),
+            conciseness_weight=w.get("conciseness_weight", 0.10),
+            risk_weight=w.get("risk_weight", 0.20),
+            alignment_weight=w.get("alignment_weight", 0.25),
+            complexity_weight=w.get("complexity_weight", 0.20),
+            protocol_weight=w.get("protocol_weight", 0.15),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -311,6 +322,11 @@ class IdeaEvaluation:
 
     @property
     def composite(self) -> float:
+        pos_total = max(
+            self.novelty_weight + self.impact_weight + self.feasibility_weight
+            + self.clarity_weight + self.conciseness_weight + self.protocol_weight,
+            1e-9,
+        )
         positive = (
             self.novelty_weight * self.novelty
             + self.impact_weight * self.impact
@@ -318,10 +334,16 @@ class IdeaEvaluation:
             + self.clarity_weight * self.clarity
             + self.conciseness_weight * self.conciseness
             + self.protocol_weight * self.protocol_score
+        ) / pos_total
+        adj_total = max(
+            self.risk_weight + self.complexity_weight + self.alignment_weight, 1e-9
         )
-        penalty = self.risk_weight * self.risk + self.complexity_weight * self.complexity_penalty
-        bonus = self.alignment_weight * self.alignment_score
-        return positive + bonus - penalty
+        adjustment = (
+            self.alignment_weight * self.alignment_score
+            - self.risk_weight * self.risk
+            - self.complexity_weight * self.complexity_penalty
+        ) / adj_total
+        return positive + adjustment
 
 
 @dataclass
@@ -1284,16 +1306,6 @@ class MemoryGuidedMCTS:
             self.evaluation_cache,
         )
         if cached_evaluation:
-            cached_evaluation.alignment_weight = self.config.alignment_weight
-            cached_evaluation.complexity_weight = self.config.complexity_weight
-            cached_evaluation.novelty_weight = self.config.novelty_weight
-            cached_evaluation.impact_weight = self.config.impact_weight
-            cached_evaluation.feasibility_weight = self.config.feasibility_weight
-            cached_evaluation.clarity_weight = self.config.clarity_weight
-            cached_evaluation.conciseness_weight = self.config.conciseness_weight
-            cached_evaluation.risk_weight = self.config.risk_weight
-            cached_evaluation.protocol_weight = self.config.protocol_weight
-
             node.evaluation = cached_evaluation
             node.latest_path_summary = path_summary_text
             prev_len = len(experiences)
@@ -1360,23 +1372,26 @@ class MemoryGuidedMCTS:
             payload = parse_json_response(response)
             if isinstance(payload, list):
                 payload = payload[0]
-            evaluation = IdeaEvaluation.from_payload(payload)
+            evaluation = IdeaEvaluation.from_payload(
+                payload,
+                weights={
+                    "novelty_weight": self.config.novelty_weight,
+                    "impact_weight": self.config.impact_weight,
+                    "feasibility_weight": self.config.feasibility_weight,
+                    "clarity_weight": self.config.clarity_weight,
+                    "conciseness_weight": self.config.conciseness_weight,
+                    "risk_weight": self.config.risk_weight,
+                    "alignment_weight": self.config.alignment_weight,
+                    "complexity_weight": self.config.complexity_weight,
+                    "protocol_weight": self.config.protocol_weight,
+                },
+            )
         except Exception as exc:
             log_message(self.logger, self.log_sink, "warning", "⚠️  Simulation failed: %s", exc)
             return None
 
         if evaluation.protocol_score <= 0.0:
             evaluation.protocol_score = self._compute_protocol_score(node.state.edit_plan)
-
-        evaluation.alignment_weight = self.config.alignment_weight
-        evaluation.complexity_weight = self.config.complexity_weight
-        evaluation.novelty_weight = self.config.novelty_weight
-        evaluation.impact_weight = self.config.impact_weight
-        evaluation.feasibility_weight = self.config.feasibility_weight
-        evaluation.clarity_weight = self.config.clarity_weight
-        evaluation.conciseness_weight = self.config.conciseness_weight
-        evaluation.risk_weight = self.config.risk_weight
-        evaluation.protocol_weight = self.config.protocol_weight
 
         cache_evaluation(node.state.signature, path_key, evaluation, self.evaluation_cache)
         node.evaluation = evaluation

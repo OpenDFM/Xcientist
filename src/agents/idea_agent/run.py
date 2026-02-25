@@ -59,7 +59,6 @@ def _expand_single_topic_for_parallelism(topics: Sequence[str], parallelism: int
 
 def _run_topic(
     topic: str,
-    max_turn: int,
     output_root: str,
     run_id: str,
     include_console: bool,
@@ -81,7 +80,6 @@ def _run_topic(
     )
     logger = get_logger()
     logger.info("========================================")
-    logger.info("🤖 Hello, I am LigAgent!")
     logger.info("💡 The research topic is %s", topic)
 
     config = load_idea_agent_config()
@@ -89,7 +87,7 @@ def _run_topic(
     agent.bootstrap_topic(topic)
 
     try:
-        run_agent_loop(agent, max_turn, logger)
+        run_agent_loop(agent, logger)
     except (Exception, KeyboardInterrupt):
         logger.info(agent.memory)
         tb = traceback.format_exc()
@@ -105,7 +103,6 @@ def _load_run_defaults(config: Optional[object]) -> dict:
     return {
         "topics": get_config_value(config, "run.topics", []),
         "topics_file": get_config_value(config, "run.topics_file", None),
-        "max_turns": get_config_value(config, "run.max_turns", None),
         "parallelism": get_config_value(config, "run.parallelism", None),
         "output_root": get_config_value(config, "run.output_root", str(DEFAULT_OUTPUT_ROOT)),
         "console_logs": get_config_value(config, "run.console_logs", False),
@@ -137,7 +134,6 @@ def main() -> None:
     _apply_env_config(config)
     defaults = _load_run_defaults(config)
     topics = _load_topics(defaults["topics"], defaults["topics_file"])
-    max_turns = defaults["max_turns"] if defaults["max_turns"] is not None else 4
     output_root = Path(defaults["output_root"]).expanduser()
     if not output_root.is_absolute():
         output_root = IDEA_AGENT_ROOT / output_root
@@ -162,7 +158,6 @@ def main() -> None:
             future = executor.submit(
                 _run_topic,
                 topic,
-                max_turns,
                 str(output_root),
                 run_id,
                 include_console,
