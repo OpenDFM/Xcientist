@@ -12,15 +12,13 @@ Relevant literature evidence from the current paper cache:
 Compiled component-level edit plan for this node:
 {edit_plan}
 
-Current skill prior / constraints for the chosen edit-operator skill:
-{skill_prior}
-
 Candidate idea (JSON):
 {idea}
 
 Rewrite path:
 {path_summary}
 
+Defect registry:
 {defect_registry}
 
 Component-level symbolic memory insights (from past MCTS iterations):

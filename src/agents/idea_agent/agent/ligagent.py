@@ -431,7 +431,13 @@ class LigAgent(AgentBase):
             self.chat(prompt, model=self.model, max_output_tokens=8192)
         )
         response = normalize_analysis_entry(raw_response)
-        logger.info(f"📝 Advanced Analysis Result:\n{response}")
+        if isinstance(response, (dict, list)):
+            logger.info(
+                "📝 Advanced Analysis Result:\n%s",
+                json.dumps(response, ensure_ascii=False, indent=2),
+            )
+        else:
+            logger.info("📝 Advanced Analysis Result:\n%s", response)
         self.artifact["analysis"].append(response)
         ingest_analysis_background(response, self.artifact)
         step = (

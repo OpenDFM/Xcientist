@@ -9,7 +9,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
-from src.agents.idea_agent.utils.mcts_helpers import clip_text
+from memory.api.component_taxonomy import ContextSignature, extract_component_families, extract_context_signature
+from src.agents.idea_agent.utils.mcts_helpers import clip_text, parse_json_response
 
 
 class AtomicEditOp(str, Enum):
@@ -838,6 +839,783 @@ def log_message(
             logger.debug("MCTS log sink failed: %s", exc)
 
 
+def _dedupe_keep_order_strings(items: Sequence[str]) -> List[str]:
+    seen: Set[str] = set()
+    ordered: List[str] = []
+    for item in items:
+        text = str(item).strip()
+        key = text.lower()
+        if not text or key in seen:
+            continue
+        seen.add(key)
+        ordered.append(text)
+    return ordered
+
+
+def _safe_pretty_json(value: Any, pretty_json: Optional[Any] = None) -> str:
+    if callable(pretty_json):
+        try:
+            return str(pretty_json(value))
+        except Exception:
+            pass
+    if isinstance(value, (dict, list)):
+        try:
+            return json.dumps(value, ensure_ascii=False, indent=2, default=str)
+        except Exception:
+            return str(value)
+    return str(value)
+
+
+def _safe_float_default(value: Any, fallback: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def normalize_budget_dict(budget: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(budget, dict):
+        return {}
+    cleaned: Dict[str, Any] = {}
+    for key, value in budget.items():
+        if isinstance(value, (int, float)):
+            cleaned[str(key)] = float(value)
+        else:
+            try:
+                cleaned[str(key)] = float(value)
+            except (TypeError, ValueError):
+                cleaned[str(key)] = value
+    return cleaned
+
+
+def apply_budget_delta_to_parent(
+    parent_budget: Dict[str, Any],
+    delta: Dict[str, Any],
+) -> Dict[str, Any]:
+    next_budget = normalize_budget_dict(parent_budget)
+    for key, val in (delta or {}).items():
+        if key not in next_budget:
+            next_budget[key] = _safe_float_default(val, 0.0)
+            continue
+        base = next_budget.get(key)
+        if isinstance(base, (int, float)):
+            next_budget[key] = round(float(base) + _safe_float_default(val, 0.0), 4)
+    return next_budget
+
+
+def plan_to_method_text(plan: Any) -> str:
+    lines: List[str] = []
+    for idx, edit in enumerate(getattr(plan, "component_edits", []) or [], start=1):
+        op = getattr(getattr(edit, "op", None), "value", getattr(edit, "op", ""))
+        target = f" -> {getattr(edit, 'target', '')}" if getattr(edit, "target", "") else ""
+        condition = (
+            f" [condition: {getattr(edit, 'condition', '')}]"
+            if getattr(edit, "condition", "")
+            else ""
+        )
+        details = f"; {getattr(edit, 'details', '')}" if getattr(edit, "details", "") else ""
+        lines.append(f"{idx}. {op}({getattr(edit, 'component', '')}{target}){condition}{details}")
+    return "\n".join(lines)
+
+
+def plan_to_experiment_text(plan: Any) -> str:
+    blocks: List[str] = []
+    validation = getattr(plan, "validation", None)
+    regression_tests = getattr(validation, "regression_tests", []) if validation else []
+    ablation_tests = getattr(validation, "ablation_tests", []) if validation else []
+    stress_tests = getattr(validation, "stress_tests", []) if validation else []
+    if regression_tests:
+        blocks.append("Regression:\n- " + "\n- ".join(regression_tests))
+    if ablation_tests:
+        blocks.append("Ablation:\n- " + "\n- ".join(ablation_tests))
+    if stress_tests:
+        blocks.append("Stress:\n- " + "\n- ".join(stress_tests))
+    return "\n\n".join(blocks)
+
+
+def compute_protocol_score_from_plan(plan: Optional[Dict[str, Any]]) -> float:
+    if not plan:
+        return 0.0
+    validation = plan.get("validation") if isinstance(plan.get("validation"), dict) else {}
+    score = 0.0
+    if validation.get("regression_tests"):
+        score += 1.7
+    if validation.get("ablation_tests"):
+        score += 1.7
+    if validation.get("stress_tests"):
+        score += 1.6
+    return min(5.0, score)
+
+
+def memory_bundle_log_payload(bundle: Any) -> Dict[str, Any]:
+    def _snippet_payload(snippet: Any) -> Dict[str, Any]:
+        return {
+            "id": getattr(snippet, "identifier", ""),
+            "title": getattr(snippet, "title", ""),
+            "detail": getattr(snippet, "detail", ""),
+            "tags": list(getattr(snippet, "tags", []) or []),
+        }
+
+    return {
+        "field_knowledge": [_snippet_payload(s) for s in getattr(bundle, "field_knowledge", []) or []],
+        "anti_patterns": [_snippet_payload(s) for s in getattr(bundle, "anti_patterns", []) or []],
+        "fix_recipes": [_snippet_payload(s) for s in getattr(bundle, "fix_recipes", []) or []],
+    }
+
+
+def expand_symbolic_memory_log_payload(
+    mcts: Any,
+    parent_ctx_sig: ContextSignature,
+    component_families: List[Dict[str, Any]],
+    action_priors: Dict[str, float],
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "component_families": component_families,
+        "action_priors": {op: round(val, 4) for op, val in action_priors.items()},
+        "records_by_family": [],
+    }
+    seen_record_ids: Set[str] = set()
+
+    for cf in component_families:
+        family = str(cf.get("family", "")).strip()
+        if not family:
+            continue
+        try:
+            records = mcts.symbolic_memory.retrieve_hierarchical(
+                target_family=family,
+                context_sig=parent_ctx_sig,
+                limit=5,
+                threshold=0.05,
+                agent_id="idea_agent",
+            )
+        except Exception as exc:
+            payload["records_by_family"].append({"family": family, "error": str(exc), "records": []})
+            continue
+
+        family_records: List[Dict[str, Any]] = []
+        for score, rec in records or []:
+            rec_id = getattr(rec, "id", None)
+            if rec_id and rec_id in seen_record_ids:
+                continue
+            if rec_id:
+                seen_record_ids.add(rec_id)
+            family_records.append(
+                {
+                    "id": rec_id,
+                    "main_op": getattr(rec, "main_op", ""),
+                    "summary": getattr(rec, "summary", ""),
+                    "delta_score": round(float(getattr(rec, "delta_score", 0.0)), 4),
+                    "confidence": round(float(getattr(rec, "confidence", 0.0)), 4),
+                    "match_score": round(float(score), 4),
+                    "anti_patterns": list(getattr(rec, "anti_patterns", []) or [])[:3],
+                }
+            )
+        if family_records:
+            payload["records_by_family"].append({"family": family, "records": family_records})
+    return payload
+
+
+def simulate_log_payload(evaluation: Any) -> Dict[str, Any]:
+    payload = {**evaluation.to_dict(), "composite": evaluation.composite}
+    return payload
+
+
+def materialize_child_state(
+    mcts: Any,
+    parent_state: Any,
+    plan: Any,
+    instantiated: Optional[Dict[str, Any]] = None,
+    *,
+    idea_state_cls: Any,
+) -> Any:
+    new_components = apply_edit_plan_to_components(parent_state.components, plan)
+    next_budget = apply_budget_delta_to_parent(parent_state.budget, plan.estimated_budget_delta)
+
+    inst = instantiated or {}
+    title = inst.get("title") or f"{parent_state.title} | {plan.skill_name.replace('-', ' ').title()}"
+    abstract = inst.get("abstract") or (
+        f"Component-level macro action '{plan.skill_name}' targets defects "
+        f"{', '.join(plan.target_defects)} via {len(plan.component_edits)} atomic edits."
+    )
+    core = inst.get("core_contribution") or plan.objective
+    method = inst.get("method") or plan_to_method_text(plan)
+    experiments = inst.get("experiments") or plan_to_experiment_text(plan)
+    risks = inst.get("risks") or (
+        f"Guardrails: {'; '.join(plan.guardrails)} | Budget delta: {plan.estimated_budget_delta}"
+    )
+    rationale = inst.get("rationale") or plan.compile_notes
+    tags = _dedupe_keep_order_strings(list(parent_state.tags) + [plan.skill_name] + list(plan.target_defects))
+
+    return idea_state_cls(
+        title=title,
+        abstract=abstract,
+        core_contribution=core,
+        method=method,
+        experiments=experiments,
+        risks=risks,
+        tags=tags,
+        operator=plan.skill_name,
+        target_defects=plan.target_defects,
+        rationale=rationale,
+        memory_refs=plan.memory_refs,
+        budget=next_budget,
+        components=new_components,
+        paper_graph_context=parent_state.paper_graph_context,
+        edit_plan=plan.to_dict(),
+        skill_metrics={
+            "skill_prior_before": mcts._skill_prior_for_prompt(plan.skill_name),
+            "guardrails": plan.guardrails,
+            "constraints": ANTI_PATTERN_CONSTRAINTS,
+            "llm_instantiated": bool(inst),
+        },
+    )
+
+
+def extract_context_sig_from_node(node: Any) -> ContextSignature:
+    eval_scores: Dict[str, float] = {}
+    if getattr(node, "evaluation", None) is not None:
+        eval_scores = {
+            "novelty": node.evaluation.novelty,
+            "feasibility": node.evaluation.feasibility,
+            "impact": node.evaluation.impact,
+            "risk": node.evaluation.risk,
+            "complexity_penalty": node.evaluation.complexity_penalty,
+        }
+
+    return extract_context_signature(
+        components=node.state.components,
+        method_text=node.state.method,
+        evaluation_scores=eval_scores,
+        budget=node.state.budget,
+        last_operator=node.state.operator,
+        depth=node.depth,
+        defects=node.state.target_defects,
+    )
+
+
+def instantiate_skill_plan_for_node(
+    mcts: Any,
+    plan: Any,
+    parent_state: Any,
+    bundle: Any,
+    *,
+    prompt_template: str,
+) -> Optional[Dict[str, Any]]:
+    component_edits_text = plan_to_method_text(plan)
+    validation_text = plan_to_experiment_text(plan)
+
+    prompt = prompt_template.format(
+        topic=mcts.topic,
+        mature_idea=mcts.mature_idea or "None",
+        parent_summary=parent_state.describe(),
+        parent_components=", ".join(parent_state.components) if parent_state.components else "None",
+        paper_context=mcts.paper_context,
+        memory_bundle=bundle.to_prompt_block(),
+        skill_name=plan.skill_name,
+        plan_objective=plan.objective,
+        target_defects=", ".join(plan.target_defects),
+        component_edits=component_edits_text,
+        validation_protocols=validation_text,
+        guardrails="; ".join(plan.guardrails) if plan.guardrails else "None",
+    )
+    try:
+        response = mcts.chat_fn(
+            prompt,
+            model=mcts.config.generation_model,
+            temperature=mcts.config.generation_temperature,
+            max_output_tokens=mcts.config.generation_max_tokens,
+        )
+        payload = parse_json_response(response)
+        if isinstance(payload, list):
+            payload = payload[0]
+        if not isinstance(payload, dict):
+            return None
+        return payload
+    except Exception as exc:
+        log_message(
+            mcts.logger,
+            mcts.log_sink,
+            "warning",
+            "⚠️  Skill instantiation failed for %s: %s",
+            plan.skill_name,
+            exc,
+        )
+        return None
+
+
+def build_symbolic_eval_hints(mcts: Any, node: Any) -> str:
+    component_families = extract_component_families(node.state.components, node.state.method)
+    if not component_families:
+        return "No symbolic memory hints available."
+
+    ctx_sig = extract_context_sig_from_node(node)
+    hints_parts: List[str] = []
+    seen_record_ids: Set[str] = set()
+
+    for cf in component_families:
+        family = cf.get("family", "")
+        if not family:
+            continue
+
+        records = mcts.symbolic_memory.retrieve_hierarchical(
+            target_family=family,
+            context_sig=ctx_sig,
+            limit=5,
+            threshold=0.05,
+            agent_id="idea_agent",
+        )
+        if not records:
+            continue
+
+        family_lines: List[str] = [f"  Component family: {family}"]
+        for score, rec in records:
+            rec_id = getattr(rec, "id", None)
+            if rec_id is not None and rec_id in seen_record_ids:
+                continue
+            if rec_id is not None:
+                seen_record_ids.add(rec_id)
+
+            delta_score = float(getattr(rec, "delta_score", 0.0))
+            delta_tag = f"+{delta_score:.2f}" if delta_score >= 0 else f"{delta_score:.2f}"
+            line = (
+                f"    - [{getattr(rec, 'main_op', '')}] {getattr(rec, 'summary', '')}  "
+                f"(delta={delta_tag}, conf={float(getattr(rec, 'confidence', 0.0)):.2f}, score={float(score):.3f})"
+            )
+            anti_patterns = list(getattr(rec, "anti_patterns", []) or [])
+            if anti_patterns:
+                line += f"  anti-patterns: {'; '.join(anti_patterns[:3])}"
+            family_lines.append(line)
+        if len(family_lines) > 1:
+            hints_parts.append("\n".join(family_lines))
+
+    if not hints_parts:
+        return "No symbolic memory hints available."
+
+    header = (
+        "Historical symbolic memory records for the component families "
+        "in this idea (positive delta = previously beneficial, "
+        "negative delta = previously harmful):"
+    )
+    return header + "\n" + "\n".join(hints_parts)
+
+
+def update_skill_prior_from_evaluation(mcts: Any, node: Any, evaluation: Any) -> None:
+    skill_name = node.state.operator
+    if not skill_name or skill_name == "seed":
+        return
+
+    normalized_reward = max(0.0, min(1.0, evaluation.composite / 5.0))
+    prior = mcts.skill_catalog.update_prior(
+        skill_name=skill_name,
+        reward=normalized_reward,
+        feedback=evaluation.feedback,
+        failure_modes=evaluation.failure_modes,
+        success_threshold=mcts.config.skill_prior_success_threshold,
+    )
+    node.state.skill_metrics["skill_prior_after"] = prior.to_dict()
+
+
+def extract_mature_idea_components_via_llm(
+    mcts: Any,
+    mature_idea: str,
+    topic: str,
+    *,
+    prompt_template: str,
+    max_components: int,
+) -> List[str]:
+    prompt = prompt_template.format(mature_idea=mature_idea, topic=topic)
+    try:
+        response = mcts.chat_fn(
+            prompt,
+            model=mcts.config.generation_model,
+            temperature=0.3,
+            max_output_tokens=512,
+        )
+        payload = parse_json_response(response)
+        if isinstance(payload, list):
+            payload = payload[0]
+        if isinstance(payload, dict):
+            raw = payload.get("components", [])
+            if isinstance(raw, list):
+                components = [str(c).strip() for c in raw if str(c).strip()]
+                components = components[:max_components]
+                if components:
+                    return components
+    except Exception as exc:
+        log_message(
+            mcts.logger,
+            mcts.log_sink,
+            "warning",
+            "⚠️  Component extraction from mature idea failed: %s",
+            exc,
+        )
+    return []
+
+
+def select_leaf_for_rollout(mcts: Any, node: Any) -> Tuple[Any, List[Any]]:
+    current = node
+    path = [node]
+    while current.children and current.expanded:
+        parent = current
+        current = max(
+            parent.children,
+            key=lambda child: child.uct_value(
+                parent_visits=parent.visits or 1,
+                exploration_constant=mcts.config.exploration_constant,
+            ),
+        )
+        path.append(current)
+    return current, path
+
+
+def expand_node_with_skills(
+    mcts: Any,
+    node: Any,
+    path: List[Any],
+    *,
+    min_components: int,
+    max_components: int,
+    pretty_json: Optional[Any] = None,
+) -> Tuple[Optional[Any], List[Any]]:
+    bundle = mcts.memory_accessor.retrieve_bundle(
+        query=(
+            f"{mcts.topic}\n{node.state.title}\n"
+            f"{node.state.core_contribution}\n"
+            f"defects={','.join(node.state.target_defects)}"
+        )
+    )
+    log_message(
+        mcts.logger,
+        mcts.log_sink,
+        "info",
+        "[MCTS] Expand: vector_memory\n%s",
+        _safe_pretty_json(mcts._memory_bundle_log_payload(bundle), pretty_json),
+    )
+    # --- Compute symbolic-memory action priors for PUCT boosting ---
+    parent_ctx_sig = mcts._extract_context_sig(node)
+    component_families = extract_component_families(node.state.components, node.state.method)
+    action_priors: Dict[str, float] = {}
+    for cf in component_families:
+        family = cf.get("family", "")
+        if not family:
+            continue
+        priors = mcts.symbolic_memory.compute_action_priors(
+            target_family=family,
+            context_sig=parent_ctx_sig,
+            limit=20,
+            agent_id="idea_agent",
+        )
+        for op, delta in priors.items():
+            if op not in action_priors or delta > action_priors[op]:
+                action_priors[op] = delta
+    log_message(
+        mcts.logger,
+        mcts.log_sink,
+        "info",
+        "[MCTS] Expand: symbolic_memory\n%s",
+        _safe_pretty_json(
+            mcts._expand_symbolic_memory_log_payload(
+                parent_ctx_sig=parent_ctx_sig,
+                component_families=component_families,
+                action_priors=action_priors,
+            ),
+            pretty_json,
+        ),
+    )
+
+    skill_candidates = mcts.skill_catalog.select_skills(
+        defect_tags=node.state.target_defects,
+        budget=node.state.budget,
+        max_children=mcts.config.branching_factor,
+    )
+    log_message(
+        mcts.logger,
+        mcts.log_sink,
+        "info",
+        "[MCTS] Expand: skill_prior\n%s",
+        _safe_pretty_json(
+            {skill.name: mcts._skill_prior_for_prompt(skill.name) for skill in skill_candidates},
+            pretty_json,
+        ),
+    )
+
+    if action_priors:
+
+        def _skill_prior_boost(sk: Any) -> float:
+            ops = {step.split("(")[0].strip().lower() for step in (sk.atomic_blueprint or [])}
+            return max((action_priors.get(op, 0.0) for op in ops), default=0.0)
+
+        skill_candidates = sorted(skill_candidates, key=_skill_prior_boost, reverse=True)
+
+    payload_count = len(skill_candidates)
+    pre_children = len(node.children)
+    new_child: Optional[Any] = None
+
+    idea_node_cls = type(node)
+    operator_application_cls = type(node.transformation)
+    for skill in skill_candidates:
+        plan = mcts.skill_catalog.compile_plan(
+            skill=skill,
+            parent_title=node.state.title,
+            parent_components=node.state.components,
+            target_defects=node.state.target_defects,
+            budget=node.state.budget,
+            memory_refs=bundle.referenced_ids(),
+        )
+        prior_constraints = mcts.skill_catalog.priors.get(skill.name, SkillUsagePrior()).rule_constraints
+        if prior_constraints:
+            plan.guardrails = _dedupe_keep_order_strings(plan.guardrails + list(prior_constraints))
+
+        if action_priors:
+            plan_ops = set()
+            for edit in plan.component_edits:
+                op_val = edit.op.value if hasattr(edit.op, "value") else str(edit.op)
+                plan_ops.add(op_val.lower().strip())
+
+        current_count = len(node.state.components)
+        filtered_edits: List[ComponentEdit] = []
+        for edit in plan.component_edits:
+            if current_count <= min_components and edit.op == AtomicEditOp.REMOVE_COMPONENT:
+                continue
+            if current_count >= max_components and edit.op in (
+                AtomicEditOp.ADD_COMPONENT,
+                AtomicEditOp.GATE_COMPONENT,
+            ):
+                continue
+            if edit.op == AtomicEditOp.ADD_COMPONENT:
+                current_count += 1
+            elif edit.op == AtomicEditOp.REMOVE_COMPONENT:
+                current_count -= 1
+            elif edit.op == AtomicEditOp.GATE_COMPONENT:
+                current_count += 1
+            filtered_edits.append(edit)
+        plan.component_edits = filtered_edits
+
+        instantiated = mcts._instantiate_skill_plan(plan, node.state, bundle)
+        log_message(
+            mcts.logger,
+            mcts.log_sink,
+            "info",
+            "[MCTS] Expand: skill=%s instantiation_result\n%s",
+            skill.name,
+            _safe_pretty_json(
+                instantiated
+                if instantiated is not None
+                else {"status": "empty", "message": "instantiation returned no output"},
+                pretty_json,
+            ),
+        )
+
+        if instantiated and isinstance(instantiated.get("component_mapping"), dict):
+            mapping = instantiated["component_mapping"]
+            edit_reasons = instantiated.get("edit_reasons")
+            if isinstance(edit_reasons, list):
+                for reason_idx, edit in enumerate(plan.component_edits):
+                    if reason_idx < len(edit_reasons) and isinstance(edit_reasons[reason_idx], str):
+                        edit.reason = edit_reasons[reason_idx]
+
+            for edit in plan.component_edits:
+                if edit.component in mapping:
+                    edit.component = mapping[edit.component]
+                if edit.target and edit.target in mapping:
+                    edit.target = mapping[edit.target]
+                if edit.op == AtomicEditOp.REWIRE:
+                    edit.details = f"Rewire {edit.component} -> {edit.target}"
+                elif edit.op == AtomicEditOp.REPLACE_COMPONENT:
+                    edit.details = f"Replace {edit.target} with {edit.component}"
+                elif edit.op == AtomicEditOp.GATE_COMPONENT:
+                    cond = f" under condition '{edit.condition}'" if edit.condition else ""
+                    edit.details = f"Gate {edit.component}{cond}"
+                elif edit.op == AtomicEditOp.ADD_COMPONENT:
+                    edit.details = f"ADD_COMPONENT on {edit.component}"
+
+        protocol_names: List[str] = []
+        for edit_idx, edit in enumerate(plan.component_edits):
+            if edit.op == AtomicEditOp.ADD_PROTOCOL:
+                protocol_names.append(edit.component)
+                continue
+            op_dict = {
+                "op": edit.op.value if hasattr(edit.op, "value") else edit.op,
+                "component": edit.component,
+                "target": edit.target,
+                "condition": edit.condition,
+                "details": edit.details or "",
+                "reason": edit.reason or "",
+            }
+
+        child_state = mcts._materialize_child_state(node.state, plan, instantiated)
+        child_node = attach_child(
+            node,
+            child_state,
+            signature_nodes=mcts.signature_nodes,
+            id_iter=mcts._id_iter,
+            idea_node_cls=idea_node_cls,
+            operator_application_cls=operator_application_cls,
+            logger=mcts.logger,
+            log_sink=mcts.log_sink,
+        )
+        if child_node is None:
+            continue
+        cached_eval = get_best_cached_evaluation(child_state.signature, mcts.evaluation_cache)
+        if cached_eval:
+            child_node.evaluation = cached_eval
+        if new_child is None and child_node.visits == 0:
+            new_child = child_node
+
+    node.expanded = True
+
+    if new_child is None and node.children:
+        new_child = min(node.children, key=lambda c: c.visits)
+    if new_child:
+        return new_child, path + [new_child]
+    return node, path
+
+
+def simulate_node_value(
+    mcts: Any,
+    node: Any,
+    path: List[Any],
+    experiences: List[Dict[str, Any]],
+    *,
+    idea_evaluation_cls: Any,
+    pretty_json: Optional[Any] = None,
+) -> Optional[Any]:
+    path_summary_text = path_summary(path)
+    path_key = path_cache_key(node.state.signature, path_summary_text)
+
+    cached_evaluation = get_cached_evaluation(node.state.signature, path_key, mcts.evaluation_cache)
+    if cached_evaluation:
+        node.evaluation = cached_evaluation
+        node.latest_path_summary = path_summary_text
+        log_message(
+            mcts.logger,
+            mcts.log_sink,
+            "info",
+            "[MCTS] Simulate (cache hit): node=%s score=%.4f\n%s",
+            node.state.title[:80],
+            cached_evaluation.composite,
+            _safe_pretty_json(mcts._simulate_log_payload(cached_evaluation), pretty_json),
+        )
+        prev_len = len(experiences)
+        maybe_record_experience(
+            path_key,
+            node,
+            cached_evaluation,
+            path_summary_text,
+            experiences,
+            mcts.experience_cache,
+            mcts.memory_accessor,
+            mcts.config.min_confidence_for_memory,
+        )
+        if len(experiences) > prev_len:
+            experience = experiences[-1]
+            
+        return cached_evaluation
+
+    symbolic_hints = mcts._build_symbolic_eval_hints(node)
+    log_message(
+        mcts.logger,
+        mcts.log_sink,
+        "info",
+        "[MCTS] Simulate: symbolic_memory\n%s",
+        symbolic_hints,
+    )
+
+    eval_idea_payload = node.state.to_payload()
+    skill_metrics = eval_idea_payload.get("skill_metrics")
+    if isinstance(skill_metrics, dict):
+        filtered_metrics = dict(skill_metrics)
+        filtered_metrics.pop("skill_prior_before", None)
+        filtered_metrics.pop("skill_prior_after", None)
+        if filtered_metrics:
+            eval_idea_payload["skill_metrics"] = filtered_metrics
+        else:
+            eval_idea_payload.pop("skill_metrics", None)
+
+    prompt = mcts.evaluation_prompt.format(
+        topic=mcts.topic,
+        mature_idea=mcts.mature_idea or "None",
+        analysis=mcts.analysis_blob,
+        paper_context=mcts.paper_context,
+        skill_output=json.dumps(node.state.edit_plan, ensure_ascii=False, indent=2)
+        if node.state.edit_plan
+        else "null",
+        edit_plan=json.dumps(node.state.edit_plan, ensure_ascii=False, indent=2)
+        if node.state.edit_plan
+        else "null",
+        idea=json.dumps(eval_idea_payload, ensure_ascii=False, indent=2),
+        path_summary=path_summary_text,
+        defect_registry=format_defect_registry(),
+        symbolic_memory_hints=symbolic_hints,
+    )
+
+    try:
+        response = mcts.chat_fn(
+            prompt,
+            model=mcts.config.evaluation_model,
+            temperature=mcts.config.evaluation_temperature,
+            max_output_tokens=mcts.config.evaluation_max_tokens,
+        )
+        payload = parse_json_response(response)
+        if isinstance(payload, list):
+            payload = payload[0]
+        evaluation = idea_evaluation_cls.from_payload(
+            payload,
+            weights={
+                "novelty_weight": mcts.config.novelty_weight,
+                "impact_weight": mcts.config.impact_weight,
+                "feasibility_weight": mcts.config.feasibility_weight,
+                "clarity_weight": mcts.config.clarity_weight,
+                "conciseness_weight": mcts.config.conciseness_weight,
+                "risk_weight": mcts.config.risk_weight,
+                "alignment_weight": mcts.config.alignment_weight,
+                "complexity_weight": mcts.config.complexity_weight,
+                "protocol_weight": mcts.config.protocol_weight,
+            },
+        )
+    except Exception as exc:
+        log_message(mcts.logger, mcts.log_sink, "warning", "⚠️  Simulation failed: %s", exc)
+        return None
+
+    if evaluation.protocol_score <= 0.0:
+        evaluation.protocol_score = mcts._compute_protocol_score(node.state.edit_plan)
+
+    log_message(
+        mcts.logger,
+        mcts.log_sink,
+        "info",
+        "[MCTS] Simulate: node=%s score=%.4f\n%s",
+        node.state.title[:80],
+        evaluation.composite,
+        _safe_pretty_json(mcts._simulate_log_payload(evaluation), pretty_json),
+    )
+
+    cache_evaluation(node.state.signature, path_key, evaluation, mcts.evaluation_cache)
+    node.evaluation = evaluation
+    node.latest_path_summary = path_summary_text
+
+    prev_len = len(experiences)
+    maybe_record_experience(
+        path_key,
+        node,
+        evaluation,
+        path_summary_text,
+        experiences,
+        mcts.experience_cache,
+        mcts.memory_accessor,
+        mcts.config.min_confidence_for_memory,
+    )
+
+    return evaluation
+
+
+def backpropagate_rollout(path: List[Any], evaluation: Any) -> None:
+    score = evaluation.composite
+    for hop in reversed(path):
+        hop.visits += 1
+        hop.value_sum += score
+
+
 def reset_search_state(mcts: Any) -> None:
     mcts.signature_nodes = {}
     mcts.evaluation_cache = {}
@@ -898,15 +1676,6 @@ def attach_child(
             operator_application_cls=operator_application_cls,
         )
     if child is parent or is_ancestor(parent, child):
-        log_message(
-            logger,
-            log_sink,
-            "debug",
-            "[MCTS] Skip attaching signature=%s to avoid cycle (parent=%s child=%s).",
-            state.signature,
-            parent.node_id,
-            child.node_id,
-        )
         return None
     if child not in parent.children:
         parent.children.append(child)
@@ -1005,9 +1774,7 @@ def build_root_state(
     if not components:
         components = [
             "backbone_model",
-            "retriever",
             "objective",
-            "data_pipeline",
             "evaluation_harness",
         ]
 

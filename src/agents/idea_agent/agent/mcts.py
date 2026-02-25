@@ -20,39 +20,44 @@ from memory.api.slot_process_api import SlotProcess
 from memory.api.symbolic_memory_system_api import SymbolicMemorySystem
 from memory.api.component_taxonomy import (
     ContextSignature,
-    extract_component_families,
-    extract_context_signature,
 )
 from memory.memory_system.models import EpisodicRecord, ProceduralRecord, SemanticRecord
 from memory.memory_system.utils import _multi_thread_run, _safe_dump_str
 from agent import get_logger
-from src.agents.idea_agent.utils.mcts_helpers import clip_text, format_analysis_blob, parse_json_response
+from src.agents.idea_agent.utils.mcts_helpers import clip_text, format_analysis_blob
 from src.agents.idea_agent.agent.prompts.skill_instantiation import SKILL_INSTANTIATION_PROMPT
 from src.agents.idea_agent.agent.prompts.component_extraction import COMPONENT_EXTRACTION_PROMPT
 from src.agents.idea_agent.utils.mcts_runtime import (
-    ANTI_PATTERN_CONSTRAINTS,
-    AtomicEditOp,
-    ComponentEdit,
     EditPlan,
     MemoryBundle,
     MemorySnippet,
     SkillCatalog,
     SkillUsagePrior,
-    apply_edit_plan_to_components,
-    attach_child,
+    apply_budget_delta_to_parent,
     best_candidate,
+    build_symbolic_eval_hints,
     build_root_state,
-    cache_evaluation,
-    format_defect_registry,
-    get_best_cached_evaluation,
-    get_cached_evaluation,
+    compute_protocol_score_from_plan,
+    expand_symbolic_memory_log_payload,
+    extract_context_sig_from_node,
+    extract_mature_idea_components_via_llm,
+    instantiate_skill_plan_for_node,
     log_message,
-    maybe_record_experience,
+    materialize_child_state,
+    memory_bundle_log_payload,
     new_node,
+    normalize_budget_dict,
     pareto_candidates,
-    path_cache_key,
     path_summary,
+    plan_to_experiment_text,
+    plan_to_method_text,
+    backpropagate_rollout,
+    expand_node_with_skills,
     reset_search_state,
+    select_leaf_for_rollout,
+    simulate_log_payload,
+    simulate_node_value,
+    update_skill_prior_from_evaluation,
 )
 
 
@@ -106,6 +111,15 @@ def _dedupe_keep_order(items: List[str]) -> List[str]:
         seen.add(key)
         ordered.append(item)
     return ordered
+
+
+def _pretty_json(value: Any) -> str:
+    if isinstance(value, (dict, list)):
+        try:
+            return json.dumps(value, ensure_ascii=False, indent=2, default=str)
+        except Exception:
+            return str(value)
+    return str(value)
 
 
 @dataclass
@@ -593,7 +607,7 @@ class VectorMemoryAccessor:
             log_message(
                 self.logger,
                 None,
-                "info",
+                "debug",
                 "[MCTS] Transferred experience to working slots (count=%d)",
                 len(working_slots),
             )
@@ -643,7 +657,7 @@ class VectorMemoryAccessor:
         log_message(
             self.logger,
             None,
-            "info",
+            "debug",
             "[MCTS] Persisted records -> semantic=%d | episodic=%d | procedural=%d",
             len(semantic_records),
             len(episodic_records),
@@ -710,67 +724,42 @@ class MemoryGuidedMCTS:
         return prior.to_dict()
 
     def _normalize_budget(self, budget: Dict[str, Any]) -> Dict[str, Any]:
-        if not isinstance(budget, dict):
-            return {}
-        cleaned: Dict[str, Any] = {}
-        for key, value in budget.items():
-            if isinstance(value, (int, float)):
-                cleaned[str(key)] = float(value)
-            else:
-                try:
-                    cleaned[str(key)] = float(value)
-                except (TypeError, ValueError):
-                    cleaned[str(key)] = value
-        return cleaned
+        return normalize_budget_dict(budget)
 
     def _apply_budget_delta(
         self,
         parent_budget: Dict[str, Any],
         delta: Dict[str, Any],
     ) -> Dict[str, Any]:
-        next_budget = self._normalize_budget(parent_budget)
-        for key, val in delta.items():
-            if key not in next_budget:
-                next_budget[key] = _safe_float(val, 0.0)
-                continue
-            base = next_budget.get(key)
-            if isinstance(base, (int, float)):
-                next_budget[key] = round(float(base) + _safe_float(val, 0.0), 4)
-        return next_budget
+        return apply_budget_delta_to_parent(parent_budget, delta)
 
     def _plan_to_method_text(self, plan: EditPlan) -> str:
-        lines: List[str] = []
-        for idx, edit in enumerate(plan.component_edits, start=1):
-            target = f" -> {edit.target}" if edit.target else ""
-            condition = f" [condition: {edit.condition}]" if edit.condition else ""
-            details = f"; {edit.details}" if edit.details else ""
-            lines.append(
-                f"{idx}. {edit.op.value}({edit.component}{target}){condition}{details}"
-            )
-        return "\n".join(lines)
+        return plan_to_method_text(plan)
 
     def _plan_to_experiment_text(self, plan: EditPlan) -> str:
-        blocks: List[str] = []
-        if plan.validation.regression_tests:
-            blocks.append("Regression:\n- " + "\n- ".join(plan.validation.regression_tests))
-        if plan.validation.ablation_tests:
-            blocks.append("Ablation:\n- " + "\n- ".join(plan.validation.ablation_tests))
-        if plan.validation.stress_tests:
-            blocks.append("Stress:\n- " + "\n- ".join(plan.validation.stress_tests))
-        return "\n\n".join(blocks)
+        return plan_to_experiment_text(plan)
 
     def _compute_protocol_score(self, plan: Optional[Dict[str, Any]]) -> float:
-        if not plan:
-            return 0.0
-        validation = plan.get("validation") if isinstance(plan.get("validation"), dict) else {}
-        score = 0.0
-        if validation.get("regression_tests"):
-            score += 1.7
-        if validation.get("ablation_tests"):
-            score += 1.7
-        if validation.get("stress_tests"):
-            score += 1.6
-        return min(5.0, score)
+        return compute_protocol_score_from_plan(plan)
+
+    def _memory_bundle_log_payload(self, bundle: MemoryBundle) -> Dict[str, Any]:
+        return memory_bundle_log_payload(bundle)
+
+    def _expand_symbolic_memory_log_payload(
+        self,
+        parent_ctx_sig: ContextSignature,
+        component_families: List[Dict[str, Any]],
+        action_priors: Dict[str, float],
+    ) -> Dict[str, Any]:
+        return expand_symbolic_memory_log_payload(
+            self,
+            parent_ctx_sig,
+            component_families,
+            action_priors,
+        )
+
+    def _simulate_log_payload(self, evaluation: IdeaEvaluation) -> Dict[str, Any]:
+        return simulate_log_payload(evaluation)
 
     def _materialize_child_state(
         self,
@@ -778,95 +767,19 @@ class MemoryGuidedMCTS:
         plan: EditPlan,
         instantiated: Optional[Dict[str, Any]] = None,
     ) -> IdeaState:
-        new_components = apply_edit_plan_to_components(parent_state.components, plan)
-        next_budget = self._apply_budget_delta(parent_state.budget, plan.estimated_budget_delta)
-
-        inst = instantiated or {}
-        # Use LLM-generated content if available, otherwise fall back to plan-template text
-        title = inst.get("title") or f"{parent_state.title} | {plan.skill_name.replace('-', ' ').title()}"
-        abstract = inst.get("abstract") or (
-            f"Component-level macro action '{plan.skill_name}' targets defects "
-            f"{', '.join(plan.target_defects)} via {len(plan.component_edits)} atomic edits."
+        return materialize_child_state(
+            self,
+            parent_state,
+            plan,
+            instantiated,
+            idea_state_cls=IdeaState,
         )
-        core = inst.get("core_contribution") or plan.objective
-        method = inst.get("method") or self._plan_to_method_text(plan)
-        experiments = inst.get("experiments") or self._plan_to_experiment_text(plan)
-        risks = inst.get("risks") or (
-            f"Guardrails: {'; '.join(plan.guardrails)} | "
-            f"Budget delta: {plan.estimated_budget_delta}"
-        )
-        rationale = inst.get("rationale") or plan.compile_notes
-        tags = _dedupe_keep_order(parent_state.tags + [plan.skill_name] + plan.target_defects)
-
-        return IdeaState(
-            title=title,
-            abstract=abstract,
-            core_contribution=core,
-            method=method,
-            experiments=experiments,
-            risks=risks,
-            tags=tags,
-            operator=plan.skill_name,
-            target_defects=plan.target_defects,
-            rationale=rationale,
-            memory_refs=plan.memory_refs,
-            budget=next_budget,
-            components=new_components,
-            paper_graph_context=parent_state.paper_graph_context,
-            edit_plan=plan.to_dict(),
-            skill_metrics={
-                "skill_prior_before": self._skill_prior_for_prompt(plan.skill_name),
-                "guardrails": plan.guardrails,
-                "constraints": ANTI_PATTERN_CONSTRAINTS,
-                "llm_instantiated": bool(inst),
-            },
-        )
-
-    # ──────────────────────────────────────────────────────────────────────
-    #  ContextSignature extraction from IdeaNode
-    # ──────────────────────────────────────────────────────────────────────
 
     def _extract_context_sig(self, node: IdeaNode) -> ContextSignature:
-        """Build a ContextSignature from the current node state.
-
-        Uses the node's evaluation (if available) as discretised signal
-        sources and the node's state fields for structural / trajectory /
-        budget features.
-        """
-        eval_scores: Dict[str, float] = {}
-        if node.evaluation is not None:
-            eval_scores = {
-                "novelty": node.evaluation.novelty,
-                "feasibility": node.evaluation.feasibility,
-                "impact": node.evaluation.impact,
-                "risk": node.evaluation.risk,
-                "complexity_penalty": node.evaluation.complexity_penalty,
-            }
-
-        return extract_context_signature(
-            components=node.state.components,
-            method_text=node.state.method,
-            evaluation_scores=eval_scores,
-            budget=node.state.budget,
-            last_operator=node.state.operator,
-            depth=node.depth,
-            defects=node.state.target_defects,
-        )
+        return extract_context_sig_from_node(node)
 
     def _select(self, node: IdeaNode) -> Tuple[IdeaNode, List[IdeaNode]]:
-        current = node
-        path = [node]
-        while current.children and current.expanded:
-            parent = current
-            current = max(
-                parent.children,
-                key=lambda child: child.uct_value(
-                    parent_visits=parent.visits or 1,
-                    exploration_constant=self.config.exploration_constant,
-                ),
-            )
-            path.append(current)
-        return current, path
+        return select_leaf_for_rollout(self, node)
 
     def _instantiate_skill_plan(
         self,
@@ -874,422 +787,27 @@ class MemoryGuidedMCTS:
         parent_state: IdeaState,
         bundle: MemoryBundle,
     ) -> Optional[Dict[str, Any]]:
-        """Call LLM to instantiate a compiled skill plan into concrete, topic-specific content."""
-        component_edits_text = self._plan_to_method_text(plan)
-        validation_text = self._plan_to_experiment_text(plan)
-
-        prompt = SKILL_INSTANTIATION_PROMPT.format(
-            topic=self.topic,
-            mature_idea=self.mature_idea or "None",
-            parent_summary=parent_state.describe(),
-            parent_components=", ".join(parent_state.components) if parent_state.components else "None",
-            paper_context=self.paper_context,
-            memory_bundle=bundle.to_prompt_block(),
-            skill_name=plan.skill_name,
-            plan_objective=plan.objective,
-            target_defects=", ".join(plan.target_defects),
-            component_edits=component_edits_text,
-            validation_protocols=validation_text,
-            guardrails="; ".join(plan.guardrails) if plan.guardrails else "None",
+        return instantiate_skill_plan_for_node(
+            self,
+            plan,
+            parent_state,
+            bundle,
+            prompt_template=SKILL_INSTANTIATION_PROMPT,
         )
-        try:
-            response = self.chat_fn(
-                prompt,
-                model=self.config.generation_model,
-                temperature=self.config.generation_temperature,
-                max_output_tokens=self.config.generation_max_tokens,
-            )
-            payload = parse_json_response(response)
-            if isinstance(payload, list):
-                payload = payload[0]
-            if not isinstance(payload, dict):
-                return None
-            return payload
-        except Exception as exc:
-            log_message(
-                self.logger, self.log_sink, "warning",
-                "\u26a0\ufe0f  Skill instantiation failed for %s: %s", plan.skill_name, exc,
-            )
-            return None
 
     def _expand(self, node: IdeaNode, path: List[IdeaNode]) -> Tuple[Optional[IdeaNode], List[IdeaNode]]:
-        bundle = self.memory_accessor.retrieve_bundle(
-            query=(
-                f"{self.topic}\n{node.state.title}\n"
-                f"{node.state.core_contribution}\n"
-                f"defects={','.join(node.state.target_defects)}"
-            )
+        return expand_node_with_skills(
+            self,
+            node,
+            path,
+            min_components=MIN_COMPONENTS,
+            max_components=MAX_COMPONENTS,
+            pretty_json=_pretty_json,
         )
-        # --- Compute symbolic-memory action priors for PUCT boosting ---
-        parent_ctx_sig = self._extract_context_sig(node)
-        # Build per-component family priors from symbolic memory
-        component_families = extract_component_families(
-            node.state.components, node.state.method
-        )
-        action_priors: Dict[str, float] = {}
-        for cf in component_families:
-            family = cf.get("family", "")
-            if not family:
-                continue
-            priors = self.symbolic_memory.compute_action_priors(
-                target_family=family,
-                context_sig=parent_ctx_sig,
-                limit=20,
-                agent_id="idea_agent",
-            )
-            for op, delta in priors.items():
-                # Accumulate max prior per main_op across all component families
-                if op not in action_priors or delta > action_priors[op]:
-                    action_priors[op] = delta
-
-        if action_priors:
-            log_message(
-                self.logger,
-                self.log_sink,
-                "info",
-                "[MCTS] Expand: symbolic memory action priors=%s",
-                {op: round(v, 4) for op, v in action_priors.items()},
-            )
-
-        skill_candidates = self.skill_catalog.select_skills(
-            defect_tags=node.state.target_defects,
-            budget=node.state.budget,
-            max_children=self.config.branching_factor,
-        )
-
-        # Re-rank skill_candidates using symbolic memory action_priors so that
-        # operators whose atomic ops have higher prior boost are tried first.
-        if action_priors:
-            def _skill_prior_boost(sk: Any) -> float:
-                ops = {
-                    step.split("(")[0].strip().lower()
-                    for step in (sk.atomic_blueprint or [])
-                }
-                return max((action_priors.get(op, 0.0) for op in ops), default=0.0)
-
-            skill_candidates = sorted(skill_candidates, key=_skill_prior_boost, reverse=True)
-            log_message(
-                self.logger,
-                self.log_sink,
-                "info",
-                "[MCTS] Expand: skills re-ranked by prior_boost: %s",
-                [(sk.name, round(_skill_prior_boost(sk), 4)) for sk in skill_candidates],
-            )
-
-        payload_count = len(skill_candidates)
-        pre_children = len(node.children)
-        new_child: Optional[IdeaNode] = None
-
-        log_message(
-            self.logger,
-            self.log_sink,
-            "info",
-            "[MCTS] Expand: selected %d skill candidate(s) for defects=%s",
-            len(skill_candidates),
-            ", ".join(node.state.target_defects),
-        )
-        for idx, sk in enumerate(skill_candidates):
-            blueprint_str = ", ".join(sk.atomic_blueprint) if sk.atomic_blueprint else "none"
-            log_message(
-                self.logger,
-                self.log_sink,
-                "info",
-                "[MCTS] Expand: skill[%d] name=%s | description=%s | atomic_blueprint=[%s]",
-                idx,
-                sk.name,
-                sk.description,
-                blueprint_str,
-            )
-
-        for skill in skill_candidates:
-            plan = self.skill_catalog.compile_plan(
-                skill=skill,
-                parent_title=node.state.title,
-                parent_components=node.state.components,
-                target_defects=node.state.target_defects,
-                budget=node.state.budget,
-                memory_refs=bundle.referenced_ids(),
-            )
-            prior_constraints = self.skill_catalog.priors.get(skill.name, SkillUsagePrior()).rule_constraints
-            if prior_constraints:
-                plan.guardrails = _dedupe_keep_order(plan.guardrails + list(prior_constraints))
-
-            # Boost plan priority using symbolic memory action priors
-            if action_priors:
-                plan_ops = set()
-                for edit in plan.component_edits:
-                    op_val = edit.op.value if hasattr(edit.op, 'value') else str(edit.op)
-                    plan_ops.add(op_val.lower().strip())
-                prior_boost = max(
-                    (action_priors.get(op, 0.0) for op in plan_ops),
-                    default=0.0,
-                )
-                if prior_boost > 0:
-                    log_message(
-                        self.logger,
-                        self.log_sink,
-                        "info",
-                        "[MCTS] Expand: skill=%s receives symbolic prior boost=%.4f from ops=%s",
-                        skill.name,
-                        prior_boost,
-                        plan_ops,
-                    )
-
-            # Filter forbidden atomic ops based on current component count
-            current_count = len(node.state.components)
-            filtered_edits: List[ComponentEdit] = []
-            for edit in plan.component_edits:
-                if current_count <= MIN_COMPONENTS and edit.op == AtomicEditOp.REMOVE_COMPONENT:
-                    log_message(
-                        self.logger,
-                        self.log_sink,
-                        "info",
-                        "[MCTS] Expand: skill=%s BLOCKED %s on '%s' (component_count=%d <= MIN=%d)",
-                        skill.name,
-                        edit.op.value,
-                        edit.component,
-                        current_count,
-                        MIN_COMPONENTS,
-                    )
-                    continue
-                if current_count >= MAX_COMPONENTS and edit.op in (
-                    AtomicEditOp.ADD_COMPONENT,
-                    AtomicEditOp.GATE_COMPONENT,
-                ):
-                    # ADD_COMPONENT and GATE_COMPONENT both grow the component list
-                    log_message(
-                        self.logger,
-                        self.log_sink,
-                        "info",
-                        "[MCTS] Expand: skill=%s BLOCKED %s on '%s' (component_count=%d >= MAX=%d)",
-                        skill.name,
-                        edit.op.value,
-                        edit.component,
-                        current_count,
-                        MAX_COMPONENTS,
-                    )
-                    continue
-                # Track how the count will change for subsequent edits
-                if edit.op == AtomicEditOp.ADD_COMPONENT:
-                    current_count += 1
-                elif edit.op == AtomicEditOp.REMOVE_COMPONENT:
-                    current_count -= 1
-                elif edit.op == AtomicEditOp.GATE_COMPONENT:
-                    current_count += 1  # gate may add a wrapper component
-                filtered_edits.append(edit)
-            plan.component_edits = filtered_edits
-
-            # LLM instantiation: fill concrete content into the compiled plan
-            instantiated = self._instantiate_skill_plan(plan, node.state, bundle)
-
-            # Apply component_mapping from LLM instantiation to plan.component_edits
-            if instantiated and isinstance(instantiated.get("component_mapping"), dict):
-                mapping = instantiated["component_mapping"]
-                log_message(
-                    self.logger,
-                    self.log_sink,
-                    "info",
-                    "[MCTS] Expand: skill=%s component_mapping=%s",
-                    skill.name,
-                    json.dumps(mapping, ensure_ascii=False),
-                )
-                # Apply edit_reasons from LLM instantiation to plan.component_edits
-                edit_reasons = instantiated.get("edit_reasons")
-                if isinstance(edit_reasons, list):
-                    for reason_idx, edit in enumerate(plan.component_edits):
-                        if reason_idx < len(edit_reasons) and isinstance(edit_reasons[reason_idx], str):
-                            edit.reason = edit_reasons[reason_idx]
-
-                for edit in plan.component_edits:
-                    if edit.component in mapping:
-                        edit.component = mapping[edit.component]
-                    if edit.target and edit.target in mapping:
-                        edit.target = mapping[edit.target]
-                    # Rebuild details with mapped names
-                    if edit.op == AtomicEditOp.REWIRE:
-                        edit.details = f"Rewire {edit.component} -> {edit.target}"
-                    elif edit.op == AtomicEditOp.REPLACE_COMPONENT:
-                        edit.details = f"Replace {edit.target} with {edit.component}"
-                    elif edit.op == AtomicEditOp.GATE_COMPONENT:
-                        cond = f" under condition '{edit.condition}'" if edit.condition else ""
-                        edit.details = f"Gate {edit.component}{cond}"
-                    elif edit.op == AtomicEditOp.ADD_COMPONENT:
-                        edit.details = f"ADD_COMPONENT on {edit.component}"
-
-            # Log the atomic operations in the compiled plan
-            protocol_names: List[str] = []
-            for edit_idx, edit in enumerate(plan.component_edits):
-                # Collect ADD_PROTOCOL ops into a single summary line
-                if edit.op == AtomicEditOp.ADD_PROTOCOL:
-                    protocol_names.append(edit.component)
-                    continue
-                op_dict = {
-                    "op": edit.op.value if hasattr(edit.op, 'value') else edit.op,
-                    "component": edit.component,
-                    "target": edit.target,
-                    "condition": edit.condition,
-                    "details": edit.details or "",
-                    "reason": edit.reason or "",
-                }
-                op_str = json.dumps(op_dict, ensure_ascii=False, indent=2)
-                log_message(
-                    self.logger,
-                    self.log_sink,
-                    "info",
-                    "[MCTS] Expand: skill=%s atomic_op[%d]\n%s",
-                    skill.name,
-                    edit_idx,
-                    op_str,
-                )
-            if protocol_names:
-                log_message(
-                    self.logger,
-                    self.log_sink,
-                    "info",
-                    "[MCTS] Expand: skill=%s protocols=[%s]",
-                    skill.name,
-                    ", ".join(protocol_names),
-                )
-
-            # Log the skill instantiation output
-            if instantiated:
-                log_message(
-                    self.logger,
-                    self.log_sink,
-                    "info",
-                    "[MCTS] Expand: skill=%s instantiation output keys=%s",
-                    skill.name,
-                    list(instantiated.keys()),
-                )
-                for k, v in instantiated.items():
-                    log_message(
-                        self.logger,
-                        self.log_sink,
-                        "info",
-                        "[MCTS] Expand: skill=%s output[%s]=%s",
-                        skill.name,
-                        k,
-                        str(v) if v else "",
-                    )
-            else:
-                log_message(
-                    self.logger,
-                    self.log_sink,
-                    "warning",
-                    "[MCTS] Expand: skill=%s instantiation returned no output",
-                    skill.name,
-                )
-
-            child_state = self._materialize_child_state(node.state, plan, instantiated)
-
-            child_node = attach_child(
-                node,
-                child_state,
-                signature_nodes=self.signature_nodes,
-                id_iter=self._id_iter,
-                idea_node_cls=IdeaNode,
-                operator_application_cls=OperatorApplication,
-                logger=self.logger,
-                log_sink=self.log_sink,
-            )
-            if child_node is None:
-                continue
-            cached_eval = get_best_cached_evaluation(child_state.signature, self.evaluation_cache)
-            if cached_eval:
-                child_node.evaluation = cached_eval
-            if new_child is None and child_node.visits == 0:
-                new_child = child_node
-
-        node.expanded = True
-        log_message(
-            self.logger,
-            self.log_sink,
-            "info",
-            "[MCTS] Expansion summary (skill-plan) payloads=%d children_before=%d children_after=%d new_children=%d",
-            payload_count,
-            pre_children,
-            len(node.children),
-            len(node.children) - pre_children,
-        )
-        # Log component count for each child idea
-        for child in node.children[pre_children:]:
-            log_message(
-                self.logger,
-                self.log_sink,
-                "info",
-                "[MCTS] Expand: child idea=%s component_count=%d components=%s",
-                child.state.title[:80],
-                len(child.state.components),
-                child.state.components,
-            )
-
-        if new_child is None and node.children:
-            new_child = min(node.children, key=lambda c: c.visits)
-        if new_child:
-            return new_child, path + [new_child]
-        return node, path
 
 
     def _build_symbolic_eval_hints(self, node: IdeaNode) -> str:
-        """Query component-level symbolic memory to build evaluation hints.
-
-        For each component family present in the node's state, retrieves the
-        most relevant symbolic records.  The resulting text block tells the
-        evaluator LLM what has historically worked or failed for these
-        component families so it can calibrate its scores accordingly.
-        """
-        component_families = extract_component_families(
-            node.state.components, node.state.method
-        )
-        if not component_families:
-            return "No symbolic memory hints available."
-
-        ctx_sig = self._extract_context_sig(node)
-
-        hints_parts: List[str] = []
-        seen_record_ids: Set[str] = set()
-
-        for cf in component_families:
-            family = cf.get("family", "")
-            if not family:
-                continue
-
-            records = self.symbolic_memory.retrieve_hierarchical(
-                target_family=family,
-                context_sig=ctx_sig,
-                limit=5,
-                threshold=0.05,
-                agent_id="idea_agent",
-            )
-            if not records:
-                continue
-
-            family_lines: List[str] = [f"  Component family: {family}"]
-            for score, rec in records:
-                if rec.id in seen_record_ids:
-                    continue
-                seen_record_ids.add(rec.id)
-
-                delta_tag = f"+{rec.delta_score:.2f}" if rec.delta_score >= 0 else f"{rec.delta_score:.2f}"
-                line = (
-                    f"    - [{rec.main_op}] {rec.summary}  "
-                    f"(delta={delta_tag}, conf={rec.confidence:.2f}, score={score:.3f})"
-                )
-                if rec.anti_patterns:
-                    line += f"  anti-patterns: {'; '.join(rec.anti_patterns[:3])}"
-                family_lines.append(line)
-            if len(family_lines) > 1:
-                hints_parts.append("\n".join(family_lines))
-
-        if not hints_parts:
-            return "No symbolic memory hints available."
-
-        header = (
-            "Historical symbolic memory records for the component families "
-            "in this idea (positive delta = previously beneficial, "
-            "negative delta = previously harmful):"
-        )
-        return header + "\n" + "\n".join(hints_parts)
+        return build_symbolic_eval_hints(self, node)
 
     def _simulate(
         self,
@@ -1297,183 +815,29 @@ class MemoryGuidedMCTS:
         path: List[IdeaNode],
         experiences: List[Dict[str, Any]],
     ) -> Optional[IdeaEvaluation]:
-        path_summary_text = path_summary(path)
-        path_key = path_cache_key(node.state.signature, path_summary_text)
-
-        cached_evaluation = get_cached_evaluation(
-            node.state.signature,
-            path_key,
-            self.evaluation_cache,
-        )
-        if cached_evaluation:
-            node.evaluation = cached_evaluation
-            node.latest_path_summary = path_summary_text
-            prev_len = len(experiences)
-            maybe_record_experience(
-                path_key,
-                node,
-                cached_evaluation,
-                path_summary_text,
-                experiences,
-                self.experience_cache,
-                self.memory_accessor,
-                self.config.min_confidence_for_memory,
-            )
-            if len(experiences) > prev_len:
-                experience = experiences[-1]
-                log_message(
-                    self.logger,
-                    self.log_sink,
-                    "info",
-                    "[MCTS] Memory recorded (cache) defect=%s action=%s lift=%s idea=%s",
-                    experience.get("defect"),
-                    experience.get("action"),
-                    experience.get("lift"),
-                    experience.get("idea"),
-                )
-            return cached_evaluation
-
-        symbolic_hints = self._build_symbolic_eval_hints(node)
-        if symbolic_hints and symbolic_hints != "No symbolic memory hints available.":
-            log_message(
-                self.logger,
-                self.log_sink,
-                "info",
-                "[MCTS] Simulate: injecting symbolic memory hints for node=%s (families=%d)",
-                node.state.title[:60],
-                symbolic_hints.count("Component family:"),
-            )
-
-        prompt = self.evaluation_prompt.format(
-            topic=self.topic,
-            mature_idea=self.mature_idea or "None",
-            analysis=self.analysis_blob,
-            paper_context=self.paper_context,
-            skill_output=json.dumps(node.state.edit_plan, ensure_ascii=False, indent=2)
-            if node.state.edit_plan
-            else "null",
-            edit_plan=json.dumps(node.state.edit_plan, ensure_ascii=False, indent=2)
-            if node.state.edit_plan
-            else "null",
-            skill_prior=json.dumps(self._skill_prior_for_prompt(node.state.operator), ensure_ascii=False, indent=2),
-            idea=json.dumps(node.state.to_payload(), ensure_ascii=False, indent=2),
-            path_summary=path_summary_text,
-            defect_registry=format_defect_registry(),
-            symbolic_memory_hints=symbolic_hints,
-        )
-
-        try:
-            response = self.chat_fn(
-                prompt,
-                model=self.config.evaluation_model,
-                temperature=self.config.evaluation_temperature,
-                max_output_tokens=self.config.evaluation_max_tokens,
-            )
-            payload = parse_json_response(response)
-            if isinstance(payload, list):
-                payload = payload[0]
-            evaluation = IdeaEvaluation.from_payload(
-                payload,
-                weights={
-                    "novelty_weight": self.config.novelty_weight,
-                    "impact_weight": self.config.impact_weight,
-                    "feasibility_weight": self.config.feasibility_weight,
-                    "clarity_weight": self.config.clarity_weight,
-                    "conciseness_weight": self.config.conciseness_weight,
-                    "risk_weight": self.config.risk_weight,
-                    "alignment_weight": self.config.alignment_weight,
-                    "complexity_weight": self.config.complexity_weight,
-                    "protocol_weight": self.config.protocol_weight,
-                },
-            )
-        except Exception as exc:
-            log_message(self.logger, self.log_sink, "warning", "⚠️  Simulation failed: %s", exc)
-            return None
-
-        if evaluation.protocol_score <= 0.0:
-            evaluation.protocol_score = self._compute_protocol_score(node.state.edit_plan)
-
-        cache_evaluation(node.state.signature, path_key, evaluation, self.evaluation_cache)
-        node.evaluation = evaluation
-        node.latest_path_summary = path_summary_text
-
-        prev_len = len(experiences)
-        maybe_record_experience(
-            path_key,
+        return simulate_node_value(
+            self,
             node,
-            evaluation,
-            path_summary_text,
+            path,
             experiences,
-            self.experience_cache,
-            self.memory_accessor,
-            self.config.min_confidence_for_memory,
+            idea_evaluation_cls=IdeaEvaluation,
+            pretty_json=_pretty_json,
         )
-        if len(experiences) > prev_len:
-            experience = experiences[-1]
-            log_message(
-                self.logger,
-                self.log_sink,
-                "info",
-                "[MCTS] Memory recorded defect=%s action=%s lift=%s idea=%s",
-                experience.get("defect"),
-                experience.get("action"),
-                experience.get("lift"),
-                experience.get("idea"),
-            )
-
-        return evaluation
 
     def _update_skill_prior(self, node: IdeaNode, evaluation: IdeaEvaluation) -> None:
-        skill_name = node.state.operator
-        if not skill_name or skill_name == "seed":
-            return
-
-        normalized_reward = max(0.0, min(1.0, evaluation.composite / 5.0))
-        prior = self.skill_catalog.update_prior(
-            skill_name=skill_name,
-            reward=normalized_reward,
-            feedback=evaluation.feedback,
-            failure_modes=evaluation.failure_modes,
-            success_threshold=self.config.skill_prior_success_threshold,
-        )
-        node.state.skill_metrics["skill_prior_after"] = prior.to_dict()
+        update_skill_prior_from_evaluation(self, node, evaluation)
 
     def _backpropagate(self, path: List[IdeaNode], evaluation: IdeaEvaluation) -> None:
-        score = evaluation.composite
-        for hop in reversed(path):
-            hop.visits += 1
-            hop.value_sum += score
+        backpropagate_rollout(path, evaluation)
 
     def _extract_mature_idea_components(self, mature_idea: str, topic: str) -> List[str]:
-        """Use LLM to extract 1-5 key components from the mature idea."""
-        prompt = COMPONENT_EXTRACTION_PROMPT.format(
-            mature_idea=mature_idea,
-            topic=topic,
+        return extract_mature_idea_components_via_llm(
+            self,
+            mature_idea,
+            topic,
+            prompt_template=COMPONENT_EXTRACTION_PROMPT,
+            max_components=MAX_COMPONENTS,
         )
-        try:
-            response = self.chat_fn(
-                prompt,
-                model=self.config.generation_model,
-                temperature=0.3,
-                max_output_tokens=512,
-            )
-            payload = parse_json_response(response)
-            if isinstance(payload, list):
-                payload = payload[0]
-            if isinstance(payload, dict):
-                raw = payload.get("components", [])
-                if isinstance(raw, list):
-                    components = [str(c).strip() for c in raw if str(c).strip()]
-                    # Enforce 1-5 range
-                    components = components[:MAX_COMPONENTS]
-                    if components:
-                        return components
-        except Exception as exc:
-            log_message(
-                self.logger, self.log_sink, "warning",
-                "⚠️  Component extraction from mature idea failed: %s", exc,
-            )
-        return []
 
     def search(self, topic: str, context: Dict[str, Any]) -> SearchResult:
         reset_search_state(self)
@@ -1493,7 +857,7 @@ class MemoryGuidedMCTS:
                 log_message(
                     self.logger,
                     self.log_sink,
-                    "info",
+                    "debug",
                     "[MCTS] Extracted %d component(s) from mature idea: %s",
                     len(self._mature_idea_components),
                     self._mature_idea_components,
@@ -1503,7 +867,7 @@ class MemoryGuidedMCTS:
         log_message(
             self.logger,
             self.log_sink,
-            "info",
+            "debug",
             "[MCTS] Root state component_count=%d components=%s",
             len(root_state.components),
             root_state.components,
@@ -1518,6 +882,28 @@ class MemoryGuidedMCTS:
             operator_application_cls=OperatorApplication,
         )
         experiences: List[Dict[str, Any]] = []
+
+        # Prime root defects via one evaluator pass before the first expand so
+        # initial skill selection is not forced to rely on the placeholder
+        # "unexplored_gap" defect tag.
+        root_eval = self._simulate(root, [root], experiences)
+        if root_eval and root_eval.detected_defects:
+            inferred_defects = _dedupe_keep_order(
+                [str(tag) for tag in root_eval.detected_defects if str(tag).strip()]
+            )
+            if inferred_defects:
+                previous_defects = list(root.state.target_defects)
+                root.state.target_defects = inferred_defects
+                root.transformation.defects = inferred_defects
+                root.latest_path_summary = ""
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "debug",
+                    "[MCTS] Root priming inferred defects=%s (previous=%s)",
+                    inferred_defects,
+                    previous_defects,
+                )
 
         for iteration in tqdm(range(self.config.max_iterations)):
             leaf, path = self._select(root)
@@ -1577,7 +963,7 @@ class MemoryGuidedMCTS:
             log_message(
                 self.logger,
                 self.log_sink,
-                "info",
+                "debug",
                 "[MCTS] Symbolic memory saved to %s",
                 self.symbolic_memory_path,
             )
