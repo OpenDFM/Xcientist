@@ -1294,31 +1294,32 @@ def expand_node_with_skills(
     # --- Compute symbolic-memory action priors for PUCT boosting ---
     parent_ctx_sig = mcts._extract_context_sig(node)
     component_families = extract_component_families(node.state.components, node.state.method)
-    action_priors: Dict[str, float] = {}
-    for cf in component_families:
-        family = cf.get("family", "")
-        if not family:
-            continue
-        priors = mcts.symbolic_memory.compute_action_priors(
-            target_family=family,
-            context_sig=parent_ctx_sig,
-            limit=20,
-            agent_id="idea_agent",
-        )
-        for op, delta in priors.items():
-            if op not in action_priors or delta > action_priors[op]:
-                action_priors[op] = delta
+    # Context-signature-only retrieval: do not condition expand-time priors on
+    # per-component family matches. This keeps expand robust when component names
+    # are novel or noisy and lets symbolic memory generalize via structural
+    # context alone.
+    action_priors: Dict[str, float] = mcts.symbolic_memory.compute_action_priors(
+        target_family="",
+        context_sig=parent_ctx_sig,
+        limit=20,
+        agent_id="idea_agent",
+    )
     log_message(
         mcts.logger,
         mcts.log_sink,
         "info",
         "[MCTS] Expand: symbolic_memory\n%s",
         _safe_pretty_json(
-            mcts._expand_symbolic_memory_log_payload(
-                parent_ctx_sig=parent_ctx_sig,
-                component_families=component_families,
-                action_priors=action_priors,
-            ),
+            {
+                "retrieval_mode": "context_signature_only",
+                "context_signature": (
+                    parent_ctx_sig.to_dict()
+                    if hasattr(parent_ctx_sig, "to_dict")
+                    else str(parent_ctx_sig)
+                ),
+                "observed_component_families": component_families,
+                "action_priors": {op: round(float(delta), 4) for op, delta in action_priors.items()},
+            },
             pretty_json,
         ),
     )

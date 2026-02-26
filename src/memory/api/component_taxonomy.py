@@ -133,6 +133,189 @@ _KEYWORD_TO_ROLE: Dict[str, str] = {
 }
 
 
+# Role-specific semantic subtype canonicalisation.
+# Goal: keep subtype labels stable enough for symbolic-memory reuse while
+# preserving the original component name elsewhere for traceability.
+_SUBTYPE_EXACT_ALIASES_BY_ROLE: Dict[str, Dict[str, str]] = {
+    "objective": {
+        "uncertainty_loss": "uncertainty_aware_loss",
+        "uncertainty_weighted_loss": "uncertainty_aware_loss",
+        "variance_weighted_loss": "uncertainty_aware_loss",
+        "heteroscedastic_nll": "uncertainty_aware_loss",
+        "nll_loss": "likelihood_objective",
+        "negative_log_likelihood": "likelihood_objective",
+        "contrastive_loss": "contrastive_objective",
+        "contrastive_objective": "contrastive_objective",
+        "triplet_loss": "contrastive_objective",
+        "distillation_loss": "distillation_objective",
+        "kd_loss": "distillation_objective",
+    },
+    "controller": {
+        "confidence_gate": "gating_module",
+        "budget_gate": "gating_module",
+        "routing_gate": "gating_module",
+        "mixture_of_experts_gate": "gating_module",
+        "router": "routing_module",
+        "prediction_router": "routing_module",
+        "scheduler": "scheduler_module",
+    },
+    "aggregation": {
+        "fusion_module": "fusion_module",
+        "cross_modal_fusion": "fusion_module",
+        "feature_fusion": "fusion_module",
+        "concat_fusion": "fusion_module",
+        "multi_scale_fusion": "multi_scale_aggregator",
+        "multi_scale_coordinator": "multi_scale_aggregator",
+    },
+    "evaluation": {
+        "confidence_head": "confidence_estimator",
+        "confidence_estimator": "confidence_estimator",
+        "metric_head": "metric_evaluator",
+        "validator": "validation_module",
+        "contract_evaluator": "validation_module",
+    },
+    "adaptation": {
+        "calibrator": "calibration_module",
+        "temperature_scaler": "calibration_module",
+        "drift_corrector": "drift_correction_module",
+        "domain_adapter": "domain_adaptation_module",
+    },
+}
+
+
+_SUBTYPE_PATTERN_RULES_BY_ROLE: Dict[str, List[Tuple[str, Tuple[str, ...], Tuple[str, ...]]]] = {
+    # (canonical_name, any_tokens, all_tokens)
+    "objective": [
+        ("uncertainty_aware_loss", ("uncertainty", "variance", "heteroscedastic"), ("loss", "objective", "criterion", "nll", "penalty")),
+        ("contrastive_objective", ("contrastive", "triplet", "pairwise"), ("loss", "objective", "criterion")),
+        ("distillation_objective", ("distill", "teacher", "student", "kd"), ("loss", "objective", "criterion")),
+        ("regularization_penalty", ("regular", "penalty", "weight_decay", "sparsity"), ("loss", "objective", "constraint", "penalty")),
+        ("ranking_objective", ("rank", "margin"), ("loss", "objective", "criterion")),
+        ("likelihood_objective", ("likelihood", "nll", "loglik"), ("loss", "objective", "criterion", "nll")),
+    ],
+    "controller": [
+        ("gating_module", ("gate", "gating", "moe"), ()),
+        ("routing_module", ("route", "router", "routing", "dispatch", "switch"), ()),
+        ("scheduler_module", ("schedul", "curriculum"), ()),
+        ("budget_controller", ("budget", "latency", "cost"), ("gate", "controller", "schedul", "router")),
+    ],
+    "retrieval": [
+        ("attention_retriever", ("attention", "cross_attention", "self_attention"), ()),
+        ("memory_retriever", ("memory", "lookup", "key_value"), ("retriev", "access", "select", "lookup", "memory")),
+        ("search_retriever", ("search", "retrieve"), ()),
+    ],
+    "representation": [
+        ("encoder", ("encoder", "encoding"), ()),
+        ("embedding", ("embedding", "embed"), ()),
+        ("tokenizer", ("tokenizer", "tokeniz"), ()),
+        ("feature_extractor", ("feature", "extractor"), ("feature", "extract")),
+        ("backbone", ("backbone",), ()),
+    ],
+    "reasoning": [
+        ("graph_reasoner", ("graph", "gnn", "message_pass"), ("graph", "message", "reason", "infer", "pass")),
+        ("inference_module", ("infer", "reason"), ()),
+        ("diffusion_module", ("diffusion",), ()),
+        ("transform_module", ("transform",), ()),
+    ],
+    "constraint": [
+        ("regularizer", ("regular", "dropout", "norm"), ()),
+        ("consistency_constraint", ("consistency", "invariant"), ()),
+        ("physics_constraint", ("physics", "physical"), ("constraint", "law", "regular", "invariant")),
+        ("sparsity_constraint", ("sparse", "sparsity"), ()),
+    ],
+    "evaluation": [
+        ("confidence_estimator", ("confidence", "uncertainty"), ("estimate", "head", "score", "monitor", "check", "evaluator")),
+        ("metric_evaluator", ("metric", "score"), ("eval", "valid", "check", "head", "evaluator")),
+        ("validation_module", ("valid", "validator", "check"), ()),
+        ("monitoring_module", ("monitor",), ()),
+    ],
+    "adaptation": [
+        ("calibration_module", ("calibrat", "temperature"), ()),
+        ("drift_correction_module", ("drift", "correct"), ()),
+        ("domain_adaptation_module", ("domain", "adapt", "transfer"), ()),
+        ("online_update_module", ("online", "continual"), ("learn", "update", "adapt")),
+    ],
+    "aggregation": [
+        ("multi_scale_aggregator", ("multi_scale", "multiscale"), ()),
+        ("fusion_module", ("fusion", "cross_modal"), ()),
+        ("pooling_module", ("pool", "pooling"), ()),
+        ("ensemble_aggregator", ("ensemble",), ()),
+        ("merge_aggregator", ("merge", "concat"), ()),
+    ],
+    "generation": [
+        ("decoder", ("decoder", "decode"), ()),
+        ("prediction_head", ("head", "predict", "output"), ()),
+        ("sampler", ("sampler", "sample"), ()),
+        ("reconstruction_head", ("reconstruct",), ()),
+        ("generator", ("generator", "generat"), ()),
+    ],
+}
+
+
+def _normalize_sub_type_text(text: str) -> str:
+    normalized = re.sub(r"[^a-zA-Z0-9_\- ]", " ", (text or "")).strip().lower()
+    normalized = re.sub(r"[\s\-]+", "_", normalized)
+    normalized = re.sub(r"_+", "_", normalized).strip("_")
+    return normalized or "generic"
+
+
+def _tokenize_sub_type_text(text: str) -> List[str]:
+    return [tok for tok in re.split(r"[^a-z0-9]+", (text or "").lower()) if tok]
+
+
+def canonicalize_sub_type(
+    macro_role: str,
+    raw_sub_type: str,
+    method_text: str = "",
+) -> str:
+    """Map a raw subtype string to a role-scoped canonical subtype label.
+
+    This is a lightweight semantic merge layer built on top of alias tables
+    and token-pattern rules. It intentionally preserves deterministic behavior
+    and falls back to ``raw_sub_type`` when no canonical rule matches.
+    """
+    role = (macro_role or "representation").strip().lower()
+    if role not in MACRO_ROLES:
+        role = "representation"
+
+    raw = _normalize_sub_type_text(raw_sub_type)
+    alias_map = _SUBTYPE_EXACT_ALIASES_BY_ROLE.get(role, {})
+    if raw in alias_map:
+        return _normalize_sub_type_text(alias_map[raw])
+
+    # Build a token set from subtype + method text to allow semantic grouping
+    # even when the component name itself is abbreviated.
+    context_blob = f"{raw} {(method_text or '').lower()}"
+    tokens = set(_tokenize_sub_type_text(context_blob))
+    compact_blob = context_blob.replace("-", "_")
+
+    for canonical, any_tokens, all_tokens in _SUBTYPE_PATTERN_RULES_BY_ROLE.get(role, []):
+        any_hit = False
+        for token in any_tokens:
+            t = _normalize_sub_type_text(token)
+            # match by token or normalized substring for cases like "cross_attention"
+            if t in compact_blob or t in tokens:
+                any_hit = True
+                break
+        if not any_hit:
+            continue
+
+        if all_tokens:
+            all_hit = True
+            for token in all_tokens:
+                t = _normalize_sub_type_text(token)
+                if not (t in compact_blob or t in tokens):
+                    all_hit = False
+                    break
+            if not all_hit:
+                continue
+
+        return _normalize_sub_type_text(canonical)
+
+    # Conservative fallback: preserve the original normalized subtype.
+    return raw
+
+
 def infer_macro_role(component_text: str) -> str:
     """Heuristically infer macro_role from a free-text component description.
 
@@ -198,23 +381,24 @@ def extract_component_families(
     for comp in components:
         comp_text = f"{comp} {method_lower}"
         macro = infer_macro_role(comp_text)
-        # sub_type: normalised form of the component name itself
+        # raw_sub_type keeps the literal normalized component name for traceability;
+        # sub_type is a role-scoped canonical subtype used for better reuse.
         raw_sub = re.sub(r"[^a-zA-Z0-9_\- ]", "", comp).strip()
-        sub_type = re.sub(r"[\s\-]+", "_", raw_sub).lower() or "generic"
+        raw_sub_type = re.sub(r"[\s\-]+", "_", raw_sub).lower() or "generic"
+        sub_type = canonicalize_sub_type(macro, raw_sub_type, method_text)
         family = build_component_family(macro, sub_type)
+        family_raw = build_component_family(macro, raw_sub_type)
         results.append({
             "component": comp,
             "macro_role": macro,
+            "raw_sub_type": raw_sub_type,
             "sub_type": sub_type,
+            "family_raw": family_raw,
             "family": family,
         })
 
     return results
 
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#  Context Signature -- compressed query key extracted from parent-node state
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 # Discretisation bucket thresholds
 _COVERAGE_THRESHOLDS = (0.35, 0.65)   # low / medium / high

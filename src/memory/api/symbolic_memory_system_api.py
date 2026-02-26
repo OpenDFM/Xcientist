@@ -436,7 +436,7 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
         context_sig: Optional[ContextSignature] = None,
         main_op: str = "",
         limit: int = 5,
-        threshold: float = 0.0,
+        threshold: float = 0.25,
         agent_id: str = "",
     ) -> List[Tuple[float, SymbolicRecord]]:
         """Three-level hierarchical retrieval.
@@ -616,6 +616,7 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
         target_family: str,
         context_sig: ContextSignature,
         limit: int = 20,
+        threshold: float = 0.25,
         agent_id: str = "",
     ) -> Dict[str, float]:
 
@@ -623,7 +624,7 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
             target_family=target_family,
             context_sig=context_sig,
             limit=limit,
-            threshold=0.0,
+            threshold=threshold,
             agent_id=agent_id,
         )
 
