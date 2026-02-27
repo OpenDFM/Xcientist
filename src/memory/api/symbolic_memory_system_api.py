@@ -697,10 +697,6 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
             print(f"Error loading symbolic memories: {exc}")
             return False
 
-    # ──────────────────────────────────────────────────────────────────────────
-    #  Internal scoring helpers
-    # ──────────────────────────────────────────────────────────────────────────
-
     def _record_text(self, record: SymbolicRecord) -> str:
         """Concatenate all textual fields of a record into a single string."""
         blocks = [

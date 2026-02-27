@@ -24,6 +24,7 @@ from memory.api.component_taxonomy import (
 from memory.memory_system.models import EpisodicRecord, ProceduralRecord, SemanticRecord
 from memory.memory_system.utils import _multi_thread_run, _safe_dump_str
 from agent import get_logger
+from src.agents.idea_agent.utils.component_novelty import ComponentNoveltyScorer
 from src.agents.idea_agent.utils.mcts_helpers import clip_text, format_analysis_blob
 from src.agents.idea_agent.agent.prompts.skill_instantiation import SKILL_INSTANTIATION_PROMPT
 from src.agents.idea_agent.agent.prompts.component_extraction import COMPONENT_EXTRACTION_PROMPT
@@ -35,6 +36,7 @@ from src.agents.idea_agent.utils.mcts_runtime import (
     SkillUsagePrior,
     apply_budget_delta_to_parent,
     best_candidate,
+    component_inventory_payload,
     build_symbolic_eval_hints,
     build_root_state,
     compute_protocol_score_from_plan,
@@ -46,6 +48,7 @@ from src.agents.idea_agent.utils.mcts_runtime import (
     materialize_child_state,
     memory_bundle_log_payload,
     new_node,
+    normalize_component_explanations,
     normalize_budget_dict,
     pareto_candidates,
     path_summary,
@@ -137,6 +140,7 @@ class IdeaState:
     memory_refs: List[str] = field(default_factory=list)
     budget: Dict[str, Any] = field(default_factory=dict)
     components: List[str] = field(default_factory=list)
+    component_explanations: Dict[str, str] = field(default_factory=dict)
     paper_graph_context: str = ""
     edit_plan: Optional[Dict[str, Any]] = None
     skill_metrics: Dict[str, Any] = field(default_factory=dict)
@@ -164,6 +168,10 @@ class IdeaState:
         self.components = _dedupe_keep_order(
             [clip_text(comp, MAX_REF_TEXT) for comp in self.components[: 2 * MAX_LIST_ENTRIES]]
         )
+        self.component_explanations = normalize_component_explanations(
+            self.components,
+            self.component_explanations,
+        )
 
         if not isinstance(self.budget, dict):
             self.budget = {}
@@ -175,6 +183,10 @@ class IdeaState:
                 self.method.lower(),
                 ",".join(sorted(self.tags)),
                 ",".join(sorted(self.components)),
+                "|".join(
+                    f"{component}:{self.component_explanations.get(component, '').lower()}"
+                    for component in self.components
+                ),
             ]
         )
         self.signature = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
@@ -188,6 +200,7 @@ class IdeaState:
             f"Experiments: {self.experiments}\n"
             f"Risks: {self.risks}\n"
             f"Components: {', '.join(self.components)}\n"
+            f"Component Roles: {self.component_explanations}\n"
             f"Defects: {', '.join(self.target_defects)}\n"
             f"Budget: {self.budget}\n"
             f"Action Skill: {self.operator}"
@@ -217,6 +230,8 @@ class IdeaState:
             "rationale": self.rationale,
             "budget": self.budget,
             "components": self.components,
+            "component_explanations": self.component_explanations,
+            "components_with_explanations": self.component_inventory(),
             "paper_graph_context": self.paper_graph_context,
         }
         if self.edit_plan:
@@ -224,6 +239,9 @@ class IdeaState:
         if self.skill_metrics:
             payload["skill_metrics"] = self.skill_metrics
         return payload
+
+    def component_inventory(self) -> List[Dict[str, str]]:
+        return component_inventory_payload(self.components, self.component_explanations)
 
 
 @dataclass
@@ -682,6 +700,7 @@ class MemoryGuidedMCTS:
         self.logger = logger or module_logger
         self.log_sink = log_sink
         self.memory_accessor = memory_accessor or VectorMemoryAccessor(logger=self.logger)
+        self.component_novelty_scorer = ComponentNoveltyScorer()
 
         self.skill_catalog = SkillCatalog()
         self.symbolic_memory = SymbolicMemorySystem()
@@ -698,6 +717,8 @@ class MemoryGuidedMCTS:
         self.paper_context: str = ""
         self.mature_idea: str = ""
         self._mature_idea_components: List[str] = []
+        self._mature_idea_component_explanations: Dict[str, str] = {}
+        self._component_novelty_fallback_logged = False
 
         self._load_skill_prior_memory()
 
@@ -760,6 +781,21 @@ class MemoryGuidedMCTS:
 
     def _simulate_log_payload(self, evaluation: IdeaEvaluation) -> Dict[str, Any]:
         return simulate_log_payload(evaluation)
+
+    def _score_component_novelty(self, state: IdeaState) -> Optional[float]:
+        try:
+            return self.component_novelty_scorer.score(state.component_inventory())
+        except Exception as exc:
+            if not self._component_novelty_fallback_logged:
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "warning",
+                    "⚠️  Component novelty scorer unavailable (%s); falling back to LLM novelty.",
+                    exc,
+                )
+                self._component_novelty_fallback_logged = True
+            return None
 
     def _materialize_child_state(
         self,
@@ -830,7 +866,11 @@ class MemoryGuidedMCTS:
     def _backpropagate(self, path: List[IdeaNode], evaluation: IdeaEvaluation) -> None:
         backpropagate_rollout(path, evaluation)
 
-    def _extract_mature_idea_components(self, mature_idea: str, topic: str) -> List[str]:
+    def _extract_mature_idea_components(
+        self,
+        mature_idea: str,
+        topic: str,
+    ) -> Tuple[List[str], Dict[str, str]]:
         return extract_mature_idea_components_via_llm(
             self,
             mature_idea,
@@ -848,12 +888,17 @@ class MemoryGuidedMCTS:
 
         # Extract components from mature idea if provided
         self._mature_idea_components = []
+        self._mature_idea_component_explanations = {}
         if self.mature_idea:
-            self._mature_idea_components = self._extract_mature_idea_components(
+            (
+                self._mature_idea_components,
+                self._mature_idea_component_explanations,
+            ) = self._extract_mature_idea_components(
                 self.mature_idea, topic
             )
             if self._mature_idea_components:
                 context["components"] = self._mature_idea_components
+                context["component_explanations"] = self._mature_idea_component_explanations
                 log_message(
                     self.logger,
                     self.log_sink,

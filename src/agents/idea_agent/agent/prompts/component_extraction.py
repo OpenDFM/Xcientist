@@ -18,6 +18,10 @@ Each component should be a concise name (2-5 words, snake_case) representing a d
 
 Return STRICT JSON (no Markdown wrapping):
 {{
-  "components": ["component_name_1", "component_name_2", ...]
+  "components": ["component_name_1", "component_name_2", ...],
+  "component_explanations": {{
+    "component_name_1": "Short explanation of the role this component plays in the idea.",
+    "component_name_2": "Short explanation of the role this component plays in the idea."
+  }}
 }}
 """

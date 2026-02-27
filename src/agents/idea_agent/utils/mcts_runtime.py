@@ -169,6 +169,189 @@ def format_defect_registry() -> str:
     return "\n".join(lines)
 
 
+def _humanize_component_name(component: str) -> str:
+    tokens = [token for token in re.split(r"[_\-\s]+", str(component).strip()) if token]
+    return " ".join(tokens) if tokens else "component"
+
+
+def _clean_component_explanation(text: Any, fallback_component: str = "") -> str:
+    cleaned = clip_text(text, 220)
+    if cleaned:
+        return cleaned if cleaned.endswith((".", "!", "?")) else f"{cleaned}."
+    human_name = _humanize_component_name(fallback_component)
+    return (
+        f"Implements the {human_name} part of the idea and contributes the capability "
+        f"associated with {human_name}."
+    )
+
+
+def normalize_component_explanations(
+    components: Sequence[str],
+    raw_explanations: Any,
+) -> Dict[str, str]:
+    normalized_components: List[str] = []
+    seen: Set[str] = set()
+    for component in components:
+        name = str(component).strip()
+        if not name or name.lower() in seen:
+            continue
+        seen.add(name.lower())
+        normalized_components.append(name)
+
+    lookup: Dict[str, str] = {}
+    if isinstance(raw_explanations, dict):
+        for key, value in raw_explanations.items():
+            name = str(key).strip()
+            if not name:
+                continue
+            lookup[name] = _clean_component_explanation(value, fallback_component=name)
+    elif isinstance(raw_explanations, list):
+        for item in raw_explanations:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("component") or item.get("name") or "").strip()
+            if not name:
+                continue
+            lookup[name] = _clean_component_explanation(
+                item.get("explanation", ""),
+                fallback_component=name,
+            )
+
+    return {
+        component: lookup.get(component, _clean_component_explanation("", fallback_component=component))
+        for component in normalized_components
+    }
+
+
+def component_inventory_payload(
+    components: Sequence[str],
+    component_explanations: Any,
+) -> List[Dict[str, str]]:
+    normalized = normalize_component_explanations(components, component_explanations)
+    return [
+        {
+            "component": component,
+            "explanation": normalized.get(component, _clean_component_explanation("", component)),
+        }
+        for component in normalized
+    ]
+
+
+def parse_component_bundle_payload(
+    payload: Any,
+    *,
+    max_components: int,
+) -> Tuple[List[str], Dict[str, str]]:
+    if not isinstance(payload, dict):
+        return [], {}
+
+    raw_components = payload.get("components", [])
+    ordered_components: List[str] = []
+    explanations: Dict[str, str] = {}
+    seen: Set[str] = set()
+
+    if isinstance(raw_components, list):
+        for item in raw_components:
+            if len(ordered_components) >= max_components:
+                break
+            if isinstance(item, dict):
+                name = str(item.get("name") or item.get("component") or "").strip()
+                explanation = item.get("explanation", "")
+            else:
+                name = str(item).strip()
+                explanation = ""
+            key = name.lower()
+            if not name or key in seen:
+                continue
+            seen.add(key)
+            ordered_components.append(name)
+            if explanation:
+                explanations[name] = _clean_component_explanation(
+                    explanation,
+                    fallback_component=name,
+                )
+
+    external_explanations = normalize_component_explanations(
+        ordered_components,
+        payload.get("component_explanations"),
+    )
+    explanations = {
+        component: explanations.get(component) or external_explanations.get(component) or _clean_component_explanation(
+            "",
+            fallback_component=component,
+        )
+        for component in ordered_components
+    }
+    return ordered_components, explanations
+
+
+def _synthesize_component_explanation_from_edit(component: str, edit: Optional["ComponentEdit"]) -> str:
+    if edit is None:
+        return _clean_component_explanation("", fallback_component=component)
+
+    if edit.reason:
+        return _clean_component_explanation(edit.reason, fallback_component=component)
+    if edit.op == AtomicEditOp.REPLACE_COMPONENT and edit.target:
+        return _clean_component_explanation(
+            f"Replaces {edit.target} with a stronger implementation for the updated idea.",
+            fallback_component=component,
+        )
+    if edit.op == AtomicEditOp.GATE_COMPONENT:
+        condition = edit.condition or "runtime budget or risk signals"
+        return _clean_component_explanation(
+            f"Controls when the module activates under {condition}.",
+            fallback_component=component,
+        )
+    if edit.op == AtomicEditOp.ADD_COMPONENT:
+        return _clean_component_explanation(
+            "Adds a targeted capability that was missing in the parent idea.",
+            fallback_component=component,
+        )
+    if edit.details:
+        return _clean_component_explanation(edit.details, fallback_component=component)
+    return _clean_component_explanation("", fallback_component=component)
+
+
+def build_child_component_explanations(
+    parent_state: Any,
+    new_components: Sequence[str],
+    plan: "EditPlan",
+    instantiated: Optional[Dict[str, Any]] = None,
+) -> Dict[str, str]:
+    parent_lookup = normalize_component_explanations(
+        getattr(parent_state, "components", []),
+        getattr(parent_state, "component_explanations", {}),
+    )
+    payload_lookup = normalize_component_explanations(
+        list((instantiated or {}).get("component_role_explanations", {}).keys())
+        if isinstance((instantiated or {}).get("component_role_explanations"), dict)
+        else [],
+        (instantiated or {}).get("component_role_explanations", {}),
+    )
+    edit_lookup: Dict[str, ComponentEdit] = {}
+    for edit in getattr(plan, "component_edits", []) or []:
+        name = str(getattr(edit, "component", "")).strip()
+        if name:
+            edit_lookup[name] = edit
+
+    explanations: Dict[str, str] = {}
+    for component in new_components:
+        name = str(component).strip()
+        if not name:
+            continue
+        if name in parent_lookup:
+            explanations[name] = parent_lookup[name]
+            continue
+        if name in payload_lookup:
+            explanations[name] = payload_lookup[name]
+            continue
+        explanations[name] = _synthesize_component_explanation_from_edit(
+            name,
+            edit_lookup.get(name),
+        )
+    return explanations
+
+
 @dataclass
 class ComponentEdit:
     op: AtomicEditOp
@@ -1029,6 +1212,12 @@ def materialize_child_state(
     idea_state_cls: Any,
 ) -> Any:
     new_components = apply_edit_plan_to_components(parent_state.components, plan)
+    component_explanations = build_child_component_explanations(
+        parent_state,
+        new_components,
+        plan,
+        instantiated,
+    )
     next_budget = apply_budget_delta_to_parent(parent_state.budget, plan.estimated_budget_delta)
 
     inst = instantiated or {}
@@ -1060,6 +1249,7 @@ def materialize_child_state(
         memory_refs=plan.memory_refs,
         budget=next_budget,
         components=new_components,
+        component_explanations=component_explanations,
         paper_graph_context=parent_state.paper_graph_context,
         edit_plan=plan.to_dict(),
         skill_metrics={
@@ -1222,7 +1412,7 @@ def extract_mature_idea_components_via_llm(
     *,
     prompt_template: str,
     max_components: int,
-) -> List[str]:
+) -> Tuple[List[str], Dict[str, str]]:
     prompt = prompt_template.format(mature_idea=mature_idea, topic=topic)
     try:
         response = mcts.chat_fn(
@@ -1234,13 +1424,12 @@ def extract_mature_idea_components_via_llm(
         payload = parse_json_response(response)
         if isinstance(payload, list):
             payload = payload[0]
-        if isinstance(payload, dict):
-            raw = payload.get("components", [])
-            if isinstance(raw, list):
-                components = [str(c).strip() for c in raw if str(c).strip()]
-                components = components[:max_components]
-                if components:
-                    return components
+        components, explanations = parse_component_bundle_payload(
+            payload,
+            max_components=max_components,
+        )
+        if components:
+            return components, explanations
     except Exception as exc:
         log_message(
             mcts.logger,
@@ -1249,7 +1438,7 @@ def extract_mature_idea_components_via_llm(
             "⚠️  Component extraction from mature idea failed: %s",
             exc,
         )
-    return []
+    return [], {}
 
 
 def select_leaf_for_rollout(mcts: Any, node: Any) -> Tuple[Any, List[Any]]:
@@ -1578,6 +1767,10 @@ def simulate_node_value(
         log_message(mcts.logger, mcts.log_sink, "warning", "⚠️  Simulation failed: %s", exc)
         return None
 
+    novelty_override = mcts._score_component_novelty(node.state)
+    if novelty_override is not None:
+        evaluation.novelty = novelty_override
+
     if evaluation.protocol_score <= 0.0:
         evaluation.protocol_score = mcts._compute_protocol_score(node.state.edit_plan)
 
@@ -1772,12 +1965,11 @@ def build_root_state(
     if not budget:
         budget = {"compute": 1.0, "latency": 1.0, "memory": 1.0}
     components = context.get("components") if isinstance(context.get("components"), list) else []
-    if not components:
-        components = [
-            "backbone_model",
-            "objective",
-            "evaluation_harness",
-        ]
+    context_component_explanations = (
+        context.get("component_explanations")
+        if isinstance(context.get("component_explanations"), (dict, list))
+        else {}
+    )
 
     if idea_pool:
         latest = idea_pool[-1]
@@ -1789,6 +1981,10 @@ def build_root_state(
             experiments = latest.get("experiments", latest.get("experiment_design", ""))
             risks = latest.get("risks", latest.get("evaluation", ""))
             tags = latest.get("tags")
+            if not components and isinstance(latest.get("components"), list):
+                components = [str(comp).strip() for comp in latest.get("components", []) if str(comp).strip()]
+            if not context_component_explanations:
+                context_component_explanations = latest.get("component_explanations", {})
         else:
             title = f"{topic} prior idea"
             abstract = str(latest)
@@ -1806,6 +2002,17 @@ def build_root_state(
         risks = "Need fairness checks and failure-mode surfacing."
         tags = ["seed"]
 
+    if not components:
+        components = [
+            "backbone_model",
+            "objective",
+            "evaluation_harness",
+        ]
+    component_explanations = normalize_component_explanations(
+        components,
+        context_component_explanations,
+    )
+
     return idea_state_cls(
         title=str(title),
         abstract=str(abstract),
@@ -1820,6 +2027,7 @@ def build_root_state(
         memory_refs=[],
         budget=budget,
         components=components,
+        component_explanations=component_explanations,
         paper_graph_context=str(context.get("paper_context") or ""),
     )
 

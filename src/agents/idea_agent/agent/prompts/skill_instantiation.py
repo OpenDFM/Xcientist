@@ -31,6 +31,7 @@ Instantiate the above plan into a concrete research idea. You must:
 6. If a mature idea (anchor) is provided, the instantiated idea MUST build upon, refine, or extend that mature idea — do NOT ignore it or propose an unrelated direction.
 7. Provide a "component_mapping" that maps EVERY generic template component name in the edit plan to a concrete, topic-specific name. For REWIRE/REPLACE targets that refer to existing parent components, map them to the actual parent component name. For new components (ADD_COMPONENT), give them a specific name reflecting their role in this idea.
 8. Provide "edit_reasons": a JSON list of short reason strings (one per component edit in the same order as the component edits above). Each reason should explain **why** this specific atomic operation is needed to address the target defects — e.g., what gap it fills, what failure mode it prevents, or what capability it adds.
+9. Provide "component_role_explanations": a JSON object that explains the role of each concrete component name that appears in "component_mapping". The explanation should describe what the component does inside the idea, not just repeat the name.
 
 Return STRICT JSON (no Markdown wrapping):
 {{
@@ -44,6 +45,10 @@ Return STRICT JSON (no Markdown wrapping):
   "component_mapping": {{
     "generic_template_name_1": "concrete_topic_specific_name_1",
     "generic_template_name_2": "concrete_topic_specific_name_2"
+  }},
+  "component_role_explanations": {{
+    "concrete_topic_specific_name_1": "What this component does in the idea",
+    "concrete_topic_specific_name_2": "What this component does in the idea"
   }},
   "edit_reasons": [
     "reason for component edit 1",

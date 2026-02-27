@@ -6,7 +6,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Sequence
 
 import networkx as nx
 
@@ -163,3 +163,23 @@ def rank_method_paper_nodes_weighted(
         for combined, degree_score, similarity_score, node in scored[: max(top_k, 0)]
     ]
 
+
+def score_component_explanation_embeddings_for_novelty(
+    explanation_embeddings: Sequence[Sequence[float]],
+    components_with_explanations: Optional[Sequence[Dict[str, str]]] = None,
+    graph_path: Optional[str] = None,
+) -> float:
+    """Placeholder hook for paper-graph novelty scoring.
+
+    The evaluator embeds each component explanation with ``all-MiniLM-L6-v2`` and
+    then calls this function. A future implementation can project the embedding
+    set into the paper graph and return a calibrated novelty score in ``[0, 5]``.
+    """
+    raise NotImplementedError(
+        "paper-graph component novelty scoring is not implemented yet."
+    )
+
+
+def supports_component_novelty_scoring() -> bool:
+    """Whether the paper-graph novelty hook is implemented and safe to call."""
+    return False
