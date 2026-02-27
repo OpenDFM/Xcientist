@@ -555,7 +555,6 @@ class LigAgent(AgentBase):
             model=self.model,
             logger=logger,
             prompts=PROMPTS,
-            config=self.config,
         )
 
     def _generate_idea_introduction(

@@ -365,8 +365,6 @@ Called automatically at the end of `idea_generation` once the best MCTS node is 
 best_entry
     ├─ build_algorithm_spec(...)            → structured algorithm/method description
     ├─ synthesize_reference_summaries(...)  → curated reference list with summaries
-    ├─ suggest_datasets(...)                → dataset recommendations with match scores
-    ├─ suggest_baselines(...)               → baseline recommendations with match scores
     └─ generate_idea_introduction(...)      → LaTeX-ready introduction paragraph
 
 payload → artifact["idea_result"] → idea_result.json
@@ -381,8 +379,6 @@ payload → artifact["idea_result"] → idea_result.json
   "introduction": "...",
   "algorithm": ["step 1 ...", "step 2 ..."],
   "reference_papers": [{"title": "...", "summary": "..."}],
-  "datasets": [{"name": "...", "usage": "...", "scores": {"match": 4}}],
-  "baselines": [{"name": "...", "scores": {"match": 40}}],
   "mcts_evolution": {
     "best_path": "...",
     "iterations": [{"iteration": 0, "title": "...", "score": 1.2}]
@@ -486,11 +482,7 @@ mcts:
   risk_weight: 0.20
 ```
 
-### 8.3 `config/dataset/default.yaml` & `config/baseline/default.yaml`
-
-Control retrieval and scoring for dataset/baseline suggestions in `persist_final_idea`.
-
-### 8.4 `config/agent/` — Agent-level parameters
+### 8.3 `config/agent/` — Agent-level parameters
 
 Controls `model`, `chat_max_retries`, `chat_retry_backoff`, `semantic_search_limit`, `idea_context_limit`, `paper_enrichment_timeout_sec`, `action_selection_attempts`.
 
@@ -557,7 +549,7 @@ python src/agents/idea_agent/run.py
 2. **`knowledge_aquisition`** — Semantic Scholar seed → RAG query → OutcomeRAG → citation expansion → enrich → filter → `artifact["references"]` populated.
 3. **`advanced_analysis`** — LLM identifies key methods, pain points, open questions → `artifact["analysis"]`.
 4. **`idea_generation`** — Memory-Guided MCTS runs; winner written to `artifact["idea_pool"]`.
-5. **`persist_final_idea`** — Algorithm spec, references, datasets, baselines, and introduction are synthesised → `idea_result.json` written.
+5. **`persist_final_idea`** — Algorithm spec, references, and introduction are synthesised → `idea_result.json` written.
 6. **Subsequent turns** — LLM selects `idea_evaluation` to refine, or `re_analysis_replan` to pivot topic, until `max_turns` is reached.
 
 ---

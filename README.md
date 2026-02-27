@@ -54,7 +54,7 @@ The agent runs a fixed multi-turn loop. Turn 1 is always `knowledge_aquisition`;
 - `run.mature_idea` (optional): enables **Contract mode** — MCTS root is derived from the mature idea and all expansions stay within its mechanism
 
 **Outputs**:
-- `runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json`: final idea (title, abstract, introduction, algorithm, reference_papers, datasets, baselines, mcts_evolution)
+- `runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json`: final idea (title, abstract, introduction, algorithm, reference_papers, mcts_evolution)
 - `runs/<topic-slug>-<timestamp>-<uuid>/logs/ligagent.log`: full run log
 
 **Config location**: `src/agents/idea_agent/config/` (edit YAML directly)
@@ -62,8 +62,6 @@ The agent runs a fixed multi-turn loop. Turn 1 is always `knowledge_aquisition`;
 Key config files:
 - `src/agents/idea_agent/config/run/default.yaml` — runtime params: **topics / max_turns / parallelism / rag_config / mature_idea**
 - `src/agents/idea_agent/config/mcts/default.yaml` — MCTS: **max_iterations / max_depth / branching_factor / generation_model / evaluation_model**
-- `src/agents/idea_agent/config/dataset/default.yaml` — dataset retrieval/scoring
-- `src/agents/idea_agent/config/baseline/default.yaml` — baseline retrieval/scoring
 
 **Runtime config (`run/default.yaml`)**:
 ```yaml
@@ -233,7 +231,7 @@ ResearchAgent/
 ├── run_paper.sh          # Paper Agent entry
 ├── src/agents/
 │   ├── idea_agent/
-│   │   ├── config/            # Idea Agent configs (run/mcts/dataset/baseline, etc.)
+│   │   ├── config/            # Idea Agent configs (run/mcts/search/agent, etc.)
 │   │   ├── run.py             # Idea Agent entry
 │   │   └── runs/              # Output: runs/<slug-timestamp-uuid>/{idea_result.json,logs/}
 │   ├── experiment_agent/

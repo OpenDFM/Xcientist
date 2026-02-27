@@ -54,7 +54,7 @@ Agent 运行固定的多轮循环。第 1 轮固定执行 `knowledge_aquisition`
 - `run.mature_idea`（可选）：开启 **Contract 模式** — MCTS 根节点由成熟想法派生，所有扩展在其机制范围内进行
 
 **输出**：
-- `runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json`：最终想法（含 title、abstract、introduction、algorithm、reference_papers、datasets、baselines、mcts_evolution）
+- `runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json`：最终想法（含 title、abstract、introduction、algorithm、reference_papers、mcts_evolution）
 - `runs/<topic-slug>-<timestamp>-<uuid>/logs/ligagent.log`：完整运行日志
 
 **配置位置**：`src/agents/idea_agent/config/`（推荐直接改 YAML）
@@ -62,8 +62,6 @@ Agent 运行固定的多轮循环。第 1 轮固定执行 `knowledge_aquisition`
 主要配置文件：
 - `src/agents/idea_agent/config/run/default.yaml` — 运行时参数：**topics / max_turns / parallelism / rag_config / mature_idea**
 - `src/agents/idea_agent/config/mcts/default.yaml` — MCTS：**max_iterations / max_depth / branching_factor / generation_model / evaluation_model**
-- `src/agents/idea_agent/config/dataset/default.yaml` — 数据集检索/评分参数
-- `src/agents/idea_agent/config/baseline/default.yaml` — baseline 检索/评分参数
 
 **运行时配置（`run/default.yaml`）**：
 ```yaml
@@ -233,7 +231,7 @@ ResearchAgent/
 ├── run_paper.sh          # Paper Agent入口
 ├── src/agents/
 │   ├── idea_agent/
-│   │   ├── config/            # Idea Agent配置（run/mcts/dataset/baseline等）
+│   │   ├── config/            # Idea Agent配置（run/mcts/search/agent等）
 │   │   ├── run.py             # Idea Agent入口
 │   │   └── runs/              # 输出：runs/<slug-timestamp-uuid>/{idea_result.json,logs/}
 │   ├── experiment_agent/

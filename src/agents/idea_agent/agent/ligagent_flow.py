@@ -8,8 +8,6 @@ from agent.prompts import PROMPTS
 from src.agents.idea_agent.utils.idea_helpers import build_mcts_evolution, collect_reference_material
 from src.agents.idea_agent.utils.ligagent_helpers import (
     build_algorithm_spec,
-    suggest_baselines,
-    suggest_datasets,
     synthesize_reference_summaries,
 )
 from src.agents.idea_agent.utils.ligagent_utils import (
@@ -52,7 +50,6 @@ def persist_final_idea(
     model: str,
     logger,
     prompts: Optional[Dict[str, str]] = None,
-    config: Optional[object] = None,
 ) -> Dict[str, Any]:
     prompts = prompts or PROMPTS
     topic = artifact["topic"][-1] if artifact.get("topic") else "unspecified topic"
@@ -77,30 +74,6 @@ def persist_final_idea(
         model,
         logger,
     )
-    datasets = suggest_datasets(
-        topic,
-         best_entry,
-         algorithm,
-         references,
-         prompts,
-         chat_fn,
-         model,
-         logger,
-         artifact=artifact,
-         config=config,
-     )
-    baselines = suggest_baselines(
-        topic,
-        best_entry,
-        algorithm,
-        references,
-        prompts,
-        chat_fn,
-        model,
-        logger,
-        artifact=artifact,
-        config=config,
-    )
     entries = paper_entries or collect_paper_context_entries(
         artifact, artifact.get("references", [])
     )
@@ -113,14 +86,32 @@ def persist_final_idea(
         paper_entries=entries,
         logger=logger,
     )
+    component_entries = best_entry.get("components_with_explanations")
+    if not isinstance(component_entries, list):
+        raw_components = best_entry.get("components") or []
+        raw_explanations = best_entry.get("component_explanations") or {}
+        component_entries = []
+        if isinstance(raw_components, list):
+            for component in raw_components:
+                name = str(component).strip()
+                if not name:
+                    continue
+                explanation = ""
+                if isinstance(raw_explanations, dict):
+                    explanation = str(raw_explanations.get(name, "")).strip()
+                component_entries.append(
+                    {
+                        "component": name,
+                        "explanation": explanation,
+                    }
+                )
     payload = {
         "title": best_entry.get("title"),
         "abstract": best_entry.get("abstract"),
         "introduction": introduction,
+        "components": component_entries,
         "algorithm": algorithm,
         "reference_papers": references,
-        "datasets": datasets,
-        "baselines": baselines,
         "mcts_evolution": build_mcts_evolution(best_entry),
     }
     if best_entry.get("idea_contract"):

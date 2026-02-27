@@ -358,8 +358,6 @@ best = best_candidate(root)       # 取综合得分最高节点
 best_entry
     ├─ build_algorithm_spec(...)            → 结构化算法/方法描述
     ├─ synthesize_reference_summaries(...)  → 带摘要的精选参考文献列表
-    ├─ suggest_datasets(...)                → 推荐数据集（含匹配度评分）
-    ├─ suggest_baselines(...)               → 推荐基线方法（含匹配度评分）
     └─ generate_idea_introduction(...)      → LaTeX 格式的引言段落
 
 payload → artifact["idea_result"] → idea_result.json
@@ -374,8 +372,6 @@ payload → artifact["idea_result"] → idea_result.json
   "introduction": "...",
   "algorithm": ["第 1 步 ...", "第 2 步 ..."],
   "reference_papers": [{"title": "...", "summary": "..."}],
-  "datasets": [{"name": "...", "usage": "...", "scores": {"match": 4}}],
-  "baselines": [{"name": "...", "scores": {"match": 40}}],
   "mcts_evolution": {
     "best_path": "...",
     "iterations": [{"iteration": 0, "title": "...", "score": 1.2}]
@@ -479,11 +475,7 @@ mcts:
   risk_weight: 0.20
 ```
 
-### 8.3 `config/dataset/default.yaml` & `config/baseline/default.yaml`
-
-控制 `persist_final_idea` 中数据集与基线推荐的检索和打分行为。
-
-### 8.4 `config/agent/` — Agent 级参数
+### 8.3 `config/agent/` — Agent 级参数
 
 控制 `model`、`chat_max_retries`、`chat_retry_backoff`、`semantic_search_limit`、`idea_context_limit`、`paper_enrichment_timeout_sec`、`action_selection_attempts`。
 
@@ -550,7 +542,7 @@ python src/agents/idea_agent/run.py
 2. **`knowledge_aquisition`** — Semantic Scholar 种子 → RAG 查询 → OutcomeRAG → 引用扩展 → 丰富内容 → 筛选 → `artifact["references"]` 就绪。
 3. **`advanced_analysis`** — LLM 识别关键方法、痛点、开放问题 → `artifact["analysis"]`。
 4. **`idea_generation`** — Memory-Guided MCTS 运行；最优节点写入 `artifact["idea_pool"]`。
-5. **`persist_final_idea`** — 综合算法描述、参考文献、数据集、基线和引言 → 写出 `idea_result.json`。
+5. **`persist_final_idea`** — 综合算法描述、参考文献和引言 → 写出 `idea_result.json`。
 6. **后续轮次** — LLM 选择 `idea_evaluation`（精化）或 `re_analysis_replan`（转换方向），直至 `max_turns` 耗尽。
 
 ---

@@ -4,62 +4,6 @@ import json
 from typing import Any, Dict, List, Optional
 
 
-def _normalize_dataset_name(name: str) -> str:
-    cleaned = (name or "").strip()
-    cleaned = " ".join(cleaned.split())
-    return cleaned
-
-
-def extract_dataset_names(keynote_data: Any) -> List[str]:
-    if not isinstance(keynote_data, dict):
-        return []
-    raw = keynote_data.get("dataset") or keynote_data.get("datasets") or []
-    if isinstance(raw, str):
-        raw = [raw]
-    if not isinstance(raw, list):
-        return []
-    names: List[str] = []
-    for item in raw:
-        if isinstance(item, str):
-            name = item
-        elif isinstance(item, dict):
-            name = item.get("name") or item.get("dataset") or item.get("title") or ""
-        else:
-            name = str(item)
-        name = _normalize_dataset_name(name)
-        if name:
-            names.append(name)
-    return names
-
-
-def _normalize_baseline_name(name: str) -> str:
-    cleaned = (name or "").strip()
-    cleaned = " ".join(cleaned.split())
-    return cleaned
-
-
-def extract_baseline_names(keynote_data: Any) -> List[str]:
-    if not isinstance(keynote_data, dict):
-        return []
-    raw = keynote_data.get("baseline") or keynote_data.get("baselines") or []
-    if isinstance(raw, str):
-        raw = [raw]
-    if not isinstance(raw, list):
-        return []
-    names: List[str] = []
-    for item in raw:
-        if isinstance(item, str):
-            name = item
-        elif isinstance(item, dict):
-            name = item.get("name") or item.get("baseline") or item.get("title") or ""
-        else:
-            name = str(item)
-        name = _normalize_baseline_name(name)
-        if name:
-            names.append(name)
-    return names
-
-
 def enrich_papers_with_content(
     papers: List[Dict[str, Any]],
     paper_repository,
@@ -107,26 +51,6 @@ def enrich_papers_with_content(
             "title": paper.get("title"),
             "abstract": paper.get("abstract"),
         }
-
-        dataset_counts = artifact.setdefault("dataset_mentions", {})
-        dataset_display = artifact.setdefault("dataset_mentions_display", {})
-        for dataset_name in extract_dataset_names(keynote_data):
-            key = dataset_name.lower()
-            dataset_counts[key] = dataset_counts.get(key, 0) + 1
-            dataset_display.setdefault(key, dataset_name)
-
-        baseline_counts = artifact.setdefault("baseline_mentions", {})
-        baseline_display = artifact.setdefault("baseline_mentions_display", {})
-        for baseline_name in extract_baseline_names(keynote_data):
-            key = baseline_name.lower()
-            baseline_counts[key] = baseline_counts.get(key, 0) + 1
-            baseline_display.setdefault(key, baseline_name)
-        if isinstance(keynote_data, dict) and ("baseline" in keynote_data or "baselines" in keynote_data):
-            paper_title = (paper.get("title") or "").strip()
-            if paper_title:
-                key = paper_title.lower()
-                baseline_counts[key] = baseline_counts.get(key, 0) + 1
-                baseline_display.setdefault(key, paper_title)
 
 
 def collect_paper_context_entries(
