@@ -445,6 +445,28 @@ class MCTSConfig:
     evaluation_temperature: float = _mcts_default("evaluation_temperature", 0.01)
     generation_max_tokens: int = _mcts_default("generation_max_tokens", 8192)
     evaluation_max_tokens: int = _mcts_default("evaluation_max_tokens", 8192)
+    component_novelty_model: str = _mcts_default(
+        "component_novelty_model", "all-MiniLM-L6-v2"
+    )
+    component_novelty_index_dir: Optional[str] = _mcts_default(
+        "component_novelty_index_dir", None
+    )
+    component_novelty_retrieval_top_k: int = _mcts_default(
+        "component_novelty_retrieval_top_k", 50
+    )
+    component_novelty_evidence_top_k: int = _mcts_default(
+        "component_novelty_evidence_top_k", 5
+    )
+    component_novelty_eval_model: Optional[str] = _mcts_default(
+        "component_novelty_eval_model", None
+    )
+    component_novelty_eval_temperature: float = _mcts_default(
+        "component_novelty_eval_temperature",
+        _mcts_default("evaluation_temperature", 0.01),
+    )
+    component_novelty_eval_max_tokens: int = _mcts_default(
+        "component_novelty_eval_max_tokens", 4096
+    )
 
     min_confidence_for_memory: float = _mcts_default("min_confidence_for_memory", 0.6)
     pareto_top_k: int = _mcts_default("pareto_top_k", 5)
@@ -700,7 +722,20 @@ class MemoryGuidedMCTS:
         self.logger = logger or module_logger
         self.log_sink = log_sink
         self.memory_accessor = memory_accessor or VectorMemoryAccessor(logger=self.logger)
-        self.component_novelty_scorer = ComponentNoveltyScorer()
+        self.component_novelty_scorer = ComponentNoveltyScorer(
+            model_name_or_path=self.config.component_novelty_model,
+            index_dir=self.config.component_novelty_index_dir or None,
+            retrieval_top_k=self.config.component_novelty_retrieval_top_k,
+            evidence_node_top_k=self.config.component_novelty_evidence_top_k,
+            evaluation_model=(
+                self.config.component_novelty_eval_model or self.config.evaluation_model
+            ),
+            evaluation_temperature=self.config.component_novelty_eval_temperature,
+            evaluation_max_tokens=self.config.component_novelty_eval_max_tokens,
+            chat_fn=self.chat_fn,
+            logger=self.logger,
+            log_sink=self.log_sink,
+        )
 
         self.skill_catalog = SkillCatalog()
         self.symbolic_memory = SymbolicMemorySystem()
@@ -784,7 +819,7 @@ class MemoryGuidedMCTS:
 
     def _score_component_novelty(self, state: IdeaState) -> Optional[float]:
         try:
-            return self.component_novelty_scorer.score(state.component_inventory())
+            return self.component_novelty_scorer.score(state=state, topic=self.topic)
         except Exception as exc:
             if not self._component_novelty_fallback_logged:
                 log_message(

@@ -9,6 +9,13 @@ mcts:
   evaluation_temperature: 0.001
   generation_max_tokens: 8192
   evaluation_max_tokens: 8192
+  component_novelty_model: "all-MiniLM-L6-v2"
+  component_novelty_index_dir: null
+  component_novelty_retrieval_top_k: 50
+  component_novelty_evidence_top_k: 5
+  component_novelty_eval_model: null
+  component_novelty_eval_temperature: 0.001
+  component_novelty_eval_max_tokens: 2048
   min_confidence_for_memory: 0.6
   pareto_top_k: 5
   alignment_weight: 0.2

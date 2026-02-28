@@ -51,6 +51,24 @@ def _default_graph_path() -> str:
     return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "paper_graph.gexf"))
 
 
+def build_core_node_component_vector_store(
+    model_name_or_path: str = "all-MiniLM-L6-v2",
+    graph_path: Optional[str] = None,
+    index_dir: Optional[str] = None,
+    device: Optional[str] = None,
+):
+    from src.agents.idea_agent.utils.paper_graph_vector_store import (
+        PaperGraphComponentVectorStore,
+    )
+
+    return PaperGraphComponentVectorStore(
+        graph_path=graph_path or _default_graph_path(),
+        model_name_or_path=model_name_or_path,
+        index_dir=index_dir,
+        device=device,
+    )
+
+
 def _tokenize(text: str) -> List[str]:
     if not text:
         return []

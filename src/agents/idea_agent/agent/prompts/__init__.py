@@ -3,6 +3,9 @@ from src.agents.idea_agent.agent.prompts.action_retry import ACTION_RETRY_PROMPT
 from src.agents.idea_agent.agent.prompts.advanced_analysis import ADVANCED_ANALYSIS_PROMPT
 from src.agents.idea_agent.agent.prompts.idea_generation import IDEA_GENERATION_PROMPT
 from src.agents.idea_agent.agent.prompts.idea_evaluation import IDEA_EVALUATION_PROMPT
+from src.agents.idea_agent.agent.prompts.component_novelty_evaluation import (
+    COMPONENT_NOVELTY_EVALUATION_PROMPT,
+)
 from src.agents.idea_agent.agent.prompts.mcts_evaluation import MCTS_IDEA_EVALUATION_PROMPT
 from src.agents.idea_agent.agent.prompts.re_analysis_replan import RE_ANALYSIS_REPLAN_PROMPT
 from src.agents.idea_agent.agent.prompts.reference_grounding import REFERENCE_GROUNDING_PROMPT
@@ -20,6 +23,7 @@ PROMPTS = {
     "advanced_analysis": ADVANCED_ANALYSIS_PROMPT,
     "idea_generation": IDEA_GENERATION_PROMPT,
     "idea_evaluation": IDEA_EVALUATION_PROMPT,
+    "component_novelty_evaluation": COMPONENT_NOVELTY_EVALUATION_PROMPT,
     "mcts_evaluation": MCTS_IDEA_EVALUATION_PROMPT,
     "re_analysis_replan": RE_ANALYSIS_REPLAN_PROMPT,
     "reference_grounding": REFERENCE_GROUNDING_PROMPT,
