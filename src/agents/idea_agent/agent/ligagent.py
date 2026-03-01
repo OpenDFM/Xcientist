@@ -602,7 +602,9 @@ class LigAgent(AgentBase):
         into :class:`SymbolicRecord` instances that ``compute_action_priors``
         can consume during MCTS expand.
 
-        Two signal sources are consumed:
+        Two signal sources may exist in the artifact, but only
+        **experiment-agent ablation results** are injected by the default
+        implementation:
 
         1. **Experiment-agent ablation results** – stored under
            ``self.artifact["ablation_results"]``.  Each entry is a dict::
@@ -617,66 +619,60 @@ class LigAgent(AgentBase):
                }
 
         2. **Paper-graph conclusions** – stored under
-           ``self.artifact["paper_graph_priors"]``.  Same schema, but typically
-           lower confidence and coarser ``context_signature``.
+           ``self.artifact["paper_graph_priors"]``.  They are not injected
+           into symbolic memory by the default implementation.
 
         Override or extend this method to plug in additional signal sources.
         """
         sym = self.mcts.symbolic_memory
         injected = 0
 
-        for source_key, source_label in [
-            ("ablation_results", "experiment_ablation"),
-            ("paper_graph_priors", "paper_graph"),
-        ]:
-            entries = self.artifact.get(source_key, [])
-            if not entries:
+        entries = self.artifact.get("ablation_results", [])
+        for entry in entries:
+            if not isinstance(entry, dict):
                 continue
-            for entry in entries:
-                if not isinstance(entry, dict):
-                    continue
-                component = str(entry.get("component", "")).strip()
-                main_op = str(entry.get("op", "")).strip().lower()
-                delta = entry.get("delta_score")
-                if not component or not main_op or delta is None:
-                    continue
+            component = str(entry.get("component", "")).strip()
+            main_op = str(entry.get("op", "")).strip().lower()
+            delta = entry.get("delta_score")
+            if not component or not main_op or delta is None:
+                continue
 
-                method_text = str(entry.get("method_context", ""))
-                families = extract_component_families([component], method_text)
-                component_family = families[0].get("family", "") if families else ""
+            method_text = str(entry.get("method_context", ""))
+            families = extract_component_families([component], method_text)
+            component_family = families[0].get("family", "") if families else ""
 
-                ctx_sig_raw = entry.get("context_signature")
-                ctx_sig_dict = dict(ctx_sig_raw) if isinstance(ctx_sig_raw, dict) else {}
+            ctx_sig_raw = entry.get("context_signature")
+            ctx_sig_dict = dict(ctx_sig_raw) if isinstance(ctx_sig_raw, dict) else {}
 
-                confidence = max(0.0, min(1.0, float(entry.get("confidence", 0.5))))
+            confidence = max(0.0, min(1.0, float(entry.get("confidence", 0.5))))
 
-                try:
-                    record = sym.instantiate_symbolic_record(
-                        summary=f"{main_op} on {component} -> delta={float(delta):+.4f}",
-                        pattern=f"component={component}; op={main_op}",
-                        conditions=[],
-                        actions=[f"{main_op}:{component}"],
-                        rationale=str(entry.get("rationale", "")),
-                        expected_outcomes=[],
-                        anti_patterns=[],
-                        tags=[source_label, main_op, component],
-                        priority=max(0.0, min(1.0, abs(float(delta)))),
-                        confidence=confidence,
-                        source=source_label,
-                        support_count=int(entry.get("support_count", 1)),
-                        metadata={"topic": topic, "raw_entry": entry},
-                        component_family=component_family,
-                        main_op=main_op,
-                        context_signature=ctx_sig_dict,
-                        delta_score=float(delta),
-                    )
-                    sym.upsert_normal_records([record], agent_id="idea_agent")
-                    injected += 1
-                except Exception as exc:
-                    logger.warning(
-                        "⚠️  Failed to inject symbolic prior for %s/%s: %s",
-                        component, main_op, exc,
-                    )
+            try:
+                record = sym.instantiate_symbolic_record(
+                    summary=f"{main_op} on {component} -> delta={float(delta):+.4f}",
+                    pattern=f"component={component}; op={main_op}",
+                    conditions=[],
+                    actions=[f"{main_op}:{component}"],
+                    rationale=str(entry.get("rationale", "")),
+                    expected_outcomes=[],
+                    anti_patterns=[],
+                    tags=["experiment_ablation", main_op, component],
+                    priority=max(0.0, min(1.0, abs(float(delta)))),
+                    confidence=confidence,
+                    source="experiment_ablation",
+                    support_count=int(entry.get("support_count", 1)),
+                    metadata={"topic": topic, "raw_entry": entry},
+                    component_family=component_family,
+                    main_op=main_op,
+                    context_signature=ctx_sig_dict,
+                    delta_score=float(delta),
+                )
+                sym.upsert_normal_records([record], agent_id="idea_agent")
+                injected += 1
+            except Exception as exc:
+                logger.warning(
+                    "⚠️  Failed to inject symbolic prior for %s/%s: %s",
+                    component, main_op, exc,
+                )
 
         if injected:
             logger.info(
@@ -684,9 +680,6 @@ class LigAgent(AgentBase):
                 injected,
             )
 
-    # ──────────────────────────────────────────────────────────────────────
-    #  External prior ingestion entry-points  (not yet implemented)
-    # ──────────────────────────────────────────────────────────────────────
 
     def ingest_ablation_results(self, results: List[Dict[str, Any]]) -> None:
         """Write experiment-agent ablation results into the artifact so that
@@ -727,36 +720,4 @@ class LigAgent(AgentBase):
             "[LigAgent] ingest_ablation_results: added %d record(s), total=%d",
             len(valid),
             len(self.artifact["ablation_results"]),
-        )
-
-    def ingest_paper_graph_priors(self, priors: List[Dict[str, Any]]) -> None:
-        """Write paper-graph derived priors into the artifact so that
-        ``_inject_symbolic_priors`` can consume them on the next
-        ``idea_generation`` call.
-
-        Expected schema for each entry in ``priors``: identical to
-        :meth:`ingest_ablation_results`, but typically with lower
-        ``confidence`` and coarser ``context_signature``.
-        """
-        if not priors:
-            return
-        valid: List[Dict[str, Any]] = []
-        for entry in priors:
-            if not isinstance(entry, dict):
-                logger.warning("[LigAgent] ingest_paper_graph_priors: skipping non-dict entry %r", entry)
-                continue
-            if not entry.get("component") or not entry.get("op") or entry.get("delta_score") is None:
-                logger.warning(
-                    "[LigAgent] ingest_paper_graph_priors: skipping entry missing required fields "
-                    "(component/op/delta_score): %r",
-                    entry,
-                )
-                continue
-            valid.append(dict(entry))
-        existing: List[Dict[str, Any]] = self.artifact.get("paper_graph_priors", [])
-        self.artifact["paper_graph_priors"] = existing + valid
-        logger.info(
-            "[LigAgent] ingest_paper_graph_priors: added %d record(s), total=%d",
-            len(valid),
-            len(self.artifact["paper_graph_priors"]),
         )
