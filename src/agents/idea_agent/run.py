@@ -11,8 +11,8 @@ from uuid import uuid4
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.agents.idea_agent.agent.ligagent import LigAgent
-from src.agents.idea_agent.agent.ligagent_flow import run_agent_loop
 from src.agents.idea_agent.utils.config_loader import load_idea_agent_config, get_config_value
+from src.agents.idea_agent.utils.ligagent_flow import run_agent_loop
 
 from agent import init_logger, get_logger
 

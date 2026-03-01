@@ -28,6 +28,11 @@ from src.agents.idea_agent.utils.component_novelty import ComponentNoveltyScorer
 from src.agents.idea_agent.utils.mcts_helpers import clip_text, format_analysis_blob
 from src.agents.idea_agent.agent.prompts.skill_instantiation import SKILL_INSTANTIATION_PROMPT
 from src.agents.idea_agent.agent.prompts.component_extraction import COMPONENT_EXTRACTION_PROMPT
+from src.agents.idea_agent.utils.idea_taste_presets import (
+    IdeaTastePreset,
+    SCORE_WEIGHT_FIELDS,
+    get_idea_taste_preset,
+)
 from src.agents.idea_agent.utils.mcts_runtime import (
     EditPlan,
     MemoryBundle,
@@ -438,7 +443,7 @@ class MCTSConfig:
     max_depth: int = _mcts_default("max_depth", 4)
     branching_factor: int = _mcts_default("branching_factor", 3)
     exploration_constant: float = _mcts_default("exploration_constant", 1.15)
-
+    idea_taste_mode: Optional[str] = _mcts_default("idea_taste_mode", None)
     generation_model: str = _mcts_default("generation_model", "gpt-5-mini")
     evaluation_model: str = _mcts_default("evaluation_model", "gpt-5.2")
     generation_temperature: float = _mcts_default("generation_temperature", 0.2)
@@ -467,10 +472,8 @@ class MCTSConfig:
     component_novelty_eval_max_tokens: int = _mcts_default(
         "component_novelty_eval_max_tokens", 4096
     )
-
     min_confidence_for_memory: float = _mcts_default("min_confidence_for_memory", 0.6)
     pareto_top_k: int = _mcts_default("pareto_top_k", 5)
-
     alignment_weight: float = _mcts_default("alignment_weight", 0.25)
     complexity_weight: float = _mcts_default("complexity_weight", 0.2)
     novelty_weight: float = _mcts_default("novelty_weight", 0.30)
@@ -487,6 +490,18 @@ class MCTSConfig:
     skill_prior_success_threshold: float = _mcts_default(
         "skill_prior_success_threshold", 0.6
     )
+
+def apply_idea_taste_preset(config: MCTSConfig) -> Optional[IdeaTastePreset]:
+    raw_mode = getattr(config, "idea_taste_mode", None)
+    preset = get_idea_taste_preset(raw_mode)
+    if preset is None:
+        config.idea_taste_mode = None
+        return None
+
+    for field_name in SCORE_WEIGHT_FIELDS:
+        setattr(config, field_name, float(preset.weights[field_name]))
+    config.idea_taste_mode = preset.mode
+    return preset
 
 
 @dataclass

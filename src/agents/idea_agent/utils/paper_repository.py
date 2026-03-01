@@ -9,7 +9,7 @@ from omegaconf import OmegaConf
 from src.agents.survey_agent.modules.work_collector import WorkCollector
 from src.agents.survey_agent.modules.outcome_RAG import OutcomeRAG
 
-from src.agents.idea_agent.agent.paper_processing import (
+from src.agents.idea_agent.utils.paper_processing import (
     IdeaPaperAnalyzer,
     IdeaPaperParser,
     resolve_paper_records,

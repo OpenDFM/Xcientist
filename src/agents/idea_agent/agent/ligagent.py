@@ -11,9 +11,13 @@ from dataclasses import fields
 from src.agents.idea_agent.agent.tools import TOOLS
 from src.agents.idea_agent.agent.artifacts import artifact_init
 from src.agents.idea_agent.agent.prompts import PROMPTS
-from src.agents.idea_agent.agent.mcts import MemoryGuidedMCTS, MCTSConfig
-from src.agents.idea_agent.agent.paper_repository import PaperRepository
-from src.agents.idea_agent.agent.ligagent_flow import persist_final_idea
+from src.agents.idea_agent.agent.mcts import (
+    MemoryGuidedMCTS,
+    MCTSConfig,
+    apply_idea_taste_preset,
+)
+from src.agents.idea_agent.utils.paper_repository import PaperRepository
+from src.agents.idea_agent.utils.ligagent_flow import persist_final_idea
 from src.agents.idea_agent.utils.ligagent_utils import (
     collect_paper_context_entries,
     generate_idea_introduction,
@@ -134,6 +138,15 @@ class LigAgent(AgentBase):
             override = get_config_value(config, f"mcts.{field.name}", None)
             if override is not None:
                 setattr(mcts_config, field.name, override)
+        idea_taste_preset = apply_idea_taste_preset(mcts_config)
+        if idea_taste_preset:
+            self.artifact["idea_taste_mode"] = idea_taste_preset.mode
+            self.artifact["idea_taste_label"] = idea_taste_preset.label
+            logger.info(
+                "[LigAgent] Applied idea taste preset %s (%s).",
+                idea_taste_preset.mode,
+                idea_taste_preset.label,
+            )
         self.mcts = MemoryGuidedMCTS(
             chat_fn=self.chat,
             evaluation_prompt=PROMPTS.get("mcts_evaluation"),
