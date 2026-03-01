@@ -1959,6 +1959,7 @@ def build_root_state(
     idea_state_cls: Any,
 ) -> Any:
     idea_pool = context.get("idea_pool") or []
+    mature_idea = str(context.get("mature_idea") or "").strip()
     background = context.get("background_knowledge") or []
     defect_tags = context.get("defect_tags") or ["unexplored_gap"]
     budget = context.get("budget") if isinstance(context.get("budget"), dict) else {}
@@ -1971,7 +1972,19 @@ def build_root_state(
         else {}
     )
 
-    if idea_pool:
+    if mature_idea:
+        title = re.split(r"(?<=[.!?])\s+", mature_idea, maxsplit=1)[0].strip() or f"{topic} mature idea"
+        abstract = mature_idea
+        core = mature_idea
+        method = mature_idea
+        experiments = (
+            "Treat the mature idea as the contract root and evaluate only incremental refinements "
+            "with fair baselines, ablations, and stress tests."
+        )
+        risks = "Primary risk is mechanism drift away from the mature idea during refinement."
+        tags = ["seed", "mature_idea", "contract_root"]
+        rationale = "Starting point anchored directly in the provided mature idea."
+    elif idea_pool:
         latest = idea_pool[-1]
         if isinstance(latest, dict):
             title = latest.get("title", f"{topic} seed idea")
@@ -1981,6 +1994,7 @@ def build_root_state(
             experiments = latest.get("experiments", latest.get("experiment_design", ""))
             risks = latest.get("risks", latest.get("evaluation", ""))
             tags = latest.get("tags")
+            rationale = "Starting point from the latest idea in the current idea pool."
             if not components and isinstance(latest.get("components"), list):
                 components = [str(comp).strip() for comp in latest.get("components", []) if str(comp).strip()]
             if not context_component_explanations:
@@ -1993,6 +2007,7 @@ def build_root_state(
             experiments = ""
             risks = ""
             tags = ["seed"]
+            rationale = "Starting point from a non-structured prior idea."
     else:
         title = f"{topic} baseline"
         abstract = background[-1] if background else "Kick-off seed idea from analysis."
@@ -2001,6 +2016,7 @@ def build_root_state(
         experiments = "Use reported baselines and add defect-oriented checks."
         risks = "Need fairness checks and failure-mode surfacing."
         tags = ["seed"]
+        rationale = "Starting point from existing analysis and background knowledge."
 
     if not components:
         components = [
@@ -2023,7 +2039,7 @@ def build_root_state(
         tags=[str(t) for t in tags] if isinstance(tags, list) else [str(tags)],
         operator="seed",
         target_defects=[str(tag) for tag in defect_tags],
-        rationale="Starting point from existing idea pool or analysis.",
+        rationale=str(rationale),
         memory_refs=[],
         budget=budget,
         components=components,

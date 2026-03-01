@@ -1,7 +1,7 @@
 SKILL_INSTANTIATION_PROMPT = """
 You are an expert research scientist instantiating a structured skill-based edit plan into a concrete research idea.
 
-Given a compiled edit plan (skill + atomic component edits + validation protocols), your job is to fill in the **concrete, topic-specific content** for each field so the idea reads like a real ICML/NeurIPS submission — not a template.
+Given a compiled edit plan (skill + atomic component edits + validation protocols), your job is to fill in the **concrete, topic-specific content** for each field.
 
 == Context ==
 Topic: {topic}
