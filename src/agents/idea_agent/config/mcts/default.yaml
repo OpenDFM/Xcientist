@@ -1,11 +1,8 @@
 mcts:
-  max_iterations: 128
+  max_iterations: 3
   max_depth: 3
   branching_factor: 3
   exploration_constant: 1.15
-  # Optional preset that rewrites the composite score weights.
-  # Available: moonshot_inventor, bridge_builder, steady_engineer,
-  # balanced_scout, evidence_first
   idea_taste_mode: null
   generation_model: "gpt-5-mini"
   evaluation_model: "gpt-5.2"

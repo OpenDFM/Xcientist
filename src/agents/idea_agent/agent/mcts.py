@@ -662,7 +662,7 @@ class VectorMemoryAccessor:
             log_message(
                 self.logger,
                 None,
-                "debug",
+                "info",
                 "[MCTS] Transferred experience to working slots (count=%d)",
                 len(working_slots),
             )
@@ -708,16 +708,6 @@ class VectorMemoryAccessor:
                 procedural.add(procedural_records, agent_id="idea_agent")
             except Exception as exc:
                 log_message(self.logger, None, "warning", "⚠️  Failed to persist procedural records: %s", exc)
-
-        log_message(
-            self.logger,
-            None,
-            "debug",
-            "[MCTS] Persisted records -> semantic=%d | episodic=%d | procedural=%d",
-            len(semantic_records),
-            len(episodic_records),
-            len(procedural_records),
-        )
 
 
 class MemoryGuidedMCTS:
@@ -949,24 +939,8 @@ class MemoryGuidedMCTS:
             if self._mature_idea_components:
                 context["components"] = self._mature_idea_components
                 context["component_explanations"] = self._mature_idea_component_explanations
-                log_message(
-                    self.logger,
-                    self.log_sink,
-                    "debug",
-                    "[MCTS] Extracted %d component(s) from mature idea: %s",
-                    len(self._mature_idea_components),
-                    self._mature_idea_components,
-                )
 
         root_state = build_root_state(topic, context, IdeaState)
-        log_message(
-            self.logger,
-            self.log_sink,
-            "debug",
-            "[MCTS] Root state component_count=%d components=%s",
-            len(root_state.components),
-            root_state.components,
-        )
         root = new_node(
             root_state,
             depth=0,
@@ -991,14 +965,6 @@ class MemoryGuidedMCTS:
                 root.state.target_defects = inferred_defects
                 root.transformation.defects = inferred_defects
                 root.latest_path_summary = ""
-                log_message(
-                    self.logger,
-                    self.log_sink,
-                    "debug",
-                    "[MCTS] Root priming inferred defects=%s (previous=%s)",
-                    inferred_defects,
-                    previous_defects,
-                )
 
         for iteration in tqdm(range(self.config.max_iterations)):
             leaf, path = self._select(root)
@@ -1055,13 +1021,7 @@ class MemoryGuidedMCTS:
         try:
             self.symbolic_memory_path.parent.mkdir(parents=True, exist_ok=True)
             self.symbolic_memory.save(str(self.symbolic_memory_path))
-            log_message(
-                self.logger,
-                self.log_sink,
-                "debug",
-                "[MCTS] Symbolic memory saved to %s",
-                self.symbolic_memory_path,
-            )
+
         except Exception as exc:
             log_message(
                 self.logger,
