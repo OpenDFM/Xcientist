@@ -99,7 +99,7 @@ MEMORY_SHARED_DIR: str = os.path.abspath(
 )
 MEMORY_EMBEDDING_MODEL_PATH: str = os.environ.get(
     "EXPERIMENT_AGENT_MEMORY_MODEL_PATH",
-    "/hpc_stor03/sjtu_home/hanqi.li/ckpts/huggingface/all-MiniLM-L6-v2",
+    "src/memory/memory_system/.cache/all-MiniLM-L6-v2",
 )
 MEMORY_LLM_NAME: str = os.environ.get(
     "EXPERIMENT_AGENT_MEMORY_LLM_NAME", "mimo-v2-flash"

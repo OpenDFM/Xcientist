@@ -11,8 +11,6 @@ import json, os
 import faiss
 import re
 
-base_dir = os.path.dirname(os.path.abspath(__file__))
-
 class VectorStore(ABC):
     @abstractmethod
     def add(self, raws) -> List[int]:
@@ -40,10 +38,16 @@ class VectorStore(ABC):
 
 class FaissVectorStore(VectorStore):
     def __init__(self, model_path: str = ".cache/all-MiniLM-L6-v2", memory_type: str = "semantic"):
-        #self.model = SentenceTransformer(os.path.join(base_dir, model_path))
-        #local_path = Path(__file__).resolve().parent / model_path
-        local_path = "/home/lococo/project/ResearchAgent/src/agents/idea_agent/.cache/bge-large-en-v1.5"
-        self.model = SentenceTransformer(str(local_path))
+        model_source = str(model_path)
+        candidate = Path(model_source).expanduser()
+        if candidate.is_absolute():
+            model_source = os.path.relpath(str(candidate), start=os.getcwd())
+        elif not candidate.exists():
+            repo_root = Path(__file__).resolve().parents[3]
+            anchored = (repo_root / candidate).resolve()
+            if anchored.exists():
+                model_source = os.path.relpath(str(anchored), start=os.getcwd())
+        self.model = SentenceTransformer(model_source)
         self.memory_type = memory_type
         self.index = None
         self.dim = None

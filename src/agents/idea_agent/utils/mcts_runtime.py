@@ -174,7 +174,6 @@ def _humanize_component_name(component: str) -> str:
     return " ".join(tokens) if tokens else "component"
 
 
-def _clean_component_explanation(text: Any, fallback_component: str = "") -> str:
     cleaned = str(text).strip() if text is not None else ""
     if cleaned:
         return cleaned if cleaned.endswith((".", "!", "?")) else f"{cleaned}."

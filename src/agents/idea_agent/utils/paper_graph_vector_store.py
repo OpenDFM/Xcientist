@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import html
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
@@ -37,6 +38,20 @@ def _default_graph_path() -> str:
 def _default_index_dir(graph_path: str) -> Path:
     graph_file = Path(graph_path).resolve()
     return graph_file.parent / f"{graph_file.stem}.component_index"
+
+
+def _serialize_path_for_metadata(path_value: str, base_dir: Path) -> str:
+    candidate = Path(str(path_value)).expanduser()
+    if not candidate.is_absolute():
+        return str(path_value)
+    return os.path.relpath(str(candidate.resolve()), start=str(base_dir))
+
+
+def _resolve_metadata_path(path_value: str, base_dir: Path) -> str:
+    candidate = Path(str(path_value)).expanduser()
+    if candidate.is_absolute():
+        return str(candidate.resolve())
+    return str((base_dir / candidate).resolve())
 
 
 def _is_core_node(data: Dict[str, Any]) -> bool:
@@ -256,10 +271,17 @@ class PaperGraphComponentVectorStore:
 
         np = _load_numpy()
         np.save(target_dir / _EMBEDDING_FILE, self._embeddings)
+        model_candidate = Path(str(self.model_name_or_path)).expanduser()
+        model_is_local_path = model_candidate.is_absolute() or model_candidate.exists()
         metadata = {
-            "graph_path": self.graph_path,
+            "graph_path": _serialize_path_for_metadata(self.graph_path, target_dir),
             "graph_mtime": self._graph_mtime,
-            "model_name_or_path": self.model_name_or_path,
+            "model_name_or_path": (
+                _serialize_path_for_metadata(self.model_name_or_path, target_dir)
+                if model_is_local_path
+                else self.model_name_or_path
+            ),
+            "model_name_or_path_relative_to_index": model_is_local_path,
             "core_nodes": self._core_nodes,
             "components": [record.to_dict() for record in self._component_records],
         }
@@ -283,8 +305,18 @@ class PaperGraphComponentVectorStore:
             raise FileNotFoundError(f"Component index files are missing under {target_dir}")
 
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        self.graph_path = str(Path(metadata.get("graph_path") or self.graph_path).resolve())
-        self.model_name_or_path = str(metadata.get("model_name_or_path") or self.model_name_or_path)
+        self.graph_path = _resolve_metadata_path(
+            str(metadata.get("graph_path") or self.graph_path),
+            target_dir,
+        )
+        model_name_or_path = str(metadata.get("model_name_or_path") or self.model_name_or_path)
+        if metadata.get("model_name_or_path_relative_to_index"):
+            self.model_name_or_path = _resolve_metadata_path(model_name_or_path, target_dir)
+        else:
+            model_candidate = Path(model_name_or_path).expanduser()
+            self.model_name_or_path = (
+                str(model_candidate.resolve()) if model_candidate.is_absolute() else model_name_or_path
+            )
         self._graph_mtime = metadata.get("graph_mtime")
         self._core_nodes = {
             str(node_id): _normalize_value(payload)

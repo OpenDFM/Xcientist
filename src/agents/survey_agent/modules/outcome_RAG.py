@@ -26,8 +26,9 @@ class OutcomeRAG:
         # online
         # self.model = SentenceTransformer(config.ModuleInfo.WorkCollector.sentence_transformer_model)
         # offline
-        local_path = str(Path(__file__).resolve().parent.parent.parent / "idea_agent/.cache/bge-large-en-v1.5")
-        self.model = SentenceTransformer(local_path)
+        model_dir = Path(__file__).resolve().parent.parent.parent / "idea_agent/.cache/bge-large-en-v1.5"
+        local_path = Path(os.path.relpath(str(model_dir), start=str(Path.cwd())))
+        self.model = SentenceTransformer(str(local_path))
         self.work_collector = work_collector
         self.logger = get_logger("OutcomeRAG")
         try:
