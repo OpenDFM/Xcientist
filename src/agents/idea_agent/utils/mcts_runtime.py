@@ -170,18 +170,100 @@ def format_defect_registry() -> str:
 
 
 def _humanize_component_name(component: str) -> str:
-    tokens = [token for token in re.split(r"[_\-\s]+", str(component).strip()) if token]
+    raw = str(component).strip()
+    if not raw:
+        return "component"
+    # Split camelCase / PascalCase first, then normalize separators.
+    raw = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", raw)
+    raw = re.sub(r"[^A-Za-z0-9]+", " ", raw)
+    tokens = [token for token in raw.split() if token]
     return " ".join(tokens) if tokens else "component"
 
 
-    cleaned = str(text).strip() if text is not None else ""
-    if cleaned:
-        return cleaned if cleaned.endswith((".", "!", "?")) else f"{cleaned}."
-    human_name = _humanize_component_name(fallback_component)
-    return (
-        f"Implements the {human_name} part of the idea and contributes the capability "
-        f"associated with {human_name}."
-    )
+def _clean_component_explanation(explanation: Any, fallback_component: str) -> str:
+    fallback_label = _humanize_component_name(fallback_component)
+
+    def _flatten(value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value
+        if isinstance(value, dict):
+            preferred_keys = (
+                "explanation",
+                "description",
+                "summary",
+                "detail",
+                "details",
+                "role",
+                "rationale",
+                "purpose",
+            )
+            ordered_chunks: List[str] = []
+            seen_chunks: Set[str] = set()
+            for key in preferred_keys:
+                raw = value.get(key)
+                text = _flatten(raw).strip()
+                norm = text.lower()
+                if text and norm not in seen_chunks:
+                    ordered_chunks.append(text)
+                    seen_chunks.add(norm)
+            if ordered_chunks:
+                return " ".join(ordered_chunks)
+            try:
+                return json.dumps(value, ensure_ascii=False)
+            except Exception:
+                return str(value)
+        if isinstance(value, (list, tuple, set)):
+            parts: List[str] = []
+            seen_parts: Set[str] = set()
+            for item in value:
+                text = _flatten(item).strip()
+                norm = text.lower()
+                if text and norm not in seen_parts:
+                    parts.append(text)
+                    seen_parts.add(norm)
+            return " ".join(parts)
+        return str(value)
+
+    text = _flatten(explanation).strip()
+    placeholder_values = {
+        "",
+        "n/a",
+        "na",
+        "none",
+        "null",
+        "unknown",
+        "unspecified",
+        "not provided",
+        "no explanation",
+        "no explanation provided",
+        "no specific explanation provided",
+        "tbd",
+    }
+    if text.lower() in placeholder_values:
+        return f"No specific explanation provided for {fallback_label}."
+
+    text = re.sub(r"\s+", " ", text)
+    text = text.strip(" \t\r\n-*:;,.")
+    text = re.sub(r"^['\"`]+|['\"`]+$", "", text).strip()
+
+    prefix_patterns = [
+        rf"^{re.escape(str(fallback_component).strip())}\s*[:\-]\s*",
+        rf"^{re.escape(fallback_label)}\s*[:\-]\s*",
+        r"^(component|module|role|purpose|description|explanation)\s*[:\-]\s*",
+    ]
+    for pattern in prefix_patterns:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE).strip()
+
+    if not text:
+        return f"No specific explanation provided for {fallback_label}."
+
+    text = clip_text(text, limit=3000)
+    if text[-1] not in ".!?":
+        text += "."
+    return text
+
 
 
 def normalize_component_explanations(
