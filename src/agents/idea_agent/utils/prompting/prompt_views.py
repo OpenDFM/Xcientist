@@ -1,6 +1,10 @@
+"""Structured prompt-view formatters for analysis, ideas, papers, and plans."""
+
 from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
+
+from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
 
 
 DEFAULT_TEXT_LIMIT = 2048
@@ -254,6 +258,7 @@ def format_idea_pool_prompt_view(idea_pool: Any, *, max_ideas: int = 3) -> str:
                 )
             )
             continue
+        raw = normalize_idea_contract(raw, keep_extra=True)
 
         evaluation = raw.get("evaluation") if isinstance(raw.get("evaluation"), Mapping) else {}
         metrics: List[str] = []
@@ -272,17 +277,17 @@ def format_idea_pool_prompt_view(idea_pool: Any, *, max_ideas: int = 3) -> str:
                     _format_kv_line("Title", raw.get("title"), 120),
                     _format_kv_line(
                         "Core",
-                        raw.get("core_contribution") or raw.get("core_contribute"),
+                        raw.get("core_contribution"),
                         180,
                     ),
                     _format_kv_line(
                         "Method",
-                        raw.get("method") or raw.get("methodology"),
+                        raw.get("method"),
                         200,
                     ),
                     _format_kv_line(
                         "Experiments",
-                        raw.get("experiments") or raw.get("experiment_design"),
+                        raw.get("experiments"),
                         180,
                     ),
                     _format_kv_line("Risks", raw.get("risks"), 180),
@@ -409,6 +414,7 @@ def format_idea_prompt_view(idea: Any, *, heading: str = "Idea Snapshot") -> str
             [_format_section(heading, [_format_kv_line("Raw", payload, 1200)])],
             empty="No idea available.",
         )
+    payload = normalize_idea_contract(payload, keep_extra=True)
 
     component_lines: List[str] = []
     components = _normalize_list(payload.get("components"))
@@ -452,17 +458,17 @@ def format_idea_prompt_view(idea: Any, *, heading: str = "Idea Snapshot") -> str
                 _format_kv_line("Abstract", payload.get("abstract"), 220),
                 _format_kv_line(
                     "Core Contribution",
-                    payload.get("core_contribution") or payload.get("core_contribute"),
+                    payload.get("core_contribution"),
                     220,
                 ),
                 _format_kv_line(
                     "Method",
-                    payload.get("method") or payload.get("methodology"),
+                    payload.get("method"),
                     260,
                 ),
                 _format_kv_line(
                     "Experiments",
-                    payload.get("experiments") or payload.get("experiment_design"),
+                    payload.get("experiments"),
                     240,
                 ),
                 _format_kv_line("Risks", payload.get("risks"), 220),

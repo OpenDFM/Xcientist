@@ -42,6 +42,7 @@ from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     sanitize_action_token,
     get_paper_content as load_paper_content,
 )
+from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
 from src.agents.idea_agent.utils.core.config_loader import get_config_value
 from src.agents.idea_agent.utils.prompting.prompt_views import format_paper_capsules_prompt_view
 from memory.api.component_taxonomy import (
@@ -467,7 +468,12 @@ class LigAgent(AgentBase):
             self.artifact,
             batch_list,
         )
-        idea_history = list(self.artifact.get("idea_pool", []))
+        idea_history = [
+            normalize_idea_contract(entry, allow_legacy=True, keep_extra=True)
+            for entry in self.artifact.get("idea_pool", [])
+        ]
+        if idea_history:
+            self.artifact["idea_pool"] = idea_history
         seed_ideas = latest_analysis_seed_ideas(self.artifact)
         idea_context = idea_history if idea_history else seed_ideas
         mature_idea = self.artifact.get("mature_idea", "")
@@ -490,7 +496,7 @@ class LigAgent(AgentBase):
             return "\nIn this idea_generation action, MCTS returned no candidate and no fallback legacy path was used."
 
         best_payload = result.best.to_dict()
-        best_entry = best_payload["idea"]
+        best_entry = normalize_idea_contract(best_payload["idea"], keep_extra=True)
         best_entry["evaluation"] = best_payload["evaluation"]
         best_entry["search_score"] = best_payload["score"]
         best_entry["search_path"] = best_payload["path"]

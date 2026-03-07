@@ -1,3 +1,5 @@
+"""Logging setup helpers for Idea Agent console and file output."""
+
 import logging
 import os
 from logging.handlers import RotatingFileHandler

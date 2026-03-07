@@ -1,3 +1,5 @@
+"""Repository facade for loading paper metadata, markdown, and prepared content."""
+
 from __future__ import annotations
 
 import os

@@ -1,3 +1,5 @@
+"""Paper record normalization, parsing, and analysis helpers for local assets."""
+
 from __future__ import annotations
 
 import shutil

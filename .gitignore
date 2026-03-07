@@ -55,3 +55,4 @@ outputs
 database/workcollector_relatedness_cache/cache.db
 src/agents/survey_agent/config/database/workcollector_relatedness_cache/cache.db
 database/paper_abstracts/cache.db
+tests

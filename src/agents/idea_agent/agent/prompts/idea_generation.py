@@ -14,9 +14,9 @@ Your response should be a JSON in the following format:
 {{
     "title": "Research Idea",
     "abstract": "Abstract for Research Idea",
-    "core_contribute": "Core contribution of Research Idea",
-    "methodology": "Main methodology for Research Idea",
-    "experiment_design": "Experiment design for Research Idea"
+    "core_contribution": "Core contribution of Research Idea",
+    "method": "Main methodology for Research Idea",
+    "experiments": "Experiment design for Research Idea"
 }}
 Make sure your response is a valid JSON as specified above, no need to add any additional explanation.
 """

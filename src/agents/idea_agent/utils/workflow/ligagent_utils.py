@@ -1,3 +1,5 @@
+"""Shared LigAgent utilities for paper context assembly and JSON response parsing."""
+
 from __future__ import annotations
 
 import json

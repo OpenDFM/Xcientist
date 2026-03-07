@@ -1,3 +1,5 @@
+"""Component novelty scoring utilities backed by embedding similarity."""
+
 from __future__ import annotations
 
 import json

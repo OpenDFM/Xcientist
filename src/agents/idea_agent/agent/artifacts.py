@@ -12,7 +12,7 @@ ARTIFACT_FORMAT = {
     "rag_hits": List[dict], # list of outcome RAG hits
     "rag_contents": List[str], # list of survey content strings
     "paper_contents": dict, # mapping from paper_id -> parsed content metadata
-    "idea_pool": List[str], # list of research ideas
+    "idea_pool": List[dict], # list of canonical idea payloads
     "dialogue": dict, # dialogue history
     "steps": List[str], # list of steps taken
     "artifact_structure": dict, # structure of the artifact

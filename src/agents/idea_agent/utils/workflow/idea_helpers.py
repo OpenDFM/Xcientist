@@ -1,3 +1,5 @@
+"""Workflow helpers for idea traces, fallback specs, and lightweight web search."""
+
 import logging
 import os
 import random
@@ -6,6 +8,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional
 import requests
+
+from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
 
 logger = logging.getLogger(__name__)
 
@@ -81,11 +85,12 @@ def collect_reference_material(reference_batches: List[List[Dict[str, Any]]]) ->
 
 
 def derive_pipeline_steps(idea: Dict[str, Any]) -> List[str]:
+    idea = normalize_idea_contract(idea, keep_extra=True)
     sections = [
-        idea.get("methodology"),
-        idea.get("experiment_design"),
+        idea.get("method"),
+        idea.get("experiments"),
         idea.get("abstract"),
-        idea.get("core_contribute") or idea.get("core_contribution"),
+        idea.get("core_contribution"),
     ]
     sentences: List[str] = []
     for section in sections:

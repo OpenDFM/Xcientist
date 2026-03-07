@@ -1,3 +1,5 @@
+"""Vector-store utilities over paper-graph component embeddings and metadata."""
+
 from __future__ import annotations
 
 import copy

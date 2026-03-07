@@ -1,3 +1,5 @@
+"""Small helper functions for MCTS JSON parsing, formatting, and text clipping."""
+
 import json
 
 from typing import Any, Dict, List

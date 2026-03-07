@@ -1,3 +1,5 @@
+"""Preset definitions for tuning Idea Agent search preferences and weights."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

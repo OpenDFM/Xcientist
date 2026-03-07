@@ -1,3 +1,5 @@
+"""Workflow helpers for retrieval, analysis shaping, seed conversion, and persistence prep."""
+
 from __future__ import annotations
 
 import json
@@ -7,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 from typing import Any, Dict, List, Optional, Set
 
 from src.agents.idea_agent.utils.workflow.idea_helpers import fallback_algorithm_spec
+from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
 from src.agents.idea_agent.utils.workflow.ligagent_utils import (
     enrich_papers_with_content,
     parse_json_response,
@@ -632,26 +635,28 @@ def convert_seeds_to_ideas(seeds: Any) -> List[Dict[str, Any]]:
         if isinstance(custom_tags, list):
             tags.extend(str(tag) for tag in custom_tags if tag)
         payloads.append(
-            {
-                "title": title,
-                "abstract": " | ".join(
-                    part
-                    for part in [
-                        hypothesis,
-                        f"Mechanism: {method}" if method else "",
-                    ]
-                    if part
-                ),
-                "core_contribute": differentiator or hypothesis or method or "Analysis-seeded moonshot hypothesis.",
-                "methodology": method or "Derived from divergent analysis seed; requires fleshing out.",
-                "experiment_design": evaluation_plan or "Design ICML-grade evaluation including failure-surface probes.",
-                "risks": risk or "High novelty risk; feasibility unknown.",
-                "tags": tags,
-                "operator": "analysis_seed",
-                "target_defects": seed.get("target_defects", ["stagnant_novelty"]),
-                "memory_refs": supporting if isinstance(supporting, list) else [str(supporting)],
-                "rationale": differentiator or "Seed extracted from advanced analysis.",
-            }
+            normalize_idea_contract(
+                {
+                    "title": title,
+                    "abstract": " | ".join(
+                        part
+                        for part in [
+                            hypothesis,
+                            f"Mechanism: {method}" if method else "",
+                        ]
+                        if part
+                    ),
+                    "core_contribution": differentiator or hypothesis or method or "Analysis-seeded moonshot hypothesis.",
+                    "method": method or "Derived from divergent analysis seed; requires fleshing out.",
+                    "experiments": evaluation_plan or "Design ICML-grade evaluation including failure-surface probes.",
+                    "risks": risk or "High novelty risk; feasibility unknown.",
+                    "tags": tags,
+                    "operator": "analysis_seed",
+                    "target_defects": seed.get("target_defects", ["stagnant_novelty"]),
+                    "memory_refs": supporting if isinstance(supporting, list) else [str(supporting)],
+                    "rationale": differentiator or "Seed extracted from advanced analysis.",
+                }
+            )
         )
     return payloads
 
@@ -666,6 +671,7 @@ def build_algorithm_spec(
     model: str,
     logger,
 ) -> List[Dict[str, Any]]:
+    idea = normalize_idea_contract(idea, keep_extra=True)
     analysis_entries = artifact.get("analysis", [])
     latest_analysis = analysis_entries[-1] if analysis_entries else {}
     base_inputs: List[str] = []
@@ -693,13 +699,13 @@ def build_algorithm_spec(
     abstract = idea.get("abstract")
     if abstract:
         base_outputs.append(f"Abstract focus: {abstract}")
-    core = idea.get("core_contribute") or idea.get("core_contribution")
+    core = idea.get("core_contribution")
     if core:
         base_outputs.append(f"Core contribution: {core}")
-    methodology = idea.get("methodology") or idea.get("method")
-    if methodology:
-        base_outputs.append(f"Methodology: {methodology}")
-    experiments = idea.get("experiment_design") or idea.get("experiments")
+    method = idea.get("method")
+    if method:
+        base_outputs.append(f"Methodology: {method}")
+    experiments = idea.get("experiments")
     if experiments:
         base_outputs.append(f"Experiment design: {experiments}")
     score = idea.get("search_score")

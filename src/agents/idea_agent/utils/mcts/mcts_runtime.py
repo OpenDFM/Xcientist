@@ -1,3 +1,5 @@
+"""Runtime models and helper functions for memory-guided MCTS idea search."""
+
 from __future__ import annotations
 
 import hashlib
@@ -15,6 +17,7 @@ from src.agents.idea_agent.utils.prompting.prompt_views import (
     format_edit_plan_prompt_view,
     format_idea_prompt_view,
 )
+from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
 
 
 class AtomicEditOp(str, Enum):
@@ -2074,29 +2077,19 @@ def build_root_state(
         tags = ["seed", "mature_idea", "contract_root"]
         rationale = "Starting point anchored directly in the provided mature idea."
     elif idea_pool:
-        latest = idea_pool[-1]
-        if isinstance(latest, dict):
-            title = latest.get("title", f"{topic} seed idea")
-            abstract = latest.get("abstract", "")
-            core = latest.get("core_contribution", latest.get("core_contribute", ""))
-            method = latest.get("method", latest.get("methodology", ""))
-            experiments = latest.get("experiments", latest.get("experiment_design", ""))
-            risks = latest.get("risks", latest.get("evaluation", ""))
-            tags = latest.get("tags")
-            rationale = "Starting point from the latest idea in the current idea pool."
-            if not components and isinstance(latest.get("components"), list):
-                components = [str(comp).strip() for comp in latest.get("components", []) if str(comp).strip()]
-            if not context_component_explanations:
-                context_component_explanations = latest.get("component_explanations", {})
-        else:
-            title = f"{topic} prior idea"
-            abstract = str(latest)
-            core = abstract
-            method = ""
-            experiments = ""
-            risks = ""
-            tags = ["seed"]
-            rationale = "Starting point from a non-structured prior idea."
+        latest = normalize_idea_contract(idea_pool[-1], keep_extra=True)
+        title = latest.get("title", f"{topic} seed idea")
+        abstract = latest.get("abstract", "")
+        core = latest.get("core_contribution", "")
+        method = latest.get("method", "")
+        experiments = latest.get("experiments", "")
+        risks = latest.get("risks", latest.get("evaluation", ""))
+        tags = latest.get("tags")
+        rationale = "Starting point from the latest idea in the current idea pool."
+        if not components and isinstance(latest.get("components"), list):
+            components = [str(comp).strip() for comp in latest.get("components", []) if str(comp).strip()]
+        if not context_component_explanations:
+            context_component_explanations = latest.get("component_explanations", {})
     else:
         title = f"{topic} baseline"
         abstract = background[-1] if background else "Kick-off seed idea from analysis."

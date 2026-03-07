@@ -1,3 +1,5 @@
+"""Configuration loading helpers for Idea Agent runtime defaults and overrides."""
+
 from __future__ import annotations
 
 import os

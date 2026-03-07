@@ -1,3 +1,5 @@
+"""Top-level LigAgent control flow and final idea persistence helpers."""
+
 from __future__ import annotations
 
 import json
