@@ -16,14 +16,14 @@ from src.agents.idea_agent.agent.mcts import (
     MCTSConfig,
     apply_idea_taste_preset,
 )
-from src.agents.idea_agent.utils.paper_repository import PaperRepository
-from src.agents.idea_agent.utils.ligagent_flow import persist_final_idea
-from src.agents.idea_agent.utils.ligagent_utils import (
+from src.agents.idea_agent.utils.papers.paper_repository import PaperRepository
+from src.agents.idea_agent.utils.workflow.ligagent_flow import persist_final_idea
+from src.agents.idea_agent.utils.workflow.ligagent_utils import (
     collect_paper_context_entries,
     generate_idea_introduction,
     parse_json_response,
 )
-from src.agents.idea_agent.utils.ligagent_helpers import (
+from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     build_action_lookup,
     generate_background_brief,
     normalize_search_papers,
@@ -42,7 +42,8 @@ from src.agents.idea_agent.utils.ligagent_helpers import (
     sanitize_action_token,
     get_paper_content as load_paper_content,
 )
-from src.agents.idea_agent.utils.config_loader import get_config_value
+from src.agents.idea_agent.utils.core.config_loader import get_config_value
+from src.agents.idea_agent.utils.prompting.prompt_views import format_paper_capsules_prompt_view
 from memory.api.component_taxonomy import (
     ContextSignature,
     extract_component_families,
@@ -436,9 +437,7 @@ class LigAgent(AgentBase):
             topic=topic,
             mature_idea=(mature_idea or "").strip(),
             survey_contents="\n".join(self.artifact["rag_contents"][-1]) if self.artifact.get("rag_contents") else "",
-            papers=json.dumps(references, ensure_ascii=False, indent=2)
-            if references
-            else "[]",
+            papers=format_paper_capsules_prompt_view(references),
         )
         raw_response = self._parse_json_response(
             self.chat(prompt, model=self.model, max_output_tokens=8192)

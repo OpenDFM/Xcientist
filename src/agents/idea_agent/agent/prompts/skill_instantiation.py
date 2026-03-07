@@ -7,6 +7,7 @@ Given a compiled edit plan (skill + atomic component edits + validation protocol
 Topic: {topic}
 Mature idea (anchor): {mature_idea}
 Parent idea: {parent_summary}
+Current run idea pool: {idea_pool_context}
 Parent components (actual modules in the current idea): {parent_components}
 Literature context: {paper_context}
 Memory bundle: {memory_bundle}

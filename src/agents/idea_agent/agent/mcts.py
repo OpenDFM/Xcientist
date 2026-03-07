@@ -24,16 +24,20 @@ from memory.api.component_taxonomy import (
 from memory.memory_system.models import EpisodicRecord, ProceduralRecord, SemanticRecord
 from memory.memory_system.utils import _multi_thread_run, _safe_dump_str
 from agent import get_logger
-from src.agents.idea_agent.utils.component_novelty import ComponentNoveltyScorer
-from src.agents.idea_agent.utils.mcts_helpers import clip_text, format_analysis_blob
+from src.agents.idea_agent.utils.mcts.component_novelty import ComponentNoveltyScorer
+from src.agents.idea_agent.utils.mcts.mcts_helpers import clip_text, format_analysis_blob
+from src.agents.idea_agent.utils.prompting.prompt_views import (
+    format_idea_pool_prompt_view,
+    format_idea_prompt_view,
+)
 from src.agents.idea_agent.agent.prompts.skill_instantiation import SKILL_INSTANTIATION_PROMPT
 from src.agents.idea_agent.agent.prompts.component_extraction import COMPONENT_EXTRACTION_PROMPT
-from src.agents.idea_agent.utils.idea_taste_presets import (
+from src.agents.idea_agent.utils.mcts.idea_taste_presets import (
     IdeaTastePreset,
     SCORE_WEIGHT_FIELDS,
     get_idea_taste_preset,
 )
-from src.agents.idea_agent.utils.mcts_runtime import (
+from src.agents.idea_agent.utils.mcts.mcts_runtime import (
     EditPlan,
     MemoryBundle,
     MemorySnippet,
@@ -197,28 +201,10 @@ class IdeaState:
         self.signature = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     def describe(self) -> str:
-        base = (
-            f"Title: {self.title}\n"
-            f"Abstract: {self.abstract}\n"
-            f"Core Contribution: {self.core_contribution}\n"
-            f"Method: {self.method}\n"
-            f"Experiments: {self.experiments}\n"
-            f"Risks: {self.risks}\n"
-            f"Components: {', '.join(self.components)}\n"
-            f"Component Roles: {self.component_explanations}\n"
-            f"Defects: {', '.join(self.target_defects)}\n"
-            f"Budget: {self.budget}\n"
-            f"Action Skill: {self.operator}"
-        )
-        if self.edit_plan:
-            objective = self.edit_plan.get("objective", "")
-            edits = self.edit_plan.get("component_edits", [])
-            return (
-                f"{base}\n"
-                f"Plan Objective: {objective}\n"
-                f"Atomic Edits: {len(edits)}"
-            )
-        return base
+        return self.to_prompt_view(heading="Parent Idea")
+
+    def to_prompt_view(self, heading: str = "Idea Snapshot") -> str:
+        return format_idea_prompt_view(self, heading=heading)
 
     def to_payload(self) -> Dict[str, Any]:
         payload = {
@@ -754,6 +740,7 @@ class MemoryGuidedMCTS:
 
         self.topic: str = ""
         self.analysis_blob: str = ""
+        self.idea_pool_context: str = ""
         self.paper_context: str = ""
         self.mature_idea: str = ""
         self._mature_idea_components: List[str] = []
@@ -923,6 +910,7 @@ class MemoryGuidedMCTS:
         reset_search_state(self)
         self.topic = topic
         self.analysis_blob = format_analysis_blob(context.get("analysis", []))
+        self.idea_pool_context = format_idea_pool_prompt_view(context.get("idea_pool") or [])
         self.paper_context = context.get("paper_context") or "No curated papers available yet."
         self.mature_idea = (context.get("mature_idea") or "").strip()
 

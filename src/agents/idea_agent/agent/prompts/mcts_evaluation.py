@@ -6,13 +6,16 @@ Mature idea (optional alignment anchor):
 Latest analysis + critiques:
 {analysis}
 
+Current run idea pool snapshot:
+{idea_pool_context}
+
 Relevant literature evidence from the current paper cache:
 {paper_context}
 
 Compiled component-level edit plan for this node:
 {edit_plan}
 
-Candidate idea (JSON):
+Candidate idea:
 {idea}
 
 Rewrite path:

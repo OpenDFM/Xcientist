@@ -32,7 +32,7 @@ def _load_numpy():
 
 
 def _default_graph_path() -> str:
-    return str((Path(__file__).resolve().parent.parent / "paper_graph.gexf").resolve())
+    return str((Path(__file__).resolve().parents[2] / "paper_graph.gexf").resolve())
 
 
 def _default_index_dir(graph_path: str) -> Path:

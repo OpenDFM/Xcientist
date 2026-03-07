@@ -9,7 +9,7 @@ from omegaconf import OmegaConf
 from src.agents.survey_agent.modules.work_collector import WorkCollector
 from src.agents.survey_agent.modules.outcome_RAG import OutcomeRAG
 
-from src.agents.idea_agent.utils.paper_processing import (
+from src.agents.idea_agent.utils.papers.paper_processing import (
     IdeaPaperAnalyzer,
     IdeaPaperParser,
     resolve_paper_records,
@@ -58,7 +58,7 @@ class PaperRepository:
             config_path = Path(env_path)
         else:
             config_path = (
-                Path(__file__).resolve().parents[2]
+                Path(__file__).resolve().parents[3]
                 / "survey_agent"
                 / "config"
                 / "deep_survey.yaml"

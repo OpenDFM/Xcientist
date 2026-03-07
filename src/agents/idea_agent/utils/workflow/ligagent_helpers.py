@@ -6,13 +6,13 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Any, Dict, List, Optional, Set
 
-from src.agents.idea_agent.utils.idea_helpers import fallback_algorithm_spec
-from src.agents.idea_agent.utils.ligagent_utils import (
+from src.agents.idea_agent.utils.workflow.idea_helpers import fallback_algorithm_spec
+from src.agents.idea_agent.utils.workflow.ligagent_utils import (
     enrich_papers_with_content,
     parse_json_response,
-    paper_context_text,
     summarize_keynote,
 )
+from src.agents.idea_agent.utils.prompting.prompt_views import format_paper_context_prompt_view
 
 
 def sanitize_action_token(action: str) -> str:
@@ -515,15 +515,7 @@ def format_survey_context(
 
 
 def paper_context_with_rag(entries: List[Dict[str, Any]], artifact: Dict[str, Any]) -> str:
-    base = paper_context_text(entries)
-    rag_context = format_rag_context(artifact)
-    survey_context = format_survey_context(artifact)
-    sections = [base]
-    if rag_context:
-        sections.append(f"RAG excerpts:\n{rag_context}")
-    if survey_context:
-        sections.append(f"Survey excerpts:\n{survey_context}")
-    return "\n\n".join(sections)
+    return format_paper_context_prompt_view(entries, artifact)
 
 
 def get_paper_content(

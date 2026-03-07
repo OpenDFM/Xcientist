@@ -1,5 +1,8 @@
 import json
+
 from typing import Any, Dict, List
+
+from src.agents.idea_agent.utils.prompting.prompt_views import format_analysis_prompt_view
 
 
 def parse_json_response(raw: str) -> Dict[str, Any]:
@@ -32,15 +35,7 @@ def parse_json_response(raw: str) -> Dict[str, Any]:
 
 
 def format_analysis_blob(analysis: List[Any]) -> str:
-    if not analysis:
-        return "No prior analysis."
-    latest = analysis[-1]
-    if isinstance(latest, dict):
-        try:
-            return json.dumps(latest, ensure_ascii=False, indent=2)
-        except Exception:
-            return str(latest)
-    return str(latest)
+    return format_analysis_prompt_view(analysis)
 
 
 def clip_text(value: Any, limit: int = 800) -> str:

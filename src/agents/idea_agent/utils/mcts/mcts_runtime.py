@@ -10,7 +10,11 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from memory.api.component_taxonomy import ContextSignature, extract_component_families, extract_context_signature
-from src.agents.idea_agent.utils.mcts_helpers import clip_text, parse_json_response
+from src.agents.idea_agent.utils.mcts.mcts_helpers import clip_text, parse_json_response
+from src.agents.idea_agent.utils.prompting.prompt_views import (
+    format_edit_plan_prompt_view,
+    format_idea_prompt_view,
+)
 
 
 class AtomicEditOp(str, Enum):
@@ -576,7 +580,7 @@ class MemoryBundle:
 
 
 DEFAULT_SKILL_TEMPLATES_PATH = (
-    Path(__file__).resolve().parents[1]
+    Path(__file__).resolve().parents[2]
     / "agent"
     / "skills"
     / "DEFAULT_SKILL_TEMPLATES.json"
@@ -617,7 +621,7 @@ class SkillCatalog:
     def __init__(self, skill_root: Optional[Path] = None) -> None:
         if skill_root is None:
             skill_root = (
-                Path(__file__).resolve().parents[1]
+                Path(__file__).resolve().parents[2]
                 / "agent"
                 / "skills"
                 / "edit_operator_skills"
@@ -1379,6 +1383,7 @@ def instantiate_skill_plan_for_node(
         topic=mcts.topic,
         mature_idea=mcts.mature_idea or "None",
         parent_summary=parent_state.describe(),
+        idea_pool_context=getattr(mcts, "idea_pool_context", "No prior ideas in the current run."),
         parent_components=", ".join(parent_state.components) if parent_state.components else "None",
         paper_context=mcts.paper_context,
         memory_bundle=bundle.to_prompt_block(),
@@ -1807,14 +1812,17 @@ def simulate_node_value(
         topic=mcts.topic,
         mature_idea=mcts.mature_idea or "None",
         analysis=mcts.analysis_blob,
+        idea_pool_context=getattr(mcts, "idea_pool_context", "No prior ideas in the current run."),
         paper_context=mcts.paper_context,
-        skill_output=json.dumps(node.state.edit_plan, ensure_ascii=False, indent=2)
+        skill_output=format_edit_plan_prompt_view(node.state.edit_plan)
         if node.state.edit_plan
-        else "null",
-        edit_plan=json.dumps(node.state.edit_plan, ensure_ascii=False, indent=2)
+        else "No edit plan available.",
+        edit_plan=format_edit_plan_prompt_view(node.state.edit_plan)
         if node.state.edit_plan
-        else "null",
-        idea=json.dumps(eval_idea_payload, ensure_ascii=False, indent=2),
+        else "No edit plan available.",
+        idea=node.state.to_prompt_view(heading="Candidate Idea")
+        if hasattr(node.state, "to_prompt_view")
+        else format_idea_prompt_view(eval_idea_payload, heading="Candidate Idea"),
         path_summary=path_summary_text,
         defect_registry=format_defect_registry(),
         symbolic_memory_hints=symbolic_hints,

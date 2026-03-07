@@ -6,7 +6,7 @@ from datetime import datetime
 
 
 _LOGGER_NAME = "LigAgent"
-_DEFAULT_LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs")
+_DEFAULT_LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "logs")
 _DEFAULT_LOG_DIR = os.path.normpath(_DEFAULT_LOG_DIR)
 _DEFAULT_LOG_FILE = "ligagent.log"
 _logger: Optional[logging.Logger] = None

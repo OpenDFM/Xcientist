@@ -9,8 +9,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from src.agents.idea_agent.agent.prompts.component_novelty_evaluation import (
     COMPONENT_NOVELTY_EVALUATION_PROMPT,
 )
-from src.agents.idea_agent.utils.mcts_helpers import parse_json_response
-from src.agents.idea_agent.utils.paper_graph_vector_store import (
+from src.agents.idea_agent.utils.mcts.mcts_helpers import parse_json_response
+from src.agents.idea_agent.utils.papers.paper_graph_vector_store import (
     PaperGraphComponentVectorStore,
 )
 
@@ -85,7 +85,7 @@ class ComponentNoveltyScorer:
         candidate = Path(str(self.model_name_or_path)).expanduser()
         if candidate.exists():
             return str(candidate.resolve())
-        local_path = Path(__file__).resolve().parents[1] / ".cache" / str(self.model_name_or_path)
+        local_path = Path(__file__).resolve().parents[2] / ".cache" / str(self.model_name_or_path)
         return str(local_path) if local_path.exists() else str(self.model_name_or_path)
 
     def _get_model(self) -> Any:

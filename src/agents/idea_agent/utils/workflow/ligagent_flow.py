@@ -5,12 +5,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from agent.prompts import PROMPTS
-from src.agents.idea_agent.utils.idea_helpers import build_mcts_evolution, collect_reference_material
-from src.agents.idea_agent.utils.ligagent_helpers import (
+from src.agents.idea_agent.utils.workflow.idea_helpers import build_mcts_evolution, collect_reference_material
+from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     build_algorithm_spec,
     synthesize_reference_summaries,
 )
-from src.agents.idea_agent.utils.ligagent_utils import (
+from src.agents.idea_agent.utils.workflow.ligagent_utils import (
     collect_paper_context_entries,
     generate_idea_introduction,
 )
