@@ -4,7 +4,7 @@ run:
   output_root: "runs"
   console_logs: true
   rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
-  openai_api_key: "sk-TUkxt3aRk2RqY94xEaEd4d5eE66d40298a27279aD83b4b43"
+  openai_api_key: "sk-CTESuyV0v4QQncBZBd291d85EbC94c2795698e1cA84f65Ca"
   openai_base_url: "https://api.xi-ai.cn/v1"
   s2_api_key: "1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ"
   s2_api_timeout: "60"

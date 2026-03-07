@@ -16,6 +16,8 @@ ARTIFACT_FORMAT = {
     "dialogue": dict, # dialogue history
     "steps": List[str], # list of steps taken
     "artifact_structure": dict, # structure of the artifact
+    "workflow_trace": List[dict], # explicit stage execution trace
+    "workflow_state": dict, # latest workflow/stage status
 }
 
 def artifact_init() -> dict:
@@ -36,6 +38,8 @@ def artifact_init() -> dict:
         "paper_contents": {},
         "dialogue": {},
         "steps": [],
-        "artifact_structure": {}
+        "artifact_structure": {},
+        "workflow_trace": [],
+        "workflow_state": {},
     }
     return artifact

@@ -3,9 +3,9 @@ from src.agents.idea_agent.agent import get_logger
 
 from typing import Any, Dict, Literal, List, Optional, Set
 from pathlib import Path
+from copy import deepcopy
 import time
 import json
-import http.client
 from dataclasses import fields
 
 from src.agents.idea_agent.agent.tools import TOOLS
@@ -17,7 +17,11 @@ from src.agents.idea_agent.agent.mcts import (
     apply_idea_taste_preset,
 )
 from src.agents.idea_agent.utils.papers.paper_repository import PaperRepository
-from src.agents.idea_agent.utils.workflow.ligagent_flow import persist_final_idea
+from src.agents.idea_agent.utils.workflow.ligagent_flow import (
+    build_action_workflow,
+    make_stage_context,
+    persist_final_idea,
+)
 from src.agents.idea_agent.utils.workflow.ligagent_utils import (
     collect_paper_context_entries,
     generate_idea_introduction,
@@ -37,12 +41,23 @@ from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     filter_and_compress_papers,
     paper_context_with_rag,
     normalize_analysis_entry,
-    ingest_analysis_background,
+    collect_analysis_background_lines,
     latest_analysis_seed_ideas,
     sanitize_action_token,
     get_paper_content as load_paper_content,
 )
 from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
+from src.agents.idea_agent.utils.workflow.stage_contract import (
+    ArtifactPatch,
+    StageContext,
+    StageResult,
+)
+from src.agents.idea_agent.utils.workflow.workflow_runtime import (
+    StageSpec,
+    WorkflowEdge,
+    WorkflowExecutor,
+    WorkflowSpec,
+)
 from src.agents.idea_agent.utils.core.config_loader import get_config_value
 from src.agents.idea_agent.utils.prompting.prompt_views import format_paper_capsules_prompt_view
 from memory.api.component_taxonomy import (
@@ -129,6 +144,8 @@ class LigAgent(AgentBase):
         self._action_lookup = build_action_lookup(self.ACTION_ALIASES)
         self.semantic_search_limit = get_config_value(config, "agent.semantic_search_limit", 5)
         self.idea_context_limit = get_config_value(config, "agent.idea_context_limit", 10)
+        self.logger = logger
+        self.workflow_executor = WorkflowExecutor(logger=logger)
 
         # Initialize mature_idea in artifact from config (user-provided) if available
         initial_mature_idea = get_config_value(config, "run.mature_idea", "")
@@ -171,7 +188,12 @@ class LigAgent(AgentBase):
         for attempt in range(1, self.chat_max_retries + 1):
             try:
                 # Special handling for GPT-5 models
-                if "gpt-5" in model:
+                if "gpt-5-mini" in model:
+                    # Idea Generator: GPT-5 mini
+                    kwargs["temperature"] = 1.0
+                    return super().chat(prompt, model=model, reasoning={"effort": "high"}, **kwargs)
+                elif "gpt-5" in model:
+                    # Idea Evaluator: GPT-5.4
                     kwargs["temperature"] = 1.0
                     return super().chat(prompt, model=model, reasoning={"effort": "low"}, **kwargs)
                 else:
@@ -194,31 +216,9 @@ class LigAgent(AgentBase):
         resolved_action = self._canonical_action(action)
         if not resolved_action:
             raise ValueError(f"Unknown action: {action}")
-        action = resolved_action
-
-        if action == "knowledge_aquisition":
+        if resolved_action == "knowledge_aquisition":
             logger.info("🔍 Due to API and web request rate limits, this process may take some time...")
-            step = self.knowledge_aquisition(**kwargs)
-            self.artifact["steps"].append(step)
-            logger.info(step)
-            return step
-        if action == "advanced_analysis":
-            step = self.advanced_analysis(**kwargs)
-            self.artifact["steps"].append(step)
-            logger.info(step)
-            return step
-        if action == "idea_generation":
-            step = self.idea_generation(**kwargs)
-            self.artifact["steps"].append(step)
-            logger.info(step)
-            return step
-        if action == "re_analysis_replan":
-            step = self.re_analysis_replan(**kwargs)
-            self.artifact["steps"].append(step)
-            logger.info(step)
-            return step
-
-        raise ValueError(f"Unknown action: {action}")
+        return self._run_action_workflow(resolved_action, **kwargs)
 
     def bootstrap_topic(self, topic: str, retrieval_keywords: Optional[str] = None) -> None:
         normalized_topic = (topic or "").strip()
@@ -246,180 +246,7 @@ class LigAgent(AgentBase):
     def knowledge_aquisition(
         self, search_type: Literal["paper_search", "website"] = "paper_search"
     ) -> str:
-        if search_type == "paper_search":
-            search_keywords = self.artifact["retrieval_keywords"][-1]
-            topic = self.artifact["topic"][-1] if self.artifact.get("topic") else search_keywords
-            mature_idea = self.artifact.get("mature_idea", "")
-            # If a mature idea is provided, use it to generate a focused RAG query directly
-            if len(mature_idea) > 0 and mature_idea.strip():
-                try:
-                    rag_query = generate_rag_query(
-                        topic,
-                        [],
-                        PROMPTS,
-                        self.chat,
-                        self.model,
-                        logger,
-                        mature_idea=mature_idea,
-                    )
-                    logger.info("🔎 Generated RAG Query (mature idea): %s", rag_query)
-                    rag_hits = retrieve_outcome_rag(query=rag_query, top_k=5, paper_repository=self.paper_repository, logger=logger)
-                    self.artifact.setdefault("rag_query", []).append(rag_query)
-                    self.artifact.setdefault("rag_hits", []).append(
-                        {"query": rag_query, "hits": rag_hits}
-                    )
-                    citation_titles = collect_rag_citations(rag_hits)
-                    survey_contents = collect_rag_contents(rag_hits)
-                    rag_papers = search_papers_from_citations(
-                        citation_titles, rag_query, self.paper_repository
-                    )
-                    if rag_papers:
-                        safely_enrich_papers_with_content(
-                            rag_papers,
-                            self.paper_enrichment_timeout,
-                            self.paper_repository,
-                            self.artifact,
-                            logger,
-                        )
-                        rag_papers = filter_and_compress_papers(
-                            topic=topic,
-                            mature_idea=mature_idea,
-                            papers=rag_papers,
-                            artifact=self.artifact,
-                            prompts=PROMPTS,
-                            chat_fn=self.chat,
-                            model=self.model,
-                            logger=logger,
-                            top_k=5,
-                        )
-                        self.artifact["references"].append(rag_papers)
-                        self.artifact["rag_contents"].append(survey_contents)
-                        step = (
-                            f"\nIn this knowledge_aquisition action, I used the mature idea to generate "
-                            f"a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
-                            f"and curated {len(rag_papers)} cited papers for memory."
-                        )
-                    else:
-                        self.artifact.setdefault("rag_contents", []).append(survey_contents)
-                        step = (
-                            f"\nIn this knowledge_aquisition action, I used the mature idea to generate "
-                            f"a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
-                            "but found no cited papers to fetch."
-                        )
-                except Exception as e:
-                    logger.error(f"Error during mature-idea RAG retrieval: {e}")
-                    step = (
-                        "\nIn this knowledge_aquisition action, mature-idea RAG retrieval failed; "
-                        "skipping paper search."
-                    )
-                return step
-            # Otherwise, perform standard paper search flow
-            try:
-                papers = self.run_tool(
-                    name="semantic_search",
-                    query=search_keywords,
-                    limit=self.semantic_search_limit,
-                )
-                logger.info("📄 Found Papers:")
-                mature_idea = self.artifact.get("mature_idea", "")
-                initial_papers = normalize_search_papers(papers, search_keywords, logger)
-                if initial_papers:
-                    query_papers = prepare_query_papers(
-                        initial_papers, self.paper_repository, logger
-                    )
-                    rag_query = generate_rag_query(
-                        search_keywords,
-                        query_papers,
-                        PROMPTS,
-                        self.chat,
-                        self.model,
-                        logger,
-                        mature_idea=mature_idea if len(mature_idea) > 0 else None,
-                    )
-                    logger.info("🔎 Generated RAG Query: %s", rag_query)
-                    rag_hits = retrieve_outcome_rag(query=rag_query, top_k=5, paper_repository=self.paper_repository, logger=logger)
-                    self.artifact.setdefault("rag_query", []).append(rag_query)
-                    self.artifact.setdefault("rag_hits", []).append(
-                        {"query": rag_query, "hits": rag_hits}
-                    )
-                    citation_titles = collect_rag_citations(rag_hits)
-                    survey_contents = collect_rag_contents(rag_hits)
-                    rag_papers = search_papers_from_citations(
-                        citation_titles, rag_query, self.paper_repository
-                    )
-                    if rag_papers:
-                        combined_papers = initial_papers + rag_papers
-                        safely_enrich_papers_with_content(
-                            combined_papers,
-                            self.paper_enrichment_timeout,
-                            self.paper_repository,
-                            self.artifact,
-                            logger,
-                        )
-                        curated_papers = filter_and_compress_papers(
-                            topic=topic,
-                            mature_idea=mature_idea,
-                            papers=combined_papers,
-                            artifact=self.artifact,
-                            prompts=PROMPTS,
-                            chat_fn=self.chat,
-                            model=self.model,
-                            logger=logger,
-                            top_k=5,
-                        )
-                        self.artifact["references"].append(curated_papers)
-                        self.artifact["rag_contents"].append(survey_contents)
-                        step = (
-                            f"\nIn this knowledge_aquisition action, I read {len(initial_papers)} seed papers, "
-                            f"generated a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
-                            f"and curated {len(curated_papers)} papers for memory."
-                        )
-                    else:
-                        safely_enrich_papers_with_content(
-                            initial_papers,
-                            self.paper_enrichment_timeout,
-                            self.paper_repository,
-                            self.artifact,
-                            logger,
-                        )
-                        curated_papers = filter_and_compress_papers(
-                            topic=topic,
-                            mature_idea=mature_idea,
-                            papers=initial_papers,
-                            artifact=self.artifact,
-                            prompts=PROMPTS,
-                            chat_fn=self.chat,
-                            model=self.model,
-                            logger=logger,
-                            top_k=5,
-                        )
-                        self.artifact["references"].append(curated_papers)
-                        step = (
-                            f"\nIn this knowledge_aquisition action, I searched for papers about '{search_keywords}' "
-                            f"and curated {len(curated_papers)} relevant papers for my research."
-                        )
-                else:
-                    step = (
-                        f"\nIn this knowledge_aquisition action, I searched for papers about '{search_keywords}' "
-                        "but found none."
-                    )
-            except Exception as e:
-                logger.error(f"Error during paper search: {e}")
-
-                conn = http.client.HTTPSConnection("google.serper.dev")
-                payload = json.dumps({"q": self.artifact["retrieval_keywords"][-1]})
-                headers = {
-                    "X-API-KEY": "7854e42317727ecbf17d214f5a96c420dbcdd9cf",
-                    "Content-Type": "application/json",
-                }
-                conn.request("POST", "/scholar", payload, headers)
-                res = conn.getresponse()
-                data = res.read().decode("utf-8")
-                print(data)
-                step = (
-                    f"\nIn this knowledge_aquisition action, I acquired several papers about '{search_keywords}'."
-                )
-            return step
+        return self._run_action_workflow("knowledge_aquisition", search_type=search_type)
 
     def get_paper_content(self, paper_id: str, include_markdown: bool = True) -> Dict[str, Any]:
         return load_paper_content(
@@ -430,7 +257,70 @@ class LigAgent(AgentBase):
             logger,
         )
 
-    def advanced_analysis(self, **kwargs) -> None:
+    def advanced_analysis(self, **kwargs) -> str:
+        return self._run_action_workflow("advanced_analysis", **kwargs)
+
+    def idea_generation(self, **kwargs) -> str:
+        return self._run_action_workflow("idea_generation", **kwargs)
+
+    def re_analysis_replan(self, **kwargs) -> str:
+        return self._run_action_workflow("re_analysis_replan", **kwargs)
+
+    def _persist_final_idea(
+        self, best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]]
+    ) -> None:
+        persist_final_idea(
+            best_entry=best_entry,
+            paper_entries=paper_entries,
+            artifact=self.artifact,
+            idea_result_path=self.idea_result_path,
+            chat_fn=self.chat,
+            model=self.model,
+            logger=logger,
+            prompts=PROMPTS,
+        )
+
+    def _run_action_workflow(self, action: str, **kwargs) -> str:
+        spec = build_action_workflow(self, action)
+        before_steps = len(self.artifact.get("steps", []))
+        self.workflow_executor.run(
+            spec,
+            make_stage_context(self, workflow_name=spec.name, **kwargs),
+        )
+        new_steps = self.artifact.get("steps", [])[before_steps:]
+        if new_steps:
+            logger.info(new_steps[-1])
+            return new_steps[-1]
+        return ""
+
+    def _execute_knowledge_acquisition_stage(self, ctx: StageContext) -> StageResult:
+        search_type = ctx.inputs.get("search_type", "paper_search")
+        if search_type != "paper_search":
+            return StageResult(
+                status="terminal_failure",
+                error=f"Unsupported knowledge acquisition search_type '{search_type}'.",
+            )
+
+        spec = self._build_knowledge_acquisition_workflow()
+        nested = self.workflow_executor.run(
+            spec,
+            make_stage_context(self, workflow_name=spec.name, search_type=search_type),
+        )
+        summary = nested.state.get("summary") or (
+            "\nIn this knowledge_aquisition action, no explicit retrieval outcome was recorded."
+        )
+        return StageResult(
+            status=nested.status,
+            step_summary=summary,
+            metrics={
+                "mode": nested.state.get("mode"),
+                "seed_papers": len(nested.state.get("initial_papers", [])),
+                "rag_hits": len(nested.state.get("rag_hits", [])),
+                "curated_papers": len(nested.state.get("curated_papers", [])),
+            },
+        )
+
+    def _execute_advanced_analysis_stage(self, ctx: StageContext) -> StageResult:
         topic = self.artifact["topic"][-1] if self.artifact["topic"] else "unspecified topic"
         references = self.artifact["references"][-1] if self.artifact["references"] else []
         mature_idea = self.artifact.get("mature_idea", "")
@@ -451,15 +341,32 @@ class LigAgent(AgentBase):
             )
         else:
             logger.info("📝 Advanced Analysis Result:\n%s", response)
-        self.artifact["analysis"].append(response)
-        ingest_analysis_background(response, self.artifact)
+
+        existing_background = set(self.artifact.get("background_knowledge", []))
+        background_lines = [
+            line
+            for line in collect_analysis_background_lines(response)
+            if line not in existing_background
+        ]
         step = (
             "\nIn this advanced_analysis action, I analyzed the collected papers and summarized my findings: "
             f"{response.get('tldr', 'No TL;DR provided.')}"
         )
-        return step
+        return StageResult(
+            artifact_patch=ArtifactPatch(
+                append={
+                    "analysis": [response],
+                    "background_knowledge": background_lines,
+                }
+            ),
+            step_summary=step,
+            metrics={
+                "reference_count": len(references),
+                "background_lines": len(background_lines),
+            },
+        )
 
-    def idea_generation(self, **kwargs) -> None:
+    def _execute_idea_generation_stage(self, ctx: StageContext) -> StageResult:
         topic = self.artifact["topic"][-1]
         reference_batches = self.artifact.get("references", [])
         latest_batch = reference_batches[-1] if reference_batches else []
@@ -472,8 +379,6 @@ class LigAgent(AgentBase):
             normalize_idea_contract(entry, allow_legacy=True, keep_extra=True)
             for entry in self.artifact.get("idea_pool", [])
         ]
-        if idea_history:
-            self.artifact["idea_pool"] = idea_history
         seed_ideas = latest_analysis_seed_ideas(self.artifact)
         idea_context = idea_history if idea_history else seed_ideas
         mature_idea = self.artifact.get("mature_idea", "")
@@ -486,14 +391,21 @@ class LigAgent(AgentBase):
         if isinstance(mature_idea, str) and mature_idea.strip():
             context["mature_idea"] = mature_idea.strip()
 
-        # Inject external component×op priors into symbolic memory before MCTS
         self._inject_symbolic_priors(topic, context)
-
         result = self.mcts.search(topic=topic, context=context)
-        
+
         if not result.best:
             logger.warning("⚠️ MCTS search returned no candidate; keeping current idea pool unchanged.")
-            return "\nIn this idea_generation action, MCTS returned no candidate and no fallback legacy path was used."
+            replace_patch = {"idea_pool": idea_history} if idea_history else {}
+            return StageResult(
+                status="degraded",
+                artifact_patch=ArtifactPatch(replace=replace_patch),
+                step_summary=(
+                    "\nIn this idea_generation action, MCTS returned no candidate "
+                    "and no fallback legacy path was used."
+                ),
+                metrics={"experience_count": len(result.experiences)},
+            )
 
         best_payload = result.best.to_dict()
         best_entry = normalize_idea_contract(best_payload["idea"], keep_extra=True)
@@ -504,9 +416,20 @@ class LigAgent(AgentBase):
             label: cand.to_dict() if cand else None for label, cand in result.pareto.items()
         }
         best_entry["search_trace"] = result.trace
-        self.artifact["idea_pool"].append(best_entry)
-        self.artifact.setdefault("evaluations", []).append(best_payload["evaluation"])
-        self.artifact.setdefault("ltm_experiences", []).extend(result.experiences)
+        final_payload = persist_final_idea(
+            best_entry=best_entry,
+            paper_entries=paper_entries,
+            artifact=self.artifact,
+            idea_result_path=self.idea_result_path,
+            chat_fn=self.chat,
+            model=self.model,
+            logger=logger,
+            prompts=PROMPTS,
+            persist_to_artifact=False,
+        )
+
+        canonical_pool = list(idea_history)
+        canonical_pool.append(best_entry)
         pareto_lines = []
         for label, cand in result.pareto.items():
             if cand:
@@ -514,16 +437,31 @@ class LigAgent(AgentBase):
                     f"{label}: {cand.node.state.title} (score={cand.evaluation.composite:.2f})"
                 )
         pareto_summary = "; ".join(pareto_lines) if pareto_lines else "no Pareto picks"
-        self._persist_final_idea(best_entry, paper_entries)
         step = (
             f"\nIn this idea_generation action, I ran memory-guided MCTS over '{topic}'. "
             f"Best idea: {best_entry['title']} (score={best_entry['search_score']:.2f}). "
             f"Pareto set -> {pareto_summary}. Persisted {len(result.experiences)} defect→fix lifts to long-term memory."
         )
-        return step
+        return StageResult(
+            artifact_patch=ArtifactPatch(
+                replace={
+                    "idea_pool": canonical_pool,
+                    "idea_result": final_payload,
+                },
+                append={
+                    "evaluations": [best_payload["evaluation"]],
+                    "ltm_experiences": list(result.experiences),
+                },
+            ),
+            step_summary=step,
+            metrics={
+                "experience_count": len(result.experiences),
+                "pareto_count": sum(1 for cand in result.pareto.values() if cand),
+                "search_score": best_entry["search_score"],
+            },
+        )
 
-    def re_analysis_replan(self, **kwargs) -> None:
-        # Gather analysis and ablation evidence for component-level revision
+    def _execute_reanalysis_replan_stage(self, ctx: StageContext) -> StageResult:
         analysis = self.artifact["analysis"][-1] if self.artifact["analysis"] else {}
         ablation_results = self.artifact.get("ablation_results", [])
         mature_idea = self.artifact.get("mature_idea", "")
@@ -537,18 +475,18 @@ class LigAgent(AgentBase):
         )
         response = self._parse_json_response(self.chat(prompt, model=self.model))
 
-        # Store component-level decisions for traceability
         component_decisions = response.get("component_decisions", [])
-        self.artifact.setdefault("component_decisions", []).extend(component_decisions)
-
-        # Update mature_idea in artifact so that MCTS uses it as root node
-        if response.get("mature_idea"):
-            self.artifact["mature_idea"] = response["mature_idea"]
-
-        # Update search keywords if new mechanisms were introduced
         search_kw = response.get("search_keywords", "")
+
+        replace_patch: Dict[str, Any] = {}
+        if response.get("mature_idea"):
+            replace_patch["mature_idea"] = response["mature_idea"]
+
+        append_patch: Dict[str, List[Any]] = {}
+        if component_decisions:
+            append_patch["component_decisions"] = list(component_decisions)
         if search_kw:
-            self.artifact["retrieval_keywords"].append(search_kw)
+            append_patch["retrieval_keywords"] = [search_kw]
 
         n_decisions = len(component_decisions)
         decision_summary = "; ".join(
@@ -559,20 +497,317 @@ class LigAgent(AgentBase):
             f"modification(s) based on ablation evidence: [{decision_summary}]. "
             f"Updated mature idea for MCTS root node."
         )
-        return step
+        return StageResult(
+            artifact_patch=ArtifactPatch(
+                replace=replace_patch,
+                append=append_patch,
+            ),
+            step_summary=step,
+            metrics={
+                "component_decisions": n_decisions,
+                "updated_mature_idea": bool(response.get("mature_idea")),
+                "updated_search_keywords": bool(search_kw),
+            },
+        )
 
-    def _persist_final_idea(
-        self, best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]]
-    ) -> None:
-        persist_final_idea(
-            best_entry=best_entry,
-            paper_entries=paper_entries,
-            artifact=self.artifact,
-            idea_result_path=self.idea_result_path,
+    def _build_knowledge_acquisition_workflow(self) -> WorkflowSpec:
+        return WorkflowSpec(
+            name="ligagent.knowledge_acquisition",
+            entry_stage="ka_route",
+            stages={
+                "ka_route": StageSpec(name="ka_route", handler=self._ka_route_stage),
+                "ka_seed_search": StageSpec(
+                    name="ka_seed_search",
+                    handler=self._ka_seed_search_stage,
+                    fallback_stage="ka_seed_search_fallback",
+                ),
+                "ka_seed_search_fallback": StageSpec(
+                    name="ka_seed_search_fallback",
+                    handler=self._ka_seed_search_fallback_stage,
+                ),
+                "ka_query_generation": StageSpec(
+                    name="ka_query_generation",
+                    handler=self._ka_query_generation_stage,
+                ),
+                "ka_outcome_rag": StageSpec(
+                    name="ka_outcome_rag",
+                    handler=self._ka_outcome_rag_stage,
+                ),
+                "ka_citation_expansion": StageSpec(
+                    name="ka_citation_expansion",
+                    handler=self._ka_citation_expansion_stage,
+                ),
+                "ka_enrichment": StageSpec(
+                    name="ka_enrichment",
+                    handler=self._ka_enrichment_stage,
+                ),
+                "ka_paper_triage": StageSpec(
+                    name="ka_paper_triage",
+                    handler=self._ka_paper_triage_stage,
+                ),
+            },
+            transitions={
+                "ka_query_generation": [WorkflowEdge("ka_outcome_rag")],
+                "ka_outcome_rag": [WorkflowEdge("ka_citation_expansion")],
+                "ka_citation_expansion": [
+                    WorkflowEdge("ka_enrichment", when=lambda stage_ctx, _result: bool(stage_ctx.state.get("combined_papers"))),
+                ],
+                "ka_enrichment": [WorkflowEdge("ka_paper_triage")],
+            },
+        )
+
+    def _ka_route_stage(self, ctx: StageContext) -> StageResult:
+        search_keywords = self.artifact["retrieval_keywords"][-1]
+        topic = self.artifact["topic"][-1] if self.artifact.get("topic") else search_keywords
+        mature_idea = (self.artifact.get("mature_idea", "") or "").strip()
+        mode = "mature_idea" if mature_idea else "standard"
+        return StageResult(
+            state_patch={
+                "mode": mode,
+                "topic": topic,
+                "search_keywords": search_keywords,
+                "mature_idea": mature_idea,
+                "initial_papers": [],
+                "query_papers": [],
+                "rag_hits": [],
+                "survey_contents": [],
+                "citation_titles": [],
+                "rag_papers": [],
+                "combined_papers": [],
+                "curated_papers": [],
+                "summary": "",
+            },
+            next_stage="ka_query_generation" if mode == "mature_idea" else "ka_seed_search",
+            metrics={"mode": mode},
+        )
+
+    def _ka_seed_search_stage(self, ctx: StageContext) -> StageResult:
+        search_keywords = ctx.state["search_keywords"]
+        try:
+            papers = self.run_tool(
+                name="semantic_search",
+                query=search_keywords,
+                limit=self.semantic_search_limit,
+            )
+            logger.info("📄 Found Papers:")
+            initial_papers = normalize_search_papers(papers, search_keywords, logger)
+        except Exception as exc:
+            logger.error("Error during paper search: %s", exc)
+            return StageResult(
+                status="retryable_failure",
+                error=str(exc),
+                metrics={"seed_papers": 0},
+            )
+
+        if not initial_papers:
+            return StageResult(
+                state_patch={
+                    "initial_papers": [],
+                    "summary": (
+                        f"\nIn this knowledge_aquisition action, I searched for papers about "
+                        f"'{search_keywords}' but found none."
+                    ),
+                },
+                metrics={"seed_papers": 0},
+            )
+
+        return StageResult(
+            state_patch={"initial_papers": initial_papers},
+            next_stage="ka_query_generation",
+            metrics={"seed_papers": len(initial_papers)},
+        )
+
+    def _ka_seed_search_fallback_stage(self, ctx: StageContext) -> StageResult:
+        search_keywords = ctx.state.get("search_keywords", "")
+        return StageResult(
+            status="degraded",
+            state_patch={
+                "summary": (
+                    f"\nIn this knowledge_aquisition action, I acquired several papers about "
+                    f"'{search_keywords}'."
+                ),
+                "fallback_used": True,
+            },
+            metrics={"fallback_used": True},
+        )
+
+    def _ka_query_generation_stage(self, ctx: StageContext) -> StageResult:
+        mode = ctx.state["mode"]
+        mature_idea = ctx.state.get("mature_idea", "")
+        initial_papers = ctx.state.get("initial_papers", [])
+        topic = ctx.state["topic"]
+        search_keywords = ctx.state["search_keywords"]
+        query_papers: List[Dict[str, Any]] = []
+        query_topic = topic
+        if mode != "mature_idea":
+            query_papers = prepare_query_papers(
+                initial_papers,
+                self.paper_repository,
+                logger,
+            )
+            query_topic = search_keywords
+        rag_query = generate_rag_query(
+            query_topic,
+            query_papers,
+            PROMPTS,
+            self.chat,
+            self.model,
+            logger,
+            mature_idea=mature_idea if mature_idea else None,
+        )
+        logger.info("🔎 Generated RAG Query%s: %s", " (mature idea)" if mode == "mature_idea" else "", rag_query)
+        return StageResult(
+            state_patch={
+                "query_papers": query_papers,
+                "rag_query": rag_query,
+            },
+            metrics={"query_papers": len(query_papers), "rag_query_length": len(rag_query)},
+        )
+
+    def _ka_outcome_rag_stage(self, ctx: StageContext) -> StageResult:
+        rag_query = ctx.state["rag_query"]
+        rag_hits = retrieve_outcome_rag(
+            query=rag_query,
+            top_k=5,
+            paper_repository=self.paper_repository,
+            logger=logger,
+        )
+        survey_contents = collect_rag_contents(rag_hits)
+        citation_titles = collect_rag_citations(rag_hits)
+        return StageResult(
+            artifact_patch=ArtifactPatch(
+                append={
+                    "rag_query": [rag_query],
+                    "rag_hits": [{"query": rag_query, "hits": rag_hits}],
+                    "rag_contents": [survey_contents],
+                }
+            ),
+            state_patch={
+                "rag_hits": rag_hits,
+                "survey_contents": survey_contents,
+                "citation_titles": citation_titles,
+            },
+            metrics={
+                "rag_hits": len(rag_hits),
+                "citation_titles": len(citation_titles),
+            },
+        )
+
+    def _ka_citation_expansion_stage(self, ctx: StageContext) -> StageResult:
+        rag_query = ctx.state["rag_query"]
+        rag_papers = search_papers_from_citations(
+            ctx.state.get("citation_titles", []),
+            rag_query,
+            self.paper_repository,
+        )
+        mode = ctx.state["mode"]
+        initial_papers = list(ctx.state.get("initial_papers", []))
+        rag_hits = ctx.state.get("rag_hits", [])
+
+        if mode == "mature_idea" and not rag_papers:
+            return StageResult(
+                state_patch={
+                    "rag_papers": [],
+                    "combined_papers": [],
+                    "summary": (
+                        f"\nIn this knowledge_aquisition action, I used the mature idea to generate "
+                        f"a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
+                        "but found no cited papers to fetch."
+                    ),
+                },
+                metrics={"rag_papers": 0},
+            )
+
+        combined_papers = list(rag_papers) if mode == "mature_idea" else initial_papers + list(rag_papers)
+        return StageResult(
+            state_patch={
+                "rag_papers": rag_papers,
+                "combined_papers": combined_papers,
+            },
+            metrics={
+                "rag_papers": len(rag_papers),
+                "combined_papers": len(combined_papers),
+            },
+        )
+
+    def _ka_enrichment_stage(self, ctx: StageContext) -> StageResult:
+        papers = ctx.state.get("combined_papers", [])
+        if not papers:
+            return StageResult(
+                status="degraded",
+                metrics={"combined_papers": 0},
+            )
+
+        temp_artifact = {
+            "paper_contents": deepcopy(self.artifact.get("paper_contents", {}))
+        }
+        safely_enrich_papers_with_content(
+            papers,
+            self.paper_enrichment_timeout,
+            self.paper_repository,
+            temp_artifact,
+            logger,
+        )
+        return StageResult(
+            artifact_patch=ArtifactPatch(
+                merge={"paper_contents": temp_artifact["paper_contents"]}
+            ),
+            metrics={"combined_papers": len(papers)},
+        )
+
+    def _ka_paper_triage_stage(self, ctx: StageContext) -> StageResult:
+        topic = ctx.state["topic"]
+        mature_idea = ctx.state.get("mature_idea", "")
+        combined_papers = ctx.state.get("combined_papers", [])
+        mode = ctx.state["mode"]
+        rag_query = ctx.state["rag_query"]
+        rag_hits = ctx.state.get("rag_hits", [])
+        initial_papers = ctx.state.get("initial_papers", [])
+
+        temp_artifact = {
+            "paper_contents": deepcopy(self.artifact.get("paper_contents", {}))
+        }
+        curated_papers = filter_and_compress_papers(
+            topic=topic,
+            mature_idea=mature_idea,
+            papers=combined_papers,
+            artifact=temp_artifact,
+            prompts=PROMPTS,
             chat_fn=self.chat,
             model=self.model,
             logger=logger,
-            prompts=PROMPTS,
+            top_k=5,
+        )
+
+        if mode == "mature_idea":
+            summary = (
+                f"\nIn this knowledge_aquisition action, I used the mature idea to generate "
+                f"a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
+                f"and curated {len(curated_papers)} cited papers for memory."
+            )
+        elif ctx.state.get("rag_papers"):
+            summary = (
+                f"\nIn this knowledge_aquisition action, I read {len(initial_papers)} seed papers, "
+                f"generated a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
+                f"and curated {len(curated_papers)} papers for memory."
+            )
+        else:
+            summary = (
+                f"\nIn this knowledge_aquisition action, I searched for papers about "
+                f"'{ctx.state['search_keywords']}' and curated {len(curated_papers)} relevant papers "
+                "for my research."
+            )
+
+        return StageResult(
+            artifact_patch=ArtifactPatch(
+                append={"references": [curated_papers]},
+                merge={"paper_contents": temp_artifact["paper_contents"]},
+            ),
+            state_patch={
+                "curated_papers": curated_papers,
+                "summary": summary,
+            },
+            metrics={"curated_papers": len(curated_papers)},
         )
 
     def _generate_idea_introduction(

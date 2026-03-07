@@ -6,8 +6,14 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from agent.prompts import PROMPTS
+from src.agents.idea_agent.agent.prompts import PROMPTS
 from src.agents.idea_agent.utils.workflow.idea_helpers import build_mcts_evolution, collect_reference_material
+from src.agents.idea_agent.utils.workflow.stage_contract import StageContext
+from src.agents.idea_agent.utils.workflow.workflow_runtime import (
+    StageSpec,
+    WorkflowEdge,
+    WorkflowSpec,
+)
 from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     build_algorithm_spec,
     synthesize_reference_summaries,
@@ -18,29 +24,90 @@ from src.agents.idea_agent.utils.workflow.ligagent_utils import (
 )
 
 
-def run_agent_loop(agent, logger) -> None:
-    """Run the main planner loop for a LigAgent instance.
+def build_action_workflow(agent, action: str) -> WorkflowSpec:
+    return WorkflowSpec(
+        name=f"ligagent.action.{action}",
+        entry_stage=action,
+        stages=_build_stage_specs(agent),
+    )
 
-    The execution flow is deterministic:
-    - If rag_hits is empty (no prior literature retrieval):
-        knowledge_aquisition -> advanced_analysis -> idea_generation
-    - If rag_hits is non-empty (literature already available):
-        advanced_analysis -> re_analysis_replan -> idea_generation
-    """
+
+def build_main_workflow(agent, logger) -> WorkflowSpec:
     rag_hits = agent.artifact.get("rag_hits", [])
     has_rag = bool(rag_hits and any(rag_hits))
 
     if has_rag:
         flow = ["advanced_analysis", "re_analysis_replan", "idea_generation"]
         logger.info("📋 rag_hits present — using flow: %s", " -> ".join(flow))
+        transitions = {
+            "advanced_analysis": [WorkflowEdge("re_analysis_replan")],
+            "re_analysis_replan": [WorkflowEdge("idea_generation")],
+        }
+        entry_stage = "advanced_analysis"
     else:
         flow = ["knowledge_aquisition", "advanced_analysis", "idea_generation"]
         logger.info("📋 rag_hits empty — using flow: %s", " -> ".join(flow))
+        transitions = {
+            "knowledge_aquisition": [WorkflowEdge("advanced_analysis")],
+            "advanced_analysis": [WorkflowEdge("idea_generation")],
+        }
+        entry_stage = "knowledge_aquisition"
 
-    for turn, action in enumerate(flow):
-        logger.info("========================================")
-        logger.info("Turn %d: %s", turn + 1, action)
-        agent.perform_action(action)
+    # build main workflow spec with conditional transitions based on RAG hits
+    return WorkflowSpec(
+        name="ligagent.main",
+        entry_stage=entry_stage,
+        stages=_build_stage_specs(agent),
+        transitions=transitions,
+    )
+
+
+def make_stage_context(agent, workflow_name: str, **inputs: Any) -> StageContext:
+    return StageContext(
+        agent=agent,
+        artifact=agent.artifact,
+        workflow_name=workflow_name,
+        inputs=inputs,
+        logger=getattr(agent, "logger", None),
+    )
+
+
+def _build_stage_specs(agent) -> Dict[str, StageSpec]:
+    return {
+        "knowledge_aquisition": StageSpec(
+            name="knowledge_aquisition",
+            handler=agent._execute_knowledge_acquisition_stage,
+            description="Semantic Scholar seed -> RAG query -> OutcomeRAG -> citation expansion -> triage",
+            record_step=True,
+        ),
+        "advanced_analysis": StageSpec(
+            name="advanced_analysis",
+            handler=agent._execute_advanced_analysis_stage,
+            description="Summarize curated literature and derive analysis seeds",
+            record_step=True,
+        ),
+        "idea_generation": StageSpec(
+            name="idea_generation",
+            handler=agent._execute_idea_generation_stage,
+            description="Prepare context, run memory-guided MCTS, materialize and persist best idea",
+            record_step=True,
+        ),
+        "re_analysis_replan": StageSpec(
+            name="re_analysis_replan",
+            handler=agent._execute_reanalysis_replan_stage,
+            description="Revise mature idea and retrieval keywords using analysis/ablation evidence",
+            record_step=True,
+        ),
+    }
+
+
+def run_agent_loop(agent, logger) -> None:
+    """Run the explicit top-level LigAgent workflow."""
+    spec = build_main_workflow(agent, logger)
+    agent.workflow_executor.run(
+        spec,
+        make_stage_context(agent, workflow_name=spec.name),
+    )
 
 
 def persist_final_idea(
@@ -52,6 +119,7 @@ def persist_final_idea(
     model: str,
     logger,
     prompts: Optional[Dict[str, str]] = None,
+    persist_to_artifact: bool = True,
 ) -> Dict[str, Any]:
     prompts = prompts or PROMPTS
     topic = artifact["topic"][-1] if artifact.get("topic") else "unspecified topic"
@@ -119,7 +187,8 @@ def persist_final_idea(
     if best_entry.get("idea_contract"):
         payload["idea_contract"] = best_entry.get("idea_contract")
     best_entry["introduction"] = introduction
-    artifact["idea_result"] = payload
+    if persist_to_artifact:
+        artifact["idea_result"] = payload
     try:
         idea_result_path.parent.mkdir(parents=True, exist_ok=True)
         with open(idea_result_path, "w", encoding="utf-8") as f:

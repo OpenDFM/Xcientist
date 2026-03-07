@@ -569,15 +569,24 @@ def normalize_analysis_entry(response: Any) -> Dict[str, Any]:
 
 
 def ingest_analysis_background(analysis_entry: Dict[str, Any], artifact: Dict[str, Any]) -> None:
+    for line in collect_analysis_background_lines(analysis_entry):
+        if not line:
+            continue
+        background_store = artifact.setdefault("background_knowledge", [])
+        if line not in background_store:
+            background_store.append(line)
+
+
+def collect_analysis_background_lines(analysis_entry: Dict[str, Any]) -> List[str]:
     if not isinstance(analysis_entry, dict):
-        return
+        return []
     seeds = (
         analysis_entry.get("divergent_idea_seeds")
         or analysis_entry.get("moonshot_hypotheses")
         or []
     )
     if not isinstance(seeds, list) or not seeds:
-        return
+        return []
     background_lines = []
     for seed in seeds[:3]:
         if not isinstance(seed, dict):
@@ -592,14 +601,7 @@ def ingest_analysis_background(analysis_entry: Dict[str, Any], artifact: Dict[st
         if gap:
             snippet += f" | Differentiator: {gap}"
         background_lines.append(snippet)
-    if not background_lines:
-        return
-    background_store = artifact.setdefault("background_knowledge", [])
-    existing = set(background_store)
-    for line in background_lines:
-        if line and line not in existing:
-            background_store.append(line)
-            existing.add(line)
+    return [line for line in background_lines if line]
 
 
 def latest_analysis_seed_ideas(artifact: Dict[str, Any]) -> List[Dict[str, Any]]:
