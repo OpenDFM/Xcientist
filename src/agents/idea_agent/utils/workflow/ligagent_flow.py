@@ -67,6 +67,8 @@ def make_stage_context(agent, workflow_name: str, **inputs: Any) -> StageContext
         agent=agent,
         artifact=agent.artifact,
         workflow_name=workflow_name,
+        session=getattr(agent, "session", None),
+        runtime=getattr(agent, "runtime", None),
         inputs=inputs,
         logger=getattr(agent, "logger", None),
     )

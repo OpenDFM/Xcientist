@@ -1,5 +1,5 @@
 mcts:
-  max_iterations: 3
+  max_iterations: 64
   max_depth: 3
   branching_factor: 3
   exploration_constant: 1.15
@@ -8,15 +8,15 @@ mcts:
   evaluation_model: "gpt-5.4"
   generation_temperature: 0.7
   evaluation_temperature: 0.001
-  generation_max_tokens: 8192
-  evaluation_max_tokens: 8192
+  generation_max_tokens: 65536
+  evaluation_max_tokens: 65536
   component_novelty_model: "all-MiniLM-L6-v2"
   component_novelty_index_dir: null
   component_novelty_retrieval_top_k: 50
   component_novelty_evidence_top_k: 5
   component_novelty_eval_model: null
   component_novelty_eval_temperature: 0.001
-  component_novelty_eval_max_tokens: 2048
+  component_novelty_eval_max_tokens: 65536
   min_confidence_for_memory: 0.6
   pareto_top_k: 5
   alignment_weight: 0.2

@@ -18,6 +18,8 @@ ARTIFACT_FORMAT = {
     "artifact_structure": dict, # structure of the artifact
     "workflow_trace": List[dict], # explicit stage execution trace
     "workflow_state": dict, # latest workflow/stage status
+    "context_slots": dict, # lightweight named cross-stage context
+    "operation_trace": List[dict], # llm/tool op-level trace
 }
 
 def artifact_init() -> dict:
@@ -41,5 +43,7 @@ def artifact_init() -> dict:
         "artifact_structure": {},
         "workflow_trace": [],
         "workflow_state": {},
+        "context_slots": {},
+        "operation_trace": [],
     }
     return artifact

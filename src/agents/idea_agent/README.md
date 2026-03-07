@@ -85,16 +85,11 @@ graph TD
 2. Initialises file logger → `logs/ligagent.log`.
 3. Instantiates `LigAgent(run_dir, rag_config, config)`.
 4. Calls `agent.bootstrap_topic(topic)` — generates a background brief and primes `artifact["topic"]` and `artifact["retrieval_keywords"]`.
-5. Calls `run_agent_loop(agent, max_turns, logger)`.
+5. Calls `run_agent_loop(agent, logger)`.
 
 ### 2.3 `run_agent_loop`
 
-```
-Turn 1  →  action = "knowledge_aquisition"  (always forced)
-Turn N  →  action = agent.select_action(artifact["steps"][-1])   (LLM decides)
-```
-
-Each turn calls `agent.perform_action(action)`, which appends a step summary string to `artifact["steps"]`.
+Runs the fixed workflow built by `build_main_workflow(...)`, and appends each stage summary string to `artifact["steps"]`.
 
 ---
 
@@ -438,7 +433,6 @@ See §5.5 for the full expand-time mechanism. Key properties:
 run:
   topics:
     - "Diffusion Models for Reinforcement Learning in Games"
-  max_turns: 4          # max agent turns per topic
   parallelism: 1        # concurrent workers (1 = serial)
   output_root: "runs"   # relative to idea_agent root
   console_logs: true    # echo logs to stdout
@@ -550,6 +544,6 @@ python src/agents/idea_agent/run.py
 3. **`advanced_analysis`** — LLM identifies key methods, pain points, open questions → `artifact["analysis"]`.
 4. **`idea_generation`** — Memory-Guided MCTS runs; winner written to `artifact["idea_pool"]`.
 5. **`persist_final_idea`** — Algorithm spec, references, and introduction are synthesised → `idea_result.json` written.
-6. **Subsequent turns** — LLM selects `idea_evaluation` to refine, or `re_analysis_replan` to pivot topic, until `max_turns` is reached.
+6. **Workflow completion** — the fixed LigAgent stage graph terminates after the configured workflow finishes.
 
 ---

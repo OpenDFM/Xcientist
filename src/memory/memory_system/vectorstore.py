@@ -38,22 +38,37 @@ class VectorStore(ABC):
 
 class FaissVectorStore(VectorStore):
     def __init__(self, model_path: str = ".cache/all-MiniLM-L6-v2", memory_type: str = "semantic"):
-        model_source = str(model_path)
-        candidate = Path(model_source).expanduser()
-        if candidate.is_absolute():
-            model_source = os.path.relpath(str(candidate), start=os.getcwd())
-        elif not candidate.exists():
-            repo_root = Path(__file__).resolve().parents[3]
-            anchored = (repo_root / candidate).resolve()
-            if anchored.exists():
-                model_source = os.path.relpath(str(anchored), start=os.getcwd())
-        self.model = SentenceTransformer(model_source)
+        self.model = SentenceTransformer(self._resolve_model_source(model_path))
         self.memory_type = memory_type
         self.index = None
         self.dim = None
         self.meta: Dict[int, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]] = {} # {id: SemanticRecord | EpisodicRecord | ProceduralRecord}
         self.fidmap2mid: Dict[int, str] = {} #{faiss_id: memory_id}
         self._next_id = 0
+
+    @staticmethod
+    def _resolve_model_source(model_path: str) -> str:
+        model_source = str(model_path or "").strip()
+        if not model_source:
+            return model_source
+
+        candidate = Path(model_source).expanduser()
+        search_roots = [Path.cwd(), Path(__file__).resolve().parent, Path(__file__).resolve().parents[3]]
+
+        if candidate.is_absolute():
+            return str(candidate.resolve()) if candidate.exists() else model_source
+
+        for root in search_roots:
+            anchored = (root / candidate).resolve()
+            if anchored.exists():
+                return str(anchored)
+
+        # Support shorthand model names like "all-MiniLM-L6-v2" with a co-located .cache directory.
+        module_cache_candidate = (Path(__file__).resolve().parent / ".cache" / model_source).resolve()
+        if module_cache_candidate.exists():
+            return str(module_cache_candidate)
+
+        return model_source
     
     def _embed(self, texts: list[str]):
         # Normalize for FAISS store and query.

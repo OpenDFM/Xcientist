@@ -1,5 +1,4 @@
 run:
-  max_turns: 4
   parallelism: 1
   output_root: "runs"
   console_logs: true

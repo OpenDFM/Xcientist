@@ -1401,6 +1401,7 @@ def instantiate_skill_plan_for_node(
         response = mcts.chat_fn(
             prompt,
             model=mcts.config.generation_model,
+            stage="mcts_expand",
             temperature=mcts.config.generation_temperature,
             max_output_tokens=mcts.config.generation_max_tokens,
         )

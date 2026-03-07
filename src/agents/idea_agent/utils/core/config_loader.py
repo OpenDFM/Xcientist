@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Optional
 
 from omegaconf import OmegaConf
 
 DEFAULT_CONFIG_PATH = (
-    Path(__file__).resolve().parents[2] / "config" / "run" / "default.yaml"
+    Path(__file__).resolve().parents[2] / "config" / "idea_agent.yaml"
 )
 
 
@@ -33,7 +34,7 @@ def _load_defaults(defaults: list[Any], base_dir: Path) -> Any:
                 candidate = base_dir / group / f"{name}.yaml"
             else:
                 candidate = base_dir / f"{entry}.yaml"
-        elif isinstance(entry, dict):
+        elif isinstance(entry, Mapping):
             candidate = None
             for group, name in entry.items():
                 if group in ("_self_", "self"):

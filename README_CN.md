@@ -60,7 +60,7 @@ Agent 运行固定的多轮循环。第 1 轮固定执行 `knowledge_aquisition`
 **配置位置**：`src/agents/idea_agent/config/`（推荐直接改 YAML）
 
 主要配置文件：
-- `src/agents/idea_agent/config/run/default.yaml` — 运行时参数：**topics / max_turns / parallelism / rag_config / mature_idea**
+- `src/agents/idea_agent/config/run/default.yaml` — 运行时参数：**topics / parallelism / rag_config / mature_idea**
 - `src/agents/idea_agent/config/mcts/default.yaml` — MCTS：**max_iterations / max_depth / branching_factor / generation_model / evaluation_model**
 
 **运行时配置（`run/default.yaml`）**：
@@ -68,7 +68,6 @@ Agent 运行固定的多轮循环。第 1 轮固定执行 `knowledge_aquisition`
 run:
   topics:
     - "Diffusion Models for Reinforcement Learning in Games"
-  max_turns: 4          # 每个 topic 最多运行轮次
   parallelism: 1        # 并发 worker 数（1 = 串行）
   output_root: "runs"   # 相对于 idea_agent 根目录
   console_logs: true

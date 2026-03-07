@@ -89,7 +89,7 @@ def _run_topic(
     try:
         run_agent_loop(agent, logger)
     except (Exception, KeyboardInterrupt):
-        logger.info(agent.memory)
+        logger.info("Artifact snapshot at failure: %s", getattr(agent, "artifact", {}))
         tb = traceback.format_exc()
         logger.error("Traceback:\n%s", tb)
         # Ensure the exception is picklable for ProcessPoolExecutor.

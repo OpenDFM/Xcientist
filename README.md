@@ -60,7 +60,7 @@ The agent runs a fixed multi-turn loop. Turn 1 is always `knowledge_aquisition`;
 **Config location**: `src/agents/idea_agent/config/` (edit YAML directly)
 
 Key config files:
-- `src/agents/idea_agent/config/run/default.yaml` — runtime params: **topics / max_turns / parallelism / rag_config / mature_idea**
+- `src/agents/idea_agent/config/run/default.yaml` — runtime params: **topics / parallelism / rag_config / mature_idea**
 - `src/agents/idea_agent/config/mcts/default.yaml` — MCTS: **max_iterations / max_depth / branching_factor / generation_model / evaluation_model**
 
 **Runtime config (`run/default.yaml`)**:
@@ -68,7 +68,6 @@ Key config files:
 run:
   topics:
     - "Diffusion Models for Reinforcement Learning in Games"
-  max_turns: 4          # max agent turns per topic
   parallelism: 1        # concurrent workers (1 = serial)
   output_root: "runs"   # relative to idea_agent root
   console_logs: true
