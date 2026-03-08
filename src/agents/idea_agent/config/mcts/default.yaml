@@ -20,4 +20,4 @@ mcts:
   min_confidence_for_memory: 0.6
   pareto_top_k: 5
   symbolic_memory_path: "output/symbolic_memory.json"
-  skill_prior_success_threshold: 0.6
+  skill_prior_success_threshold: 0.5

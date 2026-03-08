@@ -25,7 +25,16 @@ from memory.memory_system.models import EpisodicRecord, ProceduralRecord, Semant
 from memory.memory_system.utils import _multi_thread_run, _safe_dump_str
 from agent import get_logger
 from src.agents.idea_agent.utils.mcts.component_novelty import ComponentNoveltyScorer
-from src.agents.idea_agent.utils.mcts.mcts_helpers import clip_text, format_analysis_blob
+from src.agents.idea_agent.utils.mcts.mcts_helpers import (
+    apply_budget_delta_to_parent,
+    clip_text,
+    component_inventory_payload,
+    format_analysis_blob,
+    normalize_component_explanations,
+    normalize_budget_dict,
+    plan_to_experiment_text,
+    plan_to_method_text,
+)
 from src.agents.idea_agent.utils.prompting.prompt_views import (
     format_idea_pool_prompt_view,
     format_idea_prompt_view,
@@ -43,9 +52,7 @@ from src.agents.idea_agent.utils.mcts.mcts_runtime import (
     MemorySnippet,
     SkillCatalog,
     SkillUsagePrior,
-    apply_budget_delta_to_parent,
     best_candidate,
-    component_inventory_payload,
     build_symbolic_eval_hints,
     build_root_state,
     compute_protocol_score_from_plan,
@@ -57,12 +64,8 @@ from src.agents.idea_agent.utils.mcts.mcts_runtime import (
     materialize_child_state,
     memory_bundle_log_payload,
     new_node,
-    normalize_component_explanations,
-    normalize_budget_dict,
     pareto_candidates,
     path_summary,
-    plan_to_experiment_text,
-    plan_to_method_text,
     backpropagate_rollout,
     expand_node_with_skills,
     reset_search_state,
