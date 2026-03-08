@@ -1,6 +1,6 @@
 ---
 name: theory-transfer-injection
-description: Inject a theory-backed module from another domain and validate both gains and transfer risks.
+description: Inject a theory-backed module from another domain while keeping validation and gating secondary to the transferred mechanism.
 ---
 
 ## defect_tags
@@ -10,17 +10,15 @@ description: Inject a theory-backed module from another domain and validate both
 
 ## guardrails
 - Name the transferred mechanism source and integration point.
-- Gate transfer module activation under reliability criteria.
-- Add stress tests for negative transfer.
+- Use gating only if transfer reliability is itself the bottleneck.
+- Add the minimum validation needed to test transfer value and negative transfer risk.
 
 ## atomic_blueprint
 - ADD_COMPONENT(theory_transfer_module)
 - REWIRE(theory_transfer_module -> training_objective)
-- GATE_COMPONENT(theory_transfer_module, when_transfer_signal_reliable)
-- ADD_PROTOCOL(regression,ablation,stress)
+- ADD_PROTOCOL(ablation,stress)
 
 ## required_protocols
-- regression
 - ablation
 - stress
 

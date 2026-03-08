@@ -253,15 +253,15 @@ class IdeaEvaluation:
     defect_fix_summary: str
     detected_defects: List[str]
     lift_estimate: float
-    novelty_weight: float = 0.30
-    impact_weight: float = 0.25
+    novelty_weight: float = 0.35
+    impact_weight: float = 0.30
     feasibility_weight: float = 0.20
     clarity_weight: float = 0.15
     conciseness_weight: float = 0.10
     risk_weight: float = 0.20
-    alignment_weight: float = 0.25
-    complexity_weight: float = 0.20
-    protocol_weight: float = 0.15
+    alignment_weight: float = 0.20
+    complexity_weight: float = 0.25
+    protocol_weight: float = 0.05
 
     def __post_init__(self) -> None:
         self.failure_modes = [
@@ -312,15 +312,15 @@ class IdeaEvaluation:
             defect_fix_summary=str(payload.get("defect_fix_summary", "")),
             detected_defects=_list("detected_defects"),
             lift_estimate=max(0.0, _num("lift_estimate", 0.0)),
-            novelty_weight=w.get("novelty_weight", 0.30),
-            impact_weight=w.get("impact_weight", 0.25),
+            novelty_weight=w.get("novelty_weight", 0.35),
+            impact_weight=w.get("impact_weight", 0.30),
             feasibility_weight=w.get("feasibility_weight", 0.20),
             clarity_weight=w.get("clarity_weight", 0.15),
             conciseness_weight=w.get("conciseness_weight", 0.10),
             risk_weight=w.get("risk_weight", 0.20),
-            alignment_weight=w.get("alignment_weight", 0.25),
-            complexity_weight=w.get("complexity_weight", 0.20),
-            protocol_weight=w.get("protocol_weight", 0.15),
+            alignment_weight=w.get("alignment_weight", 0.20),
+            complexity_weight=w.get("complexity_weight", 0.25),
+            protocol_weight=w.get("protocol_weight", 0.05),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -460,15 +460,15 @@ class MCTSConfig:
     )
     min_confidence_for_memory: float = _mcts_default("min_confidence_for_memory", 0.6)
     pareto_top_k: int = _mcts_default("pareto_top_k", 5)
-    alignment_weight: float = _mcts_default("alignment_weight", 0.25)
-    complexity_weight: float = _mcts_default("complexity_weight", 0.2)
-    novelty_weight: float = _mcts_default("novelty_weight", 0.30)
-    impact_weight: float = _mcts_default("impact_weight", 0.25)
+    alignment_weight: float = _mcts_default("alignment_weight", 0.20)
+    complexity_weight: float = _mcts_default("complexity_weight", 0.25)
+    novelty_weight: float = _mcts_default("novelty_weight", 0.35)
+    impact_weight: float = _mcts_default("impact_weight", 0.30)
     feasibility_weight: float = _mcts_default("feasibility_weight", 0.20)
     clarity_weight: float = _mcts_default("clarity_weight", 0.15)
     conciseness_weight: float = _mcts_default("conciseness_weight", 0.10)
     risk_weight: float = _mcts_default("risk_weight", 0.20)
-    protocol_weight: float = _mcts_default("protocol_weight", 0.15)
+    protocol_weight: float = _mcts_default("protocol_weight", 0.05)
 
     skill_prior_memory_path: str = _mcts_default(
         "skill_prior_memory_path", "output/idea_skill_priors"

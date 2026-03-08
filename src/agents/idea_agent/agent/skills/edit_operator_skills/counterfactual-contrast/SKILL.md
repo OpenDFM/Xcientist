@@ -11,17 +11,15 @@ description: Inject counterfactual data components and rewire train/eval flow so
 ## guardrails
 - Limit synthetic channels to avoid unbounded complexity.
 - Rewire training and evaluation so the counterfactual signal is first-class.
-- Add a stress protocol that targets boundary cases.
+- Keep validation focused on proving the counterfactual channel matters.
 
 ## atomic_blueprint
 - ADD_COMPONENT(counterfactual_sampler)
 - REWIRE(counterfactual_sampler -> training_pipeline)
-- ADD_PROTOCOL(regression,ablation,stress)
+- ADD_PROTOCOL(ablation)
 
 ## required_protocols
-- regression
 - ablation
-- stress
 
 ## avoid_combinations
 - REMOVE_COMPONENT(training_pipeline) in the same plan

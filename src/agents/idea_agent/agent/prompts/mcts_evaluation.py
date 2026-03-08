@@ -29,10 +29,13 @@ Component-level symbolic memory insights (from past MCTS iterations):
 
 Scoring policy:
 - Prefer concrete mechanism-level edits over vague incremental changes.
-- Reward plans that include explicit ADD_PROTOCOL-based regression, ablation, and stress tests.
-- Penalize plans that add components without clear gating when budget risk is visible.
+- Treat evaluator, contract, audit, or gate additions as auxiliary scaffolding unless they clearly enable or verify a distinct core mechanism change in the generator, objective, representation, planner, or data path.
+- Reward validation only when it is the lightest protocol set needed to falsify the core mechanism. Do not reward protocol bulk by itself.
+- Penalize evaluator-first proposals whose main contribution is auditing, gating, or benchmarking rather than changing the task-solving mechanism.
+- Penalize plans that add gates merely to manage extra machinery they just introduced. A gate can improve feasibility, but it should not by itself raise novelty or impact.
 - Penalize feature dumping and unsupported complexity jumps.
 - If the idea drifts from topic constraints, reduce alignment_score.
+- If the defect is mainly evaluation_blindspot or weak_accountability, evaluator changes may help clarity/feasibility, but should not automatically receive high novelty or impact.
 - When symbolic memory hints are available, use them to calibrate scores:
   * Positive-delta records for the same component family suggest the approach is promising — credit novelty/impact.
   * Negative-delta records or listed anti-patterns signal known failure modes — increase risk/complexity_penalty accordingly.
@@ -59,6 +62,7 @@ Metric-specific anchors:
   * 0 = trivial restatement, cosmetic rewrite, or no real mechanism change.
   * 3 = meaningful recombination or scoped mechanism change, but still close to known patterns.
   * 5 = clear mechanism-level departure or unusually strong recombination with concrete rationale.
+  * Evaluator-only, contract-only, or gate-only changes without a substantive mechanism change should usually score <= 2.
 - feasibility (0-5; higher is more practical)
   * 0 = underspecified, implausible, or depends on missing capabilities/data.
   * 3 = implementable with reasonable effort, but has notable execution assumptions.
@@ -71,6 +75,7 @@ Metric-specific anchors:
   * 0 = addresses a peripheral issue or offers negligible upside.
   * 3 = could improve an important sub-problem, but expected gains are bounded/local.
   * 5 = directly targets a central bottleneck and could materially improve performance, reliability, or insight.
+  * Audit or evaluator layers that mostly improve diagnosis/measurement should usually score <= 3 unless they materially change the system's learning or decision behavior.
 - risk (0-5; higher is riskier)
   * 0 = major failure modes are already controlled or low consequence.
   * 3 = meaningful risks remain, but they are identifiable and partially mitigated.
@@ -87,10 +92,12 @@ Metric-specific anchors:
   * 0 = no meaningful excess complexity beyond what the objective requires.
   * 3 = some added moving parts, coordination cost, or budget pressure, but still arguable.
   * 5 = avoidable architectural sprawl, weakly justified extra modules, or major evaluation burden.
+  * Extra evaluators, auditors, contract layers, or gates count as overhead unless they are strictly necessary to support a clearly identified core mechanism.
 - protocol_score (0-5; higher is more rigorous)
   * 0 = no meaningful validation plan, or only vague evaluation claims.
   * 3 = includes at least one solid validation axis, but coverage is incomplete.
   * 5 = explicit regression, ablation, and stress tests with clear fairness/control expectations.
+  * protocol_score reflects validation quality only. It must not compensate for weak novelty, weak impact, or evaluator-only ideas.
 
 Return STRICT JSON (no prose):
 {{

@@ -1,6 +1,6 @@
 ---
 name: adaptive-constraint-hybridization
-description: Add adaptive constraint modules, fuse them into the objective, and gate by confidence or budget.
+description: Add adaptive constraint modules and fuse them into the objective without making gating the main contribution.
 ---
 
 ## defect_tags
@@ -10,19 +10,16 @@ description: Add adaptive constraint modules, fuse them into the objective, and 
 
 ## guardrails
 - Keep the new constraint measurable and tied to one objective path.
-- Use gating for low-confidence regimes.
-- Require ablations separating constraint effect from baseline behavior.
+- Use gating only if the constraint would otherwise violate real budget or stability limits.
+- Require focused ablations separating constraint effect from baseline behavior.
 
 ## atomic_blueprint
 - ADD_COMPONENT(constraint_penalty_module)
 - REWIRE(constraint_penalty_module -> objective)
-- GATE_COMPONENT(constraint_penalty_module, when_constraint_confident)
-- ADD_PROTOCOL(regression,ablation,stress)
+- ADD_PROTOCOL(ablation)
 
 ## required_protocols
-- regression
 - ablation
-- stress
 
 ## avoid_combinations
 - REMOVE_COMPONENT(objective) in the same plan

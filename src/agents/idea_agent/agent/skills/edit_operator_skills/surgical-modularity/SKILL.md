@@ -16,10 +16,9 @@ description: Perform a localized block-level intervention with replace/rewire an
 ## atomic_blueprint
 - REPLACE_COMPONENT(weak_block -> modular_block)
 - REWIRE(modular_block -> downstream_interface)
-- ADD_PROTOCOL(regression,ablation)
+- ADD_PROTOCOL(ablation)
 
 ## required_protocols
-- regression
 - ablation
 
 ## avoid_combinations

@@ -11,17 +11,15 @@ description: Repair data/supervision contract first, then add minimal components
 ## guardrails
 - Lead with protocol repair before model growth.
 - Keep contract checks measurable and reproducible.
-- Gate any added checker to avoid unnecessary cost.
+- Add a checker only if the contract cannot be enforced with lighter-weight instrumentation.
 
 ## atomic_blueprint
-- ADD_PROTOCOL(regression,ablation,stress)
+- ADD_PROTOCOL(regression,ablation)
 - ADD_COMPONENT(contract_checker)
-- GATE_COMPONENT(contract_checker, when_contract_violation_detected)
 
 ## required_protocols
 - regression
 - ablation
-- stress
 
 ## avoid_combinations
 - ADD_COMPONENT(large_new_backbone) in the same plan

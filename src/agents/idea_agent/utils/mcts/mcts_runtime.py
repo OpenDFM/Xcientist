@@ -614,8 +614,8 @@ DEFAULT_SKILL_TEMPLATES: Dict[str, Dict[str, Any]] = _load_default_skill_templat
 
 ANTI_PATTERN_CONSTRAINTS: List[str] = [
     "No feature dumping: every component edit must map to a measured defect.",
-    "Always include fair regression + ablation checks; stress test high-risk paths.",
-    "Constrain compute/latency budgets with explicit gating for expensive modules.",
+    "Use the lightest validation suite that can falsify the core mechanism; do not let protocol bulk replace mechanism work.",
+    "Add gating only when real budget risk threatens a core mechanism, not as default scaffolding.",
     "Prefer mechanism clarity over loosely coupled add-ons.",
 ]
 
@@ -732,9 +732,7 @@ class SkillCatalog:
             uses_gate = any(step.startswith("GATE_COMPONENT") for step in skill.atomic_blueprint)
             if budget_tight and uses_gate:
                 gate_score = 1.0
-            elif not budget_tight:
-                gate_score = 0.5
-            total = 0.45 * defect_score + 0.40 * prior + 0.15 * gate_score
+            total = 0.50 * defect_score + 0.45 * prior + 0.05 * gate_score
             scored.append((total, skill))
 
         scored.sort(key=lambda item: item[0], reverse=True)
@@ -802,7 +800,7 @@ class SkillCatalog:
                 )
 
         if not required_protocols:
-            required_protocols = {"regression", "ablation", "stress"}
+            required_protocols = {"ablation"}
 
         for protocol in sorted(required_protocols):
             test_text = _default_protocol_text(protocol, skill.name, parent_title, target_defects)
@@ -857,7 +855,9 @@ class SkillCatalog:
 
         feedback_l = (feedback or "").lower()
         if "budget" in feedback_l and "gate" not in " ".join(prior.rule_constraints).lower():
-            prior.rule_constraints.append("Prefer adding explicit GATE_COMPONENT when budget risk appears.")
+            prior.rule_constraints.append(
+                "Use GATE_COMPONENT only when budget risk is central and the gate protects a core mechanism."
+            )
         for failure in failure_modes:
             text = str(failure).strip()
             if not text:
@@ -1007,7 +1007,7 @@ def _is_budget_tight(budget: Dict[str, Any]) -> bool:
             continue
     if not numeric_values:
         return False
-    return any(val <= 1.0 for val in numeric_values)
+    return any(val < 1.0 for val in numeric_values)
 
 
 def _estimate_budget_delta(component_edits: Sequence[ComponentEdit]) -> Dict[str, float]:
@@ -1210,12 +1210,12 @@ def compute_protocol_score_from_plan(plan: Optional[Dict[str, Any]]) -> float:
     validation = plan.get("validation") if isinstance(plan.get("validation"), dict) else {}
     score = 0.0
     if validation.get("regression_tests"):
-        score += 1.7
+        score += 0.9
     if validation.get("ablation_tests"):
-        score += 1.7
+        score += 1.2
     if validation.get("stress_tests"):
-        score += 1.6
-    return min(5.0, score)
+        score += 0.9
+    return min(3.0, score)
 
 
 def memory_bundle_log_payload(bundle: Any) -> Dict[str, Any]:

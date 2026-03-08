@@ -674,6 +674,11 @@ def build_algorithm_spec(
     logger,
 ) -> List[Dict[str, Any]]:
     idea = normalize_idea_contract(idea, keep_extra=True)
+    idea_for_prompt = {
+        key: value
+        for key, value in idea.items()
+        if key not in {"search_path", "search_trace", "pareto_candidates", "evaluation"}
+    }
     analysis_entries = artifact.get("analysis", [])
     latest_analysis = analysis_entries[-1] if analysis_entries else {}
     base_inputs: List[str] = []
@@ -718,7 +723,7 @@ def build_algorithm_spec(
         topic=topic,
         idea_title=idea.get("title", ""),
         idea_abstract=idea.get("abstract", ""),
-        idea=json.dumps(idea, ensure_ascii=False, indent=2),
+        idea=json.dumps(idea_for_prompt, ensure_ascii=False, indent=2),
         base_inputs=json.dumps(base_inputs, ensure_ascii=False, indent=2),
         base_outputs=json.dumps(base_outputs, ensure_ascii=False, indent=2),
         analysis=json.dumps(latest_analysis, ensure_ascii=False, indent=2),

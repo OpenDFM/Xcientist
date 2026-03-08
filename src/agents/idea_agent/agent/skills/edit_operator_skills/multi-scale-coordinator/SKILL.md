@@ -1,6 +1,6 @@
 ---
 name: multi-scale-coordinator
-description: Add a cross-scale coordinator, rewire routing, and gate expensive coordination paths.
+description: Add a cross-scale coordinator and rewire routing without making gating the main idea.
 ---
 
 ## defect_tags
@@ -11,18 +11,15 @@ description: Add a cross-scale coordinator, rewire routing, and gate expensive c
 ## guardrails
 - Specify routing conflict resolution.
 - Quantify additional latency and compute.
-- Add stress tests for routing collapse scenarios.
+- Keep validation centered on whether coordination improves the core mechanism.
 
 ## atomic_blueprint
 - ADD_COMPONENT(multi_scale_coordinator)
 - REWIRE(multi_scale_coordinator -> prediction_router)
-- GATE_COMPONENT(multi_scale_coordinator, when_multi_scale_signal_strong)
-- ADD_PROTOCOL(regression,ablation,stress)
+- ADD_PROTOCOL(ablation)
 
 ## required_protocols
-- regression
 - ablation
-- stress
 
 ## avoid_combinations
 - REMOVE_COMPONENT(prediction_router) in the same plan

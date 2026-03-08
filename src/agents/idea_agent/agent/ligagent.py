@@ -177,7 +177,7 @@ class LigAgent(AgentBase):
                 if "gpt-5-mini" in model:
                     # Idea Generator: GPT-5 mini
                     kwargs["temperature"] = 1.0
-                    effort = "medium" if stage == "mcts_expand" else "low"
+                    effort = "high" if stage == "mcts_expand" else "low"
                     return super().chat(prompt, model=model, reasoning={"effort": effort}, **kwargs)
                 elif "gpt-5" in model:
                     # Idea Evaluator: GPT-5.4

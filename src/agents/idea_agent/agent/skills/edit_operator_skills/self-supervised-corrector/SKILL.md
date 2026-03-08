@@ -1,6 +1,6 @@
 ---
 name: self-supervised-corrector
-description: Attach a self-supervised correction component, inject residual corrections, and control over-correction with gates.
+description: Attach a self-supervised correction component and inject residual corrections without over-privileging gating logic.
 ---
 
 ## defect_tags
@@ -10,19 +10,16 @@ description: Attach a self-supervised correction component, inject residual corr
 
 ## guardrails
 - Define correction signal and injection point.
-- Include anti-overcorrection conditions in gating logic.
-- Stress-test under known drift regimes.
+- Keep anti-overcorrection controls lightweight and subordinate to the correction mechanism.
+- Validate the correction mechanism under known drift regimes.
 
 ## atomic_blueprint
 - ADD_COMPONENT(self_supervised_corrector)
 - REWIRE(self_supervised_corrector -> prediction_head)
-- GATE_COMPONENT(self_supervised_corrector, when_confidence_gap_detected)
-- ADD_PROTOCOL(regression,ablation,stress)
+- ADD_PROTOCOL(ablation)
 
 ## required_protocols
-- regression
 - ablation
-- stress
 
 ## avoid_combinations
 - REMOVE_COMPONENT(prediction_head) in the same plan

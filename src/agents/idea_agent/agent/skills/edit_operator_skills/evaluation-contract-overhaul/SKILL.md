@@ -1,6 +1,6 @@
 ---
 name: evaluation-contract-overhaul
-description: Redesign evaluation contracts as first-class edits, then minimally adjust components to satisfy new checks.
+description: Redesign evaluation contracts to support mechanism diagnosis, while keeping evaluator changes auxiliary to the core system.
 ---
 
 ## defect_tags
@@ -9,19 +9,17 @@ description: Redesign evaluation contracts as first-class edits, then minimally 
 - missing_contracts
 
 ## guardrails
-- Make protocol redesign the primary action.
+- Use protocol redesign to expose mechanism failures, not to replace mechanism work.
 - Tie every added check to a specific failure mode.
-- Gate heavy evaluators to keep budget under control.
+- Do not let the evaluator become the whole contribution unless the defect is purely contractual.
 
 ## atomic_blueprint
-- ADD_PROTOCOL(regression,ablation,stress)
+- ADD_PROTOCOL(regression,ablation)
 - REPLACE_COMPONENT(legacy_evaluator -> contract_evaluator)
-- GATE_COMPONENT(contract_evaluator, when_budget_allows)
 
 ## required_protocols
 - regression
 - ablation
-- stress
 
 ## avoid_combinations
 - REMOVE_COMPONENT(contract_evaluator) in the same plan
