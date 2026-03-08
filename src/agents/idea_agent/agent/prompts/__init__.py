@@ -1,8 +1,4 @@
-from src.agents.idea_agent.agent.prompts.action_selection import ACTION_SELECTION_PROMPT
-from src.agents.idea_agent.agent.prompts.action_retry import ACTION_RETRY_PROMPT
 from src.agents.idea_agent.agent.prompts.advanced_analysis import ADVANCED_ANALYSIS_PROMPT
-from src.agents.idea_agent.agent.prompts.idea_generation import IDEA_GENERATION_PROMPT
-from src.agents.idea_agent.agent.prompts.idea_evaluation import IDEA_EVALUATION_PROMPT
 from src.agents.idea_agent.agent.prompts.component_novelty_evaluation import (
     COMPONENT_NOVELTY_EVALUATION_PROMPT,
 )
@@ -18,11 +14,7 @@ from src.agents.idea_agent.agent.prompts.paper_filtering import PAPER_FILTERING_
 
 
 PROMPTS = {
-    "action_selection": ACTION_SELECTION_PROMPT,
-    "action_retry": ACTION_RETRY_PROMPT,
     "advanced_analysis": ADVANCED_ANALYSIS_PROMPT,
-    "idea_generation": IDEA_GENERATION_PROMPT,
-    "idea_evaluation": IDEA_EVALUATION_PROMPT,
     "component_novelty_evaluation": COMPONENT_NOVELTY_EVALUATION_PROMPT,
     "mcts_evaluation": MCTS_IDEA_EVALUATION_PROMPT,
     "re_analysis_replan": RE_ANALYSIS_REPLAN_PROMPT,

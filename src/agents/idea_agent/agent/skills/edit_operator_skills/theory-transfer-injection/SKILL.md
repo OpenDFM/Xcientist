@@ -1,6 +1,6 @@
 ---
 name: theory-transfer-injection
-description: Inject a theory-backed module from another domain while keeping validation and gating secondary to the transferred mechanism.
+description: Inject a theory-backed mechanism or invariant from another domain and wire it into the core objective or control rule.
 ---
 
 ## defect_tags
@@ -9,13 +9,13 @@ description: Inject a theory-backed module from another domain while keeping val
 - weak_generalization
 
 ## guardrails
-- Name the transferred mechanism source and integration point.
-- Use gating only if transfer reliability is itself the bottleneck.
-- Add the minimum validation needed to test transfer value and negative transfer risk.
+- Name the transferred principle and where it enters the core path.
+- Limit transfer to one main mechanism instead of a bundle of unrelated ideas.
+- Add the minimum stress coverage needed to detect negative transfer.
 
 ## atomic_blueprint
 - ADD_COMPONENT(theory_transfer_module)
-- REWIRE(theory_transfer_module -> training_objective)
+- REWIRE(theory_transfer_module -> control_objective)
 - ADD_PROTOCOL(ablation,stress)
 
 ## required_protocols

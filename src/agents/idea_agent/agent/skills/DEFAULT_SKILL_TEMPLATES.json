@@ -1,22 +1,26 @@
 {
   "mechanism-commit-innovation": {
-    "description": "Commit to a concrete mechanism change and keep validation/gating secondary to the mechanism.",
+    "description": "Commit to one concrete mechanism-level innovation and keep scaffolding secondary to the task-solving path.",
     "defects": [
       "stagnant_novelty",
       "unclear_mechanism",
       "validation_gap"
     ],
     "guardrails": [
-      "Name the exact component being added/rewired and why it fixes the defect.",
-      "Use the smallest validation set that can falsify the core mechanism."
+      "Name the exact mechanism being introduced and the primary execution path it changes.",
+      "Keep one main mechanism; move supporting implementation details to notes or protocols.",
+      "Use the smallest validation suite that can falsify the core mechanism."
     ],
     "atomic_blueprint": [
       "ADD_COMPONENT(core_mechanism_module)",
-      "REWIRE(backbone_model -> core_mechanism_module)",
+      "REWIRE(core_mechanism_module -> primary_execution_path)",
       "ADD_PROTOCOL(ablation)"
     ],
     "required_protocols": [
       "ablation"
+    ],
+    "avoid_combinations": [
+      "REMOVE_COMPONENT(core_mechanism_module) in the same plan"
     ],
     "execution_logic": [
       "Identify the defect from `defect_tags`.",
@@ -24,50 +28,29 @@
       "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
     ]
   },
-  "counterfactual-contrast": {
-    "description": "Add counterfactual or rare-regime data components and inject them into train/eval flow.",
+  "alternative-path-contrast": {
+    "description": "Introduce a structured alternative execution or recovery path so rare regimes and fallback behavior are explicitly contrasted and stress-tested.",
     "defects": [
-      "missing_edge_cases",
-      "weak_generalization",
-      "dataset_bias"
+      "brittle_single_path",
+      "rare_regime_failure",
+      "weak_fallback_behavior"
     ],
     "guardrails": [
-      "Limit newly added data channels to avoid uncontrolled complexity.",
-      "Show where the counterfactual channel is injected into training and evaluation.",
-      "Keep validation focused on proving the counterfactual channel matters."
+      "Limit the number of new paths; one alternative path should address one concrete failure regime.",
+      "Make routing between primary and alternative paths explicit.",
+      "Validate the regimes where the alternative path should dominate or recover failure."
     ],
     "atomic_blueprint": [
-      "ADD_COMPONENT(counterfactual_sampler)",
-      "REWIRE(counterfactual_sampler -> training_pipeline)",
-      "ADD_PROTOCOL(ablation)"
+      "ADD_COMPONENT(alternative_path_module)",
+      "REWIRE(alternative_path_module -> execution_router)",
+      "ADD_PROTOCOL(ablation,stress)"
     ],
     "required_protocols": [
-      "ablation"
+      "ablation",
+      "stress"
     ],
-    "execution_logic": [
-      "Identify the defect from `defect_tags`.",
-      "Generate the solution by instantiating the `atomic_blueprint`.",
-      "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
-    ]
-  },
-  "adaptive-constraint-hybridization": {
-    "description": "Hybridize constraints/penalties with the objective without making gating the main contribution.",
-    "defects": [
-      "constraint_drift",
-      "physical_invalidity",
-      "weak_regularization"
-    ],
-    "guardrails": [
-      "Keep the added constraint measurable and tied to a single objective term.",
-      "Use gating only if the constraint would otherwise violate real budget or stability limits."
-    ],
-    "atomic_blueprint": [
-      "ADD_COMPONENT(constraint_penalty_module)",
-      "REWIRE(constraint_penalty_module -> objective)",
-      "ADD_PROTOCOL(ablation)"
-    ],
-    "required_protocols": [
-      "ablation"
+    "avoid_combinations": [
+      "REMOVE_COMPONENT(execution_router) in the same plan"
     ],
     "execution_logic": [
       "Identify the defect from `defect_tags`.",
@@ -76,15 +59,16 @@
     ]
   },
   "surgical-modularity": {
-    "description": "Touch only one weak block via replace/rewire and prove improvement with focused ablation.",
+    "description": "Perform a localized block-level intervention with replace/rewire and prove the gain with focused ablation.",
     "defects": [
       "feature_dumping",
       "monolithic_design",
       "harder_to_ablate"
     ],
     "guardrails": [
-      "Touch exactly one module-level block.",
-      "Include a mandatory ablation isolating the touched block."
+      "Touch exactly one weak block.",
+      "Keep interfaces explicit after rewiring.",
+      "Include a mandatory block-level ablation."
     ],
     "atomic_blueprint": [
       "REPLACE_COMPONENT(weak_block -> modular_block)",
@@ -94,31 +78,8 @@
     "required_protocols": [
       "ablation"
     ],
-    "execution_logic": [
-      "Identify the defect from `defect_tags`.",
-      "Generate the solution by instantiating the `atomic_blueprint`.",
-      "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
-    ]
-  },
-  "data-contract-repair": {
-    "description": "Repair supervision/data contract first; only add modules when contract repair alone is insufficient.",
-    "defects": [
-      "data_quality",
-      "label_noise",
-      "missing_contracts"
-    ],
-    "guardrails": [
-      "Prioritize protocol fixes before architecture changes.",
-      "Document measurable contract checks.",
-      "Add a checker only if the contract cannot be enforced with lighter-weight instrumentation."
-    ],
-    "atomic_blueprint": [
-      "ADD_PROTOCOL(regression,ablation)",
-      "ADD_COMPONENT(contract_checker)"
-    ],
-    "required_protocols": [
-      "regression",
-      "ablation"
+    "avoid_combinations": [
+      "ADD_COMPONENT(extra_auxiliary_stack) in the same plan"
     ],
     "execution_logic": [
       "Identify the defect from `defect_tags`.",
@@ -127,23 +88,27 @@
     ]
   },
   "multi-scale-coordinator": {
-    "description": "Add a coordinator for cross-scale routing/aggregation without making gating the main idea.",
+    "description": "Add a coordinator that aligns decisions across scales, layers, or service tiers without making coordination overhead the main contribution.",
     "defects": [
       "scale_mismatch",
       "coordination_failure",
       "latency_bottleneck"
     ],
     "guardrails": [
-      "Specify routing conflict resolution and added latency constraints.",
-      "Keep validation centered on whether coordination improves the core mechanism."
+      "Specify how routing conflicts are resolved across scales or layers.",
+      "Quantify the coordination overhead in latency or compute terms.",
+      "Keep validation centered on whether coordination improves the core task path."
     ],
     "atomic_blueprint": [
-      "ADD_COMPONENT(multi_scale_coordinator)",
-      "REWIRE(multi_scale_coordinator -> prediction_router)",
+      "ADD_COMPONENT(scale_coordinator)",
+      "REWIRE(scale_coordinator -> routing_layer)",
       "ADD_PROTOCOL(ablation)"
     ],
     "required_protocols": [
       "ablation"
+    ],
+    "avoid_combinations": [
+      "REMOVE_COMPONENT(routing_layer) in the same plan"
     ],
     "execution_logic": [
       "Identify the defect from `defect_tags`.",
@@ -151,24 +116,58 @@
       "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
     ]
   },
-  "self-supervised-corrector": {
-    "description": "Add a self-supervised corrector to learn residuals/invariants without over-privileging gating logic.",
+  "hierarchical-decomposition": {
+    "description": "Replace a flat control or execution flow with a hierarchy that assigns responsibilities across explicit levels.",
     "defects": [
-      "systematic_bias",
-      "silent_failure",
-      "drift"
+      "responsibility_entanglement",
+      "monolithic_design",
+      "scale_mismatch"
     ],
     "guardrails": [
-      "Define correction injection points and anti-overcorrection controls.",
-      "Keep controls lightweight and subordinate to the correction mechanism."
+      "Separate responsibilities cleanly across levels.",
+      "Avoid duplicating the same control logic in every layer.",
+      "Show that the hierarchy improves control, analysis, or scaling rather than adding ceremony."
     ],
     "atomic_blueprint": [
-      "ADD_COMPONENT(self_supervised_corrector)",
-      "REWIRE(self_supervised_corrector -> prediction_head)",
+      "REPLACE_COMPONENT(flat_pipeline -> hierarchical_pipeline)",
+      "REWIRE(hierarchical_pipeline -> execution_path)",
       "ADD_PROTOCOL(ablation)"
     ],
     "required_protocols": [
       "ablation"
+    ],
+    "avoid_combinations": [
+      "ADD_COMPONENT(parallel_shadow_pipeline) in the same plan"
+    ],
+    "execution_logic": [
+      "Identify the defect from `defect_tags`.",
+      "Generate the solution by instantiating the `atomic_blueprint`.",
+      "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
+    ]
+  },
+  "feedback-closed-loop": {
+    "description": "Turn an open-loop process into a monitored feedback loop that measures outcomes and adapts future actions online.",
+    "defects": [
+      "silent_failure",
+      "drift",
+      "open_loop_fragility"
+    ],
+    "guardrails": [
+      "Define the feedback signal, update cadence, and stability boundaries.",
+      "Keep the loop lightweight relative to the controlled path.",
+      "Validate the loop under drift, delay, or stale-feedback regimes."
+    ],
+    "atomic_blueprint": [
+      "ADD_COMPONENT(feedback_monitor)",
+      "REWIRE(feedback_monitor -> control_policy)",
+      "ADD_PROTOCOL(ablation,stress)"
+    ],
+    "required_protocols": [
+      "ablation",
+      "stress"
+    ],
+    "avoid_combinations": [
+      "REMOVE_COMPONENT(control_policy) in the same plan"
     ],
     "execution_logic": [
       "Identify the defect from `defect_tags`.",
@@ -177,24 +176,28 @@
     ]
   },
   "theory-transfer-injection": {
-    "description": "Inject a theory-backed mechanism from another domain while keeping validation/gating secondary to the transferred mechanism.",
+    "description": "Inject a theory-backed mechanism or invariant from another domain and wire it into the core objective or control rule.",
     "defects": [
       "stagnant_novelty",
       "theory_gap",
       "weak_generalization"
     ],
     "guardrails": [
-      "State the transferred mechanism and where it is wired into the system.",
-      "Use gating only if transfer reliability is itself the bottleneck."
+      "Name the transferred principle and where it enters the core path.",
+      "Limit transfer to one main mechanism instead of a bundle of unrelated ideas.",
+      "Add the minimum stress coverage needed to detect negative transfer."
     ],
     "atomic_blueprint": [
       "ADD_COMPONENT(theory_transfer_module)",
-      "REWIRE(theory_transfer_module -> training_objective)",
+      "REWIRE(theory_transfer_module -> control_objective)",
       "ADD_PROTOCOL(ablation,stress)"
     ],
     "required_protocols": [
       "ablation",
       "stress"
+    ],
+    "avoid_combinations": [
+      "ADD_COMPONENT(unrelated_parallel_module) in the same plan"
     ],
     "execution_logic": [
       "Identify the defect from `defect_tags`.",
@@ -202,25 +205,61 @@
       "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
     ]
   },
-  "evaluation-contract-overhaul": {
-    "description": "Reshape evaluation contracts to support mechanism diagnosis while keeping evaluator changes auxiliary to the core system.",
+  "speculative-execution-with-repair": {
+    "description": "Introduce speculative or optimistic execution plus explicit repair so the system can pursue fast paths without giving up recoverability.",
     "defects": [
-      "evaluation_blindspot",
-      "weak_accountability",
-      "missing_contracts"
+      "over_conservative_execution",
+      "latency_bottleneck",
+      "rollback_blindspot"
     ],
     "guardrails": [
-      "Ensure protocol changes directly expose previously hidden failure modes.",
-      "Keep model changes secondary to evaluation contract repair.",
-      "Do not let the evaluator become the whole contribution unless the defect is purely contractual."
+      "Define when speculation triggers and how mis-speculation is detected.",
+      "Bound repair cost and rollback scope.",
+      "Compare against a conservative baseline at matched resource budgets."
     ],
     "atomic_blueprint": [
-      "ADD_PROTOCOL(regression,ablation)",
-      "REPLACE_COMPONENT(legacy_evaluator -> contract_evaluator)"
+      "ADD_COMPONENT(speculative_executor)",
+      "ADD_COMPONENT(repair_handler)",
+      "REWIRE(speculative_executor -> repair_handler)",
+      "ADD_PROTOCOL(ablation,stress)"
     ],
     "required_protocols": [
-      "regression",
-      "ablation"
+      "ablation",
+      "stress"
+    ],
+    "avoid_combinations": [
+      "REMOVE_COMPONENT(repair_handler) in the same plan"
+    ],
+    "execution_logic": [
+      "Identify the defect from `defect_tags`.",
+      "Generate the solution by instantiating the `atomic_blueprint`.",
+      "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
+    ]
+  },
+  "resource-aware-adaptive-path": {
+    "description": "Add resource-aware path selection so execution adapts to workload, budget, or service-level pressure.",
+    "defects": [
+      "budget_instability",
+      "load_sensitivity",
+      "latency_bottleneck"
+    ],
+    "guardrails": [
+      "Define which resource signals are observed and how path decisions are made.",
+      "Avoid hard-coded thresholds unless they are justified by system constraints.",
+      "Report the trade-off surface across quality, latency, and cost."
+    ],
+    "atomic_blueprint": [
+      "ADD_COMPONENT(resource_monitor)",
+      "ADD_COMPONENT(adaptive_path_router)",
+      "REWIRE(resource_monitor -> adaptive_path_router)",
+      "ADD_PROTOCOL(ablation,stress)"
+    ],
+    "required_protocols": [
+      "ablation",
+      "stress"
+    ],
+    "avoid_combinations": [
+      "REMOVE_COMPONENT(adaptive_path_router) in the same plan"
     ],
     "execution_logic": [
       "Identify the defect from `defect_tags`.",

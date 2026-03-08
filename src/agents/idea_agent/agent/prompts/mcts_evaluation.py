@@ -35,7 +35,7 @@ Scoring policy:
 - Penalize plans that add gates merely to manage extra machinery they just introduced. A gate can improve feasibility, but it should not by itself raise novelty or impact.
 - Penalize feature dumping and unsupported complexity jumps.
 - If the idea drifts from topic constraints, reduce alignment_score.
-- If the defect is mainly evaluation_blindspot or weak_accountability, evaluator changes may help clarity/feasibility, but should not automatically receive high novelty or impact.
+- If the proposal mostly improves diagnosis, measurement, or guardrails without changing the task-solving path, clarity may improve, but novelty and impact should stay limited.
 - When symbolic memory hints are available, use them to calibrate scores:
   * Positive-delta records for the same component family suggest the approach is promising — credit novelty/impact.
   * Negative-delta records or listed anti-patterns signal known failure modes — increase risk/complexity_penalty accordingly.

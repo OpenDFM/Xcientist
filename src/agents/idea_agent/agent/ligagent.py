@@ -142,6 +142,14 @@ class LigAgent(AgentBase):
             override = get_config_value(config, f"mcts.{field.name}", None)
             if override is not None:
                 setattr(mcts_config, field.name, override)
+        legacy_symbolic_memory_path = get_config_value(
+            config, "mcts.skill_prior_memory_path", None
+        )
+        if (
+            legacy_symbolic_memory_path is not None
+            and get_config_value(config, "mcts.symbolic_memory_path", None) is None
+        ):
+            setattr(mcts_config, "symbolic_memory_path", legacy_symbolic_memory_path)
         idea_taste_preset = apply_idea_taste_preset(mcts_config)
         if idea_taste_preset:
             self.artifact["idea_taste_mode"] = idea_taste_preset.mode

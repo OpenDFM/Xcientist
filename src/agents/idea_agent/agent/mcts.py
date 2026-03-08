@@ -470,8 +470,9 @@ class MCTSConfig:
     risk_weight: float = _mcts_default("risk_weight", 0.20)
     protocol_weight: float = _mcts_default("protocol_weight", 0.05)
 
-    skill_prior_memory_path: str = _mcts_default(
-        "skill_prior_memory_path", "output/idea_skill_priors"
+    symbolic_memory_path: str = _mcts_default(
+        "symbolic_memory_path",
+        _mcts_default("skill_prior_memory_path", "output/idea_skill_priors"),
     )
     skill_prior_success_threshold: float = _mcts_default(
         "skill_prior_success_threshold", 0.6
@@ -604,8 +605,8 @@ class VectorMemoryAccessor:
             snippets.append(
                 MemorySnippet(
                     identifier=identifier,
-                    title=(title or "")[:80],
-                    detail=str(detail)[:400],
+                    title=(title or ""),
+                    detail=str(detail),
                     tags=list(getattr(record, "tags", []) or []),
                 )
             )
@@ -730,7 +731,7 @@ class MemoryGuidedMCTS:
 
         self.skill_catalog = SkillCatalog()
         self.symbolic_memory = SymbolicMemorySystem()
-        self.symbolic_memory_path = Path(self.config.skill_prior_memory_path)
+        self.symbolic_memory_path = Path(self.config.symbolic_memory_path)
 
         self._id_iter = itertools.count()
         self.signature_nodes: Dict[str, IdeaNode] = {}

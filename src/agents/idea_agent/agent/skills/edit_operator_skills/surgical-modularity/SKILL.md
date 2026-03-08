@@ -11,7 +11,7 @@ description: Perform a localized block-level intervention with replace/rewire an
 ## guardrails
 - Touch only one weak block.
 - Keep interfaces explicit after rewiring.
-- Include mandatory block ablation.
+- Include a mandatory block-level ablation.
 
 ## atomic_blueprint
 - REPLACE_COMPONENT(weak_block -> modular_block)

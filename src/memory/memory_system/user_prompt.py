@@ -297,7 +297,7 @@ You curate MemoryGuidedMCTS knowledge. Convert the IdeaAgent WorkingSlot into a 
 Authoring directives:
 - Summaries (≤80 words) MUST describe reusable defect→fix insights, anti-pattern guardrails, or field knowledge that hold across future searches.
 - `detail` should weave the causal reasoning: reference the edit operator(s), targeted defects, fairness or failure instrumentation, cited memory IDs, and any evaluation statistics (novelty/feasibility/impact/risk/conciseness/confidence/lift) that justify the claim.
-- When the slot is episodic, abstract it into the lasting principle or heuristic that another traversal could reuse (e.g., “counterfactual-contrast lifted novelty when dataset bias was detected”).
+- When the slot is episodic, abstract it into the lasting principle or heuristic that another traversal could reuse (e.g., “alternative-path-contrast improved rare-regime robustness when brittle_single_path was detected”).
 - Tags blend domain concepts, operators, and workflow cues such as ["pinn","mechanism-commit-innovation","mcts_semantic"].
 
 WorkingSlot excerpt:
@@ -343,7 +343,7 @@ TRANSFER_SLOT_TO_EPISODIC_RECORD_PROMPT_IDEA = dedent("""
 Document this IdeaAgent WorkingSlot as an episodic memory focused on a specific MCTS traversal segment (stage = {stage}).
 
 Guidance:
-- Situation should capture topic, parent idea state, and why this stage ran (e.g., "mcts_expansion on counterfactual-contrast to fix dataset_bias").
+- Situation should capture topic, parent idea state, and why this stage ran (e.g., "mcts_expansion on feedback-closed-loop to fix open_loop_fragility").
 - Actions must enumerate concrete operator applications, memory bundle usage, evaluation prompts, or guardrail enforcement. Reference idea title/abstract/method snippets when helpful.
 - Results must state measurable outcomes: evaluation scores (novelty/feasibility/impact/risk/clarity/conciseness/confidence/lift), fairness or failure-mode findings, Pareto role (best/novel/feasible/concise), or memory persistence decisions.
 - Populate `metrics` with numeric values whenever the slot contains them; include `"path"` or `"idea_signature"` entries inside `artifacts` when mentioned (e.g., path summary, memory_refs).
@@ -394,10 +394,10 @@ Convert the IdeaAgent WorkingSlot into a procedural memory entry that describes 
 
 Expectations:
 - `name` should hint at when to apply the playbook (operator + targeted defects or evaluation purpose).
-- The description (≤60 words) must state trigger conditions (e.g., "use when novelty stagnates and dataset_bias is flagged") and the intended impact (lift, fairness coverage, failure surfacing).
+- The description (≤60 words) must state trigger conditions (e.g., "use when novelty stagnates and brittle_single_path is flagged") and the intended impact (lift, fairness coverage, failure surfacing).
 - `steps` should be actionable and sequential: include memory retrieval prep, edit-operator injection, reproducibility spec (mechanism, formula, insertion point, overhead), evaluation/ablation requirements, and persistence/guardrail steps.
 - Use `code` for any command, pseudo-code, or schema snippets referenced in the slot; leave empty string if none.
-- Tags mix domain cues and workflow hints such as ["idea_agent","mcts","counterfactual-contrast","fairness_protocol"].
+- Tags mix domain cues and workflow hints such as ["idea_agent","mcts","resource-aware-adaptive-path","stress_protocol"].
 
 WorkingSlot excerpt:
 <working-slot>

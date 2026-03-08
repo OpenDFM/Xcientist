@@ -346,7 +346,7 @@ This retrospective signal lets the evaluator LLM distinguish between "this compo
 - Structured `SymbolicRecord` objects keyed by `(component_family, ContextSignature, agent_id)`
 - Each record captures: `summary`, `pattern`, `conditions`, `actions`, `anti_patterns`, `main_op`, `delta_score`, `confidence`
 - Populated externally (ablation results or paper-graph analysis), not by MCTS internal writes
-- Persisted at `mcts.skill_prior_memory_path` (default `output/idea_skill_priors`)
+- Persisted at `mcts.symbolic_memory_path` (default `output/idea_skill_priors`)
 - Loaded at startup via `MemoryGuidedMCTS.__init__` → `_load_skill_prior_memory()`
 - Cold-start fallback: prospective mode falls back to uniform skill ordering; retrospective mode injects a neutral placeholder (`"No symbolic memory hints available."`)
 
@@ -412,7 +412,7 @@ See §5.5 for the full expand-time mechanism. Key properties:
 
 - Records are keyed by exact `(component_family, context_sig)` tuples, not by embedding similarity
 - Populated externally (e.g., from ablation results or paper-graph conclusions), not from MCTS internal writes
-- Loaded at startup from `mcts.skill_prior_memory_path` (`output/idea_skill_priors` by default)
+- Loaded at startup from `mcts.symbolic_memory_path` (`output/idea_skill_priors` by default)
 - Falls back gracefully to uniform skill ordering when empty (cold start)
 
 **Summary of roles:**

@@ -687,37 +687,7 @@ class SlotProcess:
             except Exception as e:
                 import traceback
                 print("[ERROR] upsert_normal_records for episodic_records failed:", repr(e))
-                traceback.print_exc()
-
-    def multi_thread_process(self, func, max_workers: int = 5, **kwargs) -> None:
-        '''
-        Multi-thread process for: 1. transfer context to working slots; 2. filter and route working slots; 3. transfer working slots to long-term memories.
-        '''
-        # func is your processing function
-        try:
-            func(**kwargs) # call your processing function here, your processing function MUST load context to working slots first!
-            working_slots = self.slot_container.values()
-            num_slots = len(working_slots)
-
-            # filter and route
-            print(f"[Info] Filtering and routing {num_slots} slots")
-            _multi_thread_run(self.multi_thread_filter_and_route_slot, working_slots, max_workers=max_workers)
-            routed_slots = llm_client.slot_process.routed_slot_container
-            num_routed_slots = len(routed_slots)
-            print(f"[Info] Transferring memories from {num_routed_slots} slots to memory systems")
-
-            # generate memories in multi-threaded way
-            _multi_thread_run(self.multi_thread_transfer_slot_to_memory, routed_slots, max_workers=max_workers)
-
-            # transfer memories to records
-            asyncio.run(self.multi_thread_transfer_dicts_to_memories(is_abstract=args.abstract_memories))
-
-        except Exception as e:
-            print(f"Error processing batch: {e}")
-
-        print(f"[Info] Semantic memory size: {llm_client.semantic_memory_system.size}")
-        print(f"[Info] Episodic memory size: {llm_client.episodic_memory_system.size}")
-        print(f"[Info] Procedural memory size: {llm_client.procedural_memory_system.size}")        
+                traceback.print_exc()     
 
 
 class Schema:

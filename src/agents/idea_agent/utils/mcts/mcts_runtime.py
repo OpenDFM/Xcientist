@@ -5,13 +5,16 @@ from __future__ import annotations
 import hashlib
 import itertools
 import json
+import math
+import random
 import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
-
+from src.agents.idea_agent.utils.mcts.defect_registry import DEFECT_REGISTRY
 from memory.api.component_taxonomy import ContextSignature, extract_component_families, extract_context_signature
+from src.agents.idea_agent.utils.mcts.defect_registry import format_defect_registry
 from src.agents.idea_agent.utils.mcts.mcts_helpers import clip_text, parse_json_response
 from src.agents.idea_agent.utils.prompting.prompt_views import (
     format_edit_plan_prompt_view,
@@ -49,123 +52,6 @@ def format_op_descriptions() -> str:
         lines.append(f"  - {op.value}: {desc}")
     return "\n".join(lines)
 
-
-# ---------------------------------------------------------------------------
-# Defect Registry – canonical defect tags used across all edit-operator skills.
-# The evaluator references this registry to output structured defect tags.
-# ---------------------------------------------------------------------------
-DEFECT_REGISTRY: Dict[str, str] = {
-    # mechanism-commit-innovation / theory-transfer-injection
-    "stagnant_novelty": (
-        "The idea lacks a genuinely new mechanism; contributions feel incremental "
-        "or re-package known techniques without a clear novel insight."
-    ),
-    "unclear_mechanism": (
-        "The core algorithmic mechanism is vaguely described or under-specified, "
-        "making it hard to reproduce or evaluate the contribution."
-    ),
-    "validation_gap": (
-        "The experimental protocol is missing critical checks such as ablations, "
-        "stress tests, or fair baselines needed to support the claims."
-    ),
-    # counterfactual-contrast
-    "missing_edge_cases": (
-        "The method is not tested on rare, adversarial, or boundary-condition inputs "
-        "that are necessary to establish robustness."
-    ),
-    "weak_generalization": (
-        "Evidence that the approach transfers across domains, distributions, or "
-        "scales is insufficient or absent."
-    ),
-    "dataset_bias": (
-        "Training or evaluation data contains systematic biases that may inflate "
-        "reported performance or hide failure modes."
-    ),
-    # adaptive-constraint-hybridization
-    "constraint_drift": (
-        "Constraints or regularization terms shift or decay during training, "
-        "undermining the intended structural guarantees."
-    ),
-    "physical_invalidity": (
-        "Model outputs violate known physical laws, domain invariants, or "
-        "hard constraints that the application requires."
-    ),
-    "weak_regularization": (
-        "Regularization is too loose, causing overfitting, mode collapse, or "
-        "uncontrolled capacity growth."
-    ),
-    # surgical-modularity
-    "feature_dumping": (
-        "Multiple components or features are added simultaneously without "
-        "individual justification, making ablation impossible."
-    ),
-    "monolithic_design": (
-        "The architecture is a single tightly-coupled block, resisting modular "
-        "analysis, replacement, or incremental improvement."
-    ),
-    "harder_to_ablate": (
-        "Design choices make it difficult to isolate the effect of any single "
-        "component through ablation studies."
-    ),
-    # data-contract-repair
-    "data_quality": (
-        "Input data suffers from noise, missing values, mislabelling, or "
-        "distribution issues that propagate into model errors."
-    ),
-    "label_noise": (
-        "Ground-truth labels are unreliable, inconsistent, or systematically "
-        "corrupted, weakening supervised learning signals."
-    ),
-    "missing_contracts": (
-        "There are no explicit data or evaluation contracts specifying what "
-        "inputs, outputs, and invariants must hold."
-    ),
-    # multi-scale-coordinator
-    "scale_mismatch": (
-        "The model operates at a single resolution or scale while the problem "
-        "requires multi-scale reasoning or aggregation."
-    ),
-    "coordination_failure": (
-        "Multiple sub-modules or branches fail to coordinate their predictions, "
-        "causing conflicts, redundancy, or information loss."
-    ),
-    "latency_bottleneck": (
-        "A specific component or data path introduces unacceptable latency, "
-        "blocking real-time or large-scale deployment."
-    ),
-    # self-supervised-corrector
-    "systematic_bias": (
-        "The model consistently over- or under-predicts in a structured pattern "
-        "that a targeted correction could mitigate."
-    ),
-    "silent_failure": (
-        "The system produces confident but wrong outputs without raising any "
-        "flag, making errors hard to detect downstream."
-    ),
-    "drift": (
-        "Model performance degrades over time as the data distribution shifts "
-        "away from the training regime."
-    ),
-    # theory-transfer-injection
-    "theory_gap": (
-        "The method lacks grounding in established theory that could provide "
-        "convergence guarantees, error bounds, or interpretability."
-    ),
-    # evaluation-contract-overhaul
-    "evaluation_blindspot": (
-        "The evaluation protocol misses important dimensions such as fairness, "
-        "calibration, out-of-distribution performance, or efficiency."
-    ),
-    "weak_accountability": (
-        "There is no mechanism to attribute failures to specific components, "
-        "data slices, or design decisions."
-    ),
-    # default fallback used when no context-specific defect is identified
-    "unexplored_gap": (
-        "No specific defect has been identified yet; the idea space is still "
-        "being explored and requires targeted analysis."
-    ),
-}
 
 
 def format_defect_registry() -> str:
@@ -721,22 +607,48 @@ class SkillCatalog:
         if not defects:
             defects = {"unexplored_gap"}
 
-        scored: List[Tuple[float, EditOperatorSkill]] = []
+        scored: List[Dict[str, Any]] = []
         budget_tight = _is_budget_tight(budget)
         for skill in self.skills.values():
             skill_defects = {d.lower() for d in skill.defects}
             overlap = len(defects & skill_defects)
             defect_score = overlap / max(1, len(defects))
-            prior = self.priors.get(skill.name, SkillUsagePrior()).prior
+            prior_state = self.priors.get(skill.name, SkillUsagePrior())
+            prior = prior_state.prior
+            attempts = max(0, int(prior_state.attempts))
             gate_score = 0.0
             uses_gate = any(step.startswith("GATE_COMPONENT") for step in skill.atomic_blueprint)
             if budget_tight and uses_gate:
                 gate_score = 1.0
             total = 0.50 * defect_score + 0.45 * prior + 0.05 * gate_score
-            scored.append((total, skill))
+            scored.append(
+                {
+                    "total": total,
+                    "defect_score": defect_score,
+                    "attempts": attempts,
+                    "skill": skill,
+                }
+            )
 
-        scored.sort(key=lambda item: item[0], reverse=True)
-        picked = [skill for _, skill in scored[: max(1, max_children)]]
+        scored.sort(key=lambda item: item["total"], reverse=True)
+        max_children = max(1, int(max_children))
+        if max_children == 1:
+            picked = [scored[0]["skill"]] if scored else []
+        else:
+            exploit_count = min(len(scored), max(0, max_children - 1))
+            picked = [entry["skill"] for entry in scored[:exploit_count]]
+            remaining = scored[exploit_count:]
+            if remaining and len(picked) < max_children:
+                eligible = [entry for entry in remaining if float(entry["defect_score"]) > 0.0]
+                if eligible:
+                    weights = [
+                        float(entry["defect_score"])
+                        * (1.0 + 1.0 / math.sqrt(float(entry["attempts"]) + 1.0))
+                        for entry in eligible
+                    ]
+                    picked.append(random.choices(eligible, weights=weights, k=1)[0]["skill"])
+                else:
+                    picked.append(random.choice(remaining)["skill"])
         if not picked:
             return self.list_skills()[: max(1, max_children)]
         return picked

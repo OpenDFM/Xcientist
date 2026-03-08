@@ -1,6 +1,6 @@
 ---
 name: mechanism-commit-innovation
-description: Commit to a concrete mechanism-level innovation and keep validation/gating secondary to the mechanism change.
+description: Commit to one concrete mechanism-level innovation and keep scaffolding secondary to the task-solving path.
 ---
 
 ## defect_tags
@@ -9,13 +9,13 @@ description: Commit to a concrete mechanism-level innovation and keep validation
 - validation_gap
 
 ## guardrails
-- Name exactly which component is introduced or rewired and link it to a defect.
-- Keep one main mechanism and move extra implementation details to notes.
-- Use the smallest validation set that can falsify the core mechanism.
+- Name the exact mechanism being introduced and the primary execution path it changes.
+- Keep one main mechanism; move supporting implementation details to notes or protocols.
+- Use the smallest validation suite that can falsify the core mechanism.
 
 ## atomic_blueprint
 - ADD_COMPONENT(core_mechanism_module)
-- REWIRE(backbone_model -> core_mechanism_module)
+- REWIRE(core_mechanism_module -> primary_execution_path)
 - ADD_PROTOCOL(ablation)
 
 ## required_protocols

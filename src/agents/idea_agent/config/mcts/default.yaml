@@ -14,10 +14,10 @@ mcts:
   component_novelty_index_dir: null
   component_novelty_retrieval_top_k: 50
   component_novelty_evidence_top_k: 5
-  component_novelty_eval_model: null
+  component_novelty_eval_model: "gpt-5.4"
   component_novelty_eval_temperature: 0.001
   component_novelty_eval_max_tokens: 65536
   min_confidence_for_memory: 0.6
   pareto_top_k: 5
-  skill_prior_memory_path: "output/idea_skill_priors"
+  symbolic_memory_path: "output/symbolic_memory.json"
   skill_prior_success_threshold: 0.6
