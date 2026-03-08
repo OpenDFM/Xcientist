@@ -35,72 +35,76 @@ pip install -r requirements.txt
 
 ### 1. Idea Agent（想法生成）
 
-**作用**：通过 Memory-Guided MCTS 流水线，从给定研究主题中生成创新性研究想法。
+**作用**：把研究主题或已有成熟想法转成结构化研究 proposal，核心路径是“检索 → 分析 → Memory-Guided MCTS 搜索 → 持久化”。
 
-**工作流程**：
+**当前实际工作流**：
 
-Agent 运行固定的多轮循环。第 1 轮固定执行 `knowledge_aquisition`，后续轮次由 LLM 从动作空间中自主选择：
+现在主流程不是旧版的“五动作循环”，而是一个条件分支 workflow：
 
-| 动作 | 作用 |
+| 阶段 | 作用 |
 |------|------|
-| `knowledge_aquisition` | Semantic Scholar 种子检索 → 生成 RAG 查询 → OutcomeRAG 检索 → 引用扩展 → 丰富并筛选论文 |
-| `advanced_analysis` | LLM 从精选论文中提取关键方法、痛点与开放问题 |
-| `idea_generation` | Memory-Guided MCTS 搜索产出最优想法；触发 `persist_final_idea` |
-| `idea_evaluation` | 对最新想法进行独立 LLM 评分 |
-| `re_analysis_replan` | 当前方向耗尽时，扩展 topic 与检索关键词 |
+| `knowledge_aquisition` | 冷启动检索：Semantic Scholar 种子检索 → OutcomeRAG 查询 → 引用扩展 → 论文丰富与筛选 |
+| `advanced_analysis` | 从精选论文中提炼机制、痛点、开放问题与搜索种子 |
+| `re_analysis_replan` | 当已有 RAG 上下文时，重写 topic 焦点、成熟想法和检索方向 |
+| `idea_generation` | 运行 Memory-Guided MCTS，产出最佳 idea，并写出 `idea_result.json` |
+
+当前控制流：
+- 冷启动：`knowledge_aquisition -> advanced_analysis -> idea_generation`
+- 若 `artifact["rag_hits"]` 已存在：`advanced_analysis -> re_analysis_replan -> idea_generation`
+
+**当前版本 Idea Agent 的几个关键特点**：
+- **Contract 模式**：`run.mature_idea` 会直接作为 MCTS 根节点，后续搜索只做机制内 refinement，不做随意漂移。
+- **根领域锁定**：MCTS 根节点会先被分类到 1 到 2 个固定研究领域，所有子 idea 都必须留在这些领域内。
+- **Preset 驱动搜索**：`mcts.idea_taste_mode` 现在同时影响评估权重、`select_skills()` 的 bias，以及 component 生成时的 taste guidance。
+- **跨领域理论迁移但不换领域**：`theory-transfer-injection` 可以检索别的领域里的 paper-graph 机制，但实例化时仍必须留在当前 idea 的 home domain。
+- **双重记忆系统**：向量记忆负责文本提示，符号记忆负责前瞻式 operator prior 和回顾式 evaluator hints。
 
 **输入**：
-- `run.topics`：研究主题列表（在 `src/agents/idea_agent/config/run/default.yaml` 中配置）
-- `run.mature_idea`（可选）：开启 **Contract 模式** — MCTS 根节点由成熟想法派生，所有扩展在其机制范围内进行
+- `run.topics`：研究主题列表，定义在 `src/agents/idea_agent/config/run/default.yaml`
+- `run.mature_idea`（可选）：开启 contract-rooted search
+- `run.rag_config`：OutcomeRAG 配置路径
+- `mcts.idea_taste_mode`：搜索口味 preset，目前支持 `moonshot_inventor`、`bridge_builder`、`steady_engineer`、`ambitious_realist`、`evidence_first`
 
 **输出**：
-- `runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json`：最终想法（含 title、abstract、introduction、algorithm、reference_papers、mcts_evolution）
-- `runs/<topic-slug>-<timestamp>-<uuid>/logs/ligagent.log`：完整运行日志
+- 默认写到 `src/agents/idea_agent/runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json`
+  - 包含 `title`、`abstract`、`introduction`、`components`、`algorithm`、`reference_papers`、`mcts_evolution`
+- 默认写到 `src/agents/idea_agent/runs/<topic-slug>-<timestamp>-<uuid>/logs/ligagent.log`
+- 运行中的 `artifact["idea_pool"]` 条目还会保留 `evaluation`、`search_score`、`search_path`、`pareto_candidates`、`search_trace`
 
-**配置位置**：`src/agents/idea_agent/config/`（推荐直接改 YAML）
+**配置位置**：`src/agents/idea_agent/config/`
 
 主要配置文件：
-- `src/agents/idea_agent/config/run/default.yaml` — 运行时参数：**topics / parallelism / rag_config / mature_idea**
-- `src/agents/idea_agent/config/mcts/default.yaml` — MCTS：**max_iterations / max_depth / branching_factor / generation_model / evaluation_model**
+- `src/agents/idea_agent/config/run/default.yaml`
+  - `topics`、`parallelism`、`output_root`、`rag_config`、`mature_idea`
+- `src/agents/idea_agent/config/mcts/default.yaml`
+  - `max_iterations`、`max_depth`、`branching_factor`、`idea_taste_mode`
+  - `generation_model`、`evaluation_model`
+  - `symbolic_memory_path`、`skill_prior_success_threshold`
+  - `theory_transfer_retrieval_top_k`、`theory_transfer_similarity_threshold`
 
-**运行时配置（`run/default.yaml`）**：
+**最小示例**：
 ```yaml
 run:
   topics:
     - "Diffusion Models for Reinforcement Learning in Games"
-  parallelism: 1        # 并发 worker 数（1 = 串行）
-  output_root: "runs"   # 相对于 idea_agent 根目录
-  console_logs: true
+  parallelism: 1
+  output_root: "runs"
   rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
-  # 可选：开启 Contract 模式
-  # mature_idea: "..."
+  # mature_idea: "可选的 contract root"
 
-  # API 凭据
-  openai_api_key: "your-api-key"
-  openai_base_url: "https://api.example.com/v1"
-  s2_api_key: "your-s2-key"
-  s2_api_timeout: "60"
-  serper_api_key: "your-serper-key"
-  mineru_model_source: "modelscope"
-```
-
-**MCTS 配置（`mcts/default.yaml`）**：
-```yaml
 mcts:
-  max_iterations: 128
+  max_iterations: 64
   max_depth: 3
   branching_factor: 3
-  exploration_constant: 1.15
+  idea_taste_mode: "evidence_first"
   generation_model: "gpt-5-mini"
-  evaluation_model: "gpt-5.2"
-  generation_temperature: 0.7
-  evaluation_temperature: 0.001
-  min_confidence_for_memory: 0.6   # LTM 写回置信度门控
+  evaluation_model: "gpt-5.4"
+  symbolic_memory_path: "output/symbolic_memory.json"
 ```
 
-**RAG 配置**：`run.rag_config` 必须指向有效的 OutcomeRAG 配置，且其中的 `save_path` / `save_json_path` 须指向已生成的 survey 输出。
+`run.rag_config` 必须指向有效的 OutcomeRAG 配置，且对应 survey 输出已经存在。
 
-> LigAgent 内部机制（Artifact 结构、MCTS 详解、persist_final_idea 流程、LTM 等）详见 `src/agents/idea_agent/README.md`。
+> LigAgent 的当前内部实现，包括 artifact 字段、MCTS 扩展逻辑、preset 机制、root-domain 控制、theory-transfer 检索和持久化细节，详见 `src/agents/idea_agent/README_CN.md`。
 
 **用法**：
 ```bash

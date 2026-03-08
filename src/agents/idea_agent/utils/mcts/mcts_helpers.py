@@ -8,6 +8,35 @@ from typing import Any, Dict, List, Sequence, Set, Tuple
 from src.agents.idea_agent.utils.prompting.prompt_views import format_analysis_prompt_view
 
 
+ROOT_DOMAIN_CATALOG: Dict[str, str] = {
+    "cs.AI": "Artificial Intelligence",
+    "cs.CL": "Computation and Language",
+    "cs.CR": "Cryptography and Security",
+    "cs.CV": "Computer Vision and Pattern Recognition",
+    "cs.DS": "Data Structures and Algorithms",
+    "cs.GT": "Computer Science and Game Theory",
+    "cs.LG": "Machine Learning",
+    "cs.NE": "Neural and Evolutionary Computing",
+    "cs.RO": "Robotics",
+    "cs.SI": "Social and Information Networks",
+    "stat.ML": "Machine Learning (Statistics)",
+}
+DEFAULT_ROOT_DOMAIN = "cs.LG"
+_ROOT_DOMAIN_FALLBACK_RULES: Tuple[Tuple[str, str], ...] = (
+    ("cs.CV", "vision image video segmentation detection visual multimodal camera pixel"),
+    ("cs.CL", "language text llm nlp translation summarization dialogue speech token prompt"),
+    ("cs.RO", "robot robotics slam manipulation control navigation drone embodied"),
+    ("cs.CR", "security privacy cryptography secure attack adversarial authentication"),
+    ("cs.DS", "algorithm algorithms graph shortest path combinatorial data structure"),
+    ("cs.GT", "game theory auction bandit equilibrium mechanism design"),
+    ("cs.SI", "social network information diffusion recommendation influence graph"),
+    ("cs.NE", "neural evolutionary neuroscience spike spiking brain"),
+    ("stat.ML", "bayesian posterior statistical statistics estimator inference uncertainty"),
+    ("cs.LG", "learning machine learning training optimization representation model"),
+    ("cs.AI", "reasoning planning agent artificial intelligence knowledge"),
+)
+
+
 def parse_json_response(raw: str) -> Dict[str, Any]:
     """
     Strip potential code fences and capture the first JSON object/array.
@@ -48,6 +77,56 @@ def clip_text(value: Any, limit: int = 800) -> str:
     if len(text) <= limit:
         return text
     return text[: max(1, limit - 1)] + "..."
+
+
+def _normalize_root_domains(items: Sequence[str]) -> List[str]:
+    ordered: List[str] = []
+    seen: Set[str] = set()
+    for item in items:
+        code = str(item).strip()
+        if not code or code not in ROOT_DOMAIN_CATALOG or code in seen:
+            continue
+        seen.add(code)
+        ordered.append(code)
+    return ordered[:2]
+
+
+def _format_root_domains_for_prompt(domains: Sequence[str]) -> str:
+    normalized = _normalize_root_domains(domains)
+    if not normalized:
+        return "Unspecified"
+    return ", ".join(f"{code} ({ROOT_DOMAIN_CATALOG[code]})" for code in normalized)
+
+
+def _infer_root_domains_heuristically(topic: str, text: str) -> List[str]:
+    haystack = f"{topic}\n{text}".lower()
+    scores: Dict[str, int] = {code: 0 for code in ROOT_DOMAIN_CATALOG}
+    for code, keywords in _ROOT_DOMAIN_FALLBACK_RULES:
+        for token in keywords.split():
+            if token in haystack:
+                scores[code] += 1
+
+    ranked = [
+        code
+        for code, score in sorted(scores.items(), key=lambda item: (-item[1], item[0]))
+        if score > 0
+    ]
+    if not ranked:
+        return [DEFAULT_ROOT_DOMAIN]
+
+    chosen = ranked[:2]
+    if "cs.LG" in ranked and "cs.LG" not in chosen and len(chosen) < 2:
+        chosen.append("cs.LG")
+    return _normalize_root_domains(chosen or [DEFAULT_ROOT_DOMAIN])
+
+
+def _pretty_json(value: Any) -> str:
+    if isinstance(value, (dict, list)):
+        try:
+            return json.dumps(value, ensure_ascii=False, indent=2, default=str)
+        except Exception:
+            return str(value)
+    return str(value)
 
 
 def _humanize_component_name(component: str) -> str:

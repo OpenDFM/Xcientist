@@ -35,72 +35,76 @@ pip install -r requirements.txt
 
 ### 1. Idea Agent
 
-**Purpose**: Generates innovative research ideas from given topics via a Memory-Guided MCTS pipeline.
+**Purpose**: turn a topic or mature idea into a structured research proposal through retrieval, literature analysis, and a Memory-Guided MCTS search.
 
-**Workflow**:
+**Actual runtime workflow**:
 
-The agent runs a fixed multi-turn loop. Turn 1 is always `knowledge_aquisition`; subsequent turns are selected by the LLM from the action space:
+The main workflow is now a conditional stage graph rather than the old "five-action loop":
 
-| Action | Role |
-|--------|------|
-| `knowledge_aquisition` | Semantic Scholar seed → RAG query → OutcomeRAG retrieval → citation expansion → enrich & filter papers |
-| `advanced_analysis` | LLM extracts key methods, pain points, and open questions from curated papers |
-| `idea_generation` | Memory-Guided MCTS search produces the best idea; triggers `persist_final_idea` |
-| `idea_evaluation` | Standalone LLM scoring of the latest idea |
-| `re_analysis_replan` | Expands topic and retrieval keywords when the current direction is exhausted |
+| Stage | Role |
+|------|------|
+| `knowledge_aquisition` | Cold-start retrieval: Semantic Scholar seed → OutcomeRAG query → citation expansion → paper enrichment/filtering |
+| `advanced_analysis` | Summarize curated literature into mechanisms, gaps, and search seeds |
+| `re_analysis_replan` | Revise topic focus, mature idea, and retrieval direction when RAG context already exists |
+| `idea_generation` | Run Memory-Guided MCTS, materialize the best idea, and persist `idea_result.json` |
+
+Current control flow:
+- Cold start: `knowledge_aquisition -> advanced_analysis -> idea_generation`
+- If `artifact["rag_hits"]` already exists: `advanced_analysis -> re_analysis_replan -> idea_generation`
+
+**What is distinctive about the current Idea Agent**:
+- **Contract mode**: `run.mature_idea` turns the provided idea into the MCTS root; descendants refine rather than drift.
+- **Root-domain locking**: the MCTS root is classified into one or two fixed research domains; all child ideas must stay in those domains.
+- **Preset-driven search**: `mcts.idea_taste_mode` now affects three things at once: evaluation weights, skill selection bias, and component-generation guidance.
+- **Cross-domain theory transfer with domain lock**: `theory-transfer-injection` can retrieve external paper-graph mechanisms from other domains, but instantiation is still forced to remain in the idea's home domain.
+- **Dual memory guidance**: vector memory provides text snippets, while symbolic memory provides prospective operator priors and retrospective evaluation hints.
 
 **Inputs**:
-- `run.topics`: list of research topics (`src/agents/idea_agent/config/run/default.yaml`)
-- `run.mature_idea` (optional): enables **Contract mode** — MCTS root is derived from the mature idea and all expansions stay within its mechanism
+- `run.topics`: topic list in `src/agents/idea_agent/config/run/default.yaml`
+- `run.mature_idea` (optional): enables contract-rooted search
+- `run.rag_config`: OutcomeRAG config path
+- `mcts.idea_taste_mode`: preset controlling search posture (`moonshot_inventor`, `bridge_builder`, `steady_engineer`, `ambitious_realist`, `evidence_first`)
 
 **Outputs**:
-- `runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json`: final idea (title, abstract, introduction, algorithm, reference_papers, mcts_evolution)
-- `runs/<topic-slug>-<timestamp>-<uuid>/logs/ligagent.log`: full run log
+- by default, `src/agents/idea_agent/runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json`
+  - contains `title`, `abstract`, `introduction`, `components`, `algorithm`, `reference_papers`, and `mcts_evolution`
+- by default, `src/agents/idea_agent/runs/<topic-slug>-<timestamp>-<uuid>/logs/ligagent.log`
+- in-memory `artifact["idea_pool"]` entries also keep `evaluation`, `search_score`, `search_path`, `pareto_candidates`, and `search_trace`
 
-**Config location**: `src/agents/idea_agent/config/` (edit YAML directly)
+**Config location**: `src/agents/idea_agent/config/`
 
 Key config files:
-- `src/agents/idea_agent/config/run/default.yaml` — runtime params: **topics / parallelism / rag_config / mature_idea**
-- `src/agents/idea_agent/config/mcts/default.yaml` — MCTS: **max_iterations / max_depth / branching_factor / generation_model / evaluation_model**
+- `src/agents/idea_agent/config/run/default.yaml`
+  - `topics`, `parallelism`, `output_root`, `rag_config`, `mature_idea`
+- `src/agents/idea_agent/config/mcts/default.yaml`
+  - `max_iterations`, `max_depth`, `branching_factor`, `idea_taste_mode`
+  - `generation_model`, `evaluation_model`
+  - `symbolic_memory_path`, `skill_prior_success_threshold`
+  - `theory_transfer_retrieval_top_k`, `theory_transfer_similarity_threshold`
 
-**Runtime config (`run/default.yaml`)**:
+**Minimal example**:
 ```yaml
 run:
   topics:
     - "Diffusion Models for Reinforcement Learning in Games"
-  parallelism: 1        # concurrent workers (1 = serial)
-  output_root: "runs"   # relative to idea_agent root
-  console_logs: true
+  parallelism: 1
+  output_root: "runs"
   rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
-  # Optional: enable Contract mode
-  # mature_idea: "..."
+  # mature_idea: "Optional contract root"
 
-  # API credentials
-  openai_api_key: "your-api-key"
-  openai_base_url: "https://api.example.com/v1"
-  s2_api_key: "your-s2-key"
-  s2_api_timeout: "60"
-  serper_api_key: "your-serper-key"
-  mineru_model_source: "modelscope"
-```
-
-**MCTS config (`mcts/default.yaml`)**:
-```yaml
 mcts:
-  max_iterations: 128
+  max_iterations: 64
   max_depth: 3
   branching_factor: 3
-  exploration_constant: 1.15
+  idea_taste_mode: "evidence_first"
   generation_model: "gpt-5-mini"
-  evaluation_model: "gpt-5.2"
-  generation_temperature: 0.7
-  evaluation_temperature: 0.001
-  min_confidence_for_memory: 0.6   # LTM write-back threshold
+  evaluation_model: "gpt-5.4"
+  symbolic_memory_path: "output/symbolic_memory.json"
 ```
 
-**RAG config**: `run.rag_config` must point to a valid OutcomeRAG config whose `save_path` / `save_json_path` reference existing survey outputs.
+`run.rag_config` must point to a valid OutcomeRAG config whose saved survey outputs already exist.
 
-> For a detailed description of LigAgent internals (Artifact structure, MCTS mechanisms, persist_final_idea flow, LTM, etc.), see `src/agents/idea_agent/README.md`.
+> For the current internals of LigAgent, including artifact fields, MCTS expansion, preset handling, root-domain control, theory-transfer retrieval, and persistence, see `src/agents/idea_agent/README.md`.
 
 **Usage**:
 ```bash

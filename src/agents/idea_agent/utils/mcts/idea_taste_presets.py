@@ -25,6 +25,8 @@ class IdeaTastePreset:
     label: str
     summary: str
     weights: Dict[str, float]
+    skill_bias: Dict[str, float]
+    instantiation_guidance: str
 
 
 IDEA_TASTE_PRESETS: Dict[str, IdeaTastePreset] = {
@@ -36,16 +38,31 @@ IDEA_TASTE_PRESETS: Dict[str, IdeaTastePreset] = {
             "higher implementation risk and structural complexity."
         ),
         weights={
-            "alignment_weight": 0.30,
-            "complexity_weight": 0.10,
-            "novelty_weight": 0.45,
-            "impact_weight": 0.30,
-            "feasibility_weight": 0.10,
+            "alignment_weight": 0.28,
+            "complexity_weight": 0.08,
+            "novelty_weight": 0.48,
+            "impact_weight": 0.34,
+            "feasibility_weight": 0.12,
             "clarity_weight": 0.10,
             "conciseness_weight": 0.05,
-            "risk_weight": 0.10,
-            "protocol_weight": 0.08,
+            "risk_weight": 0.08,
+            "protocol_weight": 0.06,
         },
+        skill_bias={
+            "mechanism-commit-innovation": 1.0,
+            "theory-transfer-injection": 0.9,
+            "alternative-path-contrast": 0.4,
+            "multi-scale-coordinator": 0.35,
+            "hierarchical-decomposition": 0.35,
+            "feedback-closed-loop": 0.2,
+            "surgical-modularity": 0.25,
+            "speculative-execution-with-repair": 0.3,
+            "resource-aware-adaptive-path": 0.15,
+        },
+        instantiation_guidance=(
+            "Prefer one bold mechanism-level move with outsized upside. Let the "
+            "core novelty live in the task-solving path, not in extra scaffolding."
+        ),
     ),
     "bridge_builder": IdeaTastePreset(
         mode="bridge_builder",
@@ -55,16 +72,31 @@ IDEA_TASTE_PRESETS: Dict[str, IdeaTastePreset] = {
             "domain B, with less emphasis on raw novelty and more on fit."
         ),
         weights={
-            "alignment_weight": 0.45,
-            "complexity_weight": 0.10,
-            "novelty_weight": 0.10,
-            "impact_weight": 0.22,
-            "feasibility_weight": 0.28,
-            "clarity_weight": 0.18,
+            "alignment_weight": 0.42,
+            "complexity_weight": 0.12,
+            "novelty_weight": 0.24,
+            "impact_weight": 0.30,
+            "feasibility_weight": 0.24,
+            "clarity_weight": 0.16,
             "conciseness_weight": 0.08,
-            "risk_weight": 0.18,
-            "protocol_weight": 0.24,
+            "risk_weight": 0.16,
+            "protocol_weight": 0.18,
         },
+        skill_bias={
+            "theory-transfer-injection": 1.0,
+            "multi-scale-coordinator": 0.65,
+            "hierarchical-decomposition": 0.6,
+            "alternative-path-contrast": 0.45,
+            "feedback-closed-loop": 0.35,
+            "mechanism-commit-innovation": 0.25,
+            "surgical-modularity": 0.25,
+            "resource-aware-adaptive-path": 0.2,
+            "speculative-execution-with-repair": 0.15,
+        },
+        instantiation_guidance=(
+            "Emphasize the transferable principle, adaptation point, and fit to the "
+            "current domain. Make negative-transfer risks explicit."
+        ),
     ),
     "steady_engineer": IdeaTastePreset(
         mode="steady_engineer",
@@ -74,35 +106,66 @@ IDEA_TASTE_PRESETS: Dict[str, IdeaTastePreset] = {
             "and less likely to fail."
         ),
         weights={
-            "alignment_weight": 0.40,
-            "complexity_weight": 0.22,
-            "novelty_weight": 0.08,
-            "impact_weight": 0.18,
-            "feasibility_weight": 0.36,
+            "alignment_weight": 0.38,
+            "complexity_weight": 0.20,
+            "novelty_weight": 0.20,
+            "impact_weight": 0.28,
+            "feasibility_weight": 0.30,
             "clarity_weight": 0.20,
             "conciseness_weight": 0.16,
-            "risk_weight": 0.32,
-            "protocol_weight": 0.22,
+            "risk_weight": 0.28,
+            "protocol_weight": 0.20,
         },
+        skill_bias={
+            "surgical-modularity": 1.0,
+            "feedback-closed-loop": 0.75,
+            "resource-aware-adaptive-path": 0.7,
+            "hierarchical-decomposition": 0.45,
+            "alternative-path-contrast": 0.35,
+            "mechanism-commit-innovation": 0.3,
+            "multi-scale-coordinator": 0.25,
+            "speculative-execution-with-repair": 0.2,
+            "theory-transfer-injection": 0.15,
+        },
+        instantiation_guidance=(
+            "Favor minimal, well-scoped edits with clean interfaces and clear "
+            "validation. Avoid avoidable architectural sprawl."
+        ),
     ),
-    "balanced_scout": IdeaTastePreset(
-        mode="balanced_scout",
-        label="Balanced Scout",
+    "ambitious_realist": IdeaTastePreset(
+        mode="ambitious_realist",
+        label="Ambitious Realist",
         summary=(
-            "A general-purpose middle ground between novelty, usefulness, "
-            "execution quality, and search discipline."
+            "Default search posture for high-upside ideas: strongly favor novelty "
+            "and impact, while keeping enough feasibility, alignment, and risk "
+            "control to avoid drifting into empty moonshots."
         ),
         weights={
-            "alignment_weight": 0.20,
-            "complexity_weight": 0.20,
-            "novelty_weight": 0.30,
-            "impact_weight": 0.25,
-            "feasibility_weight": 0.20,
-            "clarity_weight": 0.15,
+            "alignment_weight": 0.28,
+            "complexity_weight": 0.16,
+            "novelty_weight": 0.40,
+            "impact_weight": 0.32,
+            "feasibility_weight": 0.22,
+            "clarity_weight": 0.16,
             "conciseness_weight": 0.10,
             "risk_weight": 0.20,
-            "protocol_weight": 0.15,
+            "protocol_weight": 0.12,
         },
+        skill_bias={
+            "mechanism-commit-innovation": 1.0,
+            "theory-transfer-injection": 0.75,
+            "surgical-modularity": 0.55,
+            "multi-scale-coordinator": 0.45,
+            "hierarchical-decomposition": 0.4,
+            "alternative-path-contrast": 0.35,
+            "feedback-closed-loop": 0.35,
+            "speculative-execution-with-repair": 0.25,
+            "resource-aware-adaptive-path": 0.2,
+        },
+        instantiation_guidance=(
+            "Push for ambitious mechanisms with real upside, but keep the causal "
+            "story implementable and defensible."
+        ),
     ),
     "evidence_first": IdeaTastePreset(
         mode="evidence_first",
@@ -112,16 +175,31 @@ IDEA_TASTE_PRESETS: Dict[str, IdeaTastePreset] = {
             "strong experimental evidence over flashy but brittle novelty."
         ),
         weights={
-            "alignment_weight": 0.35,
+            "alignment_weight": 0.34,
             "complexity_weight": 0.18,
-            "novelty_weight": 0.15,
-            "impact_weight": 0.22,
-            "feasibility_weight": 0.24,
+            "novelty_weight": 0.22,
+            "impact_weight": 0.28,
+            "feasibility_weight": 0.26,
             "clarity_weight": 0.18,
             "conciseness_weight": 0.12,
-            "risk_weight": 0.25,
-            "protocol_weight": 0.32,
+            "risk_weight": 0.24,
+            "protocol_weight": 0.30,
         },
+        skill_bias={
+            "surgical-modularity": 1.0,
+            "feedback-closed-loop": 0.8,
+            "alternative-path-contrast": 0.55,
+            "resource-aware-adaptive-path": 0.45,
+            "hierarchical-decomposition": 0.4,
+            "multi-scale-coordinator": 0.35,
+            "mechanism-commit-innovation": 0.25,
+            "theory-transfer-injection": 0.2,
+            "speculative-execution-with-repair": 0.2,
+        },
+        instantiation_guidance=(
+            "Prefer the lightest mechanism that yields strong ablations, stress "
+            "tests, and fair comparisons. Do not add novelty that cannot be cleanly validated."
+        ),
     ),
 }
 
@@ -133,6 +211,8 @@ def list_idea_taste_presets() -> List[Dict[str, Any]]:
             "label": preset.label,
             "summary": preset.summary,
             "weights": dict(preset.weights),
+            "skill_bias": dict(preset.skill_bias),
+            "instantiation_guidance": preset.instantiation_guidance,
         }
         for preset in IDEA_TASTE_PRESETS.values()
     ]
@@ -160,6 +240,25 @@ def get_idea_taste_preset(mode: Optional[str]) -> Optional[IdeaTastePreset]:
         raise ValueError(
             f"Idea taste preset '{preset.mode}' is missing score weights: "
             f"{', '.join(missing)}"
+        )
+
+    if not isinstance(preset.skill_bias, dict):
+        raise ValueError(f"Idea taste preset '{preset.mode}' must define skill_bias as a dict.")
+    for skill_name, raw_bias in preset.skill_bias.items():
+        try:
+            bias = float(raw_bias)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Idea taste preset '{preset.mode}' has a non-numeric skill bias for '{skill_name}'."
+            ) from exc
+        if not 0.0 <= bias <= 1.0:
+            raise ValueError(
+                f"Idea taste preset '{preset.mode}' has out-of-range skill bias for '{skill_name}': {bias}"
+            )
+
+    if not str(preset.instantiation_guidance).strip():
+        raise ValueError(
+            f"Idea taste preset '{preset.mode}' must define instantiation_guidance."
         )
 
     return preset

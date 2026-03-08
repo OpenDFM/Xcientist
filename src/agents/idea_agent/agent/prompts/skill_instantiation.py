@@ -5,12 +5,18 @@ Given a compiled edit plan (skill + atomic component edits + validation protocol
 
 == Context ==
 Topic: {topic}
+Fixed root domains for this MCTS run: {root_domains}
+Idea taste mode: {idea_taste_mode}
+Idea taste label: {idea_taste_label}
+Taste guidance (soft preference only): {taste_guidance}
 Mature idea (anchor): {mature_idea}
 Parent idea: {parent_summary}
 Current run idea pool: {idea_pool_context}
 Parent components (actual modules in the current idea): {parent_components}
 Literature context: {paper_context}
 Memory bundle: {memory_bundle}
+Cross-domain transfer query (only populated for theory-transfer-injection): {transfer_query}
+Cross-domain core references (reference only, not mandatory templates): {cross_domain_references}
 
 == Compiled Edit Plan ==
 Skill: {skill_name}
@@ -33,6 +39,9 @@ Instantiate the above plan into a concrete research idea. You must:
 7. Provide a "component_mapping" that maps EVERY generic template component name in the edit plan to a concrete, topic-specific name. For REWIRE/REPLACE targets that refer to existing parent components, map them to the actual parent component name. For new components (ADD_COMPONENT), give them a specific name reflecting their role in this idea.
 8. Provide "edit_reasons": a JSON list of short reason strings (one per component edit in the same order as the component edits above). Each reason should explain **why** this specific atomic operation is needed to address the target defects — e.g., what gap it fills, what failure mode it prevents, or what capability it adds.
 9. Provide "component_role_explanations": a JSON object that explains the role of each concrete component name that appears in "component_mapping". The explanation should describe what the component does inside the idea, not just repeat the name.
+10. The instantiated idea MUST stay in the fixed root domain(s) above. Cross-domain references, if provided, are inspiration only; do not let them change the idea's home domain.
+11. If cross-domain core references are provided, extract only the transferable mechanism or invariant that helps the current idea. Do not copy paper-specific content verbatim.
+12. Treat the taste guidance above as a soft preference only. Reflect it when possible, but it MUST NOT override the compiled edit plan, target defects, validation protocols, or guardrails.
 
 Return STRICT JSON (no Markdown wrapping):
 {{

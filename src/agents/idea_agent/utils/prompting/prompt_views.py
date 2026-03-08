@@ -449,6 +449,8 @@ def format_idea_prompt_view(idea: Any, *, heading: str = "Idea Snapshot") -> str
         )
     else:
         budget_text = "None"
+    root_domains = _normalize_list(payload.get("root_domains"))
+    root_domain_text = _format_inline_list(root_domains, max_items=2, item_limit=16) if root_domains else "None"
 
     sections = [
         _format_section(
@@ -473,6 +475,7 @@ def format_idea_prompt_view(idea: Any, *, heading: str = "Idea Snapshot") -> str
                 ),
                 _format_kv_line("Risks", payload.get("risks"), 220),
                 f"Operator: {_clip_text(payload.get('operator')) or 'None'}",
+                f"Root domains: {root_domain_text}",
                 f"Target defects: {_format_inline_list(payload.get('target_defects'), max_items=6, item_limit=50)}",
                 f"Budget: {budget_text}",
                 f"Memory refs: {_format_inline_list(payload.get('memory_refs'), max_items=6, item_limit=60)}",

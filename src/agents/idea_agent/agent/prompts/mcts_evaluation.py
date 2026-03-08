@@ -1,6 +1,7 @@
 MCTS_IDEA_EVALUATION_PROMPT = """
 You score research ideas encountered during a memory-guided MCTS search.
 Topic: {topic}
+Fixed root domains for this MCTS run: {root_domains}
 Mature idea (optional alignment anchor):
 {mature_idea}
 Latest analysis + critiques:
@@ -34,7 +35,7 @@ Scoring policy:
 - Penalize evaluator-first proposals whose main contribution is auditing, gating, or benchmarking rather than changing the task-solving mechanism.
 - Penalize plans that add gates merely to manage extra machinery they just introduced. A gate can improve feasibility, but it should not by itself raise novelty or impact.
 - Penalize feature dumping and unsupported complexity jumps.
-- If the idea drifts from topic constraints, reduce alignment_score.
+- If the idea drifts from topic constraints or the fixed root domains above, reduce alignment_score.
 - If the proposal mostly improves diagnosis, measurement, or guardrails without changing the task-solving path, clarity may improve, but novelty and impact should stay limited.
 - When symbolic memory hints are available, use them to calibrate scores:
   * Positive-delta records for the same component family suggest the approach is promising — credit novelty/impact.

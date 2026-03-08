@@ -3,7 +3,7 @@ mcts:
   max_depth: 3
   branching_factor: 3
   exploration_constant: 1.2
-  idea_taste_mode: "balanced_scout"
+  idea_taste_mode: "evidence_first"
   generation_model: "gpt-5-mini"
   evaluation_model: "gpt-5.4"
   generation_temperature: 0.7
@@ -17,6 +17,8 @@ mcts:
   component_novelty_eval_model: "gpt-5.4"
   component_novelty_eval_temperature: 0.001
   component_novelty_eval_max_tokens: 65536
+  theory_transfer_retrieval_top_k: 3
+  theory_transfer_similarity_threshold: 0.4
   min_confidence_for_memory: 0.6
   pareto_top_k: 5
   symbolic_memory_path: "output/symbolic_memory.json"

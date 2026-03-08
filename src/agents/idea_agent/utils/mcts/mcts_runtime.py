@@ -13,6 +13,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from src.agents.idea_agent.utils.mcts.defect_registry import DEFECT_REGISTRY
+from src.agents.idea_agent.utils.mcts.idea_taste_presets import IdeaTastePreset
 from memory.api.component_taxonomy import ContextSignature, extract_component_families, extract_context_signature
 from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _clean_component_explanation,
@@ -244,6 +245,28 @@ class SkillUsagePrior:
 
 
 @dataclass
+class SkillSelectionCandidate:
+    skill: EditOperatorSkill
+    defect_score: float
+    prior_score: float
+    preset_bias: float
+    gate_score: float
+    selection_total: float
+    attempts: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "skill_name": self.skill.name,
+            "defect_score": self.defect_score,
+            "prior_score": self.prior_score,
+            "preset_bias": self.preset_bias,
+            "gate_score": self.gate_score,
+            "selection_total": self.selection_total,
+            "attempts": self.attempts,
+        }
+
+
+@dataclass
 class MemorySnippet:
     identifier: str
     title: str
@@ -417,12 +440,14 @@ class SkillCatalog:
         defect_tags: Sequence[str],
         budget: Dict[str, Any],
         max_children: int,
-    ) -> List[EditOperatorSkill]:
+        preset: Optional[IdeaTastePreset] = None,
+    ) -> List[SkillSelectionCandidate]:
         defects = {str(tag).strip().lower() for tag in defect_tags if str(tag).strip()}
         if not defects:
             defects = {"unexplored_gap"}
 
-        scored: List[Dict[str, Any]] = []
+        preset_bias_map = dict(getattr(preset, "skill_bias", {}) or {})
+        scored: List[SkillSelectionCandidate] = []
         budget_tight = _is_budget_tight(budget)
         for skill in self.skills.values():
             skill_defects = {d.lower() for d in skill.defects}
@@ -431,41 +456,54 @@ class SkillCatalog:
             prior_state = self.priors.get(skill.name, SkillUsagePrior())
             prior = prior_state.prior
             attempts = max(0, int(prior_state.attempts))
+            raw_preset_bias = preset_bias_map.get(skill.name, 0.0)
+            try:
+                preset_bias = max(0.0, min(1.0, float(raw_preset_bias)))
+            except (TypeError, ValueError):
+                preset_bias = 0.0
             gate_score = 0.0
             uses_gate = any(step.startswith("GATE_COMPONENT") for step in skill.atomic_blueprint)
             if budget_tight and uses_gate:
                 gate_score = 1.0
-            total = 0.50 * defect_score + 0.45 * prior + 0.05 * gate_score
+            total = (
+                0.55 * defect_score
+                + 0.20 * prior
+                + 0.20 * preset_bias
+                + 0.05 * gate_score
+            )
             scored.append(
-                {
-                    "total": total,
-                    "defect_score": defect_score,
-                    "attempts": attempts,
-                    "skill": skill,
-                }
+                SkillSelectionCandidate(
+                    skill=skill,
+                    defect_score=defect_score,
+                    prior_score=prior,
+                    preset_bias=preset_bias,
+                    gate_score=gate_score,
+                    selection_total=total,
+                    attempts=attempts,
+                )
             )
 
-        scored.sort(key=lambda item: item["total"], reverse=True)
+        scored.sort(key=lambda item: (-item.selection_total, -item.defect_score, item.skill.name))
         max_children = max(1, int(max_children))
         if max_children == 1:
-            picked = [scored[0]["skill"]] if scored else []
+            picked = [scored[0]] if scored else []
         else:
             exploit_count = min(len(scored), max(0, max_children - 1))
-            picked = [entry["skill"] for entry in scored[:exploit_count]]
+            picked = list(scored[:exploit_count])
             remaining = scored[exploit_count:]
             if remaining and len(picked) < max_children:
-                eligible = [entry for entry in remaining if float(entry["defect_score"]) > 0.0]
+                eligible = [entry for entry in remaining if float(entry.defect_score) > 0.0]
                 if eligible:
                     weights = [
-                        float(entry["defect_score"])
-                        * (1.0 + 1.0 / math.sqrt(float(entry["attempts"]) + 1.0))
+                        float(entry.defect_score)
+                        * (1.0 + 1.0 / math.sqrt(float(entry.attempts) + 1.0))
                         for entry in eligible
                     ]
-                    picked.append(random.choices(eligible, weights=weights, k=1)[0]["skill"])
+                    picked.append(random.choices(eligible, weights=weights, k=1)[0])
                 else:
-                    picked.append(random.choice(remaining)["skill"])
+                    picked.append(random.choice(remaining))
         if not picked:
-            return self.list_skills()[: max(1, max_children)]
+            return scored[: max(1, max_children)]
         return picked
 
     def compile_plan(
@@ -737,6 +775,66 @@ def _is_budget_tight(budget: Dict[str, Any]) -> bool:
     return any(val < 1.0 for val in numeric_values)
 
 
+def _skill_atomic_ops(skill: EditOperatorSkill) -> Set[str]:
+    ops: Set[str] = set()
+    for step in skill.atomic_blueprint or []:
+        op = step.split("(")[0].strip().lower()
+        if op:
+            ops.add(op)
+    return ops
+
+
+def rerank_skill_selection_candidates(
+    candidates: Sequence[SkillSelectionCandidate],
+    action_priors: Dict[str, float],
+) -> Tuple[List[SkillSelectionCandidate], Dict[str, Dict[str, float]]]:
+    ordered_candidates = list(candidates)
+    if not ordered_candidates:
+        return [], {}
+
+    raw_scores: Dict[str, float] = {}
+    for candidate in ordered_candidates:
+        raw_scores[candidate.skill.name] = max(
+            (
+                float(action_priors.get(op, 0.0))
+                for op in _skill_atomic_ops(candidate.skill)
+            ),
+            default=0.0,
+        )
+
+    normalized_scores: Dict[str, float] = {name: 0.0 for name in raw_scores}
+    if action_priors:
+        score_values = list(raw_scores.values())
+        if score_values:
+            score_min = min(score_values)
+            score_max = max(score_values)
+            if score_max > score_min:
+                normalized_scores = {
+                    name: (score - score_min) / (score_max - score_min)
+                    for name, score in raw_scores.items()
+                }
+
+    rerank_breakdown: Dict[str, Dict[str, float]] = {}
+    for candidate in ordered_candidates:
+        symbolic_score = raw_scores.get(candidate.skill.name, 0.0)
+        symbolic_norm = normalized_scores.get(candidate.skill.name, 0.0)
+        final_order_score = 0.80 * candidate.selection_total + 0.20 * symbolic_norm
+        rerank_breakdown[candidate.skill.name] = {
+            "symbolic_score": symbolic_score,
+            "symbolic_norm": symbolic_norm,
+            "final_order_score": final_order_score,
+        }
+
+    ordered_candidates.sort(
+        key=lambda candidate: (
+            -rerank_breakdown[candidate.skill.name]["final_order_score"],
+            -candidate.selection_total,
+            candidate.skill.name,
+        )
+    )
+    return ordered_candidates, rerank_breakdown
+
+
 def _estimate_budget_delta(component_edits: Sequence[ComponentEdit]) -> Dict[str, float]:
     compute = 0.0
     latency = 0.0
@@ -929,6 +1027,7 @@ def materialize_child_state(
     parent_state: Any,
     plan: Any,
     instantiated: Optional[Dict[str, Any]] = None,
+    selection_metadata: Optional[Dict[str, Any]] = None,
     *,
     idea_state_cls: Any,
 ) -> Any:
@@ -955,6 +1054,20 @@ def materialize_child_state(
     )
     rationale = inst.get("rationale") or plan.compile_notes
     tags = _dedupe_keep_order_strings(list(parent_state.tags) + [plan.skill_name] + list(plan.target_defects))
+    selection_metadata = selection_metadata or {}
+    skill_metrics = {
+        "idea_taste_mode": str(selection_metadata.get("idea_taste_mode") or "none"),
+        "skill_prior_before": mcts._skill_prior_for_prompt(plan.skill_name),
+        "guardrails": plan.guardrails,
+        "constraints": ANTI_PATTERN_CONSTRAINTS,
+        "llm_instantiated": bool(inst),
+    }
+    skill_selection_breakdown = selection_metadata.get("skill_selection_breakdown")
+    if isinstance(skill_selection_breakdown, dict) and skill_selection_breakdown:
+        skill_metrics["skill_selection_breakdown"] = skill_selection_breakdown
+    symbolic_rerank_breakdown = selection_metadata.get("symbolic_rerank_breakdown")
+    if isinstance(symbolic_rerank_breakdown, dict) and symbolic_rerank_breakdown:
+        skill_metrics["symbolic_rerank_breakdown"] = symbolic_rerank_breakdown
 
     return idea_state_cls(
         title=title,
@@ -971,14 +1084,14 @@ def materialize_child_state(
         budget=next_budget,
         components=new_components,
         component_explanations=component_explanations,
-        paper_graph_context=parent_state.paper_graph_context,
+        root_domains=list(getattr(parent_state, "root_domains", []) or []),
+        paper_graph_context=(
+            str(inst.get("_paper_graph_context") or "")
+            if isinstance(inst, dict) and str(inst.get("_paper_graph_context") or "").strip()
+            else parent_state.paper_graph_context
+        ),
         edit_plan=plan.to_dict(),
-        skill_metrics={
-            "skill_prior_before": mcts._skill_prior_for_prompt(plan.skill_name),
-            "guardrails": plan.guardrails,
-            "constraints": ANTI_PATTERN_CONSTRAINTS,
-            "llm_instantiated": bool(inst),
-        },
+        skill_metrics=skill_metrics,
     )
 
 
@@ -1011,18 +1124,30 @@ def instantiate_skill_plan_for_node(
     bundle: Any,
     *,
     prompt_template: str,
+    root_domains_text: str = "Unspecified",
+    transfer_query: str = "None",
+    cross_domain_references: str = "None",
 ) -> Optional[Dict[str, Any]]:
     component_edits_text = plan_to_method_text(plan)
     validation_text = plan_to_experiment_text(plan)
 
     prompt = prompt_template.format(
         topic=mcts.topic,
+        root_domains=root_domains_text,
+        idea_taste_mode=getattr(getattr(mcts, "idea_taste_preset", None), "mode", None) or "none",
+        idea_taste_label=getattr(getattr(mcts, "idea_taste_preset", None), "label", None) or "none",
+        taste_guidance=(
+            getattr(getattr(mcts, "idea_taste_preset", None), "instantiation_guidance", None)
+            or "No special taste guidance."
+        ),
         mature_idea=mcts.mature_idea or "None",
         parent_summary=parent_state.describe(),
         idea_pool_context=getattr(mcts, "idea_pool_context", "No prior ideas in the current run."),
         parent_components=", ".join(parent_state.components) if parent_state.components else "None",
         paper_context=mcts.paper_context,
         memory_bundle=bundle.to_prompt_block(),
+        transfer_query=transfer_query or "None",
+        cross_domain_references=cross_domain_references or "None",
         skill_name=plan.skill_name,
         plan_objective=plan.objective,
         target_defects=", ".join(plan.target_defects),
@@ -1237,10 +1362,15 @@ def expand_node_with_skills(
         ),
     )
 
-    skill_candidates = mcts.skill_catalog.select_skills(
+    selected_skill_candidates = mcts.skill_catalog.select_skills(
         defect_tags=node.state.target_defects,
         budget=node.state.budget,
         max_children=mcts.config.branching_factor,
+        preset=getattr(mcts, "idea_taste_preset", None),
+    )
+    skill_candidates, symbolic_rerank = rerank_skill_selection_candidates(
+        selected_skill_candidates,
+        action_priors,
     )
     log_message(
         mcts.logger,
@@ -1248,18 +1378,18 @@ def expand_node_with_skills(
         "info",
         "[MCTS] Expand: skill_prior\n%s",
         _safe_pretty_json(
-            {skill.name: mcts._skill_prior_for_prompt(skill.name) for skill in skill_candidates},
+            {candidate.skill.name: candidate.to_dict() for candidate in skill_candidates},
             pretty_json,
         ),
     )
-
     if action_priors:
-
-        def _skill_prior_boost(sk: Any) -> float:
-            ops = {step.split("(")[0].strip().lower() for step in (sk.atomic_blueprint or [])}
-            return max((action_priors.get(op, 0.0) for op in ops), default=0.0)
-
-        skill_candidates = sorted(skill_candidates, key=_skill_prior_boost, reverse=True)
+        log_message(
+            mcts.logger,
+            mcts.log_sink,
+            "info",
+            "[MCTS] Expand: preset_symbolic_fusion\n%s",
+            _safe_pretty_json(symbolic_rerank, pretty_json),
+        )
 
     payload_count = len(skill_candidates)
     pre_children = len(node.children)
@@ -1267,7 +1397,8 @@ def expand_node_with_skills(
 
     idea_node_cls = type(node)
     operator_application_cls = type(node.transformation)
-    for skill in skill_candidates:
+    for selection_candidate in skill_candidates:
+        skill = selection_candidate.skill
         plan = mcts.skill_catalog.compile_plan(
             skill=skill,
             parent_title=node.state.title,
@@ -1306,6 +1437,16 @@ def expand_node_with_skills(
         plan.component_edits = filtered_edits
 
         instantiated = mcts._instantiate_skill_plan(plan, node.state, bundle)
+        if isinstance(instantiated, dict) and instantiated.get("_skip_child_creation"):
+            log_message(
+                mcts.logger,
+                mcts.log_sink,
+                "info",
+                "[MCTS] Expand: skipping skill=%s child creation (%s)",
+                skill.name,
+                instantiated.get("_skip_reason", "no reason provided"),
+            )
+            continue
         log_message(
             mcts.logger,
             mcts.log_sink,
@@ -1357,7 +1498,25 @@ def expand_node_with_skills(
                 "reason": edit.reason or "",
             }
 
-        child_state = mcts._materialize_child_state(node.state, plan, instantiated)
+        selection_metadata: Dict[str, Any] = {
+            "idea_taste_mode": getattr(getattr(mcts, "idea_taste_preset", None), "mode", None) or "none",
+            "skill_selection_breakdown": {
+                "defect_score": selection_candidate.defect_score,
+                "prior_score": selection_candidate.prior_score,
+                "preset_bias": selection_candidate.preset_bias,
+                "gate_score": selection_candidate.gate_score,
+                "selection_total": selection_candidate.selection_total,
+            },
+        }
+        if action_priors and skill.name in symbolic_rerank:
+            selection_metadata["symbolic_rerank_breakdown"] = symbolic_rerank[skill.name]
+
+        child_state = mcts._materialize_child_state(
+            node.state,
+            plan,
+            instantiated,
+            selection_metadata=selection_metadata,
+        )
         child_node = attach_child(
             node,
             child_state,
@@ -1448,6 +1607,7 @@ def simulate_node_value(
 
     prompt = mcts.evaluation_prompt.format(
         topic=mcts.topic,
+        root_domains=mcts._format_root_domains_for_prompt(getattr(node.state, "root_domains", [])),
         mature_idea=mcts.mature_idea or "None",
         analysis=mcts.analysis_blob,
         idea_pool_context=getattr(mcts, "idea_pool_context", "No prior ideas in the current run."),
@@ -1698,6 +1858,7 @@ def build_root_state(
         if isinstance(context.get("component_explanations"), (dict, list))
         else {}
     )
+    root_domains = context.get("root_domains") if isinstance(context.get("root_domains"), list) else []
 
     if mature_idea:
         title = re.split(r"(?<=[.!?])\s+", mature_idea, maxsplit=1)[0].strip() or f"{topic} mature idea"
@@ -1761,6 +1922,7 @@ def build_root_state(
         budget=budget,
         components=components,
         component_explanations=component_explanations,
+        root_domains=[str(domain).strip() for domain in root_domains if str(domain).strip()][:2],
         paper_graph_context=str(context.get("paper_context") or ""),
     )
 

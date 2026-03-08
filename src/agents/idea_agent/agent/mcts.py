@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import itertools
-import json
 import logging
 import math
 from dataclasses import dataclass, field
@@ -26,12 +25,19 @@ from memory.memory_system.utils import _multi_thread_run, _safe_dump_str
 from agent import get_logger
 from src.agents.idea_agent.utils.mcts.component_novelty import ComponentNoveltyScorer
 from src.agents.idea_agent.utils.mcts.mcts_helpers import (
+    _dedupe_keep_order_strings,
+    _format_root_domains_for_prompt,
+    _infer_root_domains_heuristically,
+    _normalize_root_domains,
+    _pretty_json,
+    _safe_float_default,
     apply_budget_delta_to_parent,
     clip_text,
     component_inventory_payload,
     format_analysis_blob,
     normalize_component_explanations,
     normalize_budget_dict,
+    parse_json_response,
     plan_to_experiment_text,
     plan_to_method_text,
 )
@@ -39,7 +45,16 @@ from src.agents.idea_agent.utils.prompting.prompt_views import (
     format_idea_pool_prompt_view,
     format_idea_prompt_view,
 )
+from src.agents.idea_agent.utils.papers.paper_graph_vector_store import (
+    PaperGraphComponentVectorStore,
+)
+from src.agents.idea_agent.agent.prompts.root_domain_classification import (
+    ROOT_DOMAIN_CLASSIFICATION_PROMPT,
+)
 from src.agents.idea_agent.agent.prompts.skill_instantiation import SKILL_INSTANTIATION_PROMPT
+from src.agents.idea_agent.agent.prompts.theory_transfer_query import (
+    THEORY_TRANSFER_QUERY_PROMPT,
+)
 from src.agents.idea_agent.agent.prompts.component_extraction import COMPONENT_EXTRACTION_PROMPT
 from src.agents.idea_agent.utils.mcts.idea_taste_presets import (
     IdeaTastePreset,
@@ -76,11 +91,8 @@ from src.agents.idea_agent.utils.mcts.mcts_runtime import (
 )
 
 
-MAX_IDEA_TEXT = 900
-MAX_RATIONALE_TEXT = 700
-MAX_TITLE_TEXT = 256
+UNIFORM_CLIP_TEXT_LIMIT = 10000
 MAX_LIST_ENTRIES = 16
-MAX_REF_TEXT = 128
 MIN_COMPONENTS = 1
 MAX_COMPONENTS = 5
 
@@ -109,34 +121,6 @@ def _mcts_default(key: str, fallback: Any) -> Any:
     return fallback if value is None else value
 
 
-def _safe_float(value: Any, fallback: float = 0.0) -> float:
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        return fallback
-
-
-def _dedupe_keep_order(items: List[str]) -> List[str]:
-    seen: Set[str] = set()
-    ordered: List[str] = []
-    for item in items:
-        key = item.strip().lower()
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        ordered.append(item)
-    return ordered
-
-
-def _pretty_json(value: Any) -> str:
-    if isinstance(value, (dict, list)):
-        try:
-            return json.dumps(value, ensure_ascii=False, indent=2, default=str)
-        except Exception:
-            return str(value)
-    return str(value)
-
-
 @dataclass
 class IdeaState:
     title: str
@@ -153,37 +137,39 @@ class IdeaState:
     budget: Dict[str, Any] = field(default_factory=dict)
     components: List[str] = field(default_factory=list)
     component_explanations: Dict[str, str] = field(default_factory=dict)
+    root_domains: List[str] = field(default_factory=list)
     paper_graph_context: str = ""
     edit_plan: Optional[Dict[str, Any]] = None
     skill_metrics: Dict[str, Any] = field(default_factory=dict)
     signature: str = field(init=False)
 
     def __post_init__(self) -> None:
-        self.title = clip_text(self.title, MAX_TITLE_TEXT)
-        self.abstract = clip_text(self.abstract, MAX_IDEA_TEXT)
-        self.core_contribution = clip_text(self.core_contribution, MAX_IDEA_TEXT)
-        self.method = clip_text(self.method, MAX_IDEA_TEXT)
-        self.experiments = clip_text(self.experiments, MAX_IDEA_TEXT)
-        self.risks = clip_text(self.risks, MAX_IDEA_TEXT)
-        self.rationale = clip_text(self.rationale, MAX_RATIONALE_TEXT)
-        self.paper_graph_context = clip_text(self.paper_graph_context, MAX_IDEA_TEXT)
+        self.title = clip_text(self.title, UNIFORM_CLIP_TEXT_LIMIT)
+        self.abstract = clip_text(self.abstract, UNIFORM_CLIP_TEXT_LIMIT)
+        self.core_contribution = clip_text(self.core_contribution, UNIFORM_CLIP_TEXT_LIMIT)
+        self.method = clip_text(self.method, UNIFORM_CLIP_TEXT_LIMIT)
+        self.experiments = clip_text(self.experiments, UNIFORM_CLIP_TEXT_LIMIT)
+        self.risks = clip_text(self.risks, UNIFORM_CLIP_TEXT_LIMIT)
+        self.rationale = clip_text(self.rationale, UNIFORM_CLIP_TEXT_LIMIT)
+        self.paper_graph_context = clip_text(self.paper_graph_context, UNIFORM_CLIP_TEXT_LIMIT)
 
-        self.tags = _dedupe_keep_order(
-            [clip_text(tag, MAX_IDEA_TEXT) for tag in self.tags[:MAX_LIST_ENTRIES]]
+        self.tags = _dedupe_keep_order_strings(
+            [clip_text(tag, UNIFORM_CLIP_TEXT_LIMIT) for tag in self.tags[:MAX_LIST_ENTRIES]]
         )
-        self.target_defects = _dedupe_keep_order(
-            [clip_text(tag, MAX_IDEA_TEXT) for tag in self.target_defects[:MAX_LIST_ENTRIES]]
+        self.target_defects = _dedupe_keep_order_strings(
+            [clip_text(tag, UNIFORM_CLIP_TEXT_LIMIT) for tag in self.target_defects[:MAX_LIST_ENTRIES]]
         )
-        self.memory_refs = _dedupe_keep_order(
-            [clip_text(ref, MAX_REF_TEXT) for ref in self.memory_refs[:MAX_LIST_ENTRIES]]
+        self.memory_refs = _dedupe_keep_order_strings(
+            [clip_text(ref, UNIFORM_CLIP_TEXT_LIMIT) for ref in self.memory_refs[:MAX_LIST_ENTRIES]]
         )
-        self.components = _dedupe_keep_order(
-            [clip_text(comp, MAX_REF_TEXT) for comp in self.components[: 2 * MAX_LIST_ENTRIES]]
+        self.components = _dedupe_keep_order_strings(
+            [clip_text(comp, UNIFORM_CLIP_TEXT_LIMIT) for comp in self.components[: 2 * MAX_LIST_ENTRIES]]
         )
         self.component_explanations = normalize_component_explanations(
             self.components,
             self.component_explanations,
         )
+        self.root_domains = _normalize_root_domains(self.root_domains)
 
         if not isinstance(self.budget, dict):
             self.budget = {}
@@ -194,6 +180,7 @@ class IdeaState:
                 self.core_contribution.lower(),
                 self.method.lower(),
                 ",".join(sorted(self.tags)),
+                ",".join(self.root_domains),
                 ",".join(sorted(self.components)),
                 "|".join(
                     f"{component}:{self.component_explanations.get(component, '').lower()}"
@@ -225,6 +212,7 @@ class IdeaState:
             "budget": self.budget,
             "components": self.components,
             "component_explanations": self.component_explanations,
+            "root_domains": self.root_domains,
             "components_with_explanations": self.component_inventory(),
             "paper_graph_context": self.paper_graph_context,
         }
@@ -268,17 +256,17 @@ class IdeaEvaluation:
 
     def __post_init__(self) -> None:
         self.failure_modes = [
-            clip_text(mode, MAX_IDEA_TEXT)
+            clip_text(mode, UNIFORM_CLIP_TEXT_LIMIT)
             for mode in (self.failure_modes or [])[:MAX_LIST_ENTRIES]
         ]
-        self.fairness_protocol = clip_text(self.fairness_protocol, MAX_IDEA_TEXT)
-        self.feedback = clip_text(self.feedback, MAX_IDEA_TEXT)
-        self.defect_fix_summary = clip_text(self.defect_fix_summary, MAX_IDEA_TEXT)
+        self.fairness_protocol = clip_text(self.fairness_protocol, UNIFORM_CLIP_TEXT_LIMIT)
+        self.feedback = clip_text(self.feedback, UNIFORM_CLIP_TEXT_LIMIT)
+        self.defect_fix_summary = clip_text(self.defect_fix_summary, UNIFORM_CLIP_TEXT_LIMIT)
         self.detected_defects = [
-            clip_text(tag, MAX_IDEA_TEXT)
+            clip_text(tag, UNIFORM_CLIP_TEXT_LIMIT)
             for tag in (self.detected_defects or [])[:MAX_LIST_ENTRIES]
         ]
-        self.confidence = max(0.0, min(1.0, _safe_float(self.confidence, 0.0)))
+        self.confidence = max(0.0, min(1.0, _safe_float_default(self.confidence, 0.0)))
 
     @classmethod
     def from_payload(
@@ -287,7 +275,7 @@ class IdeaEvaluation:
         weights: Optional[Dict[str, float]] = None,
     ) -> "IdeaEvaluation":
         def _num(key: str, default: float = 0.0) -> float:
-            return _safe_float(payload.get(key, default), default)
+            return _safe_float_default(payload.get(key, default), default)
 
         def _list(key: str) -> List[str]:
             raw = payload.get(key, [])
@@ -380,10 +368,10 @@ class OperatorApplication:
     memory_refs: List[str]
 
     def __post_init__(self) -> None:
-        self.operator = clip_text(self.operator, MAX_IDEA_TEXT)
-        self.defects = [clip_text(defect, MAX_IDEA_TEXT) for defect in self.defects[:MAX_LIST_ENTRIES]]
-        self.rationale = clip_text(self.rationale, MAX_RATIONALE_TEXT)
-        self.memory_refs = [clip_text(ref, MAX_REF_TEXT) for ref in self.memory_refs[:MAX_LIST_ENTRIES]]
+        self.operator = clip_text(self.operator, UNIFORM_CLIP_TEXT_LIMIT)
+        self.defects = [clip_text(defect, UNIFORM_CLIP_TEXT_LIMIT) for defect in self.defects[:MAX_LIST_ENTRIES]]
+        self.rationale = clip_text(self.rationale, UNIFORM_CLIP_TEXT_LIMIT)
+        self.memory_refs = [clip_text(ref, UNIFORM_CLIP_TEXT_LIMIT) for ref in self.memory_refs[:MAX_LIST_ENTRIES]]
 
 
 @dataclass
@@ -460,6 +448,12 @@ class MCTSConfig:
     )
     component_novelty_eval_max_tokens: int = _mcts_default(
         "component_novelty_eval_max_tokens", 4096
+    )
+    theory_transfer_retrieval_top_k: int = _mcts_default(
+        "theory_transfer_retrieval_top_k", 3
+    )
+    theory_transfer_similarity_threshold: float = _mcts_default(
+        "theory_transfer_similarity_threshold", 0.4
     )
     min_confidence_for_memory: float = _mcts_default("min_confidence_for_memory", 0.6)
     pareto_top_k: int = _mcts_default("pareto_top_k", 5)
@@ -731,6 +725,10 @@ class MemoryGuidedMCTS:
             logger=self.logger,
             log_sink=self.log_sink,
         )
+        self.paper_graph_vector_store = PaperGraphComponentVectorStore(
+            model_name_or_path=self.config.component_novelty_model,
+            index_dir=self.config.component_novelty_index_dir or None,
+        )
 
         self.skill_catalog = SkillCatalog()
         self.symbolic_memory = SymbolicMemorySystem()
@@ -747,6 +745,9 @@ class MemoryGuidedMCTS:
         self.idea_pool_context: str = ""
         self.paper_context: str = ""
         self.mature_idea: str = ""
+        self.idea_taste_preset: Optional[IdeaTastePreset] = get_idea_taste_preset(
+            getattr(self.config, "idea_taste_mode", None)
+        )
         self._mature_idea_components: List[str] = []
         self._mature_idea_component_explanations: Dict[str, str] = {}
         self._component_novelty_fallback_logged = False
@@ -828,17 +829,223 @@ class MemoryGuidedMCTS:
                 self._component_novelty_fallback_logged = True
             return None
 
+    def _format_root_domains_for_prompt(self, domains: List[str]) -> str:
+        return _format_root_domains_for_prompt(domains)
+
+    def _classify_root_domains(self, topic: str, root_state: IdeaState) -> List[str]:
+        prompt = ROOT_DOMAIN_CLASSIFICATION_PROMPT.format(
+            topic=topic or "Unknown topic",
+            root_idea=root_state.to_prompt_view(heading="Root Idea"),
+            paper_context=self.paper_context or "No paper context available.",
+        )
+        fallback = _infer_root_domains_heuristically(
+            topic,
+            "\n".join(
+                [
+                    root_state.title,
+                    root_state.abstract,
+                    root_state.core_contribution,
+                    root_state.method,
+                    self.paper_context,
+                ]
+            ),
+        )
+        try:
+            response = self.chat_fn(
+                prompt,
+                model=self.config.generation_model,
+                temperature=0.01,
+                max_output_tokens=512,
+            )
+            payload = parse_json_response(response)
+            if isinstance(payload, list):
+                payload = payload[0] if payload else {}
+            domains = []
+            if isinstance(payload, dict):
+                raw_domains = payload.get("domains")
+                if isinstance(raw_domains, list):
+                    domains = [str(item).strip() for item in raw_domains]
+            normalized = _normalize_root_domains(domains)
+            return normalized or fallback
+        except Exception as exc:
+            log_message(
+                self.logger,
+                self.log_sink,
+                "warning",
+                "⚠️  Root-domain classification failed; using heuristic fallback: %s",
+                exc,
+            )
+            return fallback
+
+    def _fallback_theory_transfer_query(self, plan: EditPlan, parent_state: IdeaState) -> Dict[str, str]:
+        target_defect = next((tag for tag in plan.target_defects if str(tag).strip()), "core gap")
+        component_names = [
+            edit.component
+            for edit in plan.component_edits
+            if getattr(edit, "component", "")
+            and getattr(getattr(edit, "op", None), "value", str(getattr(edit, "op", ""))) != "ADD_PROTOCOL"
+        ]
+        mechanism_target = component_names[0] if component_names else "core mechanism"
+        needed_content = (
+            f"The current idea still needs a transferable mechanism that strengthens {mechanism_target} "
+            f"while addressing {target_defect}."
+        )
+        expected_role = (
+            f"The retrieved mechanism should plug into the current design as a focused theory-backed module "
+            f"without changing the idea's home domain ({self._format_root_domains_for_prompt(parent_state.root_domains)})."
+        )
+        query = f"{needed_content} Expected role: {expected_role}"
+        return {
+            "query": clip_text(query, UNIFORM_CLIP_TEXT_LIMIT),
+            "needed_content": clip_text(needed_content, UNIFORM_CLIP_TEXT_LIMIT),
+            "expected_role": clip_text(expected_role, UNIFORM_CLIP_TEXT_LIMIT),
+        }
+
+    def _build_theory_transfer_query(
+        self,
+        plan: EditPlan,
+        parent_state: IdeaState,
+        bundle: MemoryBundle,
+    ) -> Dict[str, str]:
+        prompt = THEORY_TRANSFER_QUERY_PROMPT.format(
+            topic=self.topic or "Unknown topic",
+            root_domains=self._format_root_domains_for_prompt(parent_state.root_domains),
+            idea=parent_state.to_prompt_view(heading="Current Idea"),
+            edit_plan=_pretty_json(plan.to_dict()),
+            memory_bundle=bundle.to_prompt_block(),
+        )
+        fallback = self._fallback_theory_transfer_query(plan, parent_state)
+        try:
+            response = self.chat_fn(
+                prompt,
+                model=self.config.generation_model,
+                temperature=0.2,
+                max_output_tokens=512,
+            )
+            payload = parse_json_response(response)
+            if isinstance(payload, list):
+                payload = payload[0] if payload else {}
+            if not isinstance(payload, dict):
+                return fallback
+            query = clip_text(str(payload.get("query") or "").strip(), UNIFORM_CLIP_TEXT_LIMIT)
+            needed_content = clip_text(str(payload.get("needed_content") or "").strip(), UNIFORM_CLIP_TEXT_LIMIT)
+            expected_role = clip_text(str(payload.get("expected_role") or "").strip(), UNIFORM_CLIP_TEXT_LIMIT)
+            if not query:
+                return fallback
+            return {
+                "query": query,
+                "needed_content": needed_content or fallback["needed_content"],
+                "expected_role": expected_role or fallback["expected_role"],
+            }
+        except Exception as exc:
+            log_message(
+                self.logger,
+                self.log_sink,
+                "warning",
+                "⚠️  Theory-transfer query generation failed; using fallback query: %s",
+                exc,
+            )
+            return fallback
+
+    def _retrieve_theory_transfer_references(
+        self,
+        query_payload: Dict[str, str],
+        root_domains: List[str],
+    ) -> List[Dict[str, Any]]:
+        query = str(query_payload.get("query") or "").strip()
+        if not query:
+            return []
+        try:
+            search_pool = max(int(self.config.theory_transfer_retrieval_top_k) * 6, 12)
+            hits = self.paper_graph_vector_store.search(
+                query=query,
+                top_k=search_pool,
+                component_hits_per_core=2,
+            )
+        except Exception as exc:
+            log_message(
+                self.logger,
+                self.log_sink,
+                "warning",
+                "⚠️  Theory-transfer paper-graph retrieval unavailable: %s",
+                exc,
+            )
+            return []
+
+        threshold = float(self.config.theory_transfer_similarity_threshold)
+        blocked_domains = set(_normalize_root_domains(root_domains))
+        filtered: List[Dict[str, Any]] = []
+        for hit in hits:
+            core_node = hit.get("core_node") if isinstance(hit.get("core_node"), dict) else {}
+            paper_domain = str(core_node.get("paper_domain") or "").strip()
+            if not paper_domain or paper_domain in blocked_domains:
+                continue
+            if float(hit.get("score") or 0.0) < threshold:
+                continue
+            filtered.append(hit)
+            if len(filtered) >= int(self.config.theory_transfer_retrieval_top_k):
+                break
+        return filtered
+
+    def _format_theory_transfer_references(
+        self,
+        query_payload: Dict[str, str],
+        hits: List[Dict[str, Any]],
+    ) -> str:
+        if not hits:
+            return "None"
+        lines = [
+            f"Transfer need: {query_payload.get('needed_content') or 'Unspecified'}",
+            f"Expected role: {query_payload.get('expected_role') or 'Unspecified'}",
+            "Cross-domain core references:",
+        ]
+        for idx, hit in enumerate(hits, start=1):
+            core_node = hit.get("core_node") if isinstance(hit.get("core_node"), dict) else {}
+            label = (
+                core_node.get("full_name")
+                or core_node.get("paper_title")
+                or hit.get("node_id")
+                or f"core_{idx}"
+            )
+            paper_title = str(core_node.get("paper_title") or "").strip()
+            paper_domain = str(core_node.get("paper_domain") or "").strip() or "unknown"
+            lines.append(
+                f"{idx}. {label} | domain={paper_domain} | score={float(hit.get('score') or 0.0):.3f}"
+            )
+            if paper_title:
+                lines.append(f"   paper: {clip_text(paper_title, UNIFORM_CLIP_TEXT_LIMIT)}")
+            summary = clip_text(str(core_node.get("summary") or "").strip(), UNIFORM_CLIP_TEXT_LIMIT)
+            insight = clip_text(str(core_node.get("insight") or "").strip(), UNIFORM_CLIP_TEXT_LIMIT)
+            if summary:
+                lines.append(f"   summary: {summary}")
+            if insight:
+                lines.append(f"   insight: {insight}")
+            matched_components = hit.get("matched_components") if isinstance(hit.get("matched_components"), list) else []
+            for matched in matched_components[:2]:
+                component_name = clip_text(str(matched.get("component_name") or "").strip(), UNIFORM_CLIP_TEXT_LIMIT)
+                component_summary = clip_text(str(matched.get("component_summary") or "").strip(), UNIFORM_CLIP_TEXT_LIMIT)
+                if component_name or component_summary:
+                    lines.append(
+                        f"   matched_component: {component_name or 'unknown'} | {component_summary}"
+                    )
+        lines.append(
+            "Use these nodes only as references for transferable mechanisms. Do not copy them verbatim and do not change the root domain(s)."
+        )
+        return "\n".join(lines)
+
     def _materialize_child_state(
         self,
         parent_state: IdeaState,
         plan: EditPlan,
         instantiated: Optional[Dict[str, Any]] = None,
+        selection_metadata: Optional[Dict[str, Any]] = None,
     ) -> IdeaState:
         return materialize_child_state(
             self,
             parent_state,
             plan,
             instantiated,
+            selection_metadata=selection_metadata,
             idea_state_cls=IdeaState,
         )
 
@@ -854,13 +1061,48 @@ class MemoryGuidedMCTS:
         parent_state: IdeaState,
         bundle: MemoryBundle,
     ) -> Optional[Dict[str, Any]]:
-        return instantiate_skill_plan_for_node(
+        root_domains_text = self._format_root_domains_for_prompt(parent_state.root_domains)
+        transfer_query_text = "None"
+        cross_domain_references = "None"
+        skip_payload: Optional[Dict[str, Any]] = None
+
+        if plan.skill_name == "theory-transfer-injection":
+            query_payload = self._build_theory_transfer_query(plan, parent_state, bundle)
+            transfer_query_text = query_payload.get("query") or "None"
+            hits = self._retrieve_theory_transfer_references(query_payload, parent_state.root_domains)
+            if not hits:
+                skip_payload = {
+                    "_skip_child_creation": True,
+                    "_skip_reason": (
+                        "theory-transfer-injection retrieved no eligible cross-domain core nodes "
+                        f"(threshold={self.config.theory_transfer_similarity_threshold}, "
+                        f"excluded_domains={parent_state.root_domains})"
+                    ),
+                }
+            else:
+                cross_domain_references = self._format_theory_transfer_references(query_payload, hits)
+
+        if skip_payload is not None:
+            return skip_payload
+
+        payload = instantiate_skill_plan_for_node(
             self,
             plan,
             parent_state,
             bundle,
             prompt_template=SKILL_INSTANTIATION_PROMPT,
+            root_domains_text=root_domains_text,
+            transfer_query=transfer_query_text,
+            cross_domain_references=cross_domain_references,
         )
+        if plan.skill_name == "theory-transfer-injection":
+            if not isinstance(payload, dict):
+                return {
+                    "_skip_child_creation": True,
+                    "_skip_reason": "theory-transfer-injection instantiation returned no structured payload",
+                }
+            payload["_paper_graph_context"] = cross_domain_references
+        return payload
 
     def _expand(self, node: IdeaNode, path: List[IdeaNode]) -> Tuple[Optional[IdeaNode], List[IdeaNode]]:
         return expand_node_with_skills(
@@ -912,6 +1154,7 @@ class MemoryGuidedMCTS:
 
     def search(self, topic: str, context: Dict[str, Any]) -> SearchResult:
         reset_search_state(self)
+        context = dict(context or {})
         self.topic = topic
         self.analysis_blob = format_analysis_blob(context.get("analysis", []))
         self.idea_pool_context = format_idea_pool_prompt_view(context.get("idea_pool") or [])
@@ -932,6 +1175,17 @@ class MemoryGuidedMCTS:
                 context["components"] = self._mature_idea_components
                 context["component_explanations"] = self._mature_idea_component_explanations
 
+        draft_root_state = build_root_state(topic, context, IdeaState)
+        root_domains = self._classify_root_domains(topic, draft_root_state)
+        context["root_domains"] = root_domains
+        log_message(
+            self.logger,
+            self.log_sink,
+            "info",
+            "[MCTS] Root-domain classification: %s",
+            self._format_root_domains_for_prompt(root_domains),
+        )
+
         root_state = build_root_state(topic, context, IdeaState)
         root = new_node(
             root_state,
@@ -949,7 +1203,7 @@ class MemoryGuidedMCTS:
         # "unexplored_gap" defect tag.
         root_eval = self._simulate(root, [root], experiences)
         if root_eval and root_eval.detected_defects:
-            inferred_defects = _dedupe_keep_order(
+            inferred_defects = _dedupe_keep_order_strings(
                 [str(tag) for tag in root_eval.detected_defects if str(tag).strip()]
             )
             if inferred_defects:
