@@ -1,5 +1,5 @@
 run:
-  parallelism: 1
+  "LigAgent-Pro": false
   output_root: "runs"
   console_logs: true
   rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"

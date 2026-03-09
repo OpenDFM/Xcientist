@@ -46,7 +46,7 @@ The main workflow is now a conditional stage graph rather than the old "five-act
 | `knowledge_aquisition` | Cold-start retrieval: Semantic Scholar seed → OutcomeRAG query → citation expansion → paper enrichment/filtering |
 | `advanced_analysis` | Summarize curated literature into mechanisms, gaps, and search seeds |
 | `re_analysis_replan` | Revise topic focus, mature idea, and retrieval direction when RAG context already exists |
-| `idea_generation` | Run Memory-Guided MCTS, materialize the best idea, and persist `idea_result.json` |
+| `idea_generation` | Run Memory-Guided MCTS; if `LigAgent-Pro` is enabled, search all presets from one shared root and fuse them before persisting `idea_result.json` |
 
 Current control flow:
 - Cold start: `knowledge_aquisition -> advanced_analysis -> idea_generation`
@@ -56,11 +56,13 @@ Current control flow:
 - **Contract mode**: `run.mature_idea` turns the provided idea into the MCTS root; descendants refine rather than drift.
 - **Root-domain locking**: the MCTS root is classified into one or two fixed research domains; all child ideas must stay in those domains.
 - **Preset-driven search**: `mcts.idea_taste_mode` now affects three things at once: evaluation weights, skill selection bias, and component-generation guidance.
+- **LigAgent-Pro**: when `run."LigAgent-Pro"` is enabled, LigAgent runs all five idea taste presets from the same prepared root context and then fuses the per-mode best candidates with a GPT-5.4 fusion agent.
 - **Cross-domain theory transfer with domain lock**: `theory-transfer-injection` can retrieve external paper-graph mechanisms from other domains, but instantiation is still forced to remain in the idea's home domain.
 - **Dual memory guidance**: vector memory provides text snippets, while symbolic memory provides prospective operator priors and retrospective evaluation hints.
 
 **Inputs**:
 - `run.topics`: topic list in `src/agents/idea_agent/config/run/default.yaml`
+- `run."LigAgent-Pro"`: enable multi-preset parallel search plus fusion
 - `run.mature_idea` (optional): enables contract-rooted search
 - `run.rag_config`: OutcomeRAG config path
 - `mcts.idea_taste_mode`: preset controlling search posture (`moonshot_inventor`, `bridge_builder`, `steady_engineer`, `ambitious_realist`, `evidence_first`)
@@ -68,26 +70,29 @@ Current control flow:
 **Outputs**:
 - by default, `src/agents/idea_agent/runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json`
   - contains `title`, `abstract`, `introduction`, `components`, `algorithm`, `reference_papers`, and `mcts_evolution`
+  - if the final idea is fused, it also contains `fusion_evolution`
 - by default, `src/agents/idea_agent/runs/<topic-slug>-<timestamp>-<uuid>/logs/ligagent.log`
-- in-memory `artifact["idea_pool"]` entries also keep `evaluation`, `search_score`, `search_path`, `pareto_candidates`, and `search_trace`
+- in-memory `artifact["idea_pool"]` entries also keep `evaluation`, `search_score`, `search_path`, `pareto_candidates`, `search_trace`, and optional fusion provenance
 
 **Config location**: `src/agents/idea_agent/config/`
 
 Key config files:
 - `src/agents/idea_agent/config/run/default.yaml`
-  - `topics`, `parallelism`, `output_root`, `rag_config`, `mature_idea`
+  - `topics`, `LigAgent-Pro`, `output_root`, `rag_config`, `mature_idea`
 - `src/agents/idea_agent/config/mcts/default.yaml`
   - `max_iterations`, `max_depth`, `branching_factor`, `idea_taste_mode`
   - `generation_model`, `evaluation_model`
   - `symbolic_memory_path`, `skill_prior_success_threshold`
   - `theory_transfer_retrieval_top_k`, `theory_transfer_similarity_threshold`
+- `src/agents/idea_agent/config/fusion/default.yaml`
+  - `enabled`, `only_when_ligagent_pro`, `model`, `temperature`, `max_tokens`, `min_candidates`
 
 **Minimal example**:
 ```yaml
 run:
   topics:
     - "Diffusion Models for Reinforcement Learning in Games"
-  parallelism: 1
+  "LigAgent-Pro": false
   output_root: "runs"
   rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
   # mature_idea: "Optional contract root"
@@ -100,6 +105,11 @@ mcts:
   generation_model: "gpt-5-mini"
   evaluation_model: "gpt-5.4"
   symbolic_memory_path: "output/symbolic_memory.json"
+
+fusion:
+  enabled: true
+  model: "gpt-5.4"
+  min_candidates: 2
 ```
 
 `run.rag_config` must point to a valid OutcomeRAG config whose saved survey outputs already exist.

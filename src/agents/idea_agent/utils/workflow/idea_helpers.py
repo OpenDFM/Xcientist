@@ -56,6 +56,24 @@ def build_mcts_evolution(best_entry: Dict[str, Any]) -> Dict[str, Any]:
     return evolution
 
 
+def build_fusion_evolution(best_entry: Dict[str, Any]) -> Dict[str, Any]:
+    fusion_metadata = best_entry.get("fusion_metadata")
+    if not isinstance(fusion_metadata, dict):
+        fusion_metadata = {}
+
+    return {
+        "source_modes": best_entry.get("source_modes") or [],
+        "host_idea_mode": fusion_metadata.get("host_idea_mode"),
+        "selected_components": fusion_metadata.get("selected_components") or [],
+        "rejected_components": fusion_metadata.get("rejected_components") or [],
+        "conflicts_and_resolutions": fusion_metadata.get("conflicts_and_resolutions") or [],
+        "fused_core_thesis": fusion_metadata.get("fused_core_thesis") or "",
+        "why_stronger_than_each_input": fusion_metadata.get("why_stronger_than_each_input") or "",
+        "minimal_validation_plan": fusion_metadata.get("minimal_validation_plan") or "",
+        "post_fusion_evaluation": build_mcts_evolution(best_entry),
+    }
+
+
 def collect_reference_material(reference_batches: List[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
     references: List[Dict[str, Any]] = []
     seen_titles = set()

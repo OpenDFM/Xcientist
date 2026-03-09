@@ -13,6 +13,8 @@ ARTIFACT_FORMAT = {
     "rag_contents": List[str], # list of survey content strings
     "paper_contents": dict, # mapping from paper_id -> parsed content metadata
     "idea_pool": List[dict], # list of canonical idea payloads
+    "ligagent_pro_candidates": List[dict], # raw per-mode best ideas from LigAgent-Pro
+    "fusion_result": dict, # latest fuse-agent output and fused candidate
     "dialogue": dict, # dialogue history
     "steps": List[str], # list of steps taken
     "artifact_structure": dict, # structure of the artifact
@@ -40,6 +42,8 @@ def artifact_init() -> dict:
         "paper_contents": {},
         "dialogue": {},
         "steps": [],
+        "ligagent_pro_candidates": [],
+        "fusion_result": {},
         "artifact_structure": {},
         "workflow_trace": [],
         "workflow_state": {},

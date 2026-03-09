@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from src.agents.idea_agent.agent.prompts import PROMPTS
+from src.agents.idea_agent.utils.core.config_loader import get_config_value
+from src.agents.idea_agent.utils.mcts.idea_taste_presets import IDEA_TASTE_PRESETS
 from src.agents.idea_agent.utils.prompting.prompt_views import format_paper_capsules_prompt_view
 from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
+from src.agents.idea_agent.utils.workflow.idea_fusion import (
+    fuse_ligagent_pro_ideas,
+    should_run_fusion,
+)
 from src.agents.idea_agent.utils.workflow.ligagent_flow import (
     make_stage_context,
     persist_final_idea,
@@ -63,6 +70,22 @@ def _chat(agent: Any, ctx: StageContext, op_name: str):
         )
 
     return _invoke
+
+
+def _result_to_best_entry(result: Any, idea_taste_mode: Optional[str]) -> Dict[str, Any]:
+    best_payload = result.best.to_dict()
+    best_entry = normalize_idea_contract(best_payload["idea"], keep_extra=True)
+    best_entry["evaluation"] = best_payload["evaluation"]
+    best_entry["search_score"] = best_payload["score"]
+    best_entry["search_path"] = best_payload["path"]
+    best_entry["pareto_candidates"] = {
+        label: cand.to_dict() if cand else None for label, cand in result.pareto.items()
+    }
+    best_entry["search_trace"] = result.trace
+    best_entry["idea_taste_mode"] = idea_taste_mode or "default"
+    best_entry["idea_source"] = "raw_mode"
+    best_entry["source_modes"] = [idea_taste_mode or "default"]
+    return best_entry
 
 
 def execute_knowledge_acquisition_stage(agent: Any, ctx: StageContext) -> StageResult:
@@ -180,9 +203,38 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
         context["mature_idea"] = mature_idea.strip()
 
     agent._inject_symbolic_priors(topic, context)
-    result = agent.mcts.search(topic=topic, context=context)
+    ligagent_pro = bool(get_config_value(agent.config, "run.LigAgent-Pro", False))
 
-    if not result.best:
+    mode_results: List[tuple[str, Any]] = []
+    shared_context = context
+    if ligagent_pro:
+        # Run MCTS searches for all idea taste modes in parallel, starting from the same prepared root context.
+        agent.mcts.symbolic_memory_path.parent.mkdir(parents=True, exist_ok=True)
+        agent.mcts.symbolic_memory.save(str(agent.mcts.symbolic_memory_path))
+        shared_context = agent.mcts.prepare_root_context(topic, context)
+        modes = list(IDEA_TASTE_PRESETS.keys())
+        with ThreadPoolExecutor(max_workers=len(modes)) as executor:
+            futures = {
+                executor.submit(
+                    agent.build_mcts_for_mode(mode).search,
+                    topic,
+                    deepcopy(shared_context),
+                ): mode
+                for mode in modes
+            }
+            for future in as_completed(futures):
+                mode = futures[future]
+                result = future.result()
+                if result.best:
+                    mode_results.append((mode, result))
+    else:
+        # Run a single MCTS search with the default idea taste preset.
+        result = agent.mcts.search(topic=topic, context=context)
+        if result.best:
+            mode_label = getattr(getattr(agent.mcts, "idea_taste_preset", None), "mode", None) or "default"
+            mode_results.append((mode_label, result))
+
+    if not mode_results:
         logger.warning("⚠️ MCTS search returned no candidate; keeping current idea pool unchanged.")
         replace_patch = {"idea_pool": idea_history} if idea_history else {}
         return StageResult(
@@ -192,18 +244,41 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
                 "\nIn this idea_generation action, MCTS returned no candidate "
                 "and no fallback legacy path was used."
             ),
-            metrics={"experience_count": len(result.experiences)},
+            metrics={"experience_count": 0},
         )
 
-    best_payload = result.best.to_dict()
-    best_entry = normalize_idea_contract(best_payload["idea"], keep_extra=True)
-    best_entry["evaluation"] = best_payload["evaluation"]
-    best_entry["search_score"] = best_payload["score"]
-    best_entry["search_path"] = best_payload["path"]
-    best_entry["pareto_candidates"] = {
-        label: cand.to_dict() if cand else None for label, cand in result.pareto.items()
-    }
-    best_entry["search_trace"] = result.trace
+    mode_order = {mode: idx for idx, mode in enumerate(IDEA_TASTE_PRESETS.keys())}
+    mode_entries = [
+        _result_to_best_entry(result, mode)
+        for mode, result in sorted(
+            mode_results,
+            key=lambda item: mode_order.get(item[0], len(mode_order)),
+        )
+    ]
+    best_entry = mode_entries[0]
+    fused_entry = None
+    fusion_result: Dict[str, Any] = {}
+    fusion_experiences: List[Any] = []
+    if should_run_fusion(agent.config, ligagent_pro=ligagent_pro, candidate_count=len(mode_entries)):
+        try:
+            fused_entry, fusion_result, fusion_experiences = fuse_ligagent_pro_ideas(
+                agent=agent,
+                runtime=_runtime(agent, ctx),
+                session=session,
+                stage_name=ctx.stage_name,
+                topic=topic,
+                context=shared_context,
+                mode_entries=mode_entries,
+                prompt_template=PROMPTS["idea_fusion"],
+                logger=logger,
+            )
+            if fused_entry:
+                best_entry = fused_entry
+        except Exception as exc:
+            logger.warning("⚠️ Idea fusion failed; keeping raw best idea: %s", exc)
+    if fusion_result:
+        fusion_result["selected_entry_source"] = best_entry.get("idea_source")
+        fusion_result["selected_title"] = best_entry.get("title")
     final_payload = persist_final_idea(
         best_entry=best_entry,
         paper_entries=paper_entries,
@@ -217,38 +292,57 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     )
 
     canonical_pool = list(idea_history)
-    canonical_pool.append(best_entry)
+    canonical_pool.extend(mode_entries)
+    if fused_entry:
+        canonical_pool.append(fused_entry)
     pareto_lines = []
-    for label, cand in result.pareto.items():
-        if cand:
-            pareto_lines.append(
-                f"{label}: {cand.node.state.title} (score={cand.evaluation.composite:.2f})"
-            )
+    pareto_count = 0
+    for mode, result in mode_results:
+        for label, cand in result.pareto.items():
+            if cand:
+                pareto_count += 1
+                pareto_lines.append(
+                    f"{mode}/{label}: {cand.node.state.title} (score={cand.evaluation.composite:.2f})"
+                )
     pareto_summary = "; ".join(pareto_lines) if pareto_lines else "no Pareto picks"
+    all_experiences: List[Any] = []
+    all_evaluations: List[Any] = []
+    for _, result in mode_results:
+        all_experiences.extend(result.experiences)
+        all_evaluations.append(result.best.to_dict()["evaluation"])
+    all_experiences.extend(fusion_experiences)
+    if fused_entry:
+        all_evaluations.append(fused_entry["evaluation"])
     if session is not None:
         session.set_slot("idea.latest", best_entry)
         session.set_slot("idea_result.latest", final_payload)
     step = (
         f"\nIn this idea_generation action, I ran memory-guided MCTS over '{topic}'. "
+        f"{'All idea taste modes started from the same prepared root context. ' if ligagent_pro else ''}"
+        f"{'A GPT-5.4 fusion pass was applied. ' if fused_entry else ''}"
         f"Best idea: {best_entry['title']} (score={best_entry['search_score']:.2f}). "
-        f"Pareto set -> {pareto_summary}. Persisted {len(result.experiences)} defect->fix lifts to long-term memory."
+        f"Pareto set -> {pareto_summary}. Persisted {len(all_experiences)} defect->fix lifts to long-term memory."
     )
     return StageResult(
         artifact_patch=ArtifactPatch(
             replace={
                 "idea_pool": canonical_pool,
                 "idea_result": final_payload,
+                "ligagent_pro_candidates": mode_entries if ligagent_pro else [],
+                "fusion_result": fusion_result,
             },
             append={
-                "evaluations": [best_payload["evaluation"]],
-                "ltm_experiences": list(result.experiences),
+                "evaluations": all_evaluations,
+                "ltm_experiences": all_experiences,
             },
         ),
         step_summary=step,
         metrics={
-            "experience_count": len(result.experiences),
-            "pareto_count": sum(1 for cand in result.pareto.values() if cand),
+            "experience_count": len(all_experiences),
+            "pareto_count": pareto_count,
             "search_score": best_entry["search_score"],
+            "mode_count": len(mode_results),
+            "fusion_used": bool(best_entry.get("idea_source") == "fused"),
         },
     )
 

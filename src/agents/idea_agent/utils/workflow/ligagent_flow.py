@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.agents.idea_agent.agent.prompts import PROMPTS
-from src.agents.idea_agent.utils.workflow.idea_helpers import build_mcts_evolution, collect_reference_material
+from src.agents.idea_agent.utils.workflow.idea_helpers import (
+    build_fusion_evolution,
+    build_mcts_evolution,
+    collect_reference_material,
+)
 from src.agents.idea_agent.utils.workflow.stage_contract import StageContext
 from src.agents.idea_agent.utils.workflow.workflow_runtime import (
     StageSpec,
@@ -177,6 +181,7 @@ def persist_final_idea(
                         "explanation": explanation,
                     }
                 )
+    mcts_evolution = build_mcts_evolution(best_entry)
     payload = {
         "title": best_entry.get("title"),
         "abstract": best_entry.get("abstract"),
@@ -184,8 +189,16 @@ def persist_final_idea(
         "components": component_entries,
         "algorithm": algorithm,
         "reference_papers": references,
-        "mcts_evolution": build_mcts_evolution(best_entry),
+        "mcts_evolution": mcts_evolution,
     }
+    if best_entry.get("idea_source"):
+        payload["idea_source"] = best_entry.get("idea_source")
+    if isinstance(best_entry.get("source_modes"), list) and best_entry.get("source_modes"):
+        payload["source_modes"] = best_entry.get("source_modes")
+    if isinstance(best_entry.get("fusion_metadata"), dict) and best_entry.get("fusion_metadata"):
+        payload["fusion_metadata"] = best_entry.get("fusion_metadata")
+    if best_entry.get("idea_source") == "fused":
+        payload["fusion_evolution"] = build_fusion_evolution(best_entry)
     if best_entry.get("idea_contract"):
         payload["idea_contract"] = best_entry.get("idea_contract")
     best_entry["introduction"] = introduction

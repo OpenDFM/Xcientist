@@ -88,9 +88,10 @@ Builds MCTS context from:
 Then it:
 
 1. injects symbolic priors,
-2. runs `MemoryGuidedMCTS.search(...)`,
-3. saves the best idea into `artifact["idea_pool"]`,
-4. persists `idea_result.json` via `persist_final_idea(...)`.
+2. if `run."LigAgent-Pro"` is `false`, runs one `MemoryGuidedMCTS.search(...)` using the configured `idea_taste_mode`,
+3. if `run."LigAgent-Pro"` is `true`, prepares one shared root context, runs all five idea taste presets in parallel from that same root, keeps one best candidate per mode, and sends them to a GPT-5.4 fusion agent,
+4. re-evaluates the fused candidate under a fixed referee mode,
+5. persists the final idea through `persist_final_idea(...)`.
 
 ## Artifact and Outputs
 
@@ -107,7 +108,9 @@ Then it:
 | `rag_query`, `rag_hits`, `rag_contents` | OutcomeRAG context |
 | `paper_contents` | parsed paper metadata |
 | `idea_pool` | canonical idea payloads from `idea_generation` |
-| `evaluations` | evaluation payloads from winning candidates |
+| `ligagent_pro_candidates` | raw per-mode best candidates collected by LigAgent-Pro |
+| `fusion_result` | latest fusion-agent output plus the evaluated fused candidate |
+| `evaluations` | evaluation payloads collected during idea generation |
 | `retrieval_keywords` | current retrieval strings |
 | `workflow_trace`, `workflow_state`, `operation_trace` | execution metadata |
 
@@ -124,6 +127,7 @@ Each winning `idea_pool` entry is richer than the final public JSON. It stores:
 - `search_path`
 - `pareto_candidates`
 - `search_trace`
+- optional provenance such as `idea_source`, `source_modes`, and `fusion_metadata`
 
 The persisted `idea_result.json` is intentionally smaller and paper-oriented:
 
@@ -134,7 +138,11 @@ The persisted `idea_result.json` is intentionally smaller and paper-oriented:
 - `algorithm`
 - `reference_papers`
 - `mcts_evolution`
+- if the final idea is fused: `fusion_evolution`
+- optional provenance such as `idea_source`, `source_modes`, and `fusion_metadata`
 - optional `idea_contract`
+
+`mcts_evolution` is retained for backward compatibility. When the final idea comes from the fusion agent, `fusion_evolution` is the fusion-specific field that describes component selection, conflict resolution, and the post-fusion evaluation pass.
 
 ## Memory-Guided MCTS
 
@@ -322,13 +330,14 @@ Primary config files:
 
 - `config/run/default.yaml`
 - `config/mcts/default.yaml`
+- `config/fusion/default.yaml`
 
 Most important runtime keys:
 
 ### `run/default.yaml`
 
 - `topics`
-- `parallelism`
+- `LigAgent-Pro`
 - `output_root`
 - `console_logs`
 - `rag_config`
@@ -353,6 +362,15 @@ Key search controls:
 - `theory_transfer_similarity_threshold`
 - `symbolic_memory_path`
 - `skill_prior_success_threshold`
+
+### `fusion/default.yaml`
+
+- `enabled`
+- `only_when_ligagent_pro`
+- `model`
+- `temperature`
+- `max_tokens`
+- `min_candidates`
 
 At the time of writing, the checked-in default preset is `evidence_first`.
 

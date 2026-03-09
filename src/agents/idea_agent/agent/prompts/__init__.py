@@ -8,6 +8,7 @@ from src.agents.idea_agent.agent.prompts.reference_grounding import REFERENCE_GR
 from src.agents.idea_agent.agent.prompts.algorithm_structuring import ALGORITHM_STRUCTURING_PROMPT
 from src.agents.idea_agent.agent.prompts.algorithm_alignment import ALGORITHM_ALIGNMENT_PROMPT
 from src.agents.idea_agent.agent.prompts.idea_introduction import IDEA_INTRODUCTION_PROMPT
+from src.agents.idea_agent.agent.prompts.idea_fusion import IDEA_FUSION_PROMPT
 from src.agents.idea_agent.agent.prompts.topic_background import TOPIC_BACKGROUND_PROMPT
 from src.agents.idea_agent.agent.prompts.rag_query import RAG_QUERY_PROMPT
 from src.agents.idea_agent.agent.prompts.paper_filtering import PAPER_FILTERING_PROMPT
@@ -22,6 +23,7 @@ PROMPTS = {
     "algorithm_structuring": ALGORITHM_STRUCTURING_PROMPT,
     "algorithm_alignment": ALGORITHM_ALIGNMENT_PROMPT,
     "idea_introduction": IDEA_INTRODUCTION_PROMPT,
+    "idea_fusion": IDEA_FUSION_PROMPT,
     "topic_background": TOPIC_BACKGROUND_PROMPT,
     "rag_query": RAG_QUERY_PROMPT,
     "paper_filtering": PAPER_FILTERING_PROMPT,

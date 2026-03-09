@@ -4,6 +4,7 @@ from src.agents.idea_agent.agent import get_logger
 from typing import Any, Dict, Literal, List, Optional, Set
 from pathlib import Path
 import time
+from copy import deepcopy
 from dataclasses import fields
 
 from src.agents.idea_agent.agent.tools import TOOLS
@@ -190,7 +191,8 @@ class LigAgent(AgentBase):
                 elif "gpt-5" in model:
                     # Idea Evaluator: GPT-5.4
                     kwargs["temperature"] = 1.0
-                    return super().chat(prompt, model=model, reasoning={"effort": "low"}, **kwargs)
+                    effort = "medium" if stage == "idea_fusion" else "low"
+                    return super().chat(prompt, model=model, reasoning={"effort": effort}, **kwargs)
                 else:
                     return super().chat(prompt, model=model, **kwargs)
             except Exception as exc:
@@ -260,6 +262,20 @@ class LigAgent(AgentBase):
 
     def re_analysis_replan(self, **kwargs) -> str:
         return self._run_action_workflow("re_analysis_replan", **kwargs)
+
+    def build_mcts_for_mode(self, idea_taste_mode: Optional[str]) -> MemoryGuidedMCTS:
+        mcts_config = deepcopy(self.mcts.config)
+        setattr(mcts_config, "idea_taste_mode", idea_taste_mode)
+        apply_idea_taste_preset(mcts_config)
+        mode_mcts = MemoryGuidedMCTS(
+            chat_fn=self.chat,
+            evaluation_prompt=PROMPTS.get("mcts_evaluation"),
+            config=mcts_config,
+            logger=self.logger,
+        )
+        mode_mcts.symbolic_memory = deepcopy(self.mcts.symbolic_memory)
+        mode_mcts.persist_symbolic_memory = False
+        return mode_mcts
 
     def _persist_final_idea(
         self, best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]]

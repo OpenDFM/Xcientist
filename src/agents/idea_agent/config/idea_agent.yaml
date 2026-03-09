@@ -2,5 +2,6 @@ defaults:
   - agent: default
   - run: default
   - mcts: default
+  - fusion: default
   - search: default
   - _self_

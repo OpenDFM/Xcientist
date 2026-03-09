@@ -748,6 +748,7 @@ class MemoryGuidedMCTS:
         self._mature_idea_components: List[str] = []
         self._mature_idea_component_explanations: Dict[str, str] = {}
         self._component_novelty_fallback_logged = False
+        self.persist_symbolic_memory = True
 
         self._load_skill_prior_memory()
 
@@ -1061,32 +1062,34 @@ class MemoryGuidedMCTS:
             max_components=MAX_COMPONENTS,
         )
 
+    def prepare_root_context(self, topic: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        prepared = dict(context or {})
+        self.paper_context = prepared.get("paper_context") or "No curated papers available yet."
+        mature_idea = (prepared.get("mature_idea") or "").strip()
+        components = prepared.get("components")
+        if mature_idea and not isinstance(components, list):
+            components, explanations = self._extract_mature_idea_components(mature_idea, topic)
+            if components:
+                prepared["components"] = components
+                prepared["component_explanations"] = explanations
+
+        root_domains = prepared.get("root_domains")
+        if not isinstance(root_domains, list) or not [str(domain).strip() for domain in root_domains]:
+            draft_root_state = build_root_state(topic, prepared, IdeaState)
+            prepared["root_domains"] = self._classify_root_domains(topic, draft_root_state)
+        return prepared
+
     def search(self, topic: str, context: Dict[str, Any]) -> SearchResult:
         reset_search_state(self)
-        context = dict(context or {})
+        context = self.prepare_root_context(topic, context)
         self.topic = topic
         self.analysis_blob = format_analysis_blob(context.get("analysis", []))
         self.idea_pool_context = format_idea_pool_prompt_view(context.get("idea_pool") or [])
         self.paper_context = context.get("paper_context") or "No curated papers available yet."
         self.mature_idea = (context.get("mature_idea") or "").strip()
-
-        # Extract components from mature idea if provided
-        self._mature_idea_components = []
-        self._mature_idea_component_explanations = {}
-        if self.mature_idea:
-            (
-                self._mature_idea_components,
-                self._mature_idea_component_explanations,
-            ) = self._extract_mature_idea_components(
-                self.mature_idea, topic
-            )
-            if self._mature_idea_components:
-                context["components"] = self._mature_idea_components
-                context["component_explanations"] = self._mature_idea_component_explanations
-
-        draft_root_state = build_root_state(topic, context, IdeaState)
-        root_domains = self._classify_root_domains(topic, draft_root_state)
-        context["root_domains"] = root_domains
+        self._mature_idea_components = list(context.get("components") or [])
+        self._mature_idea_component_explanations = dict(context.get("component_explanations") or {})
+        root_domains = context.get("root_domains") or []
         log_message(
             self.logger,
             self.log_sink,
@@ -1173,18 +1176,19 @@ class MemoryGuidedMCTS:
         cache_entries = sum(len(entries) for entries in self.evaluation_cache.values())
 
         # Persist injected symbolic priors to disk so they survive across runs
-        try:
-            self.symbolic_memory_path.parent.mkdir(parents=True, exist_ok=True)
-            self.symbolic_memory.save(str(self.symbolic_memory_path))
+        if self.persist_symbolic_memory:
+            try:
+                self.symbolic_memory_path.parent.mkdir(parents=True, exist_ok=True)
+                self.symbolic_memory.save(str(self.symbolic_memory_path))
 
-        except Exception as exc:
-            log_message(
-                self.logger,
-                self.log_sink,
-                "warning",
-                "⚠️  Failed to save symbolic memory: %s",
-                exc,
-            )
+            except Exception as exc:
+                log_message(
+                    self.logger,
+                    self.log_sink,
+                    "warning",
+                    "⚠️  Failed to save symbolic memory: %s",
+                    exc,
+                )
 
         return SearchResult(
             best=best,

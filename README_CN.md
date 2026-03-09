@@ -46,7 +46,7 @@ pip install -r requirements.txt
 | `knowledge_aquisition` | 冷启动检索：Semantic Scholar 种子检索 → OutcomeRAG 查询 → 引用扩展 → 论文丰富与筛选 |
 | `advanced_analysis` | 从精选论文中提炼机制、痛点、开放问题与搜索种子 |
 | `re_analysis_replan` | 当已有 RAG 上下文时，重写 topic 焦点、成熟想法和检索方向 |
-| `idea_generation` | 运行 Memory-Guided MCTS，产出最佳 idea，并写出 `idea_result.json` |
+| `idea_generation` | 运行 Memory-Guided MCTS；若开启 `LigAgent-Pro`，则从同一 root 并行搜索所有 preset，并在写出 `idea_result.json` 之前执行 fusion |
 
 当前控制流：
 - 冷启动：`knowledge_aquisition -> advanced_analysis -> idea_generation`
@@ -56,11 +56,13 @@ pip install -r requirements.txt
 - **Contract 模式**：`run.mature_idea` 会直接作为 MCTS 根节点，后续搜索只做机制内 refinement，不做随意漂移。
 - **根领域锁定**：MCTS 根节点会先被分类到 1 到 2 个固定研究领域，所有子 idea 都必须留在这些领域内。
 - **Preset 驱动搜索**：`mcts.idea_taste_mode` 现在同时影响评估权重、`select_skills()` 的 bias，以及 component 生成时的 taste guidance。
+- **LigAgent-Pro**：当 `run."LigAgent-Pro"` 打开时，LigAgent 会从同一份 prepared root context 并行跑五种 idea taste preset，再用 GPT-5.4 fusion agent 融合各 mode 的 best candidate。
 - **跨领域理论迁移但不换领域**：`theory-transfer-injection` 可以检索别的领域里的 paper-graph 机制，但实例化时仍必须留在当前 idea 的 home domain。
 - **双重记忆系统**：向量记忆负责文本提示，符号记忆负责前瞻式 operator prior 和回顾式 evaluator hints。
 
 **输入**：
 - `run.topics`：研究主题列表，定义在 `src/agents/idea_agent/config/run/default.yaml`
+- `run."LigAgent-Pro"`：打开多 preset 并行搜索与 fusion
 - `run.mature_idea`（可选）：开启 contract-rooted search
 - `run.rag_config`：OutcomeRAG 配置路径
 - `mcts.idea_taste_mode`：搜索口味 preset，目前支持 `moonshot_inventor`、`bridge_builder`、`steady_engineer`、`ambitious_realist`、`evidence_first`
@@ -68,26 +70,29 @@ pip install -r requirements.txt
 **输出**：
 - 默认写到 `src/agents/idea_agent/runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json`
   - 包含 `title`、`abstract`、`introduction`、`components`、`algorithm`、`reference_papers`、`mcts_evolution`
+  - 若最终 idea 来自 fusion，还会额外包含 `fusion_evolution`
 - 默认写到 `src/agents/idea_agent/runs/<topic-slug>-<timestamp>-<uuid>/logs/ligagent.log`
-- 运行中的 `artifact["idea_pool"]` 条目还会保留 `evaluation`、`search_score`、`search_path`、`pareto_candidates`、`search_trace`
+- 运行中的 `artifact["idea_pool"]` 条目还会保留 `evaluation`、`search_score`、`search_path`、`pareto_candidates`、`search_trace`，以及可选 fusion provenance
 
 **配置位置**：`src/agents/idea_agent/config/`
 
 主要配置文件：
 - `src/agents/idea_agent/config/run/default.yaml`
-  - `topics`、`parallelism`、`output_root`、`rag_config`、`mature_idea`
+  - `topics`、`LigAgent-Pro`、`output_root`、`rag_config`、`mature_idea`
 - `src/agents/idea_agent/config/mcts/default.yaml`
   - `max_iterations`、`max_depth`、`branching_factor`、`idea_taste_mode`
   - `generation_model`、`evaluation_model`
   - `symbolic_memory_path`、`skill_prior_success_threshold`
   - `theory_transfer_retrieval_top_k`、`theory_transfer_similarity_threshold`
+- `src/agents/idea_agent/config/fusion/default.yaml`
+  - `enabled`、`only_when_ligagent_pro`、`model`、`temperature`、`max_tokens`、`min_candidates`
 
 **最小示例**：
 ```yaml
 run:
   topics:
     - "Diffusion Models for Reinforcement Learning in Games"
-  parallelism: 1
+  "LigAgent-Pro": false
   output_root: "runs"
   rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
   # mature_idea: "可选的 contract root"
@@ -100,6 +105,11 @@ mcts:
   generation_model: "gpt-5-mini"
   evaluation_model: "gpt-5.4"
   symbolic_memory_path: "output/symbolic_memory.json"
+
+fusion:
+  enabled: true
+  model: "gpt-5.4"
+  min_candidates: 2
 ```
 
 `run.rag_config` 必须指向有效的 OutcomeRAG 配置，且对应 survey 输出已经存在。

@@ -88,9 +88,10 @@ graph TD
 随后执行：
 
 1. 注入 symbolic priors
-2. 调用 `MemoryGuidedMCTS.search(...)`
-3. 把最佳 idea 写入 `artifact["idea_pool"]`
-4. 通过 `persist_final_idea(...)` 生成 `idea_result.json`
+2. 如果 `run."LigAgent-Pro"` 为 `false`，按当前配置的 `idea_taste_mode` 跑一次 `MemoryGuidedMCTS.search(...)`
+3. 如果 `run."LigAgent-Pro"` 为 `true`，先准备一份共享 root context，再从这同一个 root 并行跑五种 preset，各取一个 mode best，然后交给 GPT-5.4 fusion agent
+4. 对 fused candidate 用固定 referee mode 再复评一次
+5. 通过 `persist_final_idea(...)` 生成最终 `idea_result.json`
 
 ## Artifact 与输出
 
@@ -107,7 +108,9 @@ graph TD
 | `rag_query`、`rag_hits`、`rag_contents` | OutcomeRAG 上下文 |
 | `paper_contents` | 论文解析元数据 |
 | `idea_pool` | `idea_generation` 输出的 canonical idea payload |
-| `evaluations` | winning candidate 的评估结果 |
+| `ligagent_pro_candidates` | LigAgent-Pro 收集到的各 mode raw best candidates |
+| `fusion_result` | 最新 fusion-agent 输出和复评后的 fused candidate |
+| `evaluations` | `idea_generation` 阶段累计得到的评估结果 |
 | `retrieval_keywords` | 当前检索关键词 |
 | `workflow_trace`、`workflow_state`、`operation_trace` | 执行元数据 |
 
@@ -124,6 +127,7 @@ graph TD
 - `search_path`
 - `pareto_candidates`
 - `search_trace`
+- 可选 provenance：`idea_source`、`source_modes`、`fusion_metadata`
 
 最终持久化出来的 `idea_result.json` 则更偏论文写作接口，主要包含：
 
@@ -134,7 +138,11 @@ graph TD
 - `algorithm`
 - `reference_papers`
 - `mcts_evolution`
+- 若最终 idea 来自 fusion：`fusion_evolution`
+- 可选 provenance：`idea_source`、`source_modes`、`fusion_metadata`
 - 可选的 `idea_contract`
+
+`mcts_evolution` 仍然保留，用于兼容旧读取方；当最终 idea 是 fused idea 时，`fusion_evolution` 才是更准确描述 fusion 过程的字段，它会突出 component 选择、冲突消解和 fusion 后复评。
 
 ## Memory-Guided MCTS
 
@@ -324,13 +332,14 @@ Evaluator 只允许返回 `utils/mcts/defect_registry.py` 里的 canonical defec
 
 - `config/run/default.yaml`
 - `config/mcts/default.yaml`
+- `config/fusion/default.yaml`
 
 ### `run/default.yaml`
 
 最重要的键包括：
 
 - `topics`
-- `parallelism`
+- `LigAgent-Pro`
 - `output_root`
 - `console_logs`
 - `rag_config`
@@ -355,6 +364,15 @@ Evaluator 只允许返回 `utils/mcts/defect_registry.py` 里的 canonical defec
 - `theory_transfer_similarity_threshold`
 - `symbolic_memory_path`
 - `skill_prior_success_threshold`
+
+### `fusion/default.yaml`
+
+- `enabled`
+- `only_when_ligagent_pro`
+- `model`
+- `temperature`
+- `max_tokens`
+- `min_candidates`
 
 截至当前代码版本，仓库中的默认 preset 是 `evidence_first`。
 
