@@ -16,6 +16,7 @@ from src.agents.idea_agent.utils.mcts.defect_registry import DEFECT_REGISTRY
 from src.agents.idea_agent.utils.mcts.idea_taste_presets import IdeaTastePreset
 from memory.api.component_taxonomy import ContextSignature, extract_component_families, extract_context_signature
 from src.agents.idea_agent.utils.mcts.mcts_helpers import (
+    _format_root_domains_for_prompt,
     _clean_component_explanation,
     _coerce_component_name,
     _dedupe_keep_order_strings,
@@ -1607,7 +1608,7 @@ def simulate_node_value(
 
     prompt = mcts.evaluation_prompt.format(
         topic=mcts.topic,
-        root_domains=mcts._format_root_domains_for_prompt(getattr(node.state, "root_domains", [])),
+        root_domains=_format_root_domains_for_prompt(getattr(node.state, "root_domains", [])),
         mature_idea=mcts.mature_idea or "None",
         analysis=mcts.analysis_blob,
         idea_pool_context=getattr(mcts, "idea_pool_context", "No prior ideas in the current run."),

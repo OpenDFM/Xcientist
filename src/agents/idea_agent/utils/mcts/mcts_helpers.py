@@ -79,6 +79,37 @@ def clip_text(value: Any, limit: int = 800) -> str:
     return text[: max(1, limit - 1)] + "..."
 
 
+def clip_metric_score(value: Any, *, lower: float = 0.0, upper: float = 5.0) -> float:
+    return max(lower, min(upper, _safe_float_default(value, lower)))
+
+
+def normalize_score_weights(
+    weights: Dict[str, Any],
+    fields: Sequence[str],
+) -> Dict[str, float]:
+    cleaned: Dict[str, float] = {}
+    for field_name in fields:
+        try:
+            cleaned[field_name] = max(0.0, float(weights.get(field_name, 0.0)))
+        except (TypeError, ValueError):
+            cleaned[field_name] = 0.0
+
+    total = sum(cleaned.values())
+    if total <= 1e-9:
+        uniform = 1.0 / max(len(fields), 1)
+        return {field_name: uniform for field_name in fields}
+    return {field_name: value / total for field_name, value in cleaned.items()}
+
+
+def apply_normalized_score_weights(target: Any, fields: Sequence[str]) -> None:
+    normalized = normalize_score_weights(
+        {field_name: getattr(target, field_name, 0.0) for field_name in fields},
+        fields,
+    )
+    for field_name, value in normalized.items():
+        setattr(target, field_name, value)
+
+
 def _normalize_root_domains(items: Sequence[str]) -> List[str]:
     ordered: List[str] = []
     seen: Set[str] = set()
@@ -421,6 +452,114 @@ def apply_budget_delta_to_parent(
         if isinstance(base, (int, float)):
             next_budget[key] = round(float(base) + _safe_float_default(val, 0.0), 4)
     return next_budget
+
+
+def build_fallback_theory_transfer_query(
+    plan: Any,
+    *,
+    root_domains_text: str,
+    clip_limit: int,
+) -> Dict[str, str]:
+    target_defects = getattr(plan, "target_defects", []) or []
+    target_defect = next((str(tag).strip() for tag in target_defects if str(tag).strip()), "core gap")
+    component_names = [
+        str(getattr(edit, "component", "")).strip()
+        for edit in (getattr(plan, "component_edits", []) or [])
+        if str(getattr(edit, "component", "")).strip()
+        and getattr(getattr(edit, "op", None), "value", str(getattr(edit, "op", ""))) != "ADD_PROTOCOL"
+    ]
+    mechanism_target = component_names[0] if component_names else "core mechanism"
+    needed_content = (
+        f"The current idea still needs a transferable mechanism that strengthens {mechanism_target} "
+        f"while addressing {target_defect}."
+    )
+    expected_role = (
+        "The retrieved mechanism should plug into the current design as a focused theory-backed module "
+        f"without changing the idea's home domain ({root_domains_text})."
+    )
+    query = f"{needed_content} Expected role: {expected_role}"
+    return {
+        "query": clip_text(query, clip_limit),
+        "needed_content": clip_text(needed_content, clip_limit),
+        "expected_role": clip_text(expected_role, clip_limit),
+    }
+
+
+def normalize_theory_transfer_query_payload(
+    payload: Any,
+    *,
+    fallback: Dict[str, str],
+    clip_limit: int,
+) -> Dict[str, str]:
+    if not isinstance(payload, dict):
+        return fallback
+
+    query = clip_text(str(payload.get("query") or "").strip(), clip_limit)
+    needed_content = clip_text(str(payload.get("needed_content") or "").strip(), clip_limit)
+    expected_role = clip_text(str(payload.get("expected_role") or "").strip(), clip_limit)
+    if not query:
+        return fallback
+    return {
+        "query": query,
+        "needed_content": needed_content or fallback["needed_content"],
+        "expected_role": expected_role or fallback["expected_role"],
+    }
+
+
+def format_theory_transfer_references(
+    query_payload: Dict[str, str],
+    hits: Sequence[Dict[str, Any]],
+    *,
+    clip_limit: int,
+) -> str:
+    if not hits:
+        return "None"
+    lines = [
+        f"Transfer need: {query_payload.get('needed_content') or 'Unspecified'}",
+        f"Expected role: {query_payload.get('expected_role') or 'Unspecified'}",
+        "Cross-domain core references:",
+    ]
+    for idx, hit in enumerate(hits, start=1):
+        core_node = hit.get("core_node") if isinstance(hit.get("core_node"), dict) else {}
+        label = (
+            core_node.get("full_name")
+            or core_node.get("paper_title")
+            or hit.get("node_id")
+            or f"core_{idx}"
+        )
+        paper_title = str(core_node.get("paper_title") or "").strip()
+        paper_domain = str(core_node.get("paper_domain") or "").strip() or "unknown"
+        lines.append(
+            f"{idx}. {label} | domain={paper_domain} | score={float(hit.get('score') or 0.0):.3f}"
+        )
+        if paper_title:
+            lines.append(f"   paper: {clip_text(paper_title, clip_limit)}")
+        summary = clip_text(str(core_node.get("summary") or "").strip(), clip_limit)
+        insight = clip_text(str(core_node.get("insight") or "").strip(), clip_limit)
+        if summary:
+            lines.append(f"   summary: {summary}")
+        if insight:
+            lines.append(f"   insight: {insight}")
+        matched_components = (
+            hit.get("matched_components") if isinstance(hit.get("matched_components"), list) else []
+        )
+        for matched in matched_components[:2]:
+            component_name = clip_text(
+                str(matched.get("component_name") or "").strip(),
+                clip_limit,
+            )
+            component_summary = clip_text(
+                str(matched.get("component_summary") or "").strip(),
+                clip_limit,
+            )
+            if component_name or component_summary:
+                lines.append(
+                    f"   matched_component: {component_name or 'unknown'} | {component_summary}"
+                )
+    lines.append(
+        "Use these nodes only as references for transferable mechanisms. Do not copy them verbatim and do not change the root domain(s)."
+    )
+    return "\n".join(lines)
 
 
 def plan_to_method_text(plan: Any) -> str:

@@ -248,7 +248,9 @@ class ComponentNoveltyScorer:
         payload = parse_json_response(response)
         if isinstance(payload, list):
             payload = payload[0] if payload else {}
-        score = payload.get("rubric_score", payload.get("novelty"))
+        score = payload.get("rubric_score")
+        if score is None:
+            score = payload.get("perceived_novelty", payload.get("novelty"))
         if score is None:
             raise ValueError(f"Novelty evaluator missing rubric_score: {payload}")
         return _clamp_novelty_score(score)

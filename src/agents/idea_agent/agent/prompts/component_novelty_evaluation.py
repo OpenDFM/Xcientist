@@ -16,10 +16,15 @@ Treat them as the closest known neighborhood in the existing paper graph.
 
 Novelty scoring policy:
 - Score ONLY novelty on a 0-5 rubric.
-- Use the retrieved nodes as the main prior-art neighborhood.
+- Use the retrieved nodes as the main prior-art neighborhood, but do not stop at nearest-neighbor similarity.
+- Make TWO judgments before assigning the final novelty score:
+  1. Neighborhood similarity: how close is the candidate to the retrieved mechanisms?
+  2. Expert novelty judgment: after accounting for those nearby works, would a domain expert still regard this idea as novel?
 - If the candidate mostly restates or lightly renames mechanisms already covered by the retrieved nodes, score low.
 - If the candidate meaningfully recombines nearby mechanisms but still stays close to known patterns, score mid-range.
-- If the candidate introduces a concrete mechanism-level departure not well captured by the retrieved neighborhood, score high.
+- If the candidate introduces a concrete mechanism-level departure not well captured by the retrieved neighborhood, and would still read as novel to an expert, score high.
+- High similarity usually lowers novelty, but it does not automatically force a low score if the mechanism shift is concrete and substantive.
+- Low similarity does not automatically imply high novelty if the idea is vague, generic, or just repackages common patterns not captured in the retrieved set.
 - Penalize vague claims of novelty that are not grounded in explicit component behavior.
 - Focus on mechanism novelty, not impact, feasibility, or writing quality.
 
@@ -33,7 +38,9 @@ Rubric anchors:
 
 Return STRICT JSON only:
 {{
+  "retrieval_similarity": 0-5,
+  "perceived_novelty": 0-5,
   "rubric_score": 0-5,
-  "rationale": "Short justification grounded in retrieved nodes and component behavior"
+  "rationale": "Short justification grounded in both retrieved-node similarity and your overall novelty judgment"
 }}
 """

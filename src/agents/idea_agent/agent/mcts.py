@@ -31,15 +31,16 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _normalize_root_domains,
     _pretty_json,
     _safe_float_default,
-    apply_budget_delta_to_parent,
+    apply_normalized_score_weights,
+    build_fallback_theory_transfer_query,
+    clip_metric_score,
     clip_text,
+    format_theory_transfer_references,
     component_inventory_payload,
     format_analysis_blob,
+    normalize_theory_transfer_query_payload,
     normalize_component_explanations,
-    normalize_budget_dict,
     parse_json_response,
-    plan_to_experiment_text,
-    plan_to_method_text,
 )
 from src.agents.idea_agent.utils.prompting.prompt_views import (
     format_idea_pool_prompt_view,
@@ -244,15 +245,15 @@ class IdeaEvaluation:
     defect_fix_summary: str
     detected_defects: List[str]
     lift_estimate: float
-    novelty_weight: float = 0.35
-    impact_weight: float = 0.30
-    feasibility_weight: float = 0.20
-    clarity_weight: float = 0.15
-    conciseness_weight: float = 0.10
-    risk_weight: float = 0.20
-    alignment_weight: float = 0.20
-    complexity_weight: float = 0.25
-    protocol_weight: float = 0.05
+    novelty_weight: float = 0.22
+    impact_weight: float = 0.20
+    feasibility_weight: float = 0.12
+    clarity_weight: float = 0.07
+    conciseness_weight: float = 0.03
+    risk_weight: float = 0.10
+    alignment_weight: float = 0.18
+    complexity_weight: float = 0.05
+    protocol_weight: float = 0.03
 
     def __post_init__(self) -> None:
         self.failure_modes = [
@@ -267,6 +268,7 @@ class IdeaEvaluation:
             for tag in (self.detected_defects or [])[:MAX_LIST_ENTRIES]
         ]
         self.confidence = max(0.0, min(1.0, _safe_float_default(self.confidence, 0.0)))
+        apply_normalized_score_weights(self, SCORE_WEIGHT_FIELDS)
 
     @classmethod
     def from_payload(
@@ -303,15 +305,15 @@ class IdeaEvaluation:
             defect_fix_summary=str(payload.get("defect_fix_summary", "")),
             detected_defects=_list("detected_defects"),
             lift_estimate=max(0.0, _num("lift_estimate", 0.0)),
-            novelty_weight=w.get("novelty_weight", 0.35),
-            impact_weight=w.get("impact_weight", 0.30),
-            feasibility_weight=w.get("feasibility_weight", 0.20),
-            clarity_weight=w.get("clarity_weight", 0.15),
-            conciseness_weight=w.get("conciseness_weight", 0.10),
-            risk_weight=w.get("risk_weight", 0.20),
-            alignment_weight=w.get("alignment_weight", 0.20),
-            complexity_weight=w.get("complexity_weight", 0.25),
-            protocol_weight=w.get("protocol_weight", 0.05),
+            novelty_weight=w.get("novelty_weight", 0.22),
+            impact_weight=w.get("impact_weight", 0.20),
+            feasibility_weight=w.get("feasibility_weight", 0.12),
+            clarity_weight=w.get("clarity_weight", 0.07),
+            conciseness_weight=w.get("conciseness_weight", 0.03),
+            risk_weight=w.get("risk_weight", 0.10),
+            alignment_weight=w.get("alignment_weight", 0.18),
+            complexity_weight=w.get("complexity_weight", 0.05),
+            protocol_weight=w.get("protocol_weight", 0.03),
         )
 
     def to_dict(self) -> Dict[str, Any]:
@@ -336,28 +338,21 @@ class IdeaEvaluation:
 
     @property
     def composite(self) -> float:
-        pos_total = max(
-            self.novelty_weight + self.impact_weight + self.feasibility_weight
-            + self.clarity_weight + self.conciseness_weight + self.protocol_weight,
-            1e-9,
+        weighted_scores = {
+            "novelty_weight": clip_metric_score(self.novelty),
+            "impact_weight": clip_metric_score(self.impact),
+            "feasibility_weight": clip_metric_score(self.feasibility),
+            "clarity_weight": clip_metric_score(self.clarity),
+            "conciseness_weight": clip_metric_score(self.conciseness),
+            "alignment_weight": clip_metric_score(self.alignment_score),
+            "protocol_weight": clip_metric_score(self.protocol_score),
+            "risk_weight": 5.0 - clip_metric_score(self.risk),
+            "complexity_weight": 5.0 - clip_metric_score(self.complexity_penalty),
+        }
+        return sum(
+            getattr(self, field_name) * score
+            for field_name, score in weighted_scores.items()
         )
-        positive = (
-            self.novelty_weight * self.novelty
-            + self.impact_weight * self.impact
-            + self.feasibility_weight * self.feasibility
-            + self.clarity_weight * self.clarity
-            + self.conciseness_weight * self.conciseness
-            + self.protocol_weight * self.protocol_score
-        ) / pos_total
-        adj_total = max(
-            self.risk_weight + self.complexity_weight + self.alignment_weight, 1e-9
-        )
-        adjustment = (
-            self.alignment_weight * self.alignment_score
-            - self.risk_weight * self.risk
-            - self.complexity_weight * self.complexity_penalty
-        ) / adj_total
-        return positive + adjustment
 
 
 @dataclass
@@ -457,15 +452,15 @@ class MCTSConfig:
     )
     min_confidence_for_memory: float = _mcts_default("min_confidence_for_memory", 0.6)
     pareto_top_k: int = _mcts_default("pareto_top_k", 5)
-    alignment_weight: float = _mcts_default("alignment_weight", 0.20)
-    complexity_weight: float = _mcts_default("complexity_weight", 0.25)
-    novelty_weight: float = _mcts_default("novelty_weight", 0.35)
-    impact_weight: float = _mcts_default("impact_weight", 0.30)
-    feasibility_weight: float = _mcts_default("feasibility_weight", 0.20)
-    clarity_weight: float = _mcts_default("clarity_weight", 0.15)
-    conciseness_weight: float = _mcts_default("conciseness_weight", 0.10)
-    risk_weight: float = _mcts_default("risk_weight", 0.20)
-    protocol_weight: float = _mcts_default("protocol_weight", 0.05)
+    alignment_weight: float = _mcts_default("alignment_weight", 0.18)
+    complexity_weight: float = _mcts_default("complexity_weight", 0.05)
+    novelty_weight: float = _mcts_default("novelty_weight", 0.22)
+    impact_weight: float = _mcts_default("impact_weight", 0.20)
+    feasibility_weight: float = _mcts_default("feasibility_weight", 0.12)
+    clarity_weight: float = _mcts_default("clarity_weight", 0.07)
+    conciseness_weight: float = _mcts_default("conciseness_weight", 0.03)
+    risk_weight: float = _mcts_default("risk_weight", 0.10)
+    protocol_weight: float = _mcts_default("protocol_weight", 0.03)
 
     symbolic_memory_path: str = _mcts_default(
         "symbolic_memory_path",
@@ -479,11 +474,13 @@ def apply_idea_taste_preset(config: MCTSConfig) -> Optional[IdeaTastePreset]:
     raw_mode = getattr(config, "idea_taste_mode", None)
     preset = get_idea_taste_preset(raw_mode)
     if preset is None:
+        apply_normalized_score_weights(config, SCORE_WEIGHT_FIELDS)
         config.idea_taste_mode = None
         return None
 
     for field_name in SCORE_WEIGHT_FIELDS:
         setattr(config, field_name, float(preset.weights[field_name]))
+    apply_normalized_score_weights(config, SCORE_WEIGHT_FIELDS)
     config.idea_taste_mode = preset.mode
     return preset
 
@@ -776,22 +773,6 @@ class MemoryGuidedMCTS:
         prior = self.skill_catalog.priors.get(skill_name, SkillUsagePrior())
         return prior.to_dict()
 
-    def _normalize_budget(self, budget: Dict[str, Any]) -> Dict[str, Any]:
-        return normalize_budget_dict(budget)
-
-    def _apply_budget_delta(
-        self,
-        parent_budget: Dict[str, Any],
-        delta: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        return apply_budget_delta_to_parent(parent_budget, delta)
-
-    def _plan_to_method_text(self, plan: EditPlan) -> str:
-        return plan_to_method_text(plan)
-
-    def _plan_to_experiment_text(self, plan: EditPlan) -> str:
-        return plan_to_experiment_text(plan)
-
     def _compute_protocol_score(self, plan: Optional[Dict[str, Any]]) -> float:
         return compute_protocol_score_from_plan(plan)
 
@@ -828,9 +809,6 @@ class MemoryGuidedMCTS:
                 )
                 self._component_novelty_fallback_logged = True
             return None
-
-    def _format_root_domains_for_prompt(self, domains: List[str]) -> str:
-        return _format_root_domains_for_prompt(domains)
 
     def _classify_root_domains(self, topic: str, root_state: IdeaState) -> List[str]:
         prompt = ROOT_DOMAIN_CLASSIFICATION_PROMPT.format(
@@ -877,30 +855,6 @@ class MemoryGuidedMCTS:
             )
             return fallback
 
-    def _fallback_theory_transfer_query(self, plan: EditPlan, parent_state: IdeaState) -> Dict[str, str]:
-        target_defect = next((tag for tag in plan.target_defects if str(tag).strip()), "core gap")
-        component_names = [
-            edit.component
-            for edit in plan.component_edits
-            if getattr(edit, "component", "")
-            and getattr(getattr(edit, "op", None), "value", str(getattr(edit, "op", ""))) != "ADD_PROTOCOL"
-        ]
-        mechanism_target = component_names[0] if component_names else "core mechanism"
-        needed_content = (
-            f"The current idea still needs a transferable mechanism that strengthens {mechanism_target} "
-            f"while addressing {target_defect}."
-        )
-        expected_role = (
-            f"The retrieved mechanism should plug into the current design as a focused theory-backed module "
-            f"without changing the idea's home domain ({self._format_root_domains_for_prompt(parent_state.root_domains)})."
-        )
-        query = f"{needed_content} Expected role: {expected_role}"
-        return {
-            "query": clip_text(query, UNIFORM_CLIP_TEXT_LIMIT),
-            "needed_content": clip_text(needed_content, UNIFORM_CLIP_TEXT_LIMIT),
-            "expected_role": clip_text(expected_role, UNIFORM_CLIP_TEXT_LIMIT),
-        }
-
     def _build_theory_transfer_query(
         self,
         plan: EditPlan,
@@ -909,12 +863,16 @@ class MemoryGuidedMCTS:
     ) -> Dict[str, str]:
         prompt = THEORY_TRANSFER_QUERY_PROMPT.format(
             topic=self.topic or "Unknown topic",
-            root_domains=self._format_root_domains_for_prompt(parent_state.root_domains),
+            root_domains=_format_root_domains_for_prompt(parent_state.root_domains),
             idea=parent_state.to_prompt_view(heading="Current Idea"),
             edit_plan=_pretty_json(plan.to_dict()),
             memory_bundle=bundle.to_prompt_block(),
         )
-        fallback = self._fallback_theory_transfer_query(plan, parent_state)
+        fallback = build_fallback_theory_transfer_query(
+            plan,
+            root_domains_text=_format_root_domains_for_prompt(parent_state.root_domains),
+            clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
+        )
         try:
             response = self.chat_fn(
                 prompt,
@@ -925,18 +883,11 @@ class MemoryGuidedMCTS:
             payload = parse_json_response(response)
             if isinstance(payload, list):
                 payload = payload[0] if payload else {}
-            if not isinstance(payload, dict):
-                return fallback
-            query = clip_text(str(payload.get("query") or "").strip(), UNIFORM_CLIP_TEXT_LIMIT)
-            needed_content = clip_text(str(payload.get("needed_content") or "").strip(), UNIFORM_CLIP_TEXT_LIMIT)
-            expected_role = clip_text(str(payload.get("expected_role") or "").strip(), UNIFORM_CLIP_TEXT_LIMIT)
-            if not query:
-                return fallback
-            return {
-                "query": query,
-                "needed_content": needed_content or fallback["needed_content"],
-                "expected_role": expected_role or fallback["expected_role"],
-            }
+            return normalize_theory_transfer_query_payload(
+                payload,
+                fallback=fallback,
+                clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
+            )
         except Exception as exc:
             log_message(
                 self.logger,
@@ -987,52 +938,6 @@ class MemoryGuidedMCTS:
                 break
         return filtered
 
-    def _format_theory_transfer_references(
-        self,
-        query_payload: Dict[str, str],
-        hits: List[Dict[str, Any]],
-    ) -> str:
-        if not hits:
-            return "None"
-        lines = [
-            f"Transfer need: {query_payload.get('needed_content') or 'Unspecified'}",
-            f"Expected role: {query_payload.get('expected_role') or 'Unspecified'}",
-            "Cross-domain core references:",
-        ]
-        for idx, hit in enumerate(hits, start=1):
-            core_node = hit.get("core_node") if isinstance(hit.get("core_node"), dict) else {}
-            label = (
-                core_node.get("full_name")
-                or core_node.get("paper_title")
-                or hit.get("node_id")
-                or f"core_{idx}"
-            )
-            paper_title = str(core_node.get("paper_title") or "").strip()
-            paper_domain = str(core_node.get("paper_domain") or "").strip() or "unknown"
-            lines.append(
-                f"{idx}. {label} | domain={paper_domain} | score={float(hit.get('score') or 0.0):.3f}"
-            )
-            if paper_title:
-                lines.append(f"   paper: {clip_text(paper_title, UNIFORM_CLIP_TEXT_LIMIT)}")
-            summary = clip_text(str(core_node.get("summary") or "").strip(), UNIFORM_CLIP_TEXT_LIMIT)
-            insight = clip_text(str(core_node.get("insight") or "").strip(), UNIFORM_CLIP_TEXT_LIMIT)
-            if summary:
-                lines.append(f"   summary: {summary}")
-            if insight:
-                lines.append(f"   insight: {insight}")
-            matched_components = hit.get("matched_components") if isinstance(hit.get("matched_components"), list) else []
-            for matched in matched_components[:2]:
-                component_name = clip_text(str(matched.get("component_name") or "").strip(), UNIFORM_CLIP_TEXT_LIMIT)
-                component_summary = clip_text(str(matched.get("component_summary") or "").strip(), UNIFORM_CLIP_TEXT_LIMIT)
-                if component_name or component_summary:
-                    lines.append(
-                        f"   matched_component: {component_name or 'unknown'} | {component_summary}"
-                    )
-        lines.append(
-            "Use these nodes only as references for transferable mechanisms. Do not copy them verbatim and do not change the root domain(s)."
-        )
-        return "\n".join(lines)
-
     def _materialize_child_state(
         self,
         parent_state: IdeaState,
@@ -1061,7 +966,7 @@ class MemoryGuidedMCTS:
         parent_state: IdeaState,
         bundle: MemoryBundle,
     ) -> Optional[Dict[str, Any]]:
-        root_domains_text = self._format_root_domains_for_prompt(parent_state.root_domains)
+        root_domains_text = _format_root_domains_for_prompt(parent_state.root_domains)
         transfer_query_text = "None"
         cross_domain_references = "None"
         skip_payload: Optional[Dict[str, Any]] = None
@@ -1080,7 +985,11 @@ class MemoryGuidedMCTS:
                     ),
                 }
             else:
-                cross_domain_references = self._format_theory_transfer_references(query_payload, hits)
+                cross_domain_references = format_theory_transfer_references(
+                    query_payload,
+                    hits,
+                    clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
+                )
 
         if skip_payload is not None:
             return skip_payload
@@ -1183,7 +1092,7 @@ class MemoryGuidedMCTS:
             self.log_sink,
             "info",
             "[MCTS] Root-domain classification: %s",
-            self._format_root_domains_for_prompt(root_domains),
+            _format_root_domains_for_prompt(root_domains),
         )
 
         root_state = build_root_state(topic, context, IdeaState)

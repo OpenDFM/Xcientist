@@ -29,6 +29,10 @@ class IdeaTastePreset:
     instantiation_guidance: str
 
 
+def _weight_total(weights: Dict[str, float]) -> float:
+    return sum(float(weights.get(field_name, 0.0)) for field_name in SCORE_WEIGHT_FIELDS)
+
+
 IDEA_TASTE_PRESETS: Dict[str, IdeaTastePreset] = {
     "moonshot_inventor": IdeaTastePreset(
         mode="moonshot_inventor",
@@ -38,15 +42,15 @@ IDEA_TASTE_PRESETS: Dict[str, IdeaTastePreset] = {
             "higher implementation risk and structural complexity."
         ),
         weights={
-            "alignment_weight": 0.28,
-            "complexity_weight": 0.08,
-            "novelty_weight": 0.48,
-            "impact_weight": 0.34,
-            "feasibility_weight": 0.12,
-            "clarity_weight": 0.10,
-            "conciseness_weight": 0.05,
-            "risk_weight": 0.08,
-            "protocol_weight": 0.06,
+            "alignment_weight": 0.15,
+            "complexity_weight": 0.07,
+            "novelty_weight": 0.30,
+            "impact_weight": 0.24,
+            "feasibility_weight": 0.08,
+            "clarity_weight": 0.06,
+            "conciseness_weight": 0.03,
+            "risk_weight": 0.05,
+            "protocol_weight": 0.02,
         },
         skill_bias={
             "mechanism-commit-innovation": 1.0,
@@ -72,15 +76,15 @@ IDEA_TASTE_PRESETS: Dict[str, IdeaTastePreset] = {
             "domain B, with less emphasis on raw novelty and more on fit."
         ),
         weights={
-            "alignment_weight": 0.42,
-            "complexity_weight": 0.12,
-            "novelty_weight": 0.24,
-            "impact_weight": 0.30,
-            "feasibility_weight": 0.24,
-            "clarity_weight": 0.16,
-            "conciseness_weight": 0.08,
-            "risk_weight": 0.16,
-            "protocol_weight": 0.18,
+            "alignment_weight": 0.17,
+            "complexity_weight": 0.05,
+            "novelty_weight": 0.19,
+            "impact_weight": 0.20,
+            "feasibility_weight": 0.14,
+            "clarity_weight": 0.06,
+            "conciseness_weight": 0.02,
+            "risk_weight": 0.09,
+            "protocol_weight": 0.08,
         },
         skill_bias={
             "theory-transfer-injection": 1.0,
@@ -106,15 +110,15 @@ IDEA_TASTE_PRESETS: Dict[str, IdeaTastePreset] = {
             "and less likely to fail."
         ),
         weights={
-            "alignment_weight": 0.38,
-            "complexity_weight": 0.20,
-            "novelty_weight": 0.20,
-            "impact_weight": 0.28,
-            "feasibility_weight": 0.30,
-            "clarity_weight": 0.20,
-            "conciseness_weight": 0.16,
-            "risk_weight": 0.28,
-            "protocol_weight": 0.20,
+            "alignment_weight": 0.17,
+            "complexity_weight": 0.04,
+            "novelty_weight": 0.19,
+            "impact_weight": 0.20,
+            "feasibility_weight": 0.16,
+            "clarity_weight": 0.08,
+            "conciseness_weight": 0.02,
+            "risk_weight": 0.08,
+            "protocol_weight": 0.06,
         },
         skill_bias={
             "surgical-modularity": 1.0,
@@ -141,15 +145,15 @@ IDEA_TASTE_PRESETS: Dict[str, IdeaTastePreset] = {
             "control to avoid drifting into empty moonshots."
         ),
         weights={
-            "alignment_weight": 0.28,
-            "complexity_weight": 0.16,
-            "novelty_weight": 0.40,
-            "impact_weight": 0.32,
-            "feasibility_weight": 0.22,
-            "clarity_weight": 0.16,
-            "conciseness_weight": 0.10,
-            "risk_weight": 0.20,
-            "protocol_weight": 0.12,
+            "alignment_weight": 0.16,
+            "complexity_weight": 0.05,
+            "novelty_weight": 0.25,
+            "impact_weight": 0.22,
+            "feasibility_weight": 0.10,
+            "clarity_weight": 0.07,
+            "conciseness_weight": 0.03,
+            "risk_weight": 0.09,
+            "protocol_weight": 0.03,
         },
         skill_bias={
             "mechanism-commit-innovation": 1.0,
@@ -175,15 +179,15 @@ IDEA_TASTE_PRESETS: Dict[str, IdeaTastePreset] = {
             "strong experimental evidence over flashy but brittle novelty."
         ),
         weights={
-            "alignment_weight": 0.34,
-            "complexity_weight": 0.18,
-            "novelty_weight": 0.22,
-            "impact_weight": 0.28,
-            "feasibility_weight": 0.26,
-            "clarity_weight": 0.18,
-            "conciseness_weight": 0.12,
-            "risk_weight": 0.24,
-            "protocol_weight": 0.30,
+            "alignment_weight": 0.16,
+            "complexity_weight": 0.04,
+            "novelty_weight": 0.19,
+            "impact_weight": 0.18,
+            "feasibility_weight": 0.15,
+            "clarity_weight": 0.07,
+            "conciseness_weight": 0.02,
+            "risk_weight": 0.12,
+            "protocol_weight": 0.07,
         },
         skill_bias={
             "surgical-modularity": 1.0,
@@ -244,6 +248,13 @@ def get_idea_taste_preset(mode: Optional[str]) -> Optional[IdeaTastePreset]:
 
     if not isinstance(preset.skill_bias, dict):
         raise ValueError(f"Idea taste preset '{preset.mode}' must define skill_bias as a dict.")
+
+    total = _weight_total(preset.weights)
+    if abs(total - 1.0) > 1e-6:
+        raise ValueError(
+            f"Idea taste preset '{preset.mode}' must have score weights summing to 1.0; got {total:.6f}."
+        )
+
     for skill_name, raw_bias in preset.skill_bias.items():
         try:
             bias = float(raw_bias)
