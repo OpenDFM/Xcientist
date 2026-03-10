@@ -16,6 +16,7 @@ from src.agents.idea_agent.agent.prompts import PROMPTS
 from src.agents.idea_agent.agent.mcts import (
     MemoryGuidedMCTS,
     MCTSConfig,
+    VectorMemoryAccessor,
     apply_idea_taste_preset,
 )
 from src.agents.idea_agent.utils.papers.paper_repository import PaperRepository
@@ -168,6 +169,7 @@ class LigAgent(AgentBase):
             chat_fn=self.chat,
             evaluation_prompt=PROMPTS.get("mcts_evaluation"),
             config=mcts_config,
+            memory_accessor=self._build_memory_accessor(),
             logger=logger,
         )
 
@@ -289,6 +291,7 @@ class LigAgent(AgentBase):
             chat_fn=self.chat,
             evaluation_prompt=PROMPTS.get("mcts_evaluation"),
             config=mcts_config,
+            memory_accessor=self._build_memory_accessor(),
             logger=get_or_create_mode_logger(
                 self._mode_loggers,
                 self.logger,
@@ -299,6 +302,27 @@ class LigAgent(AgentBase):
         mode_mcts.symbolic_memory = deepcopy(self.mcts.symbolic_memory)
         mode_mcts.persist_symbolic_memory = False
         return mode_mcts
+
+    def _build_memory_accessor(self) -> VectorMemoryAccessor:
+        return VectorMemoryAccessor(
+            llm_name=str(
+                get_config_value(
+                    self.config,
+                    "memory.vector_store.llm_name",
+                    "gpt-5-mini",
+                )
+                or "gpt-5-mini"
+            ),
+            llm_backend=str(
+                get_config_value(
+                    self.config,
+                    "memory.vector_store.llm_backend",
+                    "openai",
+                )
+                or "openai"
+            ),
+            logger=logger,
+        )
 
     def _persist_final_idea(
         self, best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]]

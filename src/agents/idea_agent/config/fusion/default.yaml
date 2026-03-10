@@ -1,7 +1,10 @@
 fusion:
   enabled: true
   only_when_ligagent_pro: true
-  model: "kimi-k2.5"
+  model: "gpt-5.2"
   temperature: 0.2
   max_tokens: 65536
   min_candidates: 2
+  repair_max_steps: 10
+  repair_patience: 3
+  repair_epsilon: 0.1

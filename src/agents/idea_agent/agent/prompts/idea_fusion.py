@@ -81,3 +81,54 @@ Return STRICT JSON only:
   }}
 }}
 """
+
+
+FUSION_REPAIR_PROMPT = """
+You are repairing a fused research idea after referee evaluation.
+
+Topic:
+{topic}
+
+Fixed root domains:
+{root_domains}
+
+Current fused idea (JSON):
+{current_idea_json}
+
+Current evaluation (JSON):
+{current_evaluation_json}
+
+Source mode candidates (JSON):
+{candidate_ideas_json}
+
+Available atomic edit operations:
+{atomic_op_reference}
+
+Repair rules:
+- Use ONLY these operations: REMOVE_COMPONENT, REPLACE_COMPONENT, REWIRE.
+- Do NOT use ADD_COMPONENT, GATE_COMPONENT, or ADD_PROTOCOL.
+- Do NOT increase the number of structural components.
+- Prefer one small local repair, not a rewrite of the whole idea.
+- At least one structural edit must be present unless you choose to stop.
+- Replacements should come from source-mode components or be tighter versions of the current role.
+- If no likely-improving local repair exists, set stop=true.
+
+Return STRICT JSON only:
+{{
+  "stop": false,
+  "stop_reason": "",
+  "skill_name": "short repair label",
+  "target_defects": ["string"],
+  "guardrails": ["string"],
+  "component_edits": [
+    {{
+      "op": "REMOVE_COMPONENT|REPLACE_COMPONENT|REWIRE",
+      "component": "string",
+      "target": "string",
+      "condition": "string",
+      "details": "string",
+      "reason": "string"
+    }}
+  ]
+}}
+"""

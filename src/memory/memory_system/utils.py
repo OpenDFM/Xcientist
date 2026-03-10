@@ -247,9 +247,17 @@ def _drain_snapshot(event_buffer: List[str], max_chars: int = 4000) -> str:
     event_buffer.clear()
     return snapshot
 
-def _multi_thread_run(func, row_data: List[Tuple], max_workers: int = 20):
+def _multi_thread_run(
+    func,
+    row_data: List[Tuple],
+    max_workers: int = 20,
+    show_progress: bool = True,
+):
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        results = list(tqdm(executor.map(func, row_data), total=len(row_data)))
+        iterator = executor.map(func, row_data)
+        if show_progress:
+            iterator = tqdm(iterator, total=len(row_data))
+        results = list(iterator)
     return results
 
 def _chunks(lst, n):

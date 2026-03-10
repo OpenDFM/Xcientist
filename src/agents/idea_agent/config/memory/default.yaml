@@ -1,0 +1,4 @@
+memory:
+  vector_store:
+    llm_name: "gpt-4.1"
+    llm_backend: "openai"

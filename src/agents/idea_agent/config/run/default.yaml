@@ -3,8 +3,8 @@ run:
   output_root: "runs"
   console_logs: true
   rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
-  openai_api_key: "sk-sp-5e089a1d787e44918e8b556b9293505b"
-  openai_base_url: "https://coding.dashscope.aliyuncs.com/v1"
+  openai_api_key: "sk-BWZ0Kqbk3PvdF0zRFf69B63901B84e85A5B4D8B1AfE27e2e"
+  openai_base_url: "https://api.xi-ai.cn/v1"
   s2_api_key: "1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ"
   s2_api_timeout: "60"
   serper_api_key: "7c7ca61c4c665f666902d03f3bca49c4b4b5bed4"

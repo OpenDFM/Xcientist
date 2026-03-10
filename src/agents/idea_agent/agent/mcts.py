@@ -516,11 +516,15 @@ class VectorMemoryAccessor:
         semantic_cfg: Optional[Dict[str, Any]] = None,
         episodic_cfg: Optional[Dict[str, Any]] = None,
         procedural_cfg: Optional[Dict[str, Any]] = None,
+        llm_name: str = "gpt-5-mini",
+        llm_backend: str = "openai",
         logger: Optional[logging.Logger] = None,
     ) -> None:
         self.semantic_cfg = semantic_cfg or {}
         self.episodic_cfg = episodic_cfg or {}
         self.procedural_cfg = procedural_cfg or {}
+        self.llm_name = str(llm_name or "gpt-5-mini")
+        self.llm_backend = str(llm_backend or "openai")
         self.logger = logger or module_logger
         self._stores: Dict[str, Optional[FAISSMemorySystem]] = {
             "semantic": None,
@@ -540,8 +544,8 @@ class VectorMemoryAccessor:
             try:
                 self._stores[memory_type] = FAISSMemorySystem(
                     memory_type=memory_type,
-                    llm_name="gpt-4.1-mini",
-                    backend="openai",
+                    llm_name=self.llm_name,
+                    llm_backend=self.llm_backend,
                     **cfg,
                 )
             except Exception as exc:
@@ -649,11 +653,17 @@ class VectorMemoryAccessor:
                 "[MCTS] Transferred experience to working slots (count=%d)",
                 len(working_slots),
             )
-            _multi_thread_run(slot_process._multi_thread_filter_and_route_slot, working_slots, max_workers)
+            _multi_thread_run(
+                slot_process._multi_thread_filter_and_route_slot,
+                working_slots,
+                max_workers,
+                show_progress=False,
+            )
             _multi_thread_run(
                 slot_process._multi_thread_transfer_slot_to_memory,
                 slot_process.routed_slot_container,
                 max_workers,
+                show_progress=False,
             )
         except Exception as exc:
             log_message(

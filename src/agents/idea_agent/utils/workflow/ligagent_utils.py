@@ -218,9 +218,9 @@ class LigRuntime:
         **kwargs: Any,
     ) -> str:
         started_at = perf_counter()
-        resolved_model = model or getattr(self.agent, "model", "gpt-4.1")
+        resolved_model = model or getattr(self.agent, "model", "gpt-5-mini")
         try:
-            result = self.agent.chat(prompt, model=resolved_model, **kwargs)
+            result = self.agent.chat(prompt, model=resolved_model, stage=stage, **kwargs)
             self._record(
                 session,
                 "llm_call",
