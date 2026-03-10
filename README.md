@@ -31,6 +31,59 @@ conda activate research-agent
 pip install -r requirements.txt
 ```
 
+### 4. Pipeline (Integrated Runner)
+
+**Purpose**: Runs Survey → Idea → Experiment in a continuous loop with feedback from experiment results back to idea generation.
+
+**Workflow**:
+
+```
+Survey → Idea → Experiment → [Convert Results to Symbolic Memory] → Next Iteration
+                                                                          ↓
+                                                                    (loop up to max_iterations)
+```
+
+**Key Features**:
+- **Resume Support**: Automatically resumes from the last completed phase
+- **State Management**: Tracks progress in `pipeline.yaml`
+- **Symbolic Memory Integration**: Converts ablation results to symbolic memory for future idea generation
+- **Unified Workspace**: All outputs organized under `workspace/pipeline_runs/{pipeline_name}/`
+
+**Inputs** (via `src/config/default.yaml`):
+- `idea.topic`: Research topic
+- `idea.mature_idea` (optional): Seed idea for contraction mode
+- `pipeline.iterate.max_iterations`: Number of Idea→Experiment iterations
+- `pipeline.resume_enabled`: Enable/disable resume
+
+**Outputs**:
+- `workspace/pipeline_runs/{pipeline_name}/survey/`: Survey outputs
+- `workspace/pipeline_runs/{pipeline_name}/experiments/{experiment_id}/`: Experiment workspaces
+- `workspace/idea_skill_priors/symbolic_memory.json`: Symbolic memory from ablation results
+
+**Usage**:
+```bash
+python -m src.pipeline.run_loop
+# or
+./run_pipeline.sh
+```
+
+**Configuration** (`src/config/default.yaml`):
+```yaml
+pipeline:
+  name: "diffusion_rl"          # Pipeline name (auto-generated if empty)
+  state_file: "pipeline.yaml"   # State file for resume
+  resume_enabled: true           # Enable resume
+  skip_survey: true              # Skip survey if already done
+
+  iterate:
+    max_iterations: 3           # Number of iterations
+
+  output:
+    root: "pipeline_runs"       # Output root under workspace
+```
+
+---
+
 ## Three Agents
 
 ### 1. Idea Agent

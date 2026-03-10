@@ -55,4 +55,18 @@ outputs
 database/workcollector_relatedness_cache/cache.db
 src/agents/survey_agent/config/database/workcollector_relatedness_cache/cache.db
 database/paper_abstracts/cache.db
-tests
+database/pdf_papers/
+database/
+
+# Pipeline workspace
+workspace/
+
+# Cache directories
+.cache/
+.checkpoints/
+.conversations/
+
+# Output directories
+output/
+__pycache__/
+
