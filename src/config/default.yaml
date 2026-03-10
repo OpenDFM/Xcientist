@@ -99,7 +99,7 @@ idea:
     semantic_search_limit: 5
 
   mcts:
-    max_iterations: 3
+    max_iterations: 64
     max_depth: 3
     branching_factor: 3
     exploration_constant: 1.2
@@ -135,7 +135,7 @@ idea:
     min_candidates: 2
     repair_max_steps: 10
     repair_patience: 3
-    repair_epsilon: 0.1
+    repair_epsilon: 0.02
 
   memory:
     vector_store:

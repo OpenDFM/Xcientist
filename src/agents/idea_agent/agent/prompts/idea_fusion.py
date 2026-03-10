@@ -117,7 +117,6 @@ Return STRICT JSON only:
 {{
   "stop": false,
   "stop_reason": "",
-  "skill_name": "short repair label",
   "target_defects": ["string"],
   "guardrails": ["string"],
   "component_edits": [

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
+from tqdm import tqdm
+
 from src.agents.idea_agent.agent.mcts import (
     MIN_COMPONENTS,
     IdeaNode,
@@ -34,6 +36,7 @@ from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_co
 
 
 PROMPT_CLIP_LIMIT = 65536
+FUSION_REPAIR_SKILL_NAME = "fusion_repair"
 FUSION_REPAIR_ALLOWED_OPS = {
     AtomicEditOp.REMOVE_COMPONENT,
     AtomicEditOp.REPLACE_COMPONENT,
@@ -322,111 +325,119 @@ def repair_fused_entry(
         patience,
     )
 
-    for step_idx in range(1, max_steps + 1):
-        if no_improve_steps >= patience:
-            logger.info(
-                "🧬 Fusion repair stop: no improvement for %d consecutive steps",
-                no_improve_steps,
-            )
-            break
-
-        target_defects = _repair_target_defects(best_entry)
-        parent_state = _entry_to_state(
-            best_entry,
-            fallback_root_domains=prepared.get("root_domains") or [],
-            fallback_target_defects=target_defects,
-        )
-        bundle = _repair_memory_bundle(mcts, parent_state)
-        payload = runtime.llm_json(
-            session=session,
-            stage=stage_name,
-            op_name="idea_fusion_repair",
-            prompt=FUSION_REPAIR_PROMPT.format(
-                topic=topic,
-                root_domains=json.dumps(prepared.get("root_domains") or [], ensure_ascii=False, indent=2),
-                current_idea_json=json.dumps(_candidate_prompt_payload(best_entry), ensure_ascii=False, indent=2),
-                current_evaluation_json=json.dumps(best_entry.get("evaluation") or {}, ensure_ascii=False, indent=2),
-                candidate_ideas_json=json.dumps(source_candidates, ensure_ascii=False, indent=2),
-                atomic_op_reference=format_op_descriptions(),
-            ),
-            model=model,
-            temperature=temperature,
-            max_output_tokens=max_tokens,
-        )
-        plan, stop_reason = _repair_plan_from_payload(
-            payload,
-            parent_state=parent_state,
-            target_defects=target_defects,
-        )
-        if plan is None:
-            if stop_reason:
-                logger.info("🧬 Fusion repair step %d stop: %s", step_idx, stop_reason)
+    progress = tqdm(total=max_steps, desc="Idea fusion repair", dynamic_ncols=True)
+    try:
+        for step_idx in range(1, max_steps + 1):
+            progress.set_description(f"Idea fusion repair {step_idx}/{max_steps}")
+            if no_improve_steps >= patience:
+                logger.info(
+                    "🧬 Fusion repair stop: no improvement for %d consecutive steps",
+                    no_improve_steps,
+                )
                 break
-            no_improve_steps += 1
-            logger.info("🧬 Fusion repair step %d skipped: invalid local repair plan", step_idx)
-            continue
 
-        logger.info(
-            "🧬 Fusion repair step %d plan:\n%s",
-            step_idx,
-            json.dumps(plan.to_dict(), ensure_ascii=False, indent=2),
-        )
-        instantiated = mcts._instantiate_skill_plan(plan, parent_state, bundle)
-        if isinstance(instantiated, dict) and instantiated.get("_skip_child_creation"):
-            no_improve_steps += 1
-            logger.info(
-                "🧬 Fusion repair step %d skipped: %s",
-                step_idx,
-                instantiated.get("_skip_reason", "child creation skipped"),
+            target_defects = _repair_target_defects(best_entry)
+            parent_state = _entry_to_state(
+                best_entry,
+                fallback_root_domains=prepared.get("root_domains") or [],
+                fallback_target_defects=target_defects,
             )
-            continue
+            bundle = _repair_memory_bundle(mcts, parent_state)
+            payload = runtime.llm_json(
+                session=session,
+                stage=stage_name,
+                op_name="idea_fusion_repair",
+                prompt=FUSION_REPAIR_PROMPT.format(
+                    topic=topic,
+                    root_domains=json.dumps(prepared.get("root_domains") or [], ensure_ascii=False, indent=2),
+                    current_idea_json=json.dumps(_candidate_prompt_payload(best_entry), ensure_ascii=False, indent=2),
+                    current_evaluation_json=json.dumps(best_entry.get("evaluation") or {}, ensure_ascii=False, indent=2),
+                    candidate_ideas_json=json.dumps(source_candidates, ensure_ascii=False, indent=2),
+                    atomic_op_reference=format_op_descriptions(),
+                ),
+                model=model,
+                temperature=temperature,
+                max_output_tokens=max_tokens,
+            )
+            plan, stop_reason = _repair_plan_from_payload(
+                payload,
+                parent_state=parent_state,
+                target_defects=target_defects,
+            )
+            if plan is None:
+                if stop_reason:
+                    logger.info("🧬 Fusion repair step %d stop: %s", step_idx, stop_reason)
+                    break
+                no_improve_steps += 1
+                logger.info("🧬 Fusion repair step %d skipped: invalid local repair plan", step_idx)
+                progress.update(1)
+                continue
 
-        candidate_state = mcts._materialize_child_state(
-            parent_state,
-            plan,
-            instantiated,
-            selection_metadata={"idea_taste_mode": "fusion_agent"},
-        )
-        candidate_entry = _preserve_fusion_fields(
-            candidate_state.to_payload(),
-            best_entry,
-            repair_trace,
-        )
-        evaluated_candidate, step_experiences = evaluate_candidate_entry(
-            mcts=mcts,
-            topic=topic,
-            context=context,
-            entry=candidate_entry,
-        )
-        if evaluated_candidate is None:
-            no_improve_steps += 1
-            logger.info("🧬 Fusion repair step %d skipped: evaluation failed", step_idx)
-            continue
+            logger.info(
+                "🧬 Fusion repair step %d plan:\n%s",
+                step_idx,
+                json.dumps(_repair_plan_log_payload(plan), ensure_ascii=False, indent=2),
+            )
+            instantiated = mcts._instantiate_skill_plan(plan, parent_state, bundle)
+            if isinstance(instantiated, dict) and instantiated.get("_skip_child_creation"):
+                no_improve_steps += 1
+                logger.info(
+                    "🧬 Fusion repair step %d skipped: %s",
+                    step_idx,
+                    instantiated.get("_skip_reason", "child creation skipped"),
+                )
+                progress.update(1)
+                continue
 
-        next_score = float(evaluated_candidate.get("search_score") or 0.0)
-        improved = next_score > (best_score + score_epsilon)
-        logger.info(
-            "🧬 Fusion repair step %d result: score=%.2f improved=%s",
-            step_idx,
-            next_score,
-            improved,
-        )
-        if not improved:
-            no_improve_steps += 1
-            continue
+            candidate_state = mcts._materialize_child_state(
+                parent_state,
+                plan,
+                instantiated,
+                selection_metadata={"idea_taste_mode": "fusion_agent"},
+            )
+            candidate_entry = _preserve_fusion_fields(
+                candidate_state.to_payload(),
+                best_entry,
+                repair_trace,
+            )
+            evaluated_candidate, step_experiences = evaluate_candidate_entry(
+                mcts=mcts,
+                topic=topic,
+                context=context,
+                entry=candidate_entry,
+            )
+            if evaluated_candidate is None:
+                no_improve_steps += 1
+                logger.info("🧬 Fusion repair step %d skipped: evaluation failed", step_idx)
+                progress.update(1)
+                continue
 
-        trace_item = {
-            "step": step_idx,
-            "skill_name": plan.skill_name,
-            "score_before": round(best_score, 4),
-            "score_after": round(next_score, 4),
-            "component_edits": [edit.to_dict() for edit in plan.component_edits],
-        }
-        repair_trace.append(trace_item)
-        repair_experiences.extend(step_experiences)
-        best_score = next_score
-        best_entry = _preserve_fusion_fields(evaluated_candidate, best_entry, repair_trace)
-        no_improve_steps = 0
+            next_score = float(evaluated_candidate.get("search_score") or 0.0)
+            improved = next_score > (best_score + score_epsilon)
+            logger.info(
+                "🧬 Fusion repair step %d result: score=%.2f improved=%s",
+                step_idx,
+                next_score,
+                improved,
+            )
+            progress.update(1)
+            if not improved:
+                no_improve_steps += 1
+                continue
+
+            trace_item = {
+                "step": step_idx,
+                "score_before": round(best_score, 4),
+                "score_after": round(next_score, 4),
+                "component_edits": [edit.to_dict() for edit in plan.component_edits],
+            }
+            repair_trace.append(trace_item)
+            repair_experiences.extend(step_experiences)
+            best_score = next_score
+            best_entry = _preserve_fusion_fields(evaluated_candidate, best_entry, repair_trace)
+            no_improve_steps = 0
+    finally:
+        progress.close()
 
     return best_entry, repair_trace, repair_experiences
 
@@ -525,7 +536,6 @@ def _repair_plan_from_payload(
     if payload.get("stop"):
         return None, str(payload.get("stop_reason") or "planner requested stop").strip()
 
-    skill_name = str(payload.get("skill_name") or "fusion_repair").strip() or "fusion_repair"
     guardrails = [str(item).strip() for item in (payload.get("guardrails") or []) if str(item).strip()]
     plan_defects = [
         str(item).strip()
@@ -569,8 +579,8 @@ def _repair_plan_from_payload(
         return None, ""
 
     plan = EditPlan(
-        skill_name=skill_name,
-        objective=f"Use {skill_name} to locally repair the fused idea",
+        skill_name=FUSION_REPAIR_SKILL_NAME,
+        objective="Locally repair the fused idea",
         target_defects=plan_defects,
         component_edits=component_edits,
         validation=validation,
@@ -603,6 +613,12 @@ def _preserve_fusion_fields(
         fusion_metadata["repair_trace"] = list(repair_trace)
     merged["fusion_metadata"] = fusion_metadata
     return merged
+
+
+def _repair_plan_log_payload(plan: EditPlan) -> Dict[str, Any]:
+    payload = plan.to_dict()
+    payload.pop("skill_name", None)
+    return payload
 
 
 def _entry_to_state(
