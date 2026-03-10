@@ -45,12 +45,15 @@ Scoring policy:
 
 Scoring rubric (use this exact rubric for consistency):
 - Use the full scale. Avoid defaulting to 3 unless the evidence is genuinely mixed.
-- Positive metrics where HIGHER is better: novelty, feasibility, clarity, impact, conciseness, alignment_score, protocol_score.
+- Positive metrics where HIGHER is better: novelty, surprise, feasibility, clarity, impact, conciseness, alignment_score, protocol_score.
 - Penalty metrics where HIGHER is worse: risk, complexity_penalty.
 - Score each metric independently. Do not let a strong score in one metric automatically raise another.
-- Distinguish novelty vs impact:
+- Distinguish novelty vs surprise vs impact:
   * novelty = how different the mechanism is from the current baseline/path and cited evidence.
+  * surprise = how non-obvious the idea feels to a strong researcher before seeing it, even after accounting for the topic and available evidence.
   * impact = how much the idea could move the core problem if it works.
+  * A proposal can be novel but not very surprising if it is an obvious next step that simply has not been tried yet.
+  * A proposal can be surprising without being high quality if it feels unexpected but weakly justified; do not reward incoherent weirdness.
 - Distinguish feasibility vs risk:
   * feasibility = can this be implemented and tested with the stated assumptions/resources.
   * risk = how likely/severe the remaining failure modes are even if implementation is possible.
@@ -64,6 +67,11 @@ Metric-specific anchors:
   * 3 = meaningful recombination or scoped mechanism change, but still close to known patterns.
   * 5 = clear mechanism-level departure or unusually strong recombination with concrete rationale.
   * Evaluator-only, contract-only, or gate-only changes without a substantive mechanism change should usually score <= 2.
+- surprise (0-5; higher is more unexpectedly insightful)
+  * 0 = the idea feels like an obvious next step once the topic and baseline are known.
+  * 3 = the idea contains at least one non-obvious move, reframing, or recombination that many researchers would not immediately propose.
+  * 5 = the idea is genuinely "I would not have thought of that" surprising while remaining coherent, mechanism-grounded, and relevant.
+  * Do not reward randomness, vagueness, or incoherent novelty theater. Surprise requires justified unexpectedness.
 - feasibility (0-5; higher is more practical)
   * 0 = underspecified, implausible, or depends on missing capabilities/data.
   * 3 = implementable with reasonable effort, but has notable execution assumptions.
@@ -103,6 +111,7 @@ Metric-specific anchors:
 Return STRICT JSON (no prose):
 {{
   "novelty": 0-5,
+  "surprise": 0-5,
   "feasibility": 0-5,
   "clarity": 0-5,
   "impact": 0-5,

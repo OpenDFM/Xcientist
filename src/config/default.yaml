@@ -103,7 +103,7 @@ idea:
     max_depth: 3
     branching_factor: 3
     exploration_constant: 1.2
-    idea_taste_mode: "evidence_first"
+    idea_taste_mode: "moonshot_inventor"
     generation_model: "gpt-5-mini"
     evaluation_model: "gpt-5.2"
     generation_temperature: 0.7

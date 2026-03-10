@@ -1644,6 +1644,7 @@ def simulate_node_value(
             payload,
             weights={
                 "novelty_weight": mcts.config.novelty_weight,
+                "surprise_weight": mcts.config.surprise_weight,
                 "impact_weight": mcts.config.impact_weight,
                 "feasibility_weight": mcts.config.feasibility_weight,
                 "clarity_weight": mcts.config.clarity_weight,
