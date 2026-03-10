@@ -5,6 +5,7 @@ from typing import Any, Dict, Literal, List, Optional, Set
 from pathlib import Path
 import time
 import json
+import os
 import http.client
 from dataclasses import fields
 
@@ -110,8 +111,9 @@ class LigAgent(AgentBase):
             "re_analysis_replan",
         ]
         self.action_selection_attempts = max(1, action_selection_attempts)
+        # 优先从环境变量读取模型名称
         if model is None:
-            model = get_config_value(config, "agent.model", "gpt-4.1")
+            model = os.environ.get("IDEA_AGENT_MODEL") or get_config_value(config, "agent.model", "gpt-4.1")
         self.model = model
         self.tools = TOOLS
         self.artifact = artifact_init()
@@ -135,9 +137,22 @@ class LigAgent(AgentBase):
 
         mcts_config = MCTSConfig()
         for field in fields(MCTSConfig):
-            override = get_config_value(config, f"mcts.{field.name}", None)
-            if override is not None:
-                setattr(mcts_config, field.name, override)
+            # 优先从环境变量读取（全局配置）
+            env_key = f"IDEA_MCTS_{field.name.upper()}"
+            env_value = os.environ.get(env_key)
+            if env_value is not None:
+                # 尝试转换为正确的类型
+                if field.type in (int, float):
+                    try:
+                        env_value = field.type(env_value)
+                    except (ValueError, TypeError):
+                        pass
+                setattr(mcts_config, field.name, env_value)
+            else:
+                # 其次从局部配置读取
+                override = get_config_value(config, f"mcts.{field.name}", None)
+                if override is not None:
+                    setattr(mcts_config, field.name, override)
         idea_taste_preset = apply_idea_taste_preset(mcts_config)
         if idea_taste_preset:
             self.artifact["idea_taste_mode"] = idea_taste_preset.mode
@@ -166,6 +181,8 @@ class LigAgent(AgentBase):
 
     def chat(self, prompt: str, model: str = "gpt-5-mini", **kwargs) -> str:
         last_exc: Optional[Exception] = None
+        print(model)
+        print(os.environ.get("LLM_API_BASE"))
         for attempt in range(1, self.chat_max_retries + 1):
             try:
                 # Special handling for GPT-5 models
@@ -440,6 +457,7 @@ class LigAgent(AgentBase):
             if references
             else "[]",
         )
+    
         raw_response = self._parse_json_response(
             self.chat(prompt, model=self.model, max_output_tokens=8192)
         )

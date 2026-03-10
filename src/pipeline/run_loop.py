@@ -339,28 +339,42 @@ def main(config_path: str = "src/config/default.yaml"):
     for i in range(start_iteration, max_iterations):
         print(f"\n=== Iteration {i + 1}/{max_iterations} ===")
 
-        experiment_id = f"iter_{i}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        # 先运行 Idea agent 获取 title，再确定 experiment_id
+        temp_exp_id = f"temp_iter_{i}"
+        temp_exp_workspace = os.path.join(pipeline_workspace, "experiments", temp_exp_id)
+        _ensure_dirs(temp_exp_workspace)
 
         state["current_iteration"] = i
         _save_pipeline_state(pipeline_workspace, state)
 
-        exp_workspace = os.path.join(pipeline_workspace, "experiments", experiment_id)
-        _ensure_dirs(exp_workspace)
-        _ensure_dirs(os.path.join(exp_workspace, "project"))
-        _ensure_dirs(os.path.join(exp_workspace, "results"))
-        _ensure_dirs(os.path.join(exp_workspace, "checkpoints"))
-
-        idea_output_file = os.path.join(exp_workspace, "idea_result.json")
+        idea_output_file = os.path.join(temp_exp_workspace, "idea_result.json")
         idea_result = run_idea(topic, mature_idea, idea_output_file, get_default_config())
 
-        title = idea_result.get("title", "experiment")
-        experiment_id = hashlib.md5(title.encode()).hexdigest()[:8]
+        # 使用 idea title 作为 experiment_id（slugify 处理）
+        title = idea_result.get("title", f"experiment_{i}")
+        slugified_title = re.sub(r'[^a-zA-Z0-9]+', '-', title.lower()).strip('-')
+        # 限制长度避免路径过长，同时保留足够信息
+        slugified_title = slugified_title[:50] if slugified_title else f"experiment_{i}"
+        experiment_id = f"iter_{i}_{slugified_title}"
 
+        # 创建正式的实验目录
         exp_workspace = os.path.join(pipeline_workspace, "experiments", experiment_id)
         _ensure_dirs(exp_workspace)
         _ensure_dirs(os.path.join(exp_workspace, "project"))
         _ensure_dirs(os.path.join(exp_workspace, "results"))
         _ensure_dirs(os.path.join(exp_workspace, "checkpoints"))
+
+        # 移动 idea_result 到正式目录
+        final_idea_file = os.path.join(exp_workspace, "idea_result.json")
+        if os.path.exists(idea_output_file) and idea_output_file != final_idea_file:
+            shutil.move(idea_output_file, final_idea_file)
+
+        # 清理临时目录
+        if os.path.exists(temp_exp_workspace) and temp_exp_workspace != exp_workspace:
+            try:
+                shutil.rmtree(temp_exp_workspace)
+            except Exception:
+                pass
 
         if os.path.exists(idea_output_file) and idea_output_file != os.path.join(exp_workspace, "idea_result.json"):
             shutil.move(idea_output_file, os.path.join(exp_workspace, "idea_result.json"))
