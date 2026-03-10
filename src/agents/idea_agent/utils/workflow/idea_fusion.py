@@ -55,6 +55,19 @@ def fuse_ligagent_pro_ideas(
     max_tokens = int(get_config_value(agent.config, "fusion.max_tokens", 65536))
 
     candidate_pack = [_candidate_prompt_payload(entry) for entry in mode_entries]
+    logger.info(
+        "🧬 Fusion start:\n%s",
+        json.dumps(
+            {
+                "topic": topic,
+                "model": model,
+                "candidate_count": len(mode_entries),
+                "candidates": [_candidate_log_payload(entry) for entry in mode_entries],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+    )
     prompt = prompt_template.format(
         topic=topic,
         mature_idea=clip_text(context.get("mature_idea") or "None", PROMPT_CLIP_LIMIT),
@@ -108,6 +121,23 @@ def fuse_ligagent_pro_ideas(
         fused_entry.get("components") or [],
         fused_entry.get("component_explanations") or {},
     )
+    logger.info(
+        "🧬 Fusion draft:\n%s",
+        json.dumps(
+            {
+                "host_idea_mode": payload.get("host_idea_mode", ""),
+                "fused_title": fused_entry.get("title"),
+                "selected_components": payload.get("selected_components", []),
+                "rejected_components": payload.get("rejected_components", []),
+                "conflicts_and_resolutions": payload.get("conflicts_and_resolutions", []),
+                "fused_core_thesis": payload.get("fused_core_thesis", ""),
+                "why_stronger_than_each_input": payload.get("why_stronger_than_each_input", ""),
+                "minimal_validation_plan": payload.get("minimal_validation_plan", ""),
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+    )
 
     referee_mode = getattr(getattr(agent.mcts, "idea_taste_preset", None), "mode", None)
     eval_mcts = agent.build_mcts_for_mode(referee_mode)
@@ -132,8 +162,9 @@ def fuse_ligagent_pro_ideas(
         "evaluation_mode": referee_mode or "default",
     }
     logger.info(
-        "🧬 Fusion candidate evaluated with %s: score=%.2f",
+        "🧬 Fusion candidate evaluated with %s: title=%s score=%.2f",
         fusion_result["evaluation_mode"],
+        evaluated_entry.get("title"),
         evaluated_entry["search_score"],
     )
     return evaluated_entry, fusion_result, experiences
@@ -245,6 +276,16 @@ def _candidate_prompt_payload(entry: Dict[str, Any]) -> Dict[str, Any]:
         "components_with_explanations": component_inventory_payload(components, component_explanations),
         "edit_plan": entry.get("edit_plan"),
         "target_defects": entry.get("target_defects"),
+    }
+
+
+def _candidate_log_payload(entry: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "idea_taste_mode": entry.get("idea_taste_mode"),
+        "title": entry.get("title"),
+        "search_score": entry.get("search_score"),
+        "operator": entry.get("operator"),
+        "components": list(entry.get("components") or []),
     }
 
 

@@ -1,6 +1,9 @@
 from src.agents.idea_agent.agent.base import AgentBase
+from src.agents.idea_agent.utils.core.chat_transport import ensure_default_max_output_tokens
 from src.agents.idea_agent.agent import get_logger
+from src.agents.idea_agent.utils.core.logger import get_or_create_mode_logger
 
+import logging
 from typing import Any, Dict, Literal, List, Optional, Set
 from pathlib import Path
 import time
@@ -9,8 +12,6 @@ from dataclasses import fields
 
 from src.agents.idea_agent.agent.tools import TOOLS
 from src.agents.idea_agent.agent.artifacts import artifact_init
-from src.agents.idea_agent.agent.lig_runtime import LigRuntime
-from src.agents.idea_agent.agent.lig_session import LigSession
 from src.agents.idea_agent.agent.prompts import PROMPTS
 from src.agents.idea_agent.agent.mcts import (
     MemoryGuidedMCTS,
@@ -27,6 +28,8 @@ from src.agents.idea_agent.utils.workflow.ligagent_flow import (
 from src.agents.idea_agent.utils.workflow.ligagent_utils import (
     collect_paper_context_entries,
     generate_idea_introduction,
+    LigRuntime,
+    LigSession,
     parse_json_response,
 )
 from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
@@ -123,6 +126,7 @@ class LigAgent(AgentBase):
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.idea_result_path = self.run_dir / "idea_result.json"
         self.idea_result_path.parent.mkdir(parents=True, exist_ok=True)
+        self._mode_loggers: Dict[str, logging.Logger] = {}
 
         self.chat_max_retries = chat_max_retries
         self.chat_retry_backoff = chat_retry_backoff
@@ -179,22 +183,36 @@ class LigAgent(AgentBase):
 
     def chat(self, prompt: str, model: str = "gpt-5-mini", **kwargs) -> str:
         last_exc: Optional[Exception] = None
-        stage = str(kwargs.pop("stage", "") or "").strip()
+        request_kwargs = dict(kwargs)
+        stage = str(request_kwargs.pop("stage", "") or "").strip()
+        resolved_model = str(model or self.model or "gpt-5-mini")
         for attempt in range(1, self.chat_max_retries + 1):
             try:
                 # Special handling for GPT-5 models
-                if "gpt-5-mini" in model:
+                if "gpt-5-mini" in resolved_model:
                     # Idea Generator: GPT-5 mini
-                    kwargs["temperature"] = 1.0
+                    request_kwargs["temperature"] = 1.0
                     effort = "high" if stage == "mcts_expand" else "low"
-                    return super().chat(prompt, model=model, reasoning={"effort": effort}, **kwargs)
-                elif "gpt-5" in model:
+                    return super().chat(
+                        prompt,
+                        model=resolved_model,
+                        reasoning={"effort": effort},
+                        **request_kwargs,
+                    )
+                elif "gpt-5" in resolved_model:
                     # Idea Evaluator: GPT-5.4
-                    kwargs["temperature"] = 1.0
+                    request_kwargs["temperature"] = 1.0
                     effort = "medium" if stage == "idea_fusion" else "low"
-                    return super().chat(prompt, model=model, reasoning={"effort": effort}, **kwargs)
-                else:
-                    return super().chat(prompt, model=model, **kwargs)
+                    return super().chat(
+                        prompt,
+                        model=resolved_model,
+                        reasoning={"effort": effort},
+                        **request_kwargs,
+                    )
+                elif "kimi-k2.5" in resolved_model:
+                    if stage != "mcts_expand":
+                        request_kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
+                    return super().chat(prompt, model=resolved_model, **request_kwargs)
             except Exception as exc:
                 last_exc = exc
                 wait = self.chat_retry_backoff ** (attempt - 1)
@@ -271,7 +289,12 @@ class LigAgent(AgentBase):
             chat_fn=self.chat,
             evaluation_prompt=PROMPTS.get("mcts_evaluation"),
             config=mcts_config,
-            logger=self.logger,
+            logger=get_or_create_mode_logger(
+                self._mode_loggers,
+                self.logger,
+                self.run_dir,
+                idea_taste_mode,
+            ),
         )
         mode_mcts.symbolic_memory = deepcopy(self.mcts.symbolic_memory)
         mode_mcts.persist_symbolic_memory = False
@@ -440,6 +463,8 @@ class LigAgent(AgentBase):
 
         Override or extend this method to plug in additional signal sources.
         """
+        if not self.mcts.config.enable_symbolic_memory:
+            return
         sym = self.mcts.symbolic_memory
         injected = 0
 

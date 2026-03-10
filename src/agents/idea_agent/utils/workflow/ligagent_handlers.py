@@ -7,6 +7,10 @@ from typing import Any, Dict, List, Optional
 
 from src.agents.idea_agent.agent.prompts import PROMPTS
 from src.agents.idea_agent.utils.core.config_loader import get_config_value
+from src.agents.idea_agent.utils.core.logger import (
+    get_or_create_mode_logger,
+    suspend_console_handlers,
+)
 from src.agents.idea_agent.utils.mcts.idea_taste_presets import IDEA_TASTE_PRESETS
 from src.agents.idea_agent.utils.prompting.prompt_views import format_paper_capsules_prompt_view
 from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
@@ -138,7 +142,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
             op_name="advanced_analysis",
             prompt=prompt,
             model=agent.model,
-            max_output_tokens=8192,
+            max_output_tokens=65536,
         )
     )
     if isinstance(response, (dict, list)):
@@ -229,7 +233,8 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
                     mode_results.append((mode, result))
     else:
         # Run a single MCTS search with the default idea taste preset.
-        result = agent.mcts.search(topic=topic, context=context)
+        with suspend_console_handlers(logger):
+            result = agent.mcts.search(topic=topic, context=context)
         if result.best:
             mode_label = getattr(getattr(agent.mcts, "idea_taste_preset", None), "mode", None) or "default"
             mode_results.append((mode_label, result))
@@ -259,6 +264,11 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     fused_entry = None
     fusion_result: Dict[str, Any] = {}
     fusion_experiences: List[Any] = []
+    fusion_logger = (
+        get_or_create_mode_logger(agent._mode_loggers, logger, agent.run_dir, "fusion")
+        if ligagent_pro
+        else logger
+    )
     if should_run_fusion(agent.config, ligagent_pro=ligagent_pro, candidate_count=len(mode_entries)):
         try:
             fused_entry, fusion_result, fusion_experiences = fuse_ligagent_pro_ideas(
@@ -270,12 +280,14 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
                 context=shared_context,
                 mode_entries=mode_entries,
                 prompt_template=PROMPTS["idea_fusion"],
-                logger=logger,
+                logger=fusion_logger,
             )
             if fused_entry:
                 best_entry = fused_entry
         except Exception as exc:
-            logger.warning("⚠️ Idea fusion failed; keeping raw best idea: %s", exc)
+            fusion_logger.warning("⚠️ Idea fusion failed: %s", exc)
+            if fusion_logger is not logger:
+                logger.warning("⚠️ Idea fusion failed; keeping raw best idea: %s", exc)
     if fusion_result:
         fusion_result["selected_entry_source"] = best_entry.get("idea_source")
         fusion_result["selected_title"] = best_entry.get("title")

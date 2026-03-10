@@ -1184,6 +1184,8 @@ def instantiate_skill_plan_for_node(
 
 
 def build_symbolic_eval_hints(mcts: Any, node: Any) -> str:
+    if not getattr(mcts, "enable_symbolic_memory", True):
+        return "No symbolic memory hints available."
     component_families = extract_component_families(node.state.components, node.state.method)
     if not component_families:
         return "No symbolic memory hints available."
@@ -1269,7 +1271,7 @@ def extract_mature_idea_components_via_llm(
             prompt,
             model=mcts.config.generation_model,
             temperature=0.3,
-            max_output_tokens=512,
+            max_output_tokens=mcts.config.generation_max_tokens,
         )
         payload = parse_json_response(response)
         if isinstance(payload, list):
@@ -1316,52 +1318,52 @@ def expand_node_with_skills(
     max_components: int,
     pretty_json: Optional[Any] = None,
 ) -> Tuple[Optional[Any], List[Any]]:
-    bundle = mcts.memory_accessor.retrieve_bundle(
-        query=(
-            f"{mcts.topic}\n{node.state.title}\n"
-            f"{node.state.core_contribution}\n"
-            f"defects={','.join(node.state.target_defects)}"
+    bundle = MemoryBundle()
+    if getattr(mcts, "enable_vector_memory", True):
+        bundle = mcts.memory_accessor.retrieve_bundle(
+            query=(
+                f"{mcts.topic}\n{node.state.title}\n"
+                f"{node.state.core_contribution}\n"
+                f"defects={','.join(node.state.target_defects)}"
+            )
         )
-    )
-    log_message(
-        mcts.logger,
-        mcts.log_sink,
-        "info",
-        "[MCTS] Expand: vector_memory\n%s",
-        _safe_pretty_json(mcts._memory_bundle_log_payload(bundle), pretty_json),
-    )
+        log_message(
+            mcts.logger,
+            mcts.log_sink,
+            "info",
+            "[MCTS] Expand: vector_memory\n%s",
+            _safe_pretty_json(mcts._memory_bundle_log_payload(bundle), pretty_json),
+        )
     # --- Compute symbolic-memory action priors for PUCT boosting ---
-    parent_ctx_sig = mcts._extract_context_sig(node)
-    component_families = extract_component_families(node.state.components, node.state.method)
-    # Context-signature-only retrieval: do not condition expand-time priors on
-    # per-component family matches. This keeps expand robust when component names
-    # are novel or noisy and lets symbolic memory generalize via structural
-    # context alone.
-    action_priors: Dict[str, float] = mcts.symbolic_memory.compute_action_priors(
-        target_family="",
-        context_sig=parent_ctx_sig,
-        limit=20,
-        agent_id="idea_agent",
-    )
-    log_message(
-        mcts.logger,
-        mcts.log_sink,
-        "info",
-        "[MCTS] Expand: symbolic_memory\n%s",
-        _safe_pretty_json(
-            {
-                "retrieval_mode": "context_signature_only",
-                "context_signature": (
-                    parent_ctx_sig.to_dict()
-                    if hasattr(parent_ctx_sig, "to_dict")
-                    else str(parent_ctx_sig)
-                ),
-                "observed_component_families": component_families,
-                "action_priors": {op: round(float(delta), 4) for op, delta in action_priors.items()},
-            },
-            pretty_json,
-        ),
-    )
+    action_priors: Dict[str, float] = {}
+    if getattr(mcts, "enable_symbolic_memory", True):
+        parent_ctx_sig = mcts._extract_context_sig(node)
+        component_families = extract_component_families(node.state.components, node.state.method)
+        action_priors = mcts.symbolic_memory.compute_action_priors(
+            target_family="",
+            context_sig=parent_ctx_sig,
+            limit=20,
+            agent_id="idea_agent",
+        )
+        log_message(
+            mcts.logger,
+            mcts.log_sink,
+            "info",
+            "[MCTS] Expand: symbolic_memory\n%s",
+            _safe_pretty_json(
+                {
+                    "retrieval_mode": "context_signature_only",
+                    "context_signature": (
+                        parent_ctx_sig.to_dict()
+                        if hasattr(parent_ctx_sig, "to_dict")
+                        else str(parent_ctx_sig)
+                    ),
+                    "observed_component_families": component_families,
+                    "action_priors": {op: round(float(delta), 4) for op, delta in action_priors.items()},
+                },
+                pretty_json,
+            ),
+        )
 
     selected_skill_candidates = mcts.skill_catalog.select_skills(
         defect_tags=node.state.target_defects,
@@ -1565,8 +1567,8 @@ def simulate_node_value(
             mcts.logger,
             mcts.log_sink,
             "info",
-            "[MCTS] Simulate (cache hit): node=%s score=%.4f\n%s",
-            node.state.title[:80],
+            "[MCTS] Simulate (cache hit): node=%s\n[MCTS] Score: %.4f\n%s",
+            node.state.title,
             cached_evaluation.composite,
             _safe_pretty_json(mcts._simulate_log_payload(cached_evaluation), pretty_json),
         )
@@ -1578,6 +1580,7 @@ def simulate_node_value(
             path_summary_text,
             experiences,
             mcts.experience_cache,
+            getattr(mcts, "enable_vector_memory", True),
             mcts.memory_accessor,
             mcts.config.min_confidence_for_memory,
         )
@@ -1666,8 +1669,8 @@ def simulate_node_value(
         mcts.logger,
         mcts.log_sink,
         "info",
-        "[MCTS] Simulate: node=%s score=%.4f\n%s",
-        node.state.title[:80],
+        "[MCTS] Simulate: node=%s\n[MCTS] Score: %.4f\n%s",
+        node.state.title,
         evaluation.composite,
         _safe_pretty_json(mcts._simulate_log_payload(evaluation), pretty_json),
     )
@@ -1684,6 +1687,7 @@ def simulate_node_value(
         path_summary_text,
         experiences,
         mcts.experience_cache,
+        getattr(mcts, "enable_vector_memory", True),
         mcts.memory_accessor,
         mcts.config.min_confidence_for_memory,
     )
@@ -1823,9 +1827,12 @@ def maybe_record_experience(
     path_summary_text: str,
     experiences: List[Dict[str, Any]],
     experience_cache: Set[str],
+    enable_vector_memory: bool,
     memory_accessor: Any,
     min_confidence_for_memory: float,
 ) -> None:
+    if not enable_vector_memory:
+        return
     if path_key in experience_cache:
         return
     experience = harvest_experience(

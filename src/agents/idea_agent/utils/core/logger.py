@@ -1,9 +1,11 @@
 """Logging setup helpers for Idea Agent console and file output."""
 
+from contextlib import contextmanager
 import logging
 import os
 from logging.handlers import RotatingFileHandler
-from typing import Optional
+from pathlib import Path
+from typing import Dict, Iterator, Optional
 from datetime import datetime
 
 
@@ -84,3 +86,72 @@ def get_logger() -> logging.Logger:
             logger.addHandler(logging.NullHandler())
         _logger = logger
     return _logger
+
+
+def normalize_mode_log_key(idea_taste_mode: Optional[str]) -> str:
+    return str(idea_taste_mode or "default").strip() or "default"
+
+
+def mode_log_filename(idea_taste_mode: Optional[str]) -> str:
+    raw_mode = normalize_mode_log_key(idea_taste_mode).lower()
+    safe_mode = "".join(ch if ch.isalnum() else "_" for ch in raw_mode).strip("_")
+    return f"ligagent_pro_{safe_mode or 'default'}.log"
+
+
+def get_or_create_mode_logger(
+    mode_loggers: Dict[str, logging.Logger],
+    base_logger: logging.Logger,
+    run_dir: Path,
+    idea_taste_mode: Optional[str],
+) -> logging.Logger:
+    mode_key = normalize_mode_log_key(idea_taste_mode)
+    existing = mode_loggers.get(mode_key)
+    if existing is not None:
+        return existing
+
+    mode_logger = logging.getLogger(f"LigAgent.{mode_key}")
+    mode_logger.setLevel(base_logger.level)
+    mode_logger.propagate = False
+
+    for handler in list(mode_logger.handlers):
+        try:
+            handler.close()
+        except Exception:
+            pass
+        mode_logger.removeHandler(handler)
+
+    log_path = run_dir / "logs" / mode_log_filename(idea_taste_mode)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    formatter = logging.Formatter(
+        fmt="%(asctime)s | %(levelname)s |  %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    file_handler = RotatingFileHandler(
+        log_path,
+        maxBytes=5 * 1024 * 1024,
+        backupCount=5,
+        encoding="utf-8",
+    )
+    file_handler.setLevel(mode_logger.level)
+    file_handler.setFormatter(formatter)
+    mode_logger.addHandler(file_handler)
+
+    mode_loggers[mode_key] = mode_logger
+    return mode_logger
+
+
+@contextmanager
+def suspend_console_handlers(logger: logging.Logger) -> Iterator[None]:
+    removed_handlers = []
+    for handler in list(logger.handlers):
+        if isinstance(handler, logging.FileHandler):
+            continue
+        if isinstance(handler, logging.StreamHandler):
+            logger.removeHandler(handler)
+            removed_handlers.append(handler)
+    try:
+        yield
+    finally:
+        for handler in removed_handlers:
+            logger.addHandler(handler)

@@ -450,6 +450,8 @@ class MCTSConfig:
     theory_transfer_similarity_threshold: float = _mcts_default(
         "theory_transfer_similarity_threshold", 0.4
     )
+    enable_vector_memory: bool = _mcts_default("enable_vector_memory", True)
+    enable_symbolic_memory: bool = _mcts_default("enable_symbolic_memory", True)
     min_confidence_for_memory: float = _mcts_default("min_confidence_for_memory", 0.6)
     pareto_top_k: int = _mcts_default("pareto_top_k", 5)
     alignment_weight: float = _mcts_default("alignment_weight", 0.18)
@@ -707,6 +709,8 @@ class MemoryGuidedMCTS:
         self.config = config or MCTSConfig()
         self.logger = logger or module_logger
         self.log_sink = log_sink
+        self.enable_vector_memory = bool(self.config.enable_vector_memory)
+        self.enable_symbolic_memory = bool(self.config.enable_symbolic_memory)
         self.memory_accessor = memory_accessor or VectorMemoryAccessor(logger=self.logger)
         self.component_novelty_scorer = ComponentNoveltyScorer(
             model_name_or_path=self.config.component_novelty_model,
@@ -750,13 +754,16 @@ class MemoryGuidedMCTS:
         self._component_novelty_fallback_logged = False
         self.persist_symbolic_memory = True
 
-        self._load_skill_prior_memory()
+        if self.enable_symbolic_memory:
+            self._load_skill_prior_memory()
 
     def _load_skill_prior_memory(self) -> None:
         """Load the symbolic memory store so that compute_action_priors is available
         during expand.  The store is populated externally (e.g. from experiment
         ablation results or paper-graph conclusions) — not from within MCTS.
         """
+        if not self.enable_symbolic_memory:
+            return
         try:
             if not self.symbolic_memory_path.exists():
                 return
@@ -834,7 +841,7 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.generation_model,
                 temperature=0.01,
-                max_output_tokens=512,
+                max_output_tokens=65536,
             )
             payload = parse_json_response(response)
             if isinstance(payload, list):
@@ -879,7 +886,7 @@ class MemoryGuidedMCTS:
                 prompt,
                 model=self.config.generation_model,
                 temperature=0.2,
-                max_output_tokens=512,
+                max_output_tokens=65536,
             )
             payload = parse_json_response(response)
             if isinstance(payload, list):
@@ -1176,7 +1183,7 @@ class MemoryGuidedMCTS:
         cache_entries = sum(len(entries) for entries in self.evaluation_cache.values())
 
         # Persist injected symbolic priors to disk so they survive across runs
-        if self.persist_symbolic_memory:
+        if self.enable_symbolic_memory and self.persist_symbolic_memory:
             try:
                 self.symbolic_memory_path.parent.mkdir(parents=True, exist_ok=True)
                 self.symbolic_memory.save(str(self.symbolic_memory_path))

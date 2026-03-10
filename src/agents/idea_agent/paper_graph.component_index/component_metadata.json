@@ -1,7 +1,7 @@
 {
   "graph_path": "../paper_graph.gexf",
   "graph_mtime": 1772182341.025688,
-  "model_name_or_path": "../../memory/memory_system/.cache/all-MiniLM-L6-v2",
+  "model_name_or_path": "../../../memory/memory_system/.cache/all-MiniLM-L6-v2",
   "model_name_or_path_relative_to_index": true,
   "core_nodes": {
     "Switching Gaussian Process Model": {

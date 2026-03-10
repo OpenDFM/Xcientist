@@ -1,14 +1,14 @@
 run:
-  "LigAgent-Pro": false
+  "LigAgent-Pro": true
   output_root: "runs"
   console_logs: true
   rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
-  openai_api_key: "sk-CTESuyV0v4QQncBZBd291d85EbC94c2795698e1cA84f65Ca"
-  openai_base_url: "https://api.xi-ai.cn/v1"
+  openai_api_key: "sk-sp-5e089a1d787e44918e8b556b9293505b"
+  openai_base_url: "https://coding.dashscope.aliyuncs.com/v1"
   s2_api_key: "1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ"
   s2_api_timeout: "60"
   serper_api_key: "7c7ca61c4c665f666902d03f3bca49c4b4b5bed4"
   serper_api_endpoint: "https://google.serper.dev/search"
   mineru_model_source: "modelscope"
-  topics: ["Diffusion Models for Reinforcement Learning in Games"]
-  mature_idea: "CtrlFlow replaces step-wise dynamics modeling in online MBRL with a conditional flow-matching trajectory generator that directly learns to sample high-return trajectories from initial states, using controllability (minimum control-energy via a non-linear controllability Gramian) plus value guidance to avoid long-horizon model-error compounding and improve sample efficiency."
+  topics: ["LLM Agent Memory System"]
+  mature_idea: "MemPrism’s core insight is that agent trajectories contain heterogeneous signals and should be managed as multi-facet memory rather than a single flat memory bank. It therefore works in a retrospective encode–consolidate–integrate pipeline: the agent first segments past interaction traces into structured working slots, then routes them into semantic, episodic, and procedural memories with similarity-gated upsert and episodic clustering/abstraction, and finally retrieves them with facet-aware mechanisms—especially multi-directional slot retrieval—to inject complementary evidence back into the current context. In essence, MemPrism turns raw history into structured, type-specific, and reusable memory, improving both memory quality and downstream decision making."

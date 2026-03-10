@@ -1,5 +1,5 @@
 agent:
-  model: "gpt-5-mini"
+  model: "kimi-k2.5"
   chat_max_retries: 3
   chat_retry_backoff: 2.0
   action_selection_attempts: 2

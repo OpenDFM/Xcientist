@@ -1,7 +1,7 @@
 fusion:
   enabled: true
   only_when_ligagent_pro: true
-  model: "gpt-5.4"
+  model: "kimi-k2.5"
   temperature: 0.2
-  max_tokens: 32768
+  max_tokens: 65536
   min_candidates: 2

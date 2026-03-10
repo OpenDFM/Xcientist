@@ -223,7 +223,7 @@ def filter_and_compress_papers(
     top_ids: List[str] = []
     compressed_map: Dict[str, str] = {}
     try:
-        response = chat_fn(prompt, temperature=0.1, max_output_tokens=4096, model=model)
+        response = chat_fn(prompt, temperature=0.1, max_output_tokens=65536, model=model)
         payload = parse_json_response(response)
         raw_top = (
             payload.get("top_paper_ids")
@@ -341,7 +341,7 @@ def generate_rag_query(
         papers=json.dumps(papers, ensure_ascii=False, indent=2) if papers is not None else "[]",
     )
     try:
-        response = chat_fn(prompt, model=model, temperature=0.3, max_output_tokens=512)
+        response = chat_fn(prompt, model=model, temperature=0.3, max_output_tokens=65536)
         try:
             payload = parse_json_response(response)
             if isinstance(payload, dict) and payload.get("query"):
@@ -731,7 +731,7 @@ def build_algorithm_spec(
     )
     prompt += "\n Directly output JSON."
     try:
-        response = chat_fn(prompt, temperature=0.01, max_output_tokens=4096, model=model)
+        response = chat_fn(prompt, temperature=0.01, max_output_tokens=65536, model=model)
         payload = parse_json_response(response)
         candidate = payload.get("algorithms", payload)
         if isinstance(candidate, list) and candidate:
@@ -764,7 +764,7 @@ def align_algorithms_with_idea(
     )
     prompt += "\nDirectly output JSON."
     try:
-        response = chat_fn(prompt, temperature=0.01, max_output_tokens=2048, model=model)
+        response = chat_fn(prompt, temperature=0.01, max_output_tokens=65536, model=model)
         payload = parse_json_response(response)
         candidate = payload.get("algorithms", payload)
         if isinstance(candidate, list) and candidate:
@@ -795,7 +795,7 @@ def synthesize_reference_summaries(
     )
     prompt += "\n Directly output JSON."
     try:
-        response = chat_fn(prompt, temperature=0.01, max_output_tokens=4096, model=model)
+        response = chat_fn(prompt, temperature=0.01, max_output_tokens=65536, model=model)
         payload = parse_json_response(response)
         candidate = payload.get("reference_papers", payload)
         if isinstance(candidate, list):
