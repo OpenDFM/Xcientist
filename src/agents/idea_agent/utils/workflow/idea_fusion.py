@@ -34,6 +34,11 @@ from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_co
 
 
 PROMPT_CLIP_LIMIT = 65536
+FUSION_REPAIR_ALLOWED_OPS = {
+    AtomicEditOp.REMOVE_COMPONENT,
+    AtomicEditOp.REPLACE_COMPONENT,
+    AtomicEditOp.REWIRE,
+}
 
 
 def should_run_fusion(
