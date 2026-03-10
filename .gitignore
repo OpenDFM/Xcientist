@@ -66,3 +66,7 @@ workspace/
 .checkpoints/
 .conversations/
 
+# Output directories
+output/
+__pycache__/
+
