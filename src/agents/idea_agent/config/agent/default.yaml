@@ -1,9 +1,0 @@
-agent:
-  model: "gpt-5-mini"
-  chat_max_retries: 3
-  chat_retry_backoff: 2.0
-  action_selection_attempts: 2
-  paper_enrichment_timeout_sec: 7200
-  semantic_search_limit: 5
-  idea_context_limit: 10
-

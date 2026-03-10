@@ -93,17 +93,10 @@ def _result_to_best_entry(result: Any, idea_taste_mode: Optional[str]) -> Dict[s
 
 
 def execute_knowledge_acquisition_stage(agent: Any, ctx: StageContext) -> StageResult:
-    search_type = ctx.inputs.get("search_type", "paper_search")
-    if search_type != "paper_search":
-        return StageResult(
-            status="terminal_failure",
-            error=f"Unsupported knowledge acquisition search_type '{search_type}'.",
-        )
-
     spec = agent._build_knowledge_acquisition_workflow()
     nested = agent.workflow_executor.run(
         spec,
-        make_stage_context(agent, workflow_name=spec.name, search_type=search_type),
+        make_stage_context(agent, workflow_name=spec.name),
     )
     summary = nested.state.get("summary") or (
         "\nIn this knowledge_aquisition action, no explicit retrieval outcome was recorded."

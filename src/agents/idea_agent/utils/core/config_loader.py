@@ -10,7 +10,7 @@ from typing import Any, Optional
 from omegaconf import OmegaConf
 
 DEFAULT_CONFIG_PATH = (
-    Path(__file__).resolve().parents[2] / "config" / "idea_agent.yaml"
+    Path(__file__).resolve().parents[4] / "config" / "default.yaml"
 )
 
 
@@ -54,6 +54,9 @@ def load_idea_agent_config(config_path: Optional[str] = None) -> Any:
     if not path.exists():
         raise FileNotFoundError(f"Idea agent config not found at {path}")
     config = OmegaConf.load(path)
+    idea_config = config.get("idea") if hasattr(config, "get") else None
+    if idea_config is not None:
+        return idea_config
     defaults = config.get("defaults") if isinstance(config, dict) or hasattr(config, "get") else None
     if not defaults:
         return config

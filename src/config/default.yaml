@@ -75,55 +75,73 @@ survey:
 # ============================================
 idea:
   enabled: true
-  topic: "Diffusion Models for Reinforcement Learning"
-  mature_idea: "CtrlFlow replaces step-wise dynamics modeling in online MBRL with a conditional flow-matching trajectory generator that directly learns to sample high-return trajectories from initial states, using controllability (minimum control-energy via a non-linear controllability Gramian) plus value guidance to avoid long-horizon model-error compounding and improve sample efficiency."
+  topic: "LLM Agent Memory System"
+  mature_idea: "MemPrism's core insight is that agent trajectories contain heterogeneous signals and should be managed as multi-facet memory rather than a single flat memory bank. It therefore works in a retrospective encode-consolidate-integrate pipeline: the agent first segments past interaction traces into structured working slots, then routes them into semantic, episodic, and procedural memories with similarity-gated upsert and episodic clustering/abstraction, and finally retrieves them with facet-aware mechanisms, especially multi-directional slot retrieval, to inject complementary evidence back into the current context. In essence, MemPrism turns raw history into structured, type-specific, and reusable memory, improving both memory quality and downstream decision making."
 
-  # Run settings
   run:
-    max_turns: 4
-    parallelism: 1
+    LigAgent-Pro: true
+    topics: ["LLM Agent Memory System"]
+    mature_idea: "MemPrism's core insight is that agent trajectories contain heterogeneous signals and should be managed as multi-facet memory rather than a single flat memory bank. It therefore works in a retrospective encode-consolidate-integrate pipeline: the agent first segments past interaction traces into structured working slots, then routes them into semantic, episodic, and procedural memories with similarity-gated upsert and episodic clustering/abstraction, and finally retrieves them with facet-aware mechanisms, especially multi-directional slot retrieval, to inject complementary evidence back into the current context. In essence, MemPrism turns raw history into structured, type-specific, and reusable memory, improving both memory quality and downstream decision making."
     output_root: "runs"
     console_logs: true
     rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
-
-  # Agent configuration
-  agent:
-    model: "gpt-5.4"
-
-  # API configuration
-  api:
-    openai_api_key: "${env:OPENAI_API_KEY}"
+    openai_api_key: "sk-BWZ0Kqbk3PvdF0zRFf69B63901B84e85A5B4D8B1AfE27e2e"
     openai_base_url: "https://api.xi-ai.cn/v1"
     s2_api_key: "${env:S2_API_KEY}"
     s2_api_timeout: 60
-    serper_api_key: "${env:SERPER_API_KEY}"
+    mineru_model_source: "modelscope"
 
-  # MCTS configuration
+  agent:
+    model: "gpt-5-mini"
+    chat_max_retries: 3
+    chat_retry_backoff: 2.0
+    paper_enrichment_timeout_sec: 7200
+    semantic_search_limit: 5
+
   mcts:
-    max_iterations: 1
+    max_iterations: 3
     max_depth: 3
     branching_factor: 3
-    exploration_constant: 1.15
-    generation_model: "gpt-5.4"
-    evaluation_model: "gpt-5.4"
+    exploration_constant: 1.2
+    idea_taste_mode: "evidence_first"
+    generation_model: "gpt-5-mini"
+    evaluation_model: "gpt-5.2"
     generation_temperature: 0.7
     evaluation_temperature: 0.001
-    generation_max_tokens: 8192
-    evaluation_max_tokens: 8192
+    generation_max_tokens: 65536
+    evaluation_max_tokens: 65536
+    component_novelty_model: "all-MiniLM-L6-v2"
+    component_novelty_index_dir: null
     component_novelty_retrieval_top_k: 50
+    component_novelty_evidence_top_k: 5
+    component_novelty_eval_model: "gpt-5.2"
+    component_novelty_eval_temperature: 0.001
+    component_novelty_eval_max_tokens: 65536
+    theory_transfer_retrieval_top_k: 3
+    theory_transfer_similarity_threshold: 0.4
+    enable_vector_memory: true
+    enable_symbolic_memory: true
     min_confidence_for_memory: 0.6
     pareto_top_k: 5
-
-    # Scoring weights
-    weights:
-      alignment: 0.2
-      complexity: 0.2
-      novelty: 0.3
-      impact: 0.25
-      feasibility: 0.2
-
-    skill_prior_memory_path: "idea_skill_priors"
+    symbolic_memory_path: "output/symbolic_memory.json"
     skill_prior_success_threshold: 0.6
+
+  fusion:
+    enabled: true
+    only_when_ligagent_pro: true
+    model: "gpt-5.2"
+    temperature: 0.2
+    max_tokens: 65536
+    min_candidates: 2
+    repair_max_steps: 10
+    repair_patience: 3
+    repair_epsilon: 0.1
+
+  memory:
+    vector_store:
+      model_path: ".cache/all-MiniLM-L6-v2"
+      llm_name: "gpt-4.1"
+      llm_backend: "openai"
 
 # ============================================
 # Experiment Agent Configuration

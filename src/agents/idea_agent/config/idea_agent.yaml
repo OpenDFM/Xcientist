@@ -1,8 +1,0 @@
-defaults:
-  - agent: default
-  - run: default
-  - mcts: default
-  - fusion: default
-  - memory: default
-  - search: default
-  - _self_

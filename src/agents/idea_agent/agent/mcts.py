@@ -58,6 +58,7 @@ from src.agents.idea_agent.agent.prompts.theory_transfer_query import (
     THEORY_TRANSFER_QUERY_PROMPT,
 )
 from src.agents.idea_agent.agent.prompts.component_extraction import COMPONENT_EXTRACTION_PROMPT
+from src.agents.idea_agent.utils.core.config_loader import load_idea_agent_config
 from src.agents.idea_agent.utils.mcts.idea_taste_presets import (
     IdeaTastePreset,
     SCORE_WEIGHT_FIELDS,
@@ -104,8 +105,7 @@ module_logger = get_logger()
 def _load_mcts_defaults() -> Dict[str, Any]:
     if OmegaConf is None:
         return {}
-    config_path = Path(__file__).resolve().parents[1] / "config" / "mcts" / "default.yaml"
-    config = OmegaConf.load(config_path)
+    config = load_idea_agent_config()
     mcts_config = config.get("mcts") if hasattr(config, "get") else None
     if mcts_config is None:
         return {}

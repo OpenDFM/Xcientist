@@ -4,7 +4,7 @@ from src.agents.idea_agent.agent import get_logger
 from src.agents.idea_agent.utils.core.logger import get_or_create_mode_logger
 
 import logging
-from typing import Any, Dict, Literal, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 from pathlib import Path
 import time
 from copy import deepcopy
@@ -104,10 +104,6 @@ class LigAgent(AgentBase):
         survey_config_path = kwargs.pop("survey_config_path", None)
         run_dir = kwargs.pop("run_dir", None)
         rag_config = kwargs.pop("rag_config", None)
-        action_selection_attempts = kwargs.pop(
-            "action_selection_attempts",
-            get_config_value(config, "agent.action_selection_attempts", 2),
-        )
         model = get_config_value(config, "agent.model", "gpt-5-mini")
         super().__init__(*args, **kwargs)
         self.model = str(model or "gpt-5-mini")
@@ -117,7 +113,6 @@ class LigAgent(AgentBase):
             "idea_generation",
             "re_analysis_replan",
         ]
-        self.action_selection_attempts = max(1, action_selection_attempts)
         self.tools = TOOLS
         self.artifact = artifact_init()
         self.session = LigSession(self.artifact)
@@ -133,7 +128,6 @@ class LigAgent(AgentBase):
         self.chat_retry_backoff = chat_retry_backoff
         self._action_lookup = build_action_lookup(self.ACTION_ALIASES)
         self.semantic_search_limit = get_config_value(config, "agent.semantic_search_limit", 5)
-        self.idea_context_limit = get_config_value(config, "agent.idea_context_limit", 10)
         self.logger = logger
         self.runtime = LigRuntime(self)
         self.workflow_executor = WorkflowExecutor(logger=logger)
@@ -264,10 +258,8 @@ class LigAgent(AgentBase):
         if background:
             self.artifact["background_knowledge"].append(background)
 
-    def knowledge_aquisition(
-        self, search_type: Literal["paper_search", "website"] = "paper_search"
-    ) -> str:
-        return self._run_action_workflow("knowledge_aquisition", search_type=search_type)
+    def knowledge_aquisition(self) -> str:
+        return self._run_action_workflow("knowledge_aquisition")
 
     def get_paper_content(self, paper_id: str, include_markdown: bool = True) -> Dict[str, Any]:
         return load_paper_content(
