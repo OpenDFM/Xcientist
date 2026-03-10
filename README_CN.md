@@ -31,6 +31,59 @@ conda activate research-agent
 pip install -r requirements.txt
 ```
 
+### 4. Pipeline（集成运行器）
+
+**作用**：将 Survey → Idea → Experiment 串联为连续循环，实验结果可反馈给想法生成环节。
+
+**工作流程**：
+
+```
+Survey → Idea → Experiment → [将结果转换为符号记忆] → 下一轮
+                                                              ↓
+                                                       (循环至多 max_iterations 次)
+```
+
+**核心功能**：
+- **断点续跑**：自动从上次完成的阶段恢复
+- **状态管理**：在 `pipeline.yaml` 中跟踪进度
+- **符号记忆集成**：将消融结果转换为符号记忆，供未来想法生成使用
+- **统一工作空间**：所有输出组织在 `workspace/pipeline_runs/{pipeline_name}/` 下
+
+**输入**（通过 `src/config/default.yaml` 配置）：
+- `idea.topic`：研究主题
+- `idea.mature_idea`（可选）：契约模式的种子想法
+- `pipeline.iterate.max_iterations`：Idea→Experiment 迭代次数
+- `pipeline.resume_enabled`：启用/禁用断点续跑
+
+**输出**：
+- `workspace/pipeline_runs/{pipeline_name}/survey/`：Survey 输出
+- `workspace/pipeline_runs/{pipeline_name}/experiments/{experiment_id}/`：实验工作空间
+- `workspace/idea_skill_priors/symbolic_memory.json`：消融结果转换的符号记忆
+
+**用法**：
+```bash
+python -m src.pipeline.run_loop
+# 或
+./run_pipeline.sh
+```
+
+**配置**（`src/config/default.yaml`）：
+```yaml
+pipeline:
+  name: "diffusion_rl"          # Pipeline 名称（为空则自动生成）
+  state_file: "pipeline.yaml"    # 断点续跑状态文件
+  resume_enabled: true           # 启用断点续跑
+  skip_survey: true             # 已完成 survey 时跳过
+
+  iterate:
+    max_iterations: 3           # 迭代次数
+
+  output:
+    root: "pipeline_runs"      # 工作空间下的输出根目录
+```
+
+---
+
 ## 三个 Agent
 
 ### 1. Idea Agent（想法生成）
