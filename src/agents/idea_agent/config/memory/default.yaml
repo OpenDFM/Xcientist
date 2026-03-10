@@ -1,4 +1,5 @@
 memory:
   vector_store:
+    model_path: ".cache/all-MiniLM-L6-v2"
     llm_name: "gpt-4.1"
     llm_backend: "openai"

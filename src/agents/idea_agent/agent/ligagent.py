@@ -156,6 +156,8 @@ class LigAgent(AgentBase):
             and get_config_value(config, "mcts.symbolic_memory_path", None) is None
         ):
             setattr(mcts_config, "symbolic_memory_path", legacy_symbolic_memory_path)
+        if bool(get_config_value(config, "run.LigAgent-Pro", False)):
+            setattr(mcts_config, "enable_vector_memory", False)
         idea_taste_preset = apply_idea_taste_preset(mcts_config)
         if idea_taste_preset:
             self.artifact["idea_taste_mode"] = idea_taste_preset.mode
@@ -165,6 +167,8 @@ class LigAgent(AgentBase):
                 idea_taste_preset.mode,
                 idea_taste_preset.label,
             )
+        if bool(get_config_value(config, "run.LigAgent-Pro", False)):
+            logger.info("[LigAgent] LigAgent-Pro enabled: vector memory disabled for all MCTS instances.")
         self.mcts = MemoryGuidedMCTS(
             chat_fn=self.chat,
             evaluation_prompt=PROMPTS.get("mcts_evaluation"),
@@ -194,7 +198,7 @@ class LigAgent(AgentBase):
                 if "gpt-5-mini" in resolved_model:
                     # Idea Generator: GPT-5 mini
                     request_kwargs["temperature"] = 1.0
-                    effort = "high" if stage == "mcts_expand" else "low"
+                    effort = "low" if stage == "mcts_expand" else "low"
                     return super().chat(
                         prompt,
                         model=resolved_model,
@@ -304,7 +308,18 @@ class LigAgent(AgentBase):
         return mode_mcts
 
     def _build_memory_accessor(self) -> VectorMemoryAccessor:
+        model_path = str(
+            get_config_value(
+                self.config,
+                "memory.vector_store.model_path",
+                ".cache/all-MiniLM-L6-v2",
+            )
+            or ".cache/all-MiniLM-L6-v2"
+        )
         return VectorMemoryAccessor(
+            semantic_cfg={"model_path": model_path},
+            episodic_cfg={"model_path": model_path},
+            procedural_cfg={"model_path": model_path},
             llm_name=str(
                 get_config_value(
                     self.config,

@@ -37,8 +37,15 @@ class VectorStore(ABC):
         ...
 
 class FaissVectorStore(VectorStore):
-    def __init__(self, model_path: str = ".cache/all-MiniLM-L6-v2", memory_type: str = "semantic"):
-        self.model = SentenceTransformer(self._resolve_model_source(model_path))
+    def __init__(
+        self,
+        model_path: str = ".cache/all-MiniLM-L6-v2",
+        memory_type: str = "semantic",
+        model: Optional[SentenceTransformer] = None,
+    ):
+        resolved_model_path = self._resolve_model_source(model_path)
+        self.model = model or SentenceTransformer(resolved_model_path)
+        self.model_path = resolved_model_path
         self.memory_type = memory_type
         self.index = None
         self.dim = None

@@ -20,6 +20,7 @@ from memory.api.symbolic_memory_system_api import SymbolicMemorySystem
 from memory.api.component_taxonomy import (
     ContextSignature,
 )
+from memory.memory_system import FaissVectorStore
 from memory.memory_system.models import EpisodicRecord, ProceduralRecord, SemanticRecord
 from memory.memory_system.utils import _multi_thread_run, _safe_dump_str
 from agent import get_logger
@@ -531,6 +532,20 @@ class VectorMemoryAccessor:
             "episodic": None,
             "procedural": None,
         }
+        self._embedding_models: Dict[str, Any] = {}
+
+    def _get_embedding_model(self, cfg: Dict[str, Any]) -> Any:
+        model_path = str((cfg or {}).get("model_path") or ".cache/all-MiniLM-L6-v2").strip()
+        resolved_model_path = FaissVectorStore._resolve_model_source(model_path)
+        cached_model = self._embedding_models.get(resolved_model_path)
+        if cached_model is not None:
+            return cached_model
+
+        from sentence_transformers import SentenceTransformer
+
+        embedding_model = SentenceTransformer(resolved_model_path)
+        self._embedding_models[resolved_model_path] = embedding_model
+        return embedding_model
 
     def _get_store(self, memory_type: str) -> Optional[FAISSMemorySystem]:
         if memory_type not in self._stores:
@@ -542,7 +557,9 @@ class VectorMemoryAccessor:
                 "procedural": self.procedural_cfg,
             }.get(memory_type, {})
             try:
+                embedding_model = self._get_embedding_model(cfg)
                 self._stores[memory_type] = FAISSMemorySystem(
+                    embedding_model=embedding_model,
                     memory_type=memory_type,
                     llm_name=self.llm_name,
                     llm_backend=self.llm_backend,

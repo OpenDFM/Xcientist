@@ -7,6 +7,7 @@ from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union, Any, C
 from collections import deque
 from memory.memory_system.utils import (
     dump_slot_json, 
+    _parse_json_response,
     _extract_json_between, 
     _hard_validate_slot_keys,
     _build_context_snapshot,
@@ -365,7 +366,7 @@ class SlotProcess:
                 response = response.strip()
                 response = response.replace("<think>", "").replace("</think>", "")
 
-                payload = json.loads(response)
+                payload = _parse_json_response(response)
                 
                 if not payload or not isinstance(payload, dict):
                     raise ValueError(f"Empty or invalid payload extracted from <{record_tag}>")
@@ -553,8 +554,8 @@ class SlotProcess:
             record_tag="semantic-record",
             slot=slot,
             post_process_payload=post_process_semantic,
-            max_retries=1,
-            max_tokens=2048,
+            max_retries=5,
+            max_tokens=65536,
         )
 
     def transfer_slot_to_episodic_record(self, slot: WorkingSlot, task: Literal["experiment", "idea"] = "idea") -> Dict[str, Any]:
@@ -602,8 +603,8 @@ class SlotProcess:
             record_tag="episodic-record",
             slot=slot,
             post_process_payload=post_process_episodic,
-            max_retries=1,
-            max_tokens=2048,
+            max_retries=5,
+            max_tokens=65536,
         )
 
     def transfer_slot_to_procedural_record(self, slot: WorkingSlot, task: Literal["experiment", "idea"] = "idea") -> Dict[str, Any]:
@@ -657,8 +658,8 @@ class SlotProcess:
             record_tag="procedural-record",
             slot=slot,
             post_process_payload=post_process_procedural,
-            max_retries=1,
-            max_tokens=2048,
+            max_retries=5,
+            max_tokens=65536,
         )
 
     async def multi_thread_transfer_dicts_to_memories(self, is_abstract: bool = False):

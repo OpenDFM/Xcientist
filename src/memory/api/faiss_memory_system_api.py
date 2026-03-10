@@ -19,11 +19,15 @@ from collections import defaultdict
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 class FAISSMemorySystem(BaseVectorMemorySystem):
-    def __init__(self, **kwargs):
+    def __init__(self, embedding_model=None, **kwargs):
         cfg = VectorMemorySystemConfig(**kwargs)
 
         self.memory_type = cfg.memory_type
-        self.vector_store = FaissVectorStore(cfg.model_path, self.memory_type)
+        self.vector_store = FaissVectorStore(
+            cfg.model_path,
+            self.memory_type,
+            model=embedding_model,
+        )
         self.llm = OpenAIClient(model=cfg.llm_name, backend=cfg.llm_backend)
 
         if self.memory_type == "semantic":
