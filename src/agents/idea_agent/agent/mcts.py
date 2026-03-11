@@ -36,6 +36,7 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     build_fallback_theory_transfer_query,
     clip_metric_score,
     clip_text,
+    coerce_integer_metric_score,
     format_theory_transfer_references,
     component_inventory_payload,
     format_analysis_blob,
@@ -98,6 +99,18 @@ UNIFORM_CLIP_TEXT_LIMIT = 10000
 MAX_LIST_ENTRIES = 16
 MIN_COMPONENTS = 1
 MAX_COMPONENTS = 5
+INTEGER_EVALUATION_FIELDS = (
+    "novelty",
+    "surprise",
+    "feasibility",
+    "clarity",
+    "impact",
+    "risk",
+    "conciseness",
+    "alignment_score",
+    "complexity_penalty",
+    "protocol_score",
+)
 
 module_logger = get_logger()
 
@@ -270,6 +283,12 @@ class IdeaEvaluation:
             clip_text(tag, UNIFORM_CLIP_TEXT_LIMIT)
             for tag in (self.detected_defects or [])[:MAX_LIST_ENTRIES]
         ]
+        for field_name in INTEGER_EVALUATION_FIELDS:
+            setattr(
+                self,
+                field_name,
+                coerce_integer_metric_score(getattr(self, field_name, 0)),
+            )
         self.confidence = max(0.0, min(1.0, _safe_float_default(self.confidence, 0.0)))
         apply_normalized_score_weights(self, SCORE_WEIGHT_FIELDS)
 

@@ -1661,7 +1661,7 @@ def simulate_node_value(
 
     novelty_override = mcts._score_component_novelty(node.state)
     if novelty_override is not None:
-        evaluation.novelty = novelty_override
+        evaluation.novelty = round(novelty_override)
 
     if evaluation.protocol_score <= 0.0:
         evaluation.protocol_score = mcts._compute_protocol_score(node.state.edit_plan)

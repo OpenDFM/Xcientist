@@ -83,6 +83,16 @@ def clip_metric_score(value: Any, *, lower: float = 0.0, upper: float = 5.0) -> 
     return max(lower, min(upper, _safe_float_default(value, lower)))
 
 
+def coerce_integer_metric_score(
+    value: Any,
+    *,
+    lower: int = 0,
+    upper: int = 5,
+) -> int:
+    clipped = clip_metric_score(value, lower=float(lower), upper=float(upper))
+    return max(lower, min(upper, int(round(clipped))))
+
+
 def normalize_score_weights(
     weights: Dict[str, Any],
     fields: Sequence[str],

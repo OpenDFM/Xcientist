@@ -45,6 +45,7 @@ Scoring policy:
 
 Scoring rubric (use this exact rubric for consistency):
 - Use the full scale. Avoid defaulting to 3 unless the evidence is genuinely mixed.
+- All 0-5 metric scores must be integers only. Do not return decimals such as 3.5 or 4.2.
 - Positive metrics where HIGHER is better: novelty, surprise, feasibility, clarity, impact, conciseness, alignment_score, protocol_score.
 - Penalty metrics where HIGHER is worse: risk, complexity_penalty.
 - Score each metric independently. Do not let a strong score in one metric automatically raise another.
