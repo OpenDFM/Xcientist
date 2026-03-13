@@ -75,8 +75,6 @@ from src.agents.idea_agent.utils.mcts.mcts_runtime import (
     build_symbolic_eval_hints,
     build_root_state,
     compute_protocol_score_from_plan,
-    expand_symbolic_memory_log_payload,
-    extract_context_sig_from_node,
     extract_mature_idea_components_via_llm,
     instantiate_skill_plan_for_node,
     log_message,
@@ -811,9 +809,10 @@ class MemoryGuidedMCTS:
             self._load_skill_prior_memory()
 
     def _load_skill_prior_memory(self) -> None:
-        """Load the symbolic memory store so that compute_action_priors is available
-        during expand.  The store is populated externally (e.g. from experiment
-        ablation results or paper-graph conclusions) — not from within MCTS.
+        """Load the symbolic memory store for symbolic-memory-aware stages.
+
+        The store is populated externally (e.g. from experiment ablation
+        results or paper-graph conclusions) — not from within MCTS.
         """
         if not self.enable_symbolic_memory:
             return
@@ -839,19 +838,6 @@ class MemoryGuidedMCTS:
 
     def _memory_bundle_log_payload(self, bundle: MemoryBundle) -> Dict[str, Any]:
         return memory_bundle_log_payload(bundle)
-
-    def _expand_symbolic_memory_log_payload(
-        self,
-        parent_ctx_sig: ContextSignature,
-        component_families: List[Dict[str, Any]],
-        action_priors: Dict[str, float],
-    ) -> Dict[str, Any]:
-        return expand_symbolic_memory_log_payload(
-            self,
-            parent_ctx_sig,
-            component_families,
-            action_priors,
-        )
 
     def _simulate_log_payload(self, evaluation: IdeaEvaluation) -> Dict[str, Any]:
         return simulate_log_payload(evaluation)
@@ -1014,9 +1000,6 @@ class MemoryGuidedMCTS:
             selection_metadata=selection_metadata,
             idea_state_cls=IdeaState,
         )
-
-    def _extract_context_sig(self, node: IdeaNode) -> ContextSignature:
-        return extract_context_sig_from_node(node)
 
     def _select(self, node: IdeaNode) -> Tuple[IdeaNode, List[IdeaNode]]:
         return select_leaf_for_rollout(self, node)

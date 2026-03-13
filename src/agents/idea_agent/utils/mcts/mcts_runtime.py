@@ -776,66 +776,6 @@ def _is_budget_tight(budget: Dict[str, Any]) -> bool:
     return any(val < 1.0 for val in numeric_values)
 
 
-def _skill_atomic_ops(skill: EditOperatorSkill) -> Set[str]:
-    ops: Set[str] = set()
-    for step in skill.atomic_blueprint or []:
-        op = step.split("(")[0].strip().lower()
-        if op:
-            ops.add(op)
-    return ops
-
-
-def rerank_skill_selection_candidates(
-    candidates: Sequence[SkillSelectionCandidate],
-    action_priors: Dict[str, float],
-) -> Tuple[List[SkillSelectionCandidate], Dict[str, Dict[str, float]]]:
-    ordered_candidates = list(candidates)
-    if not ordered_candidates:
-        return [], {}
-
-    raw_scores: Dict[str, float] = {}
-    for candidate in ordered_candidates:
-        raw_scores[candidate.skill.name] = max(
-            (
-                float(action_priors.get(op, 0.0))
-                for op in _skill_atomic_ops(candidate.skill)
-            ),
-            default=0.0,
-        )
-
-    normalized_scores: Dict[str, float] = {name: 0.0 for name in raw_scores}
-    if action_priors:
-        score_values = list(raw_scores.values())
-        if score_values:
-            score_min = min(score_values)
-            score_max = max(score_values)
-            if score_max > score_min:
-                normalized_scores = {
-                    name: (score - score_min) / (score_max - score_min)
-                    for name, score in raw_scores.items()
-                }
-
-    rerank_breakdown: Dict[str, Dict[str, float]] = {}
-    for candidate in ordered_candidates:
-        symbolic_score = raw_scores.get(candidate.skill.name, 0.0)
-        symbolic_norm = normalized_scores.get(candidate.skill.name, 0.0)
-        final_order_score = 0.80 * candidate.selection_total + 0.20 * symbolic_norm
-        rerank_breakdown[candidate.skill.name] = {
-            "symbolic_score": symbolic_score,
-            "symbolic_norm": symbolic_norm,
-            "final_order_score": final_order_score,
-        }
-
-    ordered_candidates.sort(
-        key=lambda candidate: (
-            -rerank_breakdown[candidate.skill.name]["final_order_score"],
-            -candidate.selection_total,
-            candidate.skill.name,
-        )
-    )
-    return ordered_candidates, rerank_breakdown
-
-
 def _estimate_budget_delta(component_edits: Sequence[ComponentEdit]) -> Dict[str, float]:
     compute = 0.0
     latency = 0.0
@@ -966,58 +906,6 @@ def memory_bundle_log_payload(bundle: Any) -> Dict[str, Any]:
     }
 
 
-def expand_symbolic_memory_log_payload(
-    mcts: Any,
-    parent_ctx_sig: ContextSignature,
-    component_families: List[Dict[str, Any]],
-    action_priors: Dict[str, float],
-) -> Dict[str, Any]:
-    payload: Dict[str, Any] = {
-        "component_families": component_families,
-        "action_priors": {op: round(val, 4) for op, val in action_priors.items()},
-        "records_by_family": [],
-    }
-    seen_record_ids: Set[str] = set()
-
-    for cf in component_families:
-        family = str(cf.get("family", "")).strip()
-        if not family:
-            continue
-        try:
-            records = mcts.symbolic_memory.retrieve_hierarchical(
-                target_family=family,
-                context_sig=parent_ctx_sig,
-                limit=5,
-                threshold=0.05,
-                agent_id="idea_agent",
-            )
-        except Exception as exc:
-            payload["records_by_family"].append({"family": family, "error": str(exc), "records": []})
-            continue
-
-        family_records: List[Dict[str, Any]] = []
-        for score, rec in records or []:
-            rec_id = getattr(rec, "id", None)
-            if rec_id and rec_id in seen_record_ids:
-                continue
-            if rec_id:
-                seen_record_ids.add(rec_id)
-            family_records.append(
-                {
-                    "id": rec_id,
-                    "main_op": getattr(rec, "main_op", ""),
-                    "summary": getattr(rec, "summary", ""),
-                    "delta_score": round(float(getattr(rec, "delta_score", 0.0)), 4),
-                    "confidence": round(float(getattr(rec, "confidence", 0.0)), 4),
-                    "match_score": round(float(score), 4),
-                    "anti_patterns": list(getattr(rec, "anti_patterns", []) or [])[:3],
-                }
-            )
-        if family_records:
-            payload["records_by_family"].append({"family": family, "records": family_records})
-    return payload
-
-
 def simulate_log_payload(evaluation: Any) -> Dict[str, Any]:
     payload = {**evaluation.to_dict(), "composite": evaluation.composite}
     return payload
@@ -1066,10 +954,6 @@ def materialize_child_state(
     skill_selection_breakdown = selection_metadata.get("skill_selection_breakdown")
     if isinstance(skill_selection_breakdown, dict) and skill_selection_breakdown:
         skill_metrics["skill_selection_breakdown"] = skill_selection_breakdown
-    symbolic_rerank_breakdown = selection_metadata.get("symbolic_rerank_breakdown")
-    if isinstance(symbolic_rerank_breakdown, dict) and symbolic_rerank_breakdown:
-        skill_metrics["symbolic_rerank_breakdown"] = symbolic_rerank_breakdown
-
     return idea_state_cls(
         title=title,
         abstract=abstract,
@@ -1338,47 +1222,13 @@ def expand_node_with_skills(
             "[MCTS] Expand: vector_memory\n%s",
             _safe_pretty_json(mcts._memory_bundle_log_payload(bundle), pretty_json),
         )
-    # --- Compute symbolic-memory action priors for PUCT boosting ---
-    action_priors: Dict[str, float] = {}
-    if getattr(mcts, "enable_symbolic_memory", True):
-        parent_ctx_sig = mcts._extract_context_sig(node)
-        component_families = extract_component_families(node.state.components, node.state.method)
-        action_priors = mcts.symbolic_memory.compute_action_priors(
-            target_family="",
-            context_sig=parent_ctx_sig,
-            limit=20,
-            agent_id="idea_agent",
-        )
-        log_message(
-            mcts.logger,
-            mcts.log_sink,
-            "info",
-            "[MCTS] Expand: symbolic_memory\n%s",
-            _safe_pretty_json(
-                {
-                    "retrieval_mode": "context_signature_only",
-                    "context_signature": (
-                        parent_ctx_sig.to_dict()
-                        if hasattr(parent_ctx_sig, "to_dict")
-                        else str(parent_ctx_sig)
-                    ),
-                    "observed_component_families": component_families,
-                    "action_priors": {op: round(float(delta), 4) for op, delta in action_priors.items()},
-                },
-                pretty_json,
-            ),
-        )
-
     selected_skill_candidates = mcts.skill_catalog.select_skills(
         defect_tags=node.state.target_defects,
         budget=node.state.budget,
         max_children=mcts.config.branching_factor,
         preset=getattr(mcts, "idea_taste_preset", None),
     )
-    skill_candidates, symbolic_rerank = rerank_skill_selection_candidates(
-        selected_skill_candidates,
-        action_priors,
-    )
+    skill_candidates = list(selected_skill_candidates)
     log_message(
         mcts.logger,
         mcts.log_sink,
@@ -1389,15 +1239,6 @@ def expand_node_with_skills(
             pretty_json,
         ),
     )
-    if action_priors:
-        log_message(
-            mcts.logger,
-            mcts.log_sink,
-            "info",
-            "[MCTS] Expand: preset_symbolic_fusion\n%s",
-            _safe_pretty_json(symbolic_rerank, pretty_json),
-        )
-
     payload_count = len(skill_candidates)
     pre_children = len(node.children)
     new_child: Optional[Any] = None
@@ -1417,12 +1258,6 @@ def expand_node_with_skills(
         prior_constraints = mcts.skill_catalog.priors.get(skill.name, SkillUsagePrior()).rule_constraints
         if prior_constraints:
             plan.guardrails = _dedupe_keep_order_strings(plan.guardrails + list(prior_constraints))
-
-        if action_priors:
-            plan_ops = set()
-            for edit in plan.component_edits:
-                op_val = edit.op.value if hasattr(edit.op, "value") else str(edit.op)
-                plan_ops.add(op_val.lower().strip())
 
         current_count = len(node.state.components)
         filtered_edits: List[ComponentEdit] = []
@@ -1515,9 +1350,6 @@ def expand_node_with_skills(
                 "selection_total": selection_candidate.selection_total,
             },
         }
-        if action_priors and skill.name in symbolic_rerank:
-            selection_metadata["symbolic_rerank_breakdown"] = symbolic_rerank[skill.name]
-
         child_state = mcts._materialize_child_state(
             node.state,
             plan,

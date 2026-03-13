@@ -11,11 +11,15 @@ You have:
 (2) Curated paper capsules (SECONDARY source; use for evidence, baselines, feasibility details, and concrete instantiations ONLY):
 {papers}
 
+(3) Experiment findings extracted from raw ablation results (OPTIONAL; use only if present):
+{experiment_findings}
+
 Core principle (must follow):
 - Survey drives the agenda: method clusters + unresolved gaps + evaluation blind spots MUST be derived from survey_contents.
 - Papers may refine or substantiate the survey-derived gaps, but MUST NOT redefine the agenda or introduce a new main axis not present in the survey framing.
 - Any idea seed MUST directly address at least one SURVEY gap/blind spot and explicitly show how it improves over the survey’s identified limitations.
 - If mature_idea is provided, align clusters/gaps/idea seeds to its scope and mechanisms without changing the survey-led axis.
+- If experiment findings are present, use them as failure evidence, feasibility evidence, and mechanism constraints for candidate ideas. They may invalidate a mechanism or suggest a replacement direction, but they MUST NOT replace the survey as the source of the main agenda.
 
 Perform the steps below explicitly before answering:
 1) Survey-led clustering:

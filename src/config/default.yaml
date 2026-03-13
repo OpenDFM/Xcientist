@@ -80,8 +80,8 @@ idea:
 
   run:
     LigAgent-Pro: true
-    topics: ["LLM Agent Memory System"]
-    mature_idea: "MemPrism's core insight is that agent trajectories contain heterogeneous signals and should be managed as multi-facet memory rather than a single flat memory bank. It therefore works in a retrospective encode-consolidate-integrate pipeline: the agent first segments past interaction traces into structured working slots, then routes them into semantic, episodic, and procedural memories with similarity-gated upsert and episodic clustering/abstraction, and finally retrieves them with facet-aware mechanisms, especially multi-directional slot retrieval, to inject complementary evidence back into the current context. In essence, MemPrism turns raw history into structured, type-specific, and reusable memory, improving both memory quality and downstream decision making."
+    topics: ["${idea.topic}"]
+    mature_idea: "${idea.mature_idea}"
     output_root: "runs"
     console_logs: true
     rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
@@ -120,6 +120,10 @@ idea:
     chat_retry_backoff: 2.0
     paper_enrichment_timeout_sec: 7200
     semantic_search_limit: 5
+    experiment_findings_extraction:
+      model: "${idea.fusion.model}"
+      temperature: 0.1
+      max_output_tokens: 65536
 
   mcts:
     max_iterations: 64

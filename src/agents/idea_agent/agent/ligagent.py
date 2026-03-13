@@ -197,7 +197,7 @@ class LigAgent(AgentBase):
                 if "gpt-5-mini" in resolved_model:
                     # Idea Generator: GPT-5 mini
                     request_kwargs["temperature"] = 1.0
-                    effort = "high" if stage in {"mcts_expand", "idea_fusion", "advanced_analysis", "re_analysis_replan"} else "low"
+                    effort = "high" if stage in {"mcts_expand", "idea_fusion", "advanced_analysis", "re_analysis_replan", "experiment_findings_extraction"} else "low"
                     return super().chat(
                         prompt,
                         model=resolved_model,
@@ -207,7 +207,7 @@ class LigAgent(AgentBase):
                 elif "gpt-5" in resolved_model:
                     # Idea Evaluator: GPT-5.2
                     request_kwargs["temperature"] = 1.0
-                    effort = "high" if stage in {"mcts_expand", "idea_fusion", "advanced_analysis", "re_analysis_replan"} else "low"
+                    effort = "high" if stage in {"mcts_expand", "idea_fusion", "advanced_analysis", "re_analysis_replan", "experiment_findings_extraction"} else "low"
                     return super().chat(
                         prompt,
                         model=resolved_model,
@@ -521,8 +521,8 @@ class LigAgent(AgentBase):
         """Inject component×op priors into ``self.mcts.symbolic_memory``.
 
         This is the single entry-point where external signals are translated
-        into :class:`SymbolicRecord` instances that ``compute_action_priors``
-        can consume during MCTS expand.
+        into :class:`SymbolicRecord` instances that downstream
+        symbolic-memory-aware stages can consume.
 
         Two signal sources may exist in the artifact, but only
         **experiment-agent ablation results** are injected by the default

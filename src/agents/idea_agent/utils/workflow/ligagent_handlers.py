@@ -27,6 +27,7 @@ from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     collect_analysis_background_lines,
     collect_rag_citations,
     collect_rag_contents,
+    extract_experiment_findings_from_raw_ablation,
     extract_root_idea_from_analysis,
     filter_and_compress_papers,
     generate_rag_query,
@@ -129,11 +130,47 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     mature_idea = artifact_get(artifact, "mature_idea", "")
     rag_contents = artifact_get(artifact, "rag_contents", [])
     latest_rag_contents = rag_contents[-1] if rag_contents else []
+    raw_ablation = (ctx.inputs or {}).get("raw_ablation")
+    if raw_ablation is None:
+        artifact_raw_ablation = artifact.get("ablation_results_raw")
+        raw_ablation = artifact_raw_ablation if isinstance(artifact_raw_ablation, dict) else None
+
+    experiment_findings = None
+    if isinstance(raw_ablation, dict):
+        extractor_cfg = get_config_value(
+            agent.config,
+            "agent.experiment_findings_extraction",
+            {},
+        )
+
+        def _extractor_chat(prompt: str, **kwargs: Any) -> str:
+            extractor_stage = str(kwargs.pop("stage", "") or "experiment_findings_extraction").strip()
+            return runtime.llm_text(
+                session=session,
+                stage=extractor_stage,
+                workflow_name=ctx.workflow_name,
+                op_name="experiment_findings_extraction",
+                prompt=prompt,
+                **kwargs,
+            )
+
+        experiment_findings = extract_experiment_findings_from_raw_ablation(
+            raw_ablation,
+            chat_fn=_extractor_chat,
+            logger=logger,
+            extractor_config=extractor_cfg,
+        )
+
     prompt = PROMPTS["advanced_analysis"].format(
         topic=topic,
         mature_idea=(mature_idea or "").strip(),
         survey_contents="\n".join(latest_rag_contents) if isinstance(latest_rag_contents, list) else "",
         papers=format_paper_capsules_prompt_view(references),
+        experiment_findings=(
+            json.dumps(experiment_findings, ensure_ascii=False, indent=2)
+            if isinstance(experiment_findings, dict) and experiment_findings
+            else "None"
+        ),
     )
     response = normalize_analysis_entry(
         runtime.llm_json(
@@ -154,6 +191,8 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     else:
         logger.info("📝 Advanced Analysis Result:\n%s", response)
 
+    if experiment_findings is not None:
+        response["experiment_findings"] = experiment_findings
     root_idea = extract_root_idea_from_analysis(response, topic=topic)
     response["root_idea"] = root_idea
     existing_background = set(artifact_get(artifact, "background_knowledge", []))
@@ -181,6 +220,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
             "reference_count": len(references),
             "background_lines": len(background_lines),
             "root_idea_title": root_idea.get("title"),
+            "experiment_findings_used": bool(experiment_findings),
         },
     )
 

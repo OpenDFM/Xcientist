@@ -20,6 +20,7 @@ src/agents/idea_agent/cache/
 src/agents/idea_agent/.cache
 src/agents/survey_agent/config/database
 src/agents/idea_agent/runs
+src/agents/idea_agent/ablation_results.json
 
 # Survey Agent - 排除检索缓存
 src/agents/survey_agent/database/
