@@ -19,13 +19,10 @@ Compiled component-level edit plan for this node:
 Candidate idea:
 {idea}
 
-Rewrite path:
-{path_summary}
-
 Defect registry:
 {defect_registry}
 
-Component-level symbolic memory insights (from past MCTS iterations):
+Component-level symbolic memory insights (from component ablations):
 {symbolic_memory_hints}
 
 Scoring policy:
@@ -37,10 +34,11 @@ Scoring policy:
 - Penalize feature dumping and unsupported complexity jumps.
 - If the idea drifts from topic constraints or the fixed root domains above, reduce alignment_score.
 - If the proposal mostly improves diagnosis, measurement, or guardrails without changing the task-solving path, clarity may improve, but novelty and impact should stay limited.
-- When symbolic memory hints are available, use them to calibrate scores:
-  * Positive-delta records for the same component family suggest the approach is promising — credit novelty/impact.
-  * Negative-delta records or listed anti-patterns signal known failure modes — increase risk/complexity_penalty accordingly.
-  * If the edit plan contradicts a high-confidence anti-pattern, note it explicitly in feedback.
+- When symbolic memory hints are available, interpret them as component-ablation evidence:
+  * If `op=remove` and result is positive, removing that component helped; treat that component family as risky, redundant, or harmful in similar designs.
+  * If `op=remove` and result is negative, removing that component hurt; treat that component family as beneficial or structurally important.
+  * Inconclusive results are weak evidence and should not dominate scoring.
+  * If the candidate repeats a component family that ablation evidence says is harmful, note it explicitly in feedback.
 - In "detected_defects", list ALL defect tags from the registry above that still apply to this idea AFTER the proposed edit. Choose only from the canonical tags.
 
 Scoring rubric (use this exact rubric for consistency):
@@ -50,7 +48,7 @@ Scoring rubric (use this exact rubric for consistency):
 - Penalty metrics where HIGHER is worse: risk, complexity_penalty.
 - Score each metric independently. Do not let a strong score in one metric automatically raise another.
 - Distinguish novelty vs surprise vs impact:
-  * novelty = how different the mechanism is from the current baseline/path and cited evidence.
+  * novelty = how different the mechanism is from the current baseline and cited evidence.
   * surprise = how non-obvious the idea feels to a strong researcher before seeing it, even after accounting for the topic and available evidence.
   * impact = how much the idea could move the core problem if it works.
   * A proposal can be novel but not very surprising if it is an obvious next step that simply has not been tried yet.
@@ -95,7 +93,7 @@ Metric-specific anchors:
   * 3 = moderately focused, but includes some extra scope or wording that is not essential.
   * 5 = tightly scoped, minimal mechanism surface area, and no obvious unnecessary additions.
 - alignment_score (0-5; higher is more aligned)
-  * 0 = clearly drifts from the topic, path, or mature-idea constraints.
+  * 0 = clearly drifts from the topic, root-domain, or mature-idea constraints.
   * 3 = generally relevant, but some elements feel weakly connected or partially off-target.
   * 5 = directly and tightly aligned with the topic constraints and the intended search direction.
 - complexity_penalty (0-5; higher is more excessive)

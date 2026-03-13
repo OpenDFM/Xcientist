@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any, Dict, Iterable, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
@@ -42,120 +42,82 @@ class SymbolicMemorySystemConfig(BaseModel):
 
 
 class SymbolicRecordPayload(BaseModel):
-    summary: str = Field("", description="Short summary for the symbolic prior.")
-    pattern: str = Field(
+    component: str = Field(
+        ...,
+        description="Ablated component name from the experiment report.",
+    )
+    component_family: str = Field(
+        ...,
+        description="Derived component family used for hierarchical retrieval.",
+    )
+    op: str = Field(
+        "remove",
+        description=(
+            "Component-level operation represented by the ablation evidence. "
+            "For ablation_results.json this is usually 'remove', because the "
+            "experiment evaluates the idea after removing the component."
+        ),
+    )
+    result: str = Field(
+        "inconclusive",
+        description="Qualitative ablation result label: positive, negative, or inconclusive.",
+    )
+    metric: str = Field(
         "",
-        description="Problem pattern or decision context where this prior applies.",
+        description="Metric name reported for this ablation result.",
     )
-    conditions: Optional[Iterable[str]] = Field(
-        None,
-        description="Preconditions for applying this symbolic prior.",
-    )
-    actions: Optional[Iterable[str]] = Field(
-        None,
-        description="Recommended action sequence or operator hints.",
-    )
-    rationale: str = Field(
+    value: str = Field(
         "",
-        description="Reasoning why this prior is expected to work.",
+        description="Raw metric value or textual measurement from the ablation report.",
     )
-    expected_outcomes: Optional[Iterable[str]] = Field(
-        None,
-        description="Expected outcomes after applying actions.",
+    analysis: str = Field(
+        "",
+        description="Free-text interpretation of the ablation result.",
     )
-    anti_patterns: Optional[Iterable[str]] = Field(
-        None,
-        description="Known failure modes to avoid during expansion.",
-    )
-    tags: Optional[Iterable[str]] = Field(
-        None,
-        description="Tags for retrieval and filtering.",
-    )
-    priority: float = Field(
-        0.5,
-        ge=0.0,
-        le=1.0,
-        description="Relative priority when multiple priors match.",
+    method_context: str = Field(
+        "",
+        description=(
+            "Idea introduction used in the ablation experiment after removing "
+            "this component."
+        ),
     )
     confidence: float = Field(
         0.5,
         ge=0.0,
         le=1.0,
-        description="Estimated confidence score for this symbolic memory.",
+        description="Confidence attached to the ablation result.",
     )
-    source: str = Field("", description="Source of this symbolic memory.")
-    support_count: int = Field(
-        1,
-        ge=1,
-        description="How many times this prior has been validated.",
+    run_summary: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Top-level summary block from ablation_results.json.",
     )
     metadata: Dict[str, Any] = Field(
         default_factory=dict,
-        description="Arbitrary metadata for filtering and debugging.",
+        description="Auxiliary metadata for debugging and filtering.",
     )
-
-    # ── component-family indexed fields ──
-    component_family: str = Field(
-        "",
-        description=(
-            "Primary component family this record targets, in the form "
-            "'{macro_role}.{sub_type}' (e.g. 'constraint.uncertainty_weighted')."
-        ),
-    )
-    family_pair: str = Field(
-        "",
-        description=(
-            "Optional secondary component family forming a pair with the primary "
-            "(e.g. 'retrieval.hybrid_dense' when the primary is 'representation.embedding')."
-        ),
-    )
-    main_op: str = Field(
-        "",
-        description=(
-            "The component-level main operation type: add, remove, replace, "
-            "rewire, gate, tune, compose, split."
-        ),
-    )
-    context_signature: Dict[str, Any] = Field(
-        default_factory=dict,
-        description=(
-            "Compressed state features of the parent node at recording time "
-            "(macro_roles_present, buckets, defect_profile, budget_pressure, etc.)."
-        ),
-    )
-    delta_score: float = Field(
-        0.0,
-        description=(
-            "Observed Δscore (composite improvement) from applying this "
-            "component-level action in the recorded context."
-        ),
+    support_count: int = Field(
+        1,
+        ge=1,
+        description="How many times this evidence pattern has been observed.",
     )
 
 
 class SymbolicRecord(BaseModel):
     id: str = Field(default_factory=_new_symbolic_id)
-    summary: str
-    pattern: str
-    conditions: List[str] = Field(default_factory=list)
-    actions: List[str] = Field(default_factory=list)
-    rationale: str = ""
-    expected_outcomes: List[str] = Field(default_factory=list)
-    anti_patterns: List[str] = Field(default_factory=list)
-    tags: List[str] = Field(default_factory=list)
-    priority: float = Field(0.5, ge=0.0, le=1.0)
+    component: str
+    component_family: str
+    op: str = "remove"
+    result: str = "inconclusive"
+    metric: str = ""
+    value: str = ""
+    analysis: str = ""
+    method_context: str = ""
     confidence: float = Field(0.5, ge=0.0, le=1.0)
-    source: str = ""
-    support_count: int = Field(1, ge=1)
+    run_summary: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    support_count: int = Field(1, ge=1)
     created_at: str = ""
     updated_at: str = ""
-
-    # ── component-family indexed fields ──
-    component_family: str = ""
-    family_pair: str = ""
-    main_op: str = ""
-    context_signature: Dict[str, Any] = Field(default_factory=dict)
-    delta_score: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         return self.model_dump()
@@ -166,61 +128,43 @@ class SymbolicRecord(BaseModel):
 
     def update(
         self,
-        summary: Optional[str] = None,
-        pattern: Optional[str] = None,
-        conditions: Optional[Iterable[str]] = None,
-        actions: Optional[Iterable[str]] = None,
-        rationale: Optional[str] = None,
-        expected_outcomes: Optional[Iterable[str]] = None,
-        anti_patterns: Optional[Iterable[str]] = None,
-        tags: Optional[Iterable[str]] = None,
-        priority: Optional[float] = None,
-        confidence: Optional[float] = None,
-        source: Optional[str] = None,
-        support_count: Optional[int] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        component: Optional[str] = None,
         component_family: Optional[str] = None,
-        family_pair: Optional[str] = None,
-        main_op: Optional[str] = None,
-        context_signature: Optional[Dict[str, Any]] = None,
-        delta_score: Optional[float] = None,
+        op: Optional[str] = None,
+        result: Optional[str] = None,
+        metric: Optional[str] = None,
+        value: Optional[str] = None,
+        analysis: Optional[str] = None,
+        method_context: Optional[str] = None,
+        confidence: Optional[float] = None,
+        run_summary: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        support_count: Optional[int] = None,
     ) -> None:
-        if summary is not None:
-            self.summary = summary
-        if pattern is not None:
-            self.pattern = pattern
-        if conditions is not None:
-            self.conditions = list(conditions)
-        if actions is not None:
-            self.actions = list(actions)
-        if rationale is not None:
-            self.rationale = rationale
-        if expected_outcomes is not None:
-            self.expected_outcomes = list(expected_outcomes)
-        if anti_patterns is not None:
-            self.anti_patterns = list(anti_patterns)
-        if tags is not None:
-            self.tags = list(tags)
-        if priority is not None:
-            self.priority = max(0.0, min(1.0, float(priority)))
-        if confidence is not None:
-            self.confidence = max(0.0, min(1.0, float(confidence)))
-        if source is not None:
-            self.source = source
-        if support_count is not None:
-            self.support_count = max(1, int(support_count))
-        if metadata is not None:
-            self.metadata = dict(metadata)
+        if component is not None:
+            self.component = component
         if component_family is not None:
             self.component_family = component_family
-        if family_pair is not None:
-            self.family_pair = family_pair
-        if main_op is not None:
-            self.main_op = main_op
-        if context_signature is not None:
-            self.context_signature = dict(context_signature)
-        if delta_score is not None:
-            self.delta_score = float(delta_score)
+        if op is not None:
+            self.op = op
+        if result is not None:
+            self.result = result
+        if metric is not None:
+            self.metric = metric
+        if value is not None:
+            self.value = value
+        if analysis is not None:
+            self.analysis = analysis
+        if method_context is not None:
+            self.method_context = method_context
+        if confidence is not None:
+            self.confidence = max(0.0, min(1.0, float(confidence)))
+        if run_summary is not None:
+            self.run_summary = dict(run_summary)
+        if metadata is not None:
+            self.metadata = dict(metadata)
+        if support_count is not None:
+            self.support_count = max(1, int(support_count))
         self.updated_at = _now_iso()
 
 
@@ -289,40 +233,15 @@ class SymbolicMemorySystem(ABC):
     ) -> List[Tuple[float, SymbolicRecord]]:
         ...
 
-    @abstractmethod
-    def retrieve_priors_for_expand(
-        self,
-        topic: str,
-        operator: str = "",
-        defects: Optional[List[str]] = None,
-        limit: int = 5,
-        threshold: float = 0.0,
-        agent_id: str = "",
-    ) -> List[Tuple[float, SymbolicRecord]]:
-        ...
-
     def retrieve_hierarchical(
         self,
         target_family: str = "",
         context_sig: Optional[Any] = None,
-        main_op: str = "",
+        op: str = "",
         limit: int = 10,
         threshold: float = 0.0,
         agent_id: str = "",
     ) -> List[Tuple[float, SymbolicRecord]]:
-        """Three-level hierarchical retrieval (exact family -> macro_role ->
-        defect/bucket fallback).  Optional; subclasses may override."""
-        raise NotImplementedError
-
-    def compute_action_priors(
-        self,
-        target_family: str,
-        context_sig: Optional[Any] = None,
-        limit: int = 20,
-        agent_id: str = "",
-    ) -> Dict[str, float]:
-        """Compute per-main_op prior gains (expected delta-score) for PUCT.
-        Optional; subclasses may override."""
         raise NotImplementedError
 
     @abstractmethod

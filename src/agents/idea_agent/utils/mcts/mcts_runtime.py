@@ -31,8 +31,8 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     plan_to_method_text,
 )
 from src.agents.idea_agent.utils.prompting.prompt_views import (
-    format_edit_plan_prompt_view,
-    format_idea_prompt_view,
+    format_evaluator_edit_plan_prompt_view,
+    format_evaluator_idea_prompt_view,
 )
 from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
 
@@ -1105,15 +1105,19 @@ def build_symbolic_eval_hints(mcts: Any, node: Any) -> str:
             if rec_id is not None:
                 seen_record_ids.add(rec_id)
 
-            delta_score = float(getattr(rec, "delta_score", 0.0))
-            delta_tag = f"+{delta_score:.2f}" if delta_score >= 0 else f"{delta_score:.2f}"
+            component = clip_text(getattr(rec, "component", "")) or "unknown_component"
+            op = clip_text(getattr(rec, "op", "")) or "remove"
+            result = clip_text(getattr(rec, "result", "")) or "inconclusive"
+            metric = clip_text(getattr(rec, "metric", "")) or "unspecified_metric"
+            value = clip_text(getattr(rec, "value", "")) or "unspecified_value"
+            confidence = float(getattr(rec, "confidence", 0.0))
+            analysis = clip_text(getattr(rec, "analysis", ""))
             line = (
-                f"    - [{getattr(rec, 'main_op', '')}] {getattr(rec, 'summary', '')}  "
-                f"(delta={delta_tag}, conf={float(getattr(rec, 'confidence', 0.0)):.2f}, score={float(score):.3f})"
+                f"    - [{op}] {component} | result={result} | metric={metric} | value={value}  "
+                f"(conf={confidence:.2f}, score={float(score):.3f})"
             )
-            anti_patterns = list(getattr(rec, "anti_patterns", []) or [])
-            if anti_patterns:
-                line += f"  anti-patterns: {'; '.join(anti_patterns[:3])}"
+            if analysis:
+                line += f"  analysis: {analysis}"
             family_lines.append(line)
         if len(family_lines) > 1:
             hints_parts.append("\n".join(family_lines))
@@ -1122,9 +1126,9 @@ def build_symbolic_eval_hints(mcts: Any, node: Any) -> str:
         return "No symbolic memory hints available."
 
     header = (
-        "Historical symbolic memory records for the component families "
-        "in this idea (positive delta = previously beneficial, "
-        "negative delta = previously harmful):"
+        "Historical ablation records for the component families in this idea "
+        "(for op=remove: positive result means removing the component helped, "
+        "negative result means removing the component hurt):"
     )
     return header + "\n" + "\n".join(hints_parts)
 
@@ -1393,37 +1397,6 @@ def simulate_node_value(
     pretty_json: Optional[Any] = None,
 ) -> Optional[Any]:
     path_summary_text = path_summary(path)
-    path_key = path_cache_key(node.state.signature, path_summary_text)
-
-    cached_evaluation = get_cached_evaluation(node.state.signature, path_key, mcts.evaluation_cache)
-    if cached_evaluation:
-        node.evaluation = cached_evaluation
-        node.latest_path_summary = path_summary_text
-        log_message(
-            mcts.logger,
-            mcts.log_sink,
-            "info",
-            "[MCTS] Simulate (cache hit): node=%s\n[MCTS] Score: %.4f\n%s",
-            node.state.title,
-            cached_evaluation.composite,
-            _safe_pretty_json(mcts._simulate_log_payload(cached_evaluation), pretty_json),
-        )
-        prev_len = len(experiences)
-        maybe_record_experience(
-            path_key,
-            node,
-            cached_evaluation,
-            path_summary_text,
-            experiences,
-            mcts.experience_cache,
-            getattr(mcts, "enable_vector_memory", True),
-            mcts.memory_accessor,
-            mcts.config.min_confidence_for_memory,
-        )
-        if len(experiences) > prev_len:
-            experience = experiences[-1]
-            
-        return cached_evaluation
 
     symbolic_hints = mcts._build_symbolic_eval_hints(node)
     log_message(
@@ -1433,17 +1406,6 @@ def simulate_node_value(
         "[MCTS] Simulate: symbolic_memory\n%s",
         symbolic_hints,
     )
-
-    eval_idea_payload = node.state.to_payload()
-    skill_metrics = eval_idea_payload.get("skill_metrics")
-    if isinstance(skill_metrics, dict):
-        filtered_metrics = dict(skill_metrics)
-        filtered_metrics.pop("skill_prior_before", None)
-        filtered_metrics.pop("skill_prior_after", None)
-        if filtered_metrics:
-            eval_idea_payload["skill_metrics"] = filtered_metrics
-        else:
-            eval_idea_payload.pop("skill_metrics", None)
 
     prompt = mcts.evaluation_prompt.format(
         topic=mcts.topic,
@@ -1456,19 +1418,40 @@ def simulate_node_value(
             "No prior candidate in the current run.",
         ),
         paper_context=mcts.paper_context,
-        skill_output=format_edit_plan_prompt_view(node.state.edit_plan)
+        edit_plan=format_evaluator_edit_plan_prompt_view(node.state.edit_plan)
         if node.state.edit_plan
         else "No edit plan available.",
-        edit_plan=format_edit_plan_prompt_view(node.state.edit_plan)
-        if node.state.edit_plan
-        else "No edit plan available.",
-        idea=node.state.to_prompt_view(heading="Candidate Idea")
-        if hasattr(node.state, "to_prompt_view")
-        else format_idea_prompt_view(eval_idea_payload, heading="Candidate Idea"),
-        path_summary=path_summary_text,
+        idea=format_evaluator_idea_prompt_view(node.state, heading="Candidate Idea"),
         defect_registry=format_defect_registry(),
         symbolic_memory_hints=symbolic_hints,
     )
+    cache_key = evaluation_prompt_cache_key(prompt)
+
+    cached_evaluation = get_cached_evaluation(node.state.signature, cache_key, mcts.evaluation_cache)
+    if cached_evaluation:
+        node.evaluation = cached_evaluation
+        node.latest_path_summary = path_summary_text
+        log_message(
+            mcts.logger,
+            mcts.log_sink,
+            "info",
+            "[MCTS] Simulate (cache hit): node=%s\n[MCTS] Score: %.4f\n%s",
+            node.state.title,
+            cached_evaluation.composite,
+            _safe_pretty_json(mcts._simulate_log_payload(cached_evaluation), pretty_json),
+        )
+        maybe_record_experience(
+            cache_key,
+            node,
+            cached_evaluation,
+            path_summary_text,
+            experiences,
+            mcts.experience_cache,
+            getattr(mcts, "enable_vector_memory", True),
+            mcts.memory_accessor,
+            mcts.config.min_confidence_for_memory,
+        )
+        return cached_evaluation
 
     try:
         response = mcts.chat_fn(
@@ -1516,13 +1499,12 @@ def simulate_node_value(
         _safe_pretty_json(mcts._simulate_log_payload(evaluation), pretty_json),
     )
 
-    cache_evaluation(node.state.signature, path_key, evaluation, mcts.evaluation_cache)
+    cache_evaluation(node.state.signature, cache_key, evaluation, mcts.evaluation_cache)
     node.evaluation = evaluation
     node.latest_path_summary = path_summary_text
 
-    prev_len = len(experiences)
     maybe_record_experience(
-        path_key,
+        cache_key,
         node,
         evaluation,
         path_summary_text,
@@ -1626,9 +1608,8 @@ def path_summary(path: Sequence[Any], limit: int = 2048) -> str:
     return clip_text(" | ".join(steps), limit)
 
 
-def path_cache_key(signature: str, path_summary_text: str) -> str:
-    raw = f"{signature}|{path_summary_text}"
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+def evaluation_prompt_cache_key(prompt_text: str) -> str:
+    return hashlib.sha256(prompt_text.encode("utf-8")).hexdigest()
 
 
 def get_cached_evaluation(
@@ -1662,7 +1643,7 @@ def get_best_cached_evaluation(
 
 
 def maybe_record_experience(
-    path_key: str,
+    cache_key: str,
     node: Any,
     evaluation: Any,
     path_summary_text: str,
@@ -1674,7 +1655,7 @@ def maybe_record_experience(
 ) -> None:
     if not enable_vector_memory:
         return
-    if path_key in experience_cache:
+    if cache_key in experience_cache:
         return
     experience = harvest_experience(
         node,
@@ -1686,7 +1667,7 @@ def maybe_record_experience(
         return
     memory_accessor.persist_experience(experience)
     experiences.append(experience)
-    experience_cache.add(path_key)
+    experience_cache.add(cache_key)
 
 
 def build_root_state(

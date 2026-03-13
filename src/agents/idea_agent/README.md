@@ -224,10 +224,7 @@ For each node being expanded:
 1. **Retrieve vector memory**
    - `VectorMemoryAccessor.retrieve_bundle(...)` returns field knowledge, anti-patterns, and fix recipes.
 
-2. **Compute symbolic action priors**
-   - `symbolic_memory.compute_action_priors(...)` produces operator-level scores from contextual symbolic memory.
-
-3. **Select candidate skills**
+2. **Select candidate skills**
    - `SkillCatalog.select_skills(...)` scores every skill using:
      - `defect_score`
      - `skill_prior`
@@ -243,22 +240,11 @@ For each node being expanded:
        0.05 * gate_score
    ```
 
-4. **Fuse preset selection with symbolic rerank**
-   - symbolic-memory priors are converted into one `symbolic_score` per selected skill
-   - scores are normalized across the selected set
-   - final ordering score is:
-
-   ```text
-   final_order_score = 0.80 * selection_total + 0.20 * symbolic_norm
-   ```
-
-   This keeps symbolic memory important without allowing it to completely overwrite preset-aware selection.
-
-5. **Compile plans**
+3. **Compile plans**
    - `compile_plan(...)` turns a skill blueprint into `ComponentEdit` operations and validation protocols
    - rule constraints learned in `SkillUsagePrior` are appended to plan guardrails
 
-6. **Instantiate the plan**
+4. **Instantiate the plan**
    - the prompt now includes:
      - `idea_taste_mode`
      - `idea_taste_label`
@@ -266,18 +252,19 @@ For each node being expanded:
      - fixed `root_domains`
    - taste guidance is a soft preference only; it cannot override the plan, defects, or guardrails
 
-7. **Special handling for `theory-transfer-injection`**
+5. **Special handling for `theory-transfer-injection`**
    - build a transfer query from the current idea + edit plan
    - retrieve cross-domain paper-graph nodes outside the root domains
    - skip child creation if no eligible transfer references meet the threshold
    - pass transfer query and retrieved cross-domain references into instantiation
 
-8. **Materialize the child**
+6. **Materialize the child**
    - `component_mapping` and `edit_reasons` from the LLM output rewrite the generic plan into a concrete idea
    - child `skill_metrics` now records:
      - `idea_taste_mode`
      - `skill_selection_breakdown`
-     - `symbolic_rerank_breakdown`
+
+In the current implementation, symbolic memory no longer participates in skill ordering or action priors during expand. It is only used later in `simulate_node_value(...)` as component-ablation evidence for the evaluator.
 
 ### Simulate / Evaluate
 
@@ -288,9 +275,8 @@ For each node being expanded:
 - latest analysis
 - current run idea pool snapshot
 - paper context
-- compiled edit plan
-- candidate idea
-- rewrite path
+- compact compiled edit plan
+- trimmed candidate idea
 - canonical defect registry
 - retrospective symbolic-memory hints
 
@@ -299,7 +285,7 @@ Important evaluation details:
 - evaluator output is parsed into `IdeaEvaluation`
 - component novelty may be re-scored by `ComponentNoveltyScorer`
 - if protocol score is missing, it is inferred from the edit plan
-- results are cached by `(IdeaState.signature, path_key)`
+- results are cached by `(IdeaState.signature, prompt_hash)`
 
 ### Backpropagation and Learning Signals
 

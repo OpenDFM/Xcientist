@@ -533,3 +533,110 @@ def format_edit_plan_prompt_view(plan: Any, *, heading: str = "Compiled Edit Pla
         _format_section("Validation Protocol", validation_lines),
     ]
     return _join_sections(sections, empty="No edit plan available.")
+
+
+def format_evaluator_idea_prompt_view(
+    idea: Any,
+    *,
+    heading: str = "Candidate Idea",
+) -> str:
+    payload = idea.to_payload() if hasattr(idea, "to_payload") and callable(idea.to_payload) else idea
+    if not isinstance(payload, Mapping):
+        return _join_sections(
+            [_format_section(heading, [_format_kv_line("Raw", payload, 1200)])],
+            empty="No idea available.",
+        )
+    payload = normalize_idea_contract(payload, keep_extra=True)
+
+    component_lines: List[str] = []
+    components = _normalize_list(payload.get("components"))
+    explanations = payload.get("component_explanations")
+    explanation_map = explanations if isinstance(explanations, Mapping) else {}
+    for component in components[:8]:
+        name = _clip_text(component)
+        if not name:
+            continue
+        explanation = _clip_text(explanation_map.get(component)) if explanation_map else ""
+        if explanation:
+            component_lines.append(f"- {name}: {explanation}")
+        else:
+            component_lines.append(f"- {name}")
+
+    root_domains = _normalize_list(payload.get("root_domains"))
+    root_domain_text = _format_inline_list(root_domains, max_items=2, item_limit=16) if root_domains else "None"
+
+    sections = [
+        _format_section(
+            heading,
+            [
+                _format_kv_line("Title", payload.get("title"), 140),
+                _format_kv_line("Abstract", payload.get("abstract"), 220),
+                _format_kv_line("Core Contribution", payload.get("core_contribution"), 220),
+                _format_kv_line("Method", payload.get("method"), 260),
+                _format_kv_line("Risks", payload.get("risks"), 220),
+                f"Root domains: {root_domain_text}",
+                f"Target defects: {_format_inline_list(payload.get('target_defects'), max_items=6, item_limit=50)}",
+            ],
+        ),
+        _format_section("Components", component_lines),
+    ]
+    return _join_sections(sections, empty="No idea available.")
+
+
+def format_evaluator_edit_plan_prompt_view(
+    plan: Any,
+    *,
+    heading: str = "Compiled Edit Plan",
+) -> str:
+    payload = plan.to_dict() if hasattr(plan, "to_dict") and callable(plan.to_dict) else plan
+    if not isinstance(payload, Mapping):
+        return _join_sections(
+            [_format_section(heading, [_format_kv_line("Raw", payload, 1200)])],
+            empty="No edit plan available.",
+        )
+
+    component_lines: List[str] = []
+    for idx, edit in enumerate(_normalize_list(payload.get("component_edits")), start=1):
+        if not isinstance(edit, Mapping):
+            component_lines.append(f"{idx}. {_clip_text(edit)}")
+            continue
+        component_lines.append(
+            f"{idx}. op={_clip_text(edit.get('op')) or 'unknown'} | "
+            f"component={_clip_text(edit.get('component')) or 'None'} | "
+            f"target={_clip_text(edit.get('target')) or 'None'}"
+        )
+        condition = _clip_text(edit.get("condition"))
+        details = _clip_text(edit.get("details"))
+        reason = _clip_text(edit.get("reason"))
+        if condition:
+            component_lines.append(f"   condition: {condition}")
+        if details:
+            component_lines.append(f"   details: {details}")
+        if reason:
+            component_lines.append(f"   reason: {reason}")
+
+    validation = payload.get("validation") if isinstance(payload.get("validation"), Mapping) else {}
+    validation_lines: List[str] = []
+    for label, key in (
+        ("Regression", "regression_tests"),
+        ("Ablation", "ablation_tests"),
+        ("Stress", "stress_tests"),
+    ):
+        items = _extract_named_items(validation.get(key), max_items=4)
+        if not items:
+            continue
+        validation_lines.append(f"{label}:")
+        validation_lines.extend(f"- {item}" for item in items)
+
+    sections = [
+        _format_section(
+            heading,
+            [
+                _format_kv_line("Skill", payload.get("skill_name"), 100),
+                f"Target defects: {_format_inline_list(payload.get('target_defects'), max_items=6, item_limit=50)}",
+            ],
+        ),
+        _format_section("Component Edits", component_lines),
+        _format_section("Validation Protocol", validation_lines),
+    ]
+    return _join_sections(sections, empty="No edit plan available.")

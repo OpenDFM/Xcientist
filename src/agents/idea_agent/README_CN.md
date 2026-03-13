@@ -226,10 +226,7 @@ Evaluator 只允许返回 `utils/mcts/defect_registry.py` 里的 canonical defec
 1. **检索向量记忆**
    - `VectorMemoryAccessor.retrieve_bundle(...)` 返回 field knowledge、anti-patterns 和 fix recipes
 
-2. **计算 symbolic action priors**
-   - `symbolic_memory.compute_action_priors(...)` 从符号记忆里取出 operator-level 先验
-
-3. **选择候选 skill**
+2. **选择候选 skill**
    - `SkillCatalog.select_skills(...)` 对每个 skill 计算：
      - `defect_score`
      - `skill_prior`
@@ -245,22 +242,11 @@ Evaluator 只允许返回 `utils/mcts/defect_registry.py` 里的 canonical defec
        0.05 * gate_score
    ```
 
-4. **融合 preset 排序与 symbolic rerank**
-   - 先从 symbolic-memory priors 中为每个已选 skill 得到一个 `symbolic_score`
-   - 再在候选集内部归一化为 `symbolic_norm`
-   - 最终排序分数是：
-
-   ```text
-   final_order_score = 0.80 * selection_total + 0.20 * symbolic_norm
-   ```
-
-   这样 symbolic memory 仍然重要，但不会完全压掉 preset-aware 的初始选择。
-
-5. **编译 plan**
+3. **编译 plan**
    - `compile_plan(...)` 把 skill blueprint 编译成 `ComponentEdit` 和验证协议
    - `SkillUsagePrior` 中学到的 `rule_constraints` 会追加到 plan guardrails
 
-6. **实例化 plan**
+4. **实例化 plan**
    - prompt 现在会显式注入：
      - `idea_taste_mode`
      - `idea_taste_label`
@@ -268,18 +254,19 @@ Evaluator 只允许返回 `utils/mcts/defect_registry.py` 里的 canonical defec
      - 固定的 `root_domains`
    - taste guidance 只是软约束，不能覆盖 plan、target defects 或 guardrails
 
-7. **`theory-transfer-injection` 的特殊处理**
+5. **`theory-transfer-injection` 的特殊处理**
    - 先根据当前 idea 和 edit plan 构造 transfer query
    - 再从 root domains 之外检索 paper-graph nodes
    - 若没有满足阈值的跨领域 reference，则直接跳过该 child
    - 若成功检索，则把 transfer query 和 cross-domain references 一起注入 instantiation prompt
 
-8. **物化 child state**
+6. **物化 child state**
    - 用 LLM 返回的 `component_mapping` 和 `edit_reasons` 把 generic plan 改成 concrete idea
    - child 的 `skill_metrics` 现在会额外记录：
      - `idea_taste_mode`
      - `skill_selection_breakdown`
-     - `symbolic_rerank_breakdown`
+
+当前实现里，symbolic memory 不再参与 expand 阶段的 skill 排序或 action prior；它只在 `simulate_node_value(...)` 里作为 component-ablation evidence 提供给 evaluator。
 
 ### Simulate / Evaluate 阶段
 
@@ -290,9 +277,8 @@ Evaluator 只允许返回 `utils/mcts/defect_registry.py` 里的 canonical defec
 - 最新 analysis
 - 当前 run 的 idea pool snapshot
 - paper context
-- compiled edit plan
-- candidate idea
-- rewrite path
+- 紧凑版 compiled edit plan
+- 精简版 candidate idea
 - canonical defect registry
 - retrospective symbolic-memory hints
 
@@ -301,7 +287,7 @@ Evaluator 只允许返回 `utils/mcts/defect_registry.py` 里的 canonical defec
 - evaluator 输出会被解析成 `IdeaEvaluation`
 - novelty 可能会被 `ComponentNoveltyScorer` 覆盖重算
 - 如果 protocol score 缺失，会根据 edit plan 兜底估算
-- 评估结果按 `(IdeaState.signature, path_key)` 缓存
+- 评估结果按 `(IdeaState.signature, prompt_hash)` 缓存
 
 ### 回传与经验学习
 

@@ -14,10 +14,10 @@ Ablation / experiment results (component-level evidence — THIS is your primary
 
 Your task:
 Based on the ablation results, perform **component-level targeted modifications** to the current mature idea.
-- For each ablation entry, the "component" field names a specific module/loss/mechanism, "op" indicates "add"/"remove"/"replace", and "delta_score" shows the observed metric change (negative = removing it hurts, positive = removing it helps or adding it helps).
-- A negative delta_score on a "remove" op means the component is critical — keep or strengthen it.
-- A positive delta_score on a "remove" op means the component is harmful or redundant — remove or replace it.
-- A positive delta_score on an "add" op means the component is beneficial — incorporate or enhance it.
+- For each ablation entry, the "component" field names a specific module/loss/mechanism, "op" usually indicates "remove", "result" is "positive|negative|inconclusive", and "confidence" tells you how reliable the evidence is.
+- If `op=remove` and `result=negative`, removing the component hurt; the component is likely critical, so keep or strengthen it.
+- If `op=remove` and `result=positive`, removing the component helped; the component is likely harmful or redundant, so remove or replace it.
+- If `result=inconclusive`, treat the evidence as weak and avoid overcommitting unless analysis strongly supports a change.
 
 Do NOT change the research topic. Instead, surgically revise the method design by:
 1. Identifying which components to keep, strengthen, remove, or replace based on ablation evidence.
@@ -31,7 +31,7 @@ Respond with STRICT JSON (no prose, no Markdown):
       "component": "string",          // component name from ablation
       "decision": "keep|strengthen|remove|replace",
       "replacement": "string or null", // if replace: describe the new mechanism; otherwise null
-      "rationale": "string"            // why this decision, citing delta_score and analysis
+      "rationale": "string"            // why this decision, citing result/confidence and analysis
     }}
   ],
   "mature_idea": "string",  // The revised idea (3-6 sentences). Must clearly state core hypothesis, proposed mechanism with the component modifications applied, and target problem. This will be the MCTS root node.
