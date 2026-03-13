@@ -1143,7 +1143,11 @@ def instantiate_skill_plan_for_node(
         ),
         mature_idea=mcts.mature_idea or "None",
         parent_summary=parent_state.describe(),
-        idea_pool_context=getattr(mcts, "idea_pool_context", "No prior ideas in the current run."),
+        latest_candidate_context=getattr(
+            mcts,
+            "latest_candidate_context",
+            "No prior candidate in the current run.",
+        ),
         parent_components=", ".join(parent_state.components) if parent_state.components else "None",
         paper_context=mcts.paper_context,
         memory_bundle=bundle.to_prompt_block(),
@@ -1614,7 +1618,11 @@ def simulate_node_value(
         root_domains=_format_root_domains_for_prompt(getattr(node.state, "root_domains", [])),
         mature_idea=mcts.mature_idea or "None",
         analysis=mcts.analysis_blob,
-        idea_pool_context=getattr(mcts, "idea_pool_context", "No prior ideas in the current run."),
+        latest_candidate_context=getattr(
+            mcts,
+            "latest_candidate_context",
+            "No prior candidate in the current run.",
+        ),
         paper_context=mcts.paper_context,
         skill_output=format_edit_plan_prompt_view(node.state.edit_plan)
         if node.state.edit_plan
@@ -1854,7 +1862,8 @@ def build_root_state(
     context: Dict[str, Any],
     idea_state_cls: Any,
 ) -> Any:
-    idea_pool = context.get("idea_pool") or []
+    latest_candidate = context.get("latest_candidate")
+    root_idea = context.get("root_idea")
     mature_idea = str(context.get("mature_idea") or "").strip()
     background = context.get("background_knowledge") or []
     defect_tags = context.get("defect_tags") or ["unexplored_gap"]
@@ -1881,8 +1890,8 @@ def build_root_state(
         risks = "Primary risk is mechanism drift away from the mature idea during refinement."
         tags = ["seed", "mature_idea", "contract_root"]
         rationale = "Starting point anchored directly in the provided mature idea."
-    elif idea_pool:
-        latest = normalize_idea_contract(idea_pool[-1], keep_extra=True)
+    elif isinstance(latest_candidate, dict) and latest_candidate:
+        latest = normalize_idea_contract(latest_candidate, keep_extra=True)
         title = latest.get("title", f"{topic} seed idea")
         abstract = latest.get("abstract", "")
         core = latest.get("core_contribution", "")
@@ -1890,7 +1899,21 @@ def build_root_state(
         experiments = latest.get("experiments", "")
         risks = latest.get("risks", latest.get("evaluation", ""))
         tags = latest.get("tags")
-        rationale = "Starting point from the latest idea in the current idea pool."
+        rationale = "Starting point from the latest candidate in the current run."
+        if not components and isinstance(latest.get("components"), list):
+            components = [str(comp).strip() for comp in latest.get("components", []) if str(comp).strip()]
+        if not context_component_explanations:
+            context_component_explanations = latest.get("component_explanations", {})
+    elif isinstance(root_idea, dict) and root_idea:
+        latest = normalize_idea_contract(root_idea, keep_extra=True)
+        title = latest.get("title", f"{topic} root idea")
+        abstract = latest.get("abstract", "")
+        core = latest.get("core_contribution", "")
+        method = latest.get("method", "")
+        experiments = latest.get("experiments", "")
+        risks = latest.get("risks", latest.get("evaluation", ""))
+        tags = latest.get("tags")
+        rationale = "Starting point from the explicit root idea produced by advanced analysis."
         if not components and isinstance(latest.get("components"), list):
             components = [str(comp).strip() for comp in latest.get("components", []) if str(comp).strip()]
         if not context_component_explanations:

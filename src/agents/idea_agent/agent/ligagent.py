@@ -197,7 +197,7 @@ class LigAgent(AgentBase):
                 if "gpt-5-mini" in resolved_model:
                     # Idea Generator: GPT-5 mini
                     request_kwargs["temperature"] = 1.0
-                    effort = "high" if stage == "mcts_expand" else "low"
+                    effort = "high" if stage in {"mcts_expand", "idea_fusion", "advanced_analysis", "re_analysis_replan"} else "low"
                     return super().chat(
                         prompt,
                         model=resolved_model,
@@ -205,9 +205,9 @@ class LigAgent(AgentBase):
                         **request_kwargs,
                     )
                 elif "gpt-5" in resolved_model:
-                    # Idea Evaluator: GPT-5.4
+                    # Idea Evaluator: GPT-5.2
                     request_kwargs["temperature"] = 1.0
-                    effort = "high" if stage == "idea_fusion" else "low"
+                    effort = "high" if stage in {"mcts_expand", "idea_fusion", "advanced_analysis", "re_analysis_replan"} else "low"
                     return super().chat(
                         prompt,
                         model=resolved_model,
@@ -230,6 +230,42 @@ class LigAgent(AgentBase):
                 )
                 time.sleep(wait)
         raise last_exc if last_exc else RuntimeError("Chat failed without exception detail.")
+
+    def _workflow_model_group(
+        self,
+        stage: Optional[str],
+        workflow_name: Optional[str],
+    ) -> str:
+        workflow = str(workflow_name or "").strip()
+        stage_name = str(stage or "").strip()
+        if workflow.endswith("knowledge_acquisition") or stage_name.startswith("ka_"):
+            return "knowledge_acquisition"
+        return "main"
+
+    def resolve_stage_model(
+        self,
+        *,
+        stage: Optional[str],
+        workflow_name: Optional[str] = None,
+        requested_model: Optional[str] = None,
+    ) -> str:
+        base_model = str(self.model or "gpt-5-mini")
+        explicit_model = str(requested_model or "").strip()
+        if explicit_model and explicit_model != base_model:
+            return explicit_model
+
+        group = self._workflow_model_group(stage=stage, workflow_name=workflow_name)
+        lookup_keys: List[str] = []
+        if stage:
+            lookup_keys.append(f"agent.workflow_models.{group}.{stage}")
+            lookup_keys.append(f"agent.workflow_models.stage_overrides.{stage}")
+        lookup_keys.append("agent.workflow_models.default")
+
+        for key in lookup_keys:
+            value = get_config_value(self.config, key, None)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return explicit_model or base_model
 
     def perform_action(self, action: str, **kwargs) -> Any:
         logger.info(f"🚀 Performing action: {action}...")

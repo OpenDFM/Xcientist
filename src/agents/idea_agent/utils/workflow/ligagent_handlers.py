@@ -27,9 +27,9 @@ from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     collect_analysis_background_lines,
     collect_rag_citations,
     collect_rag_contents,
+    extract_root_idea_from_analysis,
     filter_and_compress_papers,
     generate_rag_query,
-    latest_analysis_seed_ideas,
     normalize_analysis_entry,
     normalize_search_papers,
     paper_context_with_rag,
@@ -64,11 +64,13 @@ def _chat(agent: Any, ctx: StageContext, op_name: str):
     runtime = _runtime(agent, ctx)
     session = _session(agent, ctx)
     stage = ctx.stage_name or ctx.workflow_name
+    workflow_name = ctx.workflow_name
 
     def _invoke(prompt: str, **kwargs: Any) -> str:
         return runtime.llm_text(
             session=session,
             stage=stage,
+            workflow_name=workflow_name,
             op_name=op_name,
             prompt=prompt,
             **kwargs,
@@ -137,6 +139,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
         runtime.llm_json(
             session=session,
             stage=ctx.stage_name,
+            workflow_name=ctx.workflow_name,
             op_name="advanced_analysis",
             prompt=prompt,
             model=agent.model,
@@ -151,6 +154,8 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     else:
         logger.info("📝 Advanced Analysis Result:\n%s", response)
 
+    root_idea = extract_root_idea_from_analysis(response, topic=topic)
+    response["root_idea"] = root_idea
     existing_background = set(artifact_get(artifact, "background_knowledge", []))
     background_lines = [
         line
@@ -165,6 +170,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     )
     return StageResult(
         artifact_patch=ArtifactPatch(
+            replace={"root_idea": root_idea},
             append={
                 "analysis": [response],
                 "background_knowledge": background_lines,
@@ -174,6 +180,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
         metrics={
             "reference_count": len(references),
             "background_lines": len(background_lines),
+            "root_idea_title": root_idea.get("title"),
         },
     )
 
@@ -189,16 +196,23 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     latest_batch = reference_batches[-1] if reference_batches else []
     batch_list = [latest_batch] if latest_batch else reference_batches
     paper_entries = collect_paper_context_entries(artifact, batch_list)
-    idea_history = [
-        normalize_idea_contract(entry, allow_legacy=True, keep_extra=True)
-        for entry in artifact_get(artifact, "idea_pool", [])
-    ]
-    seed_ideas = latest_analysis_seed_ideas(artifact)
-    idea_context = idea_history if idea_history else seed_ideas
+    latest_candidate = artifact_get(artifact, "latest_candidate", {})
+    latest_candidate_payload = (
+        normalize_idea_contract(latest_candidate, allow_legacy=True, keep_extra=True)
+        if isinstance(latest_candidate, dict) and latest_candidate
+        else None
+    )
+    root_idea = artifact_get(artifact, "root_idea", {})
+    root_idea_payload = (
+        normalize_idea_contract(root_idea, allow_legacy=True, keep_extra=True)
+        if isinstance(root_idea, dict) and root_idea
+        else None
+    )
     mature_idea = artifact_get(artifact, "mature_idea", "")
     context = {
         "analysis": artifact_get(artifact, "analysis", []),
-        "idea_pool": idea_context,
+        "latest_candidate": latest_candidate_payload,
+        "root_idea": root_idea_payload,
         "background_knowledge": artifact_get(artifact, "background_knowledge", []),
         "paper_context": paper_context_with_rag(paper_entries, artifact),
     }
@@ -239,8 +253,12 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
             mode_results.append((mode_label, result))
 
     if not mode_results:
-        logger.warning("⚠️ MCTS search returned no candidate; keeping current idea pool unchanged.")
-        replace_patch = {"idea_pool": idea_history} if idea_history else {}
+        logger.warning("⚠️ MCTS search returned no candidate; keeping latest candidate unchanged.")
+        replace_patch = (
+            {"latest_candidate": latest_candidate_payload}
+            if latest_candidate_payload is not None
+            else {}
+        )
         return StageResult(
             status="degraded",
             artifact_patch=ArtifactPatch(replace=replace_patch),
@@ -302,10 +320,6 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
         persist_to_artifact=False,
     )
 
-    canonical_pool = list(idea_history)
-    canonical_pool.extend(mode_entries)
-    if fused_entry:
-        canonical_pool.append(fused_entry)
     pareto_lines = []
     pareto_count = 0
     for mode, result in mode_results:
@@ -337,7 +351,7 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     return StageResult(
         artifact_patch=ArtifactPatch(
             replace={
-                "idea_pool": canonical_pool,
+                "latest_candidate": best_entry,
                 "idea_result": final_payload,
                 "ligagent_pro_candidates": mode_entries if ligagent_pro else [],
                 "fusion_result": fusion_result,
@@ -378,6 +392,7 @@ def execute_reanalysis_replan_stage(agent: Any, ctx: StageContext) -> StageResul
     response = runtime.llm_json(
         session=session,
         stage=ctx.stage_name,
+        workflow_name=ctx.workflow_name,
         op_name="re_analysis_replan",
         prompt=prompt,
         model=agent.model,
@@ -459,6 +474,7 @@ def ka_seed_search_stage(agent: Any, ctx: StageContext) -> StageResult:
         papers = runtime.tool_call(
             session=session,
             stage=ctx.stage_name,
+            workflow_name=ctx.workflow_name,
             op_name="semantic_search",
             tool_name="semantic_search",
             query=search_keywords,

@@ -43,6 +43,7 @@ Perform the steps below explicitly before answering:
 Return STRICT JSON (no prose, no Markdown) with the schema:
 {{
   "key_methods": ["..."],                          // survey-led cluster names or dominant families
+  "field_consensus": ["..."],                      // constraints / assumptions / consensus points the new idea should respect
   "existing_problems": ["..."],                    // survey-led limitations (can be supported by papers)
   "evaluation_gaps": [
     {{
@@ -52,6 +53,17 @@ Return STRICT JSON (no prose, no Markdown) with the schema:
     }}
   ],
   "future_directions": ["..."],                    // incremental but useful; must still be anchored in survey
+  "root_idea": {{
+    "title": "one concrete root idea title",
+    "abstract": "one concrete root idea abstract",
+    "core_contribution": "main mechanism-level claim",
+    "method": "specific method sketch with modules/objective/training contract",
+    "experiments": "fair validation protocol that proves the mechanism against named gaps",
+    "risks": "main scientific/engineering risks",
+    "target_defects": ["..."],
+    "rationale": "why this root idea is the best starting point from the extracted survey gaps",
+    "supporting_papers": ["SURVEY_ANCHOR:...", "PAPER_ANCHOR:..."]
+  }},
   "divergent_idea_seeds": [
     {{
       "title": "short memorable name",
@@ -74,11 +86,13 @@ Return STRICT JSON (no prose, no Markdown) with the schema:
 }}
 
 Rules (hard):
-- Always output at least three divergent_idea_seeds; they must be mutually distinct.
+- Always output exactly one `root_idea`; it must be concrete enough to act as the MCTS root node.
+- `root_idea` must directly address at least one named `existing_problems` or `evaluation_gaps`, and must stay on the survey-led axis.
 - Every divergent_idea_seed MUST:
   (a) cite at least one SURVEY_ANCHOR and name which evaluation_gaps/existing_problems it addresses,
   (b) propose a concrete mechanism change (module/objective/training contract), not just instrumentation,
   (c) keep the main axis consistent with survey framing (no agenda reset from papers).
+- `divergent_idea_seeds` are optional supporting alternatives; return 0-2 only if they help contrast the chosen `root_idea`.
 - Papers may contribute:
   - representative baselines and fair comparison protocol details,
   - feasibility constraints (latency/memory/compute),

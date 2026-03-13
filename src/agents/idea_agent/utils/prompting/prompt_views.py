@@ -237,69 +237,55 @@ def format_analysis_prompt_view(analysis: Any) -> str:
     return _join_sections(sections, empty="No prior analysis.")
 
 
-def format_idea_pool_prompt_view(idea_pool: Any, *, max_ideas: int = 3) -> str:
-    ideas = [item for item in _normalize_list(idea_pool) if item is not None]
-    if not ideas:
-        return "No prior ideas in the current run."
-
-    latest_items = list(reversed(ideas[-max_ideas:]))
-    blocks: List[str] = [
-        _format_section(
-            "Idea Pool Snapshot",
-            [f"Retained ideas in run: {len(ideas)}", f"Showing latest: {len(latest_items)}"],
-        )
-    ]
-
-    for idx, raw in enumerate(latest_items, start=1):
-        if not isinstance(raw, Mapping):
-            blocks.append(
+def format_latest_candidate_prompt_view(latest_candidate: Any) -> str:
+    candidate = latest_candidate
+    if isinstance(candidate, list):
+        candidate = candidate[-1] if candidate else None
+    if candidate is None:
+        return "No prior candidate in the current run."
+    if not isinstance(candidate, Mapping):
+        return _join_sections(
+            [
                 _format_section(
-                    f"Idea {idx}",
-                    [_format_kv_line("Raw", raw, 400)],
+                    "Latest Candidate",
+                    [_format_kv_line("Raw", candidate, 400)],
                 )
-            )
-            continue
-        raw = normalize_idea_contract(raw, keep_extra=True)
+            ],
+            empty="No prior candidate in the current run.",
+        )
 
-        evaluation = raw.get("evaluation") if isinstance(raw.get("evaluation"), Mapping) else {}
-        metrics: List[str] = []
-        for key in ("novelty", "feasibility", "impact", "risk", "confidence"):
-            value = evaluation.get(key)
-            if isinstance(value, (int, float)):
-                metrics.append(f"{key}={value:.2f}")
-        score = raw.get("search_score")
-        if isinstance(score, (int, float)):
-            metrics.insert(0, f"search_score={score:.2f}")
+    try:
+        raw = normalize_idea_contract(candidate, keep_extra=True)
+    except Exception:
+        raw = dict(candidate)
+    evaluation = raw.get("evaluation") if isinstance(raw.get("evaluation"), Mapping) else {}
+    metrics: List[str] = []
+    for key in ("novelty", "feasibility", "impact", "risk", "confidence"):
+        value = evaluation.get(key)
+        if isinstance(value, (int, float)):
+            metrics.append(f"{key}={value:.2f}")
+    score = raw.get("search_score")
+    if isinstance(score, (int, float)):
+        metrics.insert(0, f"search_score={score:.2f}")
 
-        blocks.append(
+    return _join_sections(
+        [
             _format_section(
-                f"Idea {idx}",
+                "Latest Candidate",
                 [
                     _format_kv_line("Title", raw.get("title"), 120),
-                    _format_kv_line(
-                        "Core",
-                        raw.get("core_contribution"),
-                        180,
-                    ),
-                    _format_kv_line(
-                        "Method",
-                        raw.get("method"),
-                        200,
-                    ),
-                    _format_kv_line(
-                        "Experiments",
-                        raw.get("experiments"),
-                        180,
-                    ),
+                    _format_kv_line("Core", raw.get("core_contribution"), 180),
+                    _format_kv_line("Method", raw.get("method"), 200),
+                    _format_kv_line("Experiments", raw.get("experiments"), 180),
                     _format_kv_line("Risks", raw.get("risks"), 180),
                     f"Components: {_format_inline_list(raw.get('components'), max_items=6, item_limit=50)}",
                     f"Target defects: {_format_inline_list(raw.get('target_defects'), max_items=6, item_limit=50)}",
                     f"Evaluation: {'; '.join(metrics) if metrics else 'None'}",
                 ],
             )
-        )
-
-    return _join_sections(blocks, empty="No prior ideas in the current run.")
+        ],
+        empty="No prior candidate in the current run.",
+    )
 
 
 def format_paper_capsules_prompt_view(papers: Any, *, max_papers: int = 8) -> str:

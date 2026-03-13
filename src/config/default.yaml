@@ -93,6 +93,29 @@ idea:
 
   agent:
     model: "gpt-5-mini"
+    # Workflow-stage model routing for LigAgent's explicit stage graph.
+    # If a stage is not set here, it falls back to `idea.agent.model`.
+    # This only affects workflow-stage LLM calls; MCTS generation/evaluation
+    # and fusion still use their original dedicated configs below.
+    workflow_models:
+      default: "${idea.agent.model}"
+
+      # Main LigAgent workflow: knowledge_aquisition -> advanced_analysis
+      # -> re_analysis_replan -> idea_generation
+      main:
+        knowledge_aquisition: "${idea.agent.model}"
+        advanced_analysis: "${idea.fusion.model}"
+        re_analysis_replan: "${idea.fusion.model}"
+        idea_generation: "${idea.agent.model}"
+
+      # Nested knowledge acquisition workflow
+      knowledge_acquisition:
+        ka_query_generation: "${idea.agent.model}"
+        ka_paper_triage: "${idea.agent.model}"
+
+      # Optional flat overrides by stage name if a stage needs to diverge
+      # from its workflow bucket later.
+      stage_overrides: {}
     chat_max_retries: 3
     chat_retry_backoff: 2.0
     paper_enrichment_timeout_sec: 7200
@@ -134,7 +157,7 @@ idea:
     max_tokens: 65536
     min_candidates: 2
     repair_max_steps: 10
-    repair_patience: 3
+    repair_patience: 5
     repair_epsilon: 0.02
 
   memory:

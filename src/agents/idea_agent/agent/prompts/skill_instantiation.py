@@ -11,7 +11,7 @@ Idea taste label: {idea_taste_label}
 Taste guidance (soft preference only): {taste_guidance}
 Mature idea (anchor): {mature_idea}
 Parent idea: {parent_summary}
-Current run idea pool: {idea_pool_context}
+Latest candidate in the current run: {latest_candidate_context}
 Parent components (actual modules in the current idea): {parent_components}
 Literature context: {paper_context}
 Memory bundle: {memory_bundle}

@@ -80,7 +80,7 @@ Activated only when the workflow already has RAG context.
 Builds MCTS context from:
 
 - `artifact["analysis"]`
-- `artifact["idea_pool"]`
+- `artifact["latest_candidate"]`
 - `artifact["background_knowledge"]`
 - curated paper context
 - optional `artifact["mature_idea"]`
@@ -107,7 +107,7 @@ Then it:
 | `references` | curated paper batches |
 | `rag_query`, `rag_hits`, `rag_contents` | OutcomeRAG context |
 | `paper_contents` | parsed paper metadata |
-| `idea_pool` | canonical idea payloads from `idea_generation` |
+| `latest_candidate` | current best canonical idea payload from `idea_generation` |
 | `ligagent_pro_candidates` | raw per-mode best candidates collected by LigAgent-Pro |
 | `fusion_result` | latest fusion-agent output plus the evaluated fused candidate |
 | `evaluations` | evaluation payloads collected during idea generation |
@@ -119,7 +119,7 @@ If an `idea_taste_mode` preset resolves successfully, `LigAgent.__init__` also a
 - `artifact["idea_taste_mode"]`
 - `artifact["idea_taste_label"]`
 
-Each winning `idea_pool` entry is richer than the final public JSON. It stores:
+Each `latest_candidate` entry is richer than the final public JSON. It stores:
 
 - canonical idea fields such as `title`, `abstract`, `method`, `components`
 - `evaluation`
@@ -151,7 +151,7 @@ The persisted `idea_result.json` is intentionally smaller and paper-oriented:
 `build_root_state(...)` initializes the MCTS root from one of three sources:
 
 1. `mature_idea` if contract mode is active
-2. the latest `idea_pool` entry if present
+2. the `latest_candidate` if present
 3. a baseline seed synthesized from analysis/background knowledge
 
 Before the real search starts, `MemoryGuidedMCTS.search(...)` classifies the root into one or two fixed domains. These are stored on every `IdeaState` as `root_domains`.

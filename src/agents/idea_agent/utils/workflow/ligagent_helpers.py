@@ -581,6 +581,20 @@ def ingest_analysis_background(analysis_entry: Dict[str, Any], artifact: Dict[st
 def collect_analysis_background_lines(analysis_entry: Dict[str, Any]) -> List[str]:
     if not isinstance(analysis_entry, dict):
         return []
+    root_idea = analysis_entry.get("root_idea")
+    if isinstance(root_idea, dict):
+        try:
+            normalized_root = normalize_idea_contract(root_idea, allow_legacy=True, keep_extra=True)
+            title = normalized_root.get("title") or "Root Idea"
+            abstract = normalized_root.get("abstract") or ""
+            mechanism = normalized_root.get("method") or ""
+            root_line = f"[Root Idea] {title}: {abstract}".strip()
+            if mechanism:
+                root_line += f" | Mechanism: {mechanism}"
+            if root_line:
+                return [root_line]
+        except Exception:
+            pass
     seeds = (
         analysis_entry.get("divergent_idea_seeds")
         or analysis_entry.get("moonshot_hypotheses")
@@ -605,7 +619,79 @@ def collect_analysis_background_lines(analysis_entry: Dict[str, Any]) -> List[st
     return [line for line in background_lines if line]
 
 
-def latest_analysis_seed_ideas(artifact: Dict[str, Any]) -> List[Dict[str, Any]]:
+def extract_root_idea_from_analysis(
+    analysis_entry: Dict[str, Any],
+    *,
+    topic: str,
+) -> Dict[str, Any]:
+    if not isinstance(analysis_entry, dict):
+        return normalize_idea_contract(
+            {
+                "title": f"{topic} root idea",
+                "abstract": f"Root idea derived from topic '{topic}'.",
+                "core_contribution": "Establish a concrete mechanism-level root idea from analysis.",
+                "method": "Synthesize the dominant method cluster with one explicit gap-closing mechanism.",
+                "experiments": "Validate against the main baselines and gap-focused stress tests.",
+                "risks": "Risk of under-specifying the mechanism before search refinement.",
+                "target_defects": ["unclear_mechanism"],
+                "rationale": "Fallback root idea because structured analysis output was unavailable.",
+            },
+            keep_extra=True,
+        )
+
+    root_idea = analysis_entry.get("root_idea")
+    if isinstance(root_idea, dict):
+        try:
+            return normalize_idea_contract(root_idea, allow_legacy=True, keep_extra=True)
+        except Exception:
+            pass
+
+    seeds = analysis_candidate_ideas({"analysis": [analysis_entry]})
+    if seeds:
+        seed = dict(seeds[0])
+        seed["operator"] = "analysis_root"
+        return normalize_idea_contract(seed, allow_legacy=True, keep_extra=True)
+
+    problems = analysis_entry.get("existing_problems") or []
+    gaps = analysis_entry.get("evaluation_gaps") or []
+    future = analysis_entry.get("future_directions") or []
+    key_methods = analysis_entry.get("key_methods") or []
+    tldr = str(analysis_entry.get("tldr") or "").strip()
+
+    gap_text = ""
+    if isinstance(gaps, list) and gaps:
+        first_gap = gaps[0]
+        if isinstance(first_gap, dict):
+            gap_text = str(first_gap.get("gap") or "").strip()
+        else:
+            gap_text = str(first_gap).strip()
+    problem_text = str(problems[0]).strip() if isinstance(problems, list) and problems else ""
+    method_text = str(key_methods[0]).strip() if isinstance(key_methods, list) and key_methods else ""
+    future_text = str(future[0]).strip() if isinstance(future, list) and future else ""
+
+    abstract_parts = [part for part in [tldr, problem_text, gap_text] if part]
+    core = future_text or gap_text or problem_text or tldr or f"Root idea for {topic}."
+    method = method_text or "Use the dominant method family as the starting mechanism and refine it during search."
+    experiments = (
+        f"Run fair baselines and targeted stress tests for: {gap_text or problem_text or 'the main open gap'}."
+    )
+    risks = problem_text or "The root idea may still be under-specified before search refinement."
+    return normalize_idea_contract(
+        {
+            "title": f"{topic} root idea",
+            "abstract": " ".join(abstract_parts) or f"Root idea derived from topic '{topic}'.",
+            "core_contribution": core,
+            "method": method,
+            "experiments": experiments,
+            "risks": risks,
+            "target_defects": ["unclear_mechanism"],
+            "rationale": "Root idea synthesized from the latest advanced analysis.",
+        },
+        keep_extra=True,
+    )
+
+
+def analysis_candidate_ideas(artifact: Dict[str, Any]) -> List[Dict[str, Any]]:
     analysis_entries = artifact_get(artifact, "analysis", [])
     if not analysis_entries:
         return []
@@ -613,10 +699,10 @@ def latest_analysis_seed_ideas(artifact: Dict[str, Any]) -> List[Dict[str, Any]]
     if not isinstance(latest, dict):
         return []
     seeds = latest.get("divergent_idea_seeds") or latest.get("moonshot_hypotheses") or []
-    return convert_seeds_to_ideas(seeds)
+    return convert_analysis_candidates_to_ideas(seeds)
 
 
-def convert_seeds_to_ideas(seeds: Any) -> List[Dict[str, Any]]:
+def convert_analysis_candidates_to_ideas(seeds: Any) -> List[Dict[str, Any]]:
     if not isinstance(seeds, list):
         return []
     payloads: List[Dict[str, Any]] = []
@@ -655,7 +741,7 @@ def convert_seeds_to_ideas(seeds: Any) -> List[Dict[str, Any]]:
                     "experiments": evaluation_plan or "Design ICML-grade evaluation including failure-surface probes.",
                     "risks": risk or "High novelty risk; feasibility unknown.",
                     "tags": tags,
-                    "operator": "analysis_seed",
+                    "operator": "analysis_root_candidate",
                     "target_defects": seed.get("target_defects", ["stagnant_novelty"]),
                     "memory_refs": supporting if isinstance(supporting, list) else [str(supporting)],
                     "rationale": differentiator or "Seed extracted from advanced analysis.",

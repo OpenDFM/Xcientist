@@ -33,9 +33,10 @@ FIELD_SPECS: Dict[str, Dict[str, Any]] = {
     "rag_contents": {"namespace": "retrieval", "path": "rag_contents", "kind": "list"},
     "paper_contents": {"namespace": "retrieval", "path": "paper_contents", "kind": "dict"},
     "analysis": {"namespace": "analysis", "path": "entries", "kind": "list"},
+    "root_idea": {"namespace": "analysis", "path": "root_idea", "kind": "dict"},
     "background_knowledge": {"namespace": "analysis", "path": "background_knowledge", "kind": "list"},
     "component_decisions": {"namespace": "analysis", "path": "component_decisions", "kind": "list"},
-    "idea_pool": {"namespace": "ideation", "path": "idea_pool", "kind": "list"},
+    "latest_candidate": {"namespace": "ideation", "path": "latest_candidate", "kind": "dict"},
     "evaluations": {"namespace": "ideation", "path": "evaluations", "kind": "list"},
     "ligagent_pro_candidates": {"namespace": "ideation", "path": "ligagent_pro_candidates", "kind": "list"},
     "fusion_result": {"namespace": "ideation", "path": "fusion_result", "kind": "dict"},
@@ -110,11 +111,12 @@ def _namespace_defaults() -> Dict[str, Dict[str, Any]]:
         },
         "analysis": {
             "entries": [],
+            "root_idea": {},
             "background_knowledge": [],
             "component_decisions": [],
         },
         "ideation": {
-            "idea_pool": [],
+            "latest_candidate": {},
             "evaluations": [],
             "ligagent_pro_candidates": [],
             "fusion_result": {},
@@ -200,6 +202,14 @@ def ensure_artifact_structure(artifact: Dict[str, Any]) -> Dict[str, Any]:
             value = namespaced_value
         else:
             legacy_value = raw.get(key)
+            if key == "latest_candidate" and not _matches_kind(legacy_value, kind):
+                legacy_pool = raw.get("idea_pool")
+                if isinstance(existing_namespace, dict) and isinstance(existing_namespace.get("idea_pool"), list):
+                    legacy_pool = existing_namespace.get("idea_pool")
+                if isinstance(legacy_pool, list) and legacy_pool:
+                    last_entry = legacy_pool[-1]
+                    if isinstance(last_entry, dict):
+                        legacy_value = last_entry
             if _matches_kind(legacy_value, kind):
                 value = legacy_value
             else:

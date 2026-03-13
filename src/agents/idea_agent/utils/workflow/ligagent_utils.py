@@ -154,7 +154,7 @@ def generate_idea_introduction(
         papers=json.dumps(entries, ensure_ascii=False, indent=2),
     )
     try:
-        response = chat_fn(prompt, temperature=0.3, max_output_tokens=2048, model=model)
+        response = chat_fn(prompt, temperature=0.3, max_output_tokens=65536, model=model)
         payload = parse_json_response(response)
         intro = payload.get("introduction") or payload.get("intro")
         if intro:
@@ -218,19 +218,28 @@ class LigRuntime:
         *,
         session: Optional[Any],
         stage: str,
+        workflow_name: Optional[str] = None,
         op_name: str,
         prompt: str,
         model: Optional[str] = None,
         **kwargs: Any,
     ) -> str:
         started_at = perf_counter()
-        resolved_model = model or getattr(self.agent, "model", "gpt-5-mini")
+        if hasattr(self.agent, "resolve_stage_model"):
+            resolved_model = self.agent.resolve_stage_model(
+                stage=stage,
+                workflow_name=workflow_name,
+                requested_model=model,
+            )
+        else:
+            resolved_model = model or getattr(self.agent, "model", "gpt-5-mini")
         try:
             result = self.agent.chat(prompt, model=resolved_model, stage=stage, **kwargs)
             self._record(
                 session,
                 "llm_call",
                 stage=stage,
+                workflow_name=workflow_name,
                 op_name=op_name,
                 model=resolved_model,
                 status="success",
@@ -242,6 +251,7 @@ class LigRuntime:
                 session,
                 "llm_call",
                 stage=stage,
+                workflow_name=workflow_name,
                 op_name=op_name,
                 model=resolved_model,
                 status="error",
@@ -255,6 +265,7 @@ class LigRuntime:
         *,
         session: Optional[Any],
         stage: str,
+        workflow_name: Optional[str] = None,
         op_name: str,
         prompt: str,
         model: Optional[str] = None,
@@ -263,6 +274,7 @@ class LigRuntime:
         raw = self.llm_text(
             session=session,
             stage=stage,
+            workflow_name=workflow_name,
             op_name=op_name,
             prompt=prompt,
             model=model,
@@ -275,6 +287,7 @@ class LigRuntime:
         *,
         session: Optional[Any],
         stage: str,
+        workflow_name: Optional[str] = None,
         op_name: str,
         tool_name: str,
         **kwargs: Any,
@@ -286,6 +299,7 @@ class LigRuntime:
                 session,
                 "tool_call",
                 stage=stage,
+                workflow_name=workflow_name,
                 op_name=op_name,
                 tool_name=tool_name,
                 status="success",
@@ -297,6 +311,7 @@ class LigRuntime:
                 session,
                 "tool_call",
                 stage=stage,
+                workflow_name=workflow_name,
                 op_name=op_name,
                 tool_name=tool_name,
                 status="error",

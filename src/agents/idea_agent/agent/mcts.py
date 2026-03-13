@@ -45,7 +45,7 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     parse_json_response,
 )
 from src.agents.idea_agent.utils.prompting.prompt_views import (
-    format_idea_pool_prompt_view,
+    format_latest_candidate_prompt_view,
     format_idea_prompt_view,
 )
 from src.agents.idea_agent.utils.papers.paper_graph_vector_store import (
@@ -796,7 +796,7 @@ class MemoryGuidedMCTS:
 
         self.topic: str = ""
         self.analysis_blob: str = ""
-        self.idea_pool_context: str = ""
+        self.latest_candidate_context: str = ""
         self.paper_context: str = ""
         self.mature_idea: str = ""
         self.idea_taste_preset: Optional[IdeaTastePreset] = get_idea_taste_preset(
@@ -1144,7 +1144,9 @@ class MemoryGuidedMCTS:
         context = self.prepare_root_context(topic, context)
         self.topic = topic
         self.analysis_blob = format_analysis_blob(context.get("analysis", []))
-        self.idea_pool_context = format_idea_pool_prompt_view(context.get("idea_pool") or [])
+        self.latest_candidate_context = format_latest_candidate_prompt_view(
+            context.get("latest_candidate")
+        )
         self.paper_context = context.get("paper_context") or "No curated papers available yet."
         self.mature_idea = (context.get("mature_idea") or "").strip()
         self._mature_idea_components = list(context.get("components") or [])

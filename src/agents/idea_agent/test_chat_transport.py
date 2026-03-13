@@ -46,7 +46,7 @@ def test_agent_base_uses_chat_completions_for_coding_plan(monkeypatch) -> None:
         "hello",
         model="kimi-k2.5",
         reasoning={"effort": "low"},
-        max_output_tokens=512,
+        max_output_tokens=65536,
         temperature=0.2,
     )
 
@@ -56,7 +56,7 @@ def test_agent_base_uses_chat_completions_for_coding_plan(monkeypatch) -> None:
     request = client.chat.completions.calls[0]
     assert request["model"] == "kimi-k2.5"
     assert request["messages"] == [{"role": "user", "content": "hello"}]
-    assert request["max_tokens"] == 512
+    assert request["max_tokens"] == 65536
     assert "max_output_tokens" not in request
     assert "reasoning" not in request
 
@@ -71,7 +71,7 @@ def test_agent_base_keeps_responses_for_openai_gpt5(monkeypatch) -> None:
         "hello",
         model="gpt-5-mini",
         reasoning={"effort": "medium"},
-        max_output_tokens=1024,
+        max_output_tokens=65536,
         temperature=1.0,
     )
 
@@ -82,7 +82,7 @@ def test_agent_base_keeps_responses_for_openai_gpt5(monkeypatch) -> None:
     assert request["model"] == "gpt-5-mini"
     assert request["input"] == [{"role": "user", "content": "hello"}]
     assert request["reasoning"] == {"effort": "medium"}
-    assert request["max_output_tokens"] == 1024
+    assert request["max_output_tokens"] == 65536
 
 
 def test_resolve_chat_transport_can_be_forced_to_responses() -> None:
@@ -98,5 +98,5 @@ def test_ensure_default_max_output_tokens_preserves_existing_limit() -> None:
     explicit = ensure_default_max_output_tokens({"max_output_tokens": 2048}, 65536)
     inherited = ensure_default_max_output_tokens({}, 65536)
 
-    assert explicit["max_output_tokens"] == 2048
+    assert explicit["max_output_tokens"] == 65536
     assert inherited["max_output_tokens"] == 65536

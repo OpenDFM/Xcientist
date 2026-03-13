@@ -80,7 +80,7 @@ graph TD
 它会从以下上下文构造 MCTS 输入：
 
 - `artifact["analysis"]`
-- `artifact["idea_pool"]`
+- `artifact["latest_candidate"]`
 - `artifact["background_knowledge"]`
 - curated paper context
 - 可选的 `artifact["mature_idea"]`
@@ -107,7 +107,7 @@ graph TD
 | `references` | 筛选后的论文批次 |
 | `rag_query`、`rag_hits`、`rag_contents` | OutcomeRAG 上下文 |
 | `paper_contents` | 论文解析元数据 |
-| `idea_pool` | `idea_generation` 输出的 canonical idea payload |
+| `latest_candidate` | `idea_generation` 产出的当前最佳 canonical idea payload |
 | `ligagent_pro_candidates` | LigAgent-Pro 收集到的各 mode raw best candidates |
 | `fusion_result` | 最新 fusion-agent 输出和复评后的 fused candidate |
 | `evaluations` | `idea_generation` 阶段累计得到的评估结果 |
@@ -119,7 +119,7 @@ graph TD
 - `artifact["idea_taste_mode"]`
 - `artifact["idea_taste_label"]`
 
-每个 `idea_pool` 的 winning entry 会保留比最终 JSON 更多的信息：
+每个 `latest_candidate` entry 会保留比最终 JSON 更多的信息：
 
 - canonical idea 字段：`title`、`abstract`、`method`、`components` 等
 - `evaluation`
@@ -151,7 +151,7 @@ graph TD
 `build_root_state(...)` 会从三个来源之一初始化根节点：
 
 1. 如果存在 `mature_idea`，直接用它作为 contract root
-2. 否则，如果已有 `idea_pool`，用最新一条 idea 作为起点
+2. 否则，如果已有 `latest_candidate`，用它作为起点
 3. 否则，用分析结果和背景知识合成一个 baseline seed
 
 真正搜索开始前，`MemoryGuidedMCTS.search(...)` 会先给根节点分类出 1 到 2 个固定领域，并把它们写入每个 `IdeaState` 的 `root_domains`。

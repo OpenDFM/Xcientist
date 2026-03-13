@@ -31,7 +31,7 @@ from src.agents.idea_agent.utils.mcts.mcts_runtime import (
     new_node,
     reset_search_state,
 )
-from src.agents.idea_agent.utils.prompting.prompt_views import format_idea_pool_prompt_view
+from src.agents.idea_agent.utils.prompting.prompt_views import format_latest_candidate_prompt_view
 from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
 
 
@@ -493,7 +493,9 @@ def _prepare_mcts_context(mcts: Any, topic: str, context: Dict[str, Any]) -> Dic
     prepared = mcts.prepare_root_context(topic, context)
     mcts.topic = topic
     mcts.analysis_blob = format_analysis_blob(prepared.get("analysis", []))
-    mcts.idea_pool_context = format_idea_pool_prompt_view(prepared.get("idea_pool") or [])
+    mcts.latest_candidate_context = format_latest_candidate_prompt_view(
+        prepared.get("latest_candidate")
+    )
     mcts.paper_context = prepared.get("paper_context") or "No curated papers available yet."
     mcts.mature_idea = (prepared.get("mature_idea") or "").strip()
     mcts._mature_idea_components = list(prepared.get("components") or [])

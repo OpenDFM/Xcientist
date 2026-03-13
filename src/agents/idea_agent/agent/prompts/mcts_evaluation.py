@@ -7,8 +7,8 @@ Mature idea (optional alignment anchor):
 Latest analysis + critiques:
 {analysis}
 
-Current run idea pool snapshot:
-{idea_pool_context}
+Current run latest candidate snapshot:
+{latest_candidate_context}
 
 Relevant literature evidence from the current paper cache:
 {paper_context}
