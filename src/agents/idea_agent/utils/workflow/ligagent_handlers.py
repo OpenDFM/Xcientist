@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
+from src.agents.idea_agent.agent.artifacts import artifact_get
 from src.agents.idea_agent.agent.prompts import PROMPTS
 from src.agents.idea_agent.utils.core.config_loader import get_config_value
 from src.agents.idea_agent.utils.core.logger import (
@@ -119,13 +120,17 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     session = _session(agent, ctx)
     runtime = _runtime(agent, ctx)
 
-    topic = artifact["topic"][-1] if artifact["topic"] else "unspecified topic"
-    references = artifact["references"][-1] if artifact["references"] else []
-    mature_idea = artifact.get("mature_idea", "")
+    topic_history = artifact_get(artifact, "topic", [])
+    topic = topic_history[-1] if topic_history else "unspecified topic"
+    reference_batches = artifact_get(artifact, "references", [])
+    references = reference_batches[-1] if reference_batches else []
+    mature_idea = artifact_get(artifact, "mature_idea", "")
+    rag_contents = artifact_get(artifact, "rag_contents", [])
+    latest_rag_contents = rag_contents[-1] if rag_contents else []
     prompt = PROMPTS["advanced_analysis"].format(
         topic=topic,
         mature_idea=(mature_idea or "").strip(),
-        survey_contents="\n".join(artifact["rag_contents"][-1]) if artifact.get("rag_contents") else "",
+        survey_contents="\n".join(latest_rag_contents) if isinstance(latest_rag_contents, list) else "",
         papers=format_paper_capsules_prompt_view(references),
     )
     response = normalize_analysis_entry(
@@ -146,7 +151,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     else:
         logger.info("📝 Advanced Analysis Result:\n%s", response)
 
-    existing_background = set(artifact.get("background_knowledge", []))
+    existing_background = set(artifact_get(artifact, "background_knowledge", []))
     background_lines = [
         line
         for line in collect_analysis_background_lines(response)
@@ -178,22 +183,23 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     logger = _logger(agent, ctx)
     session = _session(agent, ctx)
 
-    topic = artifact["topic"][-1]
-    reference_batches = artifact.get("references", [])
+    topic_history = artifact_get(artifact, "topic", [])
+    topic = topic_history[-1]
+    reference_batches = artifact_get(artifact, "references", [])
     latest_batch = reference_batches[-1] if reference_batches else []
     batch_list = [latest_batch] if latest_batch else reference_batches
     paper_entries = collect_paper_context_entries(artifact, batch_list)
     idea_history = [
         normalize_idea_contract(entry, allow_legacy=True, keep_extra=True)
-        for entry in artifact.get("idea_pool", [])
+        for entry in artifact_get(artifact, "idea_pool", [])
     ]
     seed_ideas = latest_analysis_seed_ideas(artifact)
     idea_context = idea_history if idea_history else seed_ideas
-    mature_idea = artifact.get("mature_idea", "")
+    mature_idea = artifact_get(artifact, "mature_idea", "")
     context = {
-        "analysis": artifact.get("analysis", []),
+        "analysis": artifact_get(artifact, "analysis", []),
         "idea_pool": idea_context,
-        "background_knowledge": artifact.get("background_knowledge", []),
+        "background_knowledge": artifact_get(artifact, "background_knowledge", []),
         "paper_context": paper_context_with_rag(paper_entries, artifact),
     }
     if isinstance(mature_idea, str) and mature_idea.strip():
@@ -357,10 +363,11 @@ def execute_reanalysis_replan_stage(agent: Any, ctx: StageContext) -> StageResul
     session = _session(agent, ctx)
     runtime = _runtime(agent, ctx)
 
-    analysis = artifact["analysis"][-1] if artifact["analysis"] else {}
-    ablation_results = artifact.get("ablation_results", [])
-    mature_idea = artifact.get("mature_idea", "")
-    topic = artifact["topic"][-1]
+    analysis_entries = artifact_get(artifact, "analysis", [])
+    analysis = analysis_entries[-1] if analysis_entries else {}
+    ablation_results = artifact_get(artifact, "ablation_results", [])
+    mature_idea = artifact_get(artifact, "mature_idea", "")
+    topic = artifact_get(artifact, "topic", [])[-1]
 
     prompt = PROMPTS["re_analysis_replan"].format(
         topic=topic,
@@ -416,9 +423,11 @@ def execute_reanalysis_replan_stage(agent: Any, ctx: StageContext) -> StageResul
 
 def ka_route_stage(agent: Any, ctx: StageContext) -> StageResult:
     artifact = agent.artifact
-    search_keywords = artifact["retrieval_keywords"][-1]
-    topic = artifact["topic"][-1] if artifact.get("topic") else search_keywords
-    mature_idea = (artifact.get("mature_idea", "") or "").strip()
+    retrieval_keywords = artifact_get(artifact, "retrieval_keywords", [])
+    search_keywords = retrieval_keywords[-1]
+    topic_history = artifact_get(artifact, "topic", [])
+    topic = topic_history[-1] if topic_history else search_keywords
+    mature_idea = (artifact_get(artifact, "mature_idea", "") or "").strip()
     mode = "mature_idea" if mature_idea else "standard"
     return StageResult(
         state_patch={
@@ -619,7 +628,9 @@ def ka_enrichment_stage(agent: Any, ctx: StageContext) -> StageResult:
         )
 
     temp_artifact = {
-        "paper_contents": deepcopy(agent.artifact.get("paper_contents", {}))
+        "retrieval": {
+            "paper_contents": deepcopy(artifact_get(agent.artifact, "paper_contents", {}))
+        }
     }
     safely_enrich_papers_with_content(
         papers,
@@ -630,7 +641,7 @@ def ka_enrichment_stage(agent: Any, ctx: StageContext) -> StageResult:
     )
     return StageResult(
         artifact_patch=ArtifactPatch(
-            merge={"paper_contents": temp_artifact["paper_contents"]}
+            merge={"paper_contents": temp_artifact["retrieval"]["paper_contents"]}
         ),
         metrics={"combined_papers": len(papers)},
     )
@@ -648,7 +659,9 @@ def ka_paper_triage_stage(agent: Any, ctx: StageContext) -> StageResult:
     initial_papers = ctx.state.get("initial_papers", [])
 
     temp_artifact = {
-        "paper_contents": deepcopy(agent.artifact.get("paper_contents", {}))
+        "retrieval": {
+            "paper_contents": deepcopy(artifact_get(agent.artifact, "paper_contents", {}))
+        }
     }
     curated_papers = filter_and_compress_papers(
         topic=topic,
@@ -686,7 +699,7 @@ def ka_paper_triage_stage(agent: Any, ctx: StageContext) -> StageResult:
     return StageResult(
         artifact_patch=ArtifactPatch(
             append={"references": [curated_papers]},
-            merge={"paper_contents": temp_artifact["paper_contents"]},
+            merge={"paper_contents": temp_artifact["retrieval"]["paper_contents"]},
         ),
         state_patch={
             "curated_papers": curated_papers,

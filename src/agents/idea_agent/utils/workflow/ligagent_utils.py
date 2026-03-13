@@ -6,6 +6,12 @@ import json
 from time import perf_counter
 from typing import Any, Dict, List, Optional
 
+from src.agents.idea_agent.agent.artifacts import (
+    artifact_get,
+    artifact_namespace,
+    ensure_artifact_structure,
+)
+
 
 def enrich_papers_with_content(
     papers: List[Dict[str, Any]],
@@ -24,7 +30,7 @@ def enrich_papers_with_content(
         logger.warning("Failed to prepare parsed papers: %s", exc)
         return
 
-    storage = artifact.setdefault("paper_contents", {})
+    storage = artifact_get(artifact, "paper_contents", {})
     for paper in papers:
         pid = paper.get("paper_id")
         if not pid:
@@ -66,7 +72,7 @@ def collect_paper_context_entries(
     compressed), no truncation limit is needed — every stored paper is
     included in the returned list.
     """
-    storage = artifact.get("paper_contents", {})
+    storage = artifact_get(artifact, "paper_contents", {})
     if not storage:
         return []
 
@@ -308,17 +314,15 @@ class LigSession:
     """Lightweight per-run state wrapper for LigAgent."""
 
     def __init__(self, artifact: Dict[str, Any]) -> None:
-        self.artifact = artifact
-        self.artifact.setdefault("context_slots", {})
-        self.artifact.setdefault("operation_trace", [])
+        self.artifact = ensure_artifact_structure(artifact)
 
     def set_slot(self, name: str, value: Any) -> None:
-        self.artifact["context_slots"][name] = value
+        artifact_namespace(self.artifact, "run")["context_slots"][name] = value
 
     def get_slot(self, name: str, default: Any = None) -> Any:
-        return self.artifact["context_slots"].get(name, default)
+        return artifact_namespace(self.artifact, "run")["context_slots"].get(name, default)
 
     def record_event(self, event_type: str, **payload: Any) -> None:
         event = {"event": event_type}
         event.update(payload)
-        self.artifact["operation_trace"].append(event)
+        artifact_namespace(self.artifact, "run")["operation_trace"].append(event)

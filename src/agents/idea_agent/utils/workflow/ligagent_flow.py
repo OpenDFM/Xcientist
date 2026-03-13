@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from src.agents.idea_agent.agent.artifacts import artifact_get, artifact_set
 from src.agents.idea_agent.agent.prompts import PROMPTS
 from src.agents.idea_agent.utils.workflow.idea_helpers import (
     build_fusion_evolution,
@@ -37,7 +38,7 @@ def build_action_workflow(agent, action: str) -> WorkflowSpec:
 
 
 def build_main_workflow(agent, logger) -> WorkflowSpec:
-    rag_hits = agent.artifact.get("rag_hits", [])
+    rag_hits = artifact_get(agent.artifact, "rag_hits", [])
     has_rag = bool(rag_hits and any(rag_hits))
 
     if has_rag:
@@ -85,24 +86,28 @@ def _build_stage_specs(agent) -> Dict[str, StageSpec]:
             handler=agent._execute_knowledge_acquisition_stage,
             description="Semantic Scholar seed -> RAG query -> OutcomeRAG -> citation expansion -> triage",
             record_step=True,
+            allowed_artifact_namespaces={"retrieval"},
         ),
         "advanced_analysis": StageSpec(
             name="advanced_analysis",
             handler=agent._execute_advanced_analysis_stage,
             description="Summarize curated literature and derive analysis seeds",
             record_step=True,
+            allowed_artifact_namespaces={"analysis"},
         ),
         "idea_generation": StageSpec(
             name="idea_generation",
             handler=agent._execute_idea_generation_stage,
             description="Prepare context, run memory-guided MCTS, materialize and persist best idea",
             record_step=True,
+            allowed_artifact_namespaces={"ideation", "persistence"},
         ),
         "re_analysis_replan": StageSpec(
             name="re_analysis_replan",
             handler=agent._execute_reanalysis_replan_stage,
             description="Revise mature idea and retrieval keywords using analysis/ablation evidence",
             record_step=True,
+            allowed_artifact_namespaces={"run", "retrieval", "analysis"},
         ),
     }
 
@@ -128,8 +133,9 @@ def persist_final_idea(
     persist_to_artifact: bool = True,
 ) -> Dict[str, Any]:
     prompts = prompts or PROMPTS
-    topic = artifact["topic"][-1] if artifact.get("topic") else "unspecified topic"
-    raw_refs = collect_reference_material(artifact.get("references", []))
+    topic_history = artifact_get(artifact, "topic", [])
+    topic = topic_history[-1] if topic_history else "unspecified topic"
+    raw_refs = collect_reference_material(artifact_get(artifact, "references", []))
     algorithm = build_algorithm_spec(
         best_entry,
         topic,
@@ -151,7 +157,7 @@ def persist_final_idea(
         logger,
     )
     entries = paper_entries or collect_paper_context_entries(
-        artifact, artifact.get("references", [])
+        artifact, artifact_get(artifact, "references", [])
     )
     introduction = generate_idea_introduction(
         chat_fn=chat_fn,
@@ -203,7 +209,7 @@ def persist_final_idea(
         payload["idea_contract"] = best_entry.get("idea_contract")
     best_entry["introduction"] = introduction
     if persist_to_artifact:
-        artifact["idea_result"] = payload
+        artifact_set(artifact, "idea_result", payload)
     try:
         idea_result_path.parent.mkdir(parents=True, exist_ok=True)
         with open(idea_result_path, "w", encoding="utf-8") as f:

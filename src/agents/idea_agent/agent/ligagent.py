@@ -11,7 +11,12 @@ from copy import deepcopy
 from dataclasses import fields
 
 from src.agents.idea_agent.agent.tools import TOOLS
-from src.agents.idea_agent.agent.artifacts import artifact_init
+from src.agents.idea_agent.agent.artifacts import (
+    artifact_append,
+    artifact_get,
+    artifact_init,
+    artifact_set,
+)
 from src.agents.idea_agent.agent.prompts import PROMPTS
 from src.agents.idea_agent.agent.mcts import (
     MemoryGuidedMCTS,
@@ -135,7 +140,7 @@ class LigAgent(AgentBase):
         # Initialize mature_idea in artifact from config (user-provided) if available
         initial_mature_idea = get_config_value(config, "run.mature_idea", "")
         if isinstance(initial_mature_idea, str) and initial_mature_idea.strip():
-            self.artifact["mature_idea"] = initial_mature_idea.strip()
+            artifact_set(self.artifact, "mature_idea", initial_mature_idea.strip())
 
         mcts_config = MCTSConfig()
         for field in fields(MCTSConfig):
@@ -154,8 +159,8 @@ class LigAgent(AgentBase):
             setattr(mcts_config, "enable_vector_memory", False)
         idea_taste_preset = apply_idea_taste_preset(mcts_config)
         if idea_taste_preset:
-            self.artifact["idea_taste_mode"] = idea_taste_preset.mode
-            self.artifact["idea_taste_label"] = idea_taste_preset.label
+            artifact_set(self.artifact, "idea_taste_mode", idea_taste_preset.mode)
+            artifact_set(self.artifact, "idea_taste_label", idea_taste_preset.label)
             logger.info(
                 "[LigAgent] Applied idea taste preset %s (%s).",
                 idea_taste_preset.mode,
@@ -244,10 +249,10 @@ class LigAgent(AgentBase):
             if isinstance(retrieval_keywords, str)
             else normalized_topic
         )
-        if not self.artifact.get("run_topic"):
-            self.artifact["run_topic"] = normalized_topic
-        self.artifact["topic"].append(normalized_topic)
-        self.artifact["retrieval_keywords"].append(keywords)
+        if not artifact_get(self.artifact, "run_topic", ""):
+            artifact_set(self.artifact, "run_topic", normalized_topic)
+        artifact_append(self.artifact, "topic", [normalized_topic])
+        artifact_append(self.artifact, "retrieval_keywords", [keywords])
         background = generate_background_brief(
             normalized_topic,
             PROMPTS,
@@ -256,7 +261,7 @@ class LigAgent(AgentBase):
             logger,
         )
         if background:
-            self.artifact["background_knowledge"].append(background)
+            artifact_append(self.artifact, "background_knowledge", [background])
 
     def knowledge_aquisition(self) -> str:
         return self._run_action_workflow("knowledge_aquisition")
@@ -347,12 +352,12 @@ class LigAgent(AgentBase):
 
     def _run_action_workflow(self, action: str, **kwargs) -> str:
         spec = build_action_workflow(self, action)
-        before_steps = len(self.artifact.get("steps", []))
+        before_steps = len(artifact_get(self.artifact, "steps", []))
         self.workflow_executor.run(
             spec,
             make_stage_context(self, workflow_name=spec.name, **kwargs),
         )
-        new_steps = self.artifact.get("steps", [])[before_steps:]
+        new_steps = artifact_get(self.artifact, "steps", [])[before_steps:]
         if new_steps:
             logger.info(new_steps[-1])
             return new_steps[-1]
@@ -375,35 +380,45 @@ class LigAgent(AgentBase):
             name="ligagent.knowledge_acquisition",
             entry_stage="ka_route",
             stages={
-                "ka_route": StageSpec(name="ka_route", handler=self._ka_route_stage),
+                "ka_route": StageSpec(
+                    name="ka_route",
+                    handler=self._ka_route_stage,
+                ),
                 "ka_seed_search": StageSpec(
                     name="ka_seed_search",
                     handler=self._ka_seed_search_stage,
                     fallback_stage="ka_seed_search_fallback",
+                    allowed_artifact_namespaces={"retrieval"},
                 ),
                 "ka_seed_search_fallback": StageSpec(
                     name="ka_seed_search_fallback",
                     handler=self._ka_seed_search_fallback_stage,
+                    allowed_artifact_namespaces={"retrieval"},
                 ),
                 "ka_query_generation": StageSpec(
                     name="ka_query_generation",
                     handler=self._ka_query_generation_stage,
+                    allowed_artifact_namespaces={"retrieval"},
                 ),
                 "ka_outcome_rag": StageSpec(
                     name="ka_outcome_rag",
                     handler=self._ka_outcome_rag_stage,
+                    allowed_artifact_namespaces={"retrieval"},
                 ),
                 "ka_citation_expansion": StageSpec(
                     name="ka_citation_expansion",
                     handler=self._ka_citation_expansion_stage,
+                    allowed_artifact_namespaces={"retrieval"},
                 ),
                 "ka_enrichment": StageSpec(
                     name="ka_enrichment",
                     handler=self._ka_enrichment_stage,
+                    allowed_artifact_namespaces={"retrieval"},
                 ),
                 "ka_paper_triage": StageSpec(
                     name="ka_paper_triage",
                     handler=self._ka_paper_triage_stage,
+                    allowed_artifact_namespaces={"retrieval"},
                 ),
             },
             transitions={
@@ -445,9 +460,10 @@ class LigAgent(AgentBase):
     ) -> str:
         entries = paper_entries or collect_paper_context_entries(
             self.artifact,
-            self.artifact.get("references", []),
+            artifact_get(self.artifact, "references", []),
         )
-        topic = self.artifact["topic"][-1] if self.artifact["topic"] else "unspecified topic"
+        topic_history = artifact_get(self.artifact, "topic", [])
+        topic = topic_history[-1] if topic_history else "unspecified topic"
         return generate_idea_introduction(
             chat_fn=self.chat,
             prompt_template=PROMPTS["idea_introduction"],
@@ -477,7 +493,7 @@ class LigAgent(AgentBase):
         implementation:
 
         1. **Experiment-agent ablation results** – stored under
-           ``self.artifact["ablation_results"]``.  Each entry is a dict::
+           ``self.artifact["ideation"]["ablation_results"]``.  Each entry is a dict::
 
                {
                    "component": "uncertainty_weighted_loss",
@@ -489,7 +505,7 @@ class LigAgent(AgentBase):
                }
 
         2. **Paper-graph conclusions** – stored under
-           ``self.artifact["paper_graph_priors"]``.  They are not injected
+           ``self.artifact["ideation"]["paper_graph_priors"]``.  They are not injected
            into symbolic memory by the default implementation.
 
         Override or extend this method to plug in additional signal sources.
@@ -499,7 +515,7 @@ class LigAgent(AgentBase):
         sym = self.mcts.symbolic_memory
         injected = 0
 
-        entries = self.artifact.get("ablation_results", [])
+        entries = artifact_get(self.artifact, "ablation_results", [])
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
@@ -582,14 +598,13 @@ class LigAgent(AgentBase):
                 logger.warning(
                     "[LigAgent] ingest_ablation_results: skipping entry missing required fields "
                     "(component/op/delta_score): %r",
-                    entry,
+            entry,
                 )
                 continue
             valid.append(dict(entry))
-        existing: List[Dict[str, Any]] = self.artifact.get("ablation_results", [])
-        self.artifact["ablation_results"] = existing + valid
+        artifact_append(self.artifact, "ablation_results", valid)
         logger.info(
             "[LigAgent] ingest_ablation_results: added %d record(s), total=%d",
             len(valid),
-            len(self.artifact["ablation_results"]),
+            len(artifact_get(self.artifact, "ablation_results", [])),
         )

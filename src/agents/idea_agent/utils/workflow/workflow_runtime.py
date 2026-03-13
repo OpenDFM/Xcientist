@@ -5,8 +5,15 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass, field
 from time import perf_counter
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Set
 
+from src.agents.idea_agent.agent.artifacts import (
+    artifact_append,
+    artifact_merge,
+    artifact_namespace_for,
+    artifact_set,
+    ensure_artifact_structure,
+)
 from src.agents.idea_agent.utils.workflow.stage_contract import (
     ArtifactPatch,
     StageContext,
@@ -33,6 +40,7 @@ class StageSpec:
     record_step: bool = False
     retry_limit: int = 0
     fallback_stage: Optional[str] = None
+    allowed_artifact_namespaces: Optional[Set[str]] = None
 
 
 @dataclass
@@ -83,8 +91,7 @@ class WorkflowExecutor:
         trace: List[Dict[str, Any]] = []
         state: Dict[str, Any] = deepcopy(initial_state or {})
         artifact = context.artifact
-        artifact.setdefault(self.trace_key, [])
-        artifact.setdefault("workflow_state", {})
+        ensure_artifact_structure(artifact)
 
         current_stage = spec.entry_stage
         terminal_stage: Optional[str] = None
@@ -106,18 +113,22 @@ class WorkflowExecutor:
             attempt = 1
             while True:
                 stage_ctx = context.for_stage(current_stage, state=state, attempt=attempt)
-                artifact["workflow_state"] = {
+                artifact_set(artifact, "workflow_state", {
                     "workflow": spec.name,
                     "stage": current_stage,
                     "status": "running",
                     "attempt": attempt,
-                }
+                })
                 started_at = perf_counter()
                 result = stage_spec.handler(stage_ctx)
                 duration_ms = round((perf_counter() - started_at) * 1000.0, 2)
 
                 self._apply_state_patch(state, result.state_patch)
-                self._apply_artifact_patch(artifact, result.artifact_patch)
+                self._apply_artifact_patch(
+                    artifact,
+                    result.artifact_patch,
+                    allowed_namespaces=stage_spec.allowed_artifact_namespaces,
+                )
 
                 next_stage = self._resolve_next_stage(
                     spec=spec,
@@ -130,7 +141,7 @@ class WorkflowExecutor:
                 )
 
                 if stage_spec.record_step and result.step_summary:
-                    artifact.setdefault("steps", []).append(result.step_summary)
+                    artifact_append(artifact, "steps", [result.step_summary])
 
                 trace_entry = {
                     "workflow": spec.name,
@@ -153,7 +164,7 @@ class WorkflowExecutor:
                 if result.step_summary:
                     trace_entry["step_summary"] = result.step_summary
                 trace.append(trace_entry)
-                artifact[self.trace_key].append(trace_entry)
+                artifact_append(artifact, self.trace_key, [trace_entry])
 
                 if result.status == "retryable_failure" and attempt <= stage_spec.retry_limit:
                     attempt += 1
@@ -169,13 +180,13 @@ class WorkflowExecutor:
                     and attempt > stage_spec.retry_limit
                 ):
                     terminal_stage = current_stage
-                    artifact["workflow_state"] = {
+                    artifact_set(artifact, "workflow_state", {
                         "workflow": spec.name,
                         "stage": current_stage,
                         "status": "failed",
                         "attempt": attempt,
                         "error": result.error,
-                    }
+                    })
                     failure_result = WorkflowRunResult(
                         workflow_name=spec.name,
                         status="terminal_failure",
@@ -194,11 +205,11 @@ class WorkflowExecutor:
                 current_stage = next_stage
                 break
 
-        artifact["workflow_state"] = {
+        artifact_set(artifact, "workflow_state", {
             "workflow": spec.name,
             "stage": terminal_stage,
             "status": overall_status,
-        }
+        })
         return WorkflowRunResult(
             workflow_name=spec.name,
             status=overall_status,
@@ -232,21 +243,36 @@ class WorkflowExecutor:
             return
         _deep_merge_dict(state, patch)
 
-    def _apply_artifact_patch(self, artifact: Dict[str, Any], patch: ArtifactPatch) -> None:
+    def _apply_artifact_patch(
+        self,
+        artifact: Dict[str, Any],
+        patch: ArtifactPatch,
+        *,
+        allowed_namespaces: Optional[Set[str]] = None,
+    ) -> None:
         if patch.is_empty():
             return
 
         for key, value in patch.replace.items():
-            artifact[key] = deepcopy(value)
+            self._validate_artifact_key(key, allowed_namespaces)
+            artifact_set(artifact, key, deepcopy(value))
 
         for key, items in patch.append.items():
-            target = artifact.setdefault(key, [])
-            if not isinstance(target, list):
-                raise TypeError(f"Artifact key '{key}' is not a list and cannot be appended to.")
-            target.extend(deepcopy(items))
+            self._validate_artifact_key(key, allowed_namespaces)
+            artifact_append(artifact, key, deepcopy(items))
 
         for key, value in patch.merge.items():
-            target = artifact.setdefault(key, {})
-            if not isinstance(target, dict):
-                raise TypeError(f"Artifact key '{key}' is not a dict and cannot be merged into.")
-            _deep_merge_dict(target, value)
+            self._validate_artifact_key(key, allowed_namespaces)
+            artifact_merge(artifact, key, deepcopy(value))
+
+    def _validate_artifact_key(
+        self,
+        key: str,
+        allowed_namespaces: Optional[Set[str]],
+    ) -> None:
+        namespace = artifact_namespace_for(key)
+        if allowed_namespaces is not None and namespace not in allowed_namespaces:
+            raise ValueError(
+                f"Artifact field '{key}' belongs to namespace '{namespace}', "
+                f"which is not allowed for this stage."
+            )

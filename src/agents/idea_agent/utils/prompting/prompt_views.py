@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence
 
+from src.agents.idea_agent.agent.artifacts import artifact_get
 from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
 
 
@@ -367,7 +368,7 @@ def format_paper_context_prompt_view(
         paper_lines.append(f"  Summary: {_clip_text(entry.get('summary')) or 'No summary available.'}")
 
     rag_lines: List[str] = []
-    rag_entries = artifact.get("rag_hits", [])
+    rag_entries = artifact_get(artifact, "rag_hits", [])
     latest_rag = rag_entries[-1] if isinstance(rag_entries, list) and rag_entries else rag_entries
     hits = []
     if isinstance(latest_rag, Mapping):
@@ -384,7 +385,7 @@ def format_paper_context_prompt_view(
         rag_lines.append(f"  Citations: {citations}")
 
     survey_lines: List[str] = []
-    rag_contents = artifact.get("rag_contents", [])
+    rag_contents = artifact_get(artifact, "rag_contents", [])
     latest_sections = rag_contents[-1] if isinstance(rag_contents, list) and rag_contents else rag_contents
     if isinstance(latest_sections, str):
         latest_sections = [latest_sections]

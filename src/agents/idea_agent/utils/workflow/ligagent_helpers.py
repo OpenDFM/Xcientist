@@ -8,6 +8,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Any, Dict, List, Optional, Set
 
+from src.agents.idea_agent.agent.artifacts import artifact_get
 from src.agents.idea_agent.utils.workflow.idea_helpers import fallback_algorithm_spec
 from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
 from src.agents.idea_agent.utils.workflow.ligagent_utils import (
@@ -186,7 +187,7 @@ def filter_and_compress_papers(
         logger.warning("⚠️ paper_filtering prompt missing; skipping LLM triage.")
         return papers
 
-    storage = artifact.setdefault("paper_contents", {})
+    storage = artifact_get(artifact, "paper_contents", {})
     candidates: List[Dict[str, Any]] = []
     paper_map: Dict[str, Dict[str, Any]] = {}
     for idx, paper in enumerate(papers, 1):
@@ -410,7 +411,7 @@ def fallback_paper_summaries(
     artifact: Dict[str, Any],
     reason: str,
 ) -> None:
-    storage = artifact.setdefault("paper_contents", {})
+    storage = artifact_get(artifact, "paper_contents", {})
     for paper in papers:
         if not isinstance(paper, dict):
             continue
@@ -472,7 +473,7 @@ def safely_enrich_papers_with_content(
 
 
 def format_rag_context(artifact: Dict[str, Any], max_hits: int = 5, max_chars: int = 320) -> str:
-    rag_entries = artifact.get("rag_hits", [])
+    rag_entries = artifact_get(artifact, "rag_hits", [])
     latest = rag_entries[-1] if rag_entries else None
     hits = []
     if isinstance(latest, dict):
@@ -497,7 +498,7 @@ def format_survey_context(
     max_items: int = 5,
     max_chars: int = 360,
 ) -> str:
-    contents = artifact.get("rag_contents", [])
+    contents = artifact_get(artifact, "rag_contents", [])
     latest = contents[-1] if contents else None
     if isinstance(latest, list):
         items = latest
@@ -530,7 +531,7 @@ def get_paper_content(
 ) -> Dict[str, Any]:
     if not paper_id:
         return {}
-    stored = artifact.setdefault("paper_contents", {}).get(paper_id, {}).copy()
+    stored = artifact_get(artifact, "paper_contents", {}).get(paper_id, {}).copy()
     stored["paper_id"] = paper_id
     if include_markdown:
         try:
@@ -572,7 +573,7 @@ def ingest_analysis_background(analysis_entry: Dict[str, Any], artifact: Dict[st
     for line in collect_analysis_background_lines(analysis_entry):
         if not line:
             continue
-        background_store = artifact.setdefault("background_knowledge", [])
+        background_store = artifact_get(artifact, "background_knowledge", [])
         if line not in background_store:
             background_store.append(line)
 
@@ -605,9 +606,10 @@ def collect_analysis_background_lines(analysis_entry: Dict[str, Any]) -> List[st
 
 
 def latest_analysis_seed_ideas(artifact: Dict[str, Any]) -> List[Dict[str, Any]]:
-    if not artifact.get("analysis"):
+    analysis_entries = artifact_get(artifact, "analysis", [])
+    if not analysis_entries:
         return []
-    latest = artifact["analysis"][-1]
+    latest = analysis_entries[-1]
     if not isinstance(latest, dict):
         return []
     seeds = latest.get("divergent_idea_seeds") or latest.get("moonshot_hypotheses") or []
@@ -679,12 +681,12 @@ def build_algorithm_spec(
         for key, value in idea.items()
         if key not in {"search_path", "search_trace", "pareto_candidates", "evaluation"}
     }
-    analysis_entries = artifact.get("analysis", [])
+    analysis_entries = artifact_get(artifact, "analysis", [])
     latest_analysis = analysis_entries[-1] if analysis_entries else {}
     base_inputs: List[str] = []
     if topic and topic != "unspecified topic":
         base_inputs.append(f"Topic focus: {topic}")
-    retrieval_history = artifact.get("retrieval_keywords", [])
+    retrieval_history = artifact_get(artifact, "retrieval_keywords", [])
     if retrieval_history:
         base_inputs.append(f"Latest retrieval keywords: {retrieval_history[-1]}")
     if isinstance(latest_analysis, dict):
