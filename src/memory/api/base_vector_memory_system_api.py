@@ -1,18 +1,23 @@
 from abc import ABC, abstractmethod
-from pydantic import BaseModel, Field
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from memory.memory_system import (
-    FaissVectorStore,
-    SemanticRecord,
     EpisodicRecord,
     ProceduralRecord,
+    SemanticRecord,
 )
 
 
 class VectorMemorySystemConfig(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
     memory_type: Literal["semantic", "episodic", "procedural", "working"] = "semantic"
-    model_path: str = Field(".cache/all-MiniLM-L6-v2", description="Path to the model used for vector embeddings.")
+    model_path: str = Field(
+        ".cache/all-MiniLM-L6-v2",
+        description="Path to the model used for vector embeddings.",
+    )
     llm_name: str = Field("gpt-4o-mini", description="Name of the LLM model to be used.")
     llm_backend: Literal["openai", "vllm"] = "openai"
     eps: Optional[float] = Field(0.6, description="Mu parameter for Denstream.")
@@ -47,25 +52,32 @@ class BaseVectorMemorySystem(ABC):
     @abstractmethod
     def instantiate_sem_record(self, **kwargs) -> SemanticRecord:
         ...
-    
+
     @abstractmethod
     def instantiate_epi_record(self, **kwargs) -> EpisodicRecord:
         ...
-    
+
     @abstractmethod
     def instantiate_proc_record(self, **kwargs) -> ProceduralRecord:
         ...
-    
+
+    @property
     @abstractmethod
     def size(self) -> int:
         ...
-    
+
     @abstractmethod
-    def get_records_by_ids(self, mids: List[str]) -> Union[List[SemanticRecord], List[EpisodicRecord], List[ProceduralRecord]]:
+    def get_records_by_ids(
+        self,
+        mids: List[str],
+    ) -> Union[List[SemanticRecord], List[EpisodicRecord], List[ProceduralRecord]]:
         ...
-    
+
     @abstractmethod
-    def get_last_k_records(self, k: int) -> Tuple[List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]], int]:
+    def get_last_k_records(
+        self,
+        k: int,
+    ) -> Tuple[List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]], int]:
         ...
 
     @abstractmethod
@@ -75,19 +87,25 @@ class BaseVectorMemorySystem(ABC):
     @abstractmethod
     def add(self, memories: List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]) -> bool:
         ...
-    
+
     @abstractmethod
     def update(self, memories: List[Union[SemanticRecord, ProceduralRecord]]) -> bool:
         ...
-    
+
     @abstractmethod
     def delete(self, mids: List[str]) -> bool:
         ...
-    
+
     @abstractmethod
-    def query(self, query_text: str, method: str = "embedding", limit: int = 5, filters: Optional[Dict] = None) -> List[Tuple[float, List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]]:
+    def query(
+        self,
+        query_text: str,
+        method: str = "embedding",
+        limit: int = 5,
+        filters: Optional[Dict] = None,
+    ) -> List[Tuple[float, List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]]:
         ...
-    
+
     @abstractmethod
     def save(self, path: str) -> None:
         ...

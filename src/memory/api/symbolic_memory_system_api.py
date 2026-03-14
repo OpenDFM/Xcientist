@@ -31,7 +31,7 @@ from memory.api.base_symbolic_memory_system_api import (
     SymbolicRecord,
     SymbolicRecordPayload,
 )
-from memory.api.component_taxonomy import parse_component_family
+from memory.memory_system.component_taxonomy import parse_component_family
 from memory.memory_system.utils import (
     _evidence_strength,
     _normalize_component_key,

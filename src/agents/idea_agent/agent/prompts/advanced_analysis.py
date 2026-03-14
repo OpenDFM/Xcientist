@@ -1,5 +1,5 @@
 ADVANCED_ANALYSIS_PROMPT_SURVEY_LED_WITH_PAPERS = """
-You are the lead author preparing an ICML-caliber paper on the topic "{topic}".
+You are the lead author preparing an top-tier paper on the topic "{topic}".
 
 Mature idea (optional; if empty, ignore):
 {mature_idea}

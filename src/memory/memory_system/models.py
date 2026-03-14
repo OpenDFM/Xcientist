@@ -116,9 +116,9 @@ class ProceduralRecord(object):
         self.id = id
         self.name = name
         self.description = description
-        self.steps = steps
+        self.steps = list(steps or [])
         self.code = code
-        self.tags = tags
+        self.tags = list(tags or [])
         self.created_at = created_at
         self.updated_at = updated_at
     

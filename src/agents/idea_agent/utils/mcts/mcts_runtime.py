@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from src.agents.idea_agent.utils.mcts.defect_registry import DEFECT_REGISTRY
 from src.agents.idea_agent.utils.mcts.idea_taste_presets import IdeaTastePreset
-from memory.api.component_taxonomy import extract_component_families
+from memory.memory_system.component_taxonomy import extract_component_families
 from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _format_root_domains_for_prompt,
     _clean_component_explanation,

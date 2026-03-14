@@ -1,3 +1,15 @@
+from .component_taxonomy import (
+    MACRO_ROLE_NAMES,
+    MACRO_ROLES,
+    MAIN_OP_NAMES,
+    MAIN_OP_TYPES,
+    atomic_op_to_main_op,
+    build_component_family,
+    canonicalize_sub_type,
+    extract_component_families,
+    infer_macro_role,
+    parse_component_family,
+)
 try:
     from .vectorstore import FaissVectorStore
 except ModuleNotFoundError:  # pragma: no cover - optional vector-memory dependency
@@ -16,6 +28,16 @@ __all__ = [
     "SemanticRecord",
     "EpisodicRecord",
     "ProceduralRecord",
+    "MACRO_ROLES",
+    "MACRO_ROLE_NAMES",
+    "MAIN_OP_TYPES",
+    "MAIN_OP_NAMES",
+    "infer_macro_role",
+    "canonicalize_sub_type",
+    "build_component_family",
+    "parse_component_family",
+    "extract_component_families",
+    "atomic_op_to_main_op",
     "WorkingSlot",
     "OpenAIClient",
     "LLMClient",

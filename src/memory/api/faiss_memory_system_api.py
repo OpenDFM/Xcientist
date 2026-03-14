@@ -1,26 +1,34 @@
 import os
-import shutil
 import sys
+from typing import Dict, List, Optional, Tuple, Union
 
-from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union
-from memory.memory_system import (
-    FaissVectorStore,
-    SemanticRecord,
-    EpisodicRecord,
-    ProceduralRecord,
-    OpenAIClient,
+from memory.api.base_vector_memory_system_api import (
+    BaseVectorMemorySystem,
+    EpisodicRecordPayload,
+    ProceduralRecordPayload,
+    SemanticRecordPayload,
+    VectorMemorySystemConfig,
 )
-from memory.memory_system.user_prompt import ABSTRACT_EPISODIC_TO_SEMANTIC_PROMPT
-from memory.memory_system.utils import now_iso, new_id, _transfer_dict_to_semantic_text, _parse_json_response
-from memory.memory_system.denstream import DenStream
-from memory.api.base_vector_memory_system_api import BaseVectorMemorySystem, VectorMemorySystemConfig, SemanticRecordPayload, EpisodicRecordPayload, ProceduralRecordPayload
-from collections import defaultdict
+from memory.memory_system import (
+    EpisodicRecord,
+    FaissVectorStore,
+    ProceduralRecord,
+    SemanticRecord,
+)
+from memory.memory_system.utils import _transfer_dict_to_semantic_text, new_id, now_iso
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 
 class FAISSMemorySystem(BaseVectorMemorySystem):
     def __init__(self, embedding_model=None, **kwargs):
         cfg = VectorMemorySystemConfig(**kwargs)
+
+        if FaissVectorStore is None:
+            raise ModuleNotFoundError(
+                "Vector-memory dependencies are missing. Install `faiss`, "
+                "`sentence_transformers`, and `rank_bm25` to enable the FAISS backend."
+            )
 
         self.memory_type = cfg.memory_type
         self.vector_store = FaissVectorStore(
@@ -28,13 +36,6 @@ class FAISSMemorySystem(BaseVectorMemorySystem):
             self.memory_type,
             model=embedding_model,
         )
-        self.llm = OpenAIClient(model=cfg.llm_name, backend=cfg.llm_backend)
-
-        if self.memory_type == "semantic":
-            self.global_cidmap2semrec: Dict[int, SemanticRecord] = {} # {cluster_id: SemanticRecord}, Only updated when abstracted semantic records are processed
-
-        if self.memory_type == "episodic":
-            self.cluster_machine = DenStream(eps=cfg.eps, beta=cfg.beta, mu=cfg.mu)
 
     def instantiate_sem_record(self, **kwargs) -> SemanticRecord:
         payload = SemanticRecordPayload(**kwargs)
@@ -47,7 +48,7 @@ class FAISSMemorySystem(BaseVectorMemorySystem):
             updated_at=now_iso(),
         )
         return record
-    
+
     def instantiate_epi_record(self, **kwargs) -> EpisodicRecord:
         payload = EpisodicRecordPayload(**kwargs)
         record = EpisodicRecord(
@@ -58,7 +59,7 @@ class FAISSMemorySystem(BaseVectorMemorySystem):
             tags=payload.tags,
             created_at=now_iso(),
         )
-        record.embedding = self.vector_store._embed(_transfer_dict_to_semantic_text(record.detail))        
+        record.embedding = self.vector_store._embed(_transfer_dict_to_semantic_text(record.detail))
         return record
 
     def instantiate_proc_record(self, **kwargs) -> ProceduralRecord:
@@ -79,7 +80,10 @@ class FAISSMemorySystem(BaseVectorMemorySystem):
     def size(self) -> int:
         return self.vector_store._get_record_nums()
 
-    def get_records_by_ids(self, mids: List[str]) -> Union[List[SemanticRecord], List[EpisodicRecord], List[ProceduralRecord]]:
+    def get_records_by_ids(
+        self,
+        mids: List[str],
+    ) -> Union[List[SemanticRecord], List[EpisodicRecord], List[ProceduralRecord]]:
         reverse_map = {mid: fid for fid, mid in self.vector_store.fidmap2mid.items()}
         records = []
         for mid in mids:
@@ -91,15 +95,17 @@ class FAISSMemorySystem(BaseVectorMemorySystem):
                 continue
             records.append(record)
         return records
-    
-    def get_last_k_records(self, k: int) -> Tuple[Union[List[SemanticRecord], List[EpisodicRecord], List[ProceduralRecord]], int]:
+
+    def get_last_k_records(
+        self,
+        k: int,
+    ) -> Tuple[Union[List[SemanticRecord], List[EpisodicRecord], List[ProceduralRecord]], int]:
         if k >= self.size:
             return ([record.to_dict() for record in self.vector_store.meta.values()], self.size)
-        
-        else:
-            sorted_fids = sorted(self.vector_store.fidmap2mid.keys(), reverse=True)
-            return ([self.vector_store.meta[fid].to_dict() for fid in sorted_fids[:k]], k)
-        
+
+        sorted_fids = sorted(self.vector_store.fidmap2mid.keys(), reverse=True)
+        return ([self.vector_store.meta[fid].to_dict() for fid in sorted_fids[:k]], k)
+
     def is_exists(self, mids: List[str]) -> List[bool]:
         reverse_map = {mid: fid for fid, mid in self.vector_store.fidmap2mid.items()}
         results = []
@@ -110,23 +116,23 @@ class FAISSMemorySystem(BaseVectorMemorySystem):
             else:
                 results.append(False)
         return results
-        
+
     def add(self, memories: List[Union[SemanticRecord, EpisodicRecord, ProceduralRecord]] = None, agent_id: str = "") -> bool:
         try:
-            self.vector_store.add(memories, agent_id=agent_id) # Add new memory to FAISS vectorstore.
+            self.vector_store.add(memories, agent_id=agent_id)
             return True
         except Exception as e:
             print(f"Error adding memories: {e}")
             return False
-    
+
     def update(self, memories: List[Union[SemanticRecord, ProceduralRecord]] = None) -> bool:
         try:
-            self.vector_store.update(memories) # Update new memory to FAISS vectorstore.
+            self.vector_store.update(memories)
             return True
         except Exception as e:
             print(f"Error updating memories: {e}")
             return False
-    
+
     def delete(self, mids: List[str]) -> bool:
         try:
             self.vector_store.delete(mids)
@@ -139,16 +145,15 @@ class FAISSMemorySystem(BaseVectorMemorySystem):
         for record in records:
             result = self.get_nearest_k_records(record, k=1, threshold=0.8, agent_id=agent_id)
             if result is not None and len(result) > 0:
-                nearset_record = result[0][1]
-                updated_at = now_iso()
+                nearest_record = result[0][1]
                 if isinstance(record, SemanticRecord):
-                    nearset_record.update(
+                    nearest_record.update(
                         summary=record.summary,
                         detail=record.detail,
                         tags=record.tags,
                     )
                 elif isinstance(record, ProceduralRecord):
-                    nearset_record.update(
+                    nearest_record.update(
                         name=record.name,
                         description=record.description,
                         steps=record.steps,
@@ -157,130 +162,56 @@ class FAISSMemorySystem(BaseVectorMemorySystem):
                     )
             else:
                 self.add([record], agent_id=agent_id)
-    
-        return
-    
-    def query(self, 
-        query_text: str, 
-        method: str = "embedding", 
-        limit: int = 5, 
+
+    def query(
+        self,
+        query_text: str,
+        method: str = "embedding",
+        limit: int = 5,
         filters: Optional[Dict] = None,
         threshold: float = 0.0,
-        agent_id: str = "") ->List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
+        agent_id: str = "",
+    ) -> List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
         limit = min(limit, self.size)
         try:
-            results = self.vector_store.query(query_text, method=method, limit=limit, filters=filters, threshold=threshold, agent_id=agent_id)
+            results = self.vector_store.query(
+                query_text,
+                method=method,
+                limit=limit,
+                filters=filters,
+                threshold=threshold,
+                agent_id=agent_id,
+            )
         except Exception as e:
             print(f"Error querying memories: {e}")
             results = []
         return results
 
-    async def abstract_episodic_records(
-            self, 
-            epi_records: List[EpisodicRecord], 
-            consistency_threshold: float = 0.8) -> Tuple[List[SemanticRecord], Dict[int, SemanticRecord]]:
-        assert self.memory_type == "episodic", "Clustering is only supported for episodic memory type."
-
-        cidmap2mid: Dict[int, List] = defaultdict(list) # {cluster_id: episodic_record_id}
-        midmap2epirec: Dict[str, EpisodicRecord] = {} # {episodic_record_id: EpisodicRecord}
-        cidmap2semrec: Dict[int, SemanticRecord] = {} # {cluster_id: SemanticRecord}
-
-        abstract_result: List[SemanticRecord] = []
-        updated_cluster_id: Set[int] = set()
-
-        for epi in epi_records:
-            midmap2epirec[epi.id] = epi
-            info = self.cluster_machine.process(point=epi.embedding, now=epi.created_at)
-            cidmap2mid[info['absorbed_into']['cluster_id']].append(epi.id)
-            updated_cluster_id.add(info['absorbed_into']['cluster_id'])
-        
-        clusters_sorted = sorted(self.cluster_machine.cidmap2cluster.values(),
-                         key=lambda c: c.avg_pairwise_cos(),
-                         reverse=True)
-        for cl in clusters_sorted:
-            # Only abstract clusters that meet the PMC and consistency thresholds, and have been updated in this batch
-            if cl.kind.value == "PMC" and cl.avg_pairwise_cos() >= consistency_threshold and cl.id in updated_cluster_id:
-                member_ids = cidmap2mid.get(cl.id, [])
-                if len(member_ids) == 0:
-                    continue
-
-                episodic_notes = []
-                for mid in member_ids:
-                    record = midmap2epirec.get(mid, None)
-                    if not record:
-                        continue
-                    if isinstance(record.detail, dict):
-                        detail_text = _transfer_dict_to_semantic_text(record.detail)
-                    else:
-                        detail_text = str(record.detail)
-                    tags_text = ", ".join(record.tags) if record.tags else "None"
-                    episodic_notes.append(
-                        "\n".join([
-                            f"[EpisodicRecord {record.id}]",
-                            f"Stage: {record.stage}",
-                            f"Summary: {record.summary}",
-                            f"Detail: {detail_text},"
-                            f"Tags: {tags_text}",
-                        ])
-                    )
-
-                if not episodic_notes:
-                    continue
-
-                system_prompt = "You are an expert at summarizing episodic memories into concise semantic records."
-                user_prompt = ABSTRACT_EPISODIC_TO_SEMANTIC_PROMPT.format(
-                    episodic_notes="\n\n".join(episodic_notes)
-                )
-                response = await self.llm.complete(system_prompt=system_prompt, user_prompt=user_prompt)
-
-                # 1. Create new SemanticRecord, 2. Mark is_abstracted = True, 3. Set cluster_id, 4. Add to result list
-                sem_record_dict = _parse_json_response(response)
-                sem_record_dict['id'] = new_id("sem")
-                sem_record = SemanticRecord.from_dict(sem_record_dict)
-                sem_record.is_abstracted = True
-                sem_record.cluster_id = cl.id
-                abstract_result.append(sem_record)
-                cidmap2semrec[cl.id] = sem_record
-        
-        return abstract_result, cidmap2semrec
-
-    def upsert_abstract_semantic_records(self, sem_records: List[SemanticRecord], cidmap2semrec: Dict[int, SemanticRecord], agent_id: str = "") -> None:
-        add_list = []
-        update_list = []
-
-        for sem_rec in sem_records:
-            last_sem_rec = self.global_cidmap2semrec.get(sem_rec.cluster_id, None)
-            if last_sem_rec is None:
-                add_list.append(sem_rec)
-                self.global_cidmap2semrec[sem_rec.cluster_id] = sem_rec
-            else:
-                last_sem_rec.update(
-                    summary=sem_rec.summary,
-                    detail=sem_rec.detail,
-                    tags=sem_rec.tags,
-                    updated_at=now_iso(),
-                )
-                update_list.append(last_sem_rec)
-                self.global_cidmap2semrec[sem_rec.cluster_id] = last_sem_rec
-
-        self.add(add_list, agent_id=agent_id)
-        self.update(update_list)
-
-    def get_nearest_k_records(self, 
-            record: Union[SemanticRecord, EpisodicRecord, ProceduralRecord], 
-            method: str = "embedding", 
-            k: int = 5,
-            filters: Optional[Dict] = None,
-            agent_id: str = "") -> List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
+    def get_nearest_k_records(
+        self,
+        record: Union[SemanticRecord, EpisodicRecord, ProceduralRecord],
+        method: str = "embedding",
+        k: int = 5,
+        filters: Optional[Dict] = None,
+        threshold: float = 0.0,
+        agent_id: str = "",
+    ) -> List[Tuple[float, Union[SemanticRecord, EpisodicRecord, ProceduralRecord]]]:
         if isinstance(record, SemanticRecord):
             query_text = record.detail
         elif isinstance(record, EpisodicRecord):
             query_text = record.summary
         elif isinstance(record, ProceduralRecord):
             query_text = record.description
-        
+
         try:
-            results = self.vector_store.query(query_text, method=method, limit=k, filters=filters, agent_id=agent_id)
+            results = self.vector_store.query(
+                query_text,
+                method=method,
+                limit=k,
+                filters=filters,
+                threshold=threshold,
+                agent_id=agent_id,
+            )
         except Exception as e:
             print(f"Error querying nearest records: {e}")
             results = []
@@ -290,14 +221,12 @@ class FAISSMemorySystem(BaseVectorMemorySystem):
         try:
             self.vector_store.save(path)
             return True
-        except Exception as e:
+        except Exception:
             return False
-    
+
     def load(self, path: str) -> bool:
         try:
             self.vector_store.load(path)
             return True
-        except Exception as e:
+        except Exception:
             return False
-
-        

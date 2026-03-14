@@ -4,7 +4,7 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
-from memory.api.component_taxonomy import extract_component_families
+from memory.memory_system.component_taxonomy import extract_component_families
 from memory.api.symbolic_memory_system_api import SymbolicMemorySystem
 from memory.api.base_symbolic_memory_system_api import SymbolicRecordPayload
 
