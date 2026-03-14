@@ -1,32 +1,32 @@
 ALGORITHM_STRUCTURING_PROMPT = """
-You are an algorithm architect. Convert the idea below into executable algorithm specs.
+You are an expert algorithm architect. Your task is to translate an abstract research idea into a rigorous, executable algorithm specification.
 
-Topic: {topic}
-Idea Title: {idea_title}
-Idea Abstract:
+== Topic == 
+{topic}
+
+== Idea Title ==
+{idea_title}
+
+== Idea Abstract ==
 {idea_abstract}
-Idea JSON:
+
+== Idea JSON ==
 {idea}
 
-Baseline Inputs:
-{base_inputs}
+First, think step-by-step in the `architect_scratchpad` to deconstruct the idea into computable mathematical or logical components. Then, generate the concrete algorithm specs.
 
-Baseline Outputs:
-{base_outputs}
-
-Latest Analysis Snapshot:
-{analysis}
-
-Reference Hints (may be empty):
-{references}
-
-Return ONLY a JSON object:
+Return ONLY a valid JSON object matching this schema exactly:
 {{
+  "architect_scratchpad": {{
+    "deconstruction": "Break down the core mechanism from the abstract. What are the key mathematical or logical objects? (e.g., How is the 'state' defined? What constitutes the 'reward' or 'loss'?)",
+    "black_box_elimination": "Identify any high-level meta-statements (e.g., 'do planning', 'retrieve cases') and explain how they will be instantiated as concrete computational steps.",
+    "data_flow_mapping": "Trace the path from raw inputs to the final output. What intermediate transformations are required?"
+  }},
   "algorithms": [
     {{
       "name": "Concise algorithm name (<12 words)",
-      "input": ["List of required inputs, datasets, sensors, or preconditions"],
-      "output": ["List of expected outputs, measurements, or deliverables"],
+      "input": ["List of required concrete inputs, datasets, or states"],
+      "output": ["List of expected outputs, decisions, or updated states"],
       "pipeline": [
         "Step 1: ...",
         "Step 2: ...",
@@ -36,12 +36,11 @@ Return ONLY a JSON object:
   ]
 }}
 
-Rules:
-- All algorithms must clearly implement the single idea described above; explicitly connect each name/pipeline to the Idea Title or key phrases from the abstract.
-- Remove or rewrite anything that cannot be justified by the Idea Abstract.
-- Pipeline steps must describe the actual method execution (no meta statements like 'run MCTS').
-- Keep inputs/outputs concrete and derived from the idea details and references.
-- If multiple sub-algorithms exist, include each as its own entry.
-- Do not fill the step with placeholders; be specific.
-- Do not add commentary outside the JSON.
+== Rules (Strict) ==
+- You MUST complete the `architect_scratchpad` FIRST before writing the `algorithms` array.
+- The `pipeline` steps must be derived directly from your reasoning in the `black_box_elimination`.
+- NO MAGIC WORDS: Pipeline steps must describe actual method execution. Instead of 'run MCTS', specify 'Select node via UCB1, expand by querying LLM policy, evaluate state, and backpropagate value'. Instead of 'use dual-system', specify the exact routing or gating mechanism.
+- Keep inputs/outputs concrete (e.g., 'action trajectory dictionary' instead of 'data').
+- If multiple distinct sub-algorithms are needed to realize the idea, include each as its own entry in the `algorithms` array.
+- Do not add any markdown formatting (like ```json) or commentary outside the JSON object.
 """

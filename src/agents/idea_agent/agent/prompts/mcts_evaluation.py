@@ -1,28 +1,25 @@
 MCTS_IDEA_EVALUATION_PROMPT = """
 You score research ideas encountered during a memory-guided MCTS search.
-Topic: {topic}
-Fixed root domains for this MCTS run: {root_domains}
-Mature idea (optional alignment anchor):
+
+== Topic == 
+{topic}
+
+== Fixed root domains for this MCTS run == 
+{root_domains}
+
+== Mature idea (optional alignment anchor) == 
 {mature_idea}
-Latest analysis + critiques:
-{analysis}
 
-Current run latest candidate snapshot:
-{latest_candidate_context}
-
-Relevant literature evidence from the current paper cache:
-{paper_context}
-
-Compiled component-level edit plan for this node:
+== Compiled component-level edit plan for this node ==:
 {edit_plan}
 
-Candidate idea:
+== Candidate idea ==:
 {idea}
 
-Defect registry:
+== Defect registry ==:
 {defect_registry}
 
-Component-level symbolic memory insights (from component ablations):
+== Component-level symbolic memory insights (from component ablations) ==:
 {symbolic_memory_hints}
 
 Scoring policy:
@@ -124,7 +121,6 @@ Return STRICT JSON (no prose):
   "fairness_protocol": "How fairness/control experiments are enforced or what is missing",
   "feedback": "Actionable critique referencing defects, skill choice, and component edits",
   "defect_fix_summary": "Which defect was addressed and why the selected skill helps",
-  "detected_defects": ["canonical_defect_tag_1", "canonical_defect_tag_2"],
-  "lift_estimate": 0-100
+  "detected_defects": ["canonical_defect_tag_1", "canonical_defect_tag_2"]
 }}
 """

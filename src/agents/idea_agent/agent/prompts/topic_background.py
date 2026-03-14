@@ -9,7 +9,7 @@ Return STRICT JSON with:
   "canonical_methods": ["core method families to anchor the search"]
 }}
 
-Rules:
+== Rules ==
 - Do not include Markdown.
 - Keep bullet strings terse but specific enough for an ICML reviewer.
 """

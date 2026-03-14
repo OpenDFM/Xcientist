@@ -115,7 +115,9 @@ idea:
 
       # Optional flat overrides by stage name if a stage needs to diverge
       # from its workflow bucket later.
-      stage_overrides: {}
+      stage_overrides:
+        algorithm_structuring: "gpt-5.2"
+        algorithm_alignment: "gpt-5.2"
     chat_max_retries: 3
     chat_retry_backoff: 2.0
     paper_enrichment_timeout_sec: 7200

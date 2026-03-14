@@ -43,11 +43,11 @@ You guard IdeaAgent's long-term memory entrance. Decide if this IdeaAgent Workin
 Judge using four dimensions (return `yes` only if at least TWO are clearly satisfied):
 1. Utility: Will this slot help future idea generation/evaluation (e.g., reusable defect→fix heuristic, evaluation protocol, operator outcome)?
 2. Stability: Is it durable (not a transient log, not a one-off chat line)?
-3. Specificity: Does it include concrete details (operator, targeted defects, metrics like novelty/feasibility/lift, failure modes, fairness protocol, or referenced memory IDs)?
+3. Specificity: Does it include concrete details (operator, targeted defects, metrics like novelty/feasibility/impact, failure modes, fairness protocol, or referenced memory IDs)?
 4. Evidence: Does the slot provide supporting rationale/metrics/attachments that make it verifiable or reusable?
 
 Hard YES rules (return `yes` even if brief) if the slot contains ANY of:
-- a reusable defect→fix recipe (defect(s) + operator/action + why + expected lift/impact);
+- a reusable defect→fix recipe (defect(s) + operator/action + why + expected impact);
 - a fairness/baseline/ablation protocol that can be reused;
 - a clearly stated failure-mode surfacing plan (what fails, how to detect, what to log);
 - a durable field insight distilled from multiple candidates (not just a single idea title).
@@ -76,7 +76,7 @@ Routing rules tailored to MemoryGuidedMCTS:
    (keywords: "steps", "checklist", "do X then Y", "protocol", "pipeline", "how to", "when to use").
 2. Prefer episodic if the slot describes a specific run/path/outcome:
    - mentions a concrete idea title, node/path summary, "best/pareto", iteration, or a one-time evaluation outcome,
-   - includes SAR narrative with metrics (novelty/feasibility/impact/risk/conciseness/confidence/lift).
+   - includes SAR narrative with metrics (novelty/feasibility/impact/risk/conciseness/confidence).
 3. Otherwise output semantic when it is an enduring insight/constraint:
    - anti-pattern constraints, guardrails, defect taxonomy insights,
    - field knowledge snippets distilled for reuse,
@@ -235,7 +235,7 @@ Authoring directives:
    - "ideas": {{"items": ["title :: abstract"]}}
    - "operators": {{"items": ["operator → defect"]}}
    - "memories": {{"items": ["Field#1 summary"]}}
-   - "metrics": {{"novelty": 4.3, "lift": 18, "overhead_params_pct": 3, "trigger_loss_dom_ratio": 0.8}}
+   - "metrics": {{"novelty": 4.3, "impact": 4.0, "overhead_params_pct": 3, "trigger_loss_dom_ratio": 0.8}}
 6. Tags ≤5 items mixing domain + workflow cues, e.g., ["pinn","adaptive_weighting","mcts_evaluation","repro_protocol"].
 7. Always emit exactly one slot even if the agent stalled; prefer grouping by the single most actionable, testable insight.
 
@@ -296,7 +296,7 @@ You curate MemoryGuidedMCTS knowledge. Convert the IdeaAgent WorkingSlot into a 
 
 Authoring directives:
 - Summaries (≤80 words) MUST describe reusable defect→fix insights, anti-pattern guardrails, or field knowledge that hold across future searches.
-- `detail` should weave the causal reasoning: reference the edit operator(s), targeted defects, fairness or failure instrumentation, cited memory IDs, and any evaluation statistics (novelty/feasibility/impact/risk/conciseness/confidence/lift) that justify the claim.
+- `detail` should weave the causal reasoning: reference the edit operator(s), targeted defects, fairness or failure instrumentation, cited memory IDs, and any evaluation statistics (novelty/feasibility/impact/risk/conciseness/confidence) that justify the claim.
 - When the slot is episodic, abstract it into the lasting principle or heuristic that another traversal could reuse (e.g., “alternative-path-contrast improved rare-regime robustness when brittle_single_path was detected”).
 - Tags blend domain concepts, operators, and workflow cues such as ["pinn","mechanism-commit-innovation","mcts_semantic"].
 
@@ -345,7 +345,7 @@ Document this IdeaAgent WorkingSlot as an episodic memory focused on a specific 
 Guidance:
 - Situation should capture topic, parent idea state, and why this stage ran (e.g., "mcts_expansion on feedback-closed-loop to fix open_loop_fragility").
 - Actions must enumerate concrete operator applications, memory bundle usage, evaluation prompts, or guardrail enforcement. Reference idea title/abstract/method snippets when helpful.
-- Results must state measurable outcomes: evaluation scores (novelty/feasibility/impact/risk/clarity/conciseness/confidence/lift), fairness or failure-mode findings, Pareto role (best/novel/feasible/concise), or memory persistence decisions.
+- Results must state measurable outcomes: evaluation scores (novelty/feasibility/impact/risk/clarity/conciseness/confidence), fairness or failure-mode findings, Pareto role (best/novel/feasible/concise), or memory persistence decisions.
 - Populate `metrics` with numeric values whenever the slot contains them; include `"path"` or `"idea_signature"` entries inside `artifacts` when mentioned (e.g., path summary, memory_refs).
 
 WorkingSlot excerpt:
@@ -363,7 +363,7 @@ Output STRICTLY as JSON:
         "situation": "Context and targeted defects/operators",
         "actions": ["action 1","action 2"],
         "results": ["result 1","result 2"],
-        "metrics": {{"novelty": 4.3, "lift": 12}},
+        "metrics": {{"novelty": 4.3, "impact": 4.0}},
         "artifacts": ["path: ...", "memory_refs: Field#1,Recipe#2"]
     }},
     "tags": ["keyword1","keyword2"]
@@ -394,7 +394,7 @@ Convert the IdeaAgent WorkingSlot into a procedural memory entry that describes 
 
 Expectations:
 - `name` should hint at when to apply the playbook (operator + targeted defects or evaluation purpose).
-- The description (≤60 words) must state trigger conditions (e.g., "use when novelty stagnates and brittle_single_path is flagged") and the intended impact (lift, fairness coverage, failure surfacing).
+- The description (≤60 words) must state trigger conditions (e.g., "use when novelty stagnates and brittle_single_path is flagged") and the intended impact (expected improvement, fairness coverage, failure surfacing).
 - `steps` should be actionable and sequential: include memory retrieval prep, edit-operator injection, reproducibility spec (mechanism, formula, insertion point, overhead), evaluation/ablation requirements, and persistence/guardrail steps.
 - Use `code` for any command, pseudo-code, or schema snippets referenced in the slot; leave empty string if none.
 - Tags mix domain cues and workflow hints such as ["idea_agent","mcts","resource-aware-adaptive-path","stress_protocol"].

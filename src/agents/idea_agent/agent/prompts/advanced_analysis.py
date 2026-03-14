@@ -1,7 +1,7 @@
 ADVANCED_ANALYSIS_PROMPT_SURVEY_LED_WITH_PAPERS = """
 You are the lead author preparing an top-tier paper on the topic "{topic}".
 
-Mature idea (optional; if empty, ignore):
+== Mature idea (optional; if empty, ignore) ==
 {mature_idea}
 
 You have:
@@ -46,6 +46,12 @@ Perform the steps below explicitly before answering:
 
 Return STRICT JSON (no prose, no Markdown) with the schema:
 {{
+  "thought_process": {{
+      "step1_survey_clustering": "Map the dominant method clusters...",
+      "step2_gap_stress_test": "Extract unresolved limitations...",
+      "step3_moonshot_ideation": "Brainstorm non-incremental hypotheses...",
+      "step4_validation_tooling": "Specify required experiments..."
+    }},
   "key_methods": ["..."],                          // survey-led cluster names or dominant families
   "field_consensus": ["..."],                      // constraints / assumptions / consensus points the new idea should respect
   "existing_problems": ["..."],                    // survey-led limitations (can be supported by papers)
@@ -89,7 +95,7 @@ Return STRICT JSON (no prose, no Markdown) with the schema:
   "tldr": "≤50 word synthesis tying SURVEY gaps to the proposed moonshots"
 }}
 
-Rules (hard):
+== Rules (Strict) ==
 - Always output exactly one `root_idea`; it must be concrete enough to act as the MCTS root node.
 - `root_idea` must directly address at least one named `existing_problems` or `evaluation_gaps`, and must stay on the survey-led axis.
 - Every divergent_idea_seed MUST:

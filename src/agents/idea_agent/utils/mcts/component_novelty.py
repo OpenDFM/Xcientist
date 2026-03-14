@@ -244,6 +244,7 @@ class ComponentNoveltyScorer:
             model=self.evaluation_model,
             temperature=self.evaluation_temperature,
             max_output_tokens=self.evaluation_max_tokens,
+            stage="component_novelty_evaluation",
         )
         payload = parse_json_response(response)
         if isinstance(payload, list):

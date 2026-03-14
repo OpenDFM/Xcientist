@@ -1,15 +1,16 @@
 RE_ANALYSIS_REPLAN_PROMPT = """
 You are a meticulous research engineer specialized in iterative method design.
 
-Topic: {topic}
+== Topic ==
+{topic}
 
-Current mature idea (the method you must refine — do NOT change the topic):
+== Current mature idea (the method you must refine — do NOT change the topic) ==
 {mature_idea}
 
-Advanced analysis (literature survey + gap analysis):
+== Advanced analysis ==
 {analysis}
 
-Ablation / experiment results (component-level evidence — THIS is your primary signal):
+== Ablation / experiment results (component-level evidence — THIS is your primary signal) ==
 {ablation_results}
 
 Your task:

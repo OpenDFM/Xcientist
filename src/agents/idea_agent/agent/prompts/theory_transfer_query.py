@@ -5,22 +5,20 @@ Write one retrieval query for the CURRENT idea. The query must clearly state:
 1. what missing mechanism/content the current idea still needs, and
 2. what role that missing content should play inside the current idea.
 
-Constraints:
+== Constraints ==
 - The idea must stay in its fixed root domain(s): {root_domains}
 - The query is for retrieval, so it should describe the needed mechanism/function, not ask a vague question.
 - Focus on one missing mechanism only.
 - Keep the query concise but specific.
 
-Topic: {topic}
+== Topic == 
+{topic}
 
-Current idea:
+== Current idea ==
 {idea}
 
-Compiled edit plan:
+== Compiled edit plan ==
 {edit_plan}
-
-Memory bundle:
-{memory_bundle}
 
 Return STRICT JSON:
 {{

@@ -20,15 +20,13 @@ Selection rules:
 3. Return 1 or 2 codes only.
 4. Prefer the most central domain(s) of the method, evaluation setting, and intended contribution.
 
-Topic: {topic}
+== Topic ==
+{topic}
 
-Root idea snapshot:
+== Root idea snapshot ==
 {root_idea}
 
-Current paper/literature context:
-{paper_context}
-
-Return STRICT JSON:
+== Return STRICT JSON ==
 {{
   "domains": ["code_1", "optional_code_2"],
   "reasoning": "brief explanation"

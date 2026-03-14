@@ -64,10 +64,11 @@ def _session(agent: Any, ctx: StageContext) -> Any:
 def _chat(agent: Any, ctx: StageContext, op_name: str):
     runtime = _runtime(agent, ctx)
     session = _session(agent, ctx)
-    stage = ctx.stage_name or ctx.workflow_name
+    default_stage = ctx.stage_name or ctx.workflow_name
     workflow_name = ctx.workflow_name
 
     def _invoke(prompt: str, **kwargs: Any) -> str:
+        stage = str(kwargs.pop("stage", "") or "").strip() or default_stage
         return runtime.llm_text(
             session=session,
             stage=stage,
@@ -94,6 +95,25 @@ def _result_to_best_entry(result: Any, idea_taste_mode: Optional[str]) -> Dict[s
     best_entry["idea_source"] = "raw_mode"
     best_entry["source_modes"] = [idea_taste_mode or "default"]
     return best_entry
+
+
+def _prior_component_seed(
+    latest_candidate: Optional[Dict[str, Any]],
+    root_idea: Optional[Dict[str, Any]],
+) -> tuple[List[str], Dict[str, str]]:
+    for entry in (latest_candidate, root_idea):
+        if not isinstance(entry, dict):
+            continue
+        raw_components = entry.get("components")
+        if not isinstance(raw_components, list):
+            continue
+        components = [str(component).strip() for component in raw_components if str(component).strip()]
+        if not components:
+            continue
+        raw_explanations = entry.get("component_explanations")
+        explanations = raw_explanations if isinstance(raw_explanations, (dict, list)) else {}
+        return components, dict(explanations) if isinstance(explanations, dict) else {}
+    return [], {}
 
 
 def execute_knowledge_acquisition_stage(agent: Any, ctx: StageContext) -> StageResult:
@@ -249,15 +269,28 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
         else None
     )
     mature_idea = artifact_get(artifact, "mature_idea", "")
+    component_decisions = artifact_get(artifact, "component_decisions", [])
+    prior_components, prior_component_explanations = _prior_component_seed(
+        latest_candidate_payload,
+        root_idea_payload,
+    )
     context = {
         "analysis": artifact_get(artifact, "analysis", []),
         "latest_candidate": latest_candidate_payload,
         "root_idea": root_idea_payload,
         "background_knowledge": artifact_get(artifact, "background_knowledge", []),
         "paper_context": paper_context_with_rag(paper_entries, artifact),
+        "component_decisions": (
+            [decision for decision in component_decisions if isinstance(decision, dict)]
+            if isinstance(component_decisions, list)
+            else []
+        ),
     }
     if isinstance(mature_idea, str) and mature_idea.strip():
         context["mature_idea"] = mature_idea.strip()
+    if prior_components:
+        context["prior_components"] = prior_components
+        context["prior_component_explanations"] = prior_component_explanations
 
     agent.mcts.reload_symbolic_memory()
     ligagent_pro = bool(get_config_value(agent.config, "run.LigAgent-Pro", False))

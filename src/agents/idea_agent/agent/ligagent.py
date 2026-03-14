@@ -149,13 +149,21 @@ class LigAgent(AgentBase):
         request_kwargs = dict(kwargs)
         stage = str(request_kwargs.pop("stage", "") or "").strip()
         resolved_model = str(model or self.model or "gpt-5-mini")
+        high_reasoning_stages = {
+            "advanced_analysis",
+            "algorithm_alignment",
+            "algorithm_structuring",
+            "experiment_findings_extraction",
+            "idea_fusion",
+            "mcts_expand",
+            "re_analysis_replan",
+        }
         for attempt in range(1, self.chat_max_retries + 1):
             try:
                 # Special handling for GPT-5 models
                 if "gpt-5-mini" in resolved_model:
-                    # Idea Generator: GPT-5 mini
                     request_kwargs["temperature"] = 1.0
-                    effort = "high" if stage in {"mcts_expand", "idea_fusion", "advanced_analysis", "re_analysis_replan", "experiment_findings_extraction"} else "low"
+                    effort = "high" if stage in high_reasoning_stages else "low"
                     return super().chat(
                         prompt,
                         model=resolved_model,
@@ -163,9 +171,8 @@ class LigAgent(AgentBase):
                         **request_kwargs,
                     )
                 elif "gpt-5" in resolved_model:
-                    # Idea Evaluator: GPT-5.2
                     request_kwargs["temperature"] = 1.0
-                    effort = "high" if stage in {"mcts_expand", "idea_fusion", "advanced_analysis", "re_analysis_replan", "experiment_findings_extraction"} else "low"
+                    effort = "high" if stage in high_reasoning_stages else "low"
                     return super().chat(
                         prompt,
                         model=resolved_model,

@@ -1,34 +1,25 @@
 IDEA_FUSION_PROMPT = """
 You are a component-level fusion agent for LigAgent-Pro.
 
-Topic:
+== Topic == 
 {topic}
 
-Current mature idea:
+== Current mature idea ==
 {mature_idea}
 
-Shared root domains:
+== Shared root domains ==
 {root_domains}
 
-Analysis summary:
+== Analysis summary ==
 {analysis}
 
-Paper context:
+== Paper context ==
 {paper_context}
 
 You are given {mode_count} candidate ideas produced from different idea taste modes, all starting from the same prepared root context.
 
-Candidate ideas (JSON):
+== Candidate ideas (JSON) == 
 {candidate_ideas_json}
-
-Fusion rules:
-- Do NOT union all ideas together.
-- Select exactly one dominant core mechanism.
-- Other kept components must be support modules, not a second competing core mechanism.
-- Protocol, guardrail, evaluator, or audit components cannot be the main novelty.
-- Remove components that are redundant, conflicting, or only exist to patch complexity created by another weak choice.
-- Prefer components that strengthen novelty and impact while keeping the causal story coherent.
-- The final fused idea must read like one method with one clear causal chain.
 
 Return STRICT JSON only:
 {{
@@ -80,38 +71,38 @@ Return STRICT JSON only:
     "skill_metrics": {{}}
   }}
 }}
+
+== Fusion rules ==
+- Do NOT union all ideas together.
+- Select exactly one dominant core mechanism.
+- Other kept components must be support modules, not a second competing core mechanism.
+- Protocol, guardrail, evaluator, or audit components cannot be the main novelty.
+- Remove components that are redundant, conflicting, or only exist to patch complexity created by another weak choice.
+- Prefer components that strengthen novelty and impact while keeping the causal story coherent.
+- The final fused idea must read like one method with one clear causal chain.
 """
 
 
 FUSION_REPAIR_PROMPT = """
 You are repairing a fused research idea after referee evaluation.
 
-Topic:
+== Topic == 
 {topic}
 
-Fixed root domains:
+== Fixed root domains == 
 {root_domains}
 
-Current fused idea (JSON):
+== Current fused idea (JSON) == 
 {current_idea_json}
 
-Current evaluation (JSON):
+== Current evaluation (JSON) == 
 {current_evaluation_json}
 
-Source mode candidates (JSON):
+== Source mode candidates (JSON) ==
 {candidate_ideas_json}
 
-Available atomic edit operations:
+== Available atomic edit operations == 
 {atomic_op_reference}
-
-Repair rules:
-- Use ONLY these operations: REMOVE_COMPONENT, REPLACE_COMPONENT, REWIRE.
-- Do NOT use ADD_COMPONENT, GATE_COMPONENT, or ADD_PROTOCOL.
-- Do NOT increase the number of structural components.
-- Prefer one small local repair, not a rewrite of the whole idea.
-- At least one structural edit must be present unless you choose to stop.
-- Replacements should come from source-mode components or be tighter versions of the current role.
-- If no likely-improving local repair exists, set stop=true.
 
 Return STRICT JSON only:
 {{
@@ -130,4 +121,13 @@ Return STRICT JSON only:
     }}
   ]
 }}
+
+== Repair rules == 
+- Use ONLY these operations: REMOVE_COMPONENT, REPLACE_COMPONENT, REWIRE.
+- Do NOT use ADD_COMPONENT, GATE_COMPONENT, or ADD_PROTOCOL.
+- Do NOT increase the number of structural components.
+- Prefer one small local repair, not a rewrite of the whole idea.
+- At least one structural edit must be present unless you choose to stop.
+- Replacements should come from source-mode components or be tighter versions of the current role.
+- If no likely-improving local repair exists, set stop=true.
 """

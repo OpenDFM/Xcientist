@@ -120,8 +120,31 @@ def derive_pipeline_steps(idea: Dict[str, Any]) -> List[str]:
     return [f"Step {idx + 1}: {sentence}" for idx, sentence in enumerate(sentences)]
 
 
-def fallback_algorithm_spec(idea: Dict[str, Any], inputs: List[str], outputs: List[str]) -> List[Dict[str, Any]]:
+def fallback_algorithm_spec(idea: Dict[str, Any]) -> List[Dict[str, Any]]:
     pipeline = derive_pipeline_steps(idea)
+    inputs = []
+    components = idea.get("components") or []
+    if isinstance(components, list):
+        inputs.extend(
+            [
+                f"Component: {str(component).strip()}"
+                for component in components
+                if str(component).strip()
+            ][:5]
+        )
+    if not inputs:
+        inputs = ["Inputs implied by the idea description"]
+
+    outputs = []
+    core_contribution = str(idea.get("core_contribution") or "").strip()
+    if core_contribution:
+        outputs.append(core_contribution)
+    experiments = str(idea.get("experiments") or "").strip()
+    if experiments:
+        outputs.append(experiments)
+    if not outputs:
+        outputs = ["Outputs implied by the idea description"]
+
     algorithm_entry = {
         "name": idea.get("title") or "Research Algorithm",
         "input": inputs,

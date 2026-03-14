@@ -616,122 +616,162 @@ def _extractor_config_value(config: Any, key: str, default: Any) -> Any:
 
 
 def _normalize_component_finding(item: Any) -> Optional[Dict[str, Any]]:
-    if not isinstance(item, dict):
-        return None
-    component = str(item.get("component") or "").strip()
+    return _normalize_component_finding_with_fallback(item)
+
+
+def _normalize_component_finding_with_fallback(
+    item: Any,
+    fallback: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    source = item if isinstance(item, dict) else {}
+    base = fallback if isinstance(fallback, dict) else {}
+    component = str(source.get("component") or base.get("component") or "").strip()
     if not component:
         return None
-    result = str(item.get("result") or "inconclusive").strip().lower() or "inconclusive"
+    result = _normalize_ablation_result_label(source.get("result") or base.get("result"))
+    metric = source.get("metric")
+    if metric is None:
+        metric = base.get("metric")
+    value = source.get("value")
+    if value is None:
+        value = base.get("value")
+    confidence_value = source.get("confidence")
+    if confidence_value is None:
+        confidence_value = base.get("confidence")
+    analysis = source.get("analysis")
+    if analysis is None:
+        analysis = base.get("analysis")
     return {
         "component": component,
         "result": result,
-        "metric": str(item.get("metric") or "").strip(),
-        "value": str(item.get("value") or "").strip(),
-        "confidence": _coerce_confidence(item.get("confidence"), default=0.0),
-        "analysis": str(item.get("analysis") or "").strip(),
-        "action_hint": str(item.get("action_hint") or "").strip(),
-        "is_critical": bool(item.get("is_critical")),
-        "theme_tags": _normalize_string_list(item.get("theme_tags")),
+        "metric": str(metric or "").strip(),
+        "value": str(value or "").strip(),
+        "confidence": _coerce_confidence(confidence_value, default=0.0),
+        "analysis": str(analysis or "").strip(),
     }
 
 
-def _normalize_theme_entry(item: Any) -> Optional[Dict[str, Any]]:
-    if not isinstance(item, dict):
-        return None
-    theme = str(item.get("theme") or "").strip()
-    if not theme:
-        return None
-    try:
-        count = int(item.get("count", 0))
-    except (TypeError, ValueError):
-        count = 0
-    return {
-        "theme": theme,
-        "count": max(0, count),
-        "components": _normalize_string_list(item.get("components")),
-    }
+def _normalize_experiment_summary(
+    payload: Dict[str, Any],
+    raw_ablation: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    payload_summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    raw_summary = raw_ablation.get("summary") if isinstance(raw_ablation, dict) and isinstance(raw_ablation.get("summary"), dict) else {}
 
-
-def _normalize_experiment_findings_payload(payload: Any) -> Dict[str, Any]:
-    empty_payload = {
-        "hypothesis_status": "inconclusive",
-        "feasible": None,
-        "overall_confidence": 0.0,
-        "tldr": "No structured ablation findings available.",
-        "key_findings": [],
-        "component_findings": [],
-        "negative_components": [],
-        "positive_components": [],
-        "inconclusive_components": [],
-        "critical_failures": [],
-        "promising_components": [],
-        "dominant_themes": [],
-    }
-    if not isinstance(payload, dict):
-        return empty_payload
-
-    component_findings = [
-        item
-        for item in (
-            _normalize_component_finding(raw)
-            for raw in (payload.get("component_findings") or [])
-        )
-        if item is not None
-    ]
-    if not component_findings:
-        negative_components = _normalize_string_list(payload.get("negative_components"))
-        positive_components = _normalize_string_list(payload.get("positive_components"))
-        inconclusive_components = _normalize_string_list(payload.get("inconclusive_components"))
-    else:
-        negative_components = [item["component"] for item in component_findings if item["result"] == "negative"]
-        positive_components = [item["component"] for item in component_findings if item["result"] == "positive"]
-        inconclusive_components = [
-            item["component"] for item in component_findings if item["result"] not in {"negative", "positive"}
-        ]
-
-    critical_failures = [
-        item
-        for item in (
-            _normalize_component_finding(raw)
-            for raw in (payload.get("critical_failures") or [])
-        )
-        if item is not None
-    ] or [item for item in component_findings if item["is_critical"]]
-
-    promising_components = [
-        item
-        for item in (
-            _normalize_component_finding(raw)
-            for raw in (payload.get("promising_components") or [])
-        )
-        if item is not None
-    ] or [item for item in component_findings if item["result"] == "positive"]
-
-    dominant_themes = [
-        item
-        for item in (
-            _normalize_theme_entry(raw)
-            for raw in (payload.get("dominant_themes") or [])
-        )
-        if item is not None
-    ]
-
-    feasible_value = payload.get("feasible")
+    feasible_value = payload_summary.get("feasible")
+    if not isinstance(feasible_value, bool):
+        feasible_value = payload.get("feasible")
+    if not isinstance(feasible_value, bool):
+        feasible_value = raw_summary.get("feasible")
     feasible = feasible_value if isinstance(feasible_value, bool) else None
 
+    confidence_value = payload_summary.get("overall_confidence")
+    if confidence_value is None:
+        confidence_value = payload.get("overall_confidence")
+    if confidence_value is None:
+        confidence_value = payload_summary.get("confidence")
+    if confidence_value is None:
+        confidence_value = payload.get("confidence")
+    if confidence_value is None:
+        confidence_value = raw_summary.get("confidence")
+
+    key_findings = _normalize_string_list(payload_summary.get("key_findings"))
+    if not key_findings:
+        key_findings = _normalize_string_list(payload.get("key_findings"))
+    if not key_findings:
+        key_findings = _normalize_string_list(raw_summary.get("key_findings"))
+
+    tldr = str(payload_summary.get("tldr") or "").strip()
+    if not tldr:
+        tldr = str(payload.get("tldr") or "").strip()
+    if not tldr and key_findings:
+        tldr = "; ".join(key_findings[:3]).strip()
+    if not tldr:
+        tldr = "No structured ablation findings available."
+
     return {
-        "hypothesis_status": str(payload.get("hypothesis_status") or "inconclusive").strip().lower() or "inconclusive",
+        "hypothesis_status": str(
+            payload_summary.get("hypothesis_status")
+            or payload.get("hypothesis_status")
+            or "inconclusive"
+        ).strip().lower() or "inconclusive",
         "feasible": feasible,
-        "overall_confidence": _coerce_confidence(payload.get("overall_confidence"), default=0.0),
-        "tldr": str(payload.get("tldr") or "No structured ablation findings available.").strip(),
-        "key_findings": _normalize_string_list(payload.get("key_findings")),
+        "overall_confidence": _coerce_confidence(confidence_value, default=0.0),
+        "tldr": tldr,
+        "key_findings": key_findings,
+    }
+
+
+def _normalize_experiment_findings_payload(
+    payload: Any,
+    raw_ablation: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    empty_payload = {
+        "summary": {
+            "hypothesis_status": "inconclusive",
+            "feasible": None,
+            "overall_confidence": 0.0,
+            "tldr": "No structured ablation findings available.",
+            "key_findings": [],
+        },
+        "component_findings": [],
+    }
+    if not isinstance(payload, dict):
+        payload = {}
+
+    raw_component_findings = normalize_ablation_results_payload(raw_ablation or {})
+    raw_component_map = {
+        item["component"]: {
+            "component": item["component"],
+            "result": item["result"],
+            "metric": item["metric"],
+            "value": item["value"],
+            "confidence": item["confidence"],
+            "analysis": item["analysis"],
+        }
+        for item in raw_component_findings
+        if item.get("component")
+    }
+
+    llm_component_map: Dict[str, Dict[str, Any]] = {}
+    for raw_item in payload.get("component_findings") or []:
+        if not isinstance(raw_item, dict):
+            continue
+        component = str(raw_item.get("component") or "").strip()
+        normalized = _normalize_component_finding_with_fallback(
+            raw_item,
+            fallback=raw_component_map.get(component),
+        )
+        if normalized is not None:
+            llm_component_map[normalized["component"]] = normalized
+
+    if raw_component_findings:
+        component_findings = []
+        for raw_item in raw_component_findings:
+            component = raw_item.get("component")
+            if not component:
+                continue
+            merged = llm_component_map.get(component)
+            if merged is None:
+                merged = _normalize_component_finding_with_fallback(
+                    raw_item,
+                    fallback=raw_component_map.get(component),
+                )
+            if merged is not None:
+                component_findings.append(merged)
+    else:
+        component_findings = [
+            item
+            for item in (
+                _normalize_component_finding_with_fallback(raw)
+                for raw in (payload.get("component_findings") or [])
+            )
+            if item is not None
+        ]
+
+    return {
+        "summary": _normalize_experiment_summary(payload, raw_ablation=raw_ablation),
         "component_findings": component_findings,
-        "negative_components": negative_components,
-        "positive_components": positive_components,
-        "inconclusive_components": inconclusive_components,
-        "critical_failures": critical_failures,
-        "promising_components": promising_components,
-        "dominant_themes": dominant_themes,
     }
 
 
@@ -749,7 +789,7 @@ def extract_experiment_findings_from_raw_ablation(
 ) -> Dict[str, Any]:
     """Use an LLM to extract structured findings from raw ablation JSON."""
     if not isinstance(raw_ablation, dict):
-        return _normalize_experiment_findings_payload({})
+        return _normalize_experiment_findings_payload({}, raw_ablation=None)
 
     resolved_model = str(
         model
@@ -788,11 +828,11 @@ def extract_experiment_findings_from_raw_ablation(
             max_output_tokens=resolved_max_output_tokens,
         )
         payload = parse_json_response(response)
-        return _normalize_experiment_findings_payload(payload)
+        return _normalize_experiment_findings_payload(payload, raw_ablation=raw_ablation)
     except Exception as exc:
         if logger is not None:
             logger.warning("⚠️ Failed to extract experiment findings from raw ablation: %s", exc)
-        return _normalize_experiment_findings_payload({})
+        return _normalize_experiment_findings_payload({}, raw_ablation=raw_ablation)
 
 
 def paper_context_with_rag(entries: List[Dict[str, Any]], artifact: Dict[str, Any]) -> str:
@@ -1031,8 +1071,6 @@ def convert_analysis_candidates_to_ideas(seeds: Any) -> List[Dict[str, Any]]:
 def build_algorithm_spec(
     idea: Dict[str, Any],
     topic: str,
-    raw_references: List[Dict[str, Any]],
-    artifact: Dict[str, Any],
     prompts: Dict[str, str],
     chat_fn,
     model: str,
@@ -1044,59 +1082,21 @@ def build_algorithm_spec(
         for key, value in idea.items()
         if key not in {"search_path", "search_trace", "pareto_candidates", "evaluation"}
     }
-    analysis_entries = artifact_get(artifact, "analysis", [])
-    latest_analysis = analysis_entries[-1] if analysis_entries else {}
-    base_inputs: List[str] = []
-    if topic and topic != "unspecified topic":
-        base_inputs.append(f"Topic focus: {topic}")
-    retrieval_history = artifact_get(artifact, "retrieval_keywords", [])
-    if retrieval_history:
-        base_inputs.append(f"Latest retrieval keywords: {retrieval_history[-1]}")
-    if isinstance(latest_analysis, dict):
-        tldr = latest_analysis.get("tldr")
-        if tldr:
-            base_inputs.append(f"Analysis TL;DR: {tldr}")
-        key_methods = latest_analysis.get("key_methods")
-        if key_methods:
-            base_inputs.append("Key methods referenced: " + "; ".join(key_methods[:3]))
-    if raw_references:
-        ref_titles = [r.get("title") for r in raw_references[:3] if r.get("title")]
-        if ref_titles:
-            base_inputs.append("Reference anchors: " + "; ".join(ref_titles))
-    target_defects = idea.get("target_defects")
-    if target_defects:
-        base_inputs.append(f"Target defects: {', '.join(target_defects)}")
-
-    base_outputs: List[str] = []
-    abstract = idea.get("abstract")
-    if abstract:
-        base_outputs.append(f"Abstract focus: {abstract}")
-    core = idea.get("core_contribution")
-    if core:
-        base_outputs.append(f"Core contribution: {core}")
-    method = idea.get("method")
-    if method:
-        base_outputs.append(f"Methodology: {method}")
-    experiments = idea.get("experiments")
-    if experiments:
-        base_outputs.append(f"Experiment design: {experiments}")
-    score = idea.get("search_score")
-    if isinstance(score, (int, float)):
-        base_outputs.append(f"MCTS search score: {score:.2f}")
 
     prompt = prompts["algorithm_structuring"].format(
         topic=topic,
         idea_title=idea.get("title", ""),
         idea_abstract=idea.get("abstract", ""),
         idea=json.dumps(idea_for_prompt, ensure_ascii=False, indent=2),
-        base_inputs=json.dumps(base_inputs, ensure_ascii=False, indent=2),
-        base_outputs=json.dumps(base_outputs, ensure_ascii=False, indent=2),
-        analysis=json.dumps(latest_analysis, ensure_ascii=False, indent=2),
-        references=json.dumps(raw_references[:5], ensure_ascii=False, indent=2),
     )
-    prompt += "\n Directly output JSON."
     try:
-        response = chat_fn(prompt, temperature=0.01, max_output_tokens=65536, model=model)
+        response = chat_fn(
+            prompt,
+            temperature=0.01,
+            max_output_tokens=65536,
+            model=model,
+            stage="algorithm_structuring",
+        )
         payload = parse_json_response(response)
         candidate = payload.get("algorithms", payload)
         if isinstance(candidate, list) and candidate:
@@ -1106,7 +1106,7 @@ def build_algorithm_spec(
     except Exception as exc:  # pragma: no cover - network
         logger.warning("⚠️ Algorithm structuring failed: %s", exc)
 
-    return fallback_algorithm_spec(idea, base_inputs, base_outputs)
+    return fallback_algorithm_spec(idea)
 
 
 def align_algorithms_with_idea(
@@ -1129,7 +1129,13 @@ def align_algorithms_with_idea(
     )
     prompt += "\nDirectly output JSON."
     try:
-        response = chat_fn(prompt, temperature=0.01, max_output_tokens=65536, model=model)
+        response = chat_fn(
+            prompt,
+            temperature=0.01,
+            max_output_tokens=65536,
+            model=model,
+            stage="algorithm_alignment",
+        )
         payload = parse_json_response(response)
         candidate = payload.get("algorithms", payload)
         if isinstance(candidate, list) and candidate:

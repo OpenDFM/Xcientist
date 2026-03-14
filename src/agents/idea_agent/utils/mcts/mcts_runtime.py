@@ -24,6 +24,7 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _safe_pretty_json,
     apply_budget_delta_to_parent,
     clip_text,
+    component_inventory_payload,
     normalize_component_explanations,
     parse_component_bundle_payload,
     parse_json_response,
@@ -992,28 +993,30 @@ def instantiate_skill_plan_for_node(
 ) -> Optional[Dict[str, Any]]:
     component_edits_text = plan_to_method_text(plan)
     validation_text = plan_to_experiment_text(plan)
+    cross_domain_context = ""
+    if str(getattr(plan, "skill_name", "") or "").strip() == "theory-transfer-injection":
+        cross_domain_context = "\n".join(
+            [
+                "Cross-domain transfer query:",
+                transfer_query or "None",
+                "Cross-domain core references (reference only, not mandatory templates):",
+                cross_domain_references or "None",
+            ]
+        )
 
     prompt = prompt_template.format(
         topic=mcts.topic,
         root_domains=root_domains_text,
-        idea_taste_mode=getattr(getattr(mcts, "idea_taste_preset", None), "mode", None) or "none",
-        idea_taste_label=getattr(getattr(mcts, "idea_taste_preset", None), "label", None) or "none",
         taste_guidance=(
             getattr(getattr(mcts, "idea_taste_preset", None), "instantiation_guidance", None)
             or "No special taste guidance."
         ),
         mature_idea=mcts.mature_idea or "None",
         parent_summary=parent_state.describe(),
-        latest_candidate_context=getattr(
-            mcts,
-            "latest_candidate_context",
-            "No prior candidate in the current run.",
-        ),
         parent_components=", ".join(parent_state.components) if parent_state.components else "None",
         paper_context=mcts.paper_context,
         memory_bundle=bundle.to_prompt_block(),
-        transfer_query=transfer_query or "None",
-        cross_domain_references=cross_domain_references or "None",
+        cross_domain_context=cross_domain_context,
         skill_name=plan.skill_name,
         plan_objective=plan.objective,
         target_defects=", ".join(plan.target_defects),
@@ -1153,8 +1156,43 @@ def extract_mature_idea_components_via_llm(
     *,
     prompt_template: str,
     max_components: int,
+    prior_components: Optional[Sequence[str]] = None,
+    prior_component_explanations: Optional[Any] = None,
+    component_decisions: Optional[Sequence[Dict[str, Any]]] = None,
 ) -> Tuple[List[str], Dict[str, str]]:
-    prompt = prompt_template.format(mature_idea=mature_idea, topic=topic)
+    normalized_prior_components = [
+        str(component).strip()
+        for component in (prior_components or [])
+        if str(component).strip()
+    ]
+    normalized_prior_explanations = normalize_component_explanations(
+        normalized_prior_components,
+        prior_component_explanations,
+    )
+    normalized_component_decisions = [
+        decision for decision in (component_decisions or []) if isinstance(decision, dict)
+    ]
+    prompt = prompt_template.format(
+        mature_idea=mature_idea,
+        topic=topic,
+        prior_components=json.dumps(
+            component_inventory_payload(
+                normalized_prior_components,
+                normalized_prior_explanations,
+            ),
+            ensure_ascii=False,
+            indent=2,
+        )
+        if normalized_prior_components
+        else "[]",
+        component_decisions=json.dumps(
+            normalized_component_decisions,
+            ensure_ascii=False,
+            indent=2,
+        )
+        if normalized_component_decisions
+        else "[]",
+    )
     try:
         response = mcts.chat_fn(
             prompt,
@@ -1408,13 +1446,6 @@ def simulate_node_value(
         topic=mcts.topic,
         root_domains=_format_root_domains_for_prompt(getattr(node.state, "root_domains", [])),
         mature_idea=mcts.mature_idea or "None",
-        analysis=mcts.analysis_blob,
-        latest_candidate_context=getattr(
-            mcts,
-            "latest_candidate_context",
-            "No prior candidate in the current run.",
-        ),
-        paper_context=mcts.paper_context,
         edit_plan=format_evaluator_edit_plan_prompt_view(node.state.edit_plan)
         if node.state.edit_plan
         else "No edit plan available.",
@@ -1821,7 +1852,6 @@ def harvest_experience(
         experience = {
             "defect": ", ".join(node.state.target_defects) or evaluation.defect_fix_summary,
             "action": node.state.operator,
-            "lift": round(evaluation.lift_estimate, 2),
             "idea": node.state.title,
             "context": path_summary_text,
             "feedback": evaluation.feedback,

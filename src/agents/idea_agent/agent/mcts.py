@@ -42,7 +42,6 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     parse_json_response,
 )
 from src.agents.idea_agent.utils.prompting.prompt_views import (
-    format_latest_candidate_prompt_view,
     format_idea_prompt_view,
 )
 from src.agents.idea_agent.utils.papers.paper_graph_vector_store import (
@@ -254,7 +253,6 @@ class IdeaEvaluation:
     feedback: str
     defect_fix_summary: str
     detected_defects: List[str]
-    lift_estimate: float
     novelty_weight: float = 0.20
     surprise_weight: float = 0.10
     impact_weight: float = 0.18
@@ -322,7 +320,6 @@ class IdeaEvaluation:
             feedback=str(payload.get("feedback", "")),
             defect_fix_summary=str(payload.get("defect_fix_summary", "")),
             detected_defects=_list("detected_defects"),
-            lift_estimate=max(0.0, _num("lift_estimate", 0.0)),
             novelty_weight=w.get("novelty_weight", 0.20),
             surprise_weight=w.get("surprise_weight", 0.10),
             impact_weight=w.get("impact_weight", 0.18),
@@ -353,7 +350,6 @@ class IdeaEvaluation:
             "feedback": self.feedback,
             "defect_fix_summary": self.defect_fix_summary,
             "detected_defects": self.detected_defects,
-            "lift_estimate": self.lift_estimate,
         }
 
     @property
@@ -791,7 +787,6 @@ class MemoryGuidedMCTS:
 
         self.topic: str = ""
         self.analysis_blob: str = ""
-        self.latest_candidate_context: str = ""
         self.paper_context: str = ""
         self.mature_idea: str = ""
         self.idea_taste_preset: Optional[IdeaTastePreset] = get_idea_taste_preset(
@@ -861,7 +856,6 @@ class MemoryGuidedMCTS:
         prompt = ROOT_DOMAIN_CLASSIFICATION_PROMPT.format(
             topic=topic or "Unknown topic",
             root_idea=root_state.to_prompt_view(heading="Root Idea"),
-            paper_context=self.paper_context or "No paper context available.",
         )
         fallback = _infer_root_domains_heuristically(
             topic,
@@ -871,7 +865,6 @@ class MemoryGuidedMCTS:
                     root_state.abstract,
                     root_state.core_contribution,
                     root_state.method,
-                    self.paper_context,
                 ]
             ),
         )
@@ -906,14 +899,12 @@ class MemoryGuidedMCTS:
         self,
         plan: EditPlan,
         parent_state: IdeaState,
-        bundle: MemoryBundle,
     ) -> Dict[str, str]:
         prompt = THEORY_TRANSFER_QUERY_PROMPT.format(
             topic=self.topic or "Unknown topic",
             root_domains=_format_root_domains_for_prompt(parent_state.root_domains),
             idea=parent_state.to_prompt_view(heading="Current Idea"),
             edit_plan=_pretty_json(plan.to_dict()),
-            memory_bundle=bundle.to_prompt_block(),
         )
         fallback = build_fallback_theory_transfer_query(
             plan,
@@ -1016,7 +1007,7 @@ class MemoryGuidedMCTS:
         skip_payload: Optional[Dict[str, Any]] = None
 
         if plan.skill_name == "theory-transfer-injection":
-            query_payload = self._build_theory_transfer_query(plan, parent_state, bundle)
+            query_payload = self._build_theory_transfer_query(plan, parent_state)
             transfer_query_text = query_payload.get("query") or "None"
             hits = self._retrieve_theory_transfer_references(query_payload, parent_state.root_domains)
             if not hits:
@@ -1096,6 +1087,10 @@ class MemoryGuidedMCTS:
         self,
         mature_idea: str,
         topic: str,
+        *,
+        prior_components: Optional[List[str]] = None,
+        prior_component_explanations: Optional[Dict[str, str]] = None,
+        component_decisions: Optional[List[Dict[str, Any]]] = None,
     ) -> Tuple[List[str], Dict[str, str]]:
         return extract_mature_idea_components_via_llm(
             self,
@@ -1103,15 +1098,71 @@ class MemoryGuidedMCTS:
             topic,
             prompt_template=COMPONENT_EXTRACTION_PROMPT,
             max_components=MAX_COMPONENTS,
+            prior_components=prior_components,
+            prior_component_explanations=prior_component_explanations,
+            component_decisions=component_decisions,
         )
+
+    def _resolve_prior_component_context(
+        self,
+        prepared: Dict[str, Any],
+    ) -> Tuple[List[str], Dict[str, str], List[Dict[str, Any]]]:
+        prior_components = (
+            [str(component).strip() for component in prepared.get("prior_components", []) if str(component).strip()]
+            if isinstance(prepared.get("prior_components"), list)
+            else []
+        )
+        prior_component_explanations = (
+            prepared.get("prior_component_explanations")
+            if isinstance(prepared.get("prior_component_explanations"), (dict, list))
+            else {}
+        )
+        component_decisions = (
+            [decision for decision in prepared.get("component_decisions", []) if isinstance(decision, dict)]
+            if isinstance(prepared.get("component_decisions"), list)
+            else []
+        )
+        if not prior_components:
+            for entry_key in ("latest_candidate", "root_idea"):
+                entry = prepared.get(entry_key)
+                if not isinstance(entry, dict):
+                    continue
+                raw_components = entry.get("components")
+                if not isinstance(raw_components, list):
+                    continue
+                prior_components = [
+                    str(component).strip()
+                    for component in raw_components
+                    if str(component).strip()
+                ]
+                if prior_components:
+                    if not prior_component_explanations:
+                        raw_explanations = entry.get("component_explanations")
+                        if isinstance(raw_explanations, (dict, list)):
+                            prior_component_explanations = raw_explanations
+                    break
+        normalized_prior_explanations = normalize_component_explanations(
+            prior_components,
+            prior_component_explanations,
+        )
+        return prior_components, normalized_prior_explanations, component_decisions
 
     def prepare_root_context(self, topic: str, context: Dict[str, Any]) -> Dict[str, Any]:
         prepared = dict(context or {})
         self.paper_context = prepared.get("paper_context") or "No curated papers available yet."
         mature_idea = (prepared.get("mature_idea") or "").strip()
         components = prepared.get("components")
+        prior_components, prior_component_explanations, component_decisions = (
+            self._resolve_prior_component_context(prepared)
+        )
         if mature_idea and not isinstance(components, list):
-            components, explanations = self._extract_mature_idea_components(mature_idea, topic)
+            components, explanations = self._extract_mature_idea_components(
+                mature_idea,
+                topic,
+                prior_components=prior_components,
+                prior_component_explanations=prior_component_explanations,
+                component_decisions=component_decisions,
+            )
             if components:
                 prepared["components"] = components
                 prepared["component_explanations"] = explanations
@@ -1127,9 +1178,6 @@ class MemoryGuidedMCTS:
         context = self.prepare_root_context(topic, context)
         self.topic = topic
         self.analysis_blob = format_analysis_blob(context.get("analysis", []))
-        self.latest_candidate_context = format_latest_candidate_prompt_view(
-            context.get("latest_candidate")
-        )
         self.paper_context = context.get("paper_context") or "No curated papers available yet."
         self.mature_idea = (context.get("mature_idea") or "").strip()
         self._mature_idea_components = list(context.get("components") or [])

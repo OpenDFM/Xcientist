@@ -139,8 +139,6 @@ def persist_final_idea(
     algorithm = build_algorithm_spec(
         best_entry,
         topic,
-        raw_refs,
-        artifact,
         prompts,
         chat_fn,
         model,

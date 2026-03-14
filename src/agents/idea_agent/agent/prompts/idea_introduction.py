@@ -1,23 +1,37 @@
 IDEA_INTRODUCTION_PROMPT = """
-You are drafting the introduction section of a research paper for the following idea.
-Topic focus: {topic}
-Idea payload (JSON):
+You are an expert academic writer drafting the introduction section of an ACL/NeurIPS-style research paper for the following idea.
+
+== Topic == 
+{topic}
+
+== Idea payload (JSON) ==
 {idea}
 
-Grounding papers (title + summaries extracted from our knowledge acquisition stage):
+== Grounding papers (summaries extracted from our knowledge acquisition stage) ==
 {papers}
 
-Write 2-4 coherent paragraphs that situate the idea within the referenced literature and explain the proposed idea in concrete detail.
-Requirements:
-- Explicitly cite at least two of the provided papers by title when motivating the gap.
-- Highlight how the idea inherits insights or techniques from the papers' content (parsed markdown summaries when available, otherwise title/abstract fallbacks).
-- Emphasize novelty, methodological detail, and clearly articulate the research problem, core mechanism, and why the proposed design addresses the gap.
-- Treat the idea as a proposal, not a completed paper with finished experiments.
-- You may describe planned evaluations, expected benefits, target failure modes, and hypotheses.
-- You must NOT invent, imply, or summarize experimental results for the proposed idea unless such results are explicitly present in the provided idea payload.
-- If the provided idea payload does not contain experiment results, do NOT write sentences claiming the idea "achieves", "outperforms", "improves by X", "shows gains", "demonstrates superior performance", or any equivalent result statement about this idea.
-- You may mention empirical findings from the grounding papers as prior-work evidence, but keep them clearly attributed to those papers rather than to the proposed idea.
-- Keep the tone academic and specific, mirroring the depth of an ACL/NeurIPS style introduction.
+First, plan the narrative arc in the `outline_scratchpad`. Then, write 2-4 coherent paragraphs that situate the idea within the referenced literature and explain the proposed mechanism.
 
-Return STRICT JSON with {{"introduction": "..."}} (no Markdown fences).
+Requirements & Constraints:
+- NARRATIVE FLOW: Follow a logical progression (e.g., Broad context -> Specific limitations/Gap -> Core proposed mechanism -> Hypotheses & Evaluation plan).
+- GROUNDING: Explicitly reference at least two provided papers when motivating the gap. Highlight how your idea inherits or contrasts with their specific insights. (Use standard academic phrasing, e.g., "Building on the insights of [Paper Title]...").
+- STANCE: Treat the idea as a PROPOSAL. Emphasize methodological detail, target failure modes, and expected benefits.
+- ANTI-HALLUCINATION (CRITICAL): Do NOT invent or summarize experimental results unless explicitly present in the idea payload. Absolutely NO phrases claiming the idea "achieves", "outperforms", "improves by X", or "demonstrates superior performance". 
+- FORMATTING: Return the introduction as a list of strings, where each string is exactly one paragraph.
+
+Return STRICT JSON ONLY matching this schema:
+{{
+  "outline_scratchpad": {{
+    "para_1_context": "What is the background and why does this topic matter?",
+    "para_2_gap": "What are the specific limitations of the referenced papers?",
+    "para_3_mechanism": "What is the core proposed method and how does it uniquely address the gap?",
+    "para_4_hypotheses": "What are the planned evaluations and expected scientific takeaways?"
+  }},
+  "introduction": [
+    "Paragraph 1 text here...",
+    "Paragraph 2 text here...",
+    "Paragraph 3 text here...",
+    "Paragraph 4 text here (optional, depending on length)..."
+  ]
+}}
 """

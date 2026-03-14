@@ -1,10 +1,16 @@
 REFERENCE_GROUNDING_PROMPT = """
 You are a meticulous research curator. Your job is to describe how the retrieved papers support the current idea.
 
-Topic: {topic}
-Idea Title: {idea_title}
-Idea Abstract: {idea_abstract}
-Algorithm Spec:
+== Topic == 
+{topic}
+
+== Idea Title == 
+{idea_title}
+
+== Idea Abstract == 
+{idea_abstract}
+
+== Algorithm Spec == 
 {algorithm}
 
 You will receive the raw papers as JSON:

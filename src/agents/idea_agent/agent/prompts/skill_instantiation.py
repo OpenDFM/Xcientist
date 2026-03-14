@@ -6,19 +6,15 @@ Given a compiled edit plan (skill + atomic component edits + validation protocol
 == Context ==
 Topic: {topic}
 Fixed root domains for this MCTS run: {root_domains}
-Idea taste mode: {idea_taste_mode}
-Idea taste label: {idea_taste_label}
 Taste guidance (soft preference only): {taste_guidance}
-Mature idea (anchor): {mature_idea}
+Mature idea (ANCHOR): {mature_idea}
 Parent idea: {parent_summary}
-Latest candidate in the current run: {latest_candidate_context}
 Parent components (actual modules in the current idea): {parent_components}
 Literature context: {paper_context}
 Memory bundle: {memory_bundle}
-Cross-domain transfer query (only populated for theory-transfer-injection): {transfer_query}
-Cross-domain core references (reference only, not mandatory templates): {cross_domain_references}
+{cross_domain_context}
 
-== Compiled Edit Plan ==
+== Compiled Edit Plan **IMPORTANT** ==
 Skill: {skill_name}
 Objective: {plan_objective}
 Target defects: {target_defects}
@@ -45,24 +41,26 @@ Instantiate the above plan into a concrete research idea. You must:
 
 Return STRICT JSON (no Markdown wrapping):
 {{
-  "title": "concise, specific paper title",
+  "instantiation_scratchpad": {{
+    "edit_reasons": [
+      "Reason 1: Why generic_template_1 fixes Target Defect X...",
+      "Reason 2: Why generic_template_2 is needed for the validation..."
+    ],
+    "component_mapping": {{
+      "generic_template_name_1": "concrete_topic_specific_name_1",
+      "generic_template_name_2": "concrete_topic_specific_name_2"
+    }},
+    "component_role_explanations": {{
+      "concrete_topic_specific_name_1": "Specific computational role in the new method...",
+      "concrete_topic_specific_name_2": "Specific computational role in the new method..."
+    }}
+  }},
+  "title": "concise, specific paper title using the concrete component names",
   "abstract": "≤150 words abstract describing the concrete contribution",
   "core_contribution": "one focused statement of the new insight/mechanism",
-  "method": "concrete methodology steps with specific module names, loss functions, training procedures",
+  "method": "concrete methodology steps using ONLY the names defined in your component_mapping. Specify loss functions, optimization steps, etc.",
   "experiments": "fair comparison protocol: specific baselines, datasets, metrics, ablation design",
   "risks": "concrete failure modes and mitigation strategies",
-  "rationale": "2-3 sentences on how this skill application resolves the target defects",
-  "component_mapping": {{
-    "generic_template_name_1": "concrete_topic_specific_name_1",
-    "generic_template_name_2": "concrete_topic_specific_name_2"
-  }},
-  "component_role_explanations": {{
-    "concrete_topic_specific_name_1": "What this component does in the idea",
-    "concrete_topic_specific_name_2": "What this component does in the idea"
-  }},
-  "edit_reasons": [
-    "reason for component edit 1",
-    "reason for component edit 2"
-  ]
+  "rationale": "2-3 sentences on how this skill application resolves the target defects"
 }}
 """
