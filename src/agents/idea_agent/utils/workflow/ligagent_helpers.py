@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import json
-import re
 import uuid
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 from src.agents.idea_agent.agent.artifacts import artifact_get
 from src.agents.idea_agent.agent.prompts.experiment_findings_extraction import (
@@ -22,18 +21,89 @@ from src.agents.idea_agent.utils.workflow.ligagent_utils import (
 from src.agents.idea_agent.utils.prompting.prompt_views import format_paper_context_prompt_view
 
 
-def sanitize_action_token(action: str) -> str:
-    return "".join(ch for ch in action.lower().strip() if ch.isalnum())
+_ABLATION_RESULT_SIGN = {
+    "positive": 1.0,
+    "negative": -1.0,
+    "inconclusive": 0.0,
+    "mixed": 0.0,
+    "neutral": 0.0,
+}
 
 
-def build_action_lookup(action_aliases: Dict[str, Set[str]]) -> Dict[str, str]:
-    lookup: Dict[str, str] = {}
-    for canonical, aliases in action_aliases.items():
-        for alias in aliases:
-            key = sanitize_action_token(alias)
-            if key:
-                lookup[key] = canonical
-    return lookup
+def _normalize_ablation_result_label(value: Any) -> str:
+    raw = str(value or "").strip().lower()
+    aliases = {
+        "pos": "positive",
+        "beneficial": "positive",
+        "good": "positive",
+        "works": "positive",
+        "neg": "negative",
+        "harmful": "negative",
+        "bad": "negative",
+        "fails": "negative",
+        "failure": "negative",
+        "unclear": "inconclusive",
+        "unknown": "inconclusive",
+    }
+    normalized = aliases.get(raw, raw)
+    return normalized if normalized in _ABLATION_RESULT_SIGN else "inconclusive"
+
+
+def _normalize_ablation_confidence(value: Any, default: float = 0.5) -> float:
+    try:
+        return max(0.0, min(1.0, float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_ablation_component_entry(
+    component_name: str,
+    payload: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    component = str(component_name or payload.get("component") or "").strip()
+    if not component:
+        return None
+
+    result = _normalize_ablation_result_label(payload.get("result"))
+    confidence = _normalize_ablation_confidence(payload.get("confidence"), default=0.5)
+    normalized = {
+        "component": component,
+        "op": str(payload.get("op") or "remove").strip().lower() or "remove",
+        "result": result,
+        "metric": str(payload.get("metric") or "").strip(),
+        "value": str(payload.get("value") or "").strip(),
+        "analysis": str(payload.get("analysis") or payload.get("rationale") or "").strip(),
+        "method_context": str(payload.get("method_context") or "").strip(),
+        "confidence": confidence,
+    }
+    return normalized
+
+
+def normalize_ablation_results_payload(results: Any) -> List[Dict[str, Any]]:
+    if not results:
+        return []
+
+    normalized: List[Dict[str, Any]] = []
+    if isinstance(results, list):
+        for entry in results:
+            if not isinstance(entry, dict):
+                continue
+            item = _normalize_ablation_component_entry(str(entry.get("component") or ""), entry)
+            if item is not None:
+                normalized.append(item)
+        return normalized
+
+    if not isinstance(results, dict):
+        return []
+
+    components = results.get("components") if isinstance(results.get("components"), dict) else {}
+    for component_name, payload in components.items():
+        if not isinstance(payload, dict):
+            continue
+        item = _normalize_ablation_component_entry(str(component_name), payload)
+        if item is not None:
+            normalized.append(item)
+    return normalized
 
 
 def generate_background_brief(

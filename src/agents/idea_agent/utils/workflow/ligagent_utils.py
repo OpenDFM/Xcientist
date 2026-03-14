@@ -280,7 +280,7 @@ class LigRuntime:
             model=model,
             **kwargs,
         )
-        return self.agent._parse_json_response(raw)
+        return parse_json_response(raw)
 
     def tool_call(
         self,

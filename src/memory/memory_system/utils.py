@@ -42,6 +42,22 @@ def new_id(prefix: str) -> str:
     uuid_hex = uuid4().hex[:8]
     return f"{prefix}_{uuid_hex}"
 
+
+def _normalize_component_key(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "").strip().lower())
+
+
+def _reliability_score(record: Any) -> float:
+    confidence = float(getattr(record, "confidence", 0.0) or 0.0)
+    return max(0.0, min(1.0, confidence))
+
+
+def _evidence_strength(record: Any) -> float:
+    if str(getattr(record, "result", "") or "").strip().lower() == "inconclusive":
+        return 0.15
+    confidence = float(getattr(record, "confidence", 0.0) or 0.0)
+    return max(0.15, min(1.0, confidence))
+
 def _parse_json_response(raw: str) -> Dict[str, Any]:
     text = (raw or "").strip()
     if not text:

@@ -259,7 +259,7 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     if isinstance(mature_idea, str) and mature_idea.strip():
         context["mature_idea"] = mature_idea.strip()
 
-    agent._inject_symbolic_priors(topic, context)
+    agent.mcts.reload_symbolic_memory()
     ligagent_pro = bool(get_config_value(agent.config, "run.LigAgent-Pro", False))
 
     mode_results: List[tuple[str, Any]] = []

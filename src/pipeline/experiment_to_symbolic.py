@@ -26,12 +26,6 @@ def normalize_component_family(
     fallback = "_".join(part for part in fallback.split("_") if part)
     return f"component.{fallback or 'unknown'}"
 
-
-def infer_main_op(result: str) -> str:
-    del result
-    return "remove"
-
-
 def load_ablation_results(ablation_path: str) -> Dict[str, Any]:
     with open(ablation_path, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -59,14 +53,10 @@ def convert_ablation_to_symbolic_memory(
     # Create records for each component
     created_records = []
     components_data = ablation_data.get("components", {})
-    run_summary = ablation_data.get("summary", {}) if isinstance(ablation_data.get("summary"), dict) else {}
-
     for comp_id, comp_result in components_data.items():
         if not isinstance(comp_result, dict):
             continue
-        # Determine main_op from result
         result_type = comp_result.get("result", "inconclusive")
-        main_op = infer_main_op(result_type)
 
         value = comp_result.get("value", "0%")
         confidence = comp_result.get("confidence", 0.5)
@@ -83,19 +73,12 @@ def convert_ablation_to_symbolic_memory(
         payload = SymbolicRecordPayload(
             component=comp_id,
             component_family=component_family,
-            op=main_op,
             result=str(result_type or "inconclusive"),
             metric=str(comp_result.get("metric", "") or ""),
             value=str(value or ""),
             analysis=str(comp_result.get("analysis", "") or ""),
             method_context=method_context,
             confidence=float(confidence),
-            run_summary=run_summary,
-            metadata={
-                "idea_id": experiment_id,
-                "experiment_id": experiment_id,
-            },
-            support_count=1,
         )
 
         # Create symbolic record

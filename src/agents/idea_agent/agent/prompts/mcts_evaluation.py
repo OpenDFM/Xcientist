@@ -35,8 +35,8 @@ Scoring policy:
 - If the idea drifts from topic constraints or the fixed root domains above, reduce alignment_score.
 - If the proposal mostly improves diagnosis, measurement, or guardrails without changing the task-solving path, clarity may improve, but novelty and impact should stay limited.
 - When symbolic memory hints are available, interpret them as component-ablation evidence:
-  * If `op=remove` and result is positive, removing that component helped; treat that component family as risky, redundant, or harmful in similar designs.
-  * If `op=remove` and result is negative, removing that component hurt; treat that component family as beneficial or structurally important.
+  * Positive result means removing that component helped; treat that component family as risky, redundant, or harmful in similar designs.
+  * Negative result means removing that component hurt; treat that component family as beneficial or structurally important.
   * Inconclusive results are weak evidence and should not dominate scoring.
   * If the candidate repeats a component family that ablation evidence says is harmful, note it explicitly in feedback.
 - In "detected_defects", list ALL defect tags from the registry above that still apply to this idea AFTER the proposed edit. Choose only from the canonical tags.

@@ -4,7 +4,7 @@ from src.agents.idea_agent.agent import get_logger
 from src.agents.idea_agent.utils.core.logger import get_or_create_mode_logger
 
 import logging
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 from pathlib import Path
 import time
 from copy import deepcopy
@@ -39,9 +39,8 @@ from src.agents.idea_agent.utils.workflow.ligagent_utils import (
     parse_json_response,
 )
 from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
-    build_action_lookup,
     generate_background_brief,
-    sanitize_action_token,
+    normalize_ablation_results_payload,
     get_paper_content as load_paper_content,
 )
 from src.agents.idea_agent.utils.workflow.stage_contract import (
@@ -55,152 +54,10 @@ from src.agents.idea_agent.utils.workflow.workflow_runtime import (
     WorkflowSpec,
 )
 from src.agents.idea_agent.utils.core.config_loader import get_config_value
-from memory.api.component_taxonomy import (
-    ContextSignature,
-    extract_component_families,
-)
 
 logger = get_logger()
 
-_ABLATION_RESULT_SIGN = {
-    "positive": 1.0,
-    "negative": -1.0,
-    "inconclusive": 0.0,
-    "mixed": 0.0,
-    "neutral": 0.0,
-}
-
-
-def _normalize_ablation_result_label(value: Any) -> str:
-    raw = str(value or "").strip().lower()
-    aliases = {
-        "pos": "positive",
-        "beneficial": "positive",
-        "good": "positive",
-        "works": "positive",
-        "neg": "negative",
-        "harmful": "negative",
-        "bad": "negative",
-        "fails": "negative",
-        "failure": "negative",
-        "unclear": "inconclusive",
-        "unknown": "inconclusive",
-    }
-    normalized = aliases.get(raw, raw)
-    return normalized if normalized in _ABLATION_RESULT_SIGN else "inconclusive"
-
-
-def _normalize_ablation_confidence(value: Any, default: float = 0.5) -> float:
-    try:
-        return max(0.0, min(1.0, float(value)))
-    except (TypeError, ValueError):
-        return default
-
-
-def _fallback_component_family(component: str) -> str:
-    normalized = "".join(ch.lower() if ch.isalnum() else "_" for ch in str(component or "").strip())
-    normalized = "_".join(part for part in normalized.split("_") if part)
-    return f"component.{normalized or 'unknown'}"
-
-
-def _normalize_ablation_component_entry(
-    component_name: str,
-    payload: Dict[str, Any],
-    *,
-    run_summary: Optional[Dict[str, Any]] = None,
-) -> Optional[Dict[str, Any]]:
-    component = str(component_name or payload.get("component") or "").strip()
-    if not component:
-        return None
-
-    result = _normalize_ablation_result_label(payload.get("result"))
-    confidence = _normalize_ablation_confidence(payload.get("confidence"), default=0.5)
-    normalized = {
-        "component": component,
-        "op": str(payload.get("op") or "remove").strip().lower() or "remove",
-        "result": result,
-        "metric": str(payload.get("metric") or "").strip(),
-        "value": str(payload.get("value") or "").strip(),
-        "analysis": str(payload.get("analysis") or payload.get("rationale") or "").strip(),
-        "method_context": str(payload.get("method_context") or "").strip(),
-        "confidence": confidence,
-        "run_summary": dict(run_summary or {}),
-        "support_count": max(1, int(payload.get("support_count", 1) or 1)),
-    }
-    return normalized
-
-
-def normalize_ablation_results_payload(results: Any) -> List[Dict[str, Any]]:
-    if not results:
-        return []
-
-    normalized: List[Dict[str, Any]] = []
-    if isinstance(results, list):
-        for entry in results:
-            if not isinstance(entry, dict):
-                continue
-            item = _normalize_ablation_component_entry(
-                str(entry.get("component") or ""),
-                entry,
-                run_summary=entry.get("run_summary") if isinstance(entry.get("run_summary"), dict) else None,
-            )
-            if item is not None:
-                normalized.append(item)
-        return normalized
-
-    if not isinstance(results, dict):
-        return []
-
-    run_summary = results.get("summary") if isinstance(results.get("summary"), dict) else {}
-    components = results.get("components") if isinstance(results.get("components"), dict) else {}
-    for component_name, payload in components.items():
-        if not isinstance(payload, dict):
-            continue
-        item = _normalize_ablation_component_entry(
-            str(component_name),
-            payload,
-            run_summary=run_summary,
-        )
-        if item is not None:
-            normalized.append(item)
-    return normalized
-
 class LigAgent(AgentBase):
-    ACTION_ALIASES: Dict[str, Set[str]] = {
-        "knowledge_aquisition": {
-            "knowledge_aquisition",
-            "knowledge aquisition",
-            "knowledge acquisition",
-            "knowledgeaquisition",
-            "knowledgeacquisition",
-            "knowledge-acquisition",
-        },
-        "advanced_analysis": {
-            "advanced_analysis",
-            "advanced analysis",
-            "advancedanalysis",
-            "advanced-analysis",
-        },
-        "idea_generation": {
-            "idea_generation",
-            "idea generation",
-            "ideageneration",
-            "idea-generation",
-        },
-        "re_analysis_replan": {
-            "re_analysis_replan",
-            "re analysis replan",
-            "reanalysisreplan",
-            "re-analysis-replan",
-        },
-    }
-
-    def _canonical_action(self, action: Optional[str]) -> Optional[str]:
-        if not action:
-            return None
-        sanitized = sanitize_action_token(action)
-        return self._action_lookup.get(sanitized)
-
     def __init__(self, *args, **kwargs):
         # Configure from provided config or load from file
         config = kwargs.pop("config", None)
@@ -233,7 +90,6 @@ class LigAgent(AgentBase):
 
         self.chat_max_retries = chat_max_retries
         self.chat_retry_backoff = chat_retry_backoff
-        self._action_lookup = build_action_lookup(self.ACTION_ALIASES)
         self.semantic_search_limit = get_config_value(config, "agent.semantic_search_limit", 5)
         self.logger = logger
         self.runtime = LigRuntime(self)
@@ -368,15 +224,6 @@ class LigAgent(AgentBase):
             if isinstance(value, str) and value.strip():
                 return value.strip()
         return explicit_model or base_model
-
-    def perform_action(self, action: str, **kwargs) -> Any:
-        logger.info(f"🚀 Performing action: {action}...")
-        resolved_action = self._canonical_action(action)
-        if not resolved_action:
-            raise ValueError(f"Unknown action: {action}")
-        if resolved_action == "knowledge_aquisition":
-            logger.info("🔍 Due to API and web request rate limits, this process may take some time...")
-        return self._run_action_workflow(resolved_action, **kwargs)
 
     def bootstrap_topic(self, topic: str, retrieval_keywords: Optional[str] = None) -> None:
         normalized_topic = (topic or "").strip()
@@ -612,150 +459,7 @@ class LigAgent(AgentBase):
             logger=logger,
         )
 
-    def _parse_json_response(self, raw: str) -> Dict[str, Any]:
-        return parse_json_response(raw)
-
-    def _inject_symbolic_priors(
-        self,
-        topic: str,
-        context: Dict[str, Any],
-    ) -> None:
-        """Inject component×op priors into ``self.mcts.symbolic_memory``.
-
-        This is the single entry-point where external signals are translated
-        into :class:`SymbolicRecord` instances that downstream
-        symbolic-memory-aware stages can consume.
-
-        Two signal sources may exist in the artifact, but only
-        **experiment-agent ablation results** are injected by the default
-        implementation:
-
-        1. **Experiment-agent ablation results** – stored under
-           ``self.artifact["ideation"]["ablation_results_raw"]`` as the raw
-           ablation report, and normalized into
-           ``self.artifact["ideation"]["ablation_results"]``. Each normalized
-           entry is a dict::
-
-               {
-                   "component": "uncertainty_weighted_loss",
-                   "op": "remove",
-                   "result": "negative",
-                   "metric": "...",
-                   "value": "...",
-                   "analysis": "...",
-                   "method_context": "...",  # idea intro with this component removed
-                   "confidence": 0.8,
-                   "run_summary": {},
-               }
-
-        2. **Paper-graph conclusions** – stored under
-           ``self.artifact["ideation"]["paper_graph_priors"]``.  They are not injected
-           into symbolic memory by the default implementation.
-
-        Override or extend this method to plug in additional signal sources.
-        """
-        if not self.mcts.config.enable_symbolic_memory:
-            return
-        sym = self.mcts.symbolic_memory
-        injected = 0
-
-        raw_payload = artifact_get(self.artifact, "ablation_results_raw", {})
-        entries = normalize_ablation_results_payload(raw_payload)
-        if not entries:
-            entries = normalize_ablation_results_payload(
-                artifact_get(self.artifact, "ablation_results", [])
-            )
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-            component = str(entry.get("component", "")).strip()
-            main_op = str(entry.get("op", "")).strip().lower() or "remove"
-            if not component or not main_op:
-                continue
-
-            method_text = str(entry.get("method_context", ""))
-            families = extract_component_families([component], method_text)
-            component_family = (
-                str(families[0].get("family") or "").strip()
-                if families else ""
-            ) or _fallback_component_family(component)
-
-            confidence = _normalize_ablation_confidence(entry.get("confidence"), default=0.5)
-            result_label = _normalize_ablation_result_label(entry.get("result"))
-            metric_name = str(entry.get("metric", "")).strip()
-            metric_value = str(entry.get("value", "")).strip()
-            analysis_text = str(entry.get("analysis", "")).strip()
-            run_summary = dict(entry.get("run_summary") or {}) if isinstance(entry.get("run_summary"), dict) else {}
-
-            try:
-                record = sym.instantiate_symbolic_record(
-                    component=component,
-                    component_family=component_family,
-                    op=main_op,
-                    result=result_label,
-                    metric=metric_name,
-                    value=metric_value,
-                    analysis=analysis_text,
-                    method_context=method_text,
-                    confidence=confidence,
-                    run_summary=run_summary,
-                    metadata={
-                        "topic": topic,
-                        "raw_entry": entry,
-                    },
-                    support_count=int(entry.get("support_count", 1)),
-                )
-                sym.upsert_normal_records([record], agent_id="idea_agent")
-                injected += 1
-            except Exception as exc:
-                logger.warning(
-                    "⚠️  Failed to inject symbolic prior for %s/%s: %s",
-                    component, main_op, exc,
-                )
-
-        if injected:
-            logger.info(
-                "[LigAgent] Injected %d symbolic prior(s) into MCTS symbolic memory.",
-                injected,
-            )
-
-
     def ingest_ablation_results(self, results: Any) -> None:
-        """Write experiment-agent ablation results into the artifact so that
-        ``_inject_symbolic_priors`` can consume them on the next
-        ``idea_generation`` call.
-
-        Preferred input schema is the raw ablation report::
-
-            {
-              "components": {
-                "<component_name>": {
-                  "result": "positive|negative|inconclusive",
-                  "metric": "...",
-                  "value": "...",
-                  "confidence": 0.95,
-                  "analysis": "...",
-                  "method_context": "..."
-                }
-              },
-              "summary": {...}
-            }
-
-        The normalized internal representation for each component is::
-
-            {
-                "component":        str,   # e.g. "uncertainty_weighted_loss"
-                "op":               str,   # usually "remove"
-                "result":           str,
-                "metric":           str,
-                "value":            str,
-                "analysis":         str,
-                "method_context":   str,   # idea intro with this component removed
-                "confidence":       float, # [0, 1]
-                "run_summary":      dict,  # top-level summary payload
-                "support_count":    int,   # optional, default 1
-            }
-        """
         if not results:
             return
         if isinstance(results, dict):
@@ -767,10 +471,10 @@ class LigAgent(AgentBase):
             if not isinstance(entry, dict):
                 logger.warning("[LigAgent] ingest_ablation_results: skipping non-dict entry %r", entry)
                 continue
-            if not entry.get("component") or not entry.get("op"):
+            if not entry.get("component"):
                 logger.warning(
-                    "[LigAgent] ingest_ablation_results: skipping entry missing required fields "
-                    "(component/op): %r",
+                    "[LigAgent] ingest_ablation_results: skipping entry missing required field "
+                    "(component): %r",
                     entry,
                 )
                 continue

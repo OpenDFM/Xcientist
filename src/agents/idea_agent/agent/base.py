@@ -63,15 +63,6 @@ class AgentBase:
                 raise TypeError(f"Tool '{name}' is not callable and has no 'run' method")
         return result
 
-    def perform_action(self, action: str, **params) -> Any:
-        """
-        Perform a chosen action. 
-        Should be implemented by subclasses.
-        """
-        if action not in self.action_space:
-            raise ValueError(f"Action '{action}' not in action_space")
-        raise NotImplementedError("perform_action must be implemented by subclasses")
-
     def chat(self, prompt: str, model: str="gpt-5-mini", **kwargs) -> str:
         """
         Interact with the chat model using the given prompt.

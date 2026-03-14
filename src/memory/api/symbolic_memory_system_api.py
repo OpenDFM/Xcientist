@@ -1,4 +1,4 @@
-"""Ablation-native symbolic memory indexed by component family.
+"""Ablation-native symbolic memory indexed by component and component family.
 
 Each record mirrors one component entry from
 ``src/agents/idea_agent/ablation_results.json`` and preserves the raw
@@ -6,25 +6,24 @@ ablation evidence directly:
 
 - ``component``: component name from the ablation report
 - ``component_family``: derived retrieval key for hierarchical lookup
-- ``op``: operation represented by the evidence, usually ``remove``
 - ``result``: positive / negative / inconclusive
 - ``metric`` / ``value`` / ``analysis``: raw evidence fields
 - ``method_context``: idea introduction with this component removed
-- ``run_summary``: optional structured context
 
 Retrieval remains hierarchical:
-1. exact ``component_family`` match
-2. macro-role fallback
-3. global fallback with structural + lexical ranking
+1. exact ``component`` match
+2. exact ``component_family`` match
+3. exact ``macro_role`` match
+
+When one tier returns multiple records, rerank them by comparing the current
+idea abstract against each record's ``method_context``.
 """
 
 import json
 import math
 import os
 import re
-from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional, Tuple
-from uuid import uuid4
+from typing import Any, Dict, List, Optional, Tuple
 
 from memory.api.base_symbolic_memory_system_api import (
     SymbolicMemorySystem as BaseSymbolicMemorySystem,
@@ -32,67 +31,14 @@ from memory.api.base_symbolic_memory_system_api import (
     SymbolicRecord,
     SymbolicRecordPayload,
 )
-from memory.api.component_taxonomy import ContextSignature, parse_component_family
-from memory.memory_system.utils import _safe_dump_str, compute_overlap_score
-
-
-def _now_iso() -> str:
-    return datetime.now().isoformat()
-
-
-def _new_id(prefix: str) -> str:
-    return f"{prefix}_{uuid4().hex[:8]}"
-
-
-def _reliability_score(record: SymbolicRecord) -> float:
-    support = max(record.support_count, 1)
-    support_factor = 1.0 - 1.0 / (1.0 + math.log2(support))
-    return record.confidence * max(0.0, support_factor)
-
-
-def _evidence_strength(record: SymbolicRecord) -> float:
-    if str(record.result or "").strip().lower() == "inconclusive":
-        return 0.15
-    return max(0.15, min(1.0, float(record.confidence or 0.0)))
-
-
-def _result_effect(record: SymbolicRecord) -> float:
-    result = str(record.result or "").strip().lower()
-    confidence = max(0.0, min(1.0, float(record.confidence or 0.0)))
-    if result == "positive":
-        return confidence
-    if result == "negative":
-        return -confidence
-    return 0.0
-
-
-def _context_match_score(query_sig: ContextSignature, record: SymbolicRecord) -> float:
-    text_pool = "\n".join(
-        [
-            record.analysis or "",
-            record.method_context or "",
-            record.metric or "",
-            record.value or "",
-            _safe_dump_str(record.run_summary),
-        ]
-    ).lower()
-    if not text_pool.strip():
-        return 0.5
-
-    tokens: List[str] = []
-    tokens.extend(query_sig.macro_roles_present)
-    tokens.extend(query_sig.defect_profile)
-    tokens.append(query_sig.coverage_bucket)
-    tokens.append(query_sig.stability_bucket)
-    tokens.append(query_sig.cost_bucket)
-    tokens.append(query_sig.budget_pressure)
-    if query_sig.last_main_op:
-        tokens.append(query_sig.last_main_op)
-    lowered = [token.lower() for token in tokens if token]
-    if not lowered:
-        return 0.5
-    hits = sum(1 for token in lowered if token in text_pool)
-    return max(0.1, hits / len(lowered))
+from memory.api.component_taxonomy import parse_component_family
+from memory.memory_system.utils import (
+    _evidence_strength,
+    _normalize_component_key,
+    _reliability_score,
+    compute_overlap_score,
+    new_id,
+)
 
 
 class SymbolicMemorySystem(BaseSymbolicMemorySystem):
@@ -103,11 +49,17 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
         self.midmap2fid: Dict[str, int] = {}
         self._next_id = 0
 
+        self._component_index: Dict[str, List[int]] = {}
         self._family_index: Dict[str, List[int]] = {}
         self._role_index: Dict[str, List[int]] = {}
-        self._op_index: Dict[str, List[int]] = {}
 
     def _index_record(self, fid: int, record: SymbolicRecord) -> None:
+        component = _normalize_component_key(record.component)
+        if component:
+            self._component_index.setdefault(component, [])
+            if fid not in self._component_index[component]:
+                self._component_index[component].append(fid)
+
         family = (record.component_family or "").strip().lower()
         if family:
             self._family_index.setdefault(family, [])
@@ -118,13 +70,15 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
             if fid not in self._role_index[role]:
                 self._role_index[role].append(fid)
 
-        op = (record.op or "").strip().lower()
-        if op:
-            self._op_index.setdefault(op, [])
-            if fid not in self._op_index[op]:
-                self._op_index[op].append(fid)
-
     def _unindex_record(self, fid: int, record: SymbolicRecord) -> None:
+        component = _normalize_component_key(record.component)
+        if component and component in self._component_index:
+            self._component_index[component] = [
+                item for item in self._component_index[component] if item != fid
+            ]
+            if not self._component_index[component]:
+                del self._component_index[component]
+
         family = (record.component_family or "").strip().lower()
         if family and family in self._family_index:
             self._family_index[family] = [item for item in self._family_index[family] if item != fid]
@@ -136,38 +90,25 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
                 if not self._role_index[role]:
                     del self._role_index[role]
 
-        op = (record.op or "").strip().lower()
-        if op and op in self._op_index:
-            self._op_index[op] = [item for item in self._op_index[op] if item != fid]
-            if not self._op_index[op]:
-                del self._op_index[op]
-
     def _rebuild_indexes(self) -> None:
+        self._component_index.clear()
         self._family_index.clear()
         self._role_index.clear()
-        self._op_index.clear()
         for fid, record in self._records.items():
             self._index_record(fid, record)
 
     def instantiate_symbolic_record(self, **kwargs) -> SymbolicRecord:
         payload = SymbolicRecordPayload(**kwargs)
-        timestamp = _now_iso()
         return SymbolicRecord(
-            id=_new_id("sym"),
+            id=new_id("sym"),
             component=payload.component,
             component_family=payload.component_family,
-            op=payload.op,
             result=payload.result,
             metric=payload.metric,
             value=payload.value,
             analysis=payload.analysis,
             method_context=payload.method_context,
             confidence=payload.confidence,
-            run_summary=dict(payload.run_summary or {}),
-            metadata=dict(payload.metadata or {}),
-            support_count=payload.support_count,
-            created_at=timestamp,
-            updated_at=timestamp,
         )
 
     @property
@@ -239,7 +180,6 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
                 old_record = self._records.get(fid)
                 if old_record is not None:
                     self._unindex_record(fid, old_record)
-                memory.updated_at = _now_iso()
                 self._records[fid] = memory
                 self._index_record(fid, memory)
             return True
@@ -267,7 +207,6 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
             [
                 str(record.component or "").strip().lower(),
                 str(record.component_family or "").strip().lower(),
-                str(record.op or "").strip().lower(),
                 str(record.metric or "").strip().lower(),
             ]
         )
@@ -294,7 +233,6 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
                 self.add([record], agent_id=agent_id)
                 continue
 
-            total_support = max(1, int(target.support_count)) + max(1, int(record.support_count))
             target_result = str(target.result or "").strip().lower()
             record_result = str(record.result or "").strip().lower()
             merged_result = target_result
@@ -303,31 +241,24 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
                     merged_result = record_result if target_result == "inconclusive" else target_result
                 else:
                     merged_result = "inconclusive"
-            merged_confidence = (
-                float(target.confidence) * max(1, int(target.support_count))
-                + float(record.confidence) * max(1, int(record.support_count))
-            ) / total_support
+            merged_confidence = (float(target.confidence) + float(record.confidence)) / 2.0
 
             target.update(
                 component=record.component,
                 component_family=record.component_family,
-                op=record.op,
                 result=merged_result,
                 metric=record.metric or target.metric,
                 value=record.value or target.value,
                 analysis=record.analysis or target.analysis,
                 method_context=record.method_context or target.method_context,
                 confidence=merged_confidence,
-                run_summary={**target.run_summary, **record.run_summary},
-                metadata={**target.metadata, **record.metadata},
-                support_count=total_support,
             )
             self.update([target])
 
     def query(
         self,
         query_text: str,
-        method: Literal["hybrid", "rule", "overlapping"] = "hybrid",
+        method: str = "lexical",
         limit: int = 5,
         filters: Optional[Dict] = None,
         threshold: float = 0.0,
@@ -336,9 +267,11 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
         if self.size == 0:
             return []
 
-        method = (method or "hybrid").lower()
-        if method not in {"hybrid", "rule", "overlapping"}:
-            raise ValueError(f"Unsupported symbolic query method: {method}")
+        method = (method or "lexical").lower()
+        if method != "lexical":
+            raise ValueError(
+                f"Unsupported symbolic query method: {method}. Only 'lexical' is supported."
+            )
 
         ranked: List[Tuple[float, SymbolicRecord]] = []
         for record in self._records.values():
@@ -348,19 +281,7 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
                 continue
 
             lexical_score = self._lexical_score(query_text, record)
-            rule_score = self._rule_score(query_text, record)
-            recency_score = self._recency_score(record)
-
-            if method == "overlapping":
-                score = lexical_score
-            elif method == "rule":
-                score = rule_score
-            else:
-                score = (
-                    self.cfg.lexical_weight * lexical_score
-                    + self.cfg.rule_weight * rule_score
-                    + self.cfg.recency_weight * recency_score
-                )
+            score = lexical_score
             score *= max(_reliability_score(record), 0.05) * (0.4 + 0.6 * _evidence_strength(record))
 
             if score >= threshold:
@@ -372,7 +293,7 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
     def get_nearest_k_records(
         self,
         record: SymbolicRecord,
-        method: Literal["hybrid", "rule", "overlapping"] = "hybrid",
+        method: str = "lexical",
         k: int = 5,
         filters: Optional[Dict] = None,
         agent_id: str = "",
@@ -387,57 +308,126 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
 
     def retrieve_hierarchical(
         self,
+        target_component: str = "",
         target_family: str = "",
-        context_sig: Optional[ContextSignature] = None,
-        op: str = "",
-        limit: int = 5,
+        limit: int = 2,
         threshold: float = 0.25,
         agent_id: str = "",
+        query_context: str = "",
     ) -> List[Tuple[float, SymbolicRecord]]:
-        if self.size == 0:
+        if self.size == 0 or limit <= 0:
             return []
 
-        context_sig = context_sig or ContextSignature()
+        target_component_l = _normalize_component_key(target_component)
         target_family_l = (target_family or "").strip().lower()
         target_role, _ = parse_component_family(target_family_l) if target_family_l else ("", "")
-        op_l = (op or "").strip().lower()
-        scored: Dict[int, Tuple[float, SymbolicRecord]] = {}
+        def _context_match_scores(
+            context_query: str,
+            records: List[SymbolicRecord],
+        ) -> List[float]:
+            if not context_query or len(records) <= 1:
+                return [0.0] * len(records)
 
-        def _score_candidate(fid: int, tier_bonus: float) -> None:
-            if fid in scored:
-                return
-            record = self._records.get(fid)
-            if record is None:
-                return
-            if agent_id and not str(record.id).endswith(f"_{agent_id}"):
-                return
-            if op_l and (record.op or "").strip().lower() != op_l:
-                return
+            docs = [str(record.method_context or "") for record in records]
+            if not any(doc.strip() for doc in docs):
+                return [0.0] * len(records)
 
-            struct_match = _context_match_score(context_sig, record)
-            lexical_match = self._lexical_score(self._context_query_text(context_sig), record)
-            reliability = _reliability_score(record)
-            evidence = _evidence_strength(record)
+            tokenized = [self._context_tokens(context_query)] + [
+                self._context_tokens(doc) for doc in docs
+            ]
+            if not tokenized[0]:
+                return [0.0] * len(records)
 
-            raw_score = struct_match * max(lexical_match, 0.1) * max(reliability, 0.05) * evidence
-            final_score = min(1.0, raw_score + tier_bonus)
-            if final_score >= threshold:
-                scored[fid] = (float(final_score), record)
+            doc_freq: Dict[str, int] = {}
+            for tokens in tokenized:
+                for token in set(tokens):
+                    doc_freq[token] = doc_freq.get(token, 0) + 1
 
-        if target_family_l and target_family_l in self._family_index:
-            for fid in self._family_index[target_family_l]:
-                _score_candidate(fid, tier_bonus=0.15)
+            vectors: List[Dict[str, float]] = []
+            doc_count = len(tokenized)
+            for tokens in tokenized:
+                term_freq: Dict[str, int] = {}
+                for token in tokens:
+                    term_freq[token] = term_freq.get(token, 0) + 1
 
-        if len(scored) < limit and target_role and target_role in self._role_index:
-            for fid in self._role_index[target_role]:
-                _score_candidate(fid, tier_bonus=0.05)
+                token_count = sum(term_freq.values()) or 1
+                vector: Dict[str, float] = {}
+                for token, count in term_freq.items():
+                    tf = count / token_count
+                    idf = math.log((1.0 + doc_count) / (1.0 + doc_freq.get(token, 0))) + 1.0
+                    vector[token] = tf * idf
+                vectors.append(vector)
 
-        if len(scored) < limit:
-            for fid in self._records:
-                _score_candidate(fid, tier_bonus=0.0)
+            query_vector = vectors[0]
+            scores: List[float] = []
+            for idx, doc in enumerate(docs, start=1):
+                tfidf_score = self._cosine_similarity(query_vector, vectors[idx])
+                lexical_score = compute_overlap_score(doc, context_query)
+                scores.append(min(1.0, 0.8 * tfidf_score + 0.2 * lexical_score))
+            return scores
 
-        ranked = sorted(scored.values(), key=lambda item: item[0], reverse=True)
-        return ranked[: max(0, min(limit, len(ranked)))]
+        def _filter_exact_candidates(fids: List[int]) -> List[Tuple[int, SymbolicRecord]]:
+            candidates: List[Tuple[int, SymbolicRecord]] = []
+            for fid in fids:
+                record = self._records.get(fid)
+                if record is None:
+                    continue
+                if agent_id and not str(record.id).endswith(f"_{agent_id}"):
+                    continue
+                candidates.append((fid, record))
+            return candidates
+
+        def _rank_exact_candidates(
+            candidates: List[Tuple[int, SymbolicRecord]],
+            *,
+            tier_base: float,
+        ) -> List[Tuple[float, SymbolicRecord]]:
+            if not candidates:
+                return []
+
+            if query_context and len(candidates) > 1:
+                context_scores = _context_match_scores(
+                    query_context,
+                    [record for _, record in candidates],
+                )
+            else:
+                context_scores = [0.0] * len(candidates)
+
+            ranked_candidates: List[Tuple[float, float, int, SymbolicRecord]] = []
+            for (fid, record), context_score in zip(candidates, context_scores):
+                final_score = min(1.0, tier_base + 0.1 * context_score)
+                if final_score < threshold:
+                    continue
+                ranked_candidates.append((final_score, context_score, fid, record))
+
+            ranked_candidates.sort(
+                key=lambda item: (item[0], item[1], item[2]),
+                reverse=True,
+            )
+            return [
+                (final_score, record)
+                for final_score, _, _, record in ranked_candidates[: max(0, min(limit, len(ranked_candidates)))]
+            ]
+
+        component_candidates = _filter_exact_candidates(
+            self._component_index.get(target_component_l, []) if target_component_l else []
+        )
+        if component_candidates:
+            return _rank_exact_candidates(component_candidates, tier_base=0.9)
+
+        family_candidates = _filter_exact_candidates(
+            self._family_index.get(target_family_l, []) if target_family_l else []
+        )
+        if family_candidates:
+            return _rank_exact_candidates(family_candidates, tier_base=0.8)
+
+        role_candidates = _filter_exact_candidates(
+            self._role_index.get(target_role, []) if target_role else []
+        )
+        if role_candidates:
+            return _rank_exact_candidates(role_candidates, tier_base=0.7)
+
+        return []
 
     def save(self, path: str) -> bool:
         try:
@@ -486,73 +476,22 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
         blocks = [
             record.component,
             record.component_family,
-            record.op,
             record.result,
             record.metric,
             record.value,
             record.analysis,
             record.method_context,
-            _safe_dump_str(record.run_summary),
-            _safe_dump_str(record.metadata),
         ]
         return "\n".join(block for block in blocks if block)
 
     def _lexical_score(self, query_text: str, record: SymbolicRecord) -> float:
         return compute_overlap_score(self._record_text(record), query_text)
 
-    def _rule_score(self, query_text: str, record: SymbolicRecord) -> float:
-        tokens = self._tokenize(query_text)
-        if not tokens:
-            return 0.0
-
-        sections = {
-            "component": str(record.component or "").lower(),
-            "family": str(record.component_family or "").lower(),
-            "op": str(record.op or "").lower(),
-            "result": str(record.result or "").lower(),
-            "metric": str(record.metric or "").lower(),
-            "analysis": str(record.analysis or "").lower(),
-            "method_context": str(record.method_context or "").lower(),
-        }
-        weight_map = {
-            "component": 1.4,
-            "family": 1.6,
-            "op": 1.2,
-            "result": 0.7,
-            "metric": 1.0,
-            "analysis": 1.0,
-            "method_context": 0.9,
-        }
-        max_per_token = sum(weight_map.values())
-        total = 0.0
-        for token in tokens:
-            for key, section in sections.items():
-                if token in section:
-                    total += weight_map[key]
-        score = total / (len(tokens) * max_per_token)
-        return max(0.0, min(1.0, score))
-
-    def _recency_score(self, record: SymbolicRecord) -> float:
-        ts = record.updated_at or record.created_at
-        if not ts:
-            return 0.3
-        try:
-            dt = datetime.fromisoformat(ts)
-            age_days = max(0.0, (datetime.now(dt.tzinfo) - dt).total_seconds() / 86400.0)
-            return float(1.0 / (1.0 + age_days / 30.0))
-        except ValueError:
-            return 0.3
-
     def _match_filters(self, record: SymbolicRecord, filters: Optional[Dict]) -> bool:
         if not filters:
             return True
         for key, expected in filters.items():
-            if key.startswith("metadata."):
-                actual = record.metadata.get(key.split(".", 1)[1])
-            elif key.startswith("run_summary."):
-                actual = record.run_summary.get(key.split(".", 1)[1])
-            else:
-                actual = getattr(record, key, None)
+            actual = getattr(record, key, None)
 
             if isinstance(expected, (list, tuple, set)):
                 if actual not in expected:
@@ -563,5 +502,70 @@ class SymbolicMemorySystem(BaseSymbolicMemorySystem):
         return True
 
     @staticmethod
-    def _tokenize(text: str) -> List[str]:
-        return re.findall(r"\w+", (text or "").lower())
+    def _context_tokens(text: str) -> List[str]:
+        stopwords = {
+            "a",
+            "an",
+            "the",
+            "of",
+            "and",
+            "or",
+            "to",
+            "in",
+            "on",
+            "for",
+            "with",
+            "at",
+            "by",
+            "from",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "this",
+            "that",
+            "these",
+            "those",
+            "it",
+            "as",
+            "into",
+            "up",
+            "down",
+            "we",
+            "our",
+            "their",
+            "via",
+            "using",
+            "use",
+            "uses",
+            "based",
+            "approach",
+            "method",
+            "model",
+            "module",
+            "system",
+        }
+        return [
+            token
+            for token in re.findall(r"\w+", (text or "").lower())
+            if len(token) > 1 and token not in stopwords and not token.isdigit()
+        ]
+
+    @staticmethod
+    def _cosine_similarity(
+        lhs: Dict[str, float],
+        rhs: Dict[str, float],
+    ) -> float:
+        if not lhs or not rhs:
+            return 0.0
+        lhs_norm = math.sqrt(sum(value * value for value in lhs.values()))
+        rhs_norm = math.sqrt(sum(value * value for value in rhs.values()))
+        if lhs_norm <= 0.0 or rhs_norm <= 0.0:
+            return 0.0
+        dot = 0.0
+        for token in set(lhs).intersection(rhs):
+            dot += lhs[token] * rhs[token]
+        return max(0.0, min(1.0, dot / (lhs_norm * rhs_norm)))

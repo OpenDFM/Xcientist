@@ -17,9 +17,6 @@ from tqdm import tqdm
 from memory.api.faiss_memory_system_api import FAISSMemorySystem
 from memory.api.slot_process_api import SlotProcess
 from memory.api.symbolic_memory_system_api import SymbolicMemorySystem
-from memory.api.component_taxonomy import (
-    ContextSignature,
-)
 from memory.memory_system import FaissVectorStore
 from memory.memory_system.models import EpisodicRecord, ProceduralRecord, SemanticRecord
 from memory.memory_system.utils import _multi_thread_run, _safe_dump_str
@@ -806,16 +803,19 @@ class MemoryGuidedMCTS:
         self.persist_symbolic_memory = True
 
         if self.enable_symbolic_memory:
-            self._load_skill_prior_memory()
+            self.reload_symbolic_memory()
 
-    def _load_skill_prior_memory(self) -> None:
-        """Load the symbolic memory store for symbolic-memory-aware stages.
+    def reload_symbolic_memory(self) -> None:
+        """Reload the symbolic memory store from disk.
 
         The store is populated externally (e.g. from experiment ablation
-        results or paper-graph conclusions) — not from within MCTS.
+        results or paper-graph conclusions) — not from within MCTS. Reloading
+        clears the current in-memory store first so the active process always
+        reflects the latest on-disk state.
         """
         if not self.enable_symbolic_memory:
             return
+        self.symbolic_memory = SymbolicMemorySystem()
         try:
             if not self.symbolic_memory_path.exists():
                 return

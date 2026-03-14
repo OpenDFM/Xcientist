@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from src.agents.idea_agent.utils.mcts.defect_registry import DEFECT_REGISTRY
 from src.agents.idea_agent.utils.mcts.idea_taste_presets import IdeaTastePreset
-from memory.api.component_taxonomy import ContextSignature, extract_component_families, extract_context_signature
+from memory.api.component_taxonomy import extract_component_families
 from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _format_root_domains_for_prompt,
     _clean_component_explanation,
@@ -979,29 +979,6 @@ def materialize_child_state(
         skill_metrics=skill_metrics,
     )
 
-
-def extract_context_sig_from_node(node: Any) -> ContextSignature:
-    eval_scores: Dict[str, float] = {}
-    if getattr(node, "evaluation", None) is not None:
-        eval_scores = {
-            "novelty": node.evaluation.novelty,
-            "feasibility": node.evaluation.feasibility,
-            "impact": node.evaluation.impact,
-            "risk": node.evaluation.risk,
-            "complexity_penalty": node.evaluation.complexity_penalty,
-        }
-
-    return extract_context_signature(
-        components=node.state.components,
-        method_text=node.state.method,
-        evaluation_scores=eval_scores,
-        budget=node.state.budget,
-        last_operator=node.state.operator,
-        depth=node.depth,
-        defects=node.state.target_defects,
-    )
-
-
 def instantiate_skill_plan_for_node(
     mcts: Any,
     plan: Any,
@@ -1078,56 +1055,76 @@ def build_symbolic_eval_hints(mcts: Any, node: Any) -> str:
     if not component_families:
         return "No symbolic memory hints available."
 
-    ctx_sig = extract_context_sig_from_node(node)
-    hints_parts: List[str] = []
-    seen_record_ids: Set[str] = set()
+    retrieved_records: List[Tuple[str, str, float, Any]] = []
 
     for cf in component_families:
+        component_name = str(cf.get("component", "") or "").strip()
         family = cf.get("family", "")
-        if not family:
+        if not component_name and not family:
             continue
 
         records = mcts.symbolic_memory.retrieve_hierarchical(
+            target_component=component_name,
             target_family=family,
-            context_sig=ctx_sig,
-            limit=5,
-            threshold=0.05,
+            limit=2,
+            threshold=0.2,
             agent_id="idea_agent",
+            query_context=str(getattr(node.state, "abstract", "") or "").strip(),
         )
         if not records:
             continue
 
-        family_lines: List[str] = [f"  Component family: {family}"]
         for score, rec in records:
-            rec_id = getattr(rec, "id", None)
-            if rec_id is not None and rec_id in seen_record_ids:
-                continue
-            if rec_id is not None:
-                seen_record_ids.add(rec_id)
+            retrieved_records.append((component_name, str(family or ""), float(score), rec))
 
-            component = clip_text(getattr(rec, "component", "")) or "unknown_component"
-            op = clip_text(getattr(rec, "op", "")) or "remove"
-            result = clip_text(getattr(rec, "result", "")) or "inconclusive"
-            metric = clip_text(getattr(rec, "metric", "")) or "unspecified_metric"
-            value = clip_text(getattr(rec, "value", "")) or "unspecified_value"
-            confidence = float(getattr(rec, "confidence", 0.0))
-            analysis = clip_text(getattr(rec, "analysis", ""))
-            line = (
-                f"    - [{op}] {component} | result={result} | metric={metric} | value={value}  "
-                f"(conf={confidence:.2f}, score={float(score):.3f})"
-            )
-            if analysis:
-                line += f"  analysis: {analysis}"
-            family_lines.append(line)
-        if len(family_lines) > 1:
-            hints_parts.append("\n".join(family_lines))
-
-    if not hints_parts:
+    if not retrieved_records:
         return "No symbolic memory hints available."
+
+    deduped_records: Dict[Tuple[str, ...], Tuple[str, str, float, Any]] = {}
+    for query_component, query_family, score, rec in retrieved_records:
+        dedupe_key = (
+            str(getattr(rec, "component", "") or "").strip().lower(),
+            str(getattr(rec, "component_family", "") or "").strip().lower(),
+            str(getattr(rec, "result", "") or "").strip().lower(),
+            str(getattr(rec, "metric", "") or "").strip().lower(),
+            str(getattr(rec, "value", "") or "").strip().lower(),
+            str(getattr(rec, "analysis", "") or "").strip().lower(),
+        )
+        existing = deduped_records.get(dedupe_key)
+        if existing is None or score > existing[2]:
+            deduped_records[dedupe_key] = (query_component, query_family, score, rec)
+
+    if not deduped_records:
+        return "No symbolic memory hints available."
+
+    hints_parts: List[str] = []
+    for query_component, query_family, score, rec in sorted(
+        deduped_records.values(),
+        key=lambda item: item[2],
+        reverse=True,
+    ):
+        component = clip_text(getattr(rec, "component", "")) or "unknown_component"
+        component_family = clip_text(getattr(rec, "component_family", "")) or "unknown_family"
+        result = clip_text(getattr(rec, "result", "")) or "inconclusive"
+        metric = clip_text(getattr(rec, "metric", "")) or "unspecified_metric"
+        value = clip_text(getattr(rec, "value", "")) or "unspecified_value"
+        confidence = float(getattr(rec, "confidence", 0.0))
+        analysis = clip_text(getattr(rec, "analysis", ""))
+        line = (
+            f"  - query_component={query_component or 'unknown_component'}"
+            f" | query_family={query_family or 'unknown_family'}"
+            f" | matched_family={component_family}"
+            f" | component={component}"
+            f" | result={result} | metric={metric} | value={value}"
+            f" (conf={confidence:.2f}, score={score:.3f})"
+        )
+        if analysis:
+            line += f"  analysis: {analysis}"
+        hints_parts.append(line)
 
     header = (
         "Historical ablation records for the component families in this idea "
-        "(for op=remove: positive result means removing the component helped, "
+        "(positive result means removing the component helped, "
         "negative result means removing the component hurt):"
     )
     return header + "\n" + "\n".join(hints_parts)
