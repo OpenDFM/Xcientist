@@ -139,7 +139,7 @@ idea:
     evaluation_temperature: 0.001
     generation_max_tokens: 65536
     evaluation_max_tokens: 65536
-    component_novelty_model: "all-MiniLM-L6-v2"
+    component_novelty_model: "bge-m3" # /models/
     component_novelty_index_dir: null
     component_novelty_retrieval_top_k: 50
     component_novelty_evidence_top_k: 5
@@ -152,7 +152,7 @@ idea:
     enable_symbolic_memory: true
     min_confidence_for_memory: 0.6
     pareto_top_k: 5
-    symbolic_memory_path: "output/symbolic_memory.json"
+    symbolic_memory_path: "output/symbolic_memory"
     skill_prior_success_threshold: 0.6
 
   fusion:
@@ -168,7 +168,7 @@ idea:
 
   memory:
     vector_store:
-      model_path: ".cache/all-MiniLM-L6-v2"
+      model_path: ".cache/all-MiniLM-L6-v2" # /src/memory/memory_system/
       llm_name: "gpt-4.1"
       llm_backend: "openai"
 

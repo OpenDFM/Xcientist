@@ -7,6 +7,7 @@ import math
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from sentence_transformers import SentenceTransformer
 
 from src.agents.idea_agent.agent.prompts.component_novelty_evaluation import (
     COMPONENT_NOVELTY_EVALUATION_PROMPT,
@@ -17,14 +18,6 @@ from src.agents.idea_agent.utils.papers.paper_graph_vector_store import (
 )
 
 
-def _load_sentence_transformer_cls():
-    try:
-        from sentence_transformers import SentenceTransformer
-    except Exception as exc:  # pragma: no cover - optional runtime dependency
-        raise RuntimeError("sentence_transformers is unavailable") from exc
-    return SentenceTransformer
-
-
 def _clamp_novelty_score(value: Any) -> float:
     score = float(value)
     if math.isnan(score) or math.isinf(score):
@@ -32,7 +25,7 @@ def _clamp_novelty_score(value: Any) -> float:
     return max(0.0, min(5.0, score))
 
 
-def _clip_text(value: Any, limit: int = 600) -> str:
+def _clip_text(value: Any, limit: int = 6000) -> str:
     text = "" if value is None else str(value).strip()
     if limit <= 0 or len(text) <= limit:
         return text
@@ -87,14 +80,13 @@ class ComponentNoveltyScorer:
         candidate = Path(str(self.model_name_or_path)).expanduser()
         if candidate.exists():
             return str(candidate.resolve())
-        local_path = Path(__file__).resolve().parents[2] / ".cache" / str(self.model_name_or_path)
+        local_path = Path(__file__).resolve().parents[5] / "models" / str(self.model_name_or_path)
         return str(local_path) if local_path.exists() else str(self.model_name_or_path)
 
     def _get_model(self) -> Any:
         if self._model is not None:
             return self._model
-        sentence_transformer_cls = _load_sentence_transformer_cls()
-        self._model = sentence_transformer_cls(self._resolve_model_source())
+        self._model = SentenceTransformer(self._resolve_model_source())
         return self._model
 
     def _get_vector_store(self) -> PaperGraphComponentVectorStore:
@@ -182,7 +174,7 @@ class ComponentNoveltyScorer:
                     node_support[node_id].append(
                         {
                             "query_component": query_info.get("component", ""),
-                            "query_text": _clip_text(query_info.get("query_text", ""), 240),
+                            "query_text": _clip_text(query_info.get("query_text", "")),
                             "matched_component": hit.get("component_name"),
                             "score": score,
                         }
@@ -210,8 +202,8 @@ class ComponentNoveltyScorer:
                     "paper_title": core_node.get("paper_title") or "",
                     "match_count": int(node_counts[node_id]),
                     "best_score": float(node_best_scores.get(node_id, 0.0)),
-                    "summary": _clip_text(core_node.get("summary") or "", 900),
-                    "insight": _clip_text(core_node.get("insight") or "", 900),
+                    "summary": _clip_text(core_node.get("summary") or ""),
+                    "insight": _clip_text(core_node.get("insight") or ""),
                     "support": node_support.get(node_id, []),
                 }
             )

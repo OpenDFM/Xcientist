@@ -41,7 +41,6 @@ FIELD_SPECS: Dict[str, Dict[str, Any]] = {
     "ligagent_pro_candidates": {"namespace": "ideation", "path": "ligagent_pro_candidates", "kind": "list"},
     "fusion_result": {"namespace": "ideation", "path": "fusion_result", "kind": "dict"},
     "ablation_results": {"namespace": "ideation", "path": "ablation_results", "kind": "list"},
-    "paper_graph_priors": {"namespace": "ideation", "path": "paper_graph_priors", "kind": "list"},
     "ltm_experiences": {"namespace": "ideation", "path": "ltm_experiences", "kind": "list"},
     "idea_result": {"namespace": "persistence", "path": "idea_result", "kind": "dict"},
     "artifact_structure": {"namespace": "persistence", "path": "artifact_structure", "kind": "dict"},
@@ -121,13 +120,12 @@ def _namespace_defaults() -> Dict[str, Dict[str, Any]]:
             "ligagent_pro_candidates": [],
             "fusion_result": {},
             "ablation_results": [],
-            "paper_graph_priors": [],
             "ltm_experiences": [],
         },
         "persistence": {
             "idea_result": {},
             "artifact_structure": {},
-            "schema_version": 2,
+            "schema_version": 3,
         },
     }
 
@@ -216,7 +214,7 @@ def ensure_artifact_structure(artifact: Dict[str, Any]) -> Dict[str, Any]:
                 value = deepcopy(normalized[namespace].get(path, _default_for_kind(kind)))
         normalized[namespace][path] = value
 
-    normalized["persistence"]["schema_version"] = 2
+    normalized["persistence"]["schema_version"] = 3
     artifact.clear()
     for namespace in ARTIFACT_NAMESPACES:
         artifact[namespace] = normalized[namespace]

@@ -6,10 +6,16 @@ import html
 import json
 import logging
 import sqlite3
+import numpy as np
+import faiss
+
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Optional
+from sentence_transformers import SentenceTransformer
+from tqdm import tqdm
+
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -20,43 +26,6 @@ DEFAULT_MODEL_PATH = ROOT_DIR / "models" / "bge-m3"
 DEFAULT_FETCH_SIZE = 16
 DEFAULT_BATCH_SIZE = 8
 
-
-def now_iso() -> str:
-    return datetime.now().isoformat()
-
-
-def _load_numpy():
-    try:
-        import numpy as np
-    except ModuleNotFoundError as exc:
-        raise RuntimeError("numpy is required to build the component vector store") from exc
-    return np
-
-
-def _load_faiss():
-    try:
-        import faiss
-    except ModuleNotFoundError as exc:
-        raise RuntimeError("faiss is required to build the component vector store") from exc
-    return faiss
-
-
-def _load_sentence_transformer_cls():
-    try:
-        from sentence_transformers import SentenceTransformer
-    except ModuleNotFoundError as exc:
-        raise RuntimeError(
-            "sentence_transformers is required to build the component vector store"
-        ) from exc
-    return SentenceTransformer
-
-
-def _load_tqdm():
-    try:
-        from tqdm import tqdm
-    except ModuleNotFoundError:
-        return None
-    return tqdm
 
 
 @dataclass
@@ -172,12 +141,10 @@ class ComponentSummaryFaissStore:
 
     def _get_model(self):
         if self._model is None:
-            sentence_transformer_cls = _load_sentence_transformer_cls()
-            self._model = sentence_transformer_cls(self.model_name_or_path)
+            self._model = SentenceTransformer(self.model_name_or_path)
         return self._model
 
     def _embed(self, texts: list[str]):
-        np = _load_numpy()
         model = self._get_model()
         embeddings = model.encode(
             texts,
@@ -198,7 +165,6 @@ class ComponentSummaryFaissStore:
     def _ensure_index(self, dim: int) -> None:
         if self.index is not None:
             return
-        faiss = _load_faiss()
         self.index = faiss.IndexIDMap2(faiss.IndexFlatIP(dim))
         self.dim = dim
 
@@ -206,7 +172,6 @@ class ComponentSummaryFaissStore:
         if not records:
             return 0
 
-        np = _load_numpy()
         vectors = self._embed([record.component_summary for record in records])
         self._ensure_index(vectors.shape[1])
 
@@ -223,7 +188,6 @@ class ComponentSummaryFaissStore:
         if self.index is None:
             raise ValueError("No vectors available to save")
 
-        faiss = _load_faiss()
         target = Path(store_path).expanduser().resolve()
         target.mkdir(parents=True, exist_ok=True)
 
@@ -238,7 +202,6 @@ class ComponentSummaryFaissStore:
             json.dump(payload, handle, ensure_ascii=False, indent=2)
 
     def load(self, store_path: Path) -> None:
-        faiss = _load_faiss()
         target = Path(store_path).expanduser().resolve()
         self.index = faiss.read_index(str(target / "faiss.index"))
         self.dim = int(self.index.d)
@@ -388,7 +351,6 @@ class GraphCoreComponentIndexer:
         batch_size: int = DEFAULT_BATCH_SIZE,
         limit: Optional[int] = None,
         rebuild: bool = False,
-        show_progress: bool = True,
     ) -> dict[str, Any]:
         if not self.db_path.exists():
             raise FileNotFoundError(f"Database file not found: {self.db_path}")
@@ -412,17 +374,12 @@ class GraphCoreComponentIndexer:
             "empty_summaries_skipped": 0,
         }
 
-        tqdm_cls = _load_tqdm()
-        progress = (
-            tqdm_cls(
+        progress = tqdm(
                 total=total_core_nodes,
                 desc="Parsing Core nodes",
                 unit="node",
                 dynamic_ncols=True,
             )
-            if show_progress and tqdm_cls is not None
-            else None
-        )
 
         try:
             for row in self._iter_core_rows(limit=limit):
