@@ -1,6 +1,6 @@
 # LigAgent — Idea Agent
 
-LigAgent is the idea-generation subsystem in ResearchAgent. It turns a topic or a mature seed idea into a structured research proposal by combining retrieval, literature analysis, Memory-Guided MCTS, and final idea materialization.
+LigAgent is the idea-generation subsystem in ResearchAgent. It turns a topic or a mature seed idea into a structured research proposal by combining survey-grounded retrieval, graph-backed Core reference selection, structured analysis, Memory-Guided MCTS, and final idea materialization.
 
 ## Overview
 
@@ -42,10 +42,11 @@ There is no old "five-action controller" in the main path anymore. The authorita
 
 Cold-start retrieval stage.
 
-- Seeds papers from Semantic Scholar using `artifact["retrieval_keywords"]`
-- Builds an OutcomeRAG query from paper keynotes or directly from `mature_idea`
-- Expands citations and re-maps titles back to papers
-- Enriches and filters papers into the curated batch used downstream
+- Generates a focused query from `artifact["retrieval_keywords"]` or directly from `mature_idea`
+- Uses that query against OutcomeRAG to retrieve survey sections
+- If survey citations are available, uses citation titles to retrieve `Core` nodes from `graph.db`
+- Otherwise falls back to using the query directly against the graph server
+- Selects a compact batch of Core references for downstream analysis and MCTS context
 
 Writes:
 
@@ -53,11 +54,10 @@ Writes:
 - `artifact["rag_query"]`
 - `artifact["rag_hits"]`
 - `artifact["rag_contents"]`
-- `artifact["paper_contents"]`
 
 ### `advanced_analysis`
 
-Turns the curated paper batch into a structured analysis entry.
+Turns selected Core references plus survey snippets into a structured analysis entry.
 
 - Extracts key methods, pain points, open questions, and search seeds
 - Appends reusable background lines into `artifact["background_knowledge"]`
@@ -82,7 +82,7 @@ Builds MCTS context from:
 - `artifact["analysis"]`
 - `artifact["latest_candidate"]`
 - `artifact["background_knowledge"]`
-- curated paper context
+- reference context built from selected Core references plus survey RAG snippets
 - optional `artifact["mature_idea"]`
 
 Then it:
@@ -104,9 +104,8 @@ Then it:
 | `mature_idea` | contract root or replanned mature idea |
 | `background_knowledge` | analysis-derived background lines |
 | `analysis` | structured analysis entries |
-| `references` | curated paper batches |
-| `rag_query`, `rag_hits`, `rag_contents` | OutcomeRAG context |
-| `paper_contents` | parsed paper metadata |
+| `references` | selected Core-reference batches from `graph.db` |
+| `rag_query`, `rag_hits`, `rag_contents` | OutcomeRAG query plus retrieved survey sections |
 | `latest_candidate` | current best canonical idea payload from `idea_generation` |
 | `ligagent_pro_candidates` | raw per-mode best candidates collected by LigAgent-Pro |
 | `fusion_result` | latest fusion-agent output plus the evaluated fused candidate |
@@ -129,7 +128,7 @@ Each `latest_candidate` entry is richer than the final public JSON. It stores:
 - `search_trace`
 - optional provenance such as `idea_source`, `source_modes`, and `fusion_metadata`
 
-The persisted `idea_result.json` is intentionally smaller and paper-oriented:
+The persisted `idea_result.json` is intentionally smaller and proposal-oriented:
 
 - `title`
 - `abstract`
@@ -274,7 +273,7 @@ In the current implementation, symbolic memory no longer participates in skill o
 - mature idea
 - latest analysis
 - current run idea pool snapshot
-- paper context
+- reference context
 - compact compiled edit plan
 - trimmed candidate idea
 - canonical defect registry

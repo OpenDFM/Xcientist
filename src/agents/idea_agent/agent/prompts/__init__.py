@@ -14,7 +14,6 @@ from src.agents.idea_agent.agent.prompts.experiment_findings_extraction import (
 )
 from src.agents.idea_agent.agent.prompts.topic_background import TOPIC_BACKGROUND_PROMPT
 from src.agents.idea_agent.agent.prompts.rag_query import RAG_QUERY_PROMPT
-from src.agents.idea_agent.agent.prompts.paper_filtering import PAPER_FILTERING_PROMPT
 
 
 PROMPTS = {
@@ -30,5 +29,4 @@ PROMPTS = {
     "experiment_findings_extraction": EXPERIMENT_FINDINGS_EXTRACTION_PROMPT,
     "topic_background": TOPIC_BACKGROUND_PROMPT,
     "rag_query": RAG_QUERY_PROMPT,
-    "paper_filtering": PAPER_FILTERING_PROMPT,
 }

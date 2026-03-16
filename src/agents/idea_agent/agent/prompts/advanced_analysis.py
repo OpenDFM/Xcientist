@@ -8,7 +8,7 @@ You have:
 (1) Survey contents (PRIMARY source of problem framing, clusters, and gaps):
 {survey_contents}
 
-(2) Curated paper capsules (SECONDARY source; use for evidence, baselines, feasibility details, and concrete instantiations ONLY):
+(2) Curated core reference capsules (SECONDARY source; use for evidence, baselines, feasibility details, and concrete instantiations ONLY):
 {papers}
 
 (3) Experiment findings extracted from raw ablation results (OPTIONAL; use only if present):
@@ -16,7 +16,7 @@ You have:
 
 Core principle (must follow):
 - Survey drives the agenda: method clusters + unresolved gaps + evaluation blind spots MUST be derived from survey_contents.
-- Papers may refine or substantiate the survey-derived gaps, but MUST NOT redefine the agenda or introduce a new main axis not present in the survey framing.
+- Core references may refine or substantiate the survey-derived gaps, but MUST NOT redefine the agenda or introduce a new main axis not present in the survey framing.
 - Any idea seed MUST directly address at least one SURVEY gap/blind spot and explicitly show how it improves over the survey’s identified limitations.
 - If mature_idea is provided, align clusters/gaps/idea seeds to its scope and mechanisms without changing the survey-led axis.
 - If experiment findings are present, use them as failure evidence, feasibility evidence, and mechanism constraints for candidate ideas. They may invalidate a mechanism or suggest a replacement direction, but they MUST NOT replace the survey as the source of the main agenda.
@@ -27,11 +27,11 @@ Perform the steps below explicitly before answering:
    - assumptions
    - supervision/training signals
    - compute/latency/memory budgets (as described or implied by the survey)
-   Papers can be used only to add concrete examples, representative baselines, or implementation constraints for clusters already defined by the survey.
+   Core references can be used only to add concrete examples, representative baselines, or implementation constraints for clusters already defined by the survey.
 
 2) Gap-first stress test (survey is the ground truth for "what is missing"):
    Extract unresolved limitations + evaluation blind spots from the survey, and explain why they persist.
-   You MAY use papers to corroborate a gap (e.g., show multiple papers still exhibit the limitation), but you MUST keep the gap statement aligned with survey framing.
+   You MAY use core references to corroborate a gap (e.g., show multiple methods still exhibit the limitation), but you MUST keep the gap statement aligned with survey framing.
 
 3) Moonshot ideation constrained by survey gaps:
    Propose bold, non-incremental hypotheses that directly target the extracted SURVEY gaps.
@@ -46,12 +46,6 @@ Perform the steps below explicitly before answering:
 
 Return STRICT JSON (no prose, no Markdown) with the schema:
 {{
-  "thought_process": {{
-      "step1_survey_clustering": "Map the dominant method clusters...",
-      "step2_gap_stress_test": "Extract unresolved limitations...",
-      "step3_moonshot_ideation": "Brainstorm non-incremental hypotheses...",
-      "step4_validation_tooling": "Specify required experiments..."
-    }},
   "key_methods": ["..."],                          // survey-led cluster names or dominant families
   "field_consensus": ["..."],                      // constraints / assumptions / consensus points the new idea should respect
   "existing_problems": ["..."],                    // survey-led limitations (can be supported by papers)
@@ -107,7 +101,7 @@ Return STRICT JSON (no prose, no Markdown) with the schema:
   - representative baselines and fair comparison protocol details,
   - feasibility constraints (latency/memory/compute),
   - evidence that a survey gap persists across recent works.
-  Papers may NOT contribute:
+  Core references may NOT contribute:
   - a new main problem statement that is absent from survey,
   - a new core mechanism term as the central novelty unless you explicitly tie it to a named survey gap and explain why the gap demands it.
 - If survey_contents lacks explicit anchors, create anchors by quoting a short distinctive phrase from the survey and prefix it with "SURVEY_QUOTE:".

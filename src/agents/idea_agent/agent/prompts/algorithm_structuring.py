@@ -17,11 +17,6 @@ First, think step-by-step in the `architect_scratchpad` to deconstruct the idea 
 
 Return ONLY a valid JSON object matching this schema exactly:
 {{
-  "architect_scratchpad": {{
-    "deconstruction": "Break down the core mechanism from the abstract. What are the key mathematical or logical objects? (e.g., How is the 'state' defined? What constitutes the 'reward' or 'loss'?)",
-    "black_box_elimination": "Identify any high-level meta-statements (e.g., 'do planning', 'retrieve cases') and explain how they will be instantiated as concrete computational steps.",
-    "data_flow_mapping": "Trace the path from raw inputs to the final output. What intermediate transformations are required?"
-  }},
   "algorithms": [
     {{
       "name": "Concise algorithm name (<12 words)",

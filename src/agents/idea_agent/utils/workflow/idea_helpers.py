@@ -83,11 +83,14 @@ def collect_reference_material(reference_batches: List[List[Dict[str, Any]]]) ->
             entry = {
                 "title": title,
                 "authors": paper.get("authors") or [],
-                "abstract": paper.get("abstract"),
-                "tldr": paper.get("tldr"),
+                "abstract": paper.get("abstract") or paper.get("summary"),
+                "tldr": paper.get("tldr") or paper.get("summary"),
+                "summary": paper.get("summary") or paper.get("insight"),
                 "url": paper.get("url"),
                 "year": paper.get("year"),
                 "paper_id": paper.get("paper_id"),
+                "node_id": paper.get("node_id"),
+                "paper_domain": paper.get("paper_domain"),
                 "source_keywords": paper.get("source_keywords"),
             }
             references.append(entry)

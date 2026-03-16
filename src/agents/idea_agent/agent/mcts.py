@@ -744,6 +744,7 @@ class MemoryGuidedMCTS:
         evaluation_prompt: str,
         config: Optional[MCTSConfig] = None,
         memory_accessor: Optional[VectorMemoryAccessor] = None,
+        paper_graph_vector_store: Optional[PaperGraphComponentVectorStore] = None,
         logger: Optional[logging.Logger] = None,
         log_sink: Optional[Callable[[str, str], None]] = None,
     ) -> None:
@@ -756,6 +757,10 @@ class MemoryGuidedMCTS:
         self.enable_vector_memory = bool(self.config.enable_vector_memory)
         self.enable_symbolic_memory = bool(self.config.enable_symbolic_memory)
         self.memory_accessor = memory_accessor or VectorMemoryAccessor(logger=self.logger)
+        self.paper_graph_vector_store = paper_graph_vector_store or PaperGraphComponentVectorStore(
+            model_name_or_path=self.config.component_novelty_model,
+            index_dir=self.config.component_novelty_index_dir or None,
+        )
         self.component_novelty_scorer = ComponentNoveltyScorer(
             model_name_or_path=self.config.component_novelty_model,
             index_dir=self.config.component_novelty_index_dir or None,
@@ -769,10 +774,7 @@ class MemoryGuidedMCTS:
             chat_fn=self.chat_fn,
             logger=self.logger,
             log_sink=self.log_sink,
-        )
-        self.paper_graph_vector_store = PaperGraphComponentVectorStore(
-            model_name_or_path=self.config.component_novelty_model,
-            index_dir=self.config.component_novelty_index_dir or None,
+            vector_store=self.paper_graph_vector_store,
         )
 
         self.skill_catalog = SkillCatalog()
@@ -974,6 +976,34 @@ class MemoryGuidedMCTS:
             filtered.append(hit)
             if len(filtered) >= int(self.config.theory_transfer_retrieval_top_k):
                 break
+        if filtered:
+            rendered_hits: List[str] = []
+            for idx, hit in enumerate(filtered, start=1):
+                core_node = hit.get("core_node") if isinstance(hit.get("core_node"), dict) else {}
+                paper_domain = str(core_node.get("paper_domain") or "").strip() or "unknown"
+                label = (
+                    str(core_node.get("full_name") or "").strip()
+                    or str(core_node.get("label") or "").strip()
+                    or str(core_node.get("node_id") or "").strip()
+                    or f"core_{idx}"
+                )
+                paper_title = clip_text(str(core_node.get("paper_title") or "").strip(), 400)
+                summary = clip_text(str(core_node.get("summary") or "").strip(), 1000)
+                rendered_hits.append(
+                    f"{idx}. {label} | domain={paper_domain} | score={float(hit.get('score') or 0.0):.3f}"
+                )
+                if paper_title:
+                    rendered_hits.append(f"   title: {paper_title}")
+                if summary:
+                    rendered_hits.append(f"   summary: {summary}")
+            log_message(
+                self.logger,
+                self.log_sink,
+                "info",
+                "[MCTS] Theory-transfer eligible core nodes for query=%s\n%s",
+                clip_text(query, 1000),
+                "\n".join(rendered_hits),
+            )
         return filtered
 
     def _materialize_child_state(

@@ -41,20 +41,6 @@ Instantiate the above plan into a concrete research idea. You must:
 
 Return STRICT JSON (no Markdown wrapping):
 {{
-  "instantiation_scratchpad": {{
-    "edit_reasons": [
-      "Reason 1: Why generic_template_1 fixes Target Defect X...",
-      "Reason 2: Why generic_template_2 is needed for the validation..."
-    ],
-    "component_mapping": {{
-      "generic_template_name_1": "concrete_topic_specific_name_1",
-      "generic_template_name_2": "concrete_topic_specific_name_2"
-    }},
-    "component_role_explanations": {{
-      "concrete_topic_specific_name_1": "Specific computational role in the new method...",
-      "concrete_topic_specific_name_2": "Specific computational role in the new method..."
-    }}
-  }},
   "title": "concise, specific paper title using the concrete component names",
   "abstract": "≤150 words abstract describing the concrete contribution",
   "core_contribution": "one focused statement of the new insight/mechanism",
@@ -62,5 +48,17 @@ Return STRICT JSON (no Markdown wrapping):
   "experiments": "fair comparison protocol: specific baselines, datasets, metrics, ablation design",
   "risks": "concrete failure modes and mitigation strategies",
   "rationale": "2-3 sentences on how this skill application resolves the target defects"
+  "component_mapping": {{
+      "generic_template_name_1": "concrete_topic_specific_name_1",
+      "generic_template_name_2": "concrete_topic_specific_name_2"
+    }},
+  "component_role_explanations": {{
+      "concrete_topic_specific_name_1": "Specific computational role in the new method...",
+      "concrete_topic_specific_name_2": "Specific computational role in the new method..."
+    }},
+  "edit_reasons": [
+      "Reason 1: Why generic_template_1 fixes Target Defect X...",
+      "Reason 2: Why generic_template_2 is needed for the validation..."
+    ]
 }}
 """

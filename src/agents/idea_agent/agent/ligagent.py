@@ -54,6 +54,9 @@ from src.agents.idea_agent.utils.workflow.workflow_runtime import (
     WorkflowSpec,
 )
 from src.agents.idea_agent.utils.core.config_loader import get_config_value
+from src.agents.idea_agent.utils.papers.paper_graph_vector_store import (
+    PaperGraphComponentVectorStore,
+)
 
 logger = get_logger()
 
@@ -126,18 +129,18 @@ class LigAgent(AgentBase):
             )
         if bool(get_config_value(config, "run.LigAgent-Pro", False)):
             logger.info("[LigAgent] LigAgent-Pro enabled: vector memory disabled for all MCTS instances.")
+        self._shared_paper_graph_vector_store = self._build_shared_paper_graph_vector_store(
+            mcts_config
+        )
         self.mcts = MemoryGuidedMCTS(
             chat_fn=self.chat,
             evaluation_prompt=PROMPTS.get("mcts_evaluation"),
             config=mcts_config,
             memory_accessor=self._build_memory_accessor(),
+            paper_graph_vector_store=self._shared_paper_graph_vector_store,
             logger=logger,
         )
 
-        self.paper_enrichment_timeout = kwargs.pop(
-            "paper_enrichment_timeout",
-            get_config_value(config, "agent.paper_enrichment_timeout_sec", 7200),
-        )
         self.paper_repository = PaperRepository(
             config_path=survey_config_path,
             logger=logger,
@@ -285,6 +288,7 @@ class LigAgent(AgentBase):
             evaluation_prompt=PROMPTS.get("mcts_evaluation"),
             config=mcts_config,
             memory_accessor=self._build_memory_accessor(),
+            paper_graph_vector_store=self._shared_paper_graph_vector_store,
             logger=get_or_create_mode_logger(
                 self._mode_loggers,
                 self.logger,
@@ -295,6 +299,34 @@ class LigAgent(AgentBase):
         mode_mcts.symbolic_memory = deepcopy(self.mcts.symbolic_memory)
         mode_mcts.persist_symbolic_memory = False
         return mode_mcts
+
+    def _build_shared_paper_graph_vector_store(
+        self,
+        mcts_config: MCTSConfig,
+    ) -> PaperGraphComponentVectorStore:
+        shared_store = PaperGraphComponentVectorStore(
+            model_name_or_path=mcts_config.component_novelty_model,
+            index_dir=mcts_config.component_novelty_index_dir or None,
+        )
+        try:
+            shared_store.warmup(allow_stale_graph=True)
+            logger.info(
+                "[LigAgent] Eager-loaded component retrieval resources from model=%s index_dir=%s",
+                mcts_config.component_novelty_model,
+                shared_store.index_dir,
+            )
+            return shared_store
+        except Exception as exc:
+            logger.warning(
+                "⚠️  Failed to eager-load component retrieval resources (%s). "
+                "Component novelty and theory-transfer retrieval will stay in fallback mode.",
+                exc,
+            )
+            return PaperGraphComponentVectorStore(
+                model_name_or_path=mcts_config.component_novelty_model,
+                index_dir=mcts_config.component_novelty_index_dir or None,
+                disabled_error=str(exc),
+            )
 
     def _build_memory_accessor(self) -> VectorMemoryAccessor:
         model_path = str(
@@ -376,17 +408,6 @@ class LigAgent(AgentBase):
                     name="ka_route",
                     handler=self._ka_route_stage,
                 ),
-                "ka_seed_search": StageSpec(
-                    name="ka_seed_search",
-                    handler=self._ka_seed_search_stage,
-                    fallback_stage="ka_seed_search_fallback",
-                    allowed_artifact_namespaces={"retrieval"},
-                ),
-                "ka_seed_search_fallback": StageSpec(
-                    name="ka_seed_search_fallback",
-                    handler=self._ka_seed_search_fallback_stage,
-                    allowed_artifact_namespaces={"retrieval"},
-                ),
                 "ka_query_generation": StageSpec(
                     name="ka_query_generation",
                     handler=self._ka_query_generation_stage,
@@ -397,40 +418,26 @@ class LigAgent(AgentBase):
                     handler=self._ka_outcome_rag_stage,
                     allowed_artifact_namespaces={"retrieval"},
                 ),
-                "ka_citation_expansion": StageSpec(
-                    name="ka_citation_expansion",
-                    handler=self._ka_citation_expansion_stage,
+                "ka_graph_retrieval": StageSpec(
+                    name="ka_graph_retrieval",
+                    handler=self._ka_graph_retrieval_stage,
                     allowed_artifact_namespaces={"retrieval"},
                 ),
-                "ka_enrichment": StageSpec(
-                    name="ka_enrichment",
-                    handler=self._ka_enrichment_stage,
-                    allowed_artifact_namespaces={"retrieval"},
-                ),
-                "ka_paper_triage": StageSpec(
-                    name="ka_paper_triage",
-                    handler=self._ka_paper_triage_stage,
+                "ka_reference_selection": StageSpec(
+                    name="ka_reference_selection",
+                    handler=self._ka_reference_selection_stage,
                     allowed_artifact_namespaces={"retrieval"},
                 ),
             },
             transitions={
                 "ka_query_generation": [WorkflowEdge("ka_outcome_rag")],
-                "ka_outcome_rag": [WorkflowEdge("ka_citation_expansion")],
-                "ka_citation_expansion": [
-                    WorkflowEdge("ka_enrichment", when=lambda stage_ctx, _result: bool(stage_ctx.state.get("combined_papers"))),
-                ],
-                "ka_enrichment": [WorkflowEdge("ka_paper_triage")],
+                "ka_outcome_rag": [WorkflowEdge("ka_graph_retrieval")],
+                "ka_graph_retrieval": [WorkflowEdge("ka_reference_selection")],
             },
         )
 
     def _ka_route_stage(self, ctx: StageContext) -> StageResult:
         return ligagent_handlers.ka_route_stage(self, ctx)
-
-    def _ka_seed_search_stage(self, ctx: StageContext) -> StageResult:
-        return ligagent_handlers.ka_seed_search_stage(self, ctx)
-
-    def _ka_seed_search_fallback_stage(self, ctx: StageContext) -> StageResult:
-        return ligagent_handlers.ka_seed_search_fallback_stage(self, ctx)
 
     def _ka_query_generation_stage(self, ctx: StageContext) -> StageResult:
         return ligagent_handlers.ka_query_generation_stage(self, ctx)
@@ -438,14 +445,11 @@ class LigAgent(AgentBase):
     def _ka_outcome_rag_stage(self, ctx: StageContext) -> StageResult:
         return ligagent_handlers.ka_outcome_rag_stage(self, ctx)
 
-    def _ka_citation_expansion_stage(self, ctx: StageContext) -> StageResult:
-        return ligagent_handlers.ka_citation_expansion_stage(self, ctx)
+    def _ka_graph_retrieval_stage(self, ctx: StageContext) -> StageResult:
+        return ligagent_handlers.ka_graph_retrieval_stage(self, ctx)
 
-    def _ka_enrichment_stage(self, ctx: StageContext) -> StageResult:
-        return ligagent_handlers.ka_enrichment_stage(self, ctx)
-
-    def _ka_paper_triage_stage(self, ctx: StageContext) -> StageResult:
-        return ligagent_handlers.ka_paper_triage_stage(self, ctx)
+    def _ka_reference_selection_stage(self, ctx: StageContext) -> StageResult:
+        return ligagent_handlers.ka_reference_selection_stage(self, ctx)
 
     def _generate_idea_introduction(
         self, best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]]

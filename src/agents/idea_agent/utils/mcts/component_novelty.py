@@ -48,6 +48,7 @@ class ComponentNoveltyScorer:
         chat_fn: Optional[Callable[..., str]] = None,
         logger: Optional[Any] = None,
         log_sink: Optional[Callable[[str, str], None]] = None,
+        vector_store: Optional[PaperGraphComponentVectorStore] = None,
     ) -> None:
         self.model_name_or_path = model_name_or_path
         self.index_dir = index_dir
@@ -61,7 +62,7 @@ class ComponentNoveltyScorer:
         self.log_sink = log_sink
 
         self._model: Optional[Any] = None
-        self._vector_store: Optional[PaperGraphComponentVectorStore] = None
+        self._vector_store: Optional[PaperGraphComponentVectorStore] = vector_store
         self._disabled_error: Optional[str] = None
 
     def _log(self, level: str, message: str, *args: Any) -> None:
@@ -86,6 +87,9 @@ class ComponentNoveltyScorer:
     def _get_model(self) -> Any:
         if self._model is not None:
             return self._model
+        if self._vector_store is not None:
+            self._model = self._vector_store.get_model()
+            return self._model
         self._model = SentenceTransformer(self._resolve_model_source())
         return self._model
 
@@ -94,6 +98,7 @@ class ComponentNoveltyScorer:
             self._vector_store = PaperGraphComponentVectorStore(
                 model_name_or_path=self.model_name_or_path,
                 index_dir=self.index_dir,
+                model=self._model,
             )
         if self._vector_store.size <= 0:
             self._vector_store.load(allow_stale_graph=True)

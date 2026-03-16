@@ -7,7 +7,7 @@
 X-Scientist 是当前这个仓库里的科研 Agent 系统，当前代码实际上围绕四个核心 Agent 展开：
 
 1. **Survey Agent**：检索论文、构建文献聚类、生成 survey 草稿，并产出可供下游检索使用的 `survey.md` / `survey.json`。
-2. **Idea Agent（LigAgent）**：把研究主题或成熟想法转成结构化研究 proposal，核心路径是检索、分析和 Memory-Guided MCTS。
+2. **Idea Agent（LigAgent）**：把研究主题或成熟想法转成结构化研究 proposal，核心路径是 survey 检索、graph Core reference 检索、分析和 Memory-Guided MCTS。
 3. **Experiment Agent（SuperAgent）**：把 idea 落成可运行代码，执行实验，并围绕失败与反馈继续迭代。
 4. **Paper Agent**：读取实验工作空间，生成独立的论文工作空间、LaTeX 草稿和编译产物。
 
@@ -128,7 +128,7 @@ python -m src.agents.survey_agent.scripts.run_deep_survey \
 
 ### 2. Idea Agent（LigAgent）
 
-**作用**：把研究主题或已有成熟想法转成结构化研究 proposal，核心路径是“检索 -> 分析 -> Memory-Guided MCTS 搜索 -> 持久化”。
+**作用**：把研究主题或已有成熟想法转成结构化研究 proposal，核心路径是“survey 检索 -> graph Core reference 检索 -> 分析 -> Memory-Guided MCTS 搜索 -> 持久化”。
 
 **当前实际工作流**：
 
@@ -136,8 +136,8 @@ python -m src.agents.survey_agent.scripts.run_deep_survey \
 
 | 阶段 | 作用 |
 |------|------|
-| `knowledge_aquisition` | 冷启动检索：Semantic Scholar 种子检索 -> OutcomeRAG 查询 -> 引用扩展 -> 论文丰富与筛选 |
-| `advanced_analysis` | 从精选论文中提炼机制、痛点、开放问题与搜索种子 |
+| `knowledge_aquisition` | 冷启动检索：生成 query -> 对 survey 做 OutcomeRAG -> 对 graph.db 做 Core 检索 -> 选择 references |
+| `advanced_analysis` | 从 survey 片段和选中的 Core references 中提炼机制、痛点、开放问题与搜索种子 |
 | `re_analysis_replan` | 当已有 RAG 上下文时，重写 topic 焦点、成熟想法和检索方向 |
 | `idea_generation` | 运行 Memory-Guided MCTS；若开启 `LigAgent-Pro`，则从同一 root 并行搜索所有 preset，并在写出 `idea_result.json` 之前执行 fusion |
 
@@ -148,6 +148,7 @@ python -m src.agents.survey_agent.scripts.run_deep_survey \
 
 **当前版本 Idea Agent 的关键特点**：
 
+- **Survey 驱动、graph 承载 reference**：OutcomeRAG 负责提供 survey 片段和 citation titles，下游真正进入分析和 MCTS 的 references 来自 `graph.db` 的 Core 节点，而不是论文全文解析结果。
 - **Contract 模式**：`idea.run.mature_idea` 会把给定想法直接作为 MCTS 根节点。
 - **根领域锁定**：MCTS root 会先被分类到 1 到 2 个固定领域，后续子节点不能偏离。
 - **Preset 驱动搜索**：`idea.mcts.idea_taste_mode` 同时影响评估权重、skill 选择偏置和 component 生成引导。

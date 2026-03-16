@@ -1,29 +1,27 @@
-"""Repository facade for loading paper metadata, markdown, and prepared content."""
+"""Graph-backed repository for survey RAG and Core-node retrieval."""
 
 from __future__ import annotations
 
+import importlib.util
 import os
 from pathlib import Path
-from typing import Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from omegaconf import OmegaConf
 
-from src.agents.survey_agent.modules.work_collector import WorkCollector
 from src.agents.survey_agent.modules.outcome_RAG import OutcomeRAG
+from src.agents.survey_agent.modules.work_collector import WorkCollector
 
-from src.agents.idea_agent.utils.papers.paper_processing import (
-    IdeaPaperAnalyzer,
-    IdeaPaperParser,
-    resolve_paper_records,
-)
+
+_REPO_ROOT = Path(__file__).resolve().parents[5]
+
+
+def _as_text(value: Any) -> str:
+    return "" if value is None else str(value).strip()
 
 
 class PaperRepository:
-    """
-    Thin wrapper around the survey agent's WorkCollector plus lightweight parsing
-    utilities so the idea agent can download, parse, and summarize papers without
-    invoking the survey agent's graph-heavy analyzer.
-    """
+    """Access survey RAG plus graph.db-backed Core references."""
 
     def __init__(
         self,
@@ -35,17 +33,10 @@ class PaperRepository:
         self.logger = logger
         self._config_path = self._resolve_config_path(config_path, config)
         self.config = config or OmegaConf.load(self._config_path)
-        self._normalize_cache_path()
-
         self.work_collector = WorkCollector(self.config)
-        self.paper_parser = IdeaPaperParser(self.config, self.work_collector, logger)
-        self.paper_analyzer = IdeaPaperAnalyzer(
-            self.config, self.paper_parser, logger
-        )
-        self._outcome_rag: Optional[OutcomeRAG] = None
-
-        assert rag_config is not None, "RAG config must be provided"
         self.rag_config = OmegaConf.load(str(rag_config))
+        self._outcome_rag: Optional[OutcomeRAG] = None
+        self._graph_server: Optional[Any] = None
 
     def _resolve_config_path(self, provided_path, config):
         if config is not None:
@@ -74,64 +65,24 @@ class PaperRepository:
             )
         return config_path
 
-    def _normalize_cache_path(self) -> None:
-        """
-        Resolve the cache path to an absolute directory so downstream helpers can
-        deterministically read/write parsed papers and summaries.
-        """
-        cache_path = Path(self.config.BasicInfo.cache_path)
-        if not cache_path.is_absolute():
-            base = (
-                self._config_path.parent
-                if self._config_path is not None
-                else Path.cwd()
-            )
-            cache_path = (base / cache_path).resolve()
-        resolved = str(cache_path)
-        self.config.BasicInfo.cache_path = resolved
-        os.makedirs(resolved, exist_ok=True)
+    def _get_outcome_rag(self) -> OutcomeRAG:
+        if self._outcome_rag is None:
+            self._outcome_rag = OutcomeRAG(self.rag_config, self.work_collector)
+        return self._outcome_rag
 
-    def prepare_papers(self, paper_ids: Iterable[str]) -> Dict[str, Dict[str, object]]:
-        """
-        Ensure that each provided paper ID has a parsed Markdown file and a keynote summary.
+    def _get_graph_server(self) -> Any:
+        if self._graph_server is not None:
+            return self._graph_server
 
-        Returns a mapping of paper_id -> {"keynote": keynote_dict}
-        """
-        unique_ids = []
-        seen = set()
-        for pid in paper_ids or []:
-            normalized = (pid or "").strip()
-            if not normalized or normalized in seen:
-                continue
-            seen.add(normalized)
-            unique_ids.append(normalized)
+        server_path = (_REPO_ROOT / "graph" / "server.py").resolve()
+        spec = importlib.util.spec_from_file_location("researchagent_graph_server", server_path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"Unable to load graph server module from {server_path}")
 
-        if not unique_ids:
-            return {}
-
-        papers = resolve_paper_records(self.work_collector, unique_ids, self.logger)
-        self.paper_parser.download_and_parse(papers)
-        keynotes = self.paper_analyzer.ensure_keynotes(unique_ids)
-
-        results: Dict[str, Dict[str, object]] = {}
-        for pid in unique_ids:
-            try:
-                keynote_entry = keynotes.get(pid)
-            except Exception as exc:  # pragma: no cover - defensive
-                if self.logger:
-                    self.logger.warning(
-                        "Failed to generate keynote for paper %s: %s", pid, exc
-                    )
-                keynote_entry = None
-            keynote_value = None
-            if isinstance(keynote_entry, dict):
-                keynote_value = keynote_entry.get("keynote") or keynote_entry
-            results[pid] = {"keynote": keynote_value}
-        return results
-
-    def get_markdown(self, paper_id: str) -> str:
-        """Retrieve the parsed Markdown content for a paper via the local parser."""
-        return self.paper_parser.get_markdown(paper_id)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self._graph_server = module
+        return module
 
     def retrieve_outcome_rag(
         self,
@@ -140,7 +91,7 @@ class PaperRepository:
         mode: str = "content",
         alpha: float = 0.5,
         cite_top_k: Optional[int] = None,
-    ):
+    ) -> List[Dict[str, Any]]:
         rag = self._get_outcome_rag()
         if rag.embeddings is None:
             rag.build_index()
@@ -152,74 +103,101 @@ class PaperRepository:
             cite_top_k=cite_top_k,
         )
 
-    def search_papers_by_title(
+    def get_core_node(self, node_id: str) -> Dict[str, Any]:
+        server = self._get_graph_server()
+        payload = server.get_node(str(node_id))
+        if not isinstance(payload, dict) or not payload.get("found"):
+            return {}
+        node = payload.get("node")
+        return dict(node) if isinstance(node, dict) else {}
+
+    def search_core_nodes_by_titles(
         self,
         titles: Iterable[str],
+        *,
         limit_per_title: int = 1,
-    ) -> list[Dict[str, object]]:
-        results: list[Dict[str, object]] = []
-        seen = set()
+    ) -> List[Dict[str, Any]]:
+        server = self._get_graph_server()
+        references: List[Dict[str, Any]] = []
+        seen: set[str] = set()
         for title in titles or []:
-            query = (title or "").strip()
+            query = _as_text(title)
             if not query:
                 continue
-            key = query.lower()
-            if key in seen:
-                continue
-            seen.add(key)
-            try:
-                response = self.work_collector.semantic_scholar_api.search_papers(
-                    query=query,
-                    fields="title,abstract,authors,year,url,tldr,paperId,externalIds,openAccessPdf",
+            payload = server.search_simple(q=query, node_type="Core", limit=limit_per_title)
+            results = payload.get("results") if isinstance(payload, dict) else []
+            for node in results or []:
+                reference = self._normalize_core_reference(
+                    node,
+                    source="survey_citation",
+                    source_keywords=query,
                 )
-            except Exception as exc:
-                if self.logger:
-                    self.logger.warning("Semantic Scholar title search failed for %s: %s", query, exc)
-                continue
-            data = response.get("data", []) if isinstance(response, dict) else []
-            if not data:
-                continue
-            picked = self._pick_best_title_match(query, data[: max(1, limit_per_title)])
-            if picked:
-                record = self._normalize_search_result(picked, query)
-                if record:
-                    results.append(record)
-        return results
+                node_key = reference.get("node_id")
+                if node_key and node_key not in seen:
+                    seen.add(node_key)
+                    references.append(reference)
+        return references
 
-    def _get_outcome_rag(self) -> OutcomeRAG:
-        if self._outcome_rag is None:
-            self._outcome_rag = OutcomeRAG(self.rag_config, self.work_collector)
-        return self._outcome_rag
+    def search_core_nodes_by_query(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
+        server = self._get_graph_server()
+        payload = server.search_simple(q=query, node_type="Core", limit=limit)
+        results = payload.get("results") if isinstance(payload, dict) else []
 
-    def _pick_best_title_match(self, query: str, candidates: list[Dict[str, object]]) -> Optional[Dict[str, object]]:
-        lowered = query.strip().lower()
-        for item in candidates:
-            title = (item.get("title") or "").strip().lower()
-            if title and title == lowered:
-                return item
-        return candidates[0] if candidates else None
+        references: List[Dict[str, Any]] = []
+        seen: set[str] = set()
+        for node in results or []:
+            reference = self._normalize_core_reference(
+                node,
+                source="graph_query",
+                source_keywords=query,
+            )
+            node_key = reference.get("node_id")
+            if node_key and node_key not in seen:
+                seen.add(node_key)
+                references.append(reference)
+        return references
 
-    def _normalize_search_result(self, paper: Dict[str, object], source_query: str) -> Optional[Dict[str, object]]:
-        if not isinstance(paper, dict):
-            return None
-        title = paper.get("title") or source_query
-        authors_field = paper.get("authors", []) or []
-        if isinstance(authors_field, list):
-            authors = [a.get("name", str(a)) for a in authors_field if a]
-        elif authors_field:
-            authors = [str(authors_field)]
-        else:
-            authors = []
-        tldr = paper.get("tldr")
-        if isinstance(tldr, dict):
-            tldr = tldr.get("text") or tldr.get("summary")
+    def _normalize_core_reference(
+        self,
+        node: Dict[str, Any],
+        *,
+        source: str,
+        source_keywords: str,
+    ) -> Dict[str, Any]:
+        node_id = _as_text(node.get("id") or node.get("node_id"))
+        paper_title = _as_text(node.get("paper_title"))
+        full_name = _as_text(node.get("full_name"))
+        label = _as_text(node.get("label"))
+        summary = _as_text(node.get("summary"))
+        insight = _as_text(node.get("insight"))
+        components = node.get("components") if isinstance(node.get("components"), list) else []
+        component_names = [
+            _as_text(component.get("name") or component.get("label"))
+            for component in components[:4]
+            if isinstance(component, dict) and _as_text(component.get("name") or component.get("label"))
+        ]
+        summary_parts = [part for part in [summary, f"Insight: {insight}" if insight else ""] if part]
+        if component_names:
+            summary_parts.append("Components: " + ", ".join(component_names))
+        summary_text = " ".join(summary_parts) or "No summary available."
+        title = paper_title or full_name or label or node_id
         return {
+            "paper_id": node_id,
+            "node_id": node_id,
             "title": title,
-            "abstract": paper.get("abstract") or "No abstract available.",
-            "authors": authors,
-            "year": paper.get("year"),
-            "url": paper.get("url") or (paper.get("openAccessPdf") or {}).get("url"),
-            "tldr": tldr,
-            "paper_id": paper.get("paperId") or paper.get("paper_id"),
-            "source_keywords": source_query,
+            "paper_title": paper_title or title,
+            "summary": summary_text,
+            "insight": insight,
+            "authors": [],
+            "source": source,
+            "source_keywords": source_keywords,
+            "paper_domain": _as_text(node.get("paper_domain")),
+            "full_name": full_name,
+            "label": label or title,
+            "components": components,
         }

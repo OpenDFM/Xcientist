@@ -29,15 +29,13 @@ from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     collect_rag_contents,
     extract_experiment_findings_from_raw_ablation,
     extract_root_idea_from_analysis,
-    filter_and_compress_papers,
     generate_rag_query,
     normalize_analysis_entry,
-    normalize_search_papers,
     paper_context_with_rag,
-    prepare_query_papers,
     retrieve_outcome_rag,
-    safely_enrich_papers_with_content,
-    search_papers_from_citations,
+    search_core_nodes_from_citations,
+    search_core_nodes_from_query,
+    select_core_references,
 )
 from src.agents.idea_agent.utils.workflow.ligagent_utils import (
     collect_paper_context_entries,
@@ -130,9 +128,8 @@ def execute_knowledge_acquisition_stage(agent: Any, ctx: StageContext) -> StageR
         step_summary=summary,
         metrics={
             "mode": nested.state.get("mode"),
-            "seed_papers": len(nested.state.get("initial_papers", [])),
             "rag_hits": len(nested.state.get("rag_hits", [])),
-            "curated_papers": len(nested.state.get("curated_papers", [])),
+            "references": len(nested.state.get("curated_references", [])),
         },
     )
 
@@ -224,7 +221,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     if session is not None:
         session.set_slot("analysis.latest", response)
     step = (
-        "\nIn this advanced_analysis action, I analyzed the collected papers and summarized my findings: "
+        "\nIn this advanced_analysis action, I analyzed the retrieved references and summarized my findings: "
         f"{response.get('tldr', 'No TL;DR provided.')}"
     )
     return StageResult(
@@ -523,77 +520,17 @@ def ka_route_stage(agent: Any, ctx: StageContext) -> StageResult:
             "topic": topic,
             "search_keywords": search_keywords,
             "mature_idea": mature_idea,
-            "initial_papers": [],
-            "query_papers": [],
+            "rag_query": "",
             "rag_hits": [],
             "survey_contents": [],
             "citation_titles": [],
-            "rag_papers": [],
-            "combined_papers": [],
-            "curated_papers": [],
+            "graph_references": [],
+            "curated_references": [],
+            "retrieval_source": "",
             "summary": "",
         },
-        next_stage="ka_query_generation" if mode == "mature_idea" else "ka_seed_search",
-        metrics={"mode": mode},
-    )
-
-
-def ka_seed_search_stage(agent: Any, ctx: StageContext) -> StageResult:
-    logger = _logger(agent, ctx)
-    runtime = _runtime(agent, ctx)
-    session = _session(agent, ctx)
-    search_keywords = ctx.state["search_keywords"]
-    try:
-        papers = runtime.tool_call(
-            session=session,
-            stage=ctx.stage_name,
-            workflow_name=ctx.workflow_name,
-            op_name="semantic_search",
-            tool_name="semantic_search",
-            query=search_keywords,
-            limit=agent.semantic_search_limit,
-        )
-        logger.info("📄 Found Papers:")
-        initial_papers = normalize_search_papers(papers, search_keywords, logger)
-    except Exception as exc:
-        logger.error("Error during paper search: %s", exc)
-        return StageResult(
-            status="retryable_failure",
-            error=str(exc),
-            metrics={"seed_papers": 0},
-        )
-
-    if not initial_papers:
-        return StageResult(
-            state_patch={
-                "initial_papers": [],
-                "summary": (
-                    f"\nIn this knowledge_aquisition action, I searched for papers about "
-                    f"'{search_keywords}' but found none."
-                ),
-            },
-            metrics={"seed_papers": 0},
-        )
-
-    return StageResult(
-        state_patch={"initial_papers": initial_papers},
         next_stage="ka_query_generation",
-        metrics={"seed_papers": len(initial_papers)},
-    )
-
-
-def ka_seed_search_fallback_stage(agent: Any, ctx: StageContext) -> StageResult:
-    search_keywords = ctx.state.get("search_keywords", "")
-    return StageResult(
-        status="degraded",
-        state_patch={
-            "summary": (
-                f"\nIn this knowledge_aquisition action, I acquired several papers about "
-                f"'{search_keywords}'."
-            ),
-            "fallback_used": True,
-        },
-        metrics={"fallback_used": True},
+        metrics={"mode": mode},
     )
 
 
@@ -602,21 +539,12 @@ def ka_query_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
 
     mode = ctx.state["mode"]
     mature_idea = ctx.state.get("mature_idea", "")
-    initial_papers = ctx.state.get("initial_papers", [])
     topic = ctx.state["topic"]
     search_keywords = ctx.state["search_keywords"]
-    query_papers: List[Dict[str, Any]] = []
-    query_topic = topic
-    if mode != "mature_idea":
-        query_papers = prepare_query_papers(
-            initial_papers,
-            agent.paper_repository,
-            logger,
-        )
-        query_topic = search_keywords
+    query_topic = search_keywords or topic
     rag_query = generate_rag_query(
         query_topic,
-        query_papers,
+        [],
         PROMPTS,
         _chat(agent, ctx, "rag_query_generation"),
         agent.model,
@@ -630,10 +558,9 @@ def ka_query_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     )
     return StageResult(
         state_patch={
-            "query_papers": query_papers,
             "rag_query": rag_query,
         },
-        metrics={"query_papers": len(query_papers), "rag_query_length": len(rag_query)},
+        metrics={"rag_query_length": len(rag_query)},
     )
 
 
@@ -670,129 +597,84 @@ def ka_outcome_rag_stage(agent: Any, ctx: StageContext) -> StageResult:
     )
 
 
-def ka_citation_expansion_stage(agent: Any, ctx: StageContext) -> StageResult:
+def ka_graph_retrieval_stage(agent: Any, ctx: StageContext) -> StageResult:
+    logger = _logger(agent, ctx)
     rag_query = ctx.state["rag_query"]
-    rag_papers = search_papers_from_citations(
-        ctx.state.get("citation_titles", []),
-        rag_query,
-        agent.paper_repository,
-    )
-    mode = ctx.state["mode"]
-    initial_papers = list(ctx.state.get("initial_papers", []))
-    rag_hits = ctx.state.get("rag_hits", [])
-
-    if mode == "mature_idea" and not rag_papers:
-        return StageResult(
-            state_patch={
-                "rag_papers": [],
-                "combined_papers": [],
-                "summary": (
-                    f"\nIn this knowledge_aquisition action, I used the mature idea to generate "
-                    f"a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
-                    "but found no cited papers to fetch."
-                ),
-            },
-            metrics={"rag_papers": 0},
+    citation_titles = ctx.state.get("citation_titles", [])
+    if citation_titles:
+        graph_references = search_core_nodes_from_citations(
+            citation_titles,
+            rag_query,
+            agent.paper_repository,
         )
-
-    combined_papers = list(rag_papers) if mode == "mature_idea" else initial_papers + list(rag_papers)
+        retrieval_source = "survey_citations"
+    else:
+        graph_references = search_core_nodes_from_query(
+            rag_query,
+            agent.paper_repository,
+        )
+        retrieval_source = "query_fallback"
+    if logger is not None:
+        for idx, reference in enumerate(graph_references, 1):
+            if not isinstance(reference, dict):
+                continue
+            title = str(
+                reference.get("title")
+                or reference.get("paper_title")
+                or reference.get("node_id")
+                or f"graph_reference_{idx}"
+            ).strip()
+            summary = str(
+                reference.get("summary")
+                or reference.get("insight")
+                or "No summary available."
+            ).strip()
+            logger.info("📚 Graph Reference %d Title: %s", idx, title)
+            logger.info("📚 Graph Reference %d Summary: %s", idx, summary)
     return StageResult(
         state_patch={
-            "rag_papers": rag_papers,
-            "combined_papers": combined_papers,
+            "graph_references": graph_references,
+            "retrieval_source": retrieval_source,
         },
         metrics={
-            "rag_papers": len(rag_papers),
-            "combined_papers": len(combined_papers),
+            "graph_references": len(graph_references),
+            "retrieval_source": retrieval_source,
         },
     )
 
 
-def ka_enrichment_stage(agent: Any, ctx: StageContext) -> StageResult:
-    papers = ctx.state.get("combined_papers", [])
-    if not papers:
-        return StageResult(
-            status="degraded",
-            metrics={"combined_papers": 0},
-        )
-
-    temp_artifact = {
-        "retrieval": {
-            "paper_contents": deepcopy(artifact_get(agent.artifact, "paper_contents", {}))
-        }
-    }
-    safely_enrich_papers_with_content(
-        papers,
-        agent.paper_enrichment_timeout,
-        agent.paper_repository,
-        temp_artifact,
-        _logger(agent, ctx),
-    )
-    return StageResult(
-        artifact_patch=ArtifactPatch(
-            merge={"paper_contents": temp_artifact["retrieval"]["paper_contents"]}
-        ),
-        metrics={"combined_papers": len(papers)},
-    )
-
-
-def ka_paper_triage_stage(agent: Any, ctx: StageContext) -> StageResult:
+def ka_reference_selection_stage(agent: Any, ctx: StageContext) -> StageResult:
     session = _session(agent, ctx)
-
-    topic = ctx.state["topic"]
-    mature_idea = ctx.state.get("mature_idea", "")
-    combined_papers = ctx.state.get("combined_papers", [])
-    mode = ctx.state["mode"]
     rag_query = ctx.state["rag_query"]
     rag_hits = ctx.state.get("rag_hits", [])
-    initial_papers = ctx.state.get("initial_papers", [])
-
-    temp_artifact = {
-        "retrieval": {
-            "paper_contents": deepcopy(artifact_get(agent.artifact, "paper_contents", {}))
-        }
-    }
-    curated_papers = filter_and_compress_papers(
-        topic=topic,
-        mature_idea=mature_idea,
-        papers=combined_papers,
-        artifact=temp_artifact,
-        prompts=PROMPTS,
-        chat_fn=_chat(agent, ctx, "paper_triage"),
-        model=agent.model,
-        logger=_logger(agent, ctx),
+    curated_references = select_core_references(
+        ctx.state.get("graph_references", []),
         top_k=5,
     )
-
+    mode = ctx.state["mode"]
+    retrieval_source = ctx.state.get("retrieval_source", "")
     if mode == "mature_idea":
         summary = (
             f"\nIn this knowledge_aquisition action, I used the mature idea to generate "
-            f"a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
-            f"and curated {len(curated_papers)} cited papers for memory."
-        )
-    elif ctx.state.get("rag_papers"):
-        summary = (
-            f"\nIn this knowledge_aquisition action, I read {len(initial_papers)} seed papers, "
-            f"generated a focused query '{rag_query}', retrieved {len(rag_hits)} RAG hits, "
-            f"and curated {len(curated_papers)} papers for memory."
+            f"a focused query '{rag_query}', retrieved {len(rag_hits)} survey hits, "
+            f"and selected {len(curated_references)} core references from graph.db "
+            f"via {retrieval_source or 'graph retrieval'}."
         )
     else:
         summary = (
-            f"\nIn this knowledge_aquisition action, I searched for papers about "
-            f"'{ctx.state['search_keywords']}' and curated {len(curated_papers)} relevant papers "
-            "for my research."
+            f"\nIn this knowledge_aquisition action, I generated a focused query '{rag_query}', "
+            f"retrieved {len(rag_hits)} survey hits, and selected {len(curated_references)} "
+            f"core references from graph.db via {retrieval_source or 'graph retrieval'}."
         )
-
     if session is not None:
-        session.set_slot("references.latest", curated_papers)
+        session.set_slot("references.latest", curated_references)
     return StageResult(
         artifact_patch=ArtifactPatch(
-            append={"references": [curated_papers]},
-            merge={"paper_contents": temp_artifact["retrieval"]["paper_contents"]},
+            append={"references": [curated_references]},
         ),
         state_patch={
-            "curated_papers": curated_papers,
+            "curated_references": curated_references,
             "summary": summary,
         },
-        metrics={"curated_papers": len(curated_papers)},
+        metrics={"curated_references": len(curated_references)},
     )

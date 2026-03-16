@@ -171,6 +171,8 @@ class PaperGraphComponentVectorStore:
         index_dir: Optional[str] = None,
         device: Optional[str] = None,
         db_path: Optional[str] = None,
+        model: Optional[Any] = None,
+        disabled_error: Optional[str] = None,
     ) -> None:
         self.model_name_or_path = model_name_or_path
         self.index_dir = (
@@ -191,11 +193,12 @@ class PaperGraphComponentVectorStore:
             self.db_path = server_db_path
         self.device = device
 
-        self._model: Optional[Any] = None
+        self._model: Optional[Any] = model
         self._index: Optional[Any] = None
         self._core_nodes: Dict[str, Dict[str, Any]] = {}
         self._core_node_fallbacks: Dict[str, Dict[str, Any]] = {}
         self._component_records: Dict[int, ComponentEmbeddingRecord] = {}
+        self._disabled_error: Optional[str] = str(disabled_error).strip() if disabled_error else None
 
     @property
     def size(self) -> int:
@@ -204,7 +207,12 @@ class PaperGraphComponentVectorStore:
     def _resolve_model_source(self) -> str:
         return _resolve_repo_path(self.model_name_or_path)
 
+    def _ensure_available(self) -> None:
+        if self._disabled_error:
+            raise RuntimeError(self._disabled_error)
+
     def _get_model(self) -> Any:
+        self._ensure_available()
         if self._model is not None:
             return self._model
         kwargs: Dict[str, Any] = {}
@@ -213,7 +221,20 @@ class PaperGraphComponentVectorStore:
         self._model = SentenceTransformer(self._resolve_model_source(), **kwargs)
         return self._model
 
+    def get_model(self) -> Any:
+        return self._get_model()
+
+    def warmup(
+        self,
+        index_dir: Optional[str] = None,
+        allow_stale_graph: bool = True,
+    ) -> "PaperGraphComponentVectorStore":
+        self.load(index_dir=index_dir, allow_stale_graph=allow_stale_graph)
+        self._get_model()
+        return self
+
     def _require_loaded_index(self) -> None:
+        self._ensure_available()
         if self._index is not None and self._component_records:
             return
         self.load()
@@ -242,6 +263,7 @@ class PaperGraphComponentVectorStore:
         index_dir: Optional[str] = None,
         allow_stale_graph: bool = True,
     ) -> "PaperGraphComponentVectorStore":
+        self._ensure_available()
         del allow_stale_graph
         target_dir = Path(index_dir).expanduser().resolve() if index_dir else self.index_dir
         faiss_path = target_dir / _FAISS_FILE

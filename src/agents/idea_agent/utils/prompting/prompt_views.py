@@ -100,7 +100,7 @@ def _join_sections(sections: Sequence[str], empty: str) -> str:
 
 
 def _extract_paper_summary(paper: Mapping[str, Any]) -> str:
-    for key in ("summary", "tldr", "abstract", "snippet", "excerpt"):
+    for key in ("summary", "insight", "tldr", "abstract", "snippet", "excerpt"):
         value = paper.get(key)
         if value:
             return _clip_text(value)
@@ -291,11 +291,11 @@ def format_latest_candidate_prompt_view(latest_candidate: Any) -> str:
 def format_paper_capsules_prompt_view(papers: Any, *, max_papers: int = 8) -> str:
     items = [item for item in _normalize_list(papers) if item is not None]
     if not items:
-        return "No curated paper capsules."
+        return "No core reference capsules."
 
     sections = [
         _format_section(
-            "Curated Paper Capsules",
+            "Core Reference Capsules",
             [f"Available capsules: {len(items)}", f"Showing: {min(len(items), max_papers)}"],
         )
     ]
@@ -326,7 +326,7 @@ def format_paper_capsules_prompt_view(papers: Any, *, max_papers: int = 8) -> st
             )
         )
 
-    return _join_sections(sections, empty="No curated paper capsules.")
+    return _join_sections(sections, empty="No core reference capsules.")
 
 
 def format_paper_context_prompt_view(
@@ -382,12 +382,12 @@ def format_paper_context_prompt_view(
         _format_section(
             "Paper Context Snapshot",
             [
-                f"Curated papers: {len(entries or [])}",
+                f"Core references: {len(entries or [])}",
                 f"RAG hits: {len(hits)}",
                 f"Survey excerpts: {len(_normalize_list(latest_sections))}",
             ],
         ),
-        _format_section("Curated Papers", paper_lines),
+        _format_section("Core References", paper_lines),
         _format_section("RAG Evidence", rag_lines),
         _format_section("Survey Excerpts", survey_lines),
     ]

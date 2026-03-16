@@ -34,11 +34,6 @@ Rubric anchors (for the final `rubric_score`):
 First, conduct your analysis in the `evaluation_scratchpad`. Then, assign the numeric scores.
 Return STRICT JSON ONLY (no markdown blocks like ```json, no prose outside the JSON object):
 {{
-  "evaluation_scratchpad": {{
-    "mechanism_delta": "Identify the EXACT mechanism difference (the 'Delta') between the candidate's core components and the closest retrieved nodes.",
-    "similarity_analysis": "Analyze how syntactically/structurally close this is to the baseline graph.",
-    "novelty_defense": "Determine if the Delta is scientifically non-trivial, or just a cosmetic rename/vague claim."
-  }},
   "retrieval_similarity": <int 0-5>,
   "perceived_novelty": <int 0-5>,
   "rubric_score": <int 0-5>,

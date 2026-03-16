@@ -7,7 +7,7 @@
 X-Scientist is the current research-agent system in this repository, the codebase now centers around four core agents :
 
 1. **Survey Agent**: collects papers, builds literature clusters, writes survey drafts, and produces `survey.md` / `survey.json` artifacts for downstream retrieval.
-2. **Idea Agent (LigAgent)**: turns a topic or a mature seed idea into a structured research proposal through retrieval, analysis, and Memory-Guided MCTS.
+2. **Idea Agent (LigAgent)**: turns a topic or a mature seed idea into a structured research proposal through survey-grounded retrieval, graph-backed Core references, analysis, and Memory-Guided MCTS.
 3. **Experiment Agent (SuperAgent)**: converts an idea into runnable code, executes experiments, and iterates on failures.
 4. **Paper Agent**: reads an experiment workspace and writes a paper workspace with LaTeX drafts and compilation artifacts.
 
@@ -128,7 +128,7 @@ python -m src.agents.survey_agent.scripts.run_deep_survey \
 
 ### 2. Idea Agent (LigAgent)
 
-**Purpose**: turn a topic or mature idea into a structured research proposal through retrieval, literature analysis, and a Memory-Guided MCTS search.
+**Purpose**: turn a topic or mature idea into a structured research proposal through survey-grounded retrieval, graph-backed Core references, structured analysis, and a Memory-Guided MCTS search.
 
 **Actual runtime workflow**:
 
@@ -136,8 +136,8 @@ The main workflow is a conditional stage graph:
 
 | Stage | Role |
 |------|------|
-| `knowledge_aquisition` | Cold-start retrieval: Semantic Scholar seed -> OutcomeRAG query -> citation expansion -> paper enrichment/filtering |
-| `advanced_analysis` | Summarize curated literature into mechanisms, gaps, and search seeds |
+| `knowledge_aquisition` | Cold-start retrieval: query generation -> OutcomeRAG over survey sections -> graph.db Core retrieval -> reference selection |
+| `advanced_analysis` | Summarize survey excerpts and selected Core references into mechanisms, gaps, and search seeds |
 | `re_analysis_replan` | Revise topic focus, mature idea, and retrieval direction when RAG context already exists |
 | `idea_generation` | Run Memory-Guided MCTS; if `LigAgent-Pro` is enabled, search all presets from one shared root and fuse them before persisting `idea_result.json` |
 
@@ -148,6 +148,7 @@ Current control flow:
 
 **What is distinctive about the current Idea Agent**:
 
+- **Survey-grounded retrieval with graph-backed references**: OutcomeRAG supplies survey sections and citation titles, while downstream references come from `graph.db` Core nodes rather than parsed papers.
 - **Contract mode**: `idea.run.mature_idea` turns the provided idea into the MCTS root.
 - **Root-domain locking**: the MCTS root is classified into one or two fixed research domains and descendants must stay there.
 - **Preset-driven search**: `idea.mcts.idea_taste_mode` affects evaluation weights, skill selection bias, and component-generation guidance.

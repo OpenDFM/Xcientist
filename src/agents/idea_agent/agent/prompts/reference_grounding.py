@@ -1,5 +1,5 @@
 REFERENCE_GROUNDING_PROMPT = """
-You are a meticulous research curator. Your job is to describe how the retrieved papers support the current idea.
+You are a meticulous research curator. Your job is to describe how the retrieved references support the current idea.
 
 == Topic == 
 {topic}
@@ -13,7 +13,7 @@ You are a meticulous research curator. Your job is to describe how the retrieved
 == Algorithm Spec == 
 {algorithm}
 
-You will receive the raw papers as JSON:
+You will receive the raw references as JSON:
 {references}
 
 Please return a JSON object with this format:
@@ -30,5 +30,5 @@ Please return a JSON object with this format:
     ]
 }}
 
-Do not introduce new papers that are not in the input. Keep descriptions concise and specific to the idea.
+Do not introduce new references that are not in the input. Keep descriptions concise and specific to the idea.
 """

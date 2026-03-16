@@ -31,7 +31,6 @@ FIELD_SPECS: Dict[str, Dict[str, Any]] = {
     "rag_query": {"namespace": "retrieval", "path": "rag_query", "kind": "list"},
     "rag_hits": {"namespace": "retrieval", "path": "rag_hits", "kind": "list"},
     "rag_contents": {"namespace": "retrieval", "path": "rag_contents", "kind": "list"},
-    "paper_contents": {"namespace": "retrieval", "path": "paper_contents", "kind": "dict"},
     "analysis": {"namespace": "analysis", "path": "entries", "kind": "list"},
     "root_idea": {"namespace": "analysis", "path": "root_idea", "kind": "dict"},
     "background_knowledge": {"namespace": "analysis", "path": "background_knowledge", "kind": "list"},
@@ -106,7 +105,6 @@ def _namespace_defaults() -> Dict[str, Dict[str, Any]]:
             "rag_query": [],
             "rag_hits": [],
             "rag_contents": [],
-            "paper_contents": {},
         },
         "analysis": {
             "entries": [],
@@ -125,7 +123,7 @@ def _namespace_defaults() -> Dict[str, Dict[str, Any]]:
         "persistence": {
             "idea_result": {},
             "artifact_structure": {},
-            "schema_version": 3,
+            "schema_version": 4,
         },
     }
 
@@ -214,7 +212,7 @@ def ensure_artifact_structure(artifact: Dict[str, Any]) -> Dict[str, Any]:
                 value = deepcopy(normalized[namespace].get(path, _default_for_kind(kind)))
         normalized[namespace][path] = value
 
-    normalized["persistence"]["schema_version"] = 3
+    normalized["persistence"]["schema_version"] = 4
     artifact.clear()
     for namespace in ARTIFACT_NAMESPACES:
         artifact[namespace] = normalized[namespace]

@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-import uuid
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Any, Dict, List, Optional
 
 from src.agents.idea_agent.agent.artifacts import artifact_get
@@ -14,9 +12,7 @@ from src.agents.idea_agent.agent.prompts.experiment_findings_extraction import (
 from src.agents.idea_agent.utils.workflow.idea_helpers import fallback_algorithm_spec
 from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
 from src.agents.idea_agent.utils.workflow.ligagent_utils import (
-    enrich_papers_with_content,
     parse_json_response,
-    summarize_keynote,
 )
 from src.agents.idea_agent.utils.prompting.prompt_views import format_paper_context_prompt_view
 
@@ -198,208 +194,6 @@ def normalize_search_papers(
     return normalized
 
 
-def prepare_query_papers(
-    papers: Optional[List[Dict[str, Any]]],
-    paper_repository,
-    logger,
-    limit: int = 6,
-) -> List[Dict[str, Any]]:
-    if not papers:
-        return []
-    shortlist = papers[:limit]
-    paper_ids = [paper.get("paper_id") for paper in shortlist if paper.get("paper_id")]
-    prepared = {}
-    if paper_ids:
-        try:
-            prepared = paper_repository.prepare_papers(paper_ids)
-        except Exception as exc:  # pragma: no cover - network
-            logger.warning("⚠️ Failed to prepare papers for query generation: %s", exc)
-    query_papers: List[Dict[str, Any]] = []
-    for paper in shortlist:
-        pid = paper.get("paper_id")
-        keynote = None
-        if pid and prepared.get(pid):
-            keynote = prepared[pid].get("keynote") or prepared[pid]
-        summary = summarize_keynote(keynote, paper.get("abstract"))
-        query_papers.append(
-            {
-                "title": paper.get("title"),
-                "abstract": paper.get("abstract"),
-                "keynote": summary,
-                "paper_id": pid,
-            }
-        )
-    return query_papers
-
-
-def _single_sentence(text: str) -> str:
-    cleaned = re.sub(r"\s+", " ", (text or "").strip())
-    if not cleaned:
-        return "No summary available."
-    for sep in (". ", "? ", "! "):
-        if sep in cleaned:
-            return cleaned.split(sep, 1)[0].strip() + sep.strip()
-    return cleaned
-
-
-def filter_and_compress_papers(
-    topic: str,
-    mature_idea: Optional[str],
-    papers: List[Dict[str, Any]],
-    artifact: Dict[str, Any],
-    prompts: Dict[str, str],
-    chat_fn,
-    model: str,
-    logger,
-    top_k: int = 5,
-) -> List[Dict[str, Any]]:
-    if not papers:
-        return papers
-    prompt_template = prompts.get("paper_filtering")
-    if not prompt_template:
-        logger.warning("⚠️ paper_filtering prompt missing; skipping LLM triage.")
-        return papers
-
-    storage = artifact_get(artifact, "paper_contents", {})
-    candidates: List[Dict[str, Any]] = []
-    paper_map: Dict[str, Dict[str, Any]] = {}
-    for idx, paper in enumerate(papers, 1):
-        if not isinstance(paper, dict):
-            continue
-        pid = paper.get("paper_id")
-        if not pid:
-            pid = f"fallback-{uuid.uuid4().hex}"
-            paper["paper_id"] = pid
-        paper_map[pid] = paper
-        keynote = paper.get("keynote") or storage.get(pid, {}).get("keynote")
-        summary = summarize_keynote(keynote, paper.get("abstract"))
-        candidates.append(
-            {
-                "index": idx,
-                "paper_id": pid,
-                "title": paper.get("title"),
-                "abstract": paper.get("abstract"),
-                "summary": summary,
-                "source_keywords": paper.get("source_keywords"),
-            }
-        )
-
-    if not candidates:
-        return papers
-
-    prompt = prompt_template.format(
-        topic=topic or "",
-        mature_idea=(mature_idea or "").strip() or "N/A",
-        top_k=min(top_k, len(candidates)),
-        papers=json.dumps(candidates, ensure_ascii=False, indent=2),
-    )
-    prompt += "\nDirectly output JSON."
-    top_ids: List[str] = []
-    compressed_map: Dict[str, str] = {}
-    try:
-        response = chat_fn(prompt, temperature=0.1, max_output_tokens=65536, model=model)
-        payload = parse_json_response(response)
-        raw_top = (
-            payload.get("top_paper_ids")
-            or payload.get("top_papers")
-            or payload.get("top_ids")
-        )
-        if isinstance(raw_top, list):
-            for item in raw_top:
-                if isinstance(item, dict):
-                    pid = (
-                        item.get("paper_id")
-                        or item.get("paperId")
-                        or item.get("id")
-                    )
-                else:
-                    pid = str(item)
-                if pid and pid in paper_map and pid not in top_ids:
-                    top_ids.append(pid)
-        raw_compressed = payload.get("compressed") or payload.get("summaries") or []
-        if isinstance(raw_compressed, dict):
-            for pid, summary in raw_compressed.items():
-                if pid in paper_map and summary:
-                    compressed_map[pid] = _single_sentence(str(summary))
-        elif isinstance(raw_compressed, list):
-            for item in raw_compressed:
-                if not isinstance(item, dict):
-                    continue
-                pid = item.get("paper_id") or item.get("paperId") or item.get("id")
-                summary = item.get("summary")
-                if pid in paper_map and summary:
-                    compressed_map[pid] = _single_sentence(str(summary))
-    except Exception as exc:  # pragma: no cover - network
-        logger.warning("⚠️ Paper triage failed: %s", exc)
-
-    if not top_ids:
-        top_ids = [entry["paper_id"] for entry in candidates[:top_k]]
-    if len(top_ids) < min(top_k, len(candidates)):
-        for entry in candidates:
-            pid = entry["paper_id"]
-            if pid not in top_ids:
-                top_ids.append(pid)
-            if len(top_ids) >= min(top_k, len(candidates)):
-                break
-
-    top_set = set(top_ids)
-    fallback_map = {entry["paper_id"]: entry["summary"] for entry in candidates}
-    for pid in paper_map:
-        if pid not in top_set and pid not in compressed_map:
-            compressed_map[pid] = _single_sentence(fallback_map.get(pid, ""))
-
-    ordered: List[Dict[str, Any]] = []
-    seen: Set[str] = set()
-    for pid in top_ids:
-        paper = paper_map.get(pid)
-        if paper and pid not in seen:
-            ordered.append(paper)
-            seen.add(pid)
-    for paper in papers:
-        pid = paper.get("paper_id")
-        if pid and pid not in seen:
-            ordered.append(paper)
-            seen.add(pid)
-
-    for pid, paper in paper_map.items():
-        if pid in top_set:
-            entry = storage.get(pid, {})
-            entry.setdefault("keynote", paper.get("keynote"))
-            entry.setdefault("title", paper.get("title") or pid)
-            entry.setdefault("abstract", paper.get("abstract"))
-            entry.setdefault("authors", paper.get("authors"))
-            entry.setdefault("source_keywords", paper.get("source_keywords"))
-            entry["compression"] = "full"
-            storage[pid] = entry
-            continue
-        summary = compressed_map.get(pid) or "No summary available."
-        entry = storage.get(pid, {})
-        entry.update(
-            {
-                "title": paper.get("title") or pid,
-                "abstract": None,
-                "authors": paper.get("authors"),
-                "source_keywords": paper.get("source_keywords"),
-                "summary": summary,
-                "keynote": {"summary": summary, "source": "llm_compressed"},
-                "compression": "compressed",
-            }
-        )
-        storage[pid] = entry
-        paper["summary"] = summary
-        paper["compressed"] = True
-        paper.pop("abstract", None)
-        paper.pop("tldr", None)
-        paper.pop("keynote", None)
-
-    logger.info(
-        "🗂️ Paper triage complete: %d full, %d compressed.",
-        len(top_set),
-        max(0, len(paper_map) - len(top_set)),
-    )
-    return ordered
-
-
 def generate_rag_query(
     topic: str,
     papers: List[Dict[str, Any]],
@@ -465,84 +259,29 @@ def collect_rag_contents(hits: List[Dict[str, Any]]) -> List[str]:
     return contents
 
 
-def search_papers_from_citations(
+def search_core_nodes_from_citations(
     titles: List[str],
     rag_query: str,
     paper_repository,
 ) -> List[Dict[str, Any]]:
-    if not titles:
-        return []
-    papers = paper_repository.search_papers_by_title(titles)
-    papers = [paper for paper in papers if paper.get("paper_id")]
-    for paper in papers:
-        paper["source_keywords"] = rag_query
-    return papers
+    references = paper_repository.search_core_nodes_by_titles(titles)
+    for reference in references:
+        reference["source_keywords"] = rag_query
+    return references
 
 
-def fallback_paper_summaries(
-    papers: List[Dict[str, Any]],
-    artifact: Dict[str, Any],
-    reason: str,
-) -> None:
-    storage = artifact_get(artifact, "paper_contents", {})
-    for paper in papers:
-        if not isinstance(paper, dict):
-            continue
-        pid = paper.get("paper_id")
-        if not pid:
-            pid = f"fallback-{uuid.uuid4().hex}"
-            paper["paper_id"] = pid
-        if pid in storage and storage[pid].get("keynote"):
-            continue
-        fallback_text = (
-            paper.get("abstract")
-            or paper.get("title")
-            or paper.get("tldr")
-            or "No parsed content available yet."
-        )
-        keynote_data = {
-            "tldr": fallback_text,
-            "source": reason,
-        }
-        paper["keynote"] = keynote_data
-        paper["has_parsed_markdown"] = False
-        storage[pid] = {
-            "keynote": keynote_data,
-            "source_keywords": paper.get("source_keywords"),
-            "title": paper.get("title"),
-            "abstract": paper.get("abstract"),
-            "authors": paper.get("authors"),
-        }
-
-
-def safely_enrich_papers_with_content(
-    papers: List[Dict[str, Any]],
-    timeout: int,
+def search_core_nodes_from_query(
+    query: str,
     paper_repository,
-    artifact: Dict[str, Any],
-    logger,
-) -> None:
-    if not papers:
-        return
-    timeout = max(30, int(timeout or 0))
-    executor = ThreadPoolExecutor(max_workers=10)
-    future = executor.submit(
-        enrich_papers_with_content, papers, paper_repository, artifact, logger
-    )
-    try:
-        future.result(timeout=timeout)
-    except FuturesTimeoutError:
-        future.cancel()
-        logger.warning(
-            "⚠️ Paper enrichment exceeded %ss. Falling back to lightweight summaries.",
-            timeout,
-        )
-        fallback_paper_summaries(papers, artifact, reason="timeout_fallback")
-    except Exception as exc:  # pragma: no cover - network
-        logger.warning("⚠️ Paper enrichment failed: %s", exc)
-        fallback_paper_summaries(papers, artifact, reason="error_fallback")
-    finally:
-        executor.shutdown(wait=False)
+) -> List[Dict[str, Any]]:
+    return paper_repository.search_core_nodes_by_query(query)
+
+
+def select_core_references(
+    references: List[Dict[str, Any]],
+    top_k: int = 5,
+) -> List[Dict[str, Any]]:
+    return list(references[: max(0, int(top_k))])
 
 
 def format_rag_context(artifact: Dict[str, Any], max_hits: int = 5, max_chars: int = 320) -> str:
@@ -846,15 +585,20 @@ def get_paper_content(
     paper_repository,
     logger,
 ) -> Dict[str, Any]:
+    del include_markdown, paper_repository, logger
     if not paper_id:
         return {}
-    stored = artifact_get(artifact, "paper_contents", {}).get(paper_id, {}).copy()
-    stored["paper_id"] = paper_id
-    if include_markdown:
-        try:
-            stored["markdown"] = paper_repository.get_markdown(paper_id)
-        except Exception as exc:  # pragma: no cover - network
-            logger.warning("Unable to load markdown for %s: %s", paper_id, exc)
+    reference_batches = artifact_get(artifact, "references", [])
+    for batch in reversed(reference_batches):
+        for reference in batch or []:
+            if not isinstance(reference, dict):
+                continue
+            node_id = str(reference.get("node_id") or reference.get("paper_id") or "").strip()
+            if node_id == paper_id:
+                stored = dict(reference)
+                stored["paper_id"] = node_id
+                return stored
+    stored: Dict[str, Any] = {"paper_id": paper_id}
     return stored
 
 

@@ -1,6 +1,6 @@
 # LigAgent — Idea Agent 系统说明
 
-LigAgent 是 ResearchAgent 中负责想法生成的子系统。它把一个研究主题，或者用户提供的成熟想法，转成结构化研究 proposal，核心手段是检索、文献分析、Memory-Guided MCTS 搜索和最终 idea materialization。
+LigAgent 是 ResearchAgent 中负责想法生成的子系统。它把一个研究主题，或者用户提供的成熟想法，转成结构化研究 proposal，核心手段是 survey 检索、graph Core reference 选择、结构化分析、Memory-Guided MCTS 搜索和最终 idea materialization。
 
 ## 概览
 
@@ -42,10 +42,11 @@ graph TD
 
 冷启动检索阶段。
 
-- 用 `artifact["retrieval_keywords"]` 从 Semantic Scholar 做种子检索
-- 基于论文 keynote 或 `mature_idea` 构造 OutcomeRAG 查询
-- 扩展引用并把 citation title 映射回论文
-- 做全文补齐、筛选和压缩，得到下游使用的 curated paper batch
+- 根据 `artifact["retrieval_keywords"]` 或 `mature_idea` 生成聚焦 query
+- 用该 query 在 OutcomeRAG 上检索 survey 片段
+- 如果拿到了 survey citations，就用 citation titles 去 `graph.db` 检索 `Core` 节点
+- 否则直接用 query 去 graph server 检索
+- 选出一小批 Core references，供下游分析和 MCTS 使用
 
 写入：
 
@@ -53,11 +54,10 @@ graph TD
 - `artifact["rag_query"]`
 - `artifact["rag_hits"]`
 - `artifact["rag_contents"]`
-- `artifact["paper_contents"]`
 
 ### `advanced_analysis`
 
-把筛选后的论文批次转成结构化分析。
+把选中的 Core references 和 survey 片段转成结构化分析。
 
 - 提炼关键机制、痛点、开放问题和后续搜索种子
 - 把可复用背景知识追加到 `artifact["background_knowledge"]`
@@ -82,7 +82,7 @@ graph TD
 - `artifact["analysis"]`
 - `artifact["latest_candidate"]`
 - `artifact["background_knowledge"]`
-- curated paper context
+- 由 Core references 和 survey 片段组成的 reference context
 - 可选的 `artifact["mature_idea"]`
 
 随后执行：
@@ -104,9 +104,8 @@ graph TD
 | `mature_idea` | contract root 或 replanning 后的成熟想法 |
 | `background_knowledge` | 分析阶段生成的背景知识 |
 | `analysis` | 结构化分析结果 |
-| `references` | 筛选后的论文批次 |
-| `rag_query`、`rag_hits`、`rag_contents` | OutcomeRAG 上下文 |
-| `paper_contents` | 论文解析元数据 |
+| `references` | 从 `graph.db` 选出的 Core reference 批次 |
+| `rag_query`、`rag_hits`、`rag_contents` | OutcomeRAG 查询和检索出的 survey 片段 |
 | `latest_candidate` | `idea_generation` 产出的当前最佳 canonical idea payload |
 | `ligagent_pro_candidates` | LigAgent-Pro 收集到的各 mode raw best candidates |
 | `fusion_result` | 最新 fusion-agent 输出和复评后的 fused candidate |
@@ -129,7 +128,7 @@ graph TD
 - `search_trace`
 - 可选 provenance：`idea_source`、`source_modes`、`fusion_metadata`
 
-最终持久化出来的 `idea_result.json` 则更偏论文写作接口，主要包含：
+最终持久化出来的 `idea_result.json` 是更小的 proposal 导出结果，主要包含：
 
 - `title`
 - `abstract`
@@ -276,7 +275,7 @@ Evaluator 只允许返回 `utils/mcts/defect_registry.py` 里的 canonical defec
 - mature idea
 - 最新 analysis
 - 当前 run 的 idea pool snapshot
-- paper context
+- reference context
 - 紧凑版 compiled edit plan
 - 精简版 candidate idea
 - canonical defect registry

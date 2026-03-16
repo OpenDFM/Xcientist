@@ -21,17 +21,6 @@ Requirements & Constraints:
 
 Return STRICT JSON ONLY matching this schema:
 {{
-  "outline_scratchpad": {{
-    "para_1_context": "What is the background and why does this topic matter?",
-    "para_2_gap": "What are the specific limitations of the referenced papers?",
-    "para_3_mechanism": "What is the core proposed method and how does it uniquely address the gap?",
-    "para_4_hypotheses": "What are the planned evaluations and expected scientific takeaways?"
-  }},
-  "introduction": [
-    "Paragraph 1 text here...",
-    "Paragraph 2 text here...",
-    "Paragraph 3 text here...",
-    "Paragraph 4 text here (optional, depending on length)..."
-  ]
+  "introduction": ""
 }}
 """
