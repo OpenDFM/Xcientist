@@ -3,9 +3,6 @@
   "fidmap2mid": {},
   "records": {},
   "config": {
-    "lexical_weight": 0.45,
-    "rule_weight": 0.45,
-    "recency_weight": 0.1,
     "upsert_threshold": 0.82
   }
 }
