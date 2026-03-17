@@ -218,6 +218,39 @@ def _normalize_component_mapping(raw_mapping: Any) -> Dict[str, str]:
     return normalized
 
 
+def _extract_component_mapping_keys_from_plan(plan: Any) -> List[str]:
+    ordered: List[str] = []
+    seen: Set[str] = set()
+    for edit in getattr(plan, "component_edits", []) or []:
+        for raw_name in (
+            getattr(edit, "component", ""),
+            getattr(edit, "target", ""),
+        ):
+            name = _coerce_component_name(raw_name)
+            lowered = name.lower()
+            if not name or lowered in seen:
+                continue
+            seen.add(lowered)
+            ordered.append(name)
+    return ordered
+
+
+def _filter_component_mapping_to_plan_keys(raw_mapping: Any, plan: Any) -> Dict[str, str]:
+    normalized = _normalize_component_mapping(raw_mapping)
+    allowed_keys = {
+        key.lower()
+        for key in _extract_component_mapping_keys_from_plan(plan)
+        if str(key).strip()
+    }
+    if not allowed_keys:
+        return {}
+    return {
+        key: value
+        for key, value in normalized.items()
+        if key.lower() in allowed_keys
+    }
+
+
 def _clean_component_explanation(explanation: Any, fallback_component: str) -> str:
     fallback_label = _humanize_component_name(fallback_component)
 

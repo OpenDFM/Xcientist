@@ -1,5 +1,5 @@
 import os
-from typing import Any, Callable, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 try:
     from openai import OpenAI
@@ -13,22 +13,17 @@ from src.agents.idea_agent.utils.core.chat_transport import (
     resolve_chat_transport,
 )
 
-ToolType = Union[Callable[..., Any], object]
-
 class AgentBase:
     """
-    Minimal agent base with an action space, a tool space and a chat model.
+    Minimal agent base with an action space and a chat model.
     - action_space: list of allowed action names (strings)
-    - tools: mapping from tool name to a callable or an object exposing a `run` method
     - chat_model: chat model to interact with the user
     """
 
     def __init__(self,
                     actions: Optional[Dict[str, str]] = None,
-                    tools: Optional[Dict[str, ToolType]] = None,
                     chat_model: Optional[Any] = None) -> None:
         self.action_space: Dict[str, str] = actions or {}
-        self.tools: Dict[str, ToolType] = tools or {}
         self.base_url = os.getenv("OPENAI_BASE_URL")
         self.api_style = os.getenv("OPENAI_API_STYLE", "auto")
         if chat_model is not None:
@@ -42,26 +37,6 @@ class AgentBase:
                 api_key=os.getenv("OPENAI_API_KEY"),
                 base_url=self.base_url,
             )
-   
-    def run_tool(self, name: str, *args, **kwargs) -> Any:
-        """
-        Run a registered tool. If the tool is callable, call it.
-        If it is an object with `run`, call `tool.run(*args, **kwargs)`.
-        Raises KeyError if no such tool.
-        The result is automatically appended to the dialogue as an agent message (optional).
-        """
-        if name not in self.tools:
-            raise KeyError(f"Tool '{name}' not found")
-        tool = self.tools[name]
-        if callable(tool):
-            result = tool(*args, **kwargs)
-        else:
-            run_fn = getattr(tool, "run", None)
-            if callable(run_fn):
-                result = run_fn(*args, **kwargs)
-            else:
-                raise TypeError(f"Tool '{name}' is not callable and has no 'run' method")
-        return result
 
     def chat(self, prompt: str, model: str="gpt-5-mini", **kwargs) -> str:
         """

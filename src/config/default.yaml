@@ -87,9 +87,6 @@ idea:
     rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
     openai_api_key: "sk-BWZ0Kqbk3PvdF0zRFf69B63901B84e85A5B4D8B1AfE27e2e"
     openai_base_url: "https://api.xi-ai.cn/v1"
-    s2_api_key: "${env:S2_API_KEY}"
-    s2_api_timeout: 60
-    mineru_model_source: "modelscope"
 
   agent:
     model: "gpt-5-mini"
@@ -121,7 +118,6 @@ idea:
     chat_max_retries: 3
     chat_retry_backoff: 2.0
     paper_enrichment_timeout_sec: 7200
-    semantic_search_limit: 5
     experiment_findings_extraction:
       model: "${idea.fusion.model}"
       temperature: 0.1

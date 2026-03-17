@@ -20,7 +20,7 @@ graph TD
     KA --> AA[advanced_analysis]
     AA --> IG[idea_generation]
 
-    RH[Existing rag_hits] --> AA2[advanced_analysis]
+    AR[Existing ablation_results] --> AA2[advanced_analysis]
     AA2 --> RR[re_analysis_replan]
     RR --> IG
 
@@ -31,8 +31,8 @@ graph TD
 
 The main workflow is chosen dynamically:
 
-- If `artifact["rag_hits"]` is empty: `knowledge_aquisition -> advanced_analysis -> idea_generation`
-- If `artifact["rag_hits"]` already exists: `advanced_analysis -> re_analysis_replan -> idea_generation`
+- If `artifact["ablation_results"]` is empty: `knowledge_aquisition -> advanced_analysis -> idea_generation`
+- If `artifact["ablation_results"]` already exists: `advanced_analysis -> re_analysis_replan -> idea_generation`
 
 There is no old "five-action controller" in the main path anymore. The authoritative logic lives in `utils/workflow/ligagent_flow.py`.
 
@@ -69,7 +69,7 @@ Writes:
 
 ### `re_analysis_replan`
 
-Activated only when the workflow already has RAG context.
+Activated only when `artifact["ablation_results"]` is present.
 
 - Revises the active topic framing
 - May update `artifact["mature_idea"]`

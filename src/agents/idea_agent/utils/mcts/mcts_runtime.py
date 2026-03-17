@@ -20,6 +20,7 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _clean_component_explanation,
     _coerce_component_name,
     _dedupe_keep_order_strings,
+    _filter_component_mapping_to_plan_keys,
     _normalize_component_mapping,
     _safe_pretty_json,
     apply_budget_delta_to_parent,
@@ -1037,7 +1038,14 @@ def instantiate_skill_plan_for_node(
             payload = payload[0]
         if not isinstance(payload, dict):
             return None
-        payload["component_mapping"] = _normalize_component_mapping(payload.get("component_mapping"))
+        payload["component_mapping"] = _filter_component_mapping_to_plan_keys(
+            payload.get("component_mapping"),
+            plan,
+        )
+        payload["component_role_explanations"] = normalize_component_explanations(
+            list(payload["component_mapping"].values()),
+            payload.get("component_role_explanations"),
+        )
         return payload
     except Exception as exc:
         log_message(

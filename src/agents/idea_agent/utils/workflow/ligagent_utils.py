@@ -208,44 +208,6 @@ class LigRuntime:
         )
         return parse_json_response(raw)
 
-    def tool_call(
-        self,
-        *,
-        session: Optional[Any],
-        stage: str,
-        workflow_name: Optional[str] = None,
-        op_name: str,
-        tool_name: str,
-        **kwargs: Any,
-    ) -> Any:
-        started_at = perf_counter()
-        try:
-            result = self.agent.run_tool(name=tool_name, **kwargs)
-            self._record(
-                session,
-                "tool_call",
-                stage=stage,
-                workflow_name=workflow_name,
-                op_name=op_name,
-                tool_name=tool_name,
-                status="success",
-                latency_ms=round((perf_counter() - started_at) * 1000.0, 2),
-            )
-            return result
-        except Exception as exc:
-            self._record(
-                session,
-                "tool_call",
-                stage=stage,
-                workflow_name=workflow_name,
-                op_name=op_name,
-                tool_name=tool_name,
-                status="error",
-                error=str(exc),
-                latency_ms=round((perf_counter() - started_at) * 1000.0, 2),
-            )
-            raise
-
     def _record(self, session: Optional[Any], event_type: str, **payload: Any) -> None:
         if session is not None:
             session.record_event(event_type, **payload)

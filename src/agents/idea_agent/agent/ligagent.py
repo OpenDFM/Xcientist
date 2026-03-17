@@ -10,7 +10,6 @@ import time
 from copy import deepcopy
 from dataclasses import fields
 
-from src.agents.idea_agent.agent.tools import TOOLS
 from src.agents.idea_agent.agent.artifacts import (
     artifact_append,
     artifact_get,
@@ -80,7 +79,6 @@ class LigAgent(AgentBase):
             "idea_generation",
             "re_analysis_replan",
         ]
-        self.tools = TOOLS
         self.artifact = artifact_init()
         self.session = LigSession(self.artifact)
 
@@ -93,7 +91,6 @@ class LigAgent(AgentBase):
 
         self.chat_max_retries = chat_max_retries
         self.chat_retry_backoff = chat_retry_backoff
-        self.semantic_search_limit = get_config_value(config, "agent.semantic_search_limit", 5)
         self.logger = logger
         self.runtime = LigRuntime(self)
         self.workflow_executor = WorkflowExecutor(logger=logger)

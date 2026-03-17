@@ -38,12 +38,12 @@ def build_action_workflow(agent, action: str) -> WorkflowSpec:
 
 
 def build_main_workflow(agent, logger) -> WorkflowSpec:
-    rag_hits = artifact_get(agent.artifact, "rag_hits", [])
-    has_rag = bool(rag_hits and any(rag_hits))
+    ablation_results = artifact_get(agent.artifact, "ablation_results", [])
+    has_ablation = bool(ablation_results)
 
-    if has_rag:
+    if has_ablation:
         flow = ["advanced_analysis", "re_analysis_replan", "idea_generation"]
-        logger.info("📋 rag_hits present — using flow: %s", " -> ".join(flow))
+        logger.info("📋 ablation_results present — using flow: %s", " -> ".join(flow))
         transitions = {
             "advanced_analysis": [WorkflowEdge("re_analysis_replan")],
             "re_analysis_replan": [WorkflowEdge("idea_generation")],
@@ -51,7 +51,7 @@ def build_main_workflow(agent, logger) -> WorkflowSpec:
         entry_stage = "advanced_analysis"
     else:
         flow = ["knowledge_aquisition", "advanced_analysis", "idea_generation"]
-        logger.info("📋 rag_hits empty — using flow: %s", " -> ".join(flow))
+        logger.info("📋 ablation_results empty — using flow: %s", " -> ".join(flow))
         transitions = {
             "knowledge_aquisition": [WorkflowEdge("advanced_analysis")],
             "advanced_analysis": [WorkflowEdge("idea_generation")],

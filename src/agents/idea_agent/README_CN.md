@@ -20,7 +20,7 @@ graph TD
     KA --> AA[advanced_analysis]
     AA --> IG[idea_generation]
 
-    RH[已有 rag_hits] --> AA2[advanced_analysis]
+    AR[已有 ablation_results] --> AA2[advanced_analysis]
     AA2 --> RR[re_analysis_replan]
     RR --> IG
 
@@ -31,8 +31,8 @@ graph TD
 
 主流程由 `utils/workflow/ligagent_flow.py` 决定：
 
-- 若 `artifact["rag_hits"]` 为空：`knowledge_aquisition -> advanced_analysis -> idea_generation`
-- 若 `artifact["rag_hits"]` 已存在：`advanced_analysis -> re_analysis_replan -> idea_generation`
+- 若 `artifact["ablation_results"]` 为空：`knowledge_aquisition -> advanced_analysis -> idea_generation`
+- 若 `artifact["ablation_results"]` 已存在：`advanced_analysis -> re_analysis_replan -> idea_generation`
 
 现在的主流程里已经没有旧版那种“五动作控制器”了，文档应以这条条件 workflow 为准。
 
@@ -69,7 +69,7 @@ graph TD
 
 ### `re_analysis_replan`
 
-只在已有 RAG 上下文时进入。
+只在 `artifact["ablation_results"]` 存在时进入。
 
 - 重写当前 topic framing
 - 可能更新 `artifact["mature_idea"]`

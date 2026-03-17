@@ -33,21 +33,22 @@ Instantiate the above plan into a concrete research idea. You must:
 5. Ensure the methodology is specific enough that someone could implement it (name architectures, loss terms, optimization steps, etc.).
 6. If a mature idea (anchor) is provided, the instantiated idea MUST build upon, refine, or extend that mature idea — do NOT ignore it or propose an unrelated direction.
 7. Provide a "component_mapping" that maps EVERY generic template component name in the edit plan to a concrete, topic-specific name. For REWIRE/REPLACE targets that refer to existing parent components, map them to the actual parent component name. For new components (ADD_COMPONENT), give them a specific name reflecting their role in this idea.
-8. Provide "edit_reasons": a JSON list of short reason strings (one per component edit in the same order as the component edits above). Each reason should explain **why** this specific atomic operation is needed to address the target defects — e.g., what gap it fills, what failure mode it prevents, or what capability it adds.
-9. Provide "component_role_explanations": a JSON object that explains the role of each concrete component name that appears in "component_mapping". The explanation should describe what the component does inside the idea, not just repeat the name.
-10. The instantiated idea MUST stay in the fixed root domain(s) above. Cross-domain references, if provided, are inspiration only; do not let them change the idea's home domain.
-11. If cross-domain core references are provided, extract only the transferable mechanism or invariant that helps the current idea. Do not copy paper-specific content verbatim.
-12. Treat the taste guidance above as a soft preference only. Reflect it when possible, but it MUST NOT override the compiled edit plan, target defects, validation protocols, or guardrails.
+8. Keep "component_mapping" MINIMAL and bounded. It may contain ONLY generic names that literally appear in the compiled edit plan above as a component or target. Do NOT add auxiliary modules, losses, datasets, stores, encoders, optimizers, helper blocks, or other extra names unless they literally appear in that compiled edit plan.
+9. Provide "edit_reasons": a JSON list of short reason strings (one per component edit in the same order as the component edits above). Each reason should explain **why** this specific atomic operation is needed to address the target defects — e.g., what gap it fills, what failure mode it prevents, or what capability it adds.
+10. Provide "component_role_explanations": a JSON object that explains the role of each concrete component name that appears in "component_mapping". The explanation should describe what the component does inside the idea, not just repeat the name.
+11. The instantiated idea MUST stay in the fixed root domain(s) above. Cross-domain references, if provided, are inspiration only; do not let them change the idea's home domain.
+12. If cross-domain core references are provided, extract only the transferable mechanism or invariant that helps the current idea. Do not copy paper-specific content verbatim.
+13. Treat the taste guidance above as a soft preference only. Reflect it when possible, but it MUST NOT override the compiled edit plan, target defects, validation protocols, or guardrails.
 
 Return STRICT JSON (no Markdown wrapping):
 {{
   "title": "concise, specific paper title using the concrete component names",
   "abstract": "≤150 words abstract describing the concrete contribution",
   "core_contribution": "one focused statement of the new insight/mechanism",
-  "method": "concrete methodology steps using ONLY the names defined in your component_mapping. Specify loss functions, optimization steps, etc.",
+  "method": "concrete methodology steps using the concrete names defined for the compiled edit-plan placeholders in your component_mapping. You may mention standard losses, optimizers, datasets, encoders, or helper routines in prose without adding them to component_mapping unless they literally appear in the compiled edit plan.",
   "experiments": "fair comparison protocol: specific baselines, datasets, metrics, ablation design",
   "risks": "concrete failure modes and mitigation strategies",
-  "rationale": "2-3 sentences on how this skill application resolves the target defects"
+  "rationale": "2-3 sentences on how this skill application resolves the target defects",
   "component_mapping": {{
       "generic_template_name_1": "concrete_topic_specific_name_1",
       "generic_template_name_2": "concrete_topic_specific_name_2"
