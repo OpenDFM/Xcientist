@@ -1,7 +1,7 @@
 from src.agents.idea_agent.agent.base import AgentBase
-from src.agents.idea_agent.utils.core.chat_transport import ensure_default_max_output_tokens
 from src.agents.idea_agent.agent import get_logger
 from src.agents.idea_agent.utils.core.logger import get_or_create_mode_logger
+from src.agents.idea_agent.utils.core.chat_router import prepare_ligagent_chat_request
 
 import logging
 from typing import Any, Dict, List, Optional
@@ -149,40 +149,14 @@ class LigAgent(AgentBase):
         request_kwargs = dict(kwargs)
         stage = str(request_kwargs.pop("stage", "") or "").strip()
         resolved_model = str(model or self.model or "gpt-5-mini")
-        high_reasoning_stages = {
-            "advanced_analysis",
-            "algorithm_alignment",
-            "algorithm_structuring",
-            "experiment_findings_extraction",
-            "idea_fusion",
-            "mcts_expand",
-            "re_analysis_replan",
-        }
         for attempt in range(1, self.chat_max_retries + 1):
             try:
-                # Special handling for GPT-5 models
-                if "gpt-5-mini" in resolved_model:
-                    request_kwargs["temperature"] = 1.0
-                    effort = "high" if stage in high_reasoning_stages else "low"
-                    return super().chat(
-                        prompt,
-                        model=resolved_model,
-                        reasoning={"effort": effort},
-                        **request_kwargs,
-                    )
-                elif "gpt-5" in resolved_model:
-                    request_kwargs["temperature"] = 1.0
-                    effort = "high" if stage in high_reasoning_stages else "low"
-                    return super().chat(
-                        prompt,
-                        model=resolved_model,
-                        reasoning={"effort": effort},
-                        **request_kwargs,
-                    )
-                elif "kimi-k2.5" in resolved_model:
-                    if stage != "mcts_expand":
-                        request_kwargs["extra_body"] = {"thinking": {"type": "enabled"}}
-                    return super().chat(prompt, model=resolved_model, **request_kwargs)
+                routed_model, routed_kwargs = prepare_ligagent_chat_request(
+                    model=resolved_model,
+                    stage=stage,
+                    kwargs=request_kwargs,
+                )
+                return super().chat(prompt, model=routed_model, **routed_kwargs)
             except Exception as exc:
                 last_exc = exc
                 wait = self.chat_retry_backoff ** (attempt - 1)

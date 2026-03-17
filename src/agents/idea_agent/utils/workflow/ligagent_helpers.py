@@ -196,7 +196,6 @@ def normalize_search_papers(
 
 def generate_rag_query(
     topic: str,
-    papers: List[Dict[str, Any]],
     prompts: Dict[str, str],
     chat_fn,
     model: str,
@@ -206,7 +205,6 @@ def generate_rag_query(
     prompt = prompts["rag_query"].format(
         topic=topic,
         mature_idea=(mature_idea or "").strip(),
-        papers=json.dumps(papers, ensure_ascii=False, indent=2) if papers is not None else "[]",
     )
     try:
         response = chat_fn(prompt, model=model, temperature=0.3, max_output_tokens=65536)

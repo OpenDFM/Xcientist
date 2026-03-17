@@ -7,9 +7,6 @@ You are an expert agent navigating inside a comprehensive survey paper. Your tas
 == Mature idea (optional) ==
 {mature_idea}
 
-== The agent has ALREADY read these papers/sections ==
-{papers}
-
 == Task ==
 Formulate ONE extremely brief search query string to retrieve the most relevant SUBSECTION from the survey that can inspire the next mechanism design. 
 
@@ -18,7 +15,6 @@ Constraints & Directives:
 - EXTREME BREVITY: The query MUST be 5 to 8 words maximum. It must act as a strict keyword combination.
 - NO META-WORDS: Do NOT use words like "survey", "review", "paper", "section", "subsection", or "chapter". The database already consists entirely of survey chunks.
 - NO EVALUATION/QUESTIONS: Do NOT write conversational questions ("how to use MCTS") and do NOT use evaluation terms ("benchmark", "dataset", "SOTA").
-- NOVELTY OVER REPETITION: Look at the `{papers}` already read. Aim the query at an adjacent or missing methodological cluster that has not been explored yet.
 
 Return STRICT JSON ONLY matching this schema:
 {{

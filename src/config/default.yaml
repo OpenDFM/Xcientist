@@ -89,7 +89,7 @@ idea:
     openai_base_url: "https://api.xi-ai.cn/v1"
 
   agent:
-    model: "gpt-5-mini"
+    model: "claude-opus-4-6"
     # Workflow-stage model routing for LigAgent's explicit stage graph.
     # If a stage is not set here, it falls back to `idea.agent.model`.
     # This only affects workflow-stage LLM calls; MCTS generation/evaluation
@@ -101,8 +101,8 @@ idea:
       # -> re_analysis_replan -> idea_generation
       main:
         knowledge_aquisition: "${idea.agent.model}"
-        advanced_analysis: "${idea.fusion.model}"
-        re_analysis_replan: "${idea.fusion.model}"
+        advanced_analysis: "${idea.agent.model}"
+        re_analysis_replan: "${idea.agent.model}"
         idea_generation: "${idea.agent.model}"
 
       # Nested knowledge acquisition workflow
@@ -113,13 +113,13 @@ idea:
       # Optional flat overrides by stage name if a stage needs to diverge
       # from its workflow bucket later.
       stage_overrides:
-        algorithm_structuring: "gpt-5.4"
-        algorithm_alignment: "gpt-5.4"
+        algorithm_structuring: "${idea.agent.model}"
+        algorithm_alignment: "${idea.agent.model}"
     chat_max_retries: 3
     chat_retry_backoff: 2.0
     paper_enrichment_timeout_sec: 7200
     experiment_findings_extraction:
-      model: "${idea.fusion.model}"
+      model: "${idea.agent.model}"
       temperature: 0.1
       max_output_tokens: 65536
 
@@ -154,7 +154,7 @@ idea:
   fusion:
     enabled: true
     only_when_ligagent_pro: true
-    model: "gpt-5.4"
+    model: "${idea.agent.model}"
     temperature: 0.2
     max_tokens: 65536
     min_candidates: 2

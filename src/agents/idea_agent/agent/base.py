@@ -43,7 +43,11 @@ class AgentBase:
         Interact with the chat model using the given prompt.
         Returns the response text.
         """
-        transport = resolve_chat_transport(self._current_base_url(), self.api_style)
+        transport = resolve_chat_transport(
+            self._current_base_url(),
+            self.api_style,
+            model=model,
+        )
         if transport == "chat_completions":
             request_kwargs = normalize_chat_completions_kwargs(kwargs)
             response = self.chat_model.chat.completions.create(

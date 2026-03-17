@@ -378,13 +378,14 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     if fusion_result:
         fusion_result["selected_entry_source"] = best_entry.get("idea_source")
         fusion_result["selected_title"] = best_entry.get("title")
+    materialization_model = str(get_config_value(agent.config, "fusion.model", "gpt-5.4"))
     final_payload = persist_final_idea(
         best_entry=best_entry,
         paper_entries=paper_entries,
         artifact=artifact,
         idea_result_path=agent.idea_result_path,
         chat_fn=_chat(agent, ctx, "idea_materialization"),
-        model=agent.model,
+        model=materialization_model,
         logger=logger,
         prompts=PROMPTS,
         persist_to_artifact=False,
@@ -544,7 +545,6 @@ def ka_query_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     query_topic = search_keywords or topic
     rag_query = generate_rag_query(
         query_topic,
-        [],
         PROMPTS,
         _chat(agent, ctx, "rag_query_generation"),
         agent.model,

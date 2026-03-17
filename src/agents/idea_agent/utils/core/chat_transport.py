@@ -14,26 +14,33 @@ def normalize_api_style(api_style: Optional[str]) -> str:
     return style
 
 
-def resolve_chat_transport(base_url: Optional[str], api_style: Optional[str] = "auto") -> str:
+def _model_prefers_chat_completions(model: Optional[str]) -> bool:
+    normalized = str(model or "").strip().lower()
+    return (
+        normalized.startswith("gemini-3-pro")
+        or normalized.startswith("claude-opus-4-6")
+        or normalized.startswith("claude-sonnet-4-6")
+        or normalized.startswith("deepseek-v3.2")
+        or normalized.startswith("kimi-k2.5")
+        or normalized.startswith("glm-5")
+    )
+
+
+def resolve_chat_transport(
+    base_url: Optional[str],
+    api_style: Optional[str] = "auto",
+    model: Optional[str] = None,
+) -> str:
     style = normalize_api_style(api_style)
     if style != "auto":
         return style
 
+    if _model_prefers_chat_completions(model):
+        return "chat_completions"
+
     normalized = str(base_url or "").strip().rstrip("/")
     if not normalized:
         return "responses"
-
-    parsed = urlparse(normalized)
-    host = parsed.netloc.lower()
-    path = parsed.path.lower()
-
-    if host.endswith("api.openai.com"):
-        return "responses"
-    if "coding.dashscope.aliyuncs.com" in host:
-        return "chat_completions"
-    if "dashscope.aliyuncs.com" in host and "compatible-mode" in path:
-        return "chat_completions"
-    return "responses"
 
 
 def ensure_default_max_output_tokens(
