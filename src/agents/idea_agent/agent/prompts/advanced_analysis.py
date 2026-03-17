@@ -17,9 +17,9 @@ You have:
 Core principle (must follow):
 - Survey drives the agenda: method clusters + unresolved gaps + evaluation blind spots MUST be derived from survey_contents.
 - Core references may refine or substantiate the survey-derived gaps, but MUST NOT redefine the agenda or introduce a new main axis not present in the survey framing.
-- Any idea seed MUST directly address at least one SURVEY gap/blind spot and explicitly show how it improves over the survey’s identified limitations.
-- If mature_idea is provided, align clusters/gaps/idea seeds to its scope and mechanisms without changing the survey-led axis.
-- If experiment findings are present, use them as failure evidence, feasibility evidence, and mechanism constraints for candidate ideas. They may invalidate a mechanism or suggest a replacement direction, but they MUST NOT replace the survey as the source of the main agenda.
+- This stage is a 1.0 -> 1.1 calibrator, NOT a 2.0 invention stage. Diagnose, constrain, and lightly refine the current idea; leave major novelty jumps to MCTS.
+- If mature_idea is provided, keep the same topic, core hypothesis, and primary mechanism axis. Only make localized corrections, clarifications, or feasibility-driven adjustments.
+- If experiment findings are present, use them as failure evidence, feasibility evidence, and mechanism constraints. They may invalidate a weak component or suggest a local replacement, but they MUST NOT trigger a paradigm shift.
 
 Perform the steps below explicitly before answering:
 1) Survey-led clustering:
@@ -33,16 +33,16 @@ Perform the steps below explicitly before answering:
    Extract unresolved limitations + evaluation blind spots from the survey, and explain why they persist.
    You MAY use core references to corroborate a gap (e.g., show multiple methods still exhibit the limitation), but you MUST keep the gap statement aligned with survey framing.
 
-3) Moonshot ideation constrained by survey gaps:
-   Propose bold, non-incremental hypotheses that directly target the extracted SURVEY gaps.
-   Every hypothesis must:
-   - Cite at least one SURVEY anchor (section/subsection/paragraph or quote fragment).
-   - Optionally cite paper anchors that support feasibility or highlight the persistence of the gap.
-   - Go materially beyond the survey’s suggested fixes while staying on the same axis.
+3) Conservative root calibration:
+   Produce a search-ready root idea that directly targets the extracted SURVEY gaps while staying close to the current mature_idea when one is provided.
+   The root idea should be a minimal but meaningful refinement:
+   - preserve the same main method axis,
+   - keep most of the existing structure if it is still defensible,
+   - only adjust components/objectives/protocols that are weak, unsupported, or contradicted by experiment findings.
 
 4) Validation tooling:
-   Specify what experiments/protocols/tools are required to validate each hypothesis at ICML/NeurIPS bar.
-   Evaluation ideas are allowed only if they are tightly coupled to proving the proposed MECHANISM (not as the primary contribution).
+   Specify what experiments/protocols/tools are required to validate the calibrated root idea at ICML/NeurIPS bar.
+   Evaluation ideas are allowed only if they are tightly coupled to proving the proposed mechanism patch.
 
 Return STRICT JSON (no prose, no Markdown) with the schema:
 {{
@@ -58,23 +58,23 @@ Return STRICT JSON (no prose, no Markdown) with the schema:
   ],
   "future_directions": ["..."],                    // incremental but useful; must still be anchored in survey
   "root_idea": {{
-    "title": "one concrete root idea title",
-    "abstract": "one concrete root idea abstract",
-    "core_contribution": "main mechanism-level claim",
-    "method": "specific method sketch with modules/objective/training contract",
-    "experiments": "fair validation protocol that proves the mechanism against named gaps",
+    "title": "one calibrated root idea title",
+    "abstract": "one concrete root idea abstract; should read like a refined version of the current idea when mature_idea is provided",
+    "core_contribution": "main mechanism-level claim; keep it close to the current idea unless evidence forces a local correction",
+    "method": "specific method sketch with modules/objective/training contract; prefer local edits over new paradigms",
+    "experiments": "fair validation protocol that proves the mechanism patch against named gaps",
     "risks": "main scientific/engineering risks",
     "target_defects": ["..."],
-    "rationale": "why this root idea is the best starting point from the extracted survey gaps",
+    "rationale": "why this is the best calibrated 1.1 starting point from the extracted survey gaps",
     "supporting_papers": ["SURVEY_ANCHOR:...", "PAPER_ANCHOR:..."]
   }},
   "divergent_idea_seeds": [
     {{
       "title": "short memorable name",
-      "hypothesis": "what new capability emerges",
-      "why_it_is_not_incremental": "specific contrast vs known tricks (gating/MoE/ensembles/etc.)",
-      "method_sketch": "core mechanism, modules, or objective (must explicitly target a named survey gap)",
-      "evaluation_plan": "protocol/stress-test to validate it (must close the survey gap; include fair baselines)",
+      "hypothesis": "small neighboring alternative only if useful",
+      "why_it_is_not_incremental": "leave empty or describe only a local contrast",
+      "method_sketch": "near-neighbor mechanism patch, not a new paradigm",
+      "evaluation_plan": "protocol/stress-test to validate the patch",
       "risk": "dominant scientific or engineering risk",
       "supporting_papers": ["SURVEY_ANCHOR:...", "PAPER_ANCHOR:..."]
     }}
@@ -82,28 +82,30 @@ Return STRICT JSON (no prose, no Markdown) with the schema:
   "cross_domain_inspiration": [
     {{
       "source_field": "e.g., control theory, neuroscience",
-      "transferable_mechanism": "what we borrow (you may name concepts if used to address a survey gap)",
-      "application_hook": "explicit mapping: which survey gap/cluster it improves and how"
+      "transferable_mechanism": "what we borrow only if it can be expressed as a local patch",
+      "application_hook": "explicit mapping: which survey gap/cluster it improves and how without changing the main method axis"
     }}
   ],
-  "tldr": "≤50 word synthesis tying SURVEY gaps to the proposed moonshots"
+  "tldr": "≤50 word synthesis tying SURVEY gaps to the calibrated 1.1 root idea"
 }}
 
 == Rules (Strict) ==
 - Always output exactly one `root_idea`; it must be concrete enough to act as the MCTS root node.
 - `root_idea` must directly address at least one named `existing_problems` or `evaluation_gaps`, and must stay on the survey-led axis.
+- If `mature_idea` is provided, `root_idea` should usually be a minimally revised version of it, not a new paradigm.
+- Preserve the same primary method axis unless experiment findings clearly invalidate a local component; even then, prefer local replacement over architecture reset.
 - Every divergent_idea_seed MUST:
   (a) cite at least one SURVEY_ANCHOR and name which evaluation_gaps/existing_problems it addresses,
-  (b) propose a concrete mechanism change (module/objective/training contract), not just instrumentation,
-  (c) keep the main axis consistent with survey framing (no agenda reset from papers).
-- `divergent_idea_seeds` are optional supporting alternatives; return 0-2 only if they help contrast the chosen `root_idea`.
+  (b) propose a concrete local mechanism patch, not just instrumentation,
+  (c) keep the main axis consistent with survey framing and close to the current idea.
+- `divergent_idea_seeds` are optional supporting alternatives; return 0-1 only if they help contrast the chosen `root_idea`.
 - Papers may contribute:
   - representative baselines and fair comparison protocol details,
   - feasibility constraints (latency/memory/compute),
   - evidence that a survey gap persists across recent works.
   Core references may NOT contribute:
   - a new main problem statement that is absent from survey,
-  - a new core mechanism term as the central novelty unless you explicitly tie it to a named survey gap and explain why the gap demands it.
+  - a new core mechanism term as the central novelty unless it is only a local substitute for a weak component.
 - If survey_contents lacks explicit anchors, create anchors by quoting a short distinctive phrase from the survey and prefix it with "SURVEY_QUOTE:".
 - Keep the JSON valid and free of commentary.
 """

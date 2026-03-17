@@ -91,7 +91,7 @@ def _build_stage_specs(agent) -> Dict[str, StageSpec]:
         "advanced_analysis": StageSpec(
             name="advanced_analysis",
             handler=agent._execute_advanced_analysis_stage,
-            description="Summarize curated literature and derive analysis seeds",
+            description="Diagnose survey gaps and derive a conservative 1.1 root idea",
             record_step=True,
             allowed_artifact_namespaces={"analysis"},
         ),
@@ -105,7 +105,7 @@ def _build_stage_specs(agent) -> Dict[str, StageSpec]:
         "re_analysis_replan": StageSpec(
             name="re_analysis_replan",
             handler=agent._execute_reanalysis_replan_stage,
-            description="Revise mature idea and retrieval keywords using analysis/ablation evidence",
+            description="Apply minimal evidence-driven patches to the mature idea",
             record_step=True,
             allowed_artifact_namespaces={"run", "retrieval", "analysis"},
         ),
