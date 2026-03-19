@@ -20,8 +20,10 @@ from src.agents.idea_agent.utils.workflow.idea_fusion import (
     should_run_fusion,
 )
 from src.agents.idea_agent.utils.workflow.ligagent_flow import (
+    build_idea_result_payload,
     make_stage_context,
     persist_final_idea,
+    save_idea_result_payload,
 )
 from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     collect_analysis_background_lines,
@@ -33,6 +35,7 @@ from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     normalize_analysis_entry,
     paper_context_with_rag,
     retrieve_outcome_rag,
+    root_idea_to_mature_idea_text,
     search_core_nodes_from_citations,
     search_core_nodes_from_query,
     select_core_references,
@@ -145,6 +148,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     reference_batches = artifact_get(artifact, "references", [])
     references = reference_batches[-1] if reference_batches else []
     mature_idea = artifact_get(artifact, "mature_idea", "")
+    ablation_results = artifact_get(artifact, "ablation_results", [])
     rag_contents = artifact_get(artifact, "rag_contents", [])
     latest_rag_contents = rag_contents[-1] if rag_contents else []
     raw_ablation = (ctx.inputs or {}).get("raw_ablation")
@@ -220,13 +224,25 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     ]
     if session is not None:
         session.set_slot("analysis.latest", response)
+    replace_patch: Dict[str, Any] = {"root_idea": root_idea}
+    promoted_root_to_mature = False
+    if isinstance(mature_idea, str) and mature_idea.strip() and not ablation_results:
+        promoted_mature_idea = root_idea_to_mature_idea_text(root_idea)
+        if promoted_mature_idea:
+            replace_patch["mature_idea"] = promoted_mature_idea
+            promoted_root_to_mature = True
+            if session is not None:
+                session.set_slot("mature_idea.latest", promoted_mature_idea)
+            logger.info(
+                "🪴 Advanced analysis promoted calibrated root_idea to mature_idea for no-ablation continuation."
+            )
     step = (
         "\nIn this advanced_analysis action, I analyzed the retrieved references and summarized my findings: "
         f"{response.get('tldr', 'No TL;DR provided.')}"
     )
     return StageResult(
         artifact_patch=ArtifactPatch(
-            replace={"root_idea": root_idea},
+            replace=replace_patch,
             append={
                 "analysis": [response],
                 "background_knowledge": background_lines,
@@ -238,6 +254,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
             "background_lines": len(background_lines),
             "root_idea_title": root_idea.get("title"),
             "experiment_findings_used": bool(experiment_findings),
+            "promoted_root_to_mature_idea": promoted_root_to_mature,
         },
     )
 
@@ -347,6 +364,26 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
             key=lambda item: mode_order.get(item[0], len(mode_order)),
         )
     ]
+    materialization_model = str(get_config_value(agent.config, "fusion.model", "gpt-5.4"))
+    materialize_chat = _chat(agent, ctx, "idea_materialization")
+    run_fusion = should_run_fusion(
+        agent.config,
+        ligagent_pro=ligagent_pro,
+        candidate_count=len(mode_entries),
+    )
+    if ligagent_pro:
+        for entry in mode_entries:
+            entry["idea_result"] = build_idea_result_payload(
+                best_entry=entry,
+                paper_entries=paper_entries,
+                artifact=artifact,
+                chat_fn=materialize_chat,
+                model=materialization_model,
+                logger=logger,
+                prompts=PROMPTS,
+            )
+            mode_idea_result_path = agent.run_dir / "mode_idea_results" / f"{entry['idea_taste_mode']}.json"
+            save_idea_result_payload(entry["idea_result"], mode_idea_result_path, logger)
     best_entry = mode_entries[0]
     fused_entry = None
     fusion_result: Dict[str, Any] = {}
@@ -356,7 +393,7 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
         if ligagent_pro
         else logger
     )
-    if should_run_fusion(agent.config, ligagent_pro=ligagent_pro, candidate_count=len(mode_entries)):
+    if run_fusion:
         try:
             fused_entry, fusion_result, fusion_experiences = fuse_ligagent_pro_ideas(
                 agent=agent,
@@ -378,13 +415,12 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     if fusion_result:
         fusion_result["selected_entry_source"] = best_entry.get("idea_source")
         fusion_result["selected_title"] = best_entry.get("title")
-    materialization_model = str(get_config_value(agent.config, "fusion.model", "gpt-5.4"))
     final_payload = persist_final_idea(
         best_entry=best_entry,
         paper_entries=paper_entries,
         artifact=artifact,
         idea_result_path=agent.idea_result_path,
-        chat_fn=_chat(agent, ctx, "idea_materialization"),
+        chat_fn=materialize_chat,
         model=materialization_model,
         logger=logger,
         prompts=PROMPTS,

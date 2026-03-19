@@ -750,6 +750,39 @@ def extract_root_idea_from_analysis(
     )
 
 
+def root_idea_to_mature_idea_text(root_idea: Dict[str, Any]) -> str:
+    """Flatten a structured root idea into the text anchor used by mature_idea."""
+    try:
+        normalized = normalize_idea_contract(root_idea, allow_legacy=True, keep_extra=True)
+    except Exception:
+        return ""
+
+    parts: List[str] = []
+    seen = set()
+    for raw in (
+        normalized.get("abstract"),
+        normalized.get("core_contribution"),
+        normalized.get("method"),
+    ):
+        text = str(raw or "").strip()
+        if not text:
+            continue
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        if text[-1] not in ".!?":
+            text += "."
+        parts.append(text)
+
+    if not parts:
+        title = str(normalized.get("title") or "").strip()
+        if not title:
+            return ""
+        return title if title[-1] in ".!?" else f"{title}."
+    return " ".join(parts[:3]).strip()
+
+
 def analysis_candidate_ideas(artifact: Dict[str, Any]) -> List[Dict[str, Any]]:
     analysis_entries = artifact_get(artifact, "analysis", [])
     if not analysis_entries:

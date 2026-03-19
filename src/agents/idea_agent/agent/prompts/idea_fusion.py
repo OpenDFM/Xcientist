@@ -130,4 +130,57 @@ Return STRICT JSON only:
 - At least one structural edit must be present unless you choose to stop.
 - Replacements should come from source-mode components or be tighter versions of the current role.
 - If no likely-improving local repair exists, set stop=true.
+- Treat component names as STRICT symbols, not paraphrases.
+- When you mention an existing component from the current fused idea, copy its name exactly, character-for-character.
+- When you mention a component from a source-mode candidate, copy its name exactly, character-for-character.
+- Do NOT rename, summarize, translate, normalize, or slightly rewrite component names.
+- If you are not confident that an edit can be expressed with exact component names, set stop=true.
+
+== Field semantics ==
+- REMOVE_COMPONENT:
+  - "component" = the existing component to delete from the current fused idea.
+  - "target" should be "".
+- REPLACE_COMPONENT:
+  - "target" = the existing component in the current fused idea that will be replaced.
+  - "component" = the replacement component name.
+  - The replacement component may be copied from a source-mode candidate or be a tighter variant, but must still be written as one concrete component name.
+- REWIRE:
+  - "component" = the source or upstream component whose connection is being changed.
+  - "target" = the destination or downstream component / interface it should connect to.
+  - REWIRE changes topology only; it does not add a new component.
+
+== Valid examples ==
+- Valid REPLACE_COMPONENT:
+  {{
+    "op": "REPLACE_COMPONENT",
+    "component": "retrieval-grounded verifier",
+    "target": "static verifier",
+    "condition": "",
+    "details": "Replace static verifier with retrieval-grounded verifier",
+    "reason": "Improves mechanism grounding without expanding the architecture"
+  }}
+- Valid REMOVE_COMPONENT:
+  {{
+    "op": "REMOVE_COMPONENT",
+    "component": "redundant audit head",
+    "target": "",
+    "condition": "",
+    "details": "Remove redundant audit head",
+    "reason": "Reduces complexity caused by overlapping functionality"
+  }}
+- Valid REWIRE:
+  {{
+    "op": "REWIRE",
+    "component": "uncertainty estimator",
+    "target": "controller",
+    "condition": "",
+    "details": "Rewire uncertainty estimator -> controller",
+    "reason": "Lets the controller react directly to uncertainty"
+  }}
+
+== Invalid patterns ==
+- Invalid: using ADD_COMPONENT, GATE_COMPONENT, or ADD_PROTOCOL.
+- Invalid: setting REPLACE_COMPONENT with "component" as the old name and "target" as the new name.
+- Invalid: inventing a near-match such as "dynamic uncertainty-aware controller" when the listed component is "uncertainty-aware controller".
+- Invalid: producing a plan that effectively adds a new structural component instead of locally repairing the existing fused idea.
 """

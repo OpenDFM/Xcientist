@@ -93,7 +93,7 @@ def _build_stage_specs(agent) -> Dict[str, StageSpec]:
             handler=agent._execute_advanced_analysis_stage,
             description="Diagnose survey gaps and derive a conservative 1.1 root idea",
             record_step=True,
-            allowed_artifact_namespaces={"analysis"},
+            allowed_artifact_namespaces={"analysis", "run"},
         ),
         "idea_generation": StageSpec(
             name="idea_generation",
@@ -121,16 +121,14 @@ def run_agent_loop(agent, logger) -> None:
     )
 
 
-def persist_final_idea(
+def build_idea_result_payload(
     best_entry: Dict[str, Any],
     paper_entries: List[Dict[str, Any]],
     artifact: Dict[str, Any],
-    idea_result_path: Path,
     chat_fn,
     model: str,
     logger,
     prompts: Optional[Dict[str, str]] = None,
-    persist_to_artifact: bool = True,
 ) -> Dict[str, Any]:
     prompts = prompts or PROMPTS
     topic_history = artifact_get(artifact, "topic", [])
@@ -206,8 +204,14 @@ def persist_final_idea(
     if best_entry.get("idea_contract"):
         payload["idea_contract"] = best_entry.get("idea_contract")
     best_entry["introduction"] = introduction
-    if persist_to_artifact:
-        artifact_set(artifact, "idea_result", payload)
+    return payload
+
+
+def save_idea_result_payload(
+    payload: Dict[str, Any],
+    idea_result_path: Path,
+    logger,
+) -> None:
     try:
         idea_result_path.parent.mkdir(parents=True, exist_ok=True)
         with open(idea_result_path, "w", encoding="utf-8") as f:
@@ -215,4 +219,29 @@ def persist_final_idea(
         logger.info("💾 Saved idea result to %s", idea_result_path)
     except OSError as exc:
         logger.error("⚠️ Failed to persist idea_result.json: %s", exc)
+
+
+def persist_final_idea(
+    best_entry: Dict[str, Any],
+    paper_entries: List[Dict[str, Any]],
+    artifact: Dict[str, Any],
+    idea_result_path: Path,
+    chat_fn,
+    model: str,
+    logger,
+    prompts: Optional[Dict[str, str]] = None,
+    persist_to_artifact: bool = True,
+) -> Dict[str, Any]:
+    payload = build_idea_result_payload(
+        best_entry,
+        paper_entries=paper_entries,
+        artifact=artifact,
+        chat_fn=chat_fn,
+        model=model,
+        logger=logger,
+        prompts=prompts,
+    )
+    if persist_to_artifact:
+        artifact_set(artifact, "idea_result", payload)
+    save_idea_result_payload(payload, idea_result_path, logger)
     return payload

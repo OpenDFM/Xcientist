@@ -41,6 +41,7 @@ FUSION_REPAIR_ALLOWED_OPS = {
     AtomicEditOp.REPLACE_COMPONENT,
     AtomicEditOp.REWIRE,
 }
+FUSION_DRAFT_MAX_ATTEMPTS = 5
 
 
 def should_run_fusion(
@@ -107,24 +108,54 @@ def fuse_ligagent_pro_ideas(
         mode_count=len(mode_entries),
         candidate_ideas_json=json.dumps(candidate_pack, ensure_ascii=False, indent=2),
     )
+    payload: Dict[str, Any] = {}
+    fused_raw: Dict[str, Any] = {}
+    validator_warning = ""
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, FUSION_DRAFT_MAX_ATTEMPTS + 1):
+        prompt_with_warning = prompt
+        if validator_warning:
+            prompt_with_warning += (
+                "\n\n== Validator warning from previous response ==\n"
+                f"{validator_warning}\n"
+                "Retry and return STRICT JSON with a top-level `fused_idea` object."
+            )
+        try:
+            payload = runtime.llm_json(
+                session=session,
+                stage="idea_fusion",
+                op_name="idea_fusion",
+                prompt=prompt_with_warning,
+                model=model,
+                temperature=temperature,
+                max_output_tokens=max_tokens,
+            )
+            if isinstance(payload, list):
+                payload = payload[0] if payload else {}
+            if not isinstance(payload, dict):
+                raise ValueError("Fusion agent did not return a JSON object.")
 
-    payload = runtime.llm_json(
-        session=session,
-        stage="idea_fusion",
-        op_name="idea_fusion",
-        prompt=prompt,
-        model=model,
-        temperature=temperature,
-        max_output_tokens=max_tokens,
-    )
-    if isinstance(payload, list):
-        payload = payload[0] if payload else {}
-    if not isinstance(payload, dict):
-        raise ValueError("Fusion agent did not return a JSON object.")
-
-    fused_raw = payload.get("fused_idea")
-    if not isinstance(fused_raw, dict):
-        raise ValueError("Fusion agent response is missing fused_idea.")
+            fused_raw = payload.get("fused_idea")
+            if not isinstance(fused_raw, dict):
+                available_keys = ", ".join(sorted(payload.keys())) if payload else "<empty>"
+                raise ValueError(
+                    "Fusion agent response is missing fused_idea. "
+                    f"Top-level keys: {available_keys}"
+                )
+            break
+        except Exception as exc:
+            last_exc = exc
+            if attempt >= FUSION_DRAFT_MAX_ATTEMPTS:
+                raise
+            validator_warning = str(exc)
+            logger.warning(
+                "⚠️ Fusion draft validation failed (%d/%d): %s. Retrying...",
+                attempt,
+                FUSION_DRAFT_MAX_ATTEMPTS,
+                exc,
+            )
+    if last_exc is not None and not fused_raw:
+        raise last_exc
 
     fused_entry = normalize_idea_contract(fused_raw, keep_extra=True)
     fused_entry["idea_taste_mode"] = "fusion_agent"

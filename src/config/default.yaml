@@ -89,7 +89,7 @@ idea:
     openai_base_url: "https://api.xi-ai.cn/v1"
 
   agent:
-    model: "claude-opus-4-6"
+    model: "gpt-5.4"
     # Workflow-stage model routing for LigAgent's explicit stage graph.
     # If a stage is not set here, it falls back to `idea.agent.model`.
     # This only affects workflow-stage LLM calls; MCTS generation/evaluation
@@ -149,7 +149,7 @@ idea:
     min_confidence_for_memory: 0.6
     pareto_top_k: 5
     symbolic_memory_path: "output/symbolic_memory"
-    skill_prior_success_threshold: 0.6
+    skill_prior_success_threshold: 0.7
 
   fusion:
     enabled: true
