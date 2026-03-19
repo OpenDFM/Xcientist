@@ -42,6 +42,49 @@ pip install -r requirements.txt
 - Paper Agent 当前的 PDF 编译依赖本地 TeX 工具链，例如 `tectonic`、`latexmk` 或 `pdflatex`。
 - 如果你使用自定义的 OpenAI-compatible base URL，最好同时设置 `OPENAI_BASE_URL` 和 `OPENAI_API_BASE`，因为不同 Agent 目前读取的环境变量名并不完全一致。
 
+## 本地资源准备
+
+当前 LigAgent 除了 Python 环境之外，还依赖一组本地资源。
+
+建议按下面顺序准备：
+
+1. 从共享 Google Drive 文件夹下载处理好的图数据，并放到 `<repo_root>/data/processed/` 下。
+
+Google Drive：
+`https://drive.google.com/drive/folders/1lH1MI6gk7eh0HfvfOajcqAZg3n95v5BK?usp=drive_link`
+
+目录结构要保持不变。当前 graph 检索链路至少会依赖这些文件：
+
+- `data/processed/graph.db`
+- `data/processed/core_component_summary_vector_store/faiss.index`
+- `data/processed/core_component_summary_vector_store/meta.json`
+
+2. 把 embedding 模型 `BAAI/bge-m3` 下载到 `<repo_root>/models/bge-m3/`。
+
+```bash
+huggingface-cli download BAAI/bge-m3 --local-dir models/bge-m3
+```
+
+这个路径和当前 `graph/index_core_component_summaries.py` 以及 LigAgent 使用的 graph vector store 默认配置是一致的。
+
+3. 在 `<repo_root>/graph/` 下，用 FastAPI + Uvicorn 启动本地图引擎。
+
+```bash
+uvicorn graph.server:app --host 127.0.0.1 --port 8000
+```
+
+服务入口文件是 `graph/server.py`。可以用下面的命令做一个快速健康检查：
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+几个和实现强绑定的路径细节：
+
+- `graph/server.py` 默认从 `<repo_root>/data/processed/graph.db` 读取图数据库。
+- 预构建的 Core-component 向量索引默认放在 `<repo_root>/data/processed/core_component_summary_vector_store/`。
+- 图索引代码默认使用的本地 embedding 模型路径是 `<repo_root>/models/bge-m3/`。
+
 ## 配置布局
 
 当前仓库采用混合配置布局。

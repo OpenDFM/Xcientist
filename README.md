@@ -42,6 +42,49 @@ Notes:
 - Paper compilation currently expects a local TeX toolchain such as `tectonic`, `latexmk`, or `pdflatex`.
 - If you use a custom OpenAI-compatible endpoint, set both `OPENAI_BASE_URL` and `OPENAI_API_BASE`, because different agents currently read different variable names.
 
+## Local Asset Setup
+
+Current LigAgent usage depends on several local assets in addition to the Python environment.
+
+Prepare the local environment in this order:
+
+1. Download the processed graph package from the shared Google Drive folder and copy it into `<repo_root>/data/processed/`.
+
+Google Drive:
+`https://drive.google.com/drive/folders/1lH1MI6gk7eh0HfvfOajcqAZg3n95v5BK?usp=drive_link`
+
+Keep the directory structure intact. The current graph-backed retrieval path expects at least:
+
+- `data/processed/graph.db`
+- `data/processed/core_component_summary_vector_store/faiss.index`
+- `data/processed/core_component_summary_vector_store/meta.json`
+
+2. Download the embedding model `BAAI/bge-m3` into `<repo_root>/models/bge-m3/`.
+
+```bash
+huggingface-cli download BAAI/bge-m3 --local-dir models/bge-m3
+```
+
+This matches the current defaults in `graph/index_core_component_summaries.py` and the graph-vector-store loader used by LigAgent.
+
+3. Start the local graph engine with FastAPI + Uvicorn from the `<repo_root>/graph/`.
+
+```bash
+uvicorn graph.server:app --host 127.0.0.1 --port 8000
+```
+
+The server entrypoint is `graph/server.py`. A quick health check is:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+Important implementation detail:
+
+- `graph/server.py` reads the graph database from `<repo_root>/data/processed/graph.db`.
+- The prebuilt Core-component vector store is expected under `<repo_root>/data/processed/core_component_summary_vector_store/`.
+- The default local embedding-model path used by the graph indexing code is `<repo_root>/models/bge-m3/`.
+
 ## Configuration Layout
 
 The repository uses a mixed configuration layout.
