@@ -80,7 +80,7 @@ idea:
 
   run:
     LigAgent-Pro: true
-    topics: ["${idea.topic}"]
+    topic: "${idea.topic}"
     mature_idea: "${idea.mature_idea}"
     output_root: "runs"
     console_logs: true

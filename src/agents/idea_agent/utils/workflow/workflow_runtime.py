@@ -129,6 +129,7 @@ class WorkflowExecutor:
                     result.artifact_patch,
                     allowed_namespaces=stage_spec.allowed_artifact_namespaces,
                 )
+                self._apply_session_patch(artifact, stage_ctx.session)
 
                 next_stage = self._resolve_next_stage(
                     spec=spec,
@@ -242,6 +243,15 @@ class WorkflowExecutor:
         if not patch:
             return
         _deep_merge_dict(state, patch)
+
+    def _apply_session_patch(self, artifact: Dict[str, Any], session: Any) -> None:
+        if session is None or not hasattr(session, "drain_patch"):
+            return
+        slots, events = session.drain_patch()
+        if slots:
+            artifact_merge(artifact, "context_slots", deepcopy(slots))
+        if events:
+            artifact_append(artifact, "operation_trace", deepcopy(events))
 
     def _apply_artifact_patch(
         self,

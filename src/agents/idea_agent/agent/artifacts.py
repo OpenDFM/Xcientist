@@ -40,6 +40,7 @@ FIELD_SPECS: Dict[str, Dict[str, Any]] = {
     "ligagent_pro_candidates": {"namespace": "ideation", "path": "ligagent_pro_candidates", "kind": "list"},
     "fusion_result": {"namespace": "ideation", "path": "fusion_result", "kind": "dict"},
     "ablation_results": {"namespace": "ideation", "path": "ablation_results", "kind": "list"},
+    "ablation_results_raw": {"namespace": "ideation", "path": "ablation_results_raw", "kind": "dict"},
     "ltm_experiences": {"namespace": "ideation", "path": "ltm_experiences", "kind": "list"},
     "idea_result": {"namespace": "persistence", "path": "idea_result", "kind": "dict"},
     "artifact_structure": {"namespace": "persistence", "path": "artifact_structure", "kind": "dict"},
@@ -118,6 +119,7 @@ def _namespace_defaults() -> Dict[str, Dict[str, Any]]:
             "ligagent_pro_candidates": [],
             "fusion_result": {},
             "ablation_results": [],
+            "ablation_results_raw": {},
             "ltm_experiences": [],
         },
         "persistence": {

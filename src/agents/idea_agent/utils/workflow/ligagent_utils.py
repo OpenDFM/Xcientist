@@ -218,14 +218,25 @@ class LigSession:
 
     def __init__(self, artifact: Dict[str, Any]) -> None:
         self.artifact = ensure_artifact_structure(artifact)
+        self._pending_slots: Dict[str, Any] = {}
+        self._pending_events: List[Dict[str, Any]] = []
 
     def set_slot(self, name: str, value: Any) -> None:
-        artifact_namespace(self.artifact, "run")["context_slots"][name] = value
+        self._pending_slots[name] = value
 
     def get_slot(self, name: str, default: Any = None) -> Any:
+        if name in self._pending_slots:
+            return self._pending_slots[name]
         return artifact_namespace(self.artifact, "run")["context_slots"].get(name, default)
 
     def record_event(self, event_type: str, **payload: Any) -> None:
         event = {"event": event_type}
         event.update(payload)
-        artifact_namespace(self.artifact, "run")["operation_trace"].append(event)
+        self._pending_events.append(event)
+
+    def drain_patch(self) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        slots = self._pending_slots
+        events = self._pending_events
+        self._pending_slots = {}
+        self._pending_events = []
+        return slots, events

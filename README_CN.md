@@ -208,7 +208,7 @@ Idea Agent 的默认设置来自统一配置文件，而不是单独的 `src/age
 
 **关键输入**：
 
-- `idea.run.topics`
+- `idea.run.topic`
 - `idea.run.LigAgent-Pro`
 - `idea.run.mature_idea`（可选）
 - `idea.run.rag_config`
@@ -226,8 +226,7 @@ Idea Agent 的默认设置来自统一配置文件，而不是单独的 `src/age
 ```yaml
 idea:
   run:
-    topics:
-      - "LLM Agent Memory System"
+    topic: "LLM Agent Memory System"
     LigAgent-Pro: true
     output_root: "runs"
     rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
@@ -488,7 +487,7 @@ ResearchAgent/
    ↓（Survey 输出被 OutcomeRAG 配置引用）
 
 2. Idea Agent
-   输入：idea.run.topics / idea.run.mature_idea
+   输入：idea.run.topic / idea.run.mature_idea
    输出：src/agents/idea_agent/runs/<slug-timestamp-uuid>/idea_result.json
 
    ↓（idea_result.json -> experiment workspace 的 idea.json）

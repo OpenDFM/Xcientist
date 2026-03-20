@@ -208,7 +208,7 @@ Idea Agent loads its default settings from the unified config rather than from a
 
 **Key inputs**:
 
-- `idea.run.topics`
+- `idea.run.topic`
 - `idea.run.LigAgent-Pro`
 - `idea.run.mature_idea` (optional)
 - `idea.run.rag_config`
@@ -226,8 +226,7 @@ Idea Agent loads its default settings from the unified config rather than from a
 ```yaml
 idea:
   run:
-    topics:
-      - "LLM Agent Memory System"
+    topic: "LLM Agent Memory System"
     LigAgent-Pro: true
     output_root: "runs"
     rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
@@ -488,7 +487,7 @@ ResearchAgent/
    ↓ (Survey output is referenced by OutcomeRAG config)
 
 2. Idea Agent
-   Input: idea.run.topics / idea.run.mature_idea
+   Input: idea.run.topic / idea.run.mature_idea
    Output: src/agents/idea_agent/runs/<slug-timestamp-uuid>/idea_result.json
 
    ↓ (idea_result.json -> experiment workspace idea.json)

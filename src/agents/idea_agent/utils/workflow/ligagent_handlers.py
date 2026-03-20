@@ -153,7 +153,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     latest_rag_contents = rag_contents[-1] if rag_contents else []
     raw_ablation = (ctx.inputs or {}).get("raw_ablation")
     if raw_ablation is None:
-        artifact_raw_ablation = artifact.get("ablation_results_raw")
+        artifact_raw_ablation = artifact_get(artifact, "ablation_results_raw", {})
         raw_ablation = artifact_raw_ablation if isinstance(artifact_raw_ablation, dict) else None
 
     experiment_findings = None
