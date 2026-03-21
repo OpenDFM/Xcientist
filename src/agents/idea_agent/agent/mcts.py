@@ -30,13 +30,16 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _pretty_json,
     _safe_float_default,
     apply_normalized_score_weights,
+    build_fallback_mechanism_commit_query,
     build_fallback_theory_transfer_query,
     clip_metric_score,
     clip_text,
     coerce_integer_metric_score,
+    format_mechanism_commit_references,
     format_theory_transfer_references,
     component_inventory_payload,
     format_analysis_blob,
+    normalize_mechanism_commit_query_payload,
     normalize_theory_transfer_query_payload,
     normalize_component_explanations,
     parse_json_response,
@@ -51,6 +54,9 @@ from src.agents.idea_agent.agent.prompts.root_domain_classification import (
     ROOT_DOMAIN_CLASSIFICATION_PROMPT,
 )
 from src.agents.idea_agent.agent.prompts.skill_instantiation import SKILL_INSTANTIATION_PROMPT
+from src.agents.idea_agent.agent.prompts.mechanism_commit_query import (
+    MECHANISM_COMMIT_QUERY_PROMPT,
+)
 from src.agents.idea_agent.agent.prompts.theory_transfer_query import (
     THEORY_TRANSFER_QUERY_PROMPT,
 )
@@ -461,6 +467,12 @@ class MCTSConfig:
     component_novelty_eval_max_tokens: int = _mcts_default(
         "component_novelty_eval_max_tokens", 4096
     )
+    mechanism_commit_retrieval_top_k: int = _mcts_default(
+        "mechanism_commit_retrieval_top_k", 3
+    )
+    mechanism_commit_similarity_threshold: float = _mcts_default(
+        "mechanism_commit_similarity_threshold", 0.6
+    )
     theory_transfer_retrieval_top_k: int = _mcts_default(
         "theory_transfer_retrieval_top_k", 3
     )
@@ -526,6 +538,7 @@ class SearchResult:
     trace: List[Dict[str, Any]]
     cache_size: int
     experiences: List[Dict[str, Any]]
+    retrieved_core_titles: List[str]
 
 
 class VectorMemoryAccessor:
@@ -786,6 +799,7 @@ class MemoryGuidedMCTS:
         self.evaluation_cache: Dict[str, Dict[str, IdeaEvaluation]] = {}
         self.experience_cache: Set[str] = set()
         self.trace: List[Dict[str, Any]] = []
+        self.retrieved_core_titles: List[str] = []
 
         self.topic: str = ""
         self.analysis_blob: str = ""
@@ -938,6 +952,57 @@ class MemoryGuidedMCTS:
             )
             return fallback
 
+    def _build_mechanism_commit_query(
+        self,
+        plan: EditPlan,
+        parent_state: IdeaState,
+    ) -> Dict[str, str]:
+        prompt = MECHANISM_COMMIT_QUERY_PROMPT.format(
+            topic=self.topic or "Unknown topic",
+            root_domains=_format_root_domains_for_prompt(parent_state.root_domains),
+            idea=parent_state.to_prompt_view(heading="Current Idea"),
+            edit_plan=_pretty_json(plan.to_dict()),
+        )
+        fallback = build_fallback_mechanism_commit_query(
+            plan,
+            root_domains_text=_format_root_domains_for_prompt(parent_state.root_domains),
+            clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
+        )
+        response = self.chat_fn(
+            prompt,
+            model=self.config.generation_model,
+            temperature=0.2,
+            max_output_tokens=65536,
+        )
+        payload = parse_json_response(response)
+        if isinstance(payload, list):
+            payload = payload[0] if payload else {}
+        return normalize_mechanism_commit_query_payload(
+            payload,
+            fallback=fallback,
+            clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
+        )
+
+    def _record_retrieved_core_titles(self, hits: List[Dict[str, Any]]) -> None:
+        seen = {str(title).strip().lower() for title in self.retrieved_core_titles if str(title).strip()}
+        for hit in hits:
+            core_node = hit.get("core_node") if isinstance(hit.get("core_node"), dict) else {}
+            title = str(
+                core_node.get("paper_title")
+                or core_node.get("title")
+                or core_node.get("full_name")
+                or core_node.get("label")
+                or hit.get("node_id")
+                or ""
+            ).strip()
+            if not title:
+                continue
+            key = title.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            self.retrieved_core_titles.append(title)
+
     def _retrieve_theory_transfer_references(
         self,
         query_payload: Dict[str, str],
@@ -1004,6 +1069,62 @@ class MemoryGuidedMCTS:
                 clip_text(query, 1000),
                 "\n".join(rendered_hits),
             )
+            self._record_retrieved_core_titles(filtered)
+        return filtered
+
+    def _retrieve_mechanism_commit_references(
+        self,
+        query_payload: Dict[str, str],
+    ) -> List[Dict[str, Any]]:
+        query = str(query_payload.get("query") or "").strip()
+        if not query:
+            return []
+        search_pool = max(int(self.config.mechanism_commit_retrieval_top_k) * 6, 12)
+        hits = self.paper_graph_vector_store.search(
+            query=query,
+            top_k=search_pool,
+            component_hits_per_core=2,
+        )
+        threshold = float(self.config.mechanism_commit_similarity_threshold)
+        filtered: List[Dict[str, Any]] = []
+        for hit in hits:
+            if float(hit.get("score") or 0.0) < threshold:
+                continue
+            filtered.append(hit)
+            if len(filtered) >= int(self.config.mechanism_commit_retrieval_top_k):
+                break
+        if filtered:
+            rendered_hits: List[str] = []
+            for idx, hit in enumerate(filtered, start=1):
+                core_node = hit.get("core_node") if isinstance(hit.get("core_node"), dict) else {}
+                paper_domain = str(core_node.get("paper_domain") or "").strip() or "unknown"
+                label = (
+                    str(core_node.get("full_name") or "").strip()
+                    or str(core_node.get("label") or "").strip()
+                    or str(core_node.get("node_id") or "").strip()
+                    or f"core_{idx}"
+                )
+                paper_title = clip_text(str(core_node.get("paper_title") or "").strip(), 400)
+                summary = clip_text(str(core_node.get("summary") or "").strip(), 1000)
+                insight = clip_text(str(core_node.get("insight") or "").strip(), 1000)
+                rendered_hits.append(
+                    f"{idx}. {label} | domain={paper_domain} | score={float(hit.get('score') or 0.0):.3f}"
+                )
+                if paper_title:
+                    rendered_hits.append(f"   title: {paper_title}")
+                if summary:
+                    rendered_hits.append(f"   summary: {summary}")
+                if insight:
+                    rendered_hits.append(f"   insight: {insight}")
+            log_message(
+                self.logger,
+                self.log_sink,
+                "info",
+                "[MCTS] Mechanism-commit grounding core nodes for query=%s\n%s",
+                clip_text(query, 1000),
+                "\n".join(rendered_hits),
+            )
+            self._record_retrieved_core_titles(filtered)
         return filtered
 
     def _materialize_child_state(
@@ -1032,13 +1153,26 @@ class MemoryGuidedMCTS:
         bundle: MemoryBundle,
     ) -> Optional[Dict[str, Any]]:
         root_domains_text = _format_root_domains_for_prompt(parent_state.root_domains)
-        transfer_query_text = "None"
-        cross_domain_references = "None"
+        additional_retrieval_context = ""
         skip_payload: Optional[Dict[str, Any]] = None
 
-        if plan.skill_name == "theory-transfer-injection":
+        if plan.skill_name == "mechanism-commit-innovation":
+            query_payload = self._build_mechanism_commit_query(plan, parent_state)
+            hits = self._retrieve_mechanism_commit_references(query_payload)
+            if hits:
+                additional_retrieval_context = "\n".join(
+                    [
+                        "Mechanism-grounding retrieval query:",
+                        query_payload.get("query") or "None",
+                        format_mechanism_commit_references(
+                            query_payload,
+                            hits,
+                            clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
+                        ),
+                    ]
+                )
+        elif plan.skill_name == "theory-transfer-injection":
             query_payload = self._build_theory_transfer_query(plan, parent_state)
-            transfer_query_text = query_payload.get("query") or "None"
             hits = self._retrieve_theory_transfer_references(query_payload, parent_state.root_domains)
             if not hits:
                 skip_payload = {
@@ -1050,10 +1184,16 @@ class MemoryGuidedMCTS:
                     ),
                 }
             else:
-                cross_domain_references = format_theory_transfer_references(
-                    query_payload,
-                    hits,
-                    clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
+                additional_retrieval_context = "\n".join(
+                    [
+                        "Cross-domain transfer query:",
+                        query_payload.get("query") or "None",
+                        format_theory_transfer_references(
+                            query_payload,
+                            hits,
+                            clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
+                        ),
+                    ]
                 )
 
         if skip_payload is not None:
@@ -1066,8 +1206,7 @@ class MemoryGuidedMCTS:
             bundle,
             prompt_template=SKILL_INSTANTIATION_PROMPT,
             root_domains_text=root_domains_text,
-            transfer_query=transfer_query_text,
-            cross_domain_references=cross_domain_references,
+            additional_retrieval_context=additional_retrieval_context,
         )
         if plan.skill_name == "theory-transfer-injection":
             if not isinstance(payload, dict):
@@ -1075,7 +1214,9 @@ class MemoryGuidedMCTS:
                     "_skip_child_creation": True,
                     "_skip_reason": "theory-transfer-injection instantiation returned no structured payload",
                 }
-            payload["_paper_graph_context"] = cross_domain_references
+            payload["_paper_graph_context"] = additional_retrieval_context
+        if plan.skill_name == "mechanism-commit-innovation" and isinstance(payload, dict):
+            payload["_paper_graph_context"] = additional_retrieval_context
         return payload
 
     def _expand(self, node: IdeaNode, path: List[IdeaNode]) -> Tuple[Optional[IdeaNode], List[IdeaNode]]:
@@ -1319,4 +1460,5 @@ class MemoryGuidedMCTS:
             trace=self.trace,
             cache_size=cache_entries,
             experiences=experiences,
+            retrieved_core_titles=list(self.retrieved_core_titles),
         )

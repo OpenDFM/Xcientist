@@ -528,6 +528,36 @@ def build_fallback_theory_transfer_query(
     }
 
 
+def build_fallback_mechanism_commit_query(
+    plan: Any,
+    *,
+    root_domains_text: str,
+    clip_limit: int,
+) -> Dict[str, str]:
+    target_defects = getattr(plan, "target_defects", []) or []
+    target_defect = next((str(tag).strip() for tag in target_defects if str(tag).strip()), "core gap")
+    component_names = [
+        str(getattr(edit, "component", "")).strip()
+        for edit in (getattr(plan, "component_edits", []) or [])
+        if str(getattr(edit, "component", "")).strip()
+        and getattr(getattr(edit, "op", None), "value", str(getattr(edit, "op", ""))) != "ADD_PROTOCOL"
+    ]
+    mechanism_target = component_names[0] if component_names else "core mechanism"
+    mechanism_gap = (
+        f"The current idea needs a concrete mechanism for {mechanism_target} to address {target_defect} "
+        f"within the root domain(s) {root_domains_text}."
+    )
+    expected_role = (
+        f"The retrieved mechanism should plug into the primary execution path as the main task-solving module for {mechanism_target}."
+    )
+    query = f"{mechanism_gap} Expected role: {expected_role}"
+    return {
+        "query": clip_text(query, clip_limit),
+        "mechanism_gap": clip_text(mechanism_gap, clip_limit),
+        "expected_role": clip_text(expected_role, clip_limit),
+    }
+
+
 def normalize_theory_transfer_query_payload(
     payload: Any,
     *,
@@ -545,6 +575,27 @@ def normalize_theory_transfer_query_payload(
     return {
         "query": query,
         "needed_content": needed_content or fallback["needed_content"],
+        "expected_role": expected_role or fallback["expected_role"],
+    }
+
+
+def normalize_mechanism_commit_query_payload(
+    payload: Any,
+    *,
+    fallback: Dict[str, str],
+    clip_limit: int,
+) -> Dict[str, str]:
+    if not isinstance(payload, dict):
+        return fallback
+
+    query = clip_text(str(payload.get("query") or "").strip(), clip_limit)
+    mechanism_gap = clip_text(str(payload.get("mechanism_gap") or "").strip(), clip_limit)
+    expected_role = clip_text(str(payload.get("expected_role") or "").strip(), clip_limit)
+    if not query:
+        return fallback
+    return {
+        "query": query,
+        "mechanism_gap": mechanism_gap or fallback["mechanism_gap"],
         "expected_role": expected_role or fallback["expected_role"],
     }
 
@@ -602,6 +653,60 @@ def format_theory_transfer_references(
     lines.append(
         "Use these nodes only as references for transferable mechanisms. Do not copy them verbatim and do not change the root domain(s)."
     )
+    return "\n".join(lines)
+
+
+def format_mechanism_commit_references(
+    query_payload: Dict[str, str],
+    hits: Sequence[Dict[str, Any]],
+    *,
+    clip_limit: int,
+) -> str:
+    if not hits:
+        return "None"
+    lines = [
+        f"Mechanism gap: {query_payload.get('mechanism_gap') or 'Unspecified'}",
+        f"Expected role: {query_payload.get('expected_role') or 'Unspecified'}",
+        "Retrieved core references for mechanism grounding:",
+    ]
+    for idx, hit in enumerate(hits, start=1):
+        core_node = hit.get("core_node") if isinstance(hit.get("core_node"), dict) else {}
+        label = (
+            core_node.get("full_name")
+            or core_node.get("paper_title")
+            or hit.get("node_id")
+            or f"core_{idx}"
+        )
+        paper_title = str(core_node.get("paper_title") or "").strip()
+        paper_domain = str(core_node.get("paper_domain") or "").strip() or "unknown"
+        lines.append(
+            f"{idx}. {label} | domain={paper_domain} | score={float(hit.get('score') or 0.0):.3f}"
+        )
+        if paper_title:
+            lines.append(f"   paper: {clip_text(paper_title, clip_limit)}")
+        summary = clip_text(str(core_node.get("summary") or "").strip(), clip_limit)
+        insight = clip_text(str(core_node.get("insight") or "").strip(), clip_limit)
+        if summary:
+            lines.append(f"   summary: {summary}")
+        if insight:
+            lines.append(f"   insight: {insight}")
+        matched_components = (
+            hit.get("matched_components") if isinstance(hit.get("matched_components"), list) else []
+        )
+        for matched in matched_components[:2]:
+            component_name = clip_text(
+                str(matched.get("component_name") or "").strip(),
+                clip_limit,
+            )
+            component_summary = clip_text(
+                str(matched.get("component_summary") or "").strip(),
+                clip_limit,
+            )
+            if component_name or component_summary:
+                lines.append(
+                    f"   matched_component: {component_name or 'unknown'} | {component_summary}"
+                )
+    lines.append("Use these nodes to ground the concrete mechanism choice and execution path details.")
     return "\n".join(lines)
 
 

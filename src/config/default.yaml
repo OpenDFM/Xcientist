@@ -142,8 +142,10 @@ idea:
     component_novelty_eval_model: "gpt-5.4"
     component_novelty_eval_temperature: 0.001
     component_novelty_eval_max_tokens: 65536
+    mechanism_commit_retrieval_top_k: 3
+    mechanism_commit_similarity_threshold: 0.6
     theory_transfer_retrieval_top_k: 3
-    theory_transfer_similarity_threshold: 0.4
+    theory_transfer_similarity_threshold: 0.6
     enable_vector_memory: true
     enable_symbolic_memory: true
     min_confidence_for_memory: 0.6

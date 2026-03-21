@@ -989,21 +989,10 @@ def instantiate_skill_plan_for_node(
     *,
     prompt_template: str,
     root_domains_text: str = "Unspecified",
-    transfer_query: str = "None",
-    cross_domain_references: str = "None",
+    additional_retrieval_context: str = "",
 ) -> Optional[Dict[str, Any]]:
     component_edits_text = plan_to_method_text(plan)
     validation_text = plan_to_experiment_text(plan)
-    cross_domain_context = ""
-    if str(getattr(plan, "skill_name", "") or "").strip() == "theory-transfer-injection":
-        cross_domain_context = "\n".join(
-            [
-                "Cross-domain transfer query:",
-                transfer_query or "None",
-                "Cross-domain core references (reference only, not mandatory templates):",
-                cross_domain_references or "None",
-            ]
-        )
 
     prompt = prompt_template.format(
         topic=mcts.topic,
@@ -1017,7 +1006,7 @@ def instantiate_skill_plan_for_node(
         parent_components=", ".join(parent_state.components) if parent_state.components else "None",
         paper_context=mcts.paper_context,
         memory_bundle=bundle.to_prompt_block(),
-        cross_domain_context=cross_domain_context,
+        additional_retrieval_context=additional_retrieval_context,
         skill_name=plan.skill_name,
         plan_objective=plan.objective,
         target_defects=", ".join(plan.target_defects),
@@ -1566,6 +1555,7 @@ def reset_search_state(mcts: Any) -> None:
     mcts.evaluation_cache = {}
     mcts.experience_cache.clear()
     mcts.trace = []
+    mcts.retrieved_core_titles = []
     mcts._id_iter = itertools.count()
 
 

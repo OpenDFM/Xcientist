@@ -26,6 +26,60 @@ _ABLATION_RESULT_SIGN = {
 }
 
 
+def result_to_best_entry(result: Any, idea_taste_mode: Optional[str]) -> Dict[str, Any]:
+    best_payload = result.best.to_dict()
+    best_entry = normalize_idea_contract(best_payload["idea"], keep_extra=True)
+    best_entry["evaluation"] = best_payload["evaluation"]
+    best_entry["search_score"] = best_payload["score"]
+    best_entry["search_path"] = best_payload["path"]
+    best_entry["pareto_candidates"] = {
+        label: cand.to_dict() if cand else None for label, cand in result.pareto.items()
+    }
+    best_entry["search_trace"] = result.trace
+    best_entry["retrieved_core_titles"] = list(getattr(result, "retrieved_core_titles", []) or [])
+    best_entry["idea_taste_mode"] = idea_taste_mode or "default"
+    best_entry["idea_source"] = "raw_mode"
+    best_entry["source_modes"] = [idea_taste_mode or "default"]
+    return best_entry
+
+
+def prior_component_seed(
+    latest_candidate: Optional[Dict[str, Any]],
+    root_idea: Optional[Dict[str, Any]],
+) -> tuple[List[str], Dict[str, str]]:
+    for entry in (latest_candidate, root_idea):
+        if not isinstance(entry, dict):
+            continue
+        raw_components = entry.get("components")
+        if not isinstance(raw_components, list):
+            continue
+        components = [str(component).strip() for component in raw_components if str(component).strip()]
+        if not components:
+            continue
+        raw_explanations = entry.get("component_explanations")
+        explanations = raw_explanations if isinstance(raw_explanations, (dict, list)) else {}
+        return components, dict(explanations) if isinstance(explanations, dict) else {}
+    return [], {}
+
+
+def merge_title_lists(*groups: Any) -> List[str]:
+    titles: List[str] = []
+    seen = set()
+    for group in groups:
+        if not isinstance(group, list):
+            continue
+        for item in group:
+            title = str(item or "").strip()
+            if not title:
+                continue
+            key = title.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            titles.append(title)
+    return titles
+
+
 def _normalize_ablation_result_label(value: Any) -> str:
     raw = str(value or "").strip().lower()
     aliases = {

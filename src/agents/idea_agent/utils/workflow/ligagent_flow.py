@@ -21,7 +21,6 @@ from src.agents.idea_agent.utils.workflow.workflow_runtime import (
 )
 from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     build_algorithm_spec,
-    synthesize_reference_summaries,
 )
 from src.agents.idea_agent.utils.workflow.ligagent_utils import (
     collect_paper_context_entries,
@@ -133,20 +132,9 @@ def build_idea_result_payload(
     prompts = prompts or PROMPTS
     topic_history = artifact_get(artifact, "topic", [])
     topic = topic_history[-1] if topic_history else "unspecified topic"
-    raw_refs = collect_reference_material(artifact_get(artifact, "references", []))
     algorithm = build_algorithm_spec(
         best_entry,
         topic,
-        prompts,
-        chat_fn,
-        model,
-        logger,
-    )
-    references = synthesize_reference_summaries(
-        topic,
-        best_entry,
-        algorithm,
-        raw_refs,
         prompts,
         chat_fn,
         model,
@@ -183,6 +171,47 @@ def build_idea_result_payload(
                         "explanation": explanation,
                     }
                 )
+    reference_titles: List[str] = []
+    seen_reference_titles = set()
+    rag_entries = artifact_get(artifact, "rag_hits", [])
+    if isinstance(rag_entries, list):
+        for rag_entry in rag_entries:
+            hits = []
+            if isinstance(rag_entry, dict):
+                hits = rag_entry.get("hits") or []
+            elif isinstance(rag_entry, list):
+                hits = rag_entry
+            for hit in hits:
+                if not isinstance(hit, dict):
+                    continue
+                title = str(hit.get("title") or "").strip()
+                if not title:
+                    continue
+                key = title.lower()
+                if key in seen_reference_titles:
+                    continue
+                seen_reference_titles.add(key)
+                reference_titles.append(title)
+    for reference in collect_reference_material(artifact_get(artifact, "references", [])):
+        if not isinstance(reference, dict):
+            continue
+        title = str(reference.get("title") or "").strip()
+        if not title:
+            continue
+        key = title.lower()
+        if key in seen_reference_titles:
+            continue
+        seen_reference_titles.add(key)
+        reference_titles.append(title)
+    for title in best_entry.get("retrieved_core_titles") or []:
+        cleaned = str(title or "").strip()
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen_reference_titles:
+            continue
+        seen_reference_titles.add(key)
+        reference_titles.append(cleaned)
     mcts_evolution = build_mcts_evolution(best_entry)
     payload = {
         "title": best_entry.get("title"),
@@ -190,7 +219,7 @@ def build_idea_result_payload(
         "introduction": introduction,
         "components": component_entries,
         "algorithm": algorithm,
-        "reference_papers": references,
+        "reference_papers": reference_titles,
         "mcts_evolution": mcts_evolution,
     }
     if best_entry.get("idea_source"):

@@ -12,7 +12,7 @@ Parent idea: {parent_summary}
 Parent components (actual modules in the current idea): {parent_components}
 Literature context: {paper_context}
 Memory bundle: {memory_bundle}
-{cross_domain_context}
+{additional_retrieval_context}
 
 == Compiled Edit Plan **IMPORTANT** ==
 Skill: {skill_name}
@@ -36,8 +36,8 @@ Instantiate the above plan into a concrete research idea. You must:
 8. Keep "component_mapping" MINIMAL and bounded. It may contain ONLY generic names that literally appear in the compiled edit plan above as a component or target. Do NOT add auxiliary modules, losses, datasets, stores, encoders, optimizers, helper blocks, or other extra names unless they literally appear in that compiled edit plan.
 9. Provide "edit_reasons": a JSON list of short reason strings (one per component edit in the same order as the component edits above). Each reason should explain **why** this specific atomic operation is needed to address the target defects — e.g., what gap it fills, what failure mode it prevents, or what capability it adds.
 10. Provide "component_role_explanations": a JSON object that explains the role of each concrete component name that appears in "component_mapping". The explanation should describe what the component does inside the idea, not just repeat the name.
-11. The instantiated idea MUST stay in the fixed root domain(s) above. Cross-domain references, if provided, are inspiration only; do not let them change the idea's home domain.
-12. If cross-domain core references are provided, extract only the transferable mechanism or invariant that helps the current idea. Do not copy paper-specific content verbatim.
+11. The instantiated idea MUST stay in the fixed root domain(s) above.
+12. If additional retrieved core references are provided, use them to ground the mechanism choices. If any of them are cross-domain, extract only the transferable mechanism or invariant that helps the current idea. Do not copy paper-specific content verbatim.
 13. Treat the taste guidance above as a soft preference only. Reflect it when possible, but it MUST NOT override the compiled edit plan, target defects, validation protocols, or guardrails.
 
 Return STRICT JSON (no Markdown wrapping):

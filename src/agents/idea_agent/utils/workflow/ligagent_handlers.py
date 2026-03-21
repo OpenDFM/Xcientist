@@ -32,8 +32,11 @@ from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     extract_experiment_findings_from_raw_ablation,
     extract_root_idea_from_analysis,
     generate_rag_query,
+    merge_title_lists,
     normalize_analysis_entry,
     paper_context_with_rag,
+    prior_component_seed,
+    result_to_best_entry,
     retrieve_outcome_rag,
     root_idea_to_mature_idea_text,
     search_core_nodes_from_citations,
@@ -80,41 +83,6 @@ def _chat(agent: Any, ctx: StageContext, op_name: str):
         )
 
     return _invoke
-
-
-def _result_to_best_entry(result: Any, idea_taste_mode: Optional[str]) -> Dict[str, Any]:
-    best_payload = result.best.to_dict()
-    best_entry = normalize_idea_contract(best_payload["idea"], keep_extra=True)
-    best_entry["evaluation"] = best_payload["evaluation"]
-    best_entry["search_score"] = best_payload["score"]
-    best_entry["search_path"] = best_payload["path"]
-    best_entry["pareto_candidates"] = {
-        label: cand.to_dict() if cand else None for label, cand in result.pareto.items()
-    }
-    best_entry["search_trace"] = result.trace
-    best_entry["idea_taste_mode"] = idea_taste_mode or "default"
-    best_entry["idea_source"] = "raw_mode"
-    best_entry["source_modes"] = [idea_taste_mode or "default"]
-    return best_entry
-
-
-def _prior_component_seed(
-    latest_candidate: Optional[Dict[str, Any]],
-    root_idea: Optional[Dict[str, Any]],
-) -> tuple[List[str], Dict[str, str]]:
-    for entry in (latest_candidate, root_idea):
-        if not isinstance(entry, dict):
-            continue
-        raw_components = entry.get("components")
-        if not isinstance(raw_components, list):
-            continue
-        components = [str(component).strip() for component in raw_components if str(component).strip()]
-        if not components:
-            continue
-        raw_explanations = entry.get("component_explanations")
-        explanations = raw_explanations if isinstance(raw_explanations, (dict, list)) else {}
-        return components, dict(explanations) if isinstance(explanations, dict) else {}
-    return [], {}
 
 
 def execute_knowledge_acquisition_stage(agent: Any, ctx: StageContext) -> StageResult:
@@ -284,7 +252,7 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     )
     mature_idea = artifact_get(artifact, "mature_idea", "")
     component_decisions = artifact_get(artifact, "component_decisions", [])
-    prior_components, prior_component_explanations = _prior_component_seed(
+    prior_components, prior_component_explanations = prior_component_seed(
         latest_candidate_payload,
         root_idea_payload,
     )
@@ -358,7 +326,7 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
 
     mode_order = {mode: idx for idx, mode in enumerate(IDEA_TASTE_PRESETS.keys())}
     mode_entries = [
-        _result_to_best_entry(result, mode)
+        result_to_best_entry(result, mode)
         for mode, result in sorted(
             mode_results,
             key=lambda item: mode_order.get(item[0], len(mode_order)),
@@ -415,6 +383,10 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     if fusion_result:
         fusion_result["selected_entry_source"] = best_entry.get("idea_source")
         fusion_result["selected_title"] = best_entry.get("title")
+    best_entry["retrieved_core_titles"] = merge_title_lists(
+        best_entry.get("retrieved_core_titles") or [],
+        *[entry.get("retrieved_core_titles") or [] for entry in mode_entries],
+    )
     final_payload = persist_final_idea(
         best_entry=best_entry,
         paper_entries=paper_entries,

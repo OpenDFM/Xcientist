@@ -292,6 +292,7 @@ def evaluate_candidate_entry(
     evaluated_entry["evaluation"] = evaluation.to_dict()
     evaluated_entry["search_score"] = evaluation.composite
     evaluated_entry["search_path"] = candidate.path_summary()
+    evaluated_entry["retrieved_core_titles"] = list(getattr(mcts, "retrieved_core_titles", []) or [])
     evaluated_entry["search_trace"] = [
         {
             "iteration": 0,
