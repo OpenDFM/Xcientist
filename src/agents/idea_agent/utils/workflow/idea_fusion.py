@@ -11,7 +11,10 @@ from src.agents.idea_agent.agent.mcts import (
     IdeaState,
     OperatorApplication,
 )
-from src.agents.idea_agent.agent.prompts.idea_fusion import FUSION_REPAIR_PROMPT
+from src.agents.idea_agent.agent.prompts.idea_fusion import (
+    FUSION_REPAIR_INSTANTIATION_PROMPT,
+    FUSION_REPAIR_PROMPT,
+)
 from src.agents.idea_agent.utils.core.config_loader import get_config_value
 from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     clip_text,
@@ -25,9 +28,11 @@ from src.agents.idea_agent.utils.mcts.mcts_runtime import (
     MemoryBundle,
     ValidationProtocol,
     _estimate_budget_delta,
+    apply_instantiated_mapping_to_plan,
     apply_edit_plan_to_components,
     build_root_state,
     format_op_descriptions,
+    instantiate_compiled_plan_for_node,
     new_node,
     reset_search_state,
 )
@@ -511,7 +516,16 @@ def repair_fused_entry(
                 step_idx,
                 json.dumps(_repair_plan_log_payload(plan), ensure_ascii=False, indent=2),
             )
-            instantiated = mcts._instantiate_skill_plan(plan, parent_state, bundle)
+            instantiated = instantiate_compiled_plan_for_node(
+                mcts,
+                plan,
+                parent_state,
+                bundle,
+                prompt_template=FUSION_REPAIR_INSTANTIATION_PROMPT,
+                plan_name="fusion_repair",
+                root_domains_text=", ".join(parent_state.root_domains) if parent_state.root_domains else "Unspecified",
+                stage="idea_fusion",
+            )
             if isinstance(instantiated, dict) and instantiated.get("_skip_child_creation"):
                 no_improve_steps += 1
                 logger.info(
@@ -522,6 +536,7 @@ def repair_fused_entry(
                 progress.update(1)
                 continue
 
+            apply_instantiated_mapping_to_plan(plan, instantiated, rewrite_components=False)
             candidate_state = mcts._materialize_child_state(
                 parent_state,
                 plan,

@@ -993,15 +993,52 @@ def materialize_child_state(
         skill_metrics=skill_metrics,
     )
 
-def instantiate_skill_plan_for_node(
+def apply_instantiated_mapping_to_plan(
+    plan: Any,
+    instantiated: Optional[Dict[str, Any]],
+    *,
+    rewrite_components: bool = True,
+) -> None:
+    if not instantiated:
+        return
+    edit_reasons = instantiated.get("edit_reasons")
+    if isinstance(edit_reasons, list):
+        for reason_idx, edit in enumerate(plan.component_edits):
+            if reason_idx < len(edit_reasons) and isinstance(edit_reasons[reason_idx], str):
+                edit.reason = edit_reasons[reason_idx]
+    if not rewrite_components or not isinstance(instantiated.get("component_mapping"), dict):
+        return
+    mapping = _normalize_component_mapping(instantiated.get("component_mapping"))
+
+    for edit in plan.component_edits:
+        component_name = _coerce_component_name(edit.component)
+        target_name = _coerce_component_name(edit.target)
+        edit.component = mapping.get(component_name, component_name)
+        edit.target = mapping.get(target_name, target_name) if target_name else ""
+        if edit.op == AtomicEditOp.REWIRE:
+            edit.details = f"Rewire {edit.component} -> {edit.target}"
+        elif edit.op == AtomicEditOp.REPLACE_COMPONENT:
+            edit.details = f"Replace {edit.target} with {edit.component}"
+        elif edit.op == AtomicEditOp.GATE_COMPONENT:
+            cond = f" under condition '{edit.condition}'" if edit.condition else ""
+            edit.details = f"Gate {edit.component}{cond}"
+        elif edit.op == AtomicEditOp.ADD_COMPONENT:
+            edit.details = f"ADD_COMPONENT on {edit.component}"
+
+
+def instantiate_compiled_plan_for_node(
     mcts: Any,
     plan: Any,
     parent_state: Any,
     bundle: Any,
     *,
     prompt_template: str,
+    plan_name: str,
+    plan_references: str = "None.",
+    taste_guidance: str = "No special taste guidance.",
     root_domains_text: str = "Unspecified",
     additional_retrieval_context: str = "",
+    stage: str = "mcts_expand",
 ) -> Optional[Dict[str, Any]]:
     component_edits_text = plan_to_method_text(plan)
     validation_text = plan_to_experiment_text(plan)
@@ -1009,18 +1046,15 @@ def instantiate_skill_plan_for_node(
     prompt = prompt_template.format(
         topic=mcts.topic,
         root_domains=root_domains_text,
-        taste_guidance=(
-            getattr(getattr(mcts, "idea_taste_preset", None), "instantiation_guidance", None)
-            or "No special taste guidance."
-        ),
+        taste_guidance=taste_guidance,
         mature_idea=mcts.mature_idea or "None",
         parent_summary=parent_state.describe(),
         parent_components=", ".join(parent_state.components) if parent_state.components else "None",
         paper_context=mcts.paper_context,
         memory_bundle=bundle.to_prompt_block(),
-        skill_references=mcts.skill_catalog.render_references_for_prompt(plan.skill_name),
+        skill_references=plan_references,
         additional_retrieval_context=additional_retrieval_context,
-        skill_name=plan.skill_name,
+        skill_name=plan_name,
         plan_objective=plan.objective,
         target_defects=", ".join(plan.target_defects),
         component_edits=component_edits_text,
@@ -1031,7 +1065,7 @@ def instantiate_skill_plan_for_node(
         response = mcts.chat_fn(
             prompt,
             model=mcts.config.generation_model,
-            stage="mcts_expand",
+            stage=stage,
             temperature=mcts.config.generation_temperature,
             max_output_tokens=mcts.config.generation_max_tokens,
         )
@@ -1054,11 +1088,39 @@ def instantiate_skill_plan_for_node(
             mcts.logger,
             mcts.log_sink,
             "warning",
-            "⚠️  Skill instantiation failed for %s: %s",
-            plan.skill_name,
+            "⚠️  Plan instantiation failed for %s: %s",
+            plan_name,
             exc,
         )
         return None
+
+
+def instantiate_skill_plan_for_node(
+    mcts: Any,
+    plan: Any,
+    parent_state: Any,
+    bundle: Any,
+    *,
+    prompt_template: str,
+    root_domains_text: str = "Unspecified",
+    additional_retrieval_context: str = "",
+) -> Optional[Dict[str, Any]]:
+    return instantiate_compiled_plan_for_node(
+        mcts,
+        plan,
+        parent_state,
+        bundle,
+        prompt_template=prompt_template,
+        plan_name=plan.skill_name,
+        plan_references=mcts.skill_catalog.render_references_for_prompt(plan.skill_name),
+        taste_guidance=(
+            getattr(getattr(mcts, "idea_taste_preset", None), "instantiation_guidance", None)
+            or "No special taste guidance."
+        ),
+        root_domains_text=root_domains_text,
+        additional_retrieval_context=additional_retrieval_context,
+        stage="mcts_expand",
+    )
 
 
 def build_symbolic_eval_hints(mcts: Any, node: Any) -> str:
@@ -1352,28 +1414,7 @@ def expand_node_with_skills(
             ),
         )
 
-        if instantiated and isinstance(instantiated.get("component_mapping"), dict):
-            mapping = _normalize_component_mapping(instantiated.get("component_mapping"))
-            edit_reasons = instantiated.get("edit_reasons")
-            if isinstance(edit_reasons, list):
-                for reason_idx, edit in enumerate(plan.component_edits):
-                    if reason_idx < len(edit_reasons) and isinstance(edit_reasons[reason_idx], str):
-                        edit.reason = edit_reasons[reason_idx]
-
-            for edit in plan.component_edits:
-                component_name = _coerce_component_name(edit.component)
-                target_name = _coerce_component_name(edit.target)
-                edit.component = mapping.get(component_name, component_name)
-                edit.target = mapping.get(target_name, target_name) if target_name else ""
-                if edit.op == AtomicEditOp.REWIRE:
-                    edit.details = f"Rewire {edit.component} -> {edit.target}"
-                elif edit.op == AtomicEditOp.REPLACE_COMPONENT:
-                    edit.details = f"Replace {edit.target} with {edit.component}"
-                elif edit.op == AtomicEditOp.GATE_COMPONENT:
-                    cond = f" under condition '{edit.condition}'" if edit.condition else ""
-                    edit.details = f"Gate {edit.component}{cond}"
-                elif edit.op == AtomicEditOp.ADD_COMPONENT:
-                    edit.details = f"ADD_COMPONENT on {edit.component}"
+        apply_instantiated_mapping_to_plan(plan, instantiated)
 
         protocol_names: List[str] = []
         for edit_idx, edit in enumerate(plan.component_edits):

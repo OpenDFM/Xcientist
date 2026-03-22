@@ -86,6 +86,60 @@ Return STRICT JSON only:
 """
 
 
+FUSION_REPAIR_INSTANTIATION_PROMPT = """
+You are materializing a local repair plan into a revised fused research idea.
+
+== Context ==
+Topic: {topic}
+Fixed root domains: {root_domains}
+Current fused idea: {parent_summary}
+Current fused components: {parent_components}
+Literature context: {paper_context}
+Memory bundle: {memory_bundle}
+{additional_retrieval_context}
+
+== Local Repair Plan ==
+Objective: {plan_objective}
+Target defects: {target_defects}
+Component edits:
+{component_edits}
+Validation protocols:
+{validation_protocols}
+Guardrails: {guardrails}
+
+== Your Task ==
+1. Keep the same overall thesis as the current fused idea.
+2. Realize only the local repair encoded by the component edits above.
+3. Treat component names in the repair plan as exact symbols. Do not rename or paraphrase them.
+4. Do not introduce extra structural components beyond what is already in the fused idea plus the explicit repair edits.
+5. Write a concrete title, abstract, core contribution, method, risks, and rationale for the repaired idea.
+6. Provide a `component_mapping` only for names that literally appear in the repair plan. Since these names are already concrete, use identity mappings such as `"router": "router"`.
+7. Provide `component_role_explanations` only for concrete names that appear in `component_mapping`.
+
+Return STRICT JSON (no Markdown wrapping):
+{{
+  "title": "concise repaired idea title",
+  "abstract": "≤150 words abstract describing the repaired fused idea",
+  "core_contribution": "one focused statement of the repaired mechanism",
+  "method": "concrete methodology for the repaired fused idea using the exact component names from the repair plan",
+  "risks": "concrete failure modes and mitigation strategies",
+  "rationale": "2-3 sentences on how the local repair improves the fused idea",
+  "component_mapping": {{
+      "exact_component_name_1": "exact_component_name_1",
+      "exact_component_name_2": "exact_component_name_2"
+    }},
+  "component_role_explanations": {{
+      "exact_component_name_1": "Specific computational role in the repaired idea...",
+      "exact_component_name_2": "Specific computational role in the repaired idea..."
+    }},
+  "edit_reasons": [
+      "Reason 1: Why this local edit improves the fused idea...",
+      "Reason 2: Why this local edit resolves the target defect..."
+    ]
+}}
+"""
+
+
 FUSION_REPAIR_PROMPT = """
 You are repairing a fused research idea after referee evaluation.
 
