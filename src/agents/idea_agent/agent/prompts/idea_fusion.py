@@ -13,53 +13,23 @@ You are a component-level fusion agent for LigAgent-Pro.
 == Analysis summary ==
 {analysis}
 
-== Paper context ==
-{paper_context}
-
 You are given {mode_count} candidate ideas produced from different idea taste modes, all starting from the same prepared root context.
 
-== Candidate ideas (JSON) == 
+== Candidate ideas (compact JSON) == 
 {candidate_ideas_json}
 
 Return STRICT JSON only:
 {{
-  "host_idea_mode": "string",
-  "selected_components": [
-    {{
-      "source_mode": "string",
-      "component": "string",
-      "role": "core_mechanism|support_module|protocol|guardrail",
-      "why_selected": "string"
-    }}
-  ],
-  "rejected_components": [
-    {{
-      "source_mode": "string",
-      "component": "string",
-      "why_rejected": "string"
-    }}
-  ],
-  "conflicts_and_resolutions": [
-    {{
-      "conflict": "string",
-      "resolution": "string"
-    }}
-  ],
-  "fused_core_thesis": "string",
-  "why_stronger_than_each_input": "string",
-  "minimal_validation_plan": "string",
   "fused_idea": {{
     "title": "string",
     "abstract": "string",
     "core_contribution": "string",
     "method": "string",
-    "experiments": "string",
     "risks": "string",
     "tags": ["string"],
     "operator": "fusion_agent",
     "target_defects": ["string"],
     "rationale": "string",
-    "memory_refs": ["string"],
     "budget": {{}},
     "components": ["string"],
     "component_explanations": {{
@@ -69,13 +39,46 @@ Return STRICT JSON only:
     "paper_graph_context": "string",
     "edit_plan": null,
     "skill_metrics": {{}}
+  }},
+  "fusion_metadata": {{
+    "host_idea_mode": "string",
+    "selected_components": [
+      {{
+        "source_mode": "string",
+        "component": "string",
+        "role": "core_mechanism|support_module|protocol|guardrail",
+        "why_selected": "string"
+      }}
+    ],
+    "rejected_components": [
+      {{
+        "source_mode": "string",
+        "component": "string",
+        "why_rejected": "string"
+      }}
+    ],
+    "conflicts_and_resolutions": [
+      {{
+        "conflict": "string",
+        "resolution": "string"
+      }}
+    ],
+    "fused_core_thesis": "string",
+    "why_stronger_than_each_input": "string",
+    "minimal_validation_plan": "string"
   }}
 }}
 
 == Fusion rules ==
+- The top-level JSON value MUST be an object with exactly two keys: `fused_idea` and `fusion_metadata`.
+- `fused_idea` MUST appear first.
+- Build `fused_idea` first, then fill `fusion_metadata`.
+- Do NOT return a raw array.
+- Do NOT return a single selected component object as the top-level JSON.
 - Do NOT union all ideas together.
 - Select exactly one dominant core mechanism.
 - Other kept components must be support modules, not a second competing core mechanism.
+- When you reuse a component, copy its name exactly from `components`.
 - Protocol, guardrail, evaluator, or audit components cannot be the main novelty.
 - Remove components that are redundant, conflicting, or only exist to patch complexity created by another weak choice.
 - Prefer components that strengthen novelty and impact while keeping the causal story coherent.

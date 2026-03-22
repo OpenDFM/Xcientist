@@ -277,7 +277,26 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     agent.mcts.reload_symbolic_memory()
     ligagent_pro = bool(get_config_value(agent.config, "run.LigAgent-Pro", False))
 
-    mode_results: List[tuple[str, Any]] = []
+    materialization_model = str(get_config_value(agent.config, "fusion.model", "gpt-5.4"))
+    materialize_chat = _chat(agent, ctx, "idea_materialization")
+    completed_modes: List[Dict[str, Any]] = []
+
+    def _complete_mode(mode: str, result: Any) -> None:
+        entry = result_to_best_entry(result, mode)
+        if ligagent_pro:
+            entry["idea_result"] = build_idea_result_payload(
+                best_entry=entry,
+                paper_entries=paper_entries,
+                artifact=artifact,
+                chat_fn=materialize_chat,
+                model=materialization_model,
+                logger=logger,
+                prompts=PROMPTS,
+            )
+            mode_idea_result_path = agent.run_dir / "mode_idea_results" / f"{entry['idea_taste_mode']}.json"
+            save_idea_result_payload(entry["idea_result"], mode_idea_result_path, logger)
+        completed_modes.append({"mode": mode, "result": result, "entry": entry})
+
     shared_context = context
     if ligagent_pro:
         # Run MCTS searches for all idea taste modes in parallel, starting from the same prepared root context.
@@ -298,16 +317,16 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
                 mode = futures[future]
                 result = future.result()
                 if result.best:
-                    mode_results.append((mode, result))
+                    _complete_mode(mode, result)
     else:
         # Run a single MCTS search with the default idea taste preset.
         with suspend_console_handlers(logger):
             result = agent.mcts.search(topic=topic, context=context)
         if result.best:
             mode_label = getattr(getattr(agent.mcts, "idea_taste_preset", None), "mode", None) or "default"
-            mode_results.append((mode_label, result))
+            _complete_mode(mode_label, result)
 
-    if not mode_results:
+    if not completed_modes:
         logger.warning("⚠️ MCTS search returned no candidate; keeping latest candidate unchanged.")
         replace_patch = (
             {"latest_candidate": latest_candidate_payload}
@@ -325,33 +344,13 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
         )
 
     mode_order = {mode: idx for idx, mode in enumerate(IDEA_TASTE_PRESETS.keys())}
-    mode_entries = [
-        result_to_best_entry(result, mode)
-        for mode, result in sorted(
-            mode_results,
-            key=lambda item: mode_order.get(item[0], len(mode_order)),
-        )
-    ]
-    materialization_model = str(get_config_value(agent.config, "fusion.model", "gpt-5.4"))
-    materialize_chat = _chat(agent, ctx, "idea_materialization")
+    completed_modes.sort(key=lambda item: mode_order.get(item["mode"], len(mode_order)))
+    mode_entries = [item["entry"] for item in completed_modes]
     run_fusion = should_run_fusion(
         agent.config,
         ligagent_pro=ligagent_pro,
         candidate_count=len(mode_entries),
     )
-    if ligagent_pro:
-        for entry in mode_entries:
-            entry["idea_result"] = build_idea_result_payload(
-                best_entry=entry,
-                paper_entries=paper_entries,
-                artifact=artifact,
-                chat_fn=materialize_chat,
-                model=materialization_model,
-                logger=logger,
-                prompts=PROMPTS,
-            )
-            mode_idea_result_path = agent.run_dir / "mode_idea_results" / f"{entry['idea_taste_mode']}.json"
-            save_idea_result_payload(entry["idea_result"], mode_idea_result_path, logger)
     best_entry = mode_entries[0]
     fused_entry = None
     fusion_result: Dict[str, Any] = {}
@@ -401,7 +400,9 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
 
     pareto_lines = []
     pareto_count = 0
-    for mode, result in mode_results:
+    for item in completed_modes:
+        mode = item["mode"]
+        result = item["result"]
         for label, cand in result.pareto.items():
             if cand:
                 pareto_count += 1
@@ -411,7 +412,8 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     pareto_summary = "; ".join(pareto_lines) if pareto_lines else "no Pareto picks"
     all_experiences: List[Any] = []
     all_evaluations: List[Any] = []
-    for _, result in mode_results:
+    for item in completed_modes:
+        result = item["result"]
         all_experiences.extend(result.experiences)
         all_evaluations.append(result.best.to_dict()["evaluation"])
     all_experiences.extend(fusion_experiences)
@@ -445,7 +447,7 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
             "experience_count": len(all_experiences),
             "pareto_count": pareto_count,
             "search_score": best_entry["search_score"],
-            "mode_count": len(mode_results),
+            "mode_count": len(completed_modes),
             "fusion_used": bool(best_entry.get("idea_source") == "fused"),
         },
     )

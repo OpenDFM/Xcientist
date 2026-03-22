@@ -10,32 +10,39 @@ You are an expert algorithm architect. Your task is to translate an abstract res
 == Idea Abstract ==
 {idea_abstract}
 
-== Idea JSON ==
+== Compact Idea JSON ==
 {idea}
-
-First, think step-by-step in the `architect_scratchpad` to deconstruct the idea into computable mathematical or logical components. Then, generate the concrete algorithm specs.
 
 Return ONLY a valid JSON object matching this schema exactly:
 {{
   "algorithms": [
     {{
-      "name": "Concise algorithm name (<12 words)",
-      "input": ["List of required concrete inputs, datasets, or states"],
-      "output": ["List of expected outputs, decisions, or updated states"],
+      "name": "Concise algorithm name (<8 words)",
+      "input": [
+        "concrete input description"
+      ],
+      "output": [
+        "concrete output description"
+      ],
       "pipeline": [
-        "Step 1: ...",
-        "Step 2: ...",
-        "Step 3: ..."
+        "Step 1: concrete execution action using exact component names"
       ]
     }}
   ]
 }}
 
 == Rules (Strict) ==
-- You MUST complete the `architect_scratchpad` FIRST before writing the `algorithms` array.
-- The `pipeline` steps must be derived directly from your reasoning in the `black_box_elimination`.
-- NO MAGIC WORDS: Pipeline steps must describe actual method execution. Instead of 'run MCTS', specify 'Select node via UCB1, expand by querying LLM policy, evaluate state, and backpropagate value'. Instead of 'use dual-system', specify the exact routing or gating mechanism.
-- Keep inputs/outputs concrete (e.g., 'action trajectory dictionary' instead of 'data').
+- The top-level JSON value MUST be an object, never a raw array.
+- Even if there is only one algorithm, still return `{{"algorithms": [ ... ]}}`.
+- Do NOT return `[{{...}}]` at the top level.
+- `input`, `output`, and `pipeline` must each be arrays of strings, not arrays of objects.
+- Use ONLY exact component names copied from `components` whenever an input line or pipeline step touches an existing module.
+- Every `pipeline` item must start with `Step k:` and describe one concrete execution step, not an overview, heading, or prose summary.
+- Each pipeline step should explicitly name the exact components it uses and the concrete state, signal, or artifact it produces.
+- Write the algorithm as a standalone specification for THIS idea only. Assume the downstream experiment agent can see only this idea.
+- Do NOT mention other ideas, alternative candidates, sibling modes, source modes, fusion, host idea, parent idea, rejected components, or comparisons against other ideas anywhere in `name`, `input`, `output`, or `pipeline`.
+- NO MAGIC WORDS: do not write vague summaries like 'integrate the system' or 'optimize performance'. Write the actual mechanism.
+- Keep inputs/outputs concrete (e.g., `slot_records` instead of `data`).
 - If multiple distinct sub-algorithms are needed to realize the idea, include each as its own entry in the `algorithms` array.
 - Do not add any markdown formatting (like ```json) or commentary outside the JSON object.
 """

@@ -17,7 +17,7 @@ def normalize_api_style(api_style: Optional[str]) -> str:
 def _model_prefers_chat_completions(model: Optional[str]) -> bool:
     normalized = str(model or "").strip().lower()
     return (
-        normalized.startswith("gemini-3-pro")
+        normalized.startswith(("gemini-3-pro", "gemini-3.1-pro"))
         or normalized.startswith("claude-opus-4-6")
         or normalized.startswith("claude-sonnet-4-6")
         or normalized.startswith("deepseek-v3.2")

@@ -101,7 +101,6 @@ def derive_pipeline_steps(idea: Dict[str, Any]) -> List[str]:
     idea = normalize_idea_contract(idea, keep_extra=True)
     sections = [
         idea.get("method"),
-        idea.get("experiments"),
         idea.get("abstract"),
         idea.get("core_contribution"),
     ]
@@ -142,9 +141,6 @@ def fallback_algorithm_spec(idea: Dict[str, Any]) -> List[Dict[str, Any]]:
     core_contribution = str(idea.get("core_contribution") or "").strip()
     if core_contribution:
         outputs.append(core_contribution)
-    experiments = str(idea.get("experiments") or "").strip()
-    if experiments:
-        outputs.append(experiments)
     if not outputs:
         outputs = ["Outputs implied by the idea description"]
 

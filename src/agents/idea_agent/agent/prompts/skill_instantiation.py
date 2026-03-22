@@ -12,6 +12,7 @@ Parent idea: {parent_summary}
 Parent components (actual modules in the current idea): {parent_components}
 Literature context: {paper_context}
 Memory bundle: {memory_bundle}
+Skill-specific mechanism references: {skill_references}
 {additional_retrieval_context}
 
 == Compiled Edit Plan **IMPORTANT** ==
@@ -27,7 +28,7 @@ Guardrails: {guardrails}
 == Your Task ==
 Instantiate the above plan into a concrete research idea. You must:
 1. Replace every generic placeholder (e.g. "core_mechanism_module", "backbone_model", "constraint_penalty_module") with a **specific, topic-relevant** module/method name.
-2. Write a concrete title, abstract, core contribution, methodology, and experiment design — as if drafting a real paper.
+2. Write a concrete title, abstract, core contribution, methodology, risks, and rationale — as if drafting a real paper.
 3. Keep consistency with the edit plan structure (same number of component edits, same operator types).
 4. Reference the defects you are fixing and explain how the instantiated mechanism addresses them.
 5. Ensure the methodology is specific enough that someone could implement it (name architectures, loss terms, optimization steps, etc.).
@@ -39,6 +40,7 @@ Instantiate the above plan into a concrete research idea. You must:
 11. The instantiated idea MUST stay in the fixed root domain(s) above.
 12. If additional retrieved core references are provided, use them to ground the mechanism choices. If any of them are cross-domain, extract only the transferable mechanism or invariant that helps the current idea. Do not copy paper-specific content verbatim.
 13. Treat the taste guidance above as a soft preference only. Reflect it when possible, but it MUST NOT override the compiled edit plan, target defects, validation protocols, or guardrails.
+14. If skill-specific mechanism references are provided, use them as compact mechanism patterns and failure-mode checks. Reuse the pattern, not the literal names, unless the names already fit the compiled edit plan.
 
 Return STRICT JSON (no Markdown wrapping):
 {{
@@ -46,7 +48,6 @@ Return STRICT JSON (no Markdown wrapping):
   "abstract": "≤150 words abstract describing the concrete contribution",
   "core_contribution": "one focused statement of the new insight/mechanism",
   "method": "concrete methodology steps using the concrete names defined for the compiled edit-plan placeholders in your component_mapping. You may mention standard losses, optimizers, datasets, encoders, or helper routines in prose without adding them to component_mapping unless they literally appear in the compiled edit plan.",
-  "experiments": "fair comparison protocol: specific baselines, datasets, metrics, ablation design",
   "risks": "concrete failure modes and mitigation strategies",
   "rationale": "2-3 sentences on how this skill application resolves the target defects",
   "component_mapping": {{

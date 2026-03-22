@@ -142,7 +142,6 @@ class IdeaState:
     abstract: str
     core_contribution: str
     method: str
-    experiments: str
     risks: str
     tags: List[str]
     operator: str
@@ -163,7 +162,6 @@ class IdeaState:
         self.abstract = clip_text(self.abstract, UNIFORM_CLIP_TEXT_LIMIT)
         self.core_contribution = clip_text(self.core_contribution, UNIFORM_CLIP_TEXT_LIMIT)
         self.method = clip_text(self.method, UNIFORM_CLIP_TEXT_LIMIT)
-        self.experiments = clip_text(self.experiments, UNIFORM_CLIP_TEXT_LIMIT)
         self.risks = clip_text(self.risks, UNIFORM_CLIP_TEXT_LIMIT)
         self.rationale = clip_text(self.rationale, UNIFORM_CLIP_TEXT_LIMIT)
         self.paper_graph_context = clip_text(self.paper_graph_context, UNIFORM_CLIP_TEXT_LIMIT)
@@ -217,7 +215,6 @@ class IdeaState:
             "abstract": self.abstract,
             "core_contribution": self.core_contribution,
             "method": self.method,
-            "experiments": self.experiments,
             "risks": self.risks,
             "tags": self.tags,
             "operator": self.operator,
@@ -1054,6 +1051,7 @@ class MemoryGuidedMCTS:
                 )
                 paper_title = clip_text(str(core_node.get("paper_title") or "").strip(), 400)
                 summary = clip_text(str(core_node.get("summary") or "").strip(), 1000)
+                insight = clip_text(str(core_node.get("insight") or "").strip(), 1000)
                 rendered_hits.append(
                     f"{idx}. {label} | domain={paper_domain} | score={float(hit.get('score') or 0.0):.3f}"
                 )
@@ -1061,6 +1059,8 @@ class MemoryGuidedMCTS:
                     rendered_hits.append(f"   title: {paper_title}")
                 if summary:
                     rendered_hits.append(f"   summary: {summary}")
+                if insight:
+                    rendered_hits.append(f"   insight: {insight}")
             log_message(
                 self.logger,
                 self.log_sink,
@@ -1388,23 +1388,7 @@ class MemoryGuidedMCTS:
                 root.transformation.defects = inferred_defects
                 root.latest_path_summary = ""
 
-        for iteration in tqdm(range(self.config.max_iterations)):
-            leaf, path = self._select(root)
-            depth = len(path) - 1
-
-            if depth >= self.config.max_depth:
-                target = leaf
-                rollout_path = path
-            else:
-                target, rollout_path = self._expand(leaf, path)
-
-            if target is None:
-                continue
-
-            evaluation = self._simulate(target, rollout_path, experiences)
-            if evaluation is None:
-                continue
-
+        def _record_rollout(iteration: int, target: IdeaNode, rollout_path: List[IdeaNode], evaluation: IdeaEvaluation) -> None:
             self._backpropagate(rollout_path, evaluation)
             self._update_skill_prior(target, evaluation)
 
@@ -1434,6 +1418,30 @@ class MemoryGuidedMCTS:
                     "skill_metrics": target.state.skill_metrics,
                 }
             )
+
+        for iteration in tqdm(range(self.config.max_iterations)):
+            leaf, path = self._select(root)
+            depth = len(path) - 1
+            rollout_targets: List[Tuple[IdeaNode, List[IdeaNode]]] = []
+
+            if depth >= self.config.max_depth:
+                rollout_targets = [(leaf, path)]
+            else:
+                target, rollout_path = self._expand(leaf, path)
+                if depth <= 1:
+                    rollout_targets = [
+                        (child, path + [child])
+                        for child in leaf.children
+                        if child.visits == 0
+                    ]
+                elif target is not None:
+                    rollout_targets = [(target, rollout_path)]
+
+            for target, rollout_path in rollout_targets:
+                evaluation = self._simulate(target, rollout_path, experiences)
+                if evaluation is None:
+                    continue
+                _record_rollout(iteration, target, rollout_path, evaluation)
 
         best = best_candidate(root, SearchCandidate)
         pareto = pareto_candidates(root, SearchCandidate)

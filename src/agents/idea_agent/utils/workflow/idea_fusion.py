@@ -42,6 +42,99 @@ FUSION_REPAIR_ALLOWED_OPS = {
     AtomicEditOp.REWIRE,
 }
 FUSION_DRAFT_MAX_ATTEMPTS = 5
+FUSION_MATURE_IDEA_LIMIT = 4000
+FUSION_ANALYSIS_LIMIT = 4000
+FUSION_MINIMAL_RESPONSE_EXAMPLE = """{
+  "fused_idea": {
+    "title": "string",
+    "abstract": "string",
+    "core_contribution": "string",
+    "method": "string",
+    "risks": "string",
+    "tags": ["string"],
+    "operator": "fusion_agent",
+    "target_defects": ["string"],
+    "rationale": "string",
+    "budget": {},
+    "components": ["string"],
+    "component_explanations": {
+      "component_name": "string"
+    },
+    "root_domains": ["string"],
+    "paper_graph_context": "string",
+    "edit_plan": null,
+    "skill_metrics": {}
+  },
+  "fusion_metadata": {
+    "host_idea_mode": "string",
+    "selected_components": [],
+    "rejected_components": [],
+    "conflicts_and_resolutions": [],
+    "fused_core_thesis": "string",
+    "why_stronger_than_each_input": "string",
+    "minimal_validation_plan": "string"
+  }
+}"""
+
+
+def _fusion_retry_guidance(validator_warning: str, validator_top_level_type: str) -> str:
+    guidance = [
+        "",
+        "",
+        "== Validator warning from previous response ==",
+        validator_warning,
+    ]
+    if validator_top_level_type:
+        guidance.extend(
+            [
+                "",
+                f"Actual top-level JSON type from previous response: {validator_top_level_type}",
+            ]
+        )
+    guidance.extend(
+        [
+            "",
+            "Return STRICT JSON with a top-level object containing exactly `fused_idea` and `fusion_metadata`.",
+            "A valid minimal response looks like:",
+            FUSION_MINIMAL_RESPONSE_EXAMPLE,
+        ]
+    )
+    return "\n".join(guidance)
+
+
+def _summarize_text(value: Any, limit: int) -> str:
+    text = " ".join(str(value or "").split())
+    if not text:
+        return "None"
+    summary = ". ".join(part.strip() for part in text.split(". ")[:3] if part.strip()).strip()
+    if summary and summary[-1] not in ".!?":
+        summary += "."
+    return clip_text(summary or text, limit)
+
+
+def _fusion_analysis_summary(context: Dict[str, Any]) -> str:
+    analysis = context.get("analysis") or []
+    if not analysis:
+        return "No analysis available."
+    latest = analysis[-1]
+    lines: List[str] = []
+    tldr = str(latest.get("tldr") or "").strip()
+    if tldr:
+        lines.append(f"TLDR: {tldr}")
+    field_consensus = [str(item).strip() for item in (latest.get("field_consensus") or []) if str(item).strip()][:3]
+    if field_consensus:
+        lines.append("Constraints: " + "; ".join(field_consensus))
+    existing_problems = [str(item).strip() for item in (latest.get("existing_problems") or []) if str(item).strip()][:3]
+    if existing_problems:
+        lines.append("Existing problems: " + "; ".join(existing_problems))
+    evaluation_gaps = [
+        str(item.get("gap") or "").strip()
+        for item in (latest.get("evaluation_gaps") or [])
+        if isinstance(item, dict) and str(item.get("gap") or "").strip()
+    ][:2]
+    if evaluation_gaps:
+        lines.append("Evaluation gaps: " + "; ".join(evaluation_gaps))
+    return clip_text("\n".join(lines) or "No analysis available.", FUSION_ANALYSIS_LIMIT)
 
 
 def should_run_fusion(
@@ -95,30 +188,27 @@ def fuse_ligagent_pro_ideas(
     )
     prompt = prompt_template.format(
         topic=topic,
-        mature_idea=clip_text(context.get("mature_idea") or "None", PROMPT_CLIP_LIMIT),
-        root_domains=json.dumps(context.get("root_domains") or [], ensure_ascii=False, indent=2),
-        analysis=clip_text(
-            format_analysis_blob(context.get("analysis", [])) or "No analysis available.",
-            PROMPT_CLIP_LIMIT,
-        ),
-        paper_context=clip_text(
-            context.get("paper_context") or "No curated papers available yet.",
-            PROMPT_CLIP_LIMIT,
-        ),
+        mature_idea=_summarize_text(context.get("mature_idea"), FUSION_MATURE_IDEA_LIMIT),
+        root_domains=json.dumps(context.get("root_domains") or [], ensure_ascii=False),
+        analysis=_fusion_analysis_summary(context),
         mode_count=len(mode_entries),
-        candidate_ideas_json=json.dumps(candidate_pack, ensure_ascii=False, indent=2),
+        candidate_ideas_json=json.dumps(candidate_pack, ensure_ascii=False, separators=(",", ":")),
     )
     payload: Dict[str, Any] = {}
     fused_raw: Dict[str, Any] = {}
+    fused_entry: Dict[str, Any] = {}
+    fusion_metadata: Dict[str, Any] = {}
     validator_warning = ""
+    validator_top_level_type = ""
     last_exc: Optional[Exception] = None
     for attempt in range(1, FUSION_DRAFT_MAX_ATTEMPTS + 1):
+        payload = {}
+        current_payload_type = ""
         prompt_with_warning = prompt
         if validator_warning:
-            prompt_with_warning += (
-                "\n\n== Validator warning from previous response ==\n"
-                f"{validator_warning}\n"
-                "Retry and return STRICT JSON with a top-level `fused_idea` object."
+            prompt_with_warning += _fusion_retry_guidance(
+                validator_warning,
+                validator_top_level_type,
             )
         try:
             payload = runtime.llm_json(
@@ -131,9 +221,16 @@ def fuse_ligagent_pro_ideas(
                 max_output_tokens=max_tokens,
             )
             if isinstance(payload, list):
+                current_payload_type = "list"
+                validator_top_level_type = "list"
                 payload = payload[0] if payload else {}
+            else:
+                current_payload_type = type(payload).__name__
+                validator_top_level_type = current_payload_type
             if not isinstance(payload, dict):
-                raise ValueError("Fusion agent did not return a JSON object.")
+                raise ValueError(
+                    f"Fusion agent did not return a JSON object (got {type(payload).__name__})."
+                )
 
             fused_raw = payload.get("fused_idea")
             if not isinstance(fused_raw, dict):
@@ -142,33 +239,38 @@ def fuse_ligagent_pro_ideas(
                     "Fusion agent response is missing fused_idea. "
                     f"Top-level keys: {available_keys}"
                 )
+            fusion_metadata = payload.get("fusion_metadata")
+            if not isinstance(fusion_metadata, dict):
+                raise ValueError("Fusion agent response is missing fusion_metadata.")
+            fused_entry = normalize_idea_contract(fused_raw, keep_extra=True)
             break
         except Exception as exc:
             last_exc = exc
             if attempt >= FUSION_DRAFT_MAX_ATTEMPTS:
                 raise
             validator_warning = str(exc)
+            if current_payload_type:
+                validator_top_level_type = current_payload_type
             logger.warning(
                 "⚠️ Fusion draft validation failed (%d/%d): %s. Retrying...",
                 attempt,
                 FUSION_DRAFT_MAX_ATTEMPTS,
                 exc,
             )
-    if last_exc is not None and not fused_raw:
+    if last_exc is not None and not fused_entry:
         raise last_exc
 
-    fused_entry = normalize_idea_contract(fused_raw, keep_extra=True)
     fused_entry["idea_taste_mode"] = "fusion_agent"
     fused_entry["idea_source"] = "fused"
     fused_entry["source_modes"] = [entry.get("idea_taste_mode") for entry in mode_entries if entry.get("idea_taste_mode")]
     fused_entry["fusion_metadata"] = {
-        "host_idea_mode": payload.get("host_idea_mode", ""),
-        "selected_components": payload.get("selected_components", []),
-        "rejected_components": payload.get("rejected_components", []),
-        "conflicts_and_resolutions": payload.get("conflicts_and_resolutions", []),
-        "fused_core_thesis": payload.get("fused_core_thesis", ""),
-        "why_stronger_than_each_input": payload.get("why_stronger_than_each_input", ""),
-        "minimal_validation_plan": payload.get("minimal_validation_plan", ""),
+        "host_idea_mode": fusion_metadata.get("host_idea_mode", ""),
+        "selected_components": fusion_metadata.get("selected_components", []),
+        "rejected_components": fusion_metadata.get("rejected_components", []),
+        "conflicts_and_resolutions": fusion_metadata.get("conflicts_and_resolutions", []),
+        "fused_core_thesis": fusion_metadata.get("fused_core_thesis", ""),
+        "why_stronger_than_each_input": fusion_metadata.get("why_stronger_than_each_input", ""),
+        "minimal_validation_plan": fusion_metadata.get("minimal_validation_plan", ""),
     }
     if not fused_entry.get("root_domains"):
         fused_entry["root_domains"] = list(context.get("root_domains") or [])
@@ -180,14 +282,14 @@ def fuse_ligagent_pro_ideas(
         "🧬 Fusion draft:\n%s",
         json.dumps(
             {
-                "host_idea_mode": payload.get("host_idea_mode", ""),
+                "host_idea_mode": fusion_metadata.get("host_idea_mode", ""),
                 "fused_title": fused_entry.get("title"),
-                "selected_components": payload.get("selected_components", []),
-                "rejected_components": payload.get("rejected_components", []),
-                "conflicts_and_resolutions": payload.get("conflicts_and_resolutions", []),
-                "fused_core_thesis": payload.get("fused_core_thesis", ""),
-                "why_stronger_than_each_input": payload.get("why_stronger_than_each_input", ""),
-                "minimal_validation_plan": payload.get("minimal_validation_plan", ""),
+                "selected_components": fusion_metadata.get("selected_components", []),
+                "rejected_components": fusion_metadata.get("rejected_components", []),
+                "conflicts_and_resolutions": fusion_metadata.get("conflicts_and_resolutions", []),
+                "fused_core_thesis": fusion_metadata.get("fused_core_thesis", ""),
+                "why_stronger_than_each_input": fusion_metadata.get("why_stronger_than_each_input", ""),
+                "minimal_validation_plan": fusion_metadata.get("minimal_validation_plan", ""),
             },
             ensure_ascii=False,
             indent=2,
@@ -224,13 +326,13 @@ def fuse_ligagent_pro_ideas(
     experiences.extend(repair_experiences)
 
     fusion_result = {
-        "host_idea_mode": payload.get("host_idea_mode", ""),
-        "selected_components": payload.get("selected_components", []),
-        "rejected_components": payload.get("rejected_components", []),
-        "conflicts_and_resolutions": payload.get("conflicts_and_resolutions", []),
-        "fused_core_thesis": payload.get("fused_core_thesis", ""),
-        "why_stronger_than_each_input": payload.get("why_stronger_than_each_input", ""),
-        "minimal_validation_plan": payload.get("minimal_validation_plan", ""),
+        "host_idea_mode": fusion_metadata.get("host_idea_mode", ""),
+        "selected_components": fusion_metadata.get("selected_components", []),
+        "rejected_components": fusion_metadata.get("rejected_components", []),
+        "conflicts_and_resolutions": fusion_metadata.get("conflicts_and_resolutions", []),
+        "fused_core_thesis": fusion_metadata.get("fused_core_thesis", ""),
+        "why_stronger_than_each_input": fusion_metadata.get("why_stronger_than_each_input", ""),
+        "minimal_validation_plan": fusion_metadata.get("minimal_validation_plan", ""),
         "fused_entry": evaluated_entry,
         "evaluation_mode": referee_mode or "default",
     }
@@ -481,18 +583,17 @@ def _candidate_prompt_payload(entry: Dict[str, Any]) -> Dict[str, Any]:
         "title": entry.get("title"),
         "core_contribution": entry.get("core_contribution"),
         "method": entry.get("method"),
-        "evaluation": {
+        "scores": {
+            "search_score": entry.get("search_score"),
             "novelty": _nested(entry, "evaluation", "novelty"),
             "impact": _nested(entry, "evaluation", "impact"),
             "feasibility": _nested(entry, "evaluation", "feasibility"),
-            "alignment_score": _nested(entry, "evaluation", "alignment_score"),
-            "complexity_penalty": _nested(entry, "evaluation", "complexity_penalty"),
-            "protocol_score": _nested(entry, "evaluation", "protocol_score"),
-            "search_score": entry.get("search_score"),
         },
         "components": components,
-        "components_with_explanations": component_inventory_payload(components, component_explanations),
-        "edit_plan": entry.get("edit_plan"),
+        "component_explanations": {
+            component: component_explanations.get(component, "")
+            for component in components
+        },
         "target_defects": entry.get("target_defects"),
     }
 
@@ -615,7 +716,7 @@ def _repair_plan_from_payload(
         component_edits=component_edits,
         validation=validation,
         guardrails=guardrails,
-        memory_refs=list(parent_state.memory_refs)[:6],
+        memory_refs=[],
         estimated_budget_delta=_estimate_budget_delta(component_edits),
         compile_notes="Compiled from fusion repair planner using existing atomic edit operations.",
     )
@@ -662,13 +763,12 @@ def _entry_to_state(
         abstract=str(entry.get("abstract") or "").strip(),
         core_contribution=str(entry.get("core_contribution") or "").strip(),
         method=str(entry.get("method") or "").strip(),
-        experiments=str(entry.get("experiments") or "").strip(),
         risks=str(entry.get("risks") or "").strip(),
         tags=list(entry.get("tags") or []),
         operator=str(entry.get("operator") or "fusion_agent").strip(),
         target_defects=list(entry.get("target_defects") or fallback_target_defects),
         rationale=str(entry.get("rationale") or "Fused from multiple idea taste modes.").strip(),
-        memory_refs=list(entry.get("memory_refs") or []),
+        memory_refs=[],
         budget=dict(entry.get("budget") or {}),
         components=list(entry.get("components") or []),
         component_explanations=dict(entry.get("component_explanations") or {}),

@@ -8,7 +8,6 @@ from typing import Any, Dict, Mapping
 LEGACY_IDEA_ALIASES = {
     "core_contribute": "core_contribution",
     "methodology": "method",
-    "experiment_design": "experiments",
 }
 
 IDEA_CONTRACT_FIELDS = (
@@ -16,7 +15,6 @@ IDEA_CONTRACT_FIELDS = (
     "abstract",
     "core_contribution",
     "method",
-    "experiments",
     "risks",
     "tags",
     "operator",
@@ -37,7 +35,6 @@ _REQUIRED_TEXT_FIELDS = (
     "abstract",
     "core_contribution",
     "method",
-    "experiments",
 )
 
 
@@ -81,6 +78,8 @@ def normalize_idea_contract(
         raise TypeError("Idea contract must be a mapping.")
 
     raw = dict(payload)
+    raw.pop("experiments", None)
+    raw.pop("experiment_design", None)
     for legacy_key, canonical_key in LEGACY_IDEA_ALIASES.items():
         if legacy_key not in raw:
             continue
@@ -96,7 +95,6 @@ def normalize_idea_contract(
         "abstract": _as_text(raw.get("abstract")),
         "core_contribution": _as_text(raw.get("core_contribution")),
         "method": _as_text(raw.get("method")),
-        "experiments": _as_text(raw.get("experiments")),
         "risks": _as_text(raw.get("risks")),
         "tags": _as_list(raw.get("tags")),
         "operator": _as_text(raw.get("operator")),

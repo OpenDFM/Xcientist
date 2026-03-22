@@ -2,6 +2,7 @@ from src.agents.idea_agent.agent.base import AgentBase
 from src.agents.idea_agent.agent import get_logger
 from src.agents.idea_agent.utils.core.logger import get_or_create_mode_logger
 from src.agents.idea_agent.utils.core.chat_router import prepare_ligagent_chat_request
+from src.agents.idea_agent.utils.core.chat_errors import format_chat_retry_error
 
 import logging
 from typing import Any, Dict, List, Optional
@@ -160,11 +161,14 @@ class LigAgent(AgentBase):
             except Exception as exc:
                 last_exc = exc
                 wait = self.chat_retry_backoff ** (attempt - 1)
+                error_detail = format_chat_retry_error(exc)
                 logger.warning(
-                    "⚠️ Chat attempt %d/%d failed (%s). Retrying in %.2fs...",
+                    "⚠️ Chat attempt %d/%d failed for model=%s stage=%s: %s. Retrying in %.2fs...",
                     attempt,
                     self.chat_max_retries,
-                    exc,
+                    resolved_model,
+                    stage or "-",
+                    error_detail,
                     wait,
                 )
                 time.sleep(wait)

@@ -23,7 +23,7 @@ def _is_gpt5_family(model: str) -> bool:
 
 def _is_gemini_3_pro_family(model: str) -> bool:
     normalized = str(model or "").strip().lower()
-    return normalized.startswith("gemini-3-pro")
+    return normalized.startswith(("gemini-3-pro", "gemini-3.1-pro"))
 
 
 def _is_claude_opus_4_6_family(model: str) -> bool:

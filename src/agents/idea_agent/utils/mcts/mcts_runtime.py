@@ -438,6 +438,20 @@ class SkillCatalog:
         skill_lines = "\n".join(skill.to_prompt_line() for skill in chosen)
         return f"{op_ref}\n\nAvailable edit-operator skills:\n{skill_lines}"
 
+    def render_references_for_prompt(self, skill_name: str) -> str:
+        skill = self.skills[skill_name]
+        if skill.source_path == "builtin-default":
+            return "None."
+        reference_dir = Path(skill.source_path).parent / "references"
+        if not reference_dir.exists():
+            return "None."
+        sections: List[str] = []
+        for reference_file in sorted(reference_dir.glob("*.md")):
+            content = reference_file.read_text(encoding="utf-8").strip()
+            if content:
+                sections.append(f"== {reference_file.name} ==\n{content}")
+        return "\n\n".join(sections) if sections else "None."
+
     def select_skills(
         self,
         defect_tags: Sequence[str],
@@ -939,7 +953,6 @@ def materialize_child_state(
     )
     core = inst.get("core_contribution") or plan.objective
     method = inst.get("method") or plan_to_method_text(plan)
-    experiments = inst.get("experiments") or plan_to_experiment_text(plan)
     risks = inst.get("risks") or (
         f"Guardrails: {'; '.join(plan.guardrails)} | Budget delta: {plan.estimated_budget_delta}"
     )
@@ -961,7 +974,6 @@ def materialize_child_state(
         abstract=abstract,
         core_contribution=core,
         method=method,
-        experiments=experiments,
         risks=risks,
         tags=tags,
         operator=plan.skill_name,
@@ -1006,6 +1018,7 @@ def instantiate_skill_plan_for_node(
         parent_components=", ".join(parent_state.components) if parent_state.components else "None",
         paper_context=mcts.paper_context,
         memory_bundle=bundle.to_prompt_block(),
+        skill_references=mcts.skill_catalog.render_references_for_prompt(plan.skill_name),
         additional_retrieval_context=additional_retrieval_context,
         skill_name=plan.skill_name,
         plan_objective=plan.objective,
@@ -1722,10 +1735,6 @@ def build_root_state(
         abstract = mature_idea
         core = mature_idea
         method = mature_idea
-        experiments = (
-            "Treat the mature idea as the contract root and evaluate only incremental refinements "
-            "with fair baselines, ablations, and stress tests."
-        )
         risks = "Primary risk is mechanism drift away from the mature idea during refinement."
         tags = ["seed", "mature_idea", "contract_root"]
         rationale = "Starting point anchored directly in the provided mature idea."
@@ -1735,7 +1744,6 @@ def build_root_state(
         abstract = latest.get("abstract", "")
         core = latest.get("core_contribution", "")
         method = latest.get("method", "")
-        experiments = latest.get("experiments", "")
         risks = latest.get("risks", latest.get("evaluation", ""))
         tags = latest.get("tags")
         rationale = "Starting point from the latest candidate in the current run."
@@ -1749,7 +1757,6 @@ def build_root_state(
         abstract = latest.get("abstract", "")
         core = latest.get("core_contribution", "")
         method = latest.get("method", "")
-        experiments = latest.get("experiments", "")
         risks = latest.get("risks", latest.get("evaluation", ""))
         tags = latest.get("tags")
         rationale = "Starting point from the explicit root idea produced by advanced analysis."
@@ -1762,7 +1769,6 @@ def build_root_state(
         abstract = background[-1] if background else "Kick-off seed idea from analysis."
         core = "Seed idea derived from current analysis and background knowledge."
         method = "Synthesize referenced methods and expose unresolved bottlenecks."
-        experiments = "Use reported baselines and add defect-oriented checks."
         risks = "Need fairness checks and failure-mode surfacing."
         tags = ["seed"]
         rationale = "Starting point from existing analysis and background knowledge."
@@ -1783,7 +1789,6 @@ def build_root_state(
         abstract=str(abstract),
         core_contribution=str(core),
         method=str(method),
-        experiments=str(experiments),
         risks=str(risks),
         tags=[str(t) for t in tags] if isinstance(tags, list) else [str(tags)],
         operator="seed",

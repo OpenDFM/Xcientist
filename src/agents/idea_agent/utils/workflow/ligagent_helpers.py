@@ -744,7 +744,6 @@ def extract_root_idea_from_analysis(
                 "abstract": f"Root idea derived from topic '{topic}'.",
                 "core_contribution": "Establish a concrete mechanism-level root idea from analysis.",
                 "method": "Synthesize the dominant method cluster with one explicit gap-closing mechanism.",
-                "experiments": "Validate against the main baselines and gap-focused stress tests.",
                 "risks": "Risk of under-specifying the mechanism before search refinement.",
                 "target_defects": ["unclear_mechanism"],
                 "rationale": "Fallback root idea because structured analysis output was unavailable.",
@@ -785,9 +784,6 @@ def extract_root_idea_from_analysis(
     abstract_parts = [part for part in [tldr, problem_text, gap_text] if part]
     core = future_text or gap_text or problem_text or tldr or f"Root idea for {topic}."
     method = method_text or "Use the dominant method family as the starting mechanism and refine it during search."
-    experiments = (
-        f"Run fair baselines and targeted stress tests for: {gap_text or problem_text or 'the main open gap'}."
-    )
     risks = problem_text or "The root idea may still be under-specified before search refinement."
     return normalize_idea_contract(
         {
@@ -795,7 +791,6 @@ def extract_root_idea_from_analysis(
             "abstract": " ".join(abstract_parts) or f"Root idea derived from topic '{topic}'.",
             "core_contribution": core,
             "method": method,
-            "experiments": experiments,
             "risks": risks,
             "target_defects": ["unclear_mechanism"],
             "rationale": "Root idea synthesized from the latest advanced analysis.",
@@ -884,7 +879,6 @@ def convert_analysis_candidates_to_ideas(seeds: Any) -> List[Dict[str, Any]]:
                     ),
                     "core_contribution": differentiator or hypothesis or method or "Analysis-seeded moonshot hypothesis.",
                     "method": method or "Derived from divergent analysis seed; requires fleshing out.",
-                    "experiments": evaluation_plan or "Design ICML-grade evaluation including failure-surface probes.",
                     "risks": risk or "High novelty risk; feasibility unknown.",
                     "tags": tags,
                     "operator": "analysis_root_candidate",
@@ -905,18 +899,14 @@ def build_algorithm_spec(
     model: str,
     logger,
 ) -> List[Dict[str, Any]]:
-    idea = normalize_idea_contract(idea, keep_extra=True)
-    idea_for_prompt = {
-        key: value
-        for key, value in idea.items()
-        if key not in {"search_path", "search_trace", "pareto_candidates", "evaluation"}
-    }
+    idea = normalize_idea_contract(idea)
+    idea_for_prompt = _algorithm_prompt_payload(idea)
 
     prompt = prompts["algorithm_structuring"].format(
         topic=topic,
         idea_title=idea.get("title", ""),
         idea_abstract=idea.get("abstract", ""),
-        idea=json.dumps(idea_for_prompt, ensure_ascii=False, indent=2),
+        idea=json.dumps(idea_for_prompt, ensure_ascii=False, separators=(",", ":")),
     )
     try:
         response = chat_fn(
@@ -938,6 +928,22 @@ def build_algorithm_spec(
     return fallback_algorithm_spec(idea)
 
 
+def _algorithm_prompt_payload(idea: Dict[str, Any]) -> Dict[str, Any]:
+    components = idea.get("components") or []
+    component_explanations = idea.get("component_explanations") or {}
+    return {
+        "core_contribution": idea.get("core_contribution"),
+        "method": idea.get("method"),
+        "components": components,
+        "component_explanations": {
+            component: component_explanations.get(component, "")
+            for component in components
+        },
+        "target_defects": idea.get("target_defects") or [],
+        "root_domains": idea.get("root_domains") or [],
+    }
+
+
 def align_algorithms_with_idea(
     idea: Dict[str, Any],
     algorithms: List[Dict[str, Any]],
@@ -954,6 +960,13 @@ def align_algorithms_with_idea(
     prompt = prompts["algorithm_alignment"].format(
         idea_title=title,
         idea_abstract=abstract or "No abstract provided.",
+        idea_method=idea.get("method", "") or "No method provided.",
+        components=json.dumps(idea.get("components") or [], ensure_ascii=False),
+        component_explanations=json.dumps(
+            idea.get("component_explanations") or {},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
         algorithms=json.dumps(algorithms, ensure_ascii=False, indent=2),
     )
     prompt += "\nDirectly output JSON."

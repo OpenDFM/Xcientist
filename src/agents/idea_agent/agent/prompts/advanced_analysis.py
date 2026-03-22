@@ -62,7 +62,6 @@ Return STRICT JSON (no prose, no Markdown) with the schema:
     "abstract": "one concrete root idea abstract; should read like a refined version of the current idea when mature_idea is provided",
     "core_contribution": "main mechanism-level claim; keep it close to the current idea unless evidence forces a local correction",
     "method": "specific method sketch with modules/objective/training contract; prefer local edits over new paradigms",
-    "experiments": "fair validation protocol that proves the mechanism patch against named gaps",
     "risks": "main scientific/engineering risks",
     "target_defects": ["..."],
     "rationale": "why this is the best calibrated 1.1 starting point from the extracted survey gaps",
