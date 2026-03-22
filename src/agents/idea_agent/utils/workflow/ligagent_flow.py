@@ -216,6 +216,7 @@ def build_idea_result_payload(
     payload = {
         "title": best_entry.get("title"),
         "abstract": best_entry.get("abstract"),
+        "method": best_entry.get("method"),
         "introduction": introduction,
         "components": component_entries,
         "algorithm": algorithm,
