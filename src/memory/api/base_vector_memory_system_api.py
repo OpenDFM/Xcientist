@@ -12,7 +12,7 @@ from memory.memory_system import (
 
 class VectorMemorySystemConfig(BaseModel):
     memory_type: Literal["semantic", "episodic", "procedural", "working"] = "semantic"
-    model_path: str = Field(".cache/all-MiniLM-L6-v2", description="Path to the model used for vector embeddings.")
+    model_path: str = Field("sentence-transformers/all-MiniLM-L6-v2", description="Path to the model used for vector embeddings.")
     llm_name: str = Field("gpt-4o-mini", description="Name of the LLM model to be used.")
     llm_backend: Literal["openai", "vllm"] = "openai"
     eps: Optional[float] = Field(0.6, description="Mu parameter for Denstream.")

@@ -1,0 +1,43 @@
+{
+  "agent_type": "PrepareAgent",
+  "conversation_id": "b282ff33-992c-460a-8979-efc43136f71f",
+  "workspace_root": "/aistor/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent",
+  "generated_at": "2026-03-17T14:18:39.472817+00:00",
+  "stats": {
+    "usage_to_metrics": {}
+  },
+  "combined_metrics": {
+    "model_name": "default",
+    "accumulated_cost": 0.0,
+    "max_budget_per_task": null,
+    "accumulated_token_usage": {
+      "model": "default",
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "reasoning_tokens": 0,
+      "context_window": 0,
+      "per_turn_token": 0,
+      "response_id": ""
+    },
+    "costs": [],
+    "response_latencies": [],
+    "token_usages": []
+  },
+  "secret_names": [
+    "DBUS_SESSION_BUS_ADDRESS",
+    "GITHUB_AI_TOKEN",
+    "HF_TOKEN",
+    "JINA_API_KEY",
+    "MINIMAX_API_KEY",
+    "OPENAI_API_KEY",
+    "S2_API_KEY",
+    "SEMANTIC_SCHOLAR_API_KEY",
+    "SERPER_API_KEY",
+    "XDG_SESSION_CLASS",
+    "XDG_SESSION_ID",
+    "XDG_SESSION_TYPE",
+    "XIAOMI_API_KEY"
+  ]
+}

@@ -196,22 +196,16 @@ python src/agents/idea_agent/run.py
 | `EXPERIMENT_AGENT_MEMORY_WRITEBACK` | Memory writeback | 1 |
 | `EXPERIMENT_AGENT_MEMORY_TOOL_LOGS` | Tool logging | 0 |
 | `AGENT_BASH_TIMEOUT_SECONDS` | Bash timeout (ms) | 600000 |
-| `CODEAGENT_WORKSPACES_DIR` | Workspace root dir | `workspaces/` |
+| `EXPERIMENT_AGENT_WORKSPACE_DIR` | Experiment workspace dir | `workspace/<experiment>` |
 
-**Model configuration** (in `src/agents/experiment_agent/shared/utils/config.py`):
+**Model configuration** (in `src/config/default.yaml` under `experiment.models`):
 
 ```python
-# Code Layer
-CODE_ARCHITECT_MODEL = "gpt-5.1"
-CODE_MANAGER_MODEL = "MiniMax-M2.1"
-CODE_WORKER_MODEL = "MiniMax-M2.1"
-CODE_INTEGRATOR_MODEL = "MiniMax-M2.1"
-
-# Science Layer
-SCIENCE_ARCHITECT_MODEL = "MiniMax-M2.1"
-SCIENCE_MANAGER_MODEL = "MiniMax-M2.1"
-SCIENCE_WORKER_MODEL = "MiniMax-M2.1"
-SCIENCE_INTEGRATOR_MODEL = "MiniMax-M2.1"
+prepare = "MiniMax-M2.7"
+code = "MiniMax-M2.7"
+master = "MiniMax-M2.7"
+science = "MiniMax-M2.7"
+default = "MiniMax-M2.7"
 
 # Prepare Layer
 PREPARE_AGENT_MODEL = "MiniMax-M2.1"

@@ -41,7 +41,7 @@ def generate_background_brief(
         return None
     prompt = template.format(topic=topic)
     try:
-        payload = parse_json_response(chat_fn(prompt, model=model))
+        payload = parse_json_response(chat_fn(prompt, model=model, max_output_tokens=4096))
     except Exception as exc:  # pragma: no cover - network
         logger.warning("⚠️ Failed to bootstrap background knowledge for %s: %s", topic, exc)
         return None

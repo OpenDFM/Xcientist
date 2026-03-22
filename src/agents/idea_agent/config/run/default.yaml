@@ -4,11 +4,12 @@ run:
   output_root: "runs"
   console_logs: true
   rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
-  openai_api_key: "sk-TUkxt3aRk2RqY94xEaEd4d5eE66d40298a27279aD83b4b43"
+  # Use env var for key, but hardcode working endpoint for URL
+  openai_api_key: "${OPENAI_API_KEY}"
   openai_base_url: "https://api.xi-ai.cn/v1"
-  s2_api_key: "1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ"
+  s2_api_key: "${SEMANTIC_SCHOLAR_API_KEY}"
   s2_api_timeout: "60"
-  serper_api_key: "7c7ca61c4c665f666902d03f3bca49c4b4b5bed4"
+  serper_api_key: "${SERPER_API_KEY}"
   serper_api_endpoint: "https://google.serper.dev/search"
   mineru_model_source: "modelscope"
   topics: ["Diffusion Models for Reinforcement Learning in Games"]

@@ -37,7 +37,7 @@ class VectorStore(ABC):
         ...
 
 class FaissVectorStore(VectorStore):
-    def __init__(self, model_path: str = ".cache/all-MiniLM-L6-v2", memory_type: str = "semantic"):
+    def __init__(self, model_path: str = "all-MiniLM-L6-v2", memory_type: str = "semantic"):
         model_source = str(model_path)
         candidate = Path(model_source).expanduser()
         if candidate.is_absolute():

@@ -11,57 +11,101 @@ from agents import (
 from openai import AsyncOpenAI
 
 
+def _cfg_get(cfg: Any, path: str, default: Any = None) -> Any:
+    cur = cfg
+    for key in str(path).split("."):
+        if cur is None:
+            return default
+        if isinstance(cur, dict):
+            cur = cur.get(key)
+            continue
+        if hasattr(cur, key):
+            cur = getattr(cur, key)
+            continue
+        if hasattr(cur, "get"):
+            cur = cur.get(key)
+            continue
+        return default
+    return default if cur is None else cur
+
+
+paper_cfg = None
+experiment_cfg = None
+survey_cfg = None
+try:
+    from src.config import load_config
+
+    cfg_root = load_config()
+    survey_cfg = _cfg_get(cfg_root, "survey", {})
+    experiment_cfg = _cfg_get(cfg_root, "experiment", {})
+    paper_cfg = _cfg_get(cfg_root, "paper", {})
+except Exception:
+    paper_cfg = {}
+    experiment_cfg = {}
+    survey_cfg = {}
+
+
 PAPER_AGENT_ENABLE_TRACING: bool = os.environ.get(
     "PAPER_AGENT_ENABLE_TRACING", "0"
 ).strip().lower() in ("1", "true", "yes", "y", "on")
 
 
-# OpenAI Configuration
 OPENAI_API_KEY: Optional[str] = os.environ.get(
-    "OPENAI_API_KEY", "sk-BWZ0Kqbk3PvdF0zRFf69B63901B84e85A5B4D8B1AfE27e2e"
+    "OPENAI_API_KEY",
+    str(_cfg_get(paper_cfg, "api.openai_api_key", "") or _cfg_get(experiment_cfg, "api.openai_api_key", "") or ""),
 )
 OPENAI_API_BASE: Optional[str] = os.environ.get(
-    "OPENAI_API_BASE", "https://api.xi-ai.cn/v1"
+    "OPENAI_API_BASE",
+    str(
+        _cfg_get(paper_cfg, "api.openai_api_base", "")
+        or _cfg_get(experiment_cfg, "api.openai_api_base", "")
+        or ""
+    ),
 )
 
 MINIMAX_API_KEY: Optional[str] = os.environ.get(
     "MINIMAX_API_KEY",
-    "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJHcm91cE5hbWUiOiLkvIEiLCJVc2VyTmFtZSI6IuS8gSIsIkFjY291bnQiOiIiLCJTdWJqZWN0SUQiOiIxOTk4MjcyNjcyNjM0NTA3NTQ0IiwiUGhvbmUiOiIxODk4NTU0MDc2NiIsIkdyb3VwSUQiOiIxOTk4MjcyNjcyNjMwMzEzMjQwIiwiUGFnZU5hbWUiOiIiLCJNYWlsIjoiIiwiQ3JlYXRlVGltZSI6IjIwMjUtMTItMTAgMTQ6MTQ6NTMiLCJUb2tlblR5cGUiOjQsImlzcyI6Im1pbmltYXgifQ.hvIJx5NfyV-53iYcS7AMkwooAK4yLv00ZMW0CojFki_S0qXfBECOFozLVcSVcS_-Lbn1ttS6_ZQmuFOZLzZbMz679Svq_ffebftANne4fUQheFrdWMiI48JBvzVH5aDL85cxyLyLU4zfujrE1tpEkfOWddgASMpSzZmK-uiivOOPJqAoMQI76kyZbuVTIIMjXYmsTKsYpmj83ggnpHFT8E2pmXBnQyL_5IRwDRLyN4VKSRUjSRvjo8z4_QE_f1ubGLThJgnCeb0mS5nVtjg9rGcBHmRsvJoTwLKPSRv8lCaEvGTM9U8UVvOcMIt9Y3BgBT2tuUvDXJt-VGAnw3OfhA",
+    str(_cfg_get(paper_cfg, "api.minimax_api_key", "") or _cfg_get(experiment_cfg, "api.minimax_api_key", "") or ""),
 )
-MINIMAX_API_BASE: Optional[str] = "https://api.minimaxi.com/v1"
+MINIMAX_API_BASE: Optional[str] = str(
+    os.environ.get(
+        "MINIMAX_API_BASE",
+        _cfg_get(paper_cfg, "api.minimax_api_base", "")
+        or _cfg_get(experiment_cfg, "api.minimax_api_base", "")
+        or "https://api.minimaxi.com/v1",
+    )
+)
 MINIMAX_MODEL_EXTRA_BODY: dict = {"reasoning_split": True}
-MINIMAX_MODELS: list = ["MiniMax-M2.1"]
+MINIMAX_MODELS: list = ["MiniMax-M2.1", "MiniMax-M2.5", "MiniMax-Text-01"]
 
-XIAOMI_API_KEY: str = "sk-c8bwnop3bi1nahlzx98ga7o0kqgr8u9h0bpv6zri28hp2x20"
-XIAOMI_API_BASE: str = "https://api.xiaomimimo.com/v1/"
-XIAOMI_MODELS: list = ["mimo-v2-flash"]
-
-LATEX_TEMPLATE_DIR = "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/paper_agent/latex/ICML2025_Template"
+LATEX_TEMPLATE_DIR = str(
+    os.environ.get(
+        "PAPER_AGENT_LATEX_TEMPLATE_DIR",
+        _cfg_get(paper_cfg, "template_dir", "")
+        or "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/paper_agent/latex/ICML2025_Template",
+    )
+)
 PAPER_COMPILE_DOCKER_IMAGE: Optional[str] = os.environ.get(
     "PAPER_COMPILE_DOCKER_IMAGE", "texlive/texlive:latest"
 )
 
 
+_paper_models = dict(_cfg_get(paper_cfg, "models", {}) or {})
+_paper_default_model = str(_cfg_get(paper_cfg, "model", "") or _paper_models.get("default") or "MiniMax-M2.1")
 
-PAPER_ARCHITECT_MODEL = "MiniMax-M2.1"
-PAPER_WRITER_MODEL = "MiniMax-M2.1"
-PAPER_REVIEWER_MODEL = "MiniMax-M2.1"
-PAPER_ANALYSIS_MODEL = "MiniMax-M2.1"
-PAPER_LITERATURE_MODEL = "MiniMax-M2.1"
-PAPER_VIZ_MODEL = "MiniMax-M2.1"
-PAPER_VLM_MODEL = "gpt-4o"
+PAPER_ARCHITECT_MODEL = str(_paper_models.get("architect") or _paper_default_model)
+PAPER_WRITER_MODEL = str(_paper_models.get("writer") or _paper_default_model)
+PAPER_REVIEWER_MODEL = str(_paper_models.get("review") or _paper_default_model)
+PAPER_ANALYSIS_MODEL = str(_paper_models.get("analysis") or _paper_default_model)
+PAPER_LITERATURE_MODEL = str(_paper_models.get("literature") or _paper_default_model)
+PAPER_VIZ_MODEL = str(_paper_models.get("viz") or _paper_default_model)
+PAPER_VLM_MODEL = str(_paper_models.get("vlm") or "gpt-4o")
 
 
 def is_minimax_model(model_name: str) -> bool:
     if not model_name:
         return False
     return any(m.lower() in str(model_name).lower() for m in MINIMAX_MODELS)
-
-
-def is_xiaomi_model(model_name: str) -> bool:
-    if not model_name:
-        return False
-    return any(m.lower() in str(model_name).lower() for m in XIAOMI_MODELS)
 
 
 def get_openai_config(model: Optional[str] = None) -> dict:
@@ -77,18 +121,10 @@ def get_openai_config(model: Optional[str] = None) -> dict:
             "extra_body": MINIMAX_MODEL_EXTRA_BODY,
             "is_minimax": True,
         }
-    if is_xiaomi_model(model_name):
-        return {
-            "api_key": XIAOMI_API_KEY,
-            "model_name": model_name,
-            "base_url": XIAOMI_API_BASE,
-            "is_xiaomi": True,
-        }
     cfg = {
         "api_key": OPENAI_API_KEY,
         "model_name": model_name,
         "is_minimax": False,
-        "is_xiaomi": False,
     }
     if OPENAI_API_BASE:
         cfg["base_url"] = OPENAI_API_BASE
@@ -104,10 +140,16 @@ def get_bash_timeout_seconds() -> int:
 
 def get_semantic_scholar_config() -> Tuple[str, str]:
     base = os.environ.get(
-        "SEMANTIC_SCHOLAR_API_BASE", "https://api.semanticscholar.org"
+        "SEMANTIC_SCHOLAR_API_BASE",
+        str(_cfg_get(paper_cfg, "api.semantic_scholar_api_base", "") or "https://api.semanticscholar.org"),
     ).rstrip("/")
     key = os.environ.get(
-        "SEMANTIC_SCHOLAR_API_KEY", "1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ"
+        "SEMANTIC_SCHOLAR_API_KEY",
+        str(
+            _cfg_get(paper_cfg, "api.semantic_scholar_api_key", "")
+            or _cfg_get(survey_cfg, "api.semantic_scholar_api_key", "")
+            or ""
+        ),
     ).strip()
     return base, key
 
@@ -224,13 +266,18 @@ _AGENTS_DIR = os.path.dirname(_PAPER_AGENT_DIR)  # .../agents
 
 # Paper agent workspaces (separate from experiment_agent workspaces)
 BASE_WORKSPACES_DIR: str = os.environ.get(
-    "PAPER_AGENT_WORKSPACES_DIR", os.path.join(_PAPER_AGENT_DIR, "workspaces")
+    "PAPER_AGENT_WORKSPACES_DIR",
+    str(_cfg_get(paper_cfg, "workspace.root", "") or os.path.join(_PAPER_AGENT_DIR, "workspaces")),
 ).strip()
 
 # Experiment agent workspaces root (read-only input for paper_agent)
 EXPERIMENT_WORKSPACES_DIR: str = os.environ.get(
     "EXPERIMENT_AGENT_WORKSPACES_DIR",
-    os.path.join(_AGENTS_DIR, "experiment_agent", "workspaces"),
+    str(
+        _cfg_get(paper_cfg, "workspace.experiment_root", "")
+        or _cfg_get(experiment_cfg, "workspace.root", "")
+        or os.path.join(_AGENTS_DIR, "experiment_agent", "workspaces")
+    ),
 ).strip()
 
 
@@ -255,7 +302,7 @@ def setup_openai_api(model: Optional[str] = None, verbose: bool = False) -> bool
         if not api_key:
             if verbose:
                 print(
-                    "✗ API key is not set (OPENAI_API_KEY / MINIMAX_API_KEY / XIAOMI_API_KEY)"
+                    "✗ API key is not set (OPENAI_API_KEY / MINIMAX_API_KEY)"
                 )
             return False
 

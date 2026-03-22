@@ -196,22 +196,16 @@ python src/agents/idea_agent/run.py
 | `EXPERIMENT_AGENT_MEMORY_WRITEBACK` | 记忆写回 | 1 |
 | `EXPERIMENT_AGENT_MEMORY_TOOL_LOGS` | 记录工具日志 | 0 |
 | `AGENT_BASH_TIMEOUT_SECONDS` | Bash超时(毫秒) | 600000 |
-| `CODEAGENT_WORKSPACES_DIR` | 工作空间根目录 | `workspaces/` |
+| `EXPERIMENT_AGENT_WORKSPACE_DIR` | 实验工作空间目录 | `workspace/<experiment>` |
 
-**模型配置**（在 `src/agents/experiment_agent/shared/utils/config.py` 中）：
+**模型配置**（在 `src/config/default.yaml` 的 `experiment.models` 下）：
 
 ```python
-# Code Layer
-CODE_ARCHITECT_MODEL = "gpt-5.1"
-CODE_MANAGER_MODEL = "MiniMax-M2.1"
-CODE_WORKER_MODEL = "MiniMax-M2.1"
-CODE_INTEGRATOR_MODEL = "MiniMax-M2.1"
-
-# Science Layer
-SCIENCE_ARCHITECT_MODEL = "MiniMax-M2.1"
-SCIENCE_MANAGER_MODEL = "MiniMax-M2.1"
-SCIENCE_WORKER_MODEL = "MiniMax-M2.1"
-SCIENCE_INTEGRATOR_MODEL = "MiniMax-M2.1"
+prepare = "MiniMax-M2.7"
+code = "MiniMax-M2.7"
+master = "MiniMax-M2.7"
+science = "MiniMax-M2.7"
+default = "MiniMax-M2.7"
 
 # Prepare Layer
 PREPARE_AGENT_MODEL = "MiniMax-M2.1"

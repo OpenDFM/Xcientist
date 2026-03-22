@@ -54,9 +54,14 @@ class AgentBase:
         Interact with the chat model using the given prompt.
         Returns the response text.
         """
+        # Debug: log the call parameters
+        print(f"[DEBUG chat] model={model}, prompt_len={len(prompt)}, kwargs={kwargs}")
+
+        # Use responses.create() without streaming, keep reasoning parameter
         response = self.chat_model.responses.create(
             model=model,
             input=[{"role": "user", "content": prompt}],
             **kwargs
         )
+
         return response.output_text

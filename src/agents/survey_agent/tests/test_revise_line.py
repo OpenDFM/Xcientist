@@ -18,7 +18,7 @@ MODEL = "mimo-v2-flash"
 # ========== CONFIG ==========
 # client = OpenAI(
 #     api_key="sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f",
-#     base_url="https://api.xi-ai.cn/v1/"
+#     base_url="http://122.193.22.114:8889/v1/"
 # )
 # MODEL = "gpt-4o-mini"
 # ============================

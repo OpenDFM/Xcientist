@@ -5,6 +5,7 @@ import itertools
 import json
 import logging
 import math
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
@@ -81,17 +82,34 @@ module_logger = get_logger()
 
 
 def _load_mcts_defaults() -> Dict[str, Any]:
-    if OmegaConf is None:
-        return {}
-    config_path = Path(__file__).resolve().parents[1] / "config" / "mcts" / "default.yaml"
-    config = OmegaConf.load(config_path)
-    mcts_config = config.get("mcts") if hasattr(config, "get") else None
-    if mcts_config is None:
-        return {}
-    try:
-        return OmegaConf.to_container(mcts_config, resolve=True) or {}
-    except Exception:
-        return dict(mcts_config) if isinstance(mcts_config, dict) else {}
+    import os
+    defaults = {}
+
+    # 首先检查环境变量（全局配置优先）
+    if os.environ.get("IDEA_MCTS_GENERATION_MODEL"):
+        defaults["generation_model"] = os.environ["IDEA_MCTS_GENERATION_MODEL"]
+    if os.environ.get("IDEA_MCTS_EVALUATION_MODEL"):
+        defaults["evaluation_model"] = os.environ["IDEA_MCTS_EVALUATION_MODEL"]
+
+    # 如果环境变量未设置，则从本地配置文件读取
+    if not defaults:
+        if OmegaConf is None:
+            return {}
+        config_path = Path(__file__).resolve().parents[1] / "config" / "mcts" / "default.yaml"
+        config = OmegaConf.load(config_path)
+        mcts_config = config.get("mcts") if hasattr(config, "get") else None
+        if mcts_config is None:
+            return {}
+        try:
+            file_defaults = OmegaConf.to_container(mcts_config, resolve=True) or {}
+            # 合并文件配置（不覆盖已设置的环境变量）
+            for k, v in file_defaults.items():
+                if k not in defaults:
+                    defaults[k] = v
+        except Exception:
+            pass
+
+    return defaults
 
 
 _MCTS_DEFAULTS = _load_mcts_defaults()

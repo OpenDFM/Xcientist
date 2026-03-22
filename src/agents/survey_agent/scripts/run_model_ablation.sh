@@ -8,7 +8,7 @@ python3 scripts/run_deep_survey_batch_settings.py \
   BasicInfo.topic_max_retry=2 \
   BasicInfo.debug=false \
   APIInfo.llm_api_key= \
-  APIInfo.llm_api_base_url=https://api.xi-ai.cn/v1/chat/completions \
+  APIInfo.llm_api_base_url=http://122.193.22.114:8889/v1/chat/completions \
   APIInfo.llm_model_name=gpt-4o-mini \
   APIInfo.llm_max_context_length=128000 \
   APIInfo.llm_max_context_overhead_length=50000 \

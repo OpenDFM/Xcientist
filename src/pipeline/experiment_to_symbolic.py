@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 from memory.api.symbolic_memory_system_api import SymbolicMemorySystem
 from memory.api.base_symbolic_memory_system_api import SymbolicRecordPayload
 
-from .config import PipelineConfig, get_default_config
+from src.config import load_config
 
 
 def normalize_component_family(
@@ -16,8 +16,8 @@ def normalize_component_family(
     known_roles: Optional[List[str]] = None,
 ) -> str:
     if not known_roles:
-        config = get_default_config()
-        known_roles = config.default_macro_roles
+        config = load_config()
+        known_roles = list(config.pipeline.get("default_macro_roles", []))
 
     # Try to extract macro_role from suffix (e.g., 'flow_matching_generator' -> 'generator')
     parts = component_name.lower().split("_")
@@ -83,11 +83,12 @@ def convert_ablation_to_symbolic_memory(
     idea_components: Optional[List[Dict[str, Any]]] = None,
     experiment_id: str = "",
     symbolic_memory_path: Optional[str] = None,
-    config: Optional[PipelineConfig] = None,
+    config: Optional[Any] = None,
 ) -> List[Dict[str, Any]]:
-    config = config or get_default_config()
+    config = config or load_config()
+    pipeline_cfg = config.pipeline
     if symbolic_memory_path is None:
-        symbolic_memory_path = str(config.symbolic_memory_path)
+        symbolic_memory_path = str(pipeline_cfg.get("symbolic_memory_path", "idea_skill_priors"))
 
     # Load ablation results
     ablation_data = load_ablation_results(ablation_path)
@@ -112,7 +113,10 @@ def convert_ablation_to_symbolic_memory(
         delta_score = compute_delta_score(result_type, value, confidence)
 
         # Normalize component family
-        component_family = normalize_component_family(comp_id, config.default_macro_roles)
+        component_family = normalize_component_family(
+            comp_id,
+            list(pipeline_cfg.get("default_macro_roles", [])),
+        )
 
         # Build the payload
         payload = SymbolicRecordPayload(
@@ -120,7 +124,14 @@ def convert_ablation_to_symbolic_memory(
             pattern=f"Experiment result: {comp_result.get('metric', 'N/A')} = {value}",
             conditions=[],
             actions=[f"ablation_{result_type}"],
-            rationale=comp_result.get("analysis", ""),
+            rationale=(
+                comp_result.get("analysis", "")
+                + (
+                    f"\n\nMethod context: {comp_result.get('method_context', '')}"
+                    if comp_result.get("method_context")
+                    else ""
+                )
+            ),
             expected_outcomes=[],
             anti_patterns=[] if result_type == "positive" else [comp_id],
             tags=["ablation", "experiment_result", comp_id, result_type],
@@ -134,6 +145,8 @@ def convert_ablation_to_symbolic_memory(
                 "metric": comp_result.get("metric"),
                 "value": value,
                 "component_id": comp_id,
+                "method_context": comp_result.get("method_context"),
+                "supporting_diagnostics": comp_result.get("supporting_diagnostics"),
             },
             component_family=component_family,
             family_pair="",

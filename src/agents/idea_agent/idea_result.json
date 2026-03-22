@@ -1,0 +1,1402 @@
+{
+  "title": "Epistemic Adversarial Benchmark (EAB): Rewarding Uncertainty Resolution over Consistency",
+  "abstract": "Current RL for LLM reasoning relies on verifiable rewards or consistency heuristics (CoVo), which fail to detect 'silent hallucinations' where the model is confidently wrong. We propose the Epistemic Adversarial Benchmark (EAB), a new evaluation contract that actively probes for epistemic failure. EAB generates problems with known logical traps or ambiguous premises, requiring the model to flag uncertainty and explicitly resolve it. We introduce a metric, Uncertainty-Resolution Score (URS), which penalizes high confidence on incorrect steps and rewards the reduction of uncertainty through self-correction. This forces the training objective to shift from 'be correct' to 'be calibrated and robust'.",
+  "introduction": "Reinforcement Learning with Verifiable Rewards (RLVR) has emerged as a dominant paradigm for enhancing the reasoning capabilities of Large Language Models (LLMs). However, current methods are constrained by a fundamental limitation in their reward design: they primarily incentivize final-answer correctness or intermediate consistency, creating a blind spot for 'silent hallucinations' where the model is confidently wrong. Recent work has sought to address this by leveraging intrinsic signals. For instance, \"Consistent Paths Lead to Truth: Self-Rewarding Reinforcement Learning for LLM Reasoning\" (CoVo) proposes rewarding the consistency of intermediate reasoning states, while \"Beyond the 80/20 Rule: High-Entropy Minority Tokens Drive Effective Reinforcement Learning for LLM Reasoning\" identifies that effective RL training focuses on high-entropy, difficult tokens. Despite these advances, a critical gap remains: existing reward mechanisms lack a rigorous contract for evaluating and penalizing epistemic uncertainty. Models trained via CoVo may still converge on consistent but incorrect paths, and methods focusing on token entropy do not explicitly force the model to acknowledge and resolve ambiguity.\n\nTo bridge this gap, we propose the Epistemic Adversarial Benchmark (EAB), a new evaluation and training protocol designed to reward uncertainty resolution over mere consistency. Unlike \"SwS: Self-aware Weakness-driven Problem Synthesis in Reinforcement Learning for LLM Reasoning,\" which synthesizes problems based on failure rates, EAB generates problems with known logical traps or ambiguous premises that require the model to explicitly flag and resolve uncertainty. We introduce a novel metric, the Uncertainty-Resolution Score (URS), which penalizes high confidence on incorrect steps and rewards self-correction. This shifts the training objective from 'be correct' to 'be calibrated and robust'. By integrating insights from the high-entropy token analysis in \"Beyond the 80/20 Rule,\" EAB specifically targets the reasoning steps where the model is most uncertain, ensuring that the RL signal is applied where it is most needed to prevent silent failures.",
+  "algorithm": [
+    {
+      "name": "Epistemic Trap Generator",
+      "input": [
+        "Seed problem (e.g., math word problem, logic puzzle)",
+        "Template library for logical contradictions",
+        "Ambiguity injection parameters"
+      ],
+      "output": [
+        "Adversarial problem instance",
+        "Ground truth solution",
+        "Metadata identifying the logical trap location"
+      ],
+      "pipeline": [
+        "Step 1: Ingest a seed problem and parse its logical structure to identify core dependencies.",
+        "Step 2: Apply 'Epistemic Trap Injection' to introduce subtle premise contradictions or parameter ambiguities (e.g., changing a variable in one equation but not a related one) specifically designed to induce silent hallucinations.",
+        "Step 3: Verify that the modified problem contains a solvable path only if the trap is explicitly identified and resolved, ensuring the problem tests epistemic robustness rather than just logic.",
+        "Step 4: Output the adversarial instance, the correct solution, and trap metadata to be used for uncertainty-resolved reward calculation."
+      ]
+    },
+    {
+      "name": "Uncertainty-Resolution Score (URS) Computation",
+      "input": [
+        "Generated reasoning chain (step-by-step output)",
+        "Monte Carlo dropout samples (multiple forward passes)",
+        "Ground truth answer",
+        "Trap metadata"
+      ],
+      "output": [
+        "Scalar URS reward value",
+        "Step-wise uncertainty profile"
+      ],
+      "pipeline": [
+        "Step 1: Perform Monte Carlo dropout inference (N passes) for each token in the reasoning chain to estimate step-wise epistemic uncertainty (variance in predictions).",
+        "Step 2: Identify 'Uncertainty Spikes' where variance exceeds a dynamic threshold, specifically looking for variance induced by the injected trap metadata.",
+        "Step 3: Detect 'Self-Correction Patterns' (e.g., phrases like 'Wait', 'Re-evaluating') immediately following uncertainty spikes, indicating the model is flagging the trap.",
+        "Step 4: Calculate the penalty: Identify high-confidence steps (low variance) that proceed through the trap location without detection, penalizing 'confidently wrong' behavior.",
+        "Step 5: Compute final URS: Sum of rewards for valid self-correction patterns (uncertainty resolution) minus penalties for high-confidence errors (silent hallucinations)."
+      ]
+    },
+    {
+      "name": "Epistemic Reinforcement Learning (PPO-URS)",
+      "input": [
+        "EAB Dataset (generated by Trap Generator)",
+        "Base LLM policy",
+        "URS Reward Function"
+      ],
+      "output": [
+        "Fine-tuned LLM policy",
+        "Training logs (loss, rewards, URS)"
+      ],
+      "pipeline": [
+        "Step 1: Sample a batch of adversarial problems from the EAB dataset containing known logical traps.",
+        "Step 2: Generate reasoning chains using the current policy (Actor).",
+        "Step 3: Compute the URS reward for each generated chain using the URS Computation algorithm, specifically rewarding the detection and resolution of the injected traps.",
+        "Step 4: Update the Actor policy using PPO clipped objective, maximizing the URS reward to shift the objective from 'be correct' to 'be calibrated and robust'.",
+        "Step 5: Update the Critic network to estimate the value of the URS signal.",
+        "Step 6: Repeat until convergence or URS plateau."
+      ]
+    }
+  ],
+  "reference_papers": [
+    {
+      "title": "Consistent Paths Lead to Truth: Self-Rewarding Reinforcement Learning for LLM Reasoning",
+      "authors": "Kongcheng Zhang, Qi Yao, Shunyu Liu, Yingjie Wang, Baisheng Lai, Jieping Ye, Mingli Song, Dacheng Tao",
+      "year": 2025,
+      "url": "https://www.semanticscholar.org/paper/f45e7ebf613d14bcfaf310b188b493cae42ec243",
+      "summary": "This paper introduces CoVo, an intrinsic reward mechanism that integrates Consistency and Volatility to reward models for maintaining consistent reasoning trajectories. It enables self-rewarding RL without external supervision by leveraging the model's own trajectory patterns.",
+      "contribution": "This paper directly influences the idea by providing the 'consistency heuristics (CoVo)' baseline that the EAB concept argues against. The idea explicitly critiques CoVo for failing to detect 'silent hallucinations,' thereby motivating the need for EAB's uncertainty-focused reward signal."
+    },
+    {
+      "title": "Beyond the 80/20 Rule: High-Entropy Minority Tokens Drive Effective Reinforcement Learning for LLM Reasoning",
+      "authors": "Shenzhi Wang, Le Yu, Chang Gao, Chujie Zheng, Shixuan Liu, Rui Lu, Kai Dang, Xionghui Chen, Jianxin Yang, Zhenru Zhang, Yuqiong Liu, An Yang, Andrew Zhao, Yang Yue, Shiji Song, Bowen Yu, Gao Huang, Junyang Lin",
+      "year": 2025,
+      "url": "https://www.semanticscholar.org/paper/d6a29be03a0497602e89311ec38e5141335647c5",
+      "summary": "This work analyzes RL for LLM reasoning through token entropy, finding that high-entropy 'forking tokens' are critical for steering reasoning pathways. It demonstrates that optimizing updates specifically on these minority tokens significantly improves performance over full-gradient updates.",
+      "contribution": "This paper provides a granular understanding of which tokens are most critical during RL for reasoning. It supports the EAB's focus on specific 'trap locations' by highlighting that not all tokens are equal, and that targeted optimization of key decision points (like those in EAB's traps) is a powerful paradigm."
+    },
+    {
+      "title": "SwS: Self-aware Weakness-driven Problem Synthesis in Reinforcement Learning for LLM Reasoning",
+      "authors": "Xiao Liang, Zhong-zhi Li, Yeyun Gong, Yang Wang, Hengyuan Zhang, Yelong Shen, Yingchun Wu, Weizhu Chen",
+      "year": 2025,
+      "url": "https://www.semanticscholar.org/paper/cf92906ac18467b2bce3cf1cbd77bc4ed1201352",
+      "summary": "SwS introduces a framework that identifies a model's consistent failures during RL training and synthesizes new problems to target these specific weaknesses. This allows the model to self-identify and address deficiencies, leading to more robust generalization.",
+      "contribution": "This paper's methodology of identifying and targeting model weaknesses directly parallels the EAB's goal of probing for 'epistemic failure.' The SwS framework conceptually supports the EAB's 'Epistemic Trap Generator,' which also aims to create problems that expose specific, known failure modes (traps) to force model improvement."
+    },
+    {
+      "title": "TemplateRL: Structured Template-Guided Reinforcement Learning for LLM Reasoning",
+      "authors": "Jinyang Wu, Chonghua Liao, Mingkuan Feng, Shuai Zhang, Zhengqi Wen, Pengpeng Shao, Huazhe Xu, Jianhua Tao",
+      "year": 2025,
+      "url": "https://www.semanticscholar.org/paper/34035d548b6cc7b6448db4f24064b185231038de",
+      "summary": "TemplateRL uses a library of problem-solving templates, derived from MCTS, to guide RL rollouts. This structured approach improves the efficiency of training by steering the model toward proven strategic patterns instead of relying on unstructured exploration.",
+      "contribution": "This paper's use of a 'template library' to guide generation provides a structural parallel to the EAB's 'Template library for logical contradictions.' It demonstrates the value of using structured, pre-defined components (templates/traps) to make the RL training process more targeted and effective."
+    },
+    {
+      "title": "Reinforcement Learning for LLM Reasoning Under Memory Constraints",
+      "authors": "Alan Lee, Harry Tong",
+      "year": 2025,
+      "url": "https://www.semanticscholar.org/paper/21cec488f063e6ee8693be6ce690f8a7b89940bc",
+      "summary": "This work introduces S-GRPO, a memory-efficient variant of Group Relative Policy Optimization, and T-SPMO, a token-level prefix matching strategy for fine-grained credit assignment. When used to fine-tune Qwen2-1.5B, both methods significantly improve SVAMP benchmark accuracy from 46% to above 70% using LoRA training.",
+      "contribution": "This paper's focus on fine-grained credit assignment via token-level strategies (T-SPMO) supports the EAB's need to precisely identify and reward 'Uncertainty Spikes' and 'Self-Correction Patterns' at specific locations in the reasoning chain. It validates the importance of granular reward signals in RL for reasoning."
+    },
+    {
+      "title": "Act Only When It Pays: Efficient Reinforcement Learning for LLM Reasoning via Selective Rollouts",
+      "authors": "Haizhong Zheng, Yang Zhou, Brian R. Bartoldson, B. Kailkhura, Fan Lai, Jiawei Zhao, Beidi Chen",
+      "year": 2025,
+      "url": "https://www.semanticscholar.org/paper/800dc9621a55d4334abe1807b26be9b907332967",
+      "summary": "GRESO is proposed as an algorithm that predicts and skips uninformative prompts before rollout, using reward dynamics to identify them. This selective approach achieves significant speedups in training without degrading model accuracy.",
+      "contribution": "This paper's analysis of 'prompt value' and 'uninformative prompts' supports the EAB's core premise that not all training data is equally valuable. The EAB's focus on generating high-value, adversarial problems that specifically test for epistemic failure is an extension of this principle, aiming to maximize the informational gain from each training sample."
+    },
+    {
+      "title": "Plan Then Action:High-Level Planning Guidance Reinforcement Learning for LLM Reasoning",
+      "authors": "Zhihao Dou, Qinjian Zhao, Zhongwei Wan, Dinggen Zhang, Weida Wang, Towsif Raiyan, Benteng Chen, Qingtao Pan, Ouyang Yang, Zhiqiang Gao, Shufei Zhang, Sumon Biswas",
+      "year": 2025,
+      "url": "https://www.semanticscholar.org/paper/ea090c112be388712fc65d5c06420891f03955ad",
+      "summary": "PTA-GRPO is a two-stage framework that first uses high-level guidance from advanced LLMs for SFT, then applies guidance-aware RL to jointly optimize the final output and the quality of the guidance. This improves reasoning by combining global planning with fine-grained execution.",
+      "contribution": "This paper's two-stage approach of distilling high-level guidance before RL provides a structural contrast to the EAB's end-to-end approach. It supports the EAB's idea by showing that structured guidance is a viable path to better reasoning, while EAB proposes an alternative: forcing the model to develop its own internal guidance by resolving uncertainty."
+    },
+    {
+      "title": "Revisiting Reinforcement Learning for LLM Reasoning from A Cross-Domain Perspective",
+      "authors": "Zhoujun Cheng, Shibo Hao, Tianyang Liu, Fan Zhou, Yutao Xie, Feng Yao, Yuexin Bian, Yonghao Zhuang, Nilabjo Dey, Yuheng Zha, Yi Gu, Kun Zhou, Yuqi Wang, Yuan Li, Richard Fan, Jianshu She, Chengqian Gao, Abulhair Saparov, Haonan Li, Taylor W. Killian, Mikhail Yurochkin, Zhengzhong Liu, Eric P. Xing, Zhiting Hu",
+      "year": 2025,
+      "url": "https://www.semanticscholar.org/paper/2bdccbeffa0bae760f416a72ebe7a3951e230659",
+      "summary": "This paper introduces Guru, a large-scale, multi-domain RL reasoning corpus, and uses it to study RL's effectiveness across different domains. It finds that RL can facilitate genuine skill acquisition in domains with limited pretraining exposure, such as logic and simulation.",
+      "contribution": "The creation of the Guru dataset supports the EAB's need for a high-quality, verifiable benchmark. The paper's finding that RL is particularly effective for 'genuine skill acquisition' in logic-heavy domains directly motivates the EAB's design, which uses logical traps to force the acquisition of robust, uncertainty-aware reasoning skills."
+    },
+    {
+      "title": "Cog-Rethinker: Hierarchical Metacognitive Reinforcement Learning for LLM Reasoning",
+      "authors": "Zexu Sun, Yongcheng Zeng, Erxue Min, Heyang Gao, Bokai Ji, Xu Chen",
+      "year": 2025,
+      "url": "https://www.semanticscholar.org/paper/5ff368ebfb245fe03e4c90419a29f121f6fde2b6",
+      "summary": "Cog-Rethinker is a hierarchical metacognitive RL framework that improves sample utilization by decomposing problems into subproblems or refining answers by referencing previous wrong solutions. This two-stage process helps weak LLMs avoid invalid outputs and improves convergence.",
+      "contribution": "This paper's concept of 'metacognitive' reasoning, where the model reflects on and refines its own incorrect solutions, is a direct precursor to the EAB's 'Self-Correction Patterns.' Cog-Rethinker provides a framework for how this reflection can be structured, while EAB proposes a reward signal (URS) to train for this behavior."
+    },
+    {
+      "title": "Rethinking the Sampling Criteria in Reinforcement Learning for LLM Reasoning: A Competence-Difficulty Alignment Perspective",
+      "authors": "Deyang Kong, Qi Guo, Xiangyu Xi, Wei Wang, Jingang Wang, Xunliang Cai, Shikun Zhang, Wei Ye",
+      "year": 2025,
+      "url": "https://www.semanticscholar.org/paper/38dbd4788dedc376c904589fa0799c830eef8d2c",
+      "summary": "CDAS introduces a method for accurately estimating problem difficulty by aggregating historical performance, allowing for adaptive selection of problems that align with the model's current competence. This improves both the accuracy and efficiency of RL training.",
+      "contribution": "This paper's focus on aligning problem difficulty with model competence supports the EAB's goal of creating targeted challenges. While CDAS selects existing problems, EAB generates new ones, but both share the principle that training should be focused on problems that are appropriately challenging to expose and fix specific model deficiencies."
+    }
+  ],
+  "datasets": [
+    {
+      "name": "Guru (Large-Scale Multi-Domain RL Reasoning Corpus)",
+      "source_paper": "Reinforcement Learning for LLM Reasoning From A Cross-Domain Perspective",
+      "usage": "Provides a large-scale, verifiable, multi-domain benchmark (logic, math, simulation) that can serve as a base for the Epistemic Trap Generator. The paper's finding that RL facilitates genuine skill acquisition in logic-heavy domains directly motivates EAB's focus on using logical traps to force robust reasoning.",
+      "access": "Referenced in the paper; likely available via the authors' GitHub or project page."
+    },
+    {
+      "name": "SwS (Self-aware Weakness-driven Problem Synthesis) Dataset",
+      "source_paper": "SwS: Self-aware Weakness-driven Problem Synthesis in Reinforcement Learning for LLM Reasoning",
+      "usage": "The SwS framework identifies a model's consistent failures and synthesizes problems to target them. This methodology parallels EAB's goal of probing for 'epistemic failure' and supports the 'Epistemic Trap Generator' by demonstrating how to create problems that expose specific, known failure modes.",
+      "access": "Referenced in the paper; likely available via the authors' GitHub or project page."
+    },
+    {
+      "name": "TemplateRL Problem Templates",
+      "source_paper": "TemplateRL: Structured Template-Guided Reinforcement Learning for LLM Reasoning",
+      "usage": "TemplateRL uses a library of problem-solving templates derived from MCTS to guide RL. This provides a structural parallel to EAB's 'Template library for logical contradictions,' demonstrating the value of using structured, pre-defined components to make RL training more targeted.",
+      "access": "Referenced in the paper; likely available via the authors' GitHub or project page."
+    },
+    {
+      "name": "SVAMP (Shikhar Sharma's Variations of Arithmetic Math Problems) Benchmark",
+      "source_paper": "Reinforcement Learning for LLM Reasoning Under Memory Constraints",
+      "usage": "This paper reports improving SVAMP accuracy from 46% to 70% using fine-grained credit assignment. SVAMP serves as a standard math reasoning benchmark that EAB's 'Epistemic Trap Generator' could adapt to create adversarial versions, testing if models can detect ambiguity in word problems.",
+      "access": "Standard public benchmark (https://github.com/chrischute/svamp)"
+    },
+    {
+      "name": "Cog-Rethinker Self-Correction Dataset",
+      "source_paper": "Cog-Rethinker: Hierarchical Metacognitive Reinforcement Learning for LLM Reasoning",
+      "usage": "This paper introduces a framework for metacognitive reasoning where models reflect on and refine incorrect solutions. It provides a conceptual and potentially structural basis for the 'Self-Correction Patterns' that EAB's URS metric aims to detect and reward.",
+      "access": "Referenced in the paper; likely available via the authors' GitHub or project page."
+    }
+  ],
+  "mcts_evolution": {
+    "best_path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Adversarial Benchmark (EAB): Rewarding Uncertainty Resolution over Consistency [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'weak_accountability']",
+    "best_operator": "evaluation-contract-overhaul",
+    "target_defects": [
+      "evaluation_blindspot",
+      "weak_accountability"
+    ],
+    "iterations": [
+      {
+        "iteration": 0,
+        "node_id": 1,
+        "depth": 1,
+        "title": "Epistemic Adversarial Benchmark (EAB): Rewarding Uncertainty Resolution over Consistency",
+        "operator": "evaluation-contract-overhaul",
+        "defects": [
+          "evaluation_blindspot",
+          "weak_accountability"
+        ],
+        "score": 3.4500000000000006,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Adversarial Benchmark (EAB): Rewarding Uncertainty Resolution over Consistency [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'weak_accountability']",
+        "action_summary": "evaluation-contract-overhaul -> evaluation_blindspot, weak_accountability",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 5.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.85,
+          "failure_modes": [
+            "Reward Hacking via False Uncertainty: The model learns to generate verbose 'I am not sure' preambles to trigger the 'uncertainty resolution' reward without actually performing deeper reasoning.",
+            "Calibration Collapse: Monte Carlo dropout estimates may become unreliable or static after RL optimization, providing a noisy signal that fails to distinguish between easy and hard steps."
+          ],
+          "fairness_protocol": "Must ablate the URS reward component (e.g., train with only the accuracy component) to prove that robustness gains aren't just from the dataset difficulty. Must compare against CoVo to show that consistency is not the optimal strategy for adversarial tasks.",
+          "feedback": "The idea successfully applies the 'evaluation-contract-overhaul' operator to the 'Epistemic Curiosity' seed. It transforms a vague mechanism (uncertainty quantification) into a concrete training objective (URS) and a measurable benchmark (EAB). To pass the ICML bar, ensure the 'Trap Generator' is robust against trivial solutions (e.g., checking for syntax errors vs. logical contradictions).",
+          "defect_fix_summary": "Addresses 'evaluation_blindspot' by creating a benchmark that explicitly tests for silent hallucinations (confidence in wrong answers). Addresses 'weak_accountability' by introducing a metric (URS) that penalizes high-confidence errors, forcing the model to be accountable for its internal state.",
+          "lift_estimate": 25.0,
+          "composite": 3.4500000000000006
+        },
+        "rationale": "This operator directly addresses the parent's lack of a rigorous evaluation contract for uncertainty. By creating a dataset that forces the model to fail if it ignores uncertainty, we create a measurable incentive for the proposed mechanism. ICML bar: Pass. The novelty lies in the rigorous evaluation protocol and the shift in reward definition, which is a staple of top-tier RL research, though it relies on the parent's mechanism holding up.",
+        "signature": "a857c216ddd5df6a73f739e9274919bf496489f48b87777c350a538846a4cbb5"
+      },
+      {
+        "iteration": 1,
+        "node_id": 4,
+        "depth": 2,
+        "title": "Epistemic Memory Augmentation (EM-aug) with Contrastive Uncertainty Repulsion",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "unclear_mechanism",
+          "reward_hacking"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Epistemic Memory Augmentation (EM-aug) with Contrastive Uncertainty Repulsion [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking']",
+        "action_summary": "mechanism-commit-innovation -> unclear_mechanism, reward_hacking",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.85,
+          "failure_modes": [
+            "Memory Collapse: The memory bank fills with similar high-uncertainty states, causing the contrastive loss to vanish or push representations into a degenerate single point.",
+            "Uncertainty Estimation Noise: Monte Carlo dropout provides unreliable uncertainty estimates in high-dimensional LLMs, leading the contrastive loss to push the model away from valid but difficult reasoning paths."
+          ],
+          "fairness_protocol": "The ablation study (No memory vs. LSTM vs. Transformer memory) is a strong start. To ensure fairness, the baseline must use the exact same uncertainty estimation method (MC dropout) and reward signal, with the only variable being the memory module and contrastive loss. The evaluation must report 'accuracy per FLOP' to ensure the memory overhead isn't hiding a cost inefficiency.",
+          "feedback": "The idea successfully addresses the 'unclear_mechanism' defect of the parent seed by replacing a heuristic reward with a structured representation learning objective. However, it risks 'reward hacking' via the uncertainty estimator itself (the model might learn to generate high-variance outputs to trigger the memory mechanism). To pass the ICML bar, you must explicitly define a 'resolution signal' in the methodology (currently mentioned in abstract but not method) and detail how the memory is updated (e.g., is it a FIFO queue or a dynamic bank?).",
+          "defect_fix_summary": "Fixes 'unclear_mechanism' by formalizing the 'Epistemic Curiosity' heuristic into a concrete contrastive loss over a memory bank. It mitigates 'reward_hacking' by using a persistent memory context rather than instantaneous scalar rewards, forcing the model to resolve past confusion rather than just avoiding it.",
+          "lift_estimate": 25.0,
+          "composite": 3.3000000000000003
+        },
+        "rationale": "This mechanism directly addresses the 'unclear_mechanism' and 'reward_hacking' defects by replacing the noisy scalar reward with a persistent, structured contrastive loss. It avoids feature dumping by integrating uncertainty estimation directly into the representation learning objective, enforcing a fair baseline comparison.",
+        "signature": "4d6b2e628b898fc88ee631a675933c06f944ba3801aa5ff1badf737682061f2f"
+      },
+      {
+        "iteration": 2,
+        "node_id": 7,
+        "depth": 2,
+        "title": "Synaptic Epistemic Memory (SEM): A Gradient-Trace Estimator for Epistemic Uncertainty",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "stagnant_novelty",
+          "theory_gap",
+          "unexplored_gap"
+        ],
+        "score": 2.6499999999999995,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Bayesian Active Learning via Epistemic Neural Networks (BALENN) [theory-transfer-injection] -> defects ['stagnant_novelty', 'theory_gap'] | Synaptic Epistemic Memory (SEM): A Gradient-Trace Estimator for Epistemic Uncertainty [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'theory_gap', 'unexplored_gap']",
+        "action_summary": "mechanism-commit-innovation -> stagnant_novelty, theory_gap, unexplored_gap",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 2.0,
+          "clarity": 3.0,
+          "impact": 4.0,
+          "risk": 4.0,
+          "conciseness": 4.0,
+          "confidence": 0.7,
+          "failure_modes": [
+            "Gradient Vanishing/Explosion: The Jacobian trace estimation may become numerically unstable for deep reasoning chains, leading to uninformative reward signals.",
+            "Computational Overhead: Calculating Jacobian-vector products (JVP) or Hessian-vector products at every reasoning step introduces significant latency, potentially violating the efficiency constraints of RL training.",
+            "Reward Hacking: The model may learn to produce 'smooth' but trivial reasoning steps (e.g., repeating known facts) to minimize gradient variance, rather than engaging in complex reasoning."
+          ],
+          "fairness_protocol": "The experiment design explicitly proposes comparing against BALENN (VI) and MC Dropout baselines. However, to be truly fair, the baseline must include a 'Vanilla RL' control (no uncertainty reward) to isolate the benefit of the uncertainty mechanism itself. Additionally, the computational cost (FLOPs/step) must be reported to ensure the method isn't just accurate but prohibitively expensive.",
+          "feedback": "The idea is a strong 'mechanism-commit-innovation' that directly addresses the VI bias and KL collapse defects of BALENN. However, the feasibility score is lowered due to the high computational cost of gradient tracing in large LLMs. The method sketch needs to be more specific about the approximation technique (e.g., stochastic Lanczos) to ensure it scales. The evaluation plan is solid but needs to include a 'reasoning quality' metric beyond just trap detection to ensure the model isn't just becoming 'stochastic parrot' with low variance.",
+          "defect_fix_summary": "Addresses 'stagnant_novelty' and 'theory_gap' by replacing the standard variational inference approximation (BALENN) with a principled gradient-based estimator (SEM). This moves away from biased approximations towards a signal derived from information geometry, offering a novel training objective for LLM uncertainty.",
+          "lift_estimate": 15.0,
+          "composite": 2.6499999999999995
+        },
+        "rationale": "This operator commits to a new mechanism (gradient-trace estimation) to solve BALENN's VI bias and KL collapse defects. ICML bar: pass, as it replaces a standard approximation with a principled signal from information geometry, offering a novel training objective for LLM uncertainty.",
+        "signature": "9e46212cf4140182b493a76e6ecbb59d10acf3e55878dd6bbc62483e23be60d7"
+      },
+      {
+        "iteration": 3,
+        "node_id": 10,
+        "depth": 2,
+        "title": "Epistemic Monte Carlo Reward Shaping (EMCRS)",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "reward_hacking",
+          "computational_expense"
+        ],
+        "score": 2.95,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Adversarial Benchmark (EAB): Rewarding Uncertainty Resolution over Consistency [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'weak_accountability'] | Epistemic Monte Carlo Reward Shaping (EMCRS) [mechanism-commit-innovation] -> defects ['reward_hacking', 'computational_expense']",
+        "action_summary": "mechanism-commit-innovation -> reward_hacking, computational_expense",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 4.0,
+          "impact": 3.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Gradient Variance Saturation: In very long reasoning chains, gradient variance may become uninformative noise rather than a signal of epistemic instability, leading to reward collapse.",
+            "Normalization Sensitivity: The penalty term requires careful scaling relative to the task reward; improper tuning could cause the model to prioritize 'stable' but incorrect reasoning over 'unstable' but correct exploration."
+          ],
+          "fairness_protocol": "Must ablate the gradient variance penalty (set weight to zero) to prove it contributes positively. Must compare wall-clock time against EAB's URS to validate the 'computational expense' claim.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' that directly addresses the parent's 'computational_expense' and 'reward_hacking' defects. However, it remains within the 'Uncertainty Quantification' paradigm. To reach the ICML bar, ensure the evaluation explicitly compares 'accuracy per FLOP' against the parent method, as standard accuracy gains alone are insufficient for efficiency claims.",
+          "defect_fix_summary": "Addresses 'computational_expense' by reducing the need for extensive Monte Carlo sampling during inference (uses gradient signals instead). Addresses 'reward_hacking' by penalizing gradient instability, making it harder for the model to fake confidence on wrong answers.",
+          "lift_estimate": 15.0,
+          "composite": 2.95
+        },
+        "rationale": "This uses 'mechanism-commit-innovation' to address the 'computational_expense' and 'reward_hacking' defects of the parent EAB idea. It introduces a concrete algorithmic change (gradient variance shaping) rather than just tuning evaluation, satisfying the guardrail to prefer mechanism commits.",
+        "signature": "90dd24d752404061851d7517d2f3be0c913051dff962da8f74dacc0f2abf1d1c"
+      },
+      {
+        "iteration": 4,
+        "node_id": 13,
+        "depth": 3,
+        "title": "Uncertainty-Gated Policy Optimization (UGPO)",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "evaluation_blindspot",
+          "missing_contracts"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Epistemic Adversarial Benchmark (EAB): Stress-Testing Uncertainty Resolution [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'missing_contracts'] | Uncertainty-Gated Policy Optimization (UGPO) [mechanism-commit-innovation] -> defects ['evaluation_blindspot', 'missing_contracts']",
+        "action_summary": "mechanism-commit-innovation -> evaluation_blindspot, missing_contracts",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Model Paralysis: The model may learn to abstain excessively on difficult but solvable problems to avoid the penalty, leading to low task completion rates.",
+            "Uncertainty Estimation Collapse: If the uncertainty estimator (MC Dropout/Ensemble) becomes overconfident or underconfident, the gating signal becomes useless or adversarial.",
+            "Reward Hacking: The model might learn to generate high-uncertainty tokens specifically to trigger the 're-inspection' loop, artificially inflating inference costs without actual reasoning improvement."
+          ],
+          "fairness_protocol": "Must ablate the uncertainty estimation method (e.g., MC Dropout vs. Deep Ensemble) to ensure the improvement comes from the gating mechanism, not just better uncertainty modeling. Baseline must include a standard PPO run with the same compute budget (excluding uncertainty overhead) to isolate the benefit of the penalty term.",
+          "feedback": "The idea successfully addresses the 'evaluation_blindspot' and 'missing_contracts' defects by introducing a mechanism that explicitly manages uncalibrated confidence. However, the 'risks' section mentions high compute cost; to pass the ICML bar, you must propose a lightweight uncertainty proxy (e.g., logit variance) to make the method scalable. The current method sketch relies on MC Dropout/Ensembles, which is resource-heavy. Refine the mechanism to be 'compute-efficient' to maximize impact.",
+          "defect_fix_summary": "Addresses 'evaluation_blindspot' by shifting the metric from simple accuracy to Uncertainty Resolution Score (URS). Addresses 'missing_contracts' by introducing a 'hesitation penalty' training contract that forces the model to acknowledge epistemic limits rather than blindly optimizing for rewards.",
+          "lift_estimate": 25.0,
+          "composite": 3.3000000000000003
+        },
+        "memory_refs": [
+          "Field#1",
+          "Recipe#2"
+        ],
+        "rationale": "This directly commits to a new mechanism (uncertainty-gated gradients) to solve the defect of uncalibrated confidence in RL training. It respects guardrails by defining a specific penalty architecture and comparing against standard PPO. ICML bar: Pass - It introduces a distinct theoretical coupling between epistemic estimation and policy optimization, moving beyond standard reward shaping.",
+        "signature": "bb9d349086d4e1d90aa3f8b5d79839a9b74af63796e194b55a64d5bb45dadb9e"
+      },
+      {
+        "iteration": 5,
+        "node_id": 15,
+        "depth": 3,
+        "title": "Bayesian Policy Gradient with Entropy-Driven Prior Annealing (BPG-EDA)",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "stagnant_novelty",
+          "theory_gap",
+          "weak_generalization"
+        ],
+        "score": 2.95,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Bayesian Policy Gradient (BPG): Variational Inference for Robust RL Exploration [theory-transfer-injection] -> defects ['stagnant_novelty', 'weak_generalization'] | Bayesian Policy Gradient with Entropy-Driven Prior Annealing (BPG-EDA) [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'theory_gap', 'weak_generalization']",
+        "action_summary": "mechanism-commit-innovation -> stagnant_novelty, theory_gap, weak_generalization",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 4.0,
+          "impact": 3.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Entropy Collapse: The policy may converge to low-entropy distributions too quickly (e.g., outputting repetitive tokens), causing the prior variance to shrink to near zero and permanently trapping the model in a local optimum.",
+            "Noise Amplification: In the early stages of training, token-level entropy estimates can be highly noisy. This might cause the prior to fluctuate wildly, destabilizing the optimization process."
+          ],
+          "fairness_protocol": "Must include an ablation where prior variance is annealed based on a random schedule or a fixed schedule that mimics the entropy curve, rather than the actual policy entropy. This isolates the benefit of the specific entropy coupling mechanism from the general benefit of dynamic exploration.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' that addresses the 'weak_generalization' defect of the parent BPG by automating the exploration-exploitation trade-off. However, it risks being viewed as a 'hyperparameter scheduling' tweak rather than a fundamental architectural change. To pass the high ICML bar, the paper must rigorously prove that the entropy coupling leads to better posterior approximations or escapes specific local optima that static priors cannot. The evaluation plan is currently too generic; it needs to demonstrate specific failure cases of static BPG that BPG-EDA solves.",
+          "defect_fix_summary": "Addresses 'weak_generalization' in the parent Bayesian Policy Gradient (BPG) by replacing the static prior with a dynamic one. The operator 'mechanism-commit-innovation' transforms a fixed hyperparameter into a learned signal (policy entropy), allowing the model to automatically balance exploration and retention of knowledge.",
+          "lift_estimate": 15.0,
+          "composite": 2.95
+        },
+        "rationale": "This operator commits to a specific algorithmic change (dynamic prior) that targets the 'weak_generalization' defect of the parent by making exploration adaptive. ICML bar: Pass. It provides a clear mechanism grounded in information theory (entropy as uncertainty proxy) and avoids feature dumping by modifying an existing hyperparameter into a learned signal.",
+        "signature": "7e89a2185ddc522b6d170751ff3ec86979d9919077ef4f7d2a65bdbd1aaaaa45"
+      },
+      {
+        "iteration": 6,
+        "node_id": 18,
+        "depth": 3,
+        "title": "Causal Graph Verifier (CGV): Differentiable Graph-CNF Reward",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "weak_generalization",
+          "causal_graph_synth_risk"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Adversarial Benchmark (EAB): Rewarding Uncertainty Resolution over Consistency [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'weak_accountability'] | Causal Intervention Reward (CIR) [theory-transfer-injection] -> defects ['unexplored_gap', 'weak_generalization'] | Causal Graph Verifier (CGV): Differentiable Graph-CNF Reward [mechanism-commit-innovation] -> defects ['weak_generalization', 'causal_graph_synth_risk']",
+        "action_summary": "mechanism-commit-innovation -> weak_generalization, causal_graph_synth_risk",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "CGV Overfitting: The verifier module may memorize the training distribution of causal graphs rather than learning generalizable structural logic, failing on out-of-distribution interventions.",
+            "Latent Collapse: The LLM may learn to produce latents that trivially satisfy the CGV (e.g., constant vectors) to maximize reward without performing actual reasoning.",
+            "Gradient Masking: If the CGV output is used as a hard mask for gradients, it may block learning from valid reasoning steps that the CGV incorrectly flags as invalid."
+          ],
+          "fairness_protocol": "Must ablate the CGV module against a random-initialized version to prove it learns causal structure. Baselines must include the discrete CIR method to measure the trade-off between graph synthesis failure rates and reasoning accuracy.",
+          "feedback": "The idea successfully applies the 'mechanism-commit-innovation' operator to fix the 'causal_graph_synth_risk' defect. However, the methodology section lacks detail on how the CGV is trained to ensure it captures causal structure rather than spurious correlations (e.g., using counterfactual data augmentation). The evaluation plan needs to explicitly measure the 'Graph Synth Failure Rate' reduction to validate the core hypothesis.",
+          "defect_fix_summary": "Addresses the 'causal_graph_synth_risk' and 'weak_generalization' defects of the parent CIR node by replacing the discrete, error-prone graph synthesis step with a differentiable, latent-space verifier (CGV), enabling stable gradients and generalization.",
+          "lift_estimate": 25.0,
+          "composite": 3.3000000000000003
+        },
+        "rationale": "This operator directly commits to a new mechanism (the CGV head) to fix the specific risk of discrete graph synthesis failure identified in the parent node. It avoids the feature dumping anti-pattern by keeping the module lightweight and auxiliary. ICML bar: pass. It addresses a concrete technical bottleneck (differentiability) in a novel theoretical transfer (Causal Inference) application, providing a clear algorithmic improvement over the discrete baseline.",
+        "signature": "75eb6070de78875d885e434e57b60e75ba4e7abc3cf41608252321cd1514e685"
+      },
+      {
+        "iteration": 7,
+        "node_id": 21,
+        "depth": 3,
+        "title": "Bayesian Entropy Regulated RL (BERRL)",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "overfitting_to_trap_generation_logic",
+          "potential_for_overconfidence_on_ambiguous_inputs"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Bayesian Active Learning via Epistemic Neural Networks (BALENN) [theory-transfer-injection] -> defects ['stagnant_novelty', 'theory_gap'] | Adversarial Entropy Masking Benchmark (AEMB) [evaluation-contract-overhaul] -> defects ['weak_accountability', 'evaluation_blindspot'] | Bayesian Entropy Regulated RL (BERRL) [mechanism-commit-innovation] -> defects ['overfitting_to_trap_generation_logic', 'potential_for_overconfidence_on_ambiguous_inputs']",
+        "action_summary": "mechanism-commit-innovation -> overfitting_to_trap_generation_logic, potential_for_overconfidence_on_ambiguous_inputs",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Monte Carlo Dropout variance estimation may be unreliable in high-dimensional LLM layers, leading to noisy thresholds.",
+            "The learned threshold τ might drift during training, causing the model to oscillate between over-cautiousness and overconfidence.",
+            "Computational overhead of multiple forward passes per token significantly slows down training throughput."
+          ],
+          "fairness_protocol": "Must include an ablation removing the variance-dependent threshold (static λ) to prove dynamic coupling is necessary. Baselines must include standard RLVR and a static entropy penalty method.",
+          "feedback": "The idea is strong but needs a concrete plan for handling the compute cost of Monte Carlo sampling. Consider using 'Fast Dropout' or a distilled uncertainty head to approximate variance without full multiple passes. The 'Double-Bind' dataset evaluation is excellent for surfacing the overconfidence defect.",
+          "defect_fix_summary": "Addresses 'overfitting_to_trap_generation_logic' and 'potential_for_overconfidence_on_ambiguous_inputs' by dynamically adjusting entropy penalties based on real-time epistemic uncertainty, preventing the model from learning rigid suppression patterns.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "rationale": "This operator directly addresses the overfitting and overconfidence defects by introducing a dynamic, model-coupled mechanism that the static AEMB reward lacks. ICML bar: pass + it proposes a concrete, testable algorithmic intervention that moves beyond simple reward shaping to a principled uncertainty quantification method.",
+        "signature": "2eca1c5c29a63fb27218d2c4b2bd93dfcb113d1d41571ff40fda795a93bf767d"
+      },
+      {
+        "iteration": 8,
+        "node_id": 12,
+        "depth": 2,
+        "title": "Adversarial Trap Verification Protocol (ATVP)",
+        "operator": "data-contract-repair",
+        "defects": [
+          "label_noise",
+          "evaluation_blindspot"
+        ],
+        "score": 2.65,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Adversarial Benchmark (EAB): Rewarding Uncertainty Resolution over Consistency [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'weak_accountability'] | Adversarial Trap Verification Protocol (ATVP) [data-contract-repair] -> defects ['label_noise', 'evaluation_blindspot']",
+        "action_summary": "data-contract-repair -> label_noise, evaluation_blindspot",
+        "evaluation": {
+          "novelty": 1.0,
+          "feasibility": 5.0,
+          "clarity": 5.0,
+          "impact": 2.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.9,
+          "failure_modes": [
+            "Distribution Mismatch: The 'Verification Model' (e.g., 7B) might define 'hard' differently than the target model, filtering out problems that are actually useful for the larger model but easy for the small one."
+          ],
+          "fairness_protocol": "Must ablate the Verification Model size (e.g., 1B vs 7B vs 32B) to show sensitivity. Must report the percentage of data filtered to ensure the pipeline isn't just starving the model of data.",
+          "feedback": "This is a solid engineering fix (data-contract-repair) for the 'label_noise' defect in the parent EAB idea. However, it is strictly incremental and does not introduce a new scientific mechanism. It is a hyperparameter tuning of the data pipeline. To pass the ICML bar, the parent EAB needs a stronger mechanism (e.g., dynamic adaptation of the trap generator based on verification failure modes), not just a static filter.",
+          "defect_fix_summary": "Fixes 'label_noise' in the Epistemic Adversarial Benchmark (EAB) by ensuring the 'Traps' (uncertainty-inducing problems) are actually difficult. It prevents the RL signal from being diluted by solvable problems that the model might just get lucky on.",
+          "lift_estimate": 5.0,
+          "composite": 2.65
+        },
+        "rationale": "This is tagged 'incremental' because it is a data preprocessing fix, not a new training paradigm. It addresses the 'label_noise' defect of the Trap Generator but relies on existing mechanisms. It is a stop-gap to stabilize the parent EAB before more complex mechanisms (like EMCRS) are applied.",
+        "signature": "b3776f91936a6e3b26bbb829a7b523d2da6fd380aa7eddd344350c963bf8a63a"
+      },
+      {
+        "iteration": 9,
+        "node_id": 24,
+        "depth": 3,
+        "title": "Counterfactual Consistency Correction with Adversarial Path Generation (C3-APG)",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "systematic_bias",
+          "silent_failure"
+        ],
+        "score": 3.1000000000000005,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Bayesian Active Learning via Epistemic Neural Networks (BALENN) [theory-transfer-injection] -> defects ['stagnant_novelty', 'theory_gap'] | Counterfactual Consistency Correction (C3) [self-supervised-corrector] -> defects ['systematic_bias', 'silent_failure'] | Counterfactual Consistency Correction with Adversarial Path Generation (C3-APG) [mechanism-commit-innovation] -> defects ['systematic_bias', 'silent_failure']",
+        "action_summary": "mechanism-commit-innovation -> systematic_bias, silent_failure",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 4.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "APG Collapse: The Adversarial Policy Generator may fail to produce challenging counterfactuals, converging to generating obvious nonsense or simple token flips that the main LLM easily detects, providing no useful gradient.",
+            "Reward Hacking (Main LLM): The main LLM may learn to ignore the counterfactual context entirely or output a generic 'this is wrong' response to minimize KL-divergence without actually reasoning.",
+            "Catastrophic Interference: As the main LLM improves, the APG's knowledge becomes obsolete. If the APG is not retrained frequently enough, the adversarial signal becomes weak, causing training plateaus."
+          ],
+          "fairness_protocol": "Must compare against C3 with a 'dumb' perturbation baseline (e.g., random token replacement) to prove the adversarial generator adds value. Must ablate the APG retraining frequency to show the dynamic nature is necessary. Compute budget must be matched by reporting total FLOPs (Main LLM + APG training).",
+          "feedback": "The mechanism is strong (ICML level), but the 'Counterfactual' framing in the title is slightly misleading given the memory context; the parent C3 uses masked replacement, but the core innovation here is adversarial path generation. Ensure the methodology explicitly details how the APG is trained (e.g., PPO with a reward of 'Main LLM confidence in wrong answer'). The risk of APG collapse is high; you need a fallback mechanism (e.g., mixing in random perturbations) to discuss in the risks section.",
+          "defect_fix_summary": "Fixes 'systematic_bias' and 'silent_failure' in C3. C3's static perturbations allow the model to learn superficial consistency. By using an Adversarial Policy Generator (APG), the perturbations become dynamic and targeted, forcing the model to learn deep logical consistency rather than surface patterns.",
+          "lift_estimate": 25.0,
+          "composite": 3.1000000000000005
+        },
+        "rationale": "This mechanism-commit-innovation directly addresses the C3 risk of 'valid but irrelevant perturbations' by using an adversarial agent to generate maximally challenging counterfactuals, ensuring the corrector learns meaningful consistency. It avoids incrementalism by introducing a dynamic, competitive training game, which is a bold architectural shift suitable for top-tier venues. ICML bar: pass + The adversarial training loop for generating counterfactuals is a novel mechanism that moves beyond static perturbations, addressing a core weakness in self-supervised reasoning correction.",
+        "signature": "4dde67f9ec08d21c47e7dbdcc24efd87e0d11cbe64e42a4dede71d4d149ad396"
+      },
+      {
+        "iteration": 10,
+        "node_id": 4,
+        "depth": 2,
+        "title": "Epistemic Memory Augmentation (EM-aug) with Contrastive Uncertainty Repulsion",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "unclear_mechanism",
+          "reward_hacking"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 2,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Epistemic Memory Augmentation (EM-aug) with Contrastive Uncertainty Repulsion [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking']",
+        "action_summary": "mechanism-commit-innovation -> unclear_mechanism, reward_hacking",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.85,
+          "failure_modes": [
+            "Memory Collapse: The memory bank fills with similar high-uncertainty states, causing the contrastive loss to vanish or push representations into a degenerate single point.",
+            "Uncertainty Estimation Noise: Monte Carlo dropout provides unreliable uncertainty estimates in high-dimensional LLMs, leading the contrastive loss to push the model away from valid but difficult reasoning paths."
+          ],
+          "fairness_protocol": "The ablation study (No memory vs. LSTM vs. Transformer memory) is a strong start. To ensure fairness, the baseline must use the exact same uncertainty estimation method (MC dropout) and reward signal, with the only variable being the memory module and contrastive loss. The evaluation must report 'accuracy per FLOP' to ensure the memory overhead isn't hiding a cost inefficiency.",
+          "feedback": "The idea successfully addresses the 'unclear_mechanism' defect of the parent seed by replacing a heuristic reward with a structured representation learning objective. However, it risks 'reward hacking' via the uncertainty estimator itself (the model might learn to generate high-variance outputs to trigger the memory mechanism). To pass the ICML bar, you must explicitly define a 'resolution signal' in the methodology (currently mentioned in abstract but not method) and detail how the memory is updated (e.g., is it a FIFO queue or a dynamic bank?).",
+          "defect_fix_summary": "Fixes 'unclear_mechanism' by formalizing the 'Epistemic Curiosity' heuristic into a concrete contrastive loss over a memory bank. It mitigates 'reward_hacking' by using a persistent memory context rather than instantaneous scalar rewards, forcing the model to resolve past confusion rather than just avoiding it.",
+          "lift_estimate": 25.0,
+          "composite": 3.3000000000000003
+        },
+        "rationale": "This mechanism directly addresses the 'unclear_mechanism' and 'reward_hacking' defects by replacing the noisy scalar reward with a persistent, structured contrastive loss. It avoids feature dumping by integrating uncertainty estimation directly into the representation learning objective, enforcing a fair baseline comparison.",
+        "signature": "4d6b2e628b898fc88ee631a675933c06f944ba3801aa5ff1badf737682061f2f"
+      },
+      {
+        "iteration": 11,
+        "node_id": 27,
+        "depth": 4,
+        "title": "Uncertainty Hamiltonian Synthesis (UHS)",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "stagnant_novelty",
+          "weak_generalization"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Epistemic Adversarial Benchmark (EAB): Stress-Testing Uncertainty Resolution [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'missing_contracts'] | Control-Theoretic Uncertainty Steering (CTUS) [theory-transfer-injection] -> defects ['stagnant_novelty', 'weak_generalization'] | Uncertainty Hamiltonian Synthesis (UHS) [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'weak_generalization']",
+        "action_summary": "mechanism-commit-innovation -> stagnant_novelty, weak_generalization",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Hamiltonian Mismatch: The assumption of conservative dynamics (energy conservation) may be fundamentally violated by LLM uncertainty evolution, which is likely dissipative (entropy tends to increase). This could lead to the model oscillating or failing to converge.",
+            "Discretization Instability: Symplectic integrators require careful step-size tuning. In the context of autoregressive token generation, variable step sizes or complex interactions might introduce numerical instability, causing the uncertainty state to diverge."
+          ],
+          "fairness_protocol": "Must include an ablation comparing UHS against a learned MLP dynamics model (approximating the parent CTUS approach) to prove that the Hamiltonian structure provides specific stability/generalization benefits rather than just being a 'bigger model'.",
+          "feedback": "The idea successfully applies the 'mechanism-commit-innovation' operator by replacing the learned linear dynamics of the parent CTUS with a principled Hamiltonian system. This directly addresses the 'weak_generalization' defect of the parent by introducing a structure with theoretical stability guarantees. However, the feasibility score is tempered by the risk that LLM uncertainty is not a conservative physical system. To pass the ICML bar, the experimental design must explicitly verify the 'conservative' assumption or propose a dissipative correction.",
+          "defect_fix_summary": "Addresses 'weak_generalization' and 'stagnant_novelty' of the parent CTUS by replacing brittle empirical fitting with a rigorous physics-inspired analytical model (Hamiltonian mechanics), offering better stability and theoretical grounding.",
+          "lift_estimate": 25.0,
+          "composite": 3.3000000000000003
+        },
+        "rationale": "The operator 'mechanism-commit-innovation' is applied by replacing the brittle learned dynamics model with a principled Hamiltonian system, fixing the generalization defect. ICML bar: Pass. This introduces a non-trivial algorithmic structure (Hamiltonian mechanics) that offers theoretical guarantees on stability, moving beyond empirical tuning.",
+        "signature": "4eabbe43bc22088dfffd97b394233d2d8ad2631af67acb423350b58f622bc0bb"
+      },
+      {
+        "iteration": 12,
+        "node_id": 30,
+        "depth": 4,
+        "title": "Causal Graph Policy Gradient (CG-PPG)",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "weak_generalization",
+          "dataset_bias"
+        ],
+        "score": 3.2,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Bayesian Active Learning via Epistemic Neural Networks (BALENN) [theory-transfer-injection] -> defects ['stagnant_novelty', 'theory_gap'] | Adversarial Entropy Masking Benchmark (AEMB) [evaluation-contract-overhaul] -> defects ['weak_accountability', 'evaluation_blindspot'] | Contrastive Counterfactual Reasoning (C2R) [counterfactual-contrast] -> defects ['weak_generalization', 'dataset_bias'] | Causal Graph Policy Gradient (CG-PPG) [mechanism-commit-innovation] -> defects ['weak_generalization', 'dataset_bias']",
+        "action_summary": "mechanism-commit-innovation -> weak_generalization, dataset_bias",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 4.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "GNN Parser Hallucination: The lightweight graph parser fails to extract the correct causal structure from complex natural language prompts, introducing a noisy constraint that prevents the policy from finding valid reasoning paths.",
+            "Reward Hacking via Graph Compliance: The model learns to generate reasoning steps that are topologically valid according to the graph (e.g., traversing edges) but logically vacuous or factually incorrect, satisfying the structural constraint while failing the semantic task."
+          ],
+          "fairness_protocol": "Must ablate the Graph Alignment Reward to isolate its contribution from the standard verifiable reward. Baseline must include a 'Shuffled Graph' control where the policy is conditioned on a random graph to prove that the specific topology matters, not just the extra context.",
+          "feedback": "The idea successfully applies 'mechanism-commit-innovation' by introducing a hard structural constraint (Causal Graph) to fix the 'weak_generalization' and 'dataset_bias' defects of the parent C2R. However, the feasibility score is lowered because the 'lightweight graph parser' is a significant engineering risk; if it isn't near-perfect, it becomes a bottleneck. To raise the impact, you should explicitly target a failure mode where current models fail: 'intermediate hallucination'. Show that CG-PPG reduces steps that contradict the prompt's premises.",
+          "defect_fix_summary": "Addresses 'weak_generalization' and 'dataset_bias' of C2R by replacing syntactic counterfactual generation with structural causal graph enforcement. This forces the model to learn valid reasoning paths rather than just surface-level edits.",
+          "lift_estimate": 15.0,
+          "composite": 3.2
+        },
+        "rationale": "This uses mechanism-commit-innovation to fix the potential weakness of C2R generating syntactically similar but logically invalid counterfactuals. By enforcing a causal graph structure, we raise the ICML bar by connecting RL with explicit symbolic reasoning structures, moving beyond token-level contrastive learning.",
+        "signature": "dad80a3263e40acdab7513156a75f5cff40c3a98675ddf6e88285cc6a024e4c7"
+      },
+      {
+        "iteration": 13,
+        "node_id": 33,
+        "depth": 4,
+        "title": "Latent Logic Reasoning (LLR): Learning a Differentiable Proof State Space",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "stagnant_novelty",
+          "weak_generalization"
+        ],
+        "score": 3.45,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Bayesian Policy Gradient (BPG): Variational Inference for Robust RL Exploration [theory-transfer-injection] -> defects ['stagnant_novelty', 'weak_generalization'] | Neuro-Symbolic BPG: Variational Inference with Logic-Guided Priors [theory-transfer-injection] -> defects ['stagnant_novelty', 'weak_generalization', 'missing_edge_cases'] | Latent Logic Reasoning (LLR): Learning a Differentiable Proof State Space [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'weak_generalization']",
+        "action_summary": "mechanism-commit-innovation -> stagnant_novelty, weak_generalization",
+        "evaluation": {
+          "novelty": 5.0,
+          "feasibility": 2.0,
+          "clarity": 4.0,
+          "impact": 5.0,
+          "risk": 4.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Neural Theorem Prover (NTP) Collapse: The NTP fails to learn valid logic, providing noisy gradients that destabilize the policy.",
+            "Latent Space Semantic Drift: The latent state vector decouples from the generated text, becoming an uninterpretable 'reasoning hack' that satisfies the NTP but produces nonsense output.",
+            "Computational Explosion: Joint training of NTP and Policy introduces massive overhead, negating the efficiency gains of latent planning."
+          ],
+          "fairness_protocol": "Must ablate the 'learned' nature of the NTP against a 'hard-coded' logic checker (like NS-BPG) to prove that the continuous latent space actually aids generalization rather than just adding capacity. Must report inference latency vs. baselines.",
+          "feedback": "This is a high-risk, high-reward 'moonshot' that passes the ICML bar by introducing a novel mechanism (learned latent reasoner) rather than just tuning existing ones. The transition from 'Neuro-Symbolic BPG' (hard constraints) to 'Latent Logic Reasoning' (learned constraints) is a strong operator application. However, the feasibility is low because training a Neural Theorem Prover jointly with an LLM is notoriously unstable. You must explicitly address how you prevent the NTP from becoming a 'rubber stamp' that validates invalid logic just to minimize loss.",
+          "defect_fix_summary": "Addresses 'stagnant_novelty' and 'weak_generalization' from the parent 'Neuro-Symbolic BPG' by replacing hard-coded symbolic constraints with a learned latent proof space. This allows the model to generalize to novel rule compositions by interpolating in the latent space, rather than failing on unseen syntax.",
+          "lift_estimate": 35.0,
+          "composite": 3.45
+        },
+        "rationale": "This uses mechanism-commit-innovation to fix NS-BPG's brittleness by learning the logic constraints instead of hard-coding them. It creates a novel coupling between latent reasoning states and the Bayesian prior, directly addressing the defect of stagnation in semantically invalid spaces. ICML bar: pass - It proposes a concrete, new architecture (latent reasoner) that moves beyond simple logic penalties into learned reasoning structures, a clear novelty leap.",
+        "signature": "82c29dbe09f010cc5791cb22e33f0b16e6b7bbd22c92d41882c69f39b85d2390"
+      },
+      {
+        "iteration": 14,
+        "node_id": 36,
+        "depth": 3,
+        "title": "Uncertainty-Grounded Verifiable Rewards (UGVR) for Epistemic Consistency",
+        "operator": "evaluation-contract-overhaul",
+        "defects": [
+          "evaluation_blindspot",
+          "weak_accountability",
+          "reward_hacking"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Epistemic Memory Augmentation (EM-aug) with Contrastive Uncertainty Repulsion [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Uncertainty-Grounded Verifiable Rewards (UGVR) for Epistemic Consistency [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'weak_accountability', 'reward_hacking']",
+        "action_summary": "evaluation-contract-overhaul -> evaluation_blindspot, weak_accountability, reward_hacking",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Uncertainty Head Overfitting: The lightweight head may simply learn to mimic the LLM's superficial confidence artifacts rather than true epistemic stability, leading to a reward signal that reinforces existing biases.",
+            "Reward Hacking via Consistency: The model may learn to generate 'safe', repetitive, or trivial reasoning paths that are highly consistent but lack the creativity to solve difficult problems (trivial consistency).",
+            "Computational Bottleneck: Generating multiple paths to compute consistency scores for the dataset construction introduces significant overhead, potentially limiting scalability."
+          ],
+          "fairness_protocol": "The protocol mandates a 'Binary Reward' control group trained on the exact same data mix to isolate the effect of the dense signal. Additionally, a 'Random Reward' baseline is required to ensure the model isn't just learning from increased compute/data volume. Ablations must test the removal of the Uncertainty Head to verify the necessity of the learned estimator.",
+          "feedback": "The idea successfully overhauls the evaluation contract by moving from sparse outcome rewards to dense process rewards, directly addressing the 'reward_hacking' defect. However, the methodology relies on a 'learned' uncertainty head, which introduces a meta-learning risk (the head learns to predict what the model wants to hear). To pass the ICML mechanism bar, you must clarify if the Uncertainty Head is trained frozen or end-to-end, and provide a specific failure analysis of 'trivial consistency' (where the model solves easy problems perfectly but fails hard ones).",
+          "defect_fix_summary": "Addresses 'reward_hacking' and 'weak_accountability' by replacing the opaque binary reward with a transparent, dense 'epistemic stability' metric. This forces the model to justify its steps via internal consistency rather than just matching an answer.",
+          "lift_estimate": 25.0,
+          "composite": 3.3000000000000003
+        },
+        "memory_refs": [
+          "Field#1"
+        ],
+        "rationale": "This operator directly addresses the 'reward_hacking' defect by replacing the opaque scalar reward with a transparent, interpretable contract grounded in epistemic consistency. ICML bar: pass because it redefines the learning objective from outcome-only to process-quality, a fundamental shift in RLVR methodology.",
+        "signature": "d80db72730c01f6fe1ce9ce63bf0435de51392592fe52a07257c221062c882af"
+      },
+      {
+        "iteration": 15,
+        "node_id": 39,
+        "depth": 4,
+        "title": "Causal Information Bottleneck (CIB): Decomposing Reward into Fidelity and Complexity",
+        "operator": "theory-transfer-injection",
+        "defects": [
+          "weak_generalization",
+          "unexplored_gap"
+        ],
+        "score": 2.75,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Adversarial Benchmark (EAB): Rewarding Uncertainty Resolution over Consistency [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'weak_accountability'] | Causal Intervention Reward (CIR) [theory-transfer-injection] -> defects ['unexplored_gap', 'weak_generalization'] | Bayesian Causal Surprise (BCS): Epistemic Uncertainty as Intrinsic Reward [theory-transfer-injection] -> defects ['weak_generalization', 'unexplored_gap'] | Causal Information Bottleneck (CIB): Decomposing Reward into Fidelity and Complexity [theory-transfer-injection] -> defects ['weak_generalization', 'unexplored_gap']",
+        "action_summary": "theory-transfer-injection -> weak_generalization, unexplored_gap",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 2.0,
+          "clarity": 3.0,
+          "impact": 4.0,
+          "risk": 4.0,
+          "conciseness": 5.0,
+          "confidence": 0.7,
+          "failure_modes": [
+            "Mutual Information Estimation Collapse: The variational estimators for I(Z;Y) and I(Z;X) (e.g., MINE) are notoriously unstable in high dimensions and adversarial training setups, potentially leading to vanishing/exploding gradients.",
+            "Latent Bottleneck Over-compression: The model might compress Z so aggressively that it loses necessary context (e.g., specific numerical values or variable names), resulting in correct reasoning patterns but wrong final answers.",
+            "Encoder-LLM Decoupling: The Causal Encoder might fail to learn representations that the frozen LLM can effectively utilize, creating a bottleneck that hurts rather than helps performance."
+          ],
+          "fairness_protocol": "Must ablate the I(Z;X) term specifically to prove that compression (not just the auxiliary task) drives performance. Must compare against standard entropy regularization to show the information-theoretic objective provides distinct benefits.",
+          "feedback": "The idea is theoretically sound but operationally opaque. The 'Causal Encoder' is a black box—how does it map text to a latent Z that is meaningful to the LLM? You need to specify if this is a separate model or adapter layers. Furthermore, estimating mutual information in the RL loop is a massive engineering risk. Consider simplifying to a proxy objective (e.g., KL divergence between masked vs unmasked context) to make it feasible for ICML.",
+          "defect_fix_summary": "Addresses 'weak_generalization' by forcing the model to learn minimal sufficient statistics (causal features) rather than memorizing spurious correlations in the full context X. It addresses 'unexplored_gap' by importing Information Bottleneck theory into the RL reward signal.",
+          "lift_estimate": 15.0,
+          "composite": 2.75
+        },
+        "rationale": "This fixes the 'weak_generalization' defect by enforcing sparsity via information theory, moving beyond simple uncertainty variance. ICML bar: Pass + The integration of IB theory into RL for LLMs is a principled theoretical contribution with clear empirical hooks.",
+        "signature": "66deda30af7b9f17029e05cdf9f294d09076d676f6973368555870273caa0cd4"
+      },
+      {
+        "iteration": 16,
+        "node_id": 42,
+        "depth": 4,
+        "title": "Counterfactual Consistency via Variational Information Bottleneck with Gumbel-Top-k Path Sampling",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "weak_generalization",
+          "dataset_bias"
+        ],
+        "score": 1.8499999999999999,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Bayesian Active Learning via Epistemic Neural Networks (BALENN) [theory-transfer-injection] -> defects ['stagnant_novelty', 'theory_gap'] | Counterfactual Consistency Correction (C3) [self-supervised-corrector] -> defects ['systematic_bias', 'silent_failure'] | Counterfactual Consistency via Information Bottleneck Regularization (C3-IB) [theory-transfer-injection] -> defects ['weak_generalization', 'dataset_bias'] | Counterfactual Consistency via Variational Information Bottleneck with Gumbel-Top-k Path Sampling [mechanism-commit-innovation] -> defects ['weak_generalization', 'dataset_bias']",
+        "action_summary": "mechanism-commit-innovation -> weak_generalization, dataset_bias",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 2.0,
+          "clarity": 3.0,
+          "impact": 2.0,
+          "risk": 4.0,
+          "conciseness": 4.0,
+          "confidence": 0.6,
+          "failure_modes": [
+            "Gradient starvation: The strict Gumbel-Top-k sparsity may cause the model to ignore valid but low-entropy reasoning steps early in training, leading to suboptimal convergence.",
+            "Tuning sensitivity: The sparsity parameter 'k' and temperature are likely highly sensitive to the specific domain; a fixed 'k' across GURU domains (Math vs. Simulation) will likely fail."
+          ],
+          "fairness_protocol": "Must ablate the Gumbel-Top-k sampling against a standard continuous gating mechanism (e.g., Softmask) to prove that the discrete sparsity is the source of improvement, not just the IB objective itself.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' but risks being a 'resource dump' if the Gumbel sampling variance isn't managed. It addresses 'dataset_bias' by filtering spurious correlations, but the 'weak_generalization' fix relies on the assumption that sparsity equals robustness, which contradicts the 'High-Entropy Minority Tokens' insight (which suggests we need *more* diversity in specific tokens, not just fewer steps). You need to clarify if this sparsity applies to the *path* (steps) or the *token distribution* (entropy).",
+          "defect_fix_summary": "Addresses 'weak_generalization' and 'dataset_bias' (from C3-IB parent) by replacing noisy variational approximations with a discrete Gumbel-Top-k sampler, theoretically enforcing a minimal sufficient reasoning path and filtering spurious correlations.",
+          "lift_estimate": 15.0,
+          "composite": 1.8499999999999999
+        },
+        "rationale": "This operator directly addresses the approximation noise risk identified in the parent node by introducing a discrete, differentiable sampling mechanism. It moves beyond simple gating to fundamentally alter how the information bottleneck is enforced, ensuring the model captures only essential features.",
+        "signature": "ce88a3af58f8d141de38689ab9ff8dfbb6b89dcf421e9707e2bfb85034328e71"
+      },
+      {
+        "iteration": 17,
+        "node_id": 45,
+        "depth": 4,
+        "title": "Bayesian Risk-Sensitive Policy Optimization (BR-SPO)",
+        "operator": "theory-transfer-injection",
+        "defects": [
+          "evaluation_blindspot",
+          "missing_contracts"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Epistemic Adversarial Benchmark (EAB): Stress-Testing Uncertainty Resolution [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'missing_contracts'] | Uncertainty-Gated Policy Optimization (UGPO) [mechanism-commit-innovation] -> defects ['evaluation_blindspot', 'missing_contracts'] | Bayesian Risk-Sensitive Policy Optimization (BR-SPO) [theory-transfer-injection] -> defects ['evaluation_blindspot', 'missing_contracts']",
+        "action_summary": "theory-transfer-injection -> evaluation_blindspot, missing_contracts",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Variance Collapse: The model may learn to output low-variance (but potentially wrong) tokens to minimize the risk penalty, leading to under-confidence and refusal to answer.",
+            "Numerical Instability: Propagating variance estimates through long reasoning chains (especially with MC dropout) can lead to exploding or vanishing risk signals, destabilizing the policy gradient."
+          ],
+          "fairness_protocol": "Must ablate the risk term (λ=0) to ensure the model recovers standard PPO performance. Must compare against a 'variance penalty' baseline (linear penalty on variance) to prove the non-linear utility function is superior to simple regularization.",
+          "feedback": "The idea successfully applies the 'theory-transfer-injection' operator to fix the 'missing_contracts' defect of the parent UGPO. However, the methodology section needs to specify *how* variance is aggregated across tokens (e.g., sum of variances vs. variance of sum). The ICML bar requires mechanistic clarity here. Additionally, the 'Risk-Return Curve' evaluation is excellent and directly addresses the 'evaluation_blindspot' by moving beyond simple accuracy metrics.",
+          "defect_fix_summary": "Addresses the heuristic nature and lack of theoretical grounding in UGPO by importing a formal risk-sensitive utility function from control theory/finance. This replaces ad-hoc penalties with a principled trade-off between expected reward and epistemic risk.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "rationale": "This repairs UGPO's lack of theoretical grounding and heuristic nature by importing a formal risk-return framework from finance/control theory. ICML bar: Pass, as it moves from engineering heuristics to principled optimization, a standard requirement for top-tier theory-to-practice tracks.",
+        "signature": "c4f09fb5166e8117d76782545a95321bff6454835ac701c68462b36e3854b24e"
+      },
+      {
+        "iteration": 18,
+        "node_id": 48,
+        "depth": 4,
+        "title": "Epistemic Advantage Estimation (EAE)",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "stagnant_novelty",
+          "weak_generalization"
+        ],
+        "score": 2.4,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Bayesian Policy Gradient (BPG): Variational Inference for Robust RL Exploration [theory-transfer-injection] -> defects ['stagnant_novelty', 'weak_generalization'] | Uncertainty-Gated Reward Filtering (UGRF) [data-contract-repair] -> defects ['data_quality', 'label_noise', 'weak_generalization'] | Epistemic Advantage Estimation (EAE) [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'weak_generalization']",
+        "action_summary": "mechanism-commit-innovation -> stagnant_novelty, weak_generalization",
+        "evaluation": {
+          "novelty": 2.0,
+          "feasibility": 4.0,
+          "clarity": 4.0,
+          "impact": 2.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Reward Hacking: The model may learn to artificially inflate its own uncertainty estimates (e.g., by outputting high-entropy token distributions) to lower the variance proxy, thereby increasing the trust weight and effectively giving itself a higher reward for easy steps.",
+            "Calibration Collapse: In high-dimensional LLMs, variance across dropout samples or ensemble members often fails to correlate with true epistemic uncertainty, leading to mis-weighting of gradients."
+          ],
+          "fairness_protocol": "Must ablate the weighting function (e.g., linear vs. inverse) and compare against a baseline that simply adds a fixed entropy bonus to ensure the gain isn't just from extra regularization. Must report 'variance of variance' to ensure the signal is stable.",
+          "feedback": "The idea is a 'mechanism-commit' fix for UGRF, but it fails the ICML bar for novelty as it is essentially a soft-gating mechanism (a standard technique in robust RL). It lacks a specific mechanism for LLMs (e.g., how to estimate variance efficiently without massive overhead). The 'trust weight' formulation is a heuristic without theoretical grounding in policy gradient theorems.",
+          "defect_fix_summary": "Addresses 'stagnant_novelty' and 'weak_generalization' of UGRF by replacing hard thresholding with a continuous weight. However, the operator (mechanism-commit-innovation) is applied too superficially; it doesn't solve the underlying issue that variance is a noisy proxy for utility in LLMs.",
+          "lift_estimate": 5.0,
+          "composite": 2.4
+        },
+        "rationale": "This operator addresses the brittle thresholding of UGRF by introducing a continuous, differentiable mechanism for handling uncertainty, preventing the hard cutoff of valid exploration signals. It respects guardrails by adding minimal compute overhead and establishing a clear comparison to the parent mechanism.",
+        "signature": "da309ff5b6b2433aba4c882574eeca6b1b9eac5f550f1b1295c7b9e3200e2aa3"
+      },
+      {
+        "iteration": 19,
+        "node_id": 51,
+        "depth": 3,
+        "title": "Gradient-Variance Gating (GVG): A Self-Supervised Corrector for Epistemic Reward Shaping",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "reward_hacking",
+          "computational_expense"
+        ],
+        "score": 3.1,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Adversarial Benchmark (EAB): Rewarding Uncertainty Resolution over Consistency [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'weak_accountability'] | Epistemic Monte Carlo Reward Shaping (EMCRS) [mechanism-commit-innovation] -> defects ['reward_hacking', 'computational_expense'] | Gradient-Variance Gating (GVG): A Self-Supervised Corrector for Epistemic Reward Shaping [mechanism-commit-innovation] -> defects ['reward_hacking', 'computational_expense']",
+        "action_summary": "mechanism-commit-innovation -> reward_hacking, computational_expense",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.85,
+          "failure_modes": [
+            "GVG head overfitting to specific variance patterns, leading to poor generalization on OOD instability (e.g., failing to predict high variance in novel reasoning domains).",
+            "Fallback mechanism triggering too frequently on valid low-variance steps, negating the compute savings.",
+            "Auxiliary regression task interfering with the primary RL objective (catastrophic interference)."
+          ],
+          "fairness_protocol": "Must compare against a 'Vanilla EMCRS' baseline with matched total training FLOPs (not just wall-clock time) to ensure the GVG overhead doesn't just shift compute. Ablation: 'GVG without fallback' to measure the cost of safety.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' that addresses the 'computational_expense' defect of EMCRS. However, it risks being viewed as a 'tweak' (adding a gate/estimator) rather than a fundamental shift. To push it to ICML bar, the evaluation must explicitly measure 'Reward Hacking Rate' reduction, not just speed. The current plan mentions this, but you must define the metric precisely (e.g., % of steps where the model generates high-variance nonsense to trigger the penalty).",
+          "defect_fix_summary": "Addresses 'computational_expense' by replacing Monte Carlo sampling with a learned estimator, and 'reward_hacking' by filtering noise that might confuse the URS penalty.",
+          "lift_estimate": 15.0,
+          "composite": 3.1
+        },
+        "memory_refs": [
+          "Recipe#1"
+        ],
+        "rationale": "This directly attacks EMCRS's compute bottleneck and noise sensitivity by replacing sampling with a learned corrector, adhering to the self-supervised-corrector guardrails. ICML bar: Pass – The mechanism is concrete (auxiliary head + consistency loss), targets a clear defect, and includes a rigorous fallback protocol, though reviewers may demand theoretical bounds on GVG generalization.",
+        "signature": "a2617195a98478f428234fab5ebc80b39b139992c760d4452087098a2a72a337"
+      },
+      {
+        "iteration": 20,
+        "node_id": 54,
+        "depth": 3,
+        "title": "Adversarial Trap Verification Protocol (ATVP) | Mechanism Commit Innovation #1",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "stagnant_novelty",
+          "unclear_mechanism",
+          "validation_gap"
+        ],
+        "score": 2.35,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Adversarial Benchmark (EAB): Rewarding Uncertainty Resolution over Consistency [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'weak_accountability'] | Adversarial Trap Verification Protocol (ATVP) [data-contract-repair] -> defects ['label_noise', 'evaluation_blindspot'] | Adversarial Trap Verification Protocol (ATVP) | Mechanism Commit Innovation #1 [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'unclear_mechanism', 'validation_gap']",
+        "action_summary": "mechanism-commit-innovation -> stagnant_novelty, unclear_mechanism, validation_gap",
+        "evaluation": {
+          "novelty": 2.0,
+          "feasibility": 4.0,
+          "clarity": 3.0,
+          "impact": 2.0,
+          "risk": 2.0,
+          "conciseness": 4.0,
+          "confidence": 0.7,
+          "failure_modes": [
+            "Generator Collapse: The adversarial generator may fail to produce semantically plausible distractors, causing the policy model to ignore them rather than learning to distinguish them.",
+            "Reward Hacking: The policy model may learn to output generic 'verification' phrases without actually performing the check, satisfying the reward signal superficially."
+          ],
+          "fairness_protocol": "The ablation study must compare ATVP against a baseline that uses the same adversarial data but without the explicit verification protocol (i.e., standard RL on the trap data) to isolate the benefit of the verification mechanism.",
+          "feedback": "The idea is a 'data-contract-repair' that improves the parent 'Adversarial Reasoning Topology' by adding a verification step. However, it remains incremental because it relies on existing RL paradigms without introducing a new learning dynamic. To pass the ICML bar, you must clarify the mechanism: does the verification happen during generation (internal monologue) or post-generation? If internal, you need to prove it doesn't just lengthen the chain. If post-generation, you need to show how gradients flow back to improve reasoning.",
+          "defect_fix_summary": "Addresses 'unclear_mechanism' and 'validation_gap' of the parent idea by formalizing the adversarial training into a specific protocol (ATVP) that forces the model to explicitly verify traps, rather than just avoiding them implicitly. This provides a clearer training signal and a specific metric for evaluation.",
+          "lift_estimate": 15.0,
+          "composite": 2.35
+        },
+        "memory_refs": [
+          "Pattern#1",
+          "Pattern#2",
+          "Pattern#3"
+        ],
+        "signature": "4ff621c585532267dfbfea81a29cadbefc8998b954c5193927d36fe5d97a8fde"
+      },
+      {
+        "iteration": 21,
+        "node_id": 57,
+        "depth": 4,
+        "title": "Epistemic Replay: Integrating Uncertainty-Gated Memory into RL Training Dynamics",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "stagnant_novelty",
+          "unclear_mechanism",
+          "validation_gap"
+        ],
+        "score": 2.95,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Epistemic Memory Augmentation (EM-aug) with Contrastive Uncertainty Repulsion [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Bayesian Replay Buffers: Variational Inference over Epistemic Memory [theory-transfer-injection] -> defects ['unclear_mechanism', 'stagnant_novelty'] | Epistemic Replay: Integrating Uncertainty-Gated Memory into RL Training Dynamics [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'unclear_mechanism', 'validation_gap']",
+        "action_summary": "mechanism-commit-innovation -> stagnant_novelty, unclear_mechanism, validation_gap",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 4.0,
+          "impact": 3.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Uncertainty Miscalibration: The model learns to output high variance for easy inputs to force replay, effectively hacking the sampling probability.",
+            "Feedback Loop Instability: High variance states are sampled too frequently, causing the policy to overfit to edge cases and destabilize training."
+          ],
+          "fairness_protocol": "Must ablate the sampling strategy: compare against uniform replay, random sampling of high-variance states (to isolate the 'gating' effect from just 'more hard samples'), and a baseline that uses a fixed curriculum.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' that fixes the 'unclear_mechanism' defect of the parent seed by specifying a concrete algorithmic coupling (variance-weighted replay). However, it risks 'stagnant_novelty' because it is essentially a specialized variant of Prioritized Experience Replay (PER) applied to epistemic uncertainty. To pass the ICML bar, the 'Epistemic Replay' must be shown to do more than just 'sample hard examples'—it must demonstrate that it corrects specific distributional shifts or calibration errors that standard PER misses. The evaluation plan needs to explicitly measure if the replay buffer is actually improving the model's calibration, not just its performance.",
+          "defect_fix_summary": "Addresses 'unclear_mechanism' by defining a specific coupling between Bayesian variance and replay probability. It attempts to address 'stagnant_novelty' by framing the replay buffer as an active curriculum generator rather than passive storage.",
+          "lift_estimate": 15.0,
+          "composite": 2.95
+        },
+        "rationale": "This directly addresses the 'unclear_mechanism' defect of the parent by defining a specific coupling between memory and policy updates. It respects guardrails by introducing a concrete algorithmic change with a clear validation metric (calibration error). ICML bar: pass, as it introduces a novel coupling between Bayesian inference and RL training dynamics, distinct from standard replay buffers.",
+        "signature": "8e5e71f7b92a2a136874d461b3f9d1828b2ee3c71d53e15af6a5e5a992e289bd"
+      },
+      {
+        "iteration": 22,
+        "node_id": 28,
+        "depth": 4,
+        "title": "Trajectory Volatility Stress Test (TVST)",
+        "operator": "evaluation-contract-overhaul",
+        "defects": [
+          "evaluation_blindspot",
+          "weak_accountability"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Epistemic Adversarial Benchmark (EAB): Stress-Testing Uncertainty Resolution [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'missing_contracts'] | Control-Theoretic Uncertainty Steering (CTUS) [theory-transfer-injection] -> defects ['stagnant_novelty', 'weak_generalization'] | Trajectory Volatility Stress Test (TVST) [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'weak_accountability']",
+        "action_summary": "evaluation-contract-overhaul -> evaluation_blindspot, weak_accountability",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 3.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.9,
+          "failure_modes": [
+            "Perturbation generation creates invalid problems (e.g., math problems where the answer changes despite the constraint).",
+            "Parsing logic for extracting intermediate steps fails on non-standard or creative reasoning traces, leading to noisy volatility scores."
+          ],
+          "fairness_protocol": "Must compare against a 'Standard Sampling' baseline on the same perturbed prompts to isolate the effect of the perturbation vs. model variance. Ablation required on perturbation intensity.",
+          "feedback": "The idea is a solid 'evaluation-contract-overhaul' that addresses the 'evaluation_blindspot' of static benchmarks. However, it is purely diagnostic—it measures a defect but doesn't fix it. To pass the high ICML bar for 'impact', you must link TVST to a training intervention (e.g., using the volatility score as a penalty in the RL objective). The current version is an analysis tool, not a methodological advance.",
+          "defect_fix_summary": "Addresses 'evaluation_blindspot' by introducing a metric for reasoning stability (Volatility Score) that standard accuracy metrics miss. It forces the community to account for 'lucky guesses' and unstable reasoning paths.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "memory_refs": [
+          "Recipe#2"
+        ],
+        "rationale": "The operator 'evaluation-contract-overhaul' addresses the blindspot where models are rewarded for unstable reasoning. ICML bar: Pass. Introducing a rigorous metric for reasoning stability (beyond answer matching) is a high-value contribution for the RL-LLM community, addressing reproducibility and safety concerns.",
+        "signature": "57ea83f33b5d9648f05f2daaac2a7676a5c69f26d938c962e1adfc81a957855e"
+      },
+      {
+        "iteration": 23,
+        "node_id": 46,
+        "depth": 4,
+        "title": "Dialectical Adversarial Benchmark (DAB)",
+        "operator": "evaluation-contract-overhaul",
+        "defects": [
+          "weak_accountability",
+          "reward_hacking"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Epistemic Adversarial Benchmark (EAB): Stress-Testing Uncertainty Resolution [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'missing_contracts'] | Uncertainty-Gated Policy Optimization (UGPO) [mechanism-commit-innovation] -> defects ['evaluation_blindspot', 'missing_contracts'] | Dialectical Adversarial Benchmark (DAB) [evaluation-contract-overhaul] -> defects ['weak_accountability', 'reward_hacking']",
+        "action_summary": "evaluation-contract-overhaul -> weak_accountability, reward_hacking",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Reward Hacking: The model may learn to generate a generic 'This prompt is contradictory' response for all difficult inputs to maximize the consistency reward without performing actual logic checks.",
+            "Generator Collapse: The 'Logic Bomb' generator may fail to produce non-trivial contradictions, leading the model to ignore the consistency signal entirely."
+          ],
+          "fairness_protocol": "Must include an ablation where the Consistency Reward is removed but the adversarial prompts remain, isolating the effect of the reward structure vs. the data distribution. Additionally, performance must be reported on a 'clean' non-adversarial set to ensure the model hasn't simply learned to reject valid inputs.",
+          "feedback": "The idea effectively targets 'reward hacking' by overhauling the evaluation contract, but the methodology needs a specific mechanism to prevent the model from simply learning to output 'contradiction' for every hard problem. Consider adding a 'verification' step where the model must explain *why* it is a contradiction (similar to the Neuro-Symbolic Equilibrium concept) to unlock the reward.",
+          "defect_fix_summary": "Addresses 'weak_accountability' and 'reward_hacking' by forcing the model to validate the logical consistency of the input before processing, rather than blindly optimizing for output correctness.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "memory_refs": [
+          "Field#1"
+        ],
+        "rationale": "This overhauls the evaluation contract to directly surface and reward the mitigation of hallucination sources, addressing the reward hacking defect. ICML bar: Pass, as it fundamentally changes the training objective to target a specific, dangerous failure mode (hallucination), fitting the 'curriculum design' and 'robustness' themes.",
+        "signature": "afa8b300c632c965ba58c5ba3f4add368a907846efe6c09cd68cc5636ea04060"
+      },
+      {
+        "iteration": 24,
+        "node_id": 60,
+        "depth": 4,
+        "title": "Multi-Scale Adversarial Noise Scheduling (MANS)",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "weak_generalization",
+          "unstable_gradients"
+        ],
+        "score": 2.95,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Epistemic Memory Augmentation (EM-aug) with Contrastive Uncertainty Repulsion [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Adversarial Counterfactual Rollouts (ACR) [counterfactual-contrast] -> defects ['missing_edge_cases', 'weak_generalization'] | Multi-Scale Adversarial Noise Scheduling (MANS) [mechanism-commit-innovation] -> defects ['weak_generalization', 'unstable_gradients']",
+        "action_summary": "mechanism-commit-innovation -> weak_generalization, unstable_gradients",
+        "evaluation": {
+          "novelty": 3.0,
+          "feasibility": 4.0,
+          "clarity": 4.0,
+          "impact": 3.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Controller collapse: The noise scheduler learns to predict epsilon=0 (safe mode) to avoid the adversarial penalty, effectively disabling the mechanism.",
+            "Over-stabilization: Excessive noise suppression leads to a loss of gradient signal, causing the model to converge to a suboptimal local minimum with low variance but poor reasoning capability."
+          ],
+          "fairness_protocol": "Must ablate the 'adaptive' nature of MANS by comparing against a fixed schedule that matches the average epsilon/l_t of the learned controller. This isolates the benefit of the dynamic modulation vs. just the specific noise levels used.",
+          "feedback": "The idea is a solid 'mechanism-commit-innovation' that addresses the 'unstable_gradients' defect of ACR. However, the 'Multi-Scale' aspect (layer-wise perturbation) is under-specified; applying noise to specific layers of a frozen LLM is non-trivial and may require significant engineering. To pass the high ICML bar, the evaluation must go beyond standard benchmarks and explicitly measure 'Gradient Variance' and 'Signal-to-Noise Ratio' during training to prove the mechanism works as intended, rather than just reporting final accuracy.",
+          "defect_fix_summary": "Addresses 'unstable_gradients' in ACR by replacing fixed heuristic noise with a learned scheduler. This reduces gradient variance and ensures perturbations are informative, stabilizing the RL training loop.",
+          "lift_estimate": 15.0,
+          "composite": 2.95
+        },
+        "rationale": "The operator fixes the 'unstable_gradients' defect by committing to a learned, adaptive mechanism rather than heuristic noise. This transforms the static perturbation into a dynamic, multi-scale signal that targets the root cause of training instability. ICML bar: pass + The idea introduces a concrete architectural commitment (trainable scheduler) that solves a specific stability defect, moving beyond simple hyperparameter tuning.",
+        "signature": "93ea9e5ca430653367dde49c22d9db5332742afa6f20830e3c2c82f815990d7c"
+      },
+      {
+        "iteration": 25,
+        "node_id": 23,
+        "depth": 3,
+        "title": "Epistemic Consistency Stress Test (ECST)",
+        "operator": "evaluation-contract-overhaul",
+        "defects": [
+          "evaluation_blindspot",
+          "weak_accountability"
+        ],
+        "score": 2.7500000000000004,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Bayesian Active Learning via Epistemic Neural Networks (BALENN) [theory-transfer-injection] -> defects ['stagnant_novelty', 'theory_gap'] | Adversarial Entropy Masking Benchmark (AEMB) [evaluation-contract-overhaul] -> defects ['weak_accountability', 'evaluation_blindspot'] | Epistemic Consistency Stress Test (ECST) [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'weak_accountability']",
+        "action_summary": "evaluation-contract-overhaul -> evaluation_blindspot, weak_accountability",
+        "evaluation": {
+          "novelty": 2.0,
+          "feasibility": 4.0,
+          "clarity": 5.0,
+          "impact": 2.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Logical Over-constraint: The consistency checker may flag valid answers if the logic solver is too rigid or if the model's natural language answers are ambiguous.",
+            "Reward Hacking: Models may learn to generate answers that are technically consistent but trivial or vacuous to avoid the risk of contradiction."
+          ],
+          "fairness_protocol": "The protocol requires comparing the '3C Score' against 'Raw Accuracy' on the same benchmark. A large gap indicates 'blind guessing'. Fairness is ensured by using a standardized Logic Query Set generator that is open-sourced to prevent benchmark leakage.",
+          "feedback": "This idea is a direct application of the 'evaluation-contract-overhaul' operator. While it addresses the 'evaluation_blindspot' defect, it remains an instrumentation-only change. To pass the ICML bar for a full paper, it must be paired with a mechanism that actually fixes the inconsistency (e.g., the 'Neuro-Symbolic Equilibrium' or 'Epistemic Curiosity' seeds). As a standalone diagnostic, it is clear but lacks a novel learning mechanism.",
+          "defect_fix_summary": "Addresses 'evaluation_blindspot' by replacing single-turn accuracy with a multi-turn consistency check. It addresses 'weak_accountability' by penalizing logical contradictions, forcing the model to expose its internal reasoning structure.",
+          "lift_estimate": 0.0,
+          "composite": 2.7500000000000004
+        },
+        "memory_refs": [
+          "Anti-pattern#1"
+        ],
+        "rationale": "This operator addresses the evaluation blindspot by redesigning the contract to expose logical inconsistency, a defect that current metrics ignore. It is tagged 'incremental' because it is primarily an evaluation tool, not a training mechanism, but it is a necessary stop-gap to validate the efficacy of mechanism-based improvements. ICML bar: pass but only as a diagnostic tool; it lacks a novel learning mechanism.",
+        "signature": "6c376a784316eafbde097bbfefa186696c4cf7026d50cb4cafe16d80bfa1e393"
+      },
+      {
+        "iteration": 26,
+        "node_id": 29,
+        "depth": 4,
+        "title": "Adaptive Control Frequency (ACF)",
+        "operator": "incremental",
+        "defects": [
+          "overhead_of_running_a_controller_loop_per_token"
+        ],
+        "score": 2.4,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Epistemic Adversarial Benchmark (EAB): Stress-Testing Uncertainty Resolution [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'missing_contracts'] | Control-Theoretic Uncertainty Steering (CTUS) [theory-transfer-injection] -> defects ['stagnant_novelty', 'weak_generalization'] | Adaptive Control Frequency (ACF) [incremental] -> defects ['overhead_of_running_a_controller_loop_per_token']",
+        "action_summary": "incremental -> overhead_of_running_a_controller_loop_per_token",
+        "evaluation": {
+          "novelty": 1.0,
+          "feasibility": 5.0,
+          "clarity": 5.0,
+          "impact": 1.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.9,
+          "failure_modes": [
+            "Threshold Mismatch: The static threshold epsilon may be too low for naturally volatile reasoning steps (causing unnecessary overhead) or too high to catch actual divergence (causing hallucinations).",
+            "Latency-Accuracy Trade-off: The fixed window K might cut off a reasoning branch that was about to self-correct, leading to a 'false positive' stability signal."
+          ],
+          "fairness_protocol": "Must report 'Control Loop Activation Rate' alongside latency. A fair comparison requires ablation on the threshold epsilon to show the optimization isn't just 'turning off the controller' to save time.",
+          "feedback": "This idea is a pure engineering optimization (Operator: [incremental]) that addresses the 'overhead' defect of the parent CTUS mechanism. It introduces no new learning capability or scientific insight. It fails the ICML bar because it is a tuning parameter change, not a mechanism change. To pass the bar, it needs to be integrated into a larger framework where the gating itself is learned or where the stability detection reveals a new property of LLM reasoning.",
+          "defect_fix_summary": "Addresses the 'overhead_of_running_a_controller_loop_per_token' defect by introducing a heuristic gating mechanism. The operator helps by reducing computational cost, but it does not improve the underlying reasoning capability.",
+          "lift_estimate": 5.0,
+          "composite": 2.4
+        },
+        "rationale": "This is an incremental safeguard to reduce latency. It is not a fundamental mechanism change but a necessary optimization for deployment. ICML bar: Fail (incremental). It is a practical engineering fix rather than a conceptual breakthrough suitable for top-tier venues.",
+        "signature": "2133bac279a86b145417174a83d181e139bd602832036165c3dc05cb20828499"
+      },
+      {
+        "iteration": 29,
+        "node_id": 63,
+        "depth": 4,
+        "title": "Latent-Space Contraction via Contrastive Jacobian Regularization (LCC-JR)",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "stagnant_novelty",
+          "weak_generalization"
+        ],
+        "score": 3.3000000000000003,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Adversarial Benchmark (EAB): Rewarding Uncertainty Resolution over Consistency [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'weak_accountability'] | Epistemic Monte Carlo Reward Shaping (EMCRS) [mechanism-commit-innovation] -> defects ['reward_hacking', 'computational_expense'] | Control-Theoretic Stability Regularization (CTSR) for Reasoning Trajectories [theory-transfer-injection] -> defects ['stagnant_novelty', 'weak_generalization'] | Latent-Space Contraction via Contrastive Jacobian Regularization (LCC-JR) [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'weak_generalization']",
+        "action_summary": "mechanism-commit-innovation -> stagnant_novelty, weak_generalization",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 3.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Spectral collapse: The regularization might force all singular values to be uniformly low, flattening the reasoning manifold and preventing the model from making necessary 'large' updates to hidden states (mode collapse).",
+            "Jacobian approximation error: Power iteration on the Jacobian-vector product (Hessian-free estimation) can be unstable or inaccurate in high-curvature regions of the loss landscape, leading to noisy gradients."
+          ],
+          "fairness_protocol": "Must ablate the power iteration steps (k=1 vs k=3 vs k=5) to verify compute trade-off. Must compare against a baseline that simply adds a standard weight decay (L2) to the hidden states to ensure the spectral regularization provides a unique benefit over generic regularization.",
+          "feedback": "The idea successfully applies 'mechanism-commit-innovation' by replacing the brittle reference-based contraction (CTSR) with a principled spectral regularizer. However, the 'risks' section mentions 'over-regularization' but lacks a mitigation strategy. You should explicitly propose a dynamic weighting scheme for the loss term (e.g., annealing λ or using a gating mechanism based on step difficulty) to prevent flattening. Additionally, ensure the power iteration is strictly truncated to limit overhead, as 'computational_expense' is a known defect in the lineage.",
+          "defect_fix_summary": "Addresses 'weak_generalization' and 'stagnant_novelty' from CTSR by removing the dependency on reference trajectories (which fail OOD) and introducing a novel spectral regularization technique derived from control theory.",
+          "lift_estimate": 15.0,
+          "composite": 3.3000000000000003
+        },
+        "rationale": "LCC-JR uses mechanism-commit-innovation to replace the brittle reference-based contraction with a reference-free spectral regularizer, directly addressing CTSR's OOD weakness. ICML bar: pass + this introduces a principled, algorithmic intervention (spectral regularization via JVPs) that is novel for reasoning stability and aligns with control theory rigor.",
+        "signature": "691a1eca909f8c0c153e0cd718b049c4902e9c46e06ac8095d3e9a00a2269e33"
+      },
+      {
+        "iteration": 30,
+        "node_id": 66,
+        "depth": 4,
+        "title": "Causal Information Bottleneck with Natural Language Grounding (CIB-NLG)",
+        "operator": "mechanism-commit-innovation",
+        "defects": [
+          "synthetic_to_natural_gap",
+          "evaluation_blindspot"
+        ],
+        "score": 2.55,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Adversarial Benchmark (EAB): Rewarding Uncertainty Resolution over Consistency [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'weak_accountability'] | Causal Intervention Reward (CIR) [theory-transfer-injection] -> defects ['unexplored_gap', 'weak_generalization'] | Causal-TREC: A Natural Language Causal Reasoning Benchmark [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'synthetic_to_natural_gap'] | Causal Information Bottleneck with Natural Language Grounding (CIB-NLG) [mechanism-commit-innovation] -> defects ['synthetic_to_natural_gap', 'evaluation_blindspot']",
+        "action_summary": "mechanism-commit-innovation -> synthetic_to_natural_gap, evaluation_blindspot",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 2.0,
+          "clarity": 4.0,
+          "impact": 3.0,
+          "risk": 4.0,
+          "conciseness": 4.0,
+          "confidence": 0.7,
+          "failure_modes": [
+            "Decoder Collapse: The frozen LLM decoder dominates the objective, causing the bottleneck Z to ignore causal structure and simply encode the input text directly (bypassing the bottleneck), resulting in high reconstruction but zero causal reasoning capability.",
+            "Gradient Starvation: The reconstruction loss (L_recon) is much stronger than the causal bottleneck loss, leading the model to prioritize linguistic fluency over structural causal accuracy."
+          ],
+          "fairness_protocol": "Must ablate the Causal Bottleneck component entirely to ensure the model isn't just performing standard language modeling. Must compare against a 'Bag-of-Words' baseline to prove the necessity of the causal structure.",
+          "feedback": "The idea correctly identifies the 'synthetic-to-natural' gap (Target Defect) and proposes a mechanism-commit-innovation. However, the feasibility is low because using a frozen LLM decoder on a bottlenecked latent vector is notoriously difficult (information bottleneck collapse). To pass the ICML bar, you must specify how you prevent the decoder from ignoring Z (e.g., a variational lower bound or a projection layer). The evaluation plan is solid but needs a 'sanity check' metric: does the model actually learn causal dependencies, or just memorize text patterns?",
+          "defect_fix_summary": "Addresses 'synthetic_to_natural_gap' by forcing the latent representation to be reconstructable into natural language, ensuring the learned causal structures are linguistically grounded rather than abstract graph topologies.",
+          "lift_estimate": 15.0,
+          "composite": 2.55
+        },
+        "memory_refs": [
+          "Field#1"
+        ],
+        "rationale": "This directly targets the 'synthetic-to-natural' defect by forcing the bottleneck to produce linguistically valid representations. It avoids feature dumping by tying the new module to a measurable transfer gap. ICML bar: Pass - introduces a clear mechanism (grounding constraint) and validation (Causal-TREC accuracy).",
+        "signature": "fd70b2e4d82a5503615dca54f31529a49fc4d24453fe6074241c2e5ffb60f4aa"
+      },
+      {
+        "iteration": 31,
+        "node_id": 34,
+        "depth": 4,
+        "title": "Control-Theoretic BPG: Stability-Guided Exploration via Lyapunov Constraints",
+        "operator": "theory-transfer-injection",
+        "defects": [
+          "missing_edge_cases",
+          "weak_generalization"
+        ],
+        "score": 2.6499999999999995,
+        "visits": 1,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Bayesian Policy Gradient (BPG): Variational Inference for Robust RL Exploration [theory-transfer-injection] -> defects ['stagnant_novelty', 'weak_generalization'] | Neuro-Symbolic BPG: Variational Inference with Logic-Guided Priors [theory-transfer-injection] -> defects ['stagnant_novelty', 'weak_generalization', 'missing_edge_cases'] | Control-Theoretic BPG: Stability-Guided Exploration via Lyapunov Constraints [theory-transfer-injection] -> defects ['missing_edge_cases', 'weak_generalization']",
+        "action_summary": "theory-transfer-injection -> missing_edge_cases, weak_generalization",
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 2.0,
+          "clarity": 3.0,
+          "impact": 4.0,
+          "risk": 4.0,
+          "conciseness": 4.0,
+          "confidence": 0.7,
+          "failure_modes": [
+            "Lyapunov function approximation failure: The learned Lyapunov network may fail to satisfy the stability constraint, leading to invalid gradients or training collapse.",
+            "Over-constrained policy: The stability projection may restrict the policy to a suboptimal local region, preventing the discovery of novel reasoning strategies that require temporarily 'unstable' exploration.",
+            "State representation mismatch: Defining a meaningful 'state' $s$ for an autoregressive LLM (vs. a continuous control system) is ambiguous; using raw embeddings might capture noise rather than semantic stability."
+          ],
+          "fairness_protocol": "Must compare against 'Constrained BPG' baselines that use simple L2 regularization or gradient clipping to distinguish the specific benefit of Lyapunov stability vs. generic constraints. Ablation on the Lyapunov network architecture is required.",
+          "feedback": "The idea is a strong 'theory-transfer-injection' but risks being a solution in search of a problem. The 'state' definition for LLM reasoning is the critical weak point; without a rigorous definition of what constitutes a 'stable' vs. 'unstable' reasoning state, the Lyapunov constraint is mathematically vague. The ICML bar requires mechanistic clarity: you must demonstrate that the constraint actually prevents specific, observed failure modes (e.g., hallucination loops) rather than just acting as a generic regularizer.",
+          "defect_fix_summary": "Addresses 'weak_generalization' and 'missing_edge_cases' by enforcing a global stability constraint that theoretically bounds the policy's behavior under distribution shifts, preventing divergence when encountering adversarial or out-of-distribution prompts.",
+          "lift_estimate": 15.0,
+          "composite": 2.6499999999999995
+        },
+        "rationale": "This operator transfers a fundamental concept (Lyapunov stability) from control theory to address the defect of unstable exploration in BPG. It introduces a first-class constraint mechanism that is rigorous and distinct from simple reward shaping. ICML bar: pass - Importing control theory concepts into RL for reasoning is a high-value cross-disciplinary move with strong theoretical grounding, suitable for top-tier venues.",
+        "signature": "3764536e316620b5441ac5196f41e1f073c3d95444e82ded599ad97e2c7b1be3"
+      }
+    ],
+    "pareto_front": {
+      "novel": {
+        "idea": {
+          "title": "Latent Logic Reasoning (LLR): Learning a Differentiable Proof State Space",
+          "abstract": "NS-BPG's logic layer provides a binary signal, limiting exploration in latent reasoning spaces. We propose Latent Logic Reasoning (LLR), a mechanism that replaces the explicit logic layer with a learned latent reasoner. The policy outputs a latent 'proof state' vector, which is mapped to a logic satisfaction score via a learned neural theorem prover. The prior variance is conditioned on the distance to valid proof states in this latent space, not just output satisfaction. This transforms exploration into a search for valid reasoning trajectories in a continuous, learnable space, improving generalization to unseen logical structures.",
+          "core_contribute": "A learned latent reasoner that shapes the BPG prior via a continuous proof-state distance metric, enabling zero-shot generalization to novel logical rules.",
+          "methodology": "1. Augment policy with a latent 'reasoning state' output alongside tokens. 2. Train a Neural Theorem Prover (NTP) module to predict logic satisfaction (S(L)) from latent states. 3. Construct a prior p(theta) conditioned on the NTP's confidence/uncertainty metric. 4. Train the NTP and policy jointly via an auxiliary loss on logic satisfaction. 5. Use the latent distance to valid states as a continuous reward shaping signal.",
+          "experiment_design": "Baselines: NS-BPG, Standard BPG, PPO. Use the LogicGridWorld benchmark. Add a 'Generalization' split where rules are composed of primitives seen during training but in novel combinations. Metrics: Constraint satisfaction rate, task success rate, and specifically success on the generalization split.",
+          "risks": "The Neural Theorem Prover may be hard to train and could hallucinate invalid logic. The latent space might collapse, losing semantic meaning.",
+          "tags": [
+            "mechanism-commit-innovation",
+            "moonshot",
+            "logic-injection"
+          ],
+          "operator": "mechanism-commit-innovation",
+          "target_defects": [
+            "stagnant_novelty",
+            "weak_generalization"
+          ],
+          "memory_refs": [],
+          "rationale": "This uses mechanism-commit-innovation to fix NS-BPG's brittleness by learning the logic constraints instead of hard-coding them. It creates a novel coupling between latent reasoning states and the Bayesian prior, directly addressing the defect of stagnation in semantically invalid spaces. ICML bar: pass - It proposes a concrete, new architecture (latent reasoner) that moves beyond simple logic penalties into learned reasoning structures, a clear novelty leap."
+        },
+        "evaluation": {
+          "novelty": 5.0,
+          "feasibility": 2.0,
+          "clarity": 4.0,
+          "impact": 5.0,
+          "risk": 4.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "Neural Theorem Prover (NTP) Collapse: The NTP fails to learn valid logic, providing noisy gradients that destabilize the policy.",
+            "Latent Space Semantic Drift: The latent state vector decouples from the generated text, becoming an uninterpretable 'reasoning hack' that satisfies the NTP but produces nonsense output.",
+            "Computational Explosion: Joint training of NTP and Policy introduces massive overhead, negating the efficiency gains of latent planning."
+          ],
+          "fairness_protocol": "Must ablate the 'learned' nature of the NTP against a 'hard-coded' logic checker (like NS-BPG) to prove that the continuous latent space actually aids generalization rather than just adding capacity. Must report inference latency vs. baselines.",
+          "feedback": "This is a high-risk, high-reward 'moonshot' that passes the ICML bar by introducing a novel mechanism (learned latent reasoner) rather than just tuning existing ones. The transition from 'Neuro-Symbolic BPG' (hard constraints) to 'Latent Logic Reasoning' (learned constraints) is a strong operator application. However, the feasibility is low because training a Neural Theorem Prover jointly with an LLM is notoriously unstable. You must explicitly address how you prevent the NTP from becoming a 'rubber stamp' that validates invalid logic just to minimize loss.",
+          "defect_fix_summary": "Addresses 'stagnant_novelty' and 'weak_generalization' from the parent 'Neuro-Symbolic BPG' by replacing hard-coded symbolic constraints with a learned latent proof space. This allows the model to generalize to novel rule compositions by interpolating in the latent space, rather than failing on unseen syntax.",
+          "lift_estimate": 35.0
+        },
+        "score": 3.45,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Bayesian Policy Gradient (BPG): Variational Inference for Robust RL Exploration [theory-transfer-injection] -> defects ['stagnant_novelty', 'weak_generalization'] | Neuro-Symbolic BPG: Variational Inference with Logic-Guided Priors [theory-transfer-injection] -> defects ['stagnant_novelty', 'weak_generalization', 'missing_edge_cases'] | Latent Logic Reasoning (LLR): Learning a Differentiable Proof State Space [mechanism-commit-innovation] -> defects ['stagnant_novelty', 'weak_generalization']"
+      },
+      "feasible": {
+        "idea": {
+          "title": "Adaptive Control Frequency (ACF)",
+          "abstract": "To mitigate the computational overhead of running the CTUS control loop at every token generation step, we propose Adaptive Control Frequency (ACF). This mechanism monitors the rate of change of the uncertainty derivative. If the derivative falls below a small threshold (indicating a stable trajectory), the controller is bypassed for subsequent tokens. The controller is only re-engaged when uncertainty metrics fluctuate significantly. This acts as a dynamic gating mechanism to reduce average inference latency.",
+          "core_contribute": "A dynamic gating mechanism that skips the control loop during stable reasoning phases to reduce latency.",
+          "methodology": "1. Track the derivative of the uncertainty state $\\dot{x}$. 2. If $||\\dot{x}|| < \\epsilon$, switch to 'Passive Mode' (standard sampling) for $K$ steps. 3. If $||\\dot{x}|| > \\epsilon$ or step count exceeds $K$, switch to 'Active Mode' (CTUS control). 4. Tune $\\epsilon$ and $K$ based on a latency-accuracy trade-off.",
+          "experiment_design": "Measure average latency per token on a long-context reasoning dataset. Compare ACF+CTUS vs. CTUS alone. Ensure accuracy drop is negligible (<0.5%).",
+          "risks": "Missing a critical uncertainty spike during Passive Mode; Tuning sensitivity of thresholds.",
+          "tags": [
+            "incremental"
+          ],
+          "operator": "incremental",
+          "target_defects": [
+            "overhead_of_running_a_controller_loop_per_token"
+          ],
+          "memory_refs": [],
+          "rationale": "This is an incremental safeguard to reduce latency. It is not a fundamental mechanism change but a necessary optimization for deployment. ICML bar: Fail (incremental). It is a practical engineering fix rather than a conceptual breakthrough suitable for top-tier venues."
+        },
+        "evaluation": {
+          "novelty": 1.0,
+          "feasibility": 5.0,
+          "clarity": 5.0,
+          "impact": 1.0,
+          "risk": 2.0,
+          "conciseness": 5.0,
+          "confidence": 0.9,
+          "failure_modes": [
+            "Threshold Mismatch: The static threshold epsilon may be too low for naturally volatile reasoning steps (causing unnecessary overhead) or too high to catch actual divergence (causing hallucinations).",
+            "Latency-Accuracy Trade-off: The fixed window K might cut off a reasoning branch that was about to self-correct, leading to a 'false positive' stability signal."
+          ],
+          "fairness_protocol": "Must report 'Control Loop Activation Rate' alongside latency. A fair comparison requires ablation on the threshold epsilon to show the optimization isn't just 'turning off the controller' to save time.",
+          "feedback": "This idea is a pure engineering optimization (Operator: [incremental]) that addresses the 'overhead' defect of the parent CTUS mechanism. It introduces no new learning capability or scientific insight. It fails the ICML bar because it is a tuning parameter change, not a mechanism change. To pass the bar, it needs to be integrated into a larger framework where the gating itself is learned or where the stability detection reveals a new property of LLM reasoning.",
+          "defect_fix_summary": "Addresses the 'overhead_of_running_a_controller_loop_per_token' defect by introducing a heuristic gating mechanism. The operator helps by reducing computational cost, but it does not improve the underlying reasoning capability.",
+          "lift_estimate": 5.0
+        },
+        "score": 2.4,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Epistemic Memory augmentation (EM-aug): A Differentiable Uncertainty Memory Bank [mechanism-commit-innovation] -> defects ['unclear_mechanism', 'reward_hacking'] | Epistemic Adversarial Benchmark (EAB): Stress-Testing Uncertainty Resolution [evaluation-contract-overhaul] -> defects ['evaluation_blindspot', 'missing_contracts'] | Control-Theoretic Uncertainty Steering (CTUS) [theory-transfer-injection] -> defects ['stagnant_novelty', 'weak_generalization'] | Adaptive Control Frequency (ACF) [incremental] -> defects ['overhead_of_running_a_controller_loop_per_token']"
+      },
+      "concise": {
+        "idea": {
+          "title": "Counterfactual Consistency Correction with Adversarial Path Generation (C3-APG)",
+          "abstract": "C3's reliance on simple masked token replacement for counterfactual generation limits its ability to surface deep reasoning flaws. We propose C3-APG, which replaces the naive perturbation model with a dedicated Adversarial Policy Generator (APG). The APG is a small RL agent trained to produce counterfactual reasoning paths that maximize the main LLM's confidence while leading to incorrect answers. This creates a dynamic, high-quality adversarial signal that actively probes the model's blind spots, forcing the C3 corrector to learn deeper consistency checks rather than surface-level pattern matching.",
+          "core_contribute": "An adversarial training loop where a generative policy learns to produce challenging counterfactuals, turning the C3 corrector into a moving target that prevents shortcut learning.",
+          "methodology": "1. Freeze the main LLM. 2. Initialize a small APG model that takes the problem statement and outputs a perturbed reasoning chain. 3. Train the APG with an RL objective to maximize the LLM's output probability for an incorrect answer. 4. The generated counterfactuals are fed into the existing C3 corrector head, whose KL-divergence loss remains the primary training signal for the main LLM. 5. The APG is periodically re-trained against the updated LLM to maintain challenge.",
+          "experiment_design": "Compare against standard C3 and BALENN on the same math/shortcut datasets. Add a new metric: 'Adversarial Robustness Score', measuring performance drop when evaluated against the APG-generated counterfactuals vs. simple perturbations. We will also track the APG's success rate over training to verify it is learning to produce challenging counterfactuals. Baselines: Standard RL, C3 (masked replacement).",
+          "risks": "APG may overfit to specific LLM failure modes, reducing the diversity of the counterfactual signal. Training the APG adds a second RL loop, increasing computational cost.",
+          "tags": [
+            "mechanism-commit-innovation",
+            "moonshot"
+          ],
+          "operator": "mechanism-commit-innovation",
+          "target_defects": [
+            "systematic_bias",
+            "silent_failure"
+          ],
+          "memory_refs": [],
+          "rationale": "This mechanism-commit-innovation directly addresses the C3 risk of 'valid but irrelevant perturbations' by using an adversarial agent to generate maximally challenging counterfactuals, ensuring the corrector learns meaningful consistency. It avoids incrementalism by introducing a dynamic, competitive training game, which is a bold architectural shift suitable for top-tier venues. ICML bar: pass + The adversarial training loop for generating counterfactuals is a novel mechanism that moves beyond static perturbations, addressing a core weakness in self-supervised reasoning correction."
+        },
+        "evaluation": {
+          "novelty": 4.0,
+          "feasibility": 3.0,
+          "clarity": 4.0,
+          "impact": 4.0,
+          "risk": 4.0,
+          "conciseness": 5.0,
+          "confidence": 0.8,
+          "failure_modes": [
+            "APG Collapse: The Adversarial Policy Generator may fail to produce challenging counterfactuals, converging to generating obvious nonsense or simple token flips that the main LLM easily detects, providing no useful gradient.",
+            "Reward Hacking (Main LLM): The main LLM may learn to ignore the counterfactual context entirely or output a generic 'this is wrong' response to minimize KL-divergence without actually reasoning.",
+            "Catastrophic Interference: As the main LLM improves, the APG's knowledge becomes obsolete. If the APG is not retrained frequently enough, the adversarial signal becomes weak, causing training plateaus."
+          ],
+          "fairness_protocol": "Must compare against C3 with a 'dumb' perturbation baseline (e.g., random token replacement) to prove the adversarial generator adds value. Must ablate the APG retraining frequency to show the dynamic nature is necessary. Compute budget must be matched by reporting total FLOPs (Main LLM + APG training).",
+          "feedback": "The mechanism is strong (ICML level), but the 'Counterfactual' framing in the title is slightly misleading given the memory context; the parent C3 uses masked replacement, but the core innovation here is adversarial path generation. Ensure the methodology explicitly details how the APG is trained (e.g., PPO with a reward of 'Main LLM confidence in wrong answer'). The risk of APG collapse is high; you need a fallback mechanism (e.g., mixing in random perturbations) to discuss in the risks section.",
+          "defect_fix_summary": "Fixes 'systematic_bias' and 'silent_failure' in C3. C3's static perturbations allow the model to learn superficial consistency. By using an Adversarial Policy Generator (APG), the perturbations become dynamic and targeted, forcing the model to learn deep logical consistency rather than surface patterns.",
+          "lift_estimate": 25.0
+        },
+        "score": 3.1000000000000005,
+        "path": "Epistemic Curiosity with Uncertainty Quantification [seed] -> defects ['unexplored_gap'] | Bayesian Active Learning via Epistemic Neural Networks (BALENN) [theory-transfer-injection] -> defects ['stagnant_novelty', 'theory_gap'] | Counterfactual Consistency Correction (C3) [self-supervised-corrector] -> defects ['systematic_bias', 'silent_failure'] | Counterfactual Consistency Correction with Adversarial Path Generation (C3-APG) [mechanism-commit-innovation] -> defects ['systematic_bias', 'silent_failure']"
+      }
+    }
+  }
+}
