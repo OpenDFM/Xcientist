@@ -17,6 +17,11 @@ from openhands.tools.task_tracker import TaskTrackerTool
 from openhands.tools.terminal import TerminalTool
 
 from src.agents.experiment_agent.agents.base.agent import OpenHandsBaseAgent
+from src.agents.experiment_agent.agents.reporting import (
+    EXPERIMENT_ABLATION_REPORT_INTEGRATOR,
+    create_ablation_report_integrator_agent,
+    run_ablation_report_integrator,
+)
 from src.agents.experiment_agent.agents.science.step_executor import (
     ABLATION_SCIENCE_STEP_EXECUTOR,
     STANDARD_SCIENCE_STEP_EXECUTOR,
@@ -93,6 +98,11 @@ def _register_science_subagents() -> None:
             ABLATION_SCIENCE_STEP_EXECUTOR,
             create_ablation_science_step_executor_agent,
             "Executes one ablation-science step through the worker/validator repair loop.",
+        ),
+        (
+            EXPERIMENT_ABLATION_REPORT_INTEGRATOR,
+            create_ablation_report_integrator_agent,
+            "Integrates ablation experiment results into canonical ablation_results.json.",
         ),
     )
     for name, factory, description in registrations:
@@ -422,6 +432,26 @@ Finish by printing exactly: {self.completion_token}"""
 
     def _required_artifacts_exist(self) -> bool:
         return True
+
+    async def execute(self) -> Dict[str, Any]:
+        # Run ablation steps via the base class run
+        result = await super().execute()
+
+        # After ablation experiments complete, call integrator immediately
+        # so results are available for the next master iteration decision
+        integrator_result = await run_ablation_report_integrator(
+            workspace_root=self.workspace_root,
+            project_root=self.project_root,
+            model=self.model,
+            verbose=self.verbose,
+            resume=self.resume,
+        )
+
+        # Merge integrator result into the return value
+        result["integrator_result"] = integrator_result
+        result["ablation_results_path"] = integrator_result.get("ablation_results_path")
+        result["integrator_valid"] = integrator_result.get("valid", False)
+        return result
 
 
 async def run_standard_science_agent(
