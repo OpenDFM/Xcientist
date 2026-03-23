@@ -11,7 +11,7 @@ description: Introduce speculative or optimistic execution plus explicit repair 
 ## guardrails
 - Define when speculation triggers and how mis-speculation is detected.
 - Bound repair cost and rollback scope.
-- Compare against a conservative baseline at matched resource budgets.
+- Compare against a conservative baseline under matched experimental conditions.
 
 ## atomic_blueprint
 - ADD_COMPONENT(speculative_executor)

@@ -75,13 +75,15 @@ survey:
 # ============================================
 idea:
   enabled: true
-  topic: "LLM Agent Memory System"
-  mature_idea: "MemPrism's core insight is that agent trajectories contain heterogeneous signals and should be managed as multi-facet memory rather than a single flat memory bank. It therefore works in a retrospective encode-consolidate-integrate pipeline: the agent first segments past interaction traces into structured working slots, then routes them into semantic, episodic, and procedural memories with similarity-gated upsert and episodic clustering/abstraction, and finally retrieves them with facet-aware mechanisms, especially multi-directional slot retrieval, to inject complementary evidence back into the current context. In essence, MemPrism turns raw history into structured, type-specific, and reusable memory, improving both memory quality and downstream decision making."
+  topic: "Long-context Sequence Modeling"
+  mature_idea: "The core idea of Titans is to explicitly separate short-term context processing from long-term memory in sequence modeling: attention handles precise, local dependencies, while a neural memory module continuously stores and updates important information from much longer histories. In this way, the model can keep reading new tokens while also “remembering” useful past information beyond the standard context window. Intuitively, Titans treats attention as a kind of short-term memory and neural memory as long-term memory, aiming to combine the strengths of Transformers and memory-based recurrent systems for very long-context modeling."
+  refinement_scope: "Refine the mature idea only on the Transformer memory layer. Focus on improving the design of the memory module, and how it interfaces with attention. The core concept of separating short-term attention from long-term memory is solid, so keep that intact while enhancing the memory component to better capture and utilize long-range dependencies."
 
   run:
     LigAgent-Pro: true
     topic: "${idea.topic}"
     mature_idea: "${idea.mature_idea}"
+    refinement_scope: "${idea.refinement_scope}"
     output_root: "runs"
     console_logs: true
     rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
@@ -129,6 +131,11 @@ idea:
     branching_factor: 3
     exploration_constant: 1.2
     idea_taste_mode: "moonshot_inventor"
+    # Prompt mode for MCTS generation / retrieval / evaluation.
+    # Options:
+    #   - default
+    #   - conceptual_surprise
+    prompt_mode: "conceptual_surprise"
     generation_model: "gpt-5-mini"
     evaluation_model: "gpt-5.4"
     generation_temperature: 0.7

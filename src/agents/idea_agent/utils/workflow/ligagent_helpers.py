@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, Dict, List, Optional
 
 from src.agents.idea_agent.agent.artifacts import artifact_get
@@ -24,6 +25,11 @@ _ABLATION_RESULT_SIGN = {
     "mixed": 0.0,
     "neutral": 0.0,
 }
+
+_GATE_STYLE_PATCH_RE = re.compile(
+    r"\b(gate|gated|router|routing|controller|threshold)\b",
+    re.IGNORECASE,
+)
 
 
 def result_to_best_entry(result: Any, idea_taste_mode: Optional[str]) -> Dict[str, Any]:
@@ -255,10 +261,12 @@ def generate_rag_query(
     model: str,
     logger,
     mature_idea: Optional[str] = None,
+    refinement_scope: Optional[str] = None,
 ) -> str:
     prompt = prompts["rag_query"].format(
         topic=topic,
         mature_idea=(mature_idea or "").strip(),
+        refinement_scope=(refinement_scope or "").strip(),
     )
     try:
         response = chat_fn(prompt, model=model, temperature=0.3, max_output_tokens=65536)
@@ -732,6 +740,70 @@ def collect_analysis_background_lines(analysis_entry: Dict[str, Any]) -> List[st
     return [line for line in background_lines if line]
 
 
+def _first_sentence(text: str) -> str:
+    stripped = str(text or "").strip()
+    if not stripped:
+        return ""
+    match = re.search(r"[.!?。！？]", stripped)
+    if match:
+        return stripped[: match.end()].strip()
+    return stripped
+
+
+def _contains_gate_style_patch(text: Any) -> bool:
+    return bool(_GATE_STYLE_PATCH_RE.search(str(text or "")))
+
+
+def should_preserve_current_mature_idea(
+    analysis_entry: Dict[str, Any],
+    root_idea: Dict[str, Any],
+    mature_idea: str,
+) -> tuple[bool, str]:
+    mature_text = str(mature_idea or "").strip()
+    if not mature_text:
+        return False, ""
+
+    preserve_payload = analysis_entry.get("preserve_current_idea")
+    if isinstance(preserve_payload, dict) and preserve_payload.get("keep_original"):
+        reason = str(preserve_payload.get("reason") or "").strip()
+        return True, reason or "No convincing non-gate local patch was identified; preserve the current mature idea."
+
+    root_text = "\n".join(
+        str(root_idea.get(key) or "").strip()
+        for key in ("title", "abstract", "core_contribution", "method", "rationale")
+    )
+    if _contains_gate_style_patch(root_text) and not _contains_gate_style_patch(mature_text):
+        return True, (
+            "Advanced analysis only found a gate/router/controller/threshold-style small patch, "
+            "so the current mature idea is preserved unchanged."
+        )
+    return False, ""
+
+
+def preserve_mature_idea_as_root(
+    topic: str,
+    mature_idea: str,
+    *,
+    target_defects: Optional[List[str]] = None,
+    reason: str = "",
+) -> Dict[str, Any]:
+    mature_text = str(mature_idea or "").strip()
+    summary = _first_sentence(mature_text) or f"Current mature idea for {topic}."
+    return normalize_idea_contract(
+        {
+            "title": f"{topic} root idea",
+            "abstract": mature_text,
+            "core_contribution": summary,
+            "method": mature_text,
+            "risks": "No clearly better non-gate local patch was identified during advanced analysis.",
+            "operator": "analysis_root",
+            "target_defects": target_defects or ["unclear_mechanism"],
+            "rationale": reason or "Preserve the current mature idea because no convincing non-gate local refinement was identified.",
+        },
+        keep_extra=True,
+    )
+
+
 def extract_root_idea_from_analysis(
     analysis_entry: Dict[str, Any],
     *,
@@ -743,7 +815,7 @@ def extract_root_idea_from_analysis(
                 "title": f"{topic} root idea",
                 "abstract": f"Root idea derived from topic '{topic}'.",
                 "core_contribution": "Establish a concrete mechanism-level root idea from analysis.",
-                "method": "Synthesize the dominant method cluster with one explicit gap-closing mechanism.",
+                "method": "Synthesize the dominant method cluster with one explicit bottleneck-closing mechanism.",
                 "risks": "Risk of under-specifying the mechanism before search refinement.",
                 "target_defects": ["unclear_mechanism"],
                 "rationale": "Fallback root idea because structured analysis output was unavailable.",
@@ -781,10 +853,13 @@ def extract_root_idea_from_analysis(
     method_text = str(key_methods[0]).strip() if isinstance(key_methods, list) and key_methods else ""
     future_text = str(future[0]).strip() if isinstance(future, list) and future else ""
 
-    abstract_parts = [part for part in [tldr, problem_text, gap_text] if part]
-    core = future_text or gap_text or problem_text or tldr or f"Root idea for {topic}."
-    method = method_text or "Use the dominant method family as the starting mechanism and refine it during search."
-    risks = problem_text or "The root idea may still be under-specified before search refinement."
+    abstract_parts = [part for part in [tldr, problem_text, method_text, gap_text] if part]
+    core = future_text or problem_text or method_text or gap_text or tldr or f"Root idea for {topic}."
+    method = (
+        method_text
+        or "Use the dominant method family as the starting mechanism and refine one concrete bottleneck during search."
+    )
+    risks = problem_text or gap_text or "The root idea may still be under-specified before search refinement."
     return normalize_idea_contract(
         {
             "title": f"{topic} root idea",
@@ -793,7 +868,7 @@ def extract_root_idea_from_analysis(
             "method": method,
             "risks": risks,
             "target_defects": ["unclear_mechanism"],
-            "rationale": "Root idea synthesized from the latest advanced analysis.",
+            "rationale": "Root idea synthesized from the latest advanced analysis with emphasis on the main mechanism bottleneck.",
         },
         keep_extra=True,
     )

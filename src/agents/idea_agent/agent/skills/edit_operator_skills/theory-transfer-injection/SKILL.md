@@ -1,6 +1,6 @@
 ---
 name: theory-transfer-injection
-description: Inject a theory-backed mechanism or invariant from another domain and wire it into the core objective or control rule.
+description: Inject a theory-backed mechanism or invariant from another domain and wire it into the core objective or mechanism rule.
 ---
 
 ## defect_tags
@@ -15,7 +15,7 @@ description: Inject a theory-backed mechanism or invariant from another domain a
 
 ## atomic_blueprint
 - ADD_COMPONENT(theory_transfer_module)
-- REWIRE(theory_transfer_module -> control_objective)
+- REWIRE(theory_transfer_module -> core_objective)
 - ADD_PROTOCOL(ablation,stress)
 
 ## required_protocols

@@ -27,7 +27,6 @@ from src.agents.idea_agent.utils.mcts.mcts_runtime import (
     EditPlan,
     MemoryBundle,
     ValidationProtocol,
-    _estimate_budget_delta,
     apply_instantiated_mapping_to_plan,
     apply_edit_plan_to_components,
     build_root_state,
@@ -60,7 +59,6 @@ FUSION_MINIMAL_RESPONSE_EXAMPLE = """{
     "operator": "fusion_agent",
     "target_defects": ["string"],
     "rationale": "string",
-    "budget": {},
     "components": ["string"],
     "component_explanations": {
       "component_name": "string"
@@ -194,6 +192,7 @@ def fuse_ligagent_pro_ideas(
     prompt = prompt_template.format(
         topic=topic,
         mature_idea=_summarize_text(context.get("mature_idea"), FUSION_MATURE_IDEA_LIMIT),
+        refinement_scope=_summarize_text(context.get("refinement_scope"), FUSION_MATURE_IDEA_LIMIT) or "None",
         root_domains=json.dumps(context.get("root_domains") or [], ensure_ascii=False),
         analysis=_fusion_analysis_summary(context),
         mode_count=len(mode_entries),
@@ -732,7 +731,6 @@ def _repair_plan_from_payload(
         validation=validation,
         guardrails=guardrails,
         memory_refs=[],
-        estimated_budget_delta=_estimate_budget_delta(component_edits),
         compile_notes="Compiled from fusion repair planner using existing atomic edit operations.",
     )
     next_components = apply_edit_plan_to_components(parent_state.components, plan)
@@ -784,7 +782,6 @@ def _entry_to_state(
         target_defects=list(entry.get("target_defects") or fallback_target_defects),
         rationale=str(entry.get("rationale") or "Fused from multiple idea taste modes.").strip(),
         memory_refs=[],
-        budget=dict(entry.get("budget") or {}),
         components=list(entry.get("components") or []),
         component_explanations=dict(entry.get("component_explanations") or {}),
         root_domains=list(entry.get("root_domains") or fallback_root_domains),

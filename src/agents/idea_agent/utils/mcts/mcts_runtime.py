@@ -23,7 +23,6 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _filter_component_mapping_to_plan_keys,
     _normalize_component_mapping,
     _safe_pretty_json,
-    apply_budget_delta_to_parent,
     clip_text,
     component_inventory_payload,
     normalize_component_explanations,
@@ -44,7 +43,6 @@ class AtomicEditOp(str, Enum):
     REMOVE_COMPONENT = "REMOVE_COMPONENT"
     REPLACE_COMPONENT = "REPLACE_COMPONENT"
     REWIRE = "REWIRE"
-    GATE_COMPONENT = "GATE_COMPONENT"
     ADD_PROTOCOL = "ADD_PROTOCOL"
 
 
@@ -55,7 +53,6 @@ ATOMIC_OP_DESCRIPTIONS: Dict[str, str] = {
     AtomicEditOp.REMOVE_COMPONENT: "Delete an existing module from the architecture. ",
     AtomicEditOp.REPLACE_COMPONENT: "Swap an existing module with a new implementation. ",
     AtomicEditOp.REWIRE: "Change how two components are connected (data flow, gradient path, or API coupling). ",
-    AtomicEditOp.GATE_COMPONENT: "Wrap a component with a conditional activation gate (e.g., budget, reliability, or confidence check). ",
     AtomicEditOp.ADD_PROTOCOL: "Attach a validation protocol (regression, ablation, or stress test) to the plan. "
 }
 
@@ -87,12 +84,6 @@ def _synthesize_component_explanation_from_edit(component: str, edit: Optional["
     if edit.op == AtomicEditOp.REPLACE_COMPONENT and edit.target:
         return _clean_component_explanation(
             f"Replaces {edit.target} with a stronger implementation for the updated idea.",
-            fallback_component=component,
-        )
-    if edit.op == AtomicEditOp.GATE_COMPONENT:
-        condition = edit.condition or "runtime budget or risk signals"
-        return _clean_component_explanation(
-            f"Controls when the module activates under {condition}.",
             fallback_component=component,
         )
     if edit.op == AtomicEditOp.ADD_COMPONENT:
@@ -188,7 +179,6 @@ class EditPlan:
     validation: ValidationProtocol
     guardrails: List[str]
     memory_refs: List[str]
-    estimated_budget_delta: Dict[str, float]
     compile_notes: str
 
     def to_dict(self) -> Dict[str, Any]:
@@ -200,7 +190,6 @@ class EditPlan:
             "validation": self.validation.to_dict(),
             "guardrails": self.guardrails,
             "memory_refs": self.memory_refs,
-            "estimated_budget_delta": self.estimated_budget_delta,
             "compile_notes": self.compile_notes,
         }
 
@@ -253,7 +242,6 @@ class SkillSelectionCandidate:
     defect_score: float
     prior_score: float
     preset_bias: float
-    gate_score: float
     selection_total: float
     attempts: int = 0
 
@@ -263,7 +251,6 @@ class SkillSelectionCandidate:
             "defect_score": self.defect_score,
             "prior_score": self.prior_score,
             "preset_bias": self.preset_bias,
-            "gate_score": self.gate_score,
             "selection_total": self.selection_total,
             "attempts": self.attempts,
         }
@@ -342,7 +329,6 @@ DEFAULT_SKILL_TEMPLATES: Dict[str, Dict[str, Any]] = _load_default_skill_templat
 ANTI_PATTERN_CONSTRAINTS: List[str] = [
     "No feature dumping: every component edit must map to a measured defect.",
     "Use the lightest validation suite that can falsify the core mechanism; do not let protocol bulk replace mechanism work.",
-    "Add gating only when real budget risk threatens a core mechanism, not as default scaffolding.",
     "Prefer mechanism clarity over loosely coupled add-ons.",
 ]
 
@@ -455,7 +441,6 @@ class SkillCatalog:
     def select_skills(
         self,
         defect_tags: Sequence[str],
-        budget: Dict[str, Any],
         max_children: int,
         preset: Optional[IdeaTastePreset] = None,
     ) -> List[SkillSelectionCandidate]:
@@ -465,7 +450,6 @@ class SkillCatalog:
 
         preset_bias_map = dict(getattr(preset, "skill_bias", {}) or {})
         scored: List[SkillSelectionCandidate] = []
-        budget_tight = _is_budget_tight(budget)
         for skill in self.skills.values():
             skill_defects = {d.lower() for d in skill.defects}
             overlap = len(defects & skill_defects)
@@ -478,15 +462,10 @@ class SkillCatalog:
                 preset_bias = max(0.0, min(1.0, float(raw_preset_bias)))
             except (TypeError, ValueError):
                 preset_bias = 0.0
-            gate_score = 0.0
-            uses_gate = any(step.startswith("GATE_COMPONENT") for step in skill.atomic_blueprint)
-            if budget_tight and uses_gate:
-                gate_score = 1.0
             total = (
-                0.55 * defect_score
+                0.60 * defect_score
                 + 0.20 * prior
                 + 0.20 * preset_bias
-                + 0.05 * gate_score
             )
             scored.append(
                 SkillSelectionCandidate(
@@ -494,7 +473,6 @@ class SkillCatalog:
                     defect_score=defect_score,
                     prior_score=prior,
                     preset_bias=preset_bias,
-                    gate_score=gate_score,
                     selection_total=total,
                     attempts=attempts,
                 )
@@ -529,7 +507,6 @@ class SkillCatalog:
         parent_title: str,
         parent_components: Sequence[str],
         target_defects: Sequence[str],
-        budget: Dict[str, Any],
         memory_refs: Sequence[str],
     ) -> EditPlan:
         parsed_steps = [_parse_blueprint_step(step) for step in skill.atomic_blueprint]
@@ -561,26 +538,6 @@ class SkillCatalog:
                 )
             )
 
-        if _is_budget_tight(budget):
-            has_gate = any(edit.op == AtomicEditOp.GATE_COMPONENT for edit in component_edits)
-            if not has_gate:
-                gate_target = next(
-                    (
-                        edit.component
-                        for edit in component_edits
-                        if edit.op in {AtomicEditOp.ADD_COMPONENT, AtomicEditOp.REPLACE_COMPONENT}
-                    ),
-                    parent_components[0] if parent_components else "primary_module",
-                )
-                component_edits.append(
-                    ComponentEdit(
-                        op=AtomicEditOp.GATE_COMPONENT,
-                        component=gate_target,
-                        condition="if_compute_or_latency_budget_tight",
-                        details="Auto-added budget gate.",
-                    )
-                )
-
         if not required_protocols:
             required_protocols = {"ablation"}
 
@@ -601,7 +558,6 @@ class SkillCatalog:
             )
 
         objective_defect = next(iter(target_defects), "unspecified_defect")
-        estimated_budget_delta = _estimate_budget_delta(component_edits)
         plan = EditPlan(
             skill_name=skill.name,
             objective=f"Use {skill.name} to address {objective_defect}",
@@ -610,7 +566,6 @@ class SkillCatalog:
             validation=validation,
             guardrails=list(skill.guardrails),
             memory_refs=[str(ref) for ref in memory_refs][:6],
-            estimated_budget_delta=estimated_budget_delta,
             compile_notes=(
                 f"Compiled from skill '{skill.name}' with blueprint ops={len(skill.atomic_blueprint)}; "
                 f"source={skill.source_path or 'builtin'}"
@@ -635,11 +590,6 @@ class SkillCatalog:
         beta_mean = (prior.successes + 1.0) / (prior.attempts + 2.0)
         prior.prior = 0.55 * beta_mean + 0.45 * prior.reward_ema
 
-        feedback_l = (feedback or "").lower()
-        if "budget" in feedback_l and "gate" not in " ".join(prior.rule_constraints).lower():
-            prior.rule_constraints.append(
-                "Use GATE_COMPONENT only when budget risk is central and the gate protects a core mechanism."
-            )
         for failure in failure_modes:
             text = str(failure).strip()
             if not text:
@@ -740,17 +690,6 @@ def _parse_blueprint_step(step: str) -> Optional[Dict[str, Any]]:
             "details": f"Replace {old_component} with {new_component}",
         }
 
-    if op == AtomicEditOp.GATE_COMPONENT.value:
-        parts = [segment.strip() for segment in body.split(",", 1)]
-        component = parts[0] if parts else "component"
-        condition = parts[1] if len(parts) > 1 else "if_budget_or_risk_requires"
-        return {
-            "op": op,
-            "component": component,
-            "condition": condition,
-            "details": f"Gate {component} under condition '{condition}'",
-        }
-
     component = body.strip() or "component"
     return {"op": op, "component": component, "details": f"{op} on {component}"}
 
@@ -773,56 +712,6 @@ def _default_protocol_text(
     return (
         f"Stress test {skill_name} under worst-case conditions tied to {defect} and record failure boundaries."
     )
-
-
-def _is_budget_tight(budget: Dict[str, Any]) -> bool:
-    if not isinstance(budget, dict):
-        return False
-    numeric_values: List[float] = []
-    for key in ("compute", "latency", "memory", "token", "wall_clock", "gpu_hours"):
-        value = budget.get(key)
-        if value is None:
-            continue
-        try:
-            numeric_values.append(float(value))
-        except (TypeError, ValueError):
-            continue
-    if not numeric_values:
-        return False
-    return any(val < 1.0 for val in numeric_values)
-
-
-def _estimate_budget_delta(component_edits: Sequence[ComponentEdit]) -> Dict[str, float]:
-    compute = 0.0
-    latency = 0.0
-    memory = 0.0
-    for edit in component_edits:
-        if edit.op == AtomicEditOp.ADD_COMPONENT:
-            compute += 0.15
-            latency += 0.10
-            memory += 0.12
-        elif edit.op == AtomicEditOp.REMOVE_COMPONENT:
-            compute -= 0.12
-            latency -= 0.08
-            memory -= 0.10
-        elif edit.op == AtomicEditOp.REPLACE_COMPONENT:
-            compute += 0.05
-            latency += 0.04
-            memory += 0.05
-        elif edit.op == AtomicEditOp.REWIRE:
-            compute += 0.02
-            latency += 0.02
-        elif edit.op == AtomicEditOp.GATE_COMPONENT:
-            compute -= 0.05
-            latency -= 0.03
-        elif edit.op == AtomicEditOp.ADD_PROTOCOL:
-            compute += 0.03
-            latency += 0.01
-    return {
-        "compute": round(compute, 4),
-        "latency": round(latency, 4),
-        "memory": round(memory, 4),
-    }
 
 
 def apply_edit_plan_to_components(
@@ -859,9 +748,6 @@ def apply_edit_plan_to_components(
         elif edit.op == AtomicEditOp.REWIRE:
             # REWIRE affects topology, not component inventory.
             continue
-        elif edit.op == AtomicEditOp.GATE_COMPONENT:
-            if component and not _contains(component):
-                existing.append(component)
         elif edit.op == AtomicEditOp.ADD_PROTOCOL:
             # Protocols are first-class edits but not structural components.
             continue
@@ -943,7 +829,6 @@ def materialize_child_state(
         plan,
         instantiated,
     )
-    next_budget = apply_budget_delta_to_parent(parent_state.budget, plan.estimated_budget_delta)
 
     inst = instantiated or {}
     title = inst.get("title") or f"{parent_state.title} | {plan.skill_name.replace('-', ' ').title()}"
@@ -953,9 +838,7 @@ def materialize_child_state(
     )
     core = inst.get("core_contribution") or plan.objective
     method = inst.get("method") or plan_to_method_text(plan)
-    risks = inst.get("risks") or (
-        f"Guardrails: {'; '.join(plan.guardrails)} | Budget delta: {plan.estimated_budget_delta}"
-    )
+    risks = inst.get("risks") or f"Guardrails: {'; '.join(plan.guardrails)}"
     rationale = inst.get("rationale") or plan.compile_notes
     tags = _dedupe_keep_order_strings(list(parent_state.tags) + [plan.skill_name] + list(plan.target_defects))
     selection_metadata = selection_metadata or {}
@@ -980,7 +863,6 @@ def materialize_child_state(
         target_defects=plan.target_defects,
         rationale=rationale,
         memory_refs=plan.memory_refs,
-        budget=next_budget,
         components=new_components,
         component_explanations=component_explanations,
         root_domains=list(getattr(parent_state, "root_domains", []) or []),
@@ -1019,9 +901,6 @@ def apply_instantiated_mapping_to_plan(
             edit.details = f"Rewire {edit.component} -> {edit.target}"
         elif edit.op == AtomicEditOp.REPLACE_COMPONENT:
             edit.details = f"Replace {edit.target} with {edit.component}"
-        elif edit.op == AtomicEditOp.GATE_COMPONENT:
-            cond = f" under condition '{edit.condition}'" if edit.condition else ""
-            edit.details = f"Gate {edit.component}{cond}"
         elif edit.op == AtomicEditOp.ADD_COMPONENT:
             edit.details = f"ADD_COMPONENT on {edit.component}"
 
@@ -1046,6 +925,7 @@ def instantiate_compiled_plan_for_node(
     prompt = prompt_template.format(
         topic=mcts.topic,
         root_domains=root_domains_text,
+        refinement_scope=mcts.refinement_scope or "None",
         taste_guidance=taste_guidance,
         mature_idea=mcts.mature_idea or "None",
         parent_summary=parent_state.describe(),
@@ -1335,7 +1215,6 @@ def expand_node_with_skills(
         )
     selected_skill_candidates = mcts.skill_catalog.select_skills(
         defect_tags=node.state.target_defects,
-        budget=node.state.budget,
         max_children=mcts.config.branching_factor,
         preset=getattr(mcts, "idea_taste_preset", None),
     )
@@ -1363,7 +1242,6 @@ def expand_node_with_skills(
             parent_title=node.state.title,
             parent_components=node.state.components,
             target_defects=node.state.target_defects,
-            budget=node.state.budget,
             memory_refs=bundle.referenced_ids(),
         )
         prior_constraints = mcts.skill_catalog.priors.get(skill.name, SkillUsagePrior()).rule_constraints
@@ -1375,17 +1253,12 @@ def expand_node_with_skills(
         for edit in plan.component_edits:
             if current_count <= min_components and edit.op == AtomicEditOp.REMOVE_COMPONENT:
                 continue
-            if current_count >= max_components and edit.op in (
-                AtomicEditOp.ADD_COMPONENT,
-                AtomicEditOp.GATE_COMPONENT,
-            ):
+            if current_count >= max_components and edit.op == AtomicEditOp.ADD_COMPONENT:
                 continue
             if edit.op == AtomicEditOp.ADD_COMPONENT:
                 current_count += 1
             elif edit.op == AtomicEditOp.REMOVE_COMPONENT:
                 current_count -= 1
-            elif edit.op == AtomicEditOp.GATE_COMPONENT:
-                current_count += 1
             filtered_edits.append(edit)
         plan.component_edits = filtered_edits
 
@@ -1436,7 +1309,6 @@ def expand_node_with_skills(
                 "defect_score": selection_candidate.defect_score,
                 "prior_score": selection_candidate.prior_score,
                 "preset_bias": selection_candidate.preset_bias,
-                "gate_score": selection_candidate.gate_score,
                 "selection_total": selection_candidate.selection_total,
             },
         }
@@ -1496,6 +1368,7 @@ def simulate_node_value(
     prompt = mcts.evaluation_prompt.format(
         topic=mcts.topic,
         root_domains=_format_root_domains_for_prompt(getattr(node.state, "root_domains", [])),
+        refinement_scope=mcts.refinement_scope or "None",
         mature_idea=mcts.mature_idea or "None",
         edit_plan=format_evaluator_edit_plan_prompt_view(node.state.edit_plan)
         if node.state.edit_plan
@@ -1760,9 +1633,6 @@ def build_root_state(
     mature_idea = str(context.get("mature_idea") or "").strip()
     background = context.get("background_knowledge") or []
     defect_tags = context.get("defect_tags") or ["unexplored_gap"]
-    budget = context.get("budget") if isinstance(context.get("budget"), dict) else {}
-    if not budget:
-        budget = {"compute": 1.0, "latency": 1.0, "memory": 1.0}
     components = context.get("components") if isinstance(context.get("components"), list) else []
     context_component_explanations = (
         context.get("component_explanations")
@@ -1836,7 +1706,6 @@ def build_root_state(
         target_defects=[str(tag) for tag in defect_tags],
         rationale=str(rationale),
         memory_refs=[],
-        budget=budget,
         components=components,
         component_explanations=component_explanations,
         root_domains=[str(domain).strip() for domain in root_domains if str(domain).strip()][:2],

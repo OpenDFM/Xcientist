@@ -5,6 +5,7 @@ import itertools
 import logging
 import math
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
@@ -21,7 +22,7 @@ from memory.api.symbolic_memory_system_api import SymbolicMemorySystem
 from memory.memory_system import FaissVectorStore
 from memory.memory_system.models import EpisodicRecord, ProceduralRecord, SemanticRecord
 from memory.memory_system.utils import _multi_thread_run, _safe_dump_str
-from agent import get_logger
+from src.agents.idea_agent.utils.core.logger import get_logger
 from src.agents.idea_agent.utils.mcts.component_novelty import ComponentNoveltyScorer
 from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _dedupe_keep_order_strings,
@@ -31,8 +32,6 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _pretty_json,
     _safe_float_default,
     apply_normalized_score_weights,
-    build_fallback_mechanism_commit_query,
-    build_fallback_theory_transfer_query,
     clip_metric_score,
     clip_text,
     coerce_integer_metric_score,
@@ -54,12 +53,14 @@ from src.agents.idea_agent.utils.papers.paper_graph_vector_store import (
 from src.agents.idea_agent.agent.prompts.root_domain_classification import (
     ROOT_DOMAIN_CLASSIFICATION_PROMPT,
 )
-from src.agents.idea_agent.agent.prompts.skill_instantiation import SKILL_INSTANTIATION_PROMPT
+from src.agents.idea_agent.agent.prompts.skill_instantiation import (
+    get_skill_instantiation_prompt,
+)
 from src.agents.idea_agent.agent.prompts.mechanism_commit_query import (
-    MECHANISM_COMMIT_QUERY_PROMPT,
+    get_mechanism_commit_query_prompt,
 )
 from src.agents.idea_agent.agent.prompts.theory_transfer_query import (
-    THEORY_TRANSFER_QUERY_PROMPT,
+    get_theory_transfer_query_prompt,
 )
 from src.agents.idea_agent.agent.prompts.component_extraction import COMPONENT_EXTRACTION_PROMPT
 from src.agents.idea_agent.utils.core.config_loader import load_idea_agent_config
@@ -115,6 +116,21 @@ INTEGER_EVALUATION_FIELDS = (
 
 module_logger = get_logger()
 
+_CONTROL_CORE_RE = re.compile(
+    r"\b(threshold\w*|gat\w*|suppress\w*|quota\w*|controller\w*|control\w*)\b",
+    re.IGNORECASE,
+)
+_FORBIDDEN_QUERY_TERM_RE = re.compile(
+    r"\b(threshold\w*|gat\w*|suppress\w*|quota\w*)\b",
+    re.IGNORECASE,
+)
+
+
+def _normalize_term_scan_text(text: str) -> str:
+    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", str(text))
+    normalized = normalized.replace("_", " ").replace("-", " ")
+    return normalized.lower()
+
 
 def _load_mcts_defaults() -> Dict[str, Any]:
     if OmegaConf is None:
@@ -149,7 +165,6 @@ class IdeaState:
     target_defects: List[str]
     rationale: str
     memory_refs: List[str] = field(default_factory=list)
-    budget: Dict[str, Any] = field(default_factory=dict)
     components: List[str] = field(default_factory=list)
     component_explanations: Dict[str, str] = field(default_factory=dict)
     root_domains: List[str] = field(default_factory=list)
@@ -185,9 +200,6 @@ class IdeaState:
         )
         self.root_domains = _normalize_root_domains(self.root_domains)
 
-        if not isinstance(self.budget, dict):
-            self.budget = {}
-
         canonical = "|".join(
             [
                 self.title.lower(),
@@ -222,7 +234,6 @@ class IdeaState:
             "target_defects": self.target_defects,
             "memory_refs": self.memory_refs,
             "rationale": self.rationale,
-            "budget": self.budget,
             "components": self.components,
             "component_explanations": self.component_explanations,
             "root_domains": self.root_domains,
@@ -437,6 +448,7 @@ class MCTSConfig:
     branching_factor: int = _mcts_default("branching_factor", 3)
     exploration_constant: float = _mcts_default("exploration_constant", 1.15)
     idea_taste_mode: Optional[str] = _mcts_default("idea_taste_mode", None)
+    prompt_mode: str = _mcts_default("prompt_mode", "default")
     generation_model: str = _mcts_default("generation_model", "gpt-5-mini")
     evaluation_model: str = _mcts_default("evaluation_model", "gpt-5.2")
     generation_temperature: float = _mcts_default("generation_temperature", 0.2)
@@ -803,6 +815,7 @@ class MemoryGuidedMCTS:
         self.analysis_blob: str = ""
         self.paper_context: str = ""
         self.mature_idea: str = ""
+        self.refinement_scope: str = ""
         self.idea_taste_preset: Optional[IdeaTastePreset] = get_idea_taste_preset(
             getattr(self.config, "idea_taste_mode", None)
         )
@@ -913,18 +926,15 @@ class MemoryGuidedMCTS:
         self,
         plan: EditPlan,
         parent_state: IdeaState,
-    ) -> Dict[str, str]:
-        prompt = THEORY_TRANSFER_QUERY_PROMPT.format(
+    ) -> Optional[Dict[str, str]]:
+        prompt = get_theory_transfer_query_prompt(self.config.prompt_mode).format(
             topic=self.topic or "Unknown topic",
             root_domains=_format_root_domains_for_prompt(parent_state.root_domains),
+            refinement_scope=self.refinement_scope or "None",
             idea=parent_state.to_prompt_view(heading="Current Idea"),
             edit_plan=_pretty_json(plan.to_dict()),
         )
-        fallback = build_fallback_theory_transfer_query(
-            plan,
-            root_domains_text=_format_root_domains_for_prompt(parent_state.root_domains),
-            clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
-        )
+        empty_payload = {"query": "", "needed_content": "", "expected_role": ""}
         try:
             response = self.chat_fn(
                 prompt,
@@ -935,50 +945,89 @@ class MemoryGuidedMCTS:
             payload = parse_json_response(response)
             if isinstance(payload, list):
                 payload = payload[0] if payload else {}
-            return normalize_theory_transfer_query_payload(
+            normalized = normalize_theory_transfer_query_payload(
                 payload,
-                fallback=fallback,
+                fallback=empty_payload,
                 clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
             )
+            if not str(normalized.get("query") or "").strip():
+                return None
+            if self._query_payload_uses_forbidden_terms(normalized):
+                return None
+            return normalized
         except Exception as exc:
             log_message(
                 self.logger,
                 self.log_sink,
                 "warning",
-                "⚠️  Theory-transfer query generation failed; using fallback query: %s",
+                "⚠️  Theory-transfer query generation failed; skipping paper-graph retrieval: %s",
                 exc,
             )
-            return fallback
+            return None
 
     def _build_mechanism_commit_query(
         self,
         plan: EditPlan,
         parent_state: IdeaState,
-    ) -> Dict[str, str]:
-        prompt = MECHANISM_COMMIT_QUERY_PROMPT.format(
+    ) -> Optional[Dict[str, str]]:
+        prompt = get_mechanism_commit_query_prompt(self.config.prompt_mode).format(
             topic=self.topic or "Unknown topic",
             root_domains=_format_root_domains_for_prompt(parent_state.root_domains),
+            refinement_scope=self.refinement_scope or "None",
             idea=parent_state.to_prompt_view(heading="Current Idea"),
             edit_plan=_pretty_json(plan.to_dict()),
         )
-        fallback = build_fallback_mechanism_commit_query(
-            plan,
-            root_domains_text=_format_root_domains_for_prompt(parent_state.root_domains),
-            clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
+        empty_payload = {"query": "", "mechanism_gap": "", "expected_role": ""}
+        try:
+            response = self.chat_fn(
+                prompt,
+                model=self.config.generation_model,
+                temperature=0.2,
+                max_output_tokens=65536,
+            )
+            payload = parse_json_response(response)
+            if isinstance(payload, list):
+                payload = payload[0] if payload else {}
+            normalized = normalize_mechanism_commit_query_payload(
+                payload,
+                fallback=empty_payload,
+                clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
+            )
+            if not str(normalized.get("query") or "").strip():
+                return None
+            if self._query_payload_uses_forbidden_terms(normalized):
+                return None
+            return normalized
+        except Exception as exc:
+            log_message(
+                self.logger,
+                self.log_sink,
+                "warning",
+                "⚠️  Mechanism-commit query generation failed; skipping paper-graph retrieval: %s",
+                exc,
+            )
+            return None
+
+    def _parent_centers_control_surface(self, parent_state: IdeaState) -> bool:
+        haystack = "\n".join(
+            [
+                parent_state.title,
+                parent_state.abstract,
+                parent_state.core_contribution,
+                parent_state.method,
+                " ".join(parent_state.components or []),
+                " ".join((parent_state.component_explanations or {}).values()),
+            ]
         )
-        response = self.chat_fn(
-            prompt,
-            model=self.config.generation_model,
-            temperature=0.2,
-            max_output_tokens=65536,
-        )
-        payload = parse_json_response(response)
-        if isinstance(payload, list):
-            payload = payload[0] if payload else {}
-        return normalize_mechanism_commit_query_payload(
-            payload,
-            fallback=fallback,
-            clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
+        return bool(_CONTROL_CORE_RE.search(_normalize_term_scan_text(haystack)))
+
+    def _text_uses_forbidden_query_terms(self, text: str) -> bool:
+        return bool(_FORBIDDEN_QUERY_TERM_RE.search(_normalize_term_scan_text(text)))
+
+    def _query_payload_uses_forbidden_terms(self, payload: Dict[str, str]) -> bool:
+        return any(
+            self._text_uses_forbidden_query_terms(str(payload.get(field_name) or ""))
+            for field_name in ("query", "mechanism_gap", "needed_content", "expected_role")
         )
 
     def _record_retrieved_core_titles(self, hits: List[Dict[str, Any]]) -> None:
@@ -1159,43 +1208,45 @@ class MemoryGuidedMCTS:
 
         if plan.skill_name == "mechanism-commit-innovation":
             query_payload = self._build_mechanism_commit_query(plan, parent_state)
-            hits = self._retrieve_mechanism_commit_references(query_payload)
-            if hits:
-                additional_retrieval_context = "\n".join(
-                    [
-                        "Mechanism-grounding retrieval query:",
-                        query_payload.get("query") or "None",
-                        format_mechanism_commit_references(
-                            query_payload,
-                            hits,
-                            clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
-                        ),
-                    ]
-                )
+            if query_payload is not None:
+                hits = self._retrieve_mechanism_commit_references(query_payload)
+                if hits:
+                    additional_retrieval_context = "\n".join(
+                        [
+                            "Mechanism-grounding retrieval query:",
+                            query_payload.get("query") or "None",
+                            format_mechanism_commit_references(
+                                query_payload,
+                                hits,
+                                clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
+                            ),
+                        ]
+                    )
         elif plan.skill_name == "theory-transfer-injection":
             query_payload = self._build_theory_transfer_query(plan, parent_state)
-            hits = self._retrieve_theory_transfer_references(query_payload, parent_state.root_domains)
-            if not hits:
-                skip_payload = {
-                    "_skip_child_creation": True,
-                    "_skip_reason": (
-                        "theory-transfer-injection retrieved no eligible cross-domain core nodes "
-                        f"(threshold={self.config.theory_transfer_similarity_threshold}, "
-                        f"excluded_domains={parent_state.root_domains})"
-                    ),
-                }
-            else:
-                additional_retrieval_context = "\n".join(
-                    [
-                        "Cross-domain transfer query:",
-                        query_payload.get("query") or "None",
-                        format_theory_transfer_references(
-                            query_payload,
-                            hits,
-                            clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
+            if query_payload is not None:
+                hits = self._retrieve_theory_transfer_references(query_payload, parent_state.root_domains)
+                if not hits:
+                    skip_payload = {
+                        "_skip_child_creation": True,
+                        "_skip_reason": (
+                            "theory-transfer-injection retrieved no eligible cross-domain core nodes "
+                            f"(threshold={self.config.theory_transfer_similarity_threshold}, "
+                            f"excluded_domains={parent_state.root_domains})"
                         ),
-                    ]
-                )
+                    }
+                else:
+                    additional_retrieval_context = "\n".join(
+                        [
+                            "Cross-domain transfer query:",
+                            query_payload.get("query") or "None",
+                            format_theory_transfer_references(
+                                query_payload,
+                                hits,
+                                clip_limit=UNIFORM_CLIP_TEXT_LIMIT,
+                            ),
+                        ]
+                    )
 
         if skip_payload is not None:
             return skip_payload
@@ -1205,7 +1256,7 @@ class MemoryGuidedMCTS:
             plan,
             parent_state,
             bundle,
-            prompt_template=SKILL_INSTANTIATION_PROMPT,
+            prompt_template=get_skill_instantiation_prompt(self.config.prompt_mode),
             root_domains_text=root_domains_text,
             additional_retrieval_context=additional_retrieval_context,
         )
@@ -1216,6 +1267,23 @@ class MemoryGuidedMCTS:
                     "_skip_reason": "theory-transfer-injection instantiation returned no structured payload",
                 }
             payload["_paper_graph_context"] = additional_retrieval_context
+        if (
+            plan.skill_name == "mechanism-commit-innovation"
+            and isinstance(payload, dict)
+            and not self._parent_centers_control_surface(parent_state)
+        ):
+            rendered = "\n".join(
+                str(payload.get(field_name) or "")
+                for field_name in ("title", "abstract", "core_contribution", "method", "rationale")
+            )
+            if self._text_uses_forbidden_query_terms(rendered):
+                return {
+                    "_skip_child_creation": True,
+                    "_skip_reason": (
+                        "mechanism-commit-innovation instantiated a threshold/gating/suppression/quota-style "
+                        "patch for a parent idea that is not control-centered"
+                    ),
+                }
         if plan.skill_name == "mechanism-commit-innovation" and isinstance(payload, dict):
             payload["_paper_graph_context"] = additional_retrieval_context
         return payload
@@ -1322,6 +1390,7 @@ class MemoryGuidedMCTS:
     def prepare_root_context(self, topic: str, context: Dict[str, Any]) -> Dict[str, Any]:
         prepared = dict(context or {})
         self.paper_context = prepared.get("paper_context") or "No curated papers available yet."
+        prepared["refinement_scope"] = str(prepared.get("refinement_scope") or "").strip()
         mature_idea = (prepared.get("mature_idea") or "").strip()
         components = prepared.get("components")
         prior_components, prior_component_explanations, component_decisions = (
@@ -1352,6 +1421,7 @@ class MemoryGuidedMCTS:
         self.analysis_blob = format_analysis_blob(context.get("analysis", []))
         self.paper_context = context.get("paper_context") or "No curated papers available yet."
         self.mature_idea = (context.get("mature_idea") or "").strip()
+        self.refinement_scope = (context.get("refinement_scope") or "").strip()
         self._mature_idea_components = list(context.get("components") or [])
         self._mature_idea_component_explanations = dict(context.get("component_explanations") or {})
         root_domains = context.get("root_domains") or []

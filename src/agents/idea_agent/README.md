@@ -102,6 +102,7 @@ Then it:
 | `topic` | active topic history |
 | `run_topic` | original launcher topic |
 | `mature_idea` | contract root or replanned mature idea |
+| `refinement_scope` | optional hard boundary describing which subsystem or edit surface LigAgent may refine |
 | `background_knowledge` | analysis-derived background lines |
 | `analysis` | structured analysis entries |
 | `references` | selected Core-reference batches from `graph.db` |
@@ -165,7 +166,7 @@ This matters because:
 
 Important runtime structures:
 
-- `IdeaState`: current idea snapshot, components, defects, budget, `root_domains`, `edit_plan`, `skill_metrics`
+- `IdeaState`: current idea snapshot, components, defects, `root_domains`, `edit_plan`, `skill_metrics`
 - `IdeaNode`: MCTS node with parent/children/visits/value/evaluation
 - `IdeaEvaluation`: multi-metric score with composite aggregation
 - `EditPlan`: skill-compiled atomic component edits plus validation protocols
@@ -186,7 +187,6 @@ Current built-in skills:
 | `feedback-closed-loop` | turn open loop into monitored adaptation |
 | `theory-transfer-injection` | import a transferable principle from another domain |
 | `speculative-execution-with-repair` | optimistic path plus repair/rollback |
-| `resource-aware-adaptive-path` | adapt execution to budget/load pressure |
 
 The evaluator returns only canonical defect tags from `utils/mcts/defect_registry.py`. The root node is evaluated once before the first expansion so the search does not remain stuck with the placeholder defect `unexplored_gap`.
 
@@ -228,15 +228,13 @@ For each node being expanded:
      - `defect_score`
      - `skill_prior`
      - `preset_bias`
-     - `gate_score`
    - Current weighted formula:
 
    ```text
    selection_total =
-       0.55 * defect_score +
+       0.60 * defect_score +
        0.20 * skill_prior +
-       0.20 * preset_bias +
-       0.05 * gate_score
+       0.20 * preset_bias
    ```
 
 3. **Compile plans**
@@ -327,6 +325,7 @@ Most important runtime keys:
 - `console_logs`
 - `rag_config`
 - `mature_idea`
+- `refinement_scope`
 - API credentials and retrieval endpoints
 
 ### `mcts/default.yaml`

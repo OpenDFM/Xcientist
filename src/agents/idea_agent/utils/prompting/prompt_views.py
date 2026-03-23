@@ -130,19 +130,6 @@ def _format_authors(authors: Any, max_items: int = 4) -> str:
     return ", ".join(names) if names else ""
 
 
-def _format_budget_delta(delta: Any) -> str:
-    if not isinstance(delta, Mapping) or not delta:
-        return "None"
-    parts: List[str] = []
-    for key in sorted(delta):
-        value = delta.get(key)
-        if isinstance(value, (int, float)):
-            parts.append(f"{key}={value:+.2f}")
-        else:
-            parts.append(f"{key}={_clip_text(value)}")
-    return "; ".join(parts) if parts else "None"
-
-
 def format_analysis_prompt_view(analysis: Any) -> str:
     if isinstance(analysis, list):
         entries = analysis
@@ -427,14 +414,6 @@ def format_idea_prompt_view(idea: Any, *, heading: str = "Idea Snapshot") -> str
         else:
             metric_parts.append(f"{key}={_clip_text(value)}")
 
-    budget = payload.get("budget")
-    if isinstance(budget, Mapping):
-        budget_text = "; ".join(
-            f"{key}={budget[key]:.2f}" if isinstance(budget[key], (int, float)) else f"{key}={_clip_text(budget[key])}"
-            for key in sorted(budget)
-        )
-    else:
-        budget_text = "None"
     root_domains = _normalize_list(payload.get("root_domains"))
     root_domain_text = _format_inline_list(root_domains, max_items=2, item_limit=16) if root_domains else "None"
 
@@ -458,7 +437,6 @@ def format_idea_prompt_view(idea: Any, *, heading: str = "Idea Snapshot") -> str
                 f"Operator: {_clip_text(payload.get('operator')) or 'None'}",
                 f"Root domains: {root_domain_text}",
                 f"Target defects: {_format_inline_list(payload.get('target_defects'), max_items=6, item_limit=50)}",
-                f"Budget: {budget_text}",
                 f"Memory refs: {_format_inline_list(payload.get('memory_refs'), max_items=6, item_limit=60)}",
                 _format_kv_line("Rationale", payload.get("rationale"), 220),
                 f"Skill metrics: {'; '.join(metric_parts) if metric_parts else 'None'}",
@@ -518,7 +496,6 @@ def format_edit_plan_prompt_view(plan: Any, *, heading: str = "Compiled Edit Pla
                 _format_kv_line("Objective", payload.get("objective"), 180),
                 f"Target defects: {_format_inline_list(payload.get('target_defects'), max_items=6, item_limit=50)}",
                 f"Guardrails: {_format_inline_list(payload.get('guardrails'), max_items=6, item_limit=70)}",
-                f"Budget delta: {_format_budget_delta(payload.get('estimated_budget_delta'))}",
                 f"Memory refs: {_format_inline_list(payload.get('memory_refs'), max_items=6, item_limit=60)}",
                 _format_kv_line("Compile notes", payload.get("compile_notes"), 180),
             ],

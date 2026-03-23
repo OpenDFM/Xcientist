@@ -18,6 +18,9 @@ from src.agents.idea_agent.agent.artifacts import (
     artifact_set,
 )
 from src.agents.idea_agent.agent.prompts import PROMPTS
+from src.agents.idea_agent.agent.prompts.mcts_evaluation import (
+    get_mcts_evaluation_prompt,
+)
 from src.agents.idea_agent.agent.mcts import (
     MemoryGuidedMCTS,
     MCTSConfig,
@@ -100,6 +103,9 @@ class LigAgent(AgentBase):
         initial_mature_idea = get_config_value(config, "run.mature_idea", "")
         if isinstance(initial_mature_idea, str) and initial_mature_idea.strip():
             artifact_set(self.artifact, "mature_idea", initial_mature_idea.strip())
+        initial_refinement_scope = get_config_value(config, "run.refinement_scope", "")
+        if isinstance(initial_refinement_scope, str) and initial_refinement_scope.strip():
+            artifact_set(self.artifact, "refinement_scope", initial_refinement_scope.strip())
 
         mcts_config = MCTSConfig()
         for field in fields(MCTSConfig):
@@ -132,7 +138,7 @@ class LigAgent(AgentBase):
         )
         self.mcts = MemoryGuidedMCTS(
             chat_fn=self.chat,
-            evaluation_prompt=PROMPTS.get("mcts_evaluation"),
+            evaluation_prompt=get_mcts_evaluation_prompt(mcts_config.prompt_mode),
             config=mcts_config,
             memory_accessor=self._build_memory_accessor(),
             paper_graph_vector_store=self._shared_paper_graph_vector_store,
@@ -260,7 +266,7 @@ class LigAgent(AgentBase):
         apply_idea_taste_preset(mcts_config)
         mode_mcts = MemoryGuidedMCTS(
             chat_fn=self.chat,
-            evaluation_prompt=PROMPTS.get("mcts_evaluation"),
+            evaluation_prompt=get_mcts_evaluation_prompt(mcts_config.prompt_mode),
             config=mcts_config,
             memory_accessor=self._build_memory_accessor(),
             paper_graph_vector_store=self._shared_paper_graph_vector_store,

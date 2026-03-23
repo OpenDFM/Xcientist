@@ -467,36 +467,6 @@ def _safe_float_default(value: Any, fallback: float = 0.0) -> float:
         return fallback
 
 
-def normalize_budget_dict(budget: Dict[str, Any]) -> Dict[str, Any]:
-    if not isinstance(budget, dict):
-        return {}
-    cleaned: Dict[str, Any] = {}
-    for key, value in budget.items():
-        if isinstance(value, (int, float)):
-            cleaned[str(key)] = float(value)
-        else:
-            try:
-                cleaned[str(key)] = float(value)
-            except (TypeError, ValueError):
-                cleaned[str(key)] = value
-    return cleaned
-
-
-def apply_budget_delta_to_parent(
-    parent_budget: Dict[str, Any],
-    delta: Dict[str, Any],
-) -> Dict[str, Any]:
-    next_budget = normalize_budget_dict(parent_budget)
-    for key, val in (delta or {}).items():
-        if key not in next_budget:
-            next_budget[key] = _safe_float_default(val, 0.0)
-            continue
-        base = next_budget.get(key)
-        if isinstance(base, (int, float)):
-            next_budget[key] = round(float(base) + _safe_float_default(val, 0.0), 4)
-    return next_budget
-
-
 def build_fallback_theory_transfer_query(
     plan: Any,
     *,
@@ -706,7 +676,12 @@ def format_mechanism_commit_references(
                 lines.append(
                     f"   matched_component: {component_name or 'unknown'} | {component_summary}"
                 )
-    lines.append("Use these nodes to ground the concrete mechanism choice and execution path details.")
+    lines.append(
+        "Use these nodes to ground the concrete mechanism choice and execution path details."
+    )
+    lines.append(
+        "Use them as grounding patterns, not as modules to copy verbatim."
+    )
     return "\n".join(lines)
 
 

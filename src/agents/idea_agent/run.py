@@ -1,18 +1,15 @@
 import os
 import re
-import sys
 import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.agents.idea_agent.agent.ligagent import LigAgent
+from src.agents.idea_agent.utils.core.logger import get_logger, init_logger
 from src.agents.idea_agent.utils.core.config_loader import get_config_value, load_idea_agent_config
 from src.agents.idea_agent.utils.workflow.ligagent_flow import run_agent_loop
-
-from agent import get_logger, init_logger
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"
 IDEA_AGENT_ROOT = Path(__file__).resolve().parent

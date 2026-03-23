@@ -1,3 +1,12 @@
+from __future__ import annotations
+
+from typing import Optional
+
+from src.agents.idea_agent.agent.prompts.prompt_modes import (
+    is_conceptual_surprise_mode,
+)
+
+
 SKILL_INSTANTIATION_PROMPT = """
 You are an expert research scientist instantiating a structured skill-based edit plan into a concrete research idea.
 
@@ -6,6 +15,7 @@ Given a compiled edit plan (skill + atomic component edits + validation protocol
 == Context ==
 Topic: {topic}
 Fixed root domains for this MCTS run: {root_domains}
+Refinement scope: {refinement_scope}
 Taste guidance (soft preference only): {taste_guidance}
 Mature idea (ANCHOR): {mature_idea}
 Parent idea: {parent_summary}
@@ -41,6 +51,10 @@ Instantiate the above plan into a concrete research idea. You must:
 12. If additional retrieved core references are provided, use them to ground the mechanism choices. If any of them are cross-domain, extract only the transferable mechanism or invariant that helps the current idea. Do not copy paper-specific content verbatim.
 13. Treat the taste guidance above as a soft preference only. Reflect it when possible, but it MUST NOT override the compiled edit plan, target defects, validation protocols, or guardrails.
 14. If skill-specific mechanism references are provided, use them as compact mechanism patterns and failure-mode checks. Reuse the pattern, not the literal names, unless the names already fit the compiled edit plan.
+15. If the mature idea or parent idea is training-free or inference-time only, preserve that character when possible. Do NOT introduce a new training stage, trainable controller, auxiliary loss, fine-tuning loop, or learned module unless it is indispensable to the compiled edit and clearly more important than keeping the method training-free.
+16. If you do introduce new training into an originally training-free idea, explicitly justify why a training-free realization is insufficient and why the training shift is central rather than optional.
+17. If `skill_name` is `mechanism-commit-innovation` and the parent idea is not already centered on threshold/control logic, do NOT realize the edit as thresholding, gating, suppression, or quota adjustment. Prefer a direct mechanism, representation change, memory update rule, or objective-local repair intrinsic to the parent idea.
+18. If `refinement_scope` is provided and not equal to `None`, treat it as a hard boundary on where the novelty may appear. Keep the instantiated contribution inside that scope and do not relocate the main change to another subsystem.
 
 Return STRICT JSON (no Markdown wrapping):
 {{
@@ -49,7 +63,7 @@ Return STRICT JSON (no Markdown wrapping):
   "core_contribution": "one focused statement of the new insight/mechanism",
   "method": "concrete methodology steps using the concrete names defined for the compiled edit-plan placeholders in your component_mapping. You may mention standard losses, optimizers, datasets, encoders, or helper routines in prose without adding them to component_mapping unless they literally appear in the compiled edit plan.",
   "risks": "concrete failure modes and mitigation strategies",
-  "rationale": "2-3 sentences on how this skill application resolves the target defects",
+  "rationale": "2-3 sentences on how this skill application resolves the target defects. If you introduced new training into a training-free parent idea, explicitly justify why that shift is necessary.",
   "component_mapping": {{
       "generic_template_name_1": "concrete_topic_specific_name_1",
       "generic_template_name_2": "concrete_topic_specific_name_2"
@@ -64,3 +78,33 @@ Return STRICT JSON (no Markdown wrapping):
     ]
 }}
 """
+
+
+CONCEPTUAL_SURPRISE_SKILL_INSTANTIATION_PROMPT = SKILL_INSTANTIATION_PROMPT.replace(
+    "Return STRICT JSON (no Markdown wrapping):",
+    """19. Treat the main contribution as a local conceptual repair of the parent idea, not merely a new module insertion. First identify the weak assumption, framing, or principle in the parent idea; then use the compiled edits as the implementation vehicle for that repair.
+20. Keep the improvement small-version and thesis-preserving. Do NOT replace the parent idea with a different research paradigm.
+21. In `abstract`, lead with the scientific thesis or conceptual repair first, then explain the concrete mechanism that realizes it.
+22. In `core_contribution`, express the new insight as a principle, invariant, assumption repair, or reframing. A module name by itself is not a sufficient contribution.
+23. In `method`, explicitly separate the conceptual move from the mechanism realization, while still giving concrete implementation details.
+
+Return STRICT JSON (no Markdown wrapping):""",
+).replace(
+    '"abstract": "≤150 words abstract describing the concrete contribution",',
+    '"abstract": "≤150 words abstract describing the concrete contribution. The opening sentence should state the scientific thesis or conceptual repair; later sentences can explain the mechanism vehicle.",',
+).replace(
+    '"core_contribution": "one focused statement of the new insight/mechanism",',
+    '"core_contribution": "one focused statement of the thesis, principle, invariant, or conceptual repair being introduced; not just a module name",',
+).replace(
+    '"method": "concrete methodology steps using the concrete names defined for the compiled edit-plan placeholders in your component_mapping. You may mention standard losses, optimizers, datasets, encoders, or helper routines in prose without adding them to component_mapping unless they literally appear in the compiled edit plan.",',
+    '"method": "start by naming the conceptual move being realized, then give concrete methodology steps using the concrete names defined for the compiled edit-plan placeholders in your component_mapping. You may mention standard losses, optimizers, datasets, encoders, or helper routines in prose without adding them to component_mapping unless they literally appear in the compiled edit plan.",',
+).replace(
+    '"rationale": "2-3 sentences on how this skill application resolves the target defects",',
+    '"rationale": "2-3 sentences on how this skill application resolves the target defects and sharpens the parent idea\'s thesis",',
+)
+
+
+def get_skill_instantiation_prompt(mode: Optional[str] = None) -> str:
+    if is_conceptual_surprise_mode(mode):
+        return CONCEPTUAL_SURPRISE_SKILL_INSTANTIATION_PROMPT
+    return SKILL_INSTANTIATION_PROMPT

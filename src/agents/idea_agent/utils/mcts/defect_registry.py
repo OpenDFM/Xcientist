@@ -21,8 +21,8 @@ DEFECT_REGISTRY: Dict[str, str] = {
     ),
     # alternative-path-contrast
     "brittle_single_path": (
-        "The system relies on one dominant execution path and lacks a structured "
-        "alternative for rare regimes, failures, or recovery."
+        "The method assumes one dominant operating regime and lacks a structured "
+        "fallback or contrastive treatment for rare regimes, failures, or recovery."
     ),
     "rare_regime_failure": (
         "Behavior under boundary conditions, overload, adversarial inputs, or "
@@ -51,11 +51,11 @@ DEFECT_REGISTRY: Dict[str, str] = {
         "requires coordination across multiple scales or granularities."
     ),
     "coordination_failure": (
-        "Multiple subsystems, branches, or layers fail to coordinate decisions, "
-        "causing conflicts, redundancy, or information loss."
+        "Multiple subsystems, branches, or layers fail to maintain a coherent "
+        "decision rule, causing conflicts, redundancy, or information loss."
     ),
     "latency_bottleneck": (
-        "A component, synchronization point, or routing path introduces "
+        "A component, synchronization point, or coordination rule introduces "
         "unacceptable latency or throughput collapse."
     ),
     # hierarchical decomposition
@@ -93,15 +93,6 @@ DEFECT_REGISTRY: Dict[str, str] = {
     "rollback_blindspot": (
         "The design lacks explicit detection, rollback, or repair when optimistic "
         "actions misfire or speculative assumptions are violated."
-    ),
-    # resource-aware adaptation
-    "budget_instability": (
-        "Behavior degrades unpredictably as compute, memory, bandwidth, energy, "
-        "or latency budgets tighten or fluctuate."
-    ),
-    "load_sensitivity": (
-        "Performance, stability, or fairness changes sharply under burstiness, "
-        "contention, workload shifts, or queueing pressure."
     ),
     # default fallback used when no context-specific defect is identified
     "unexplored_gap": (

@@ -42,6 +42,8 @@ from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     search_core_nodes_from_citations,
     search_core_nodes_from_query,
     select_core_references,
+    should_preserve_current_mature_idea,
+    preserve_mature_idea_as_root,
 )
 from src.agents.idea_agent.utils.workflow.ligagent_utils import (
     collect_paper_context_entries,
@@ -116,6 +118,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     reference_batches = artifact_get(artifact, "references", [])
     references = reference_batches[-1] if reference_batches else []
     mature_idea = artifact_get(artifact, "mature_idea", "")
+    refinement_scope = artifact_get(artifact, "refinement_scope", "")
     ablation_results = artifact_get(artifact, "ablation_results", [])
     rag_contents = artifact_get(artifact, "rag_contents", [])
     latest_rag_contents = rag_contents[-1] if rag_contents else []
@@ -153,6 +156,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     prompt = PROMPTS["advanced_analysis"].format(
         topic=topic,
         mature_idea=(mature_idea or "").strip(),
+        refinement_scope=(refinement_scope or "").strip(),
         survey_contents="\n".join(latest_rag_contents) if isinstance(latest_rag_contents, list) else "",
         papers=format_paper_capsules_prompt_view(references),
         experiment_findings=(
@@ -183,6 +187,26 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     if experiment_findings is not None:
         response["experiment_findings"] = experiment_findings
     root_idea = extract_root_idea_from_analysis(response, topic=topic)
+    preserved_mature_idea = False
+    if isinstance(mature_idea, str) and mature_idea.strip():
+        preserve_original, preserve_reason = should_preserve_current_mature_idea(
+            response,
+            root_idea,
+            mature_idea,
+        )
+        if preserve_original:
+            preserved_mature_idea = True
+            response["preserve_current_idea"] = {
+                "keep_original": True,
+                "reason": preserve_reason,
+            }
+            root_idea = preserve_mature_idea_as_root(
+                topic,
+                mature_idea,
+                target_defects=list(root_idea.get("target_defects") or ["unclear_mechanism"]),
+                reason=preserve_reason,
+            )
+            response["tldr"] = preserve_reason
     response["root_idea"] = root_idea
     existing_background = set(artifact_get(artifact, "background_knowledge", []))
     background_lines = [
@@ -194,7 +218,12 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
         session.set_slot("analysis.latest", response)
     replace_patch: Dict[str, Any] = {"root_idea": root_idea}
     promoted_root_to_mature = False
-    if isinstance(mature_idea, str) and mature_idea.strip() and not ablation_results:
+    if (
+        isinstance(mature_idea, str)
+        and mature_idea.strip()
+        and not ablation_results
+        and not preserved_mature_idea
+    ):
         promoted_mature_idea = root_idea_to_mature_idea_text(root_idea)
         if promoted_mature_idea:
             replace_patch["mature_idea"] = promoted_mature_idea
@@ -223,6 +252,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
             "root_idea_title": root_idea.get("title"),
             "experiment_findings_used": bool(experiment_findings),
             "promoted_root_to_mature_idea": promoted_root_to_mature,
+            "preserved_mature_idea": preserved_mature_idea,
         },
     )
 
@@ -251,6 +281,7 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
         else None
     )
     mature_idea = artifact_get(artifact, "mature_idea", "")
+    refinement_scope = artifact_get(artifact, "refinement_scope", "")
     component_decisions = artifact_get(artifact, "component_decisions", [])
     prior_components, prior_component_explanations = prior_component_seed(
         latest_candidate_payload,
@@ -270,6 +301,8 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     }
     if isinstance(mature_idea, str) and mature_idea.strip():
         context["mature_idea"] = mature_idea.strip()
+    if isinstance(refinement_scope, str) and refinement_scope.strip():
+        context["refinement_scope"] = refinement_scope.strip()
     if prior_components:
         context["prior_components"] = prior_components
         context["prior_component_explanations"] = prior_component_explanations
@@ -462,11 +495,13 @@ def execute_reanalysis_replan_stage(agent: Any, ctx: StageContext) -> StageResul
     analysis = analysis_entries[-1] if analysis_entries else {}
     ablation_results = artifact_get(artifact, "ablation_results", [])
     mature_idea = artifact_get(artifact, "mature_idea", "")
+    refinement_scope = artifact_get(artifact, "refinement_scope", "")
     topic = artifact_get(artifact, "topic", [])[-1]
 
     prompt = PROMPTS["re_analysis_replan"].format(
         topic=topic,
         mature_idea=mature_idea or "(no mature idea yet)",
+        refinement_scope=(refinement_scope or "").strip(),
         analysis=json.dumps(analysis, ensure_ascii=False, indent=2) if isinstance(analysis, dict) else str(analysis),
         ablation_results=json.dumps(ablation_results, ensure_ascii=False, indent=2) if ablation_results else "[]",
     )
@@ -524,6 +559,7 @@ def ka_route_stage(agent: Any, ctx: StageContext) -> StageResult:
     topic_history = artifact_get(artifact, "topic", [])
     topic = topic_history[-1] if topic_history else search_keywords
     mature_idea = (artifact_get(artifact, "mature_idea", "") or "").strip()
+    refinement_scope = (artifact_get(artifact, "refinement_scope", "") or "").strip()
     mode = "mature_idea" if mature_idea else "standard"
     return StageResult(
         state_patch={
@@ -531,6 +567,7 @@ def ka_route_stage(agent: Any, ctx: StageContext) -> StageResult:
             "topic": topic,
             "search_keywords": search_keywords,
             "mature_idea": mature_idea,
+            "refinement_scope": refinement_scope,
             "rag_query": "",
             "rag_hits": [],
             "survey_contents": [],
@@ -550,6 +587,7 @@ def ka_query_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
 
     mode = ctx.state["mode"]
     mature_idea = ctx.state.get("mature_idea", "")
+    refinement_scope = ctx.state.get("refinement_scope", "")
     topic = ctx.state["topic"]
     search_keywords = ctx.state["search_keywords"]
     query_topic = search_keywords or topic
@@ -560,6 +598,7 @@ def ka_query_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
         agent.model,
         logger,
         mature_idea=mature_idea if mature_idea else None,
+        refinement_scope=refinement_scope if refinement_scope else None,
     )
     logger.info(
         "🔎 Generated RAG Query%s: %s",
