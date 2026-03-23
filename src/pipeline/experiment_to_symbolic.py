@@ -8,7 +8,7 @@ from memory.memory_system.component_taxonomy import extract_component_families
 from memory.api.symbolic_memory_system_api import SymbolicMemorySystem
 from memory.api.base_symbolic_memory_system_api import SymbolicRecordPayload
 
-from .config import PipelineConfig, get_default_config
+from src.config import load_config
 
 
 def normalize_component_family(
@@ -36,11 +36,12 @@ def convert_ablation_to_symbolic_memory(
     idea_components: Optional[List[Dict[str, Any]]] = None,
     experiment_id: str = "",
     symbolic_memory_path: Optional[str] = None,
-    config: Optional[PipelineConfig] = None,
+    config: Optional[Any] = None,
 ) -> List[Dict[str, Any]]:
-    config = config or get_default_config()
+    config = config or load_config()
+    pipeline_cfg = config.pipeline
     if symbolic_memory_path is None:
-        symbolic_memory_path = str(config.symbolic_memory_path)
+        symbolic_memory_path = str(pipeline_cfg.get("symbolic_memory_path", "idea_skill_priors"))
 
     # Load ablation results
     ablation_data = load_ablation_results(ablation_path)

@@ -306,29 +306,33 @@ python src/agents/idea_agent/run.py
 - `project/result/code/iter_v*/`
 - `project/result/science/iter_v*/`
 
-**常用环境变量**：
+**环境变量配置**：
 
-- `OPENAI_API_KEY`
-- `OPENAI_API_BASE`
-- `MINIMAX_API_KEY`
-- `SERPER_API_KEY`
-- `XIAOMI_API_KEY`
-- `CODEAGENT_WORKSPACES_DIR`
-- `EXPERIMENT_AGENT_MEMORY_ENABLED`
-- `EXPERIMENT_AGENT_MEMORY_WRITEBACK`
-- `EXPERIMENT_AGENT_MEMORY_TOOL_LOGS`
-- `EXPERIMENT_AGENT_MEMORY_PROMPT_INJECTION`
-- `AGENT_BASH_TIMEOUT_SECONDS`
+| 环境变量 | 说明 | 默认值 |
+|---------|------|--------|
+| `OPENAI_API_KEY` | OpenAI API Key | - |
+| `OPENAI_API_BASE` | OpenAI API Base URL | - |
+| `SHOW_LLM_REASONING` | 显示LLM推理过程 | 1 |
+| `EXPERIMENT_AGENT_MEMORY_ENABLED` | 启用记忆功能 | 1 |
+| `EXPERIMENT_AGENT_MEMORY_WRITEBACK` | 记忆写回 | 1 |
+| `EXPERIMENT_AGENT_MEMORY_TOOL_LOGS` | 记录工具日志 | 0 |
+| `AGENT_BASH_TIMEOUT_SECONDS` | Bash超时(毫秒) | 600000 |
+| `EXPERIMENT_AGENT_WORKSPACE_DIR` | 实验工作空间目录 | `workspace/<experiment>` |
 
-**当前模型 / 运行常量位置**：
+**模型配置**（在 `src/config/default.yaml` 的 `experiment.models` 下）：
 
-- 定义在 `src/agents/experiment_agent/shared/utils/config.py`
-- 需要注意 shell wrapper 和 Python 模块本体的默认 env 行为并不完全相同
+```python
+prepare = "MiniMax-M2.7"
+code = "MiniMax-M2.7"
+master = "MiniMax-M2.7"
+science = "MiniMax-M2.7"
+default = "MiniMax-M2.7"
 
-**推荐用法**：
+# Prepare Layer
+PREPARE_AGENT_MODEL = "MiniMax-M2.1"
+```
 
-使用 wrapper：
-
+**用法**：
 ```bash
 ./run_experiment.sh --experiment my_exp --idea-json /path/to/idea_result.json --prepare
 ```

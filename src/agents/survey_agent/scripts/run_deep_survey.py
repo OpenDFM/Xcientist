@@ -17,6 +17,54 @@ from utils.file_utils import write_domain_header, write_topic_header, write_resu
 logger = get_logger("Deep Survey")
 
 
+def _merge_global_survey_config(config, survey_cfg):
+    api_mapping = {
+        "llm_api_key": "APIInfo.llm_api_key",
+        "llm_api_base_url": "APIInfo.llm_api_base_url",
+        "llm_model_name": "APIInfo.llm_model_name",
+        "llm_max_context_length": "APIInfo.llm_max_context_length",
+        "batch_chat_agent_worker": "APIInfo.batch_chat_agent_worker",
+        "semantic_scholar_api_key": "APIInfo.semantic_scholar_api_key",
+        "low_flow_mode": "APIInfo.low_flow_mode",
+    }
+    if hasattr(survey_cfg, "api"):
+        api_cfg = survey_cfg.api
+        for key, target in api_mapping.items():
+            if hasattr(api_cfg, key):
+                OmegaConf.update(config, target, getattr(api_cfg, key), merge=True)
+
+    if hasattr(survey_cfg, "output"):
+        output_cfg = survey_cfg.output
+        output_mapping = {
+            "base_dir": "BasicInfo.base_dir",
+            "save_path": "BasicInfo.save_path",
+            "save_json_path": "BasicInfo.save_json_path",
+            "evaluation_save_path": "BasicInfo.evaluation_save_path",
+        }
+        for key, target in output_mapping.items():
+            if hasattr(output_cfg, key):
+                OmegaConf.update(config, target, getattr(output_cfg, key), merge=True)
+
+    if hasattr(survey_cfg, "topic"):
+        current_topic = str(OmegaConf.select(config, "BasicInfo.topic", default="") or "").strip()
+        if not current_topic:
+            OmegaConf.update(config, "BasicInfo.topic", str(survey_cfg.topic), merge=True)
+
+    if hasattr(survey_cfg, "modules"):
+        modules_cfg = survey_cfg.modules
+        module_container = OmegaConf.to_container(modules_cfg, resolve=True)
+        if isinstance(module_container, dict):
+            for module_name, module_value in module_container.items():
+                OmegaConf.update(
+                    config,
+                    f"ModuleInfo.{module_name}",
+                    module_value,
+                    merge=True,
+                )
+
+    return config
+
+
 def run_pipeline(config, work_collector, database, work_analyzer, survey_generator, judge):
     # step 1: related work collection
     logger.info("Collecting related work...")
@@ -112,6 +160,15 @@ def run_pipeline(config, work_collector, database, work_analyzer, survey_generat
 
 @hydra.main(config_path="../config", config_name="deep_survey_xiaomi", version_base=None)
 def main(config):
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "..", ".."))
+        from src.config import load_config, get_survey_config
+        load_config()
+        survey_cfg = get_survey_config()
+        config = _merge_global_survey_config(config, survey_cfg)
+    except Exception as e:
+        logger.warning(f"Failed to load global config, using local config: {e}")
+
     logger.info("Starting Deep Survey Pipeline")
     logger.yaml(OmegaConf.to_container(config, resolve=True))
 

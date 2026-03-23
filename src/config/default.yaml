@@ -31,7 +31,7 @@ survey:
   api:
     llm_api_key: "${env:OPENAI_API_KEY}"
     llm_api_base_url: "https://api.xi-ai.cn/v1"
-    llm_model_name: "gpt-4.1-mini"
+    llm_model_name: "gpt-5-mini"
     llm_max_context_length: 160000
     batch_chat_agent_worker: 4
     semantic_scholar_api_key: "${env:SEMANTIC_SCHOLAR_API_KEY}"
@@ -67,7 +67,7 @@ survey:
 
     Judge:
       use_different_api_for_judge: false
-      model: "gpt-4.1-mini"
+      model: "gpt-5-mini"
       citation_quality_threshold: 0.5
 
 # ============================================
@@ -180,34 +180,37 @@ experiment:
     openai_api_base: "https://api.xi-ai.cn/v1"
     minimax_api_key: "${env:MINIMAX_API_KEY}"
     minimax_api_base: "https://api.minimaxi.com/v1"
-    xiaomi_api_key: "${env:XIAOMI_API_KEY}"
+    huggingface_endpoint: "https://hf-mirror.com"
+    github_ai_token: "${env:GITHUB_AI_TOKEN}"
     serper_api_key: "${env:SERPER_API_KEY}"
+    jina_api_key: "${env:JINA_API_KEY}"
 
   # Model configuration
   models:
-    prepare: "MiniMax-M2.5"
-    code_architect: "MiniMax-M2.5"
-    code_manager: "MiniMax-M2.5"
-    code_worker: "MiniMax-M2.5"
-    code_integrator: "MiniMax-M2.5"
-    master: "MiniMax-M2.5"
-    science: "MiniMax-M2.5"
-    default: "MiniMax-M2.5"
+    prepare: "MiniMax-M2.7"
+    code: "MiniMax-M2.7"
+    master: "MiniMax-M2.7"
+    science: "MiniMax-M2.7"
+    default: "MiniMax-M2.7"
 
   # Execution configuration
   execution:
     max_iterations: 20
-    max_parallel_workers: 5
-    max_implementation_attempts: 50
-    max_agent_turns: 999
+    delegate_max_children: 1
+    planner_max_turns: 10000
+    worker_max_turns: 4000
+    prepare_validation_feedback_rounds: 4
+    code_validation_feedback_rounds: 2
+    science_validation_feedback_rounds: 2
     bash_timeout_seconds: 600000
+    mcp_timeout_seconds: 120
 
   # Memory configuration
   memory:
     enabled: true
     shared_dir: "~/.researchagent/shared_memory"
     embedding_model_path: "/hpc_stor03/sjtu_home/hanqi.li/ckpts/huggingface/all-MiniLM-L6-v2"
-    llm_name: "gpt-5.4"
+    llm_name: "gpt-5-mini"
     query_method: "embedding"
     writeback_enabled: true
     tool_logs_enabled: false
@@ -218,6 +221,37 @@ experiment:
   workspace:
     root: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace"
     prepare_clone_depth: 1
+
+# ============================================
+# Paper Agent Configuration
+# ============================================
+paper:
+  enabled: true
+  model: "MiniMax-M2.5"
+
+  api:
+    openai_api_key: "${env:OPENAI_API_KEY}"
+    openai_api_base: "https://api.xi-ai.cn/v1"
+    minimax_api_key: "${env:MINIMAX_API_KEY}"
+    minimax_api_base: "https://api.minimaxi.com/v1"
+    semantic_scholar_api_key: "${env:SEMANTIC_SCHOLAR_API_KEY}"
+    semantic_scholar_api_base: "https://api.semanticscholar.org"
+
+  models:
+    default: "MiniMax-M2.5"
+    architect: "MiniMax-M2.5"
+    writer: "MiniMax-M2.5"
+    review: "MiniMax-M2.5"
+    analysis: "MiniMax-M2.5"
+    literature: "MiniMax-M2.5"
+    viz: "MiniMax-M2.5"
+    vlm: "gpt-4o"
+
+  workspace:
+    root: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/paper_agent/workspaces"
+    experiment_root: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace"
+
+  template_dir: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/paper_agent/latex/ICML2025_Template"
 
 # ============================================
 # Pipeline Configuration
@@ -237,7 +271,7 @@ pipeline:
 
   # Iteration settings
   iterate:
-    max_iterations: 1
+    max_iterations: 5
 
     # Stop conditions
     stop_conditions:
@@ -257,6 +291,22 @@ pipeline:
     experiment_result_filename: "experiment_result.json"
     resume_from_iteration: null
 
+  symbolic_memory_path: "idea_skill_priors"
+  default_macro_roles:
+    - "generator"
+    - "encoder"
+    - "decoder"
+    - "loss"
+    - "regularizer"
+    - "optimizer"
+    - "architecture"
+    - "attention"
+    - "embedding"
+    - "representation"
+    - "constraint"
+    - "retrieval"
+    - "augmentation"
+
 # ============================================
 # Environment Variable Mapping
 # ============================================
@@ -265,5 +315,5 @@ env:
   SEMANTIC_SCHOLAR_API_KEY: ""
   SERPER_API_KEY: ""
   MINIMAX_API_KEY: ""
-  XIAOMI_API_KEY: ""
+  GITHUB_AI_TOKEN: ""
   JINA_API_KEY: ""

@@ -73,6 +73,24 @@ def _run_topic(
 
 
 def _load_run_defaults(config: Optional[object]) -> dict:
+    # 首先尝试从全局配置读取
+    global_run_cfg = {}
+    try:
+        from src.config import load_config, get_idea_config
+        load_config()
+        idea_cfg = get_idea_config()
+        if hasattr(idea_cfg, 'run'):
+            global_run_cfg = idea_cfg.run
+    except Exception:
+        pass
+
+    def _get_run_value(key: str, default: Any) -> Any:
+        # 优先从全局配置获取
+        if hasattr(global_run_cfg, key):
+            return getattr(global_run_cfg, key)
+        # 其次从局部配置获取
+        return get_config_value(config, f"run.{key}", default)
+
     return {
         "topic": get_config_value(config, "run.topic", ""),
         "output_root": get_config_value(config, "run.output_root", str(DEFAULT_OUTPUT_ROOT)),
@@ -86,6 +104,48 @@ def _load_run_defaults(config: Optional[object]) -> dict:
 
 
 def _apply_env_config(config: Optional[object]) -> None:
+    # 首先尝试从全局配置读取
+    try:
+        from src.config import load_config, get_idea_config
+        global_config = load_config()
+        idea_cfg = get_idea_config()
+        if hasattr(idea_cfg, 'agent') and hasattr(idea_cfg.agent, 'model'):
+            os.environ["IDEA_AGENT_MODEL"] = str(idea_cfg.agent.model)
+        if hasattr(idea_cfg, 'api'):
+            api_cfg = idea_cfg.api
+            if hasattr(api_cfg, 'openai_api_key'):
+                os.environ["OPENAI_API_KEY"] = str(api_cfg.openai_api_key)
+            if hasattr(api_cfg, 'openai_base_url'):
+                os.environ["OPENAI_BASE_URL"] = str(api_cfg.openai_base_url)
+            if hasattr(api_cfg, 's2_api_key'):
+                os.environ["S2_API_KEY"] = str(api_cfg.s2_api_key)
+            if hasattr(api_cfg, 'serper_api_key'):
+                os.environ["SERPER_API_KEY"] = str(api_cfg.serper_api_key)
+        if hasattr(idea_cfg, 'mcts'):
+            mcts_cfg = idea_cfg.mcts
+            # 基础 MCTS 配置
+            mcts_fields = [
+                'max_iterations', 'max_depth', 'branching_factor',
+                'exploration_constant', 'generation_model', 'evaluation_model',
+                'generation_temperature', 'evaluation_temperature',
+                'generation_max_tokens', 'evaluation_max_tokens',
+                'component_novelty_retrieval_top_k', 'min_confidence_for_memory',
+                'pareto_top_k', 'skill_prior_memory_path', 'skill_prior_success_threshold'
+            ]
+            for field in mcts_fields:
+                if hasattr(mcts_cfg, field):
+                    env_key = f"IDEA_MCTS_{field.upper()}"
+                    os.environ[env_key] = str(getattr(mcts_cfg, field))
+            # Weights 配置
+            if hasattr(mcts_cfg, 'weights'):
+                weights_cfg = mcts_cfg.weights
+                weight_fields = ['alignment', 'complexity', 'novelty', 'impact', 'feasibility']
+                for field in weight_fields:
+                    if hasattr(weights_cfg, field):
+                        os.environ[f"IDEA_MCTS_WEIGHT_{field.upper()}"] = str(getattr(weights_cfg, field))
+    except Exception as e:
+        print(f"Warning: Failed to load global config: {e}")
+
     if config is None:
         return
     env_map = {
@@ -96,10 +156,16 @@ def _apply_env_config(config: Optional[object]) -> None:
         "MINERU_MODEL_SOURCE": "run.mineru_model_source",
     }
     for env_var, key in env_map.items():
-        value = get_config_value(config, key, None)
-        if value is None:
-            continue
-        os.environ[env_var] = str(value)
+        # 只在环境变量未设置时才从局部配置读取
+        if env_var not in os.environ:
+            value = get_config_value(config, key, None)
+            if value is not None:
+                os.environ[env_var] = str(value)
+
+    # 设置默认模型（如果环境变量未设置）
+    if "IDEA_AGENT_MODEL" not in os.environ:
+        model = get_config_value(config, "agent.model", "gpt-4.1")
+        os.environ["IDEA_AGENT_MODEL"] = str(model)
 
 
 def main() -> None:

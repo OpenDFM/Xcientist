@@ -1,64 +1,65 @@
 #!/usr/bin/env python3
-"""
-SuperAgent - Dual-Layer AI System for Automated Scientific Discovery
-
-This is the main orchestrator that coordinates the interaction between:
-1. Code Layer (Engineering): Generates and maintains the codebase
-2. Science Layer (Experimentation): Runs experiments and analyzes results
-
-Communication Protocol:
-- CHP (Code Handover Protocol): Code Layer -> Science Layer via CodeManifest
-"""
+"""Unified CLI entrypoint for experiment-agent."""
 
 import asyncio
 import argparse
 import sys
 import os
-import json
-import glob
+import logging
 
-# Add current directory to sys.path
+# Configure logging to suppress TextContent length warnings from OpenHands SDK
+logging.getLogger("openhands.message").setLevel(logging.ERROR)
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from src.agents.experiment_agent.layers.code.entry import run_code_generation_loop
-from src.agents.experiment_agent.layers.science.entry import run_science_cycle
-from src.agents.experiment_agent.layers.code.schemas.blueprint import Blueprint
-from src.agents.experiment_agent.layers.code.schemas.manifest import CodeManifest
-from src.agents.experiment_agent.layers.code.schemas.idea_parser import load_idea_file
-from src.agents.experiment_agent.shared.exceptions import exit_on_rate_limit
-from src.agents.experiment_agent.shared.logger import print_phase
-from src.agents.experiment_agent.shared.utils.config import (
-    print_config,
+from src.agents.experiment_agent.agents.master import run_master
+from src.agents.experiment_agent.agents.reporting import run_ablation_report_integrator
+from src.agents.experiment_agent.agents.prepare import run_prepare
+from src.agents.experiment_agent.config import print_config
+from src.agents.experiment_agent.config import (
     ensure_experiment_dirs,
     get_idea_input_path,
+    SCIENCE_MAX_ITERATIONS,
 )
-from src.agents.experiment_agent.shared.utils.cache import Cache
-from src.agents.experiment_agent.layers.base.state import (
-    StateManager,
-    GlobalPhase,
-    StepStatus,
-)
+from src.agents.experiment_agent.runtime.cache import Cache
+from src.agents.experiment_agent.telemetry import print_phase
 
 
 def get_args():
     parser = argparse.ArgumentParser(
-        description="SuperAgent - Dual-Layer AI for Scientific Discovery"
+        description="Experiment Agent - unified prepare + orchestration entrypoint"
     )
     parser.add_argument(
         "--experiment", "-e", required=True, help="Experiment ID (unique identifier)"
     )
     parser.add_argument(
-        "--resume", action="store_true", help="Resume from previous checkpoint"
+        "--prepare-only",
+        action="store_true",
+        help="Only run prepare phase and exit",
     )
     parser.add_argument(
-        "--fresh", action="store_true", help="Start a fresh run (clears previous state)"
+        "--skip-prepare",
+        action="store_true",
+        help="Skip prepare and start directly from master orchestration",
     )
-
+    parser.add_argument(
+        "--force", action="store_true", help="Overwrite prepare_idea.md and re-download/clone"
+    )
+    parser.add_argument(
+        "--clone-depth", type=int, default=1, help="git clone depth (default: 1)"
+    )
+    parser.add_argument("--skip-repos", action="store_true", help="Skip cloning repos")
+    parser.add_argument(
+        "--skip-datasets", action="store_true", help="Skip downloading datasets"
+    )
     parser.add_argument(
         "--max-iterations",
         type=int,
-        default=None,
-        help="Maximum iterations per science cycle (default: from SCIENCE_MAX_ITERATIONS env or 5)",
+        default=SCIENCE_MAX_ITERATIONS,
+        help=f"Maximum iterations (default: {SCIENCE_MAX_ITERATIONS})",
+    )
+    parser.add_argument(
+        "--resume", action="store_true", help="Resume from prior conversation state"
     )
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose output"
@@ -66,219 +67,89 @@ def get_args():
     return parser.parse_args()
 
 
-async def run_engineering_layer(
-    experiment_id: str,
-    resume: bool = False,
-    fresh: bool = False,
-) -> CodeManifest:
-    """
-    Run the Engineering Layer (Code Generation).
-
-    This is Phase 1: Build the scientific tool.
-    """
-    print_phase(
-        "ENGINEERING LAYER",
-        "Building the scientific tool from research proposal...",
-        width=65,
-    )
-
-    code_manifest = await run_code_generation_loop(
-        experiment_id=experiment_id,
-        resume=resume,
-        fresh=fresh,
-    )
-
-    if not code_manifest:
-        raise RuntimeError("Engineering Layer failed to generate code")
-
-    print(f"\n✓ Code Generation Complete")
-    print(f"  Project Root: {code_manifest.project_root}")
-    print(f"  Entry Point: {code_manifest.entry_point}")
-    if code_manifest.entry_points:
-        print(f"  Available Scripts:")
-        for name, cmd in code_manifest.entry_points.items():
-            print(f"    - {name}: {cmd}")
-
-    return code_manifest
-
-
-async def run_science_layer(
-    code_manifest: CodeManifest,
-    proposal,
-    experiment_id: str,
-    max_iterations: int = 3,
-    resume: bool = False,
-) -> None:
-    """
-    Run the Science Layer (Experimentation).
-
-    This is Phase 2: Use the tool to conduct experiments.
-    """
-    print_phase(
-        "SCIENCE LAYER",
-        "Conducting experiments to validate research claims...",
-        width=65,
-    )
-
-    optimization_tickets = await run_science_cycle(
-        code_manifest=code_manifest,
-        proposal=proposal,
-        experiment_id=experiment_id,
-        max_iterations=max_iterations,
-        resume=resume,
-    )
-
-    # None means Science Layer crashed/failed
-    if optimization_tickets is None:
-        raise RuntimeError("Science Layer failed (see logs above for traceback)")
-
-    print("\n✓ Science Layer Complete")
-
-
-async def main():
-    """Main entry point for SuperAgent."""
-    args = get_args()
-
-    # Apply defaults from config if not specified
-    from src.agents.experiment_agent.shared.utils.config import SCIENCE_MAX_ITERATIONS
-
-    if args.max_iterations is None:
-        args.max_iterations = SCIENCE_MAX_ITERATIONS
-
+async def main_async(args) -> int:
     print_config()
+    print_phase(
+        "EXPERIMENT AGENT",
+        "Unified OpenHands orchestration pipeline",
+        width=65,
+    )
 
     experiment_id = args.experiment
-
-    # Ensure experiment directories exist
     paths = ensure_experiment_dirs(experiment_id)
-    # Initialize cache early so --resume can read cached blueprints / main_loop
     Cache.initialize(paths["cache_dir"], enabled=True)
+    workspace_root = paths["workspace_dir"]
+    project_root = paths["project_dir"]
+
     print(f"\nExperiment: {experiment_id}")
-    print(f"Workspace: {paths['workspace_dir']}")
+    print(f"Workspace: {workspace_root}")
+    print(f"Project: {project_root}")
+    print(f"Results: {paths['results_dir']}")
+    print(f"Agent Reports: {paths['reports_dir']}")
 
-    # Resume policy: do NOT rely on run_state.json.
-    # Derive resume intent purely from execution step files (StateManager).
-    resume_science = False
-    if args.resume and (not args.fresh):
-        try:
-            sm_science = StateManager(paths["workspace_dir"], namespace="science")
-            if sm_science.load() and sm_science.current_state:
-                # If science has an incomplete step, we can skip engineering and resume science.
-                resume_science = sm_science.current_state.status != StepStatus.COMPLETED
-        except Exception:
-            resume_science = False
+    if not args.skip_prepare:
+        prepare_report = await run_prepare(
+            experiment_id=experiment_id,
+            force=bool(args.force),
+            clone_depth=int(args.clone_depth),
+            skip_repos=bool(args.skip_repos),
+            skip_datasets=bool(args.skip_datasets),
+            verbose=bool(args.verbose),
+        )
+        print_phase("PREPARE COMPLETE", width=65)
+        print(f"  Prepare Idea: {prepare_report.idea_md_path}")
+        print(f"  Project dir: {prepare_report.project_dir}")
+        print(f"  Repos dir: {prepare_report.repos_dir}")
+        print(f"  Dataset dir: {prepare_report.dataset_dir}")
+        print(f"  Results dir: {prepare_report.results_dir}")
+        print(f"  Agent reports dir: {prepare_report.reports_dir}")
+        if args.prepare_only:
+            return 0
+    elif args.prepare_only:
+        raise ValueError("--prepare-only cannot be combined with --skip-prepare")
 
-    if args.resume and resume_science and (not args.fresh):
-        project_root = paths["project_dir"]
-        proposal = load_idea_file(get_idea_input_path(experiment_id))
+    idea_path = get_idea_input_path(experiment_id)
+    print(f"Idea: {idea_path}")
 
-        blueprint = None
-        candidate_ids = []
-
-        # If the last code step was an intermediate fix step (id like "fix_*"), try to recover the original
-        # Blueprint ID from the code execution state meta.
-        try:
-            sm = StateManager(paths["workspace_dir"], namespace="code")
-            if sm.load() and sm.current_state:
-                original_id = sm.current_state.meta.get("original_blueprint_id")
-                if original_id:
-                    candidate_ids.append(str(original_id))
-                # Also consider the state blueprint_id if it looks like a real Blueprint hash.
-                state_bid = sm.current_state.blueprint_id
-                if (
-                    state_bid
-                    and isinstance(state_bid, str)
-                    and not state_bid.startswith("fix_")
-                ):
-                    candidate_ids.append(state_bid)
-        except Exception:
-            pass
-
-        # Final fallback: recompute proposal hash (the normal Blueprint cache key).
-        try:
-            candidate_ids.append(Cache.hash_proposal(proposal))
-        except Exception:
-            pass
-
-        # De-duplicate while preserving order
-        seen = set()
-        candidate_ids = [
-            x for x in candidate_ids if x and (x not in seen and not seen.add(x))
-        ]
-
-        for cid in candidate_ids:
-            cached = Cache.get_blueprint(cid)
-            if cached and "blueprint" in cached:
-                try:
-                    blueprint = Blueprint(**cached["blueprint"])
-                    break
-                except Exception:
-                    blueprint = None
-
-        # Backward-compatible fallback (older runs wrote _blueprint.json into project_dir).
-        if blueprint is None:
-            blueprint_path = os.path.join(project_root, "_blueprint.json")
-            if os.path.exists(blueprint_path):
-                with open(blueprint_path, "r", encoding="utf-8") as f:
-                    blueprint_data = json.load(f)
-                blueprint = Blueprint(**blueprint_data)
-
-        if blueprint is not None:
-            code_manifest = CodeManifest.from_blueprint(
-                blueprint=blueprint,
-                project_root=project_root,
-                description=proposal.idea.description,
-            )
-            # Ensure at least a runnable entry point is present
-            if blueprint.entry_point and "run" not in code_manifest.entry_points:
-                code_manifest.entry_points["run"] = f"python {blueprint.entry_point}"
-
-            print(
-                "\n[Resume] Detected SCIENCE stage in cache; skipping Engineering/Integration."
-            )
-        else:
-            # Fall back to Engineering if blueprint is missing
-            resume_science = False
-
-    if not (args.resume and resume_science and (not args.fresh)):
-        # Phase 1: Engineering Layer
-        try:
-            code_manifest = await run_engineering_layer(
-                experiment_id=experiment_id,
-                resume=args.resume,
-                fresh=args.fresh,
-            )
-        except RuntimeError as e:
-            print(f"\n✗ {e}")
-            print("Aborting SuperAgent mission.")
-            sys.exit(1)
-
-    # Load proposal for Science Layer
-    proposal = load_idea_file(get_idea_input_path(experiment_id))
-
-    # Phase 2: Science Layer
-    await run_science_layer(
-        code_manifest=code_manifest,
-        proposal=proposal,
+    result = await run_master(
         experiment_id=experiment_id,
+        idea_path=idea_path,
+        workspace_root=workspace_root,
+        project_root=project_root,
         max_iterations=args.max_iterations,
-        resume=args.resume,
+        verbose=bool(args.verbose),
+        resume=bool(args.resume),
     )
 
-    # Final Summary
-    print_phase("SUPERAGENT MISSION COMPLETE", width=65)
-    print(f"  Experiment: {experiment_id}")
-    print(f"  Project: {code_manifest.project_root}")
+    integrator_result = await run_ablation_report_integrator(
+        workspace_root=workspace_root,
+        project_root=project_root,
+        verbose=bool(args.verbose),
+        resume=bool(args.resume),
+    )
+    if integrator_result.get("valid"):
+        result["final_path"] = integrator_result["ablation_results_path"]
+
+    if result.get("stopped_due_to_iteration_limit"):
+        print_phase("ITERATION LIMIT HIT", width=65)
+    else:
+        print_phase("MISSION COMPLETE", width=65)
+    print(f"  Iterations: {result['iterations']}")
+    print(f"  Final Report: {result['final_path']}")
+    return 0
+
+
+def main() -> int:
+    return int(asyncio.run(main_async(get_args())))
 
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        raise SystemExit(main())
     except KeyboardInterrupt:
         print("\n\nStopped by user.")
         sys.exit(130)
     except Exception as e:
-        exit_on_rate_limit(e)
         print(f"\n✗ Unhandled error: {e}")
         import traceback
 

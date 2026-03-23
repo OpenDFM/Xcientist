@@ -7,13 +7,13 @@ import re
 import shutil
 import subprocess
 import sys
+import argparse
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 from omegaconf import OmegaConf
 
-from .config import PipelineConfig, get_default_config
 from .experiment_to_symbolic import convert_ablation_to_symbolic_memory
 
 # Import unified config
@@ -39,18 +39,18 @@ def _ensure_dirs(base_dir: str) -> None:
 
 
 # Pipeline State Management
-def _load_pipeline_state(pipeline_workspace: str) -> Optional[Dict]:
+def _load_pipeline_state(pipeline_workspace: str, state_filename: str) -> Optional[Dict]:
     """Load pipeline state from pipeline.yaml."""
-    state_file = os.path.join(pipeline_workspace, "pipeline.yaml")
+    state_file = os.path.join(pipeline_workspace, state_filename)
     if os.path.exists(state_file):
         with open(state_file, 'r') as f:
             return OmegaConf.to_container(OmegaConf.load(f), resolve=True)
     return None
 
 
-def _save_pipeline_state(pipeline_workspace: str, state: Dict) -> None:
+def _save_pipeline_state(pipeline_workspace: str, state: Dict, state_filename: str) -> None:
     """Save pipeline state to pipeline.yaml."""
-    state_file = os.path.join(pipeline_workspace, "pipeline.yaml")
+    state_file = os.path.join(pipeline_workspace, state_filename)
     conf = OmegaConf.create(state)
     with open(state_file, 'w') as f:
         OmegaConf.save(conf, f)
@@ -105,7 +105,6 @@ def _get_subprocess_env() -> dict:
             "SEMANTIC_SCHOLAR_API_KEY",
             "SERPER_API_KEY",
             "MINIMAX_API_KEY",
-            "XIAOMI_API_KEY",
             "JINA_API_KEY",
             "HF_TOKEN",
             "http_proxy",
@@ -170,16 +169,13 @@ def run_survey(topic: str, output_dir: str) -> bool:
     return returncode == 0
 
 
-def run_idea(topic: str, mature_idea: str, output_file: str, config: PipelineConfig = None) -> Dict[str, Any]:
+def run_idea(topic: str, mature_idea: str, output_file: str) -> Dict[str, Any]:
     """Run Idea agent."""
     print("\n" + "=" * 50)
     print("Phase 2: Idea Generation")
     print("=" * 50)
 
-    config = config or get_default_config()
-    idea_agent_path = config.idea_agent_root / "run.py"
-    if not idea_agent_path.is_absolute():
-        idea_agent_path = Path.cwd() / idea_agent_path
+    idea_agent_path = Path.cwd() / "src/agents/idea_agent/run.py"
  
     cmd = [sys.executable, str(idea_agent_path), "--topic", topic]
 
@@ -233,7 +229,13 @@ def run_idea(topic: str, mature_idea: str, output_file: str, config: PipelineCon
         return json.load(f)
 
 
-def run_experiment(experiment_id: str, workspace_root: str) -> bool:
+def run_experiment(
+    experiment_id: str,
+    workspace_root: str,
+    max_agent_iterations: int,
+    resume: bool = False,
+    skip_prepare: bool = False,
+) -> bool:
     """Run Experiment agent (prepare + execute)."""
     print("\n" + "=" * 50)
     print("Phase 3: Experiment")
@@ -242,24 +244,19 @@ def run_experiment(experiment_id: str, workspace_root: str) -> bool:
 
     # Set environment variable for workspace
     env = os.environ.copy()
-    env["CODEAGENT_WORKSPACES_DIR"] = workspace_root
+    env["EXPERIMENT_AGENT_WORKSPACE_DIR"] = workspace_root
 
-    # Prepare
-    print("Running Experiment Agent (prepare)...")
-    cmd = [
-        sys.executable, "-m", "src.agents.experiment_agent.prepare",
-        "--experiment", experiment_id,
-    ]
-    if run_command(cmd, env=env) != 0:
-        print("Prepare failed, continuing...")
-
-    # Execute
-    print("Running Experiment Agent (execute)...")
+    print("Running Experiment Agent (unified main)...")
     cmd = [
         sys.executable, "-m", "src.agents.experiment_agent.main",
         "--experiment", experiment_id,
+        "--max-iterations", str(max_agent_iterations),
         "--verbose",
     ]
+    if resume:
+        cmd.append("--resume")
+    if skip_prepare:
+        cmd.append("--skip-prepare")
     return run_command(cmd, env=env) == 0
 
 
@@ -275,6 +272,10 @@ def main(config_path: str = "src/config/default.yaml"):
     max_iterations = config.pipeline.iterate.max_iterations
     skip_survey = config.pipeline.get("skip_survey", False)
     resume_enabled = config.pipeline.get("resume_enabled", True)
+    state_filename = str(config.pipeline.get("state_file", "pipeline.yaml"))
+    experiment_agent_iterations = int(
+        config.experiment.execution.get("max_iterations", 10)
+    )
 
     # Get output roots from config
     pipeline_output_root = config.pipeline.output.root  # e.g., "pipeline_runs"
@@ -309,7 +310,7 @@ def main(config_path: str = "src/config/default.yaml"):
 
     # Load or init state
     if resume_enabled:
-        state = _load_pipeline_state(pipeline_workspace)
+        state = _load_pipeline_state(pipeline_workspace, state_filename)
         if not state:
             # No existing state, initialize new
             state = _init_pipeline_state(pipeline_workspace, topic, mature_idea, max_iterations)
@@ -329,7 +330,7 @@ def main(config_path: str = "src/config/default.yaml"):
         _ensure_dirs(survey_output_dir)
         if run_survey(topic, survey_output_dir):
             _mark_phase_complete("survey", state)
-            _save_pipeline_state(pipeline_workspace, state)
+            _save_pipeline_state(pipeline_workspace, state, state_filename)
         else:
             print("Survey failed!")
 
@@ -339,55 +340,112 @@ def main(config_path: str = "src/config/default.yaml"):
     for i in range(start_iteration, max_iterations):
         print(f"\n=== Iteration {i + 1}/{max_iterations} ===")
 
-        experiment_id = f"iter_{i}_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        # 先运行 Idea agent 获取 title，再确定 experiment_id
+        temp_exp_id = f"temp_iter_{i}"
+        temp_exp_workspace = os.path.join(pipeline_workspace, "experiments", temp_exp_id)
+        _ensure_dirs(temp_exp_workspace)
 
         state["current_iteration"] = i
-        _save_pipeline_state(pipeline_workspace, state)
+        _save_pipeline_state(pipeline_workspace, state, state_filename)
 
+        idea_result_filename = str(
+            config.pipeline.output.get("idea_result_filename", "idea_result.json")
+        )
+        idea_output_file = os.path.join(temp_exp_workspace, idea_result_filename)
+        idea_result = run_idea(topic, mature_idea, idea_output_file)
+
+        # 使用 idea title 作为 experiment_id（slugify 处理）
+        title = idea_result.get("title", f"experiment_{i}")
+        slugified_title = re.sub(r'[^a-zA-Z0-9]+', '-', title.lower()).strip('-')
+        # 限制长度避免路径过长，同时保留足够信息
+        slugified_title = slugified_title[:50] if slugified_title else f"experiment_{i}"
+        experiment_id = f"iter_{i}_{slugified_title}"
+
+        # 创建正式的实验目录
         exp_workspace = os.path.join(pipeline_workspace, "experiments", experiment_id)
         _ensure_dirs(exp_workspace)
         _ensure_dirs(os.path.join(exp_workspace, "project"))
         _ensure_dirs(os.path.join(exp_workspace, "results"))
         _ensure_dirs(os.path.join(exp_workspace, "checkpoints"))
 
-        idea_output_file = os.path.join(exp_workspace, "idea_result.json")
-        idea_result = run_idea(topic, mature_idea, idea_output_file, get_default_config())
+        # Move idea output into the canonical experiment workspace inputs.
+        final_idea_file = os.path.join(exp_workspace, idea_result_filename)
+        final_idea_json = os.path.join(exp_workspace, "idea.json")
+        if os.path.exists(idea_output_file) and idea_output_file != final_idea_file:
+            shutil.move(idea_output_file, final_idea_file)
 
-        title = idea_result.get("title", "experiment")
-        experiment_id = hashlib.md5(title.encode()).hexdigest()[:8]
+        if os.path.exists(final_idea_file):
+            shutil.copy(final_idea_file, final_idea_json)
 
-        exp_workspace = os.path.join(pipeline_workspace, "experiments", experiment_id)
-        _ensure_dirs(exp_workspace)
-        _ensure_dirs(os.path.join(exp_workspace, "project"))
-        _ensure_dirs(os.path.join(exp_workspace, "results"))
-        _ensure_dirs(os.path.join(exp_workspace, "checkpoints"))
+        # 清理临时目录
+        if os.path.exists(temp_exp_workspace) and temp_exp_workspace != exp_workspace:
+            try:
+                shutil.rmtree(temp_exp_workspace)
+            except Exception:
+                pass
 
-        if os.path.exists(idea_output_file) and idea_output_file != os.path.join(exp_workspace, "idea_result.json"):
-            shutil.move(idea_output_file, os.path.join(exp_workspace, "idea_result.json"))
+        if os.path.exists(idea_output_file) and idea_output_file != os.path.join(exp_workspace, idea_result_filename):
+            shutil.move(idea_output_file, os.path.join(exp_workspace, idea_result_filename))
+        if os.path.exists(os.path.join(exp_workspace, idea_result_filename)):
+            shutil.copy(
+                os.path.join(exp_workspace, idea_result_filename),
+                final_idea_json,
+            )
+
+        should_skip_prepare = resume_enabled and _should_skip_phase(f"experiment_{i}", state)
+        success = run_experiment(
+            experiment_id=experiment_id,
+            workspace_root=exp_workspace,
+            max_agent_iterations=experiment_agent_iterations,
+            resume=resume_enabled,
+            skip_prepare=should_skip_prepare,
+        )
+        if not success:
+            raise RuntimeError(f"Experiment agent failed for {experiment_id}")
 
         _mark_phase_complete(f"experiment_{i}", state)
-        _save_pipeline_state(pipeline_workspace, state)
-        run_experiment(experiment_id, exp_workspace)
+        state["current_iteration"] = i + 1
+        _save_pipeline_state(pipeline_workspace, state, state_filename)
+
+        experiment_result_filename = config.pipeline.output.get(
+            "experiment_result_filename", "experiment_result.json"
+        )
+        experiment_result_path = os.path.join(exp_workspace, experiment_result_filename)
+        final_report_path = os.path.join(exp_workspace, "final_report.md")
+        with open(experiment_result_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "experiment_id": experiment_id,
+                    "workspace": exp_workspace,
+                    "idea_path": final_idea_json,
+                    "idea_result_path": final_idea_file,
+                    "ablation_results_path": os.path.join(exp_workspace, "ablation_results.json"),
+                    "final_report_path": final_report_path if os.path.exists(final_report_path) else "",
+                },
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
 
         ablation_path = os.path.join(exp_workspace, "ablation_results.json")
         if os.path.exists(ablation_path):
             try:
                 symbolic_memory_path = os.path.join(
                     workspace_root,
-                    get_default_config().symbolic_memory_path
+                    str(config.pipeline.get("symbolic_memory_path", "idea_skill_priors"))
                 )
                 convert_ablation_to_symbolic_memory(
                     ablation_path=ablation_path,
                     experiment_id=experiment_id,
                     symbolic_memory_path=symbolic_memory_path,
-                    config=get_default_config(),
+                    config=config,
                 )
                 print(f"✅ Converted ablation results to symbolic memory")
             except Exception as e:
                 print(f"⚠️ Failed to convert ablation results: {e}")
 
     state["current_iteration"] = max_iterations
-    _save_pipeline_state(pipeline_workspace, state)
+    _save_pipeline_state(pipeline_workspace, state, state_filename)
 
     print("\n" + "=" * 50)
     print("Pipeline Completed!")
@@ -395,4 +453,11 @@ def main(config_path: str = "src/config/default.yaml"):
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="X-Scientist pipeline runner")
+    parser.add_argument(
+        "--config",
+        default="src/config/default.yaml",
+        help="Path to unified config file",
+    )
+    args = parser.parse_args()
+    main(config_path=args.config)

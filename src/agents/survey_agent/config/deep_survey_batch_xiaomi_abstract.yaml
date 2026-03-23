@@ -110,7 +110,7 @@ ModuleInfo:
     use_different_api_for_judge: True
     model: gpt-4o-mini
     judge_llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f
-    judge_llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
+    judge_llm_api_base_url: http://122.193.22.114:8889/v1/chat/completions
     nli_temperature: 0.1
     citation_quality_threshold: 0.5
     remove_failed_citation_in_eval: True

@@ -306,29 +306,33 @@ Important downstream result locations typically live under:
 - `project/result/code/iter_v*/`
 - `project/result/science/iter_v*/`
 
-**Environment variables commonly used**:
+**Environment variables**:
 
-- `OPENAI_API_KEY`
-- `OPENAI_API_BASE`
-- `MINIMAX_API_KEY`
-- `SERPER_API_KEY`
-- `XIAOMI_API_KEY`
-- `CODEAGENT_WORKSPACES_DIR`
-- `EXPERIMENT_AGENT_MEMORY_ENABLED`
-- `EXPERIMENT_AGENT_MEMORY_WRITEBACK`
-- `EXPERIMENT_AGENT_MEMORY_TOOL_LOGS`
-- `EXPERIMENT_AGENT_MEMORY_PROMPT_INJECTION`
-- `AGENT_BASH_TIMEOUT_SECONDS`
+| Env Var | Description | Default |
+|---------|-------------|---------|
+| `OPENAI_API_KEY` | OpenAI API Key | - |
+| `OPENAI_API_BASE` | OpenAI API Base URL | - |
+| `SHOW_LLM_REASONING` | Show LLM reasoning | 1 |
+| `EXPERIMENT_AGENT_MEMORY_ENABLED` | Enable memory | 1 |
+| `EXPERIMENT_AGENT_MEMORY_WRITEBACK` | Memory writeback | 1 |
+| `EXPERIMENT_AGENT_MEMORY_TOOL_LOGS` | Tool logging | 0 |
+| `AGENT_BASH_TIMEOUT_SECONDS` | Bash timeout (ms) | 600000 |
+| `EXPERIMENT_AGENT_WORKSPACE_DIR` | Experiment workspace dir | `workspace/<experiment>` |
 
-**Current model / runtime constants**:
+**Model configuration** (in `src/config/default.yaml` under `experiment.models`):
 
-- defined in `src/agents/experiment_agent/shared/utils/config.py`
-- note that the shell wrapper and the Python module may behave differently because the wrapper exports its own env defaults
+```python
+prepare = "MiniMax-M2.7"
+code = "MiniMax-M2.7"
+master = "MiniMax-M2.7"
+science = "MiniMax-M2.7"
+default = "MiniMax-M2.7"
 
-**Recommended usage**:
+# Prepare Layer
+PREPARE_AGENT_MODEL = "MiniMax-M2.1"
+```
 
-Using the wrapper:
-
+**Usage**:
 ```bash
 ./run_experiment.sh --experiment my_exp --idea-json /path/to/idea_result.json --prepare
 ```
