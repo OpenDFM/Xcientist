@@ -8,6 +8,6 @@ export IDEA_AGENT_PARALLELISM="1"
 export IDEA_AGENT_RAG_CONFIG="src/agents/survey_agent/config/outcomeRAG.yaml"
 
 # Example:
-# python src/agents/idea_agent/scripts/run.py --topics "Multimodal Large Language Models" \
-#   --parallelism "$IDEA_AGENT_PARALLELISM" \
-#   --rag-config "$IDEA_AGENT_RAG_CONFIG"
+# ./run_idea.sh
+# or
+# PYTHONPATH=. python src/agents/idea_agent/run.py
