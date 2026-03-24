@@ -20,10 +20,11 @@ Run standard benchmark experiments until all required component and benchmark co
 8. Update the lane summary under `agent_reports/standard_science_summary.md` or `agent_reports/ablation_science_summary.md` only after validator-backed evidence exists.
 9. For ablation, ensure each step-level validator report records the component verdict fields needed by the later ablation report integrator: `result`, `metric`, `value`, `confidence`, `analysis`, and `method_context`.
 10. For ablation, use only canonical component names from `idea.json.components`, preserve their order, and include a concrete `method_context` for each exact component.
-11. If an external API is required and credentials are available, read the official API docs first and then use the API.
+11. If an external API is required and credentials are available, read the official API docs first and then use the API. Generated code that calls APIs must read credentials from `{workspace}/.env` file (e.g. using `python-dotenv` or manually parsing). Do NOT hardcode API keys or endpoints in generated code.
 12. If a required model/checkpoint is missing locally, download it from HuggingFace or the official source before declaring a blocker.
 13. For HuggingFace downloads, use the official HuggingFace endpoints and inherit the current shell network environment instead of rewriting proxy settings inside the agent.
-14. Repeat until validator-backed completion or a hard blocker is proven.
+14. **CRITICAL**: Benchmark experiments MUST use the real data files from `dataset_candidate/` directory, NOT synthetic or randomly generated data.
+15. Repeat until validator-backed completion or a hard blocker is proven.
 
 ## Hard Rules
 - Do not produce a final verdict while required coverage is missing.

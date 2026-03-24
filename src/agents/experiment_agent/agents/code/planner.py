@@ -72,11 +72,16 @@ Hard rules:
 
 def create_experiment_code_planner_agent(llm) -> Agent:
     _register_code_subagents()
+    from openhands.sdk.context import AgentContext
+    code_context = get_code_agent_context()
     return Agent(
         llm=llm,
         tools=_planner_tools(),
-        agent_context=get_code_agent_context(),
-        system_prompt_kwargs={"prompt": _code_planner_system_prompt()},
+        agent_context=AgentContext(
+            skills=code_context.skills,
+            system_message_suffix=_code_planner_system_prompt(),
+            load_public_skills=False,
+        ),
     )
 
 

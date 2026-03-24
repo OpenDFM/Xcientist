@@ -13,13 +13,15 @@ logging.getLogger("openhands.message").setLevel(logging.ERROR)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.agents.experiment_agent.agents.master import run_master
-from src.agents.experiment_agent.agents.reporting import run_ablation_report_integrator
 from src.agents.experiment_agent.agents.prepare import run_prepare
+from src.agents.experiment_agent.agents.reporting import run_ablation_report_integrator
+from src.agents.experiment_agent.agents.integration import run_iteration_reporter
 from src.agents.experiment_agent.config import print_config
 from src.agents.experiment_agent.config import (
     ensure_experiment_dirs,
     get_idea_input_path,
     SCIENCE_MAX_ITERATIONS,
+    write_workspace_env_file,
 )
 from src.agents.experiment_agent.runtime.cache import Cache
 from src.agents.experiment_agent.telemetry import print_phase
@@ -77,6 +79,7 @@ async def main_async(args) -> int:
 
     experiment_id = args.experiment
     paths = ensure_experiment_dirs(experiment_id)
+    write_workspace_env_file(experiment_id)
     Cache.initialize(paths["cache_dir"], enabled=True)
     workspace_root = paths["workspace_dir"]
     project_root = paths["project_dir"]
@@ -121,6 +124,19 @@ async def main_async(args) -> int:
         resume=bool(args.resume),
     )
 
+    # After master loop, run iteration integration to summarize status
+    iteration_result = await run_iteration_reporter(
+        workspace_root=workspace_root,
+        project_root=project_root,
+        verbose=bool(args.verbose),
+        resume=bool(args.resume),
+    )
+    if iteration_result.get("valid"):
+        result["iteration_summary_path"] = iteration_result["iteration_summary_path"]
+
+    # Integrator is called inside AblationScienceAgent.execute() after ablation steps
+    # so results are available for the next master iteration decision
+    # Also call as fallback in case AblationScienceAgent was not used via task tool
     integrator_result = await run_ablation_report_integrator(
         workspace_root=workspace_root,
         project_root=project_root,
@@ -135,7 +151,7 @@ async def main_async(args) -> int:
     else:
         print_phase("MISSION COMPLETE", width=65)
     print(f"  Iterations: {result['iterations']}")
-    print(f"  Final Report: {result['final_path']}")
+    print(f"  Final Report: {result.get('final_path', result.get('ablation_results_path'))}")
     return 0
 
 

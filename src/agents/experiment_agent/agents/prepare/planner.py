@@ -109,6 +109,9 @@ class PrepareAgent(BaseAgent):
             max_turns=PLANNER_MAX_TURNS,
             verbose=verbose,
             workspace_root=workspace_root,
+            enable_condenser=True,
+            condenser_max_size=150,
+            condenser_keep_first=20,
         )
         self._ensure_subagents_registered()
 

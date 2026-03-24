@@ -15,6 +15,7 @@ Translate validated handoff artifacts into explicit experiment batches that clos
 - For ablation, derive components only from `idea.json.components`, preserve their order exactly, and carry their explanations into the step metadata.
 - Mark each task with whether it is `smoke/debug` or `final`; only `final` + `dataset_scope=full` counts toward completion.
 - The plan must bind each task to the validated prepare target model/API/data path instead of inventing a smaller substitute target.
+- **CRITICAL**: Benchmark experiments MUST use the real data files from `dataset_candidate/` directory, NOT synthetic or randomly generated data.
 - Only place tasks in the same parallel batch when they use disjoint output dirs and do not overwrite the same result files.
 - Keep the lane plan, step contracts, executor reports, worker reports, validator reports, and human-readable lane summaries under `agent_reports/` using flat filenames.
 - Update the lane summary under `agent_reports/standard_science_summary.md` or `agent_reports/ablation_science_summary.md` only as a human-readable summary of validator-backed evidence.

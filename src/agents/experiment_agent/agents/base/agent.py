@@ -925,11 +925,25 @@ class OpenHandsBaseAgent(ABC):
         mcp_config = self._build_mcp_config()
         self._prewarm_mcp_servers(mcp_config)
 
+        # Build AgentContext with system_message_suffix properly set
+        from openhands.sdk.context import AgentContext
+        if agent_context is None:
+            new_agent_context = AgentContext(
+                skills=[],
+                system_message_suffix=instructions,
+                load_public_skills=False,
+            )
+        else:
+            new_agent_context = AgentContext(
+                skills=agent_context.skills,
+                system_message_suffix=instructions,
+                load_public_skills=False,
+            )
+
         agent = Agent(
             llm=self.llm,
-            system_prompt_kwargs={"prompt": instructions},
             tools=tools,
-            agent_context=agent_context,
+            agent_context=new_agent_context,
             condenser=self._get_condenser(),
             mcp_config=mcp_config,
             filter_tools_regex=filter_tools_regex,
