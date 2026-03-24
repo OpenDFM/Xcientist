@@ -125,7 +125,7 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
         return False, None, None
     return True, results, reasons
 
-@hydra.main(config_path="../config", config_name="deep_survey_batch_others", version_base=None)
+@hydra.main(config_path="../config", config_name="deep_survey_batch_others_huoshan", version_base=None)
 def main(config):
     logger.info("Starting Deep Survey Pipeline")
     logger.yaml(OmegaConf.to_container(config, resolve=True))
