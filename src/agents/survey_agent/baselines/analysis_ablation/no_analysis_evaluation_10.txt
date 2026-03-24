@@ -1,0 +1,100 @@
+
+
+=== Begin Evaluation ===
+========================================
+
+
+=== Domain: user_defined ===
+========================================
+
+
+=== Multimodal Machine Learning Taxonomy Result ===
+========================================
+Synthesis Quality: 9.0
+  Reason: No explanation provided.
+Organization: 9.0
+  Reason: No explanation provided.
+Readability: 8.0
+  Reason: No explanation provided.
+Academic Rigor: 9.0
+  Reason: No explanation provided.
+Clarity: 8.0
+  Reason: No explanation provided.
+Coherence: 9.0
+  Reason: No explanation provided.
+Comprehensiveness: 9.0
+  Reason: No explanation provided.
+Critical Analysis: 9.0
+  Reason: No explanation provided.
+Novelty and Insights: 8.0
+  Reason: No explanation provided.
+Future Directions: 9.0
+  Reason: No explanation provided.
+Core_Quality: 9.0
+Writing_Quality: 8.5
+Content_Depth: 8.75
+Total_Score: 8.85
+Citation_Recall: 0.0
+Citation_Precision: 0.0
+Citation_Number: 59
+Valid_Citation_Number: 0
+Valid_Citation_Ratio: 0.0
+
+=== Deep Learning Applications in Computer Vision Result ===
+========================================
+Synthesis Quality: 8.0
+  Reason: No explanation provided.
+Organization: 8.0
+  Reason: No explanation provided.
+Readability: 8.0
+  Reason: No explanation provided.
+Academic Rigor: 9.0
+  Reason: No explanation provided.
+Clarity: 8.0
+  Reason: No explanation provided.
+Coherence: 8.0
+  Reason: No explanation provided.
+Comprehensiveness: 9.0
+  Reason: No explanation provided.
+Critical Analysis: 9.0
+  Reason: No explanation provided.
+Novelty and Insights: 8.0
+  Reason: No explanation provided.
+Future Directions: 9.0
+  Reason: No explanation provided.
+Core_Quality: 8.0
+Writing_Quality: 8.25
+Content_Depth: 8.75
+Total_Score: 8.2
+Citation_Recall: 0.0
+Citation_Precision: 0.0
+Citation_Number: 33
+Valid_Citation_Number: 0
+Valid_Citation_Ratio: 0.0
+
+=== user_defined Result ===
+========================================
+
+
+Synthesis Quality: 8.5
+Organization: 8.5
+Readability: 8.0
+Academic Rigor: 9.0
+Clarity: 8.0
+Coherence: 8.5
+Comprehensiveness: 9.0
+Critical Analysis: 9.0
+Novelty and Insights: 8.0
+Future Directions: 9.0
+Core_Quality: 8.5
+Writing_Quality: 8.375
+Content_Depth: 8.75
+Total_Score: 8.524999999999999
+Citation_Recall: 0.0
+Citation_Precision: 0.0
+Citation_Number: 46.0
+Valid_Citation_Number: 0.0
+Valid_Citation_Ratio: 0.0
+Domain End
+
+

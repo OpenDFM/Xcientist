@@ -2,11 +2,9 @@ import os
 import re
 import sys
 from typing import List, Dict, Optional
-from pathlib import Path
 
 import torch
 import hydra
-import os
 from sentence_transformers import SentenceTransformer, util
 import json
 
@@ -23,12 +21,7 @@ class OutcomeRAG:
         self.config = config
         self.json_path = config.BasicInfo.save_json_path
         self.md_path = config.BasicInfo.save_path
-        # online
-        # self.model = SentenceTransformer(config.ModuleInfo.WorkCollector.sentence_transformer_model)
-        # offline
-        model_dir = Path(__file__).resolve().parents[4] / ".cache" / "bge-large-en-v1.5"
-        local_path = Path(os.path.relpath(str(model_dir), start=str(Path.cwd())))
-        self.model = SentenceTransformer(str(local_path))
+        self.model = SentenceTransformer(config.ModuleInfo.WorkCollector.sentence_transformer_model)
         self.work_collector = work_collector
         self.logger = get_logger("OutcomeRAG")
         try:
@@ -222,11 +215,11 @@ def main(cfg):
     rag = OutcomeRAG(cfg, work_collector)
     rag.build_index()
     # content match
-    hits_content = rag.retrieve("Drawbacks of Multimodal Large Language Model", top_k=2, mode="content")
+    hits_content = rag.retrieve("application of Multi Modal Large Language Model", top_k=2, mode="content")
     # title-only match
-    hits_title = rag.retrieve("Drawbacks of Multimodal Large Language Model", top_k=2, mode="title")
+    hits_title = rag.retrieve("Core Capabilities", top_k=2, mode="title")
     # hybrid
-    hits_hybrid = rag.retrieve("Drawbacks of Multimodal Large Language Model", top_k=2, mode="hybrid", alpha=0.9)
+    hits_hybrid = rag.retrieve("Core Capabilities", top_k=2, mode="hybrid", alpha=0.9)
     logger.info("---------[Content]----------")
     rag.log_hits(hits_content, label="Content")
     logger.info("---------[Title]----------")

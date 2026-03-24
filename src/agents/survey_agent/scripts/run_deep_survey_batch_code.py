@@ -13,11 +13,14 @@ from topics.Benchmark_topics import SURVEYGEN_TOPICS, AUTOSURVEY_TOPICS, SUBTEST
 from utils.file_utils import write_domain_header, write_topic_header, write_result, write_domain_result, write_header
 
 from modules.judge import Judge
+from modules.code_collector import CodeCollector, CodeAnalyzer
 
 logger = get_logger("Deep Survey Batch")
 
-def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_generator, judge):
+def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_generator, judge, code_collector, code_analyzer):
     try:
+        results = []
+        reasons = []
         # step 1: related work collection
         logger.info("Collecting related work...")
 
@@ -44,88 +47,90 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
 
         # deep reading for papers
         collected_papers = seed_paper_ids + expanded_paper_ids
-        logger.info(f"Total papers to read: {len(collected_papers)}")
-        err_papers = work_analyzer.read_papers_and_write_keynotes(collected_papers)
-        logger.info("Deep reading completed.")
-        if err_papers:
-            logger.warning(f"Some papers failed to read {len(err_papers)} papers after retries")
-            collected_papers = [pid for pid in collected_papers if pid not in err_papers]
-            logger.info(f"Proceeding with {len(collected_papers)} successfully read papers.")
+
+        code_analyzer.execute(collected_papers)
+        # logger.info(f"Total papers to read: {len(collected_papers)}")
+        # err_papers = work_analyzer.read_papers_and_write_keynotes(collected_papers)
+        # logger.info("Deep reading completed.")
+        # if err_papers:
+        #     logger.warning(f"Some papers failed to read {len(err_papers)} papers after retries")
+        #     collected_papers = [pid for pid in collected_papers if pid not in err_papers]
+        #     logger.info(f"Proceeding with {len(collected_papers)} successfully read papers.")
         
 
-        # clustering
-        logger.info("Clustering papers...")
-        clustering_result = work_analyzer.cluster_papers(collected_papers)
-        logger.info(f"Clustering completed. {len(clustering_result)} clusters formed.")
-        work_analyzer.log_clusters(clustering_result)
+        # # clustering
+        # logger.info("Clustering papers...")
+        # clustering_result = work_analyzer.cluster_papers(collected_papers)
+        # logger.info(f"Clustering completed. {len(clustering_result)} clusters formed.")
+        # work_analyzer.log_clusters(clustering_result)
 
-        relation_graph = None
-        relation_table = None
-        intra_analysis_results = []
-        inter_analysis_results = ""
+        # relation_graph = None
+        # relation_table = None
+        # intra_analysis_results = []
+        # inter_analysis_results = ""
 
-        if config.ModuleInfo.SurveyGenerator.include_relation_graph:
-            logger.info("Generating relation graph among papers...")
-            relation_graph = work_analyzer.build_relationship_graphs(clustering_result)
-            logger.info("Relation graph generation completed.")
+        # if config.ModuleInfo.SurveyGenerator.include_relation_graph:
+        #     logger.info("Generating relation graph among papers...")
+        #     relation_graph = work_analyzer.build_relationship_graphs(clustering_result)
+        #     logger.info("Relation graph generation completed.")
 
-        if config.ModuleInfo.SurveyGenerator.include_relation_table:
-            logger.info("Generating relation analysis table among papers...")
-            relation_table = work_analyzer.generate_cluster_tables(clustering_result)
-            logger.info("Relation analysis table generation completed.")
+        # if config.ModuleInfo.SurveyGenerator.include_relation_table:
+        #     logger.info("Generating relation analysis table among papers...")
+        #     relation_table = work_analyzer.generate_cluster_tables(clustering_result)
+        #     logger.info("Relation analysis table generation completed.")
 
-        if config.ModuleInfo.SurveyGenerator.include_initial_analysis:
-            # intra-cluster analysis
-            logger.info(f"Starting intra-cluster analysis...")
-            intra_analysis_results = work_analyzer.intra_cluster_analysis(clustering_result)
-            work_analyzer.log_intra_cluster_analysis(intra_analysis_results)
-            logger.info("Intra-cluster analysis completed.")
+        # if config.ModuleInfo.SurveyGenerator.include_initial_analysis:
+        #     # intra-cluster analysis
+        #     logger.info(f"Starting intra-cluster analysis...")
+        #     intra_analysis_results = work_analyzer.intra_cluster_analysis(clustering_result)
+        #     work_analyzer.log_intra_cluster_analysis(intra_analysis_results)
+        #     logger.info("Intra-cluster analysis completed.")
 
-            # inter-cluster analysis
-            logger.info(f"Starting inter-cluster analysis...")
-            inter_analysis_results = work_analyzer.inter_cluster_analysis(
-                intra_analysis_results
-            )
-            work_analyzer.log_inter_cluster_analysis(inter_analysis_results)
-            logger.info("Inter-cluster analysis completed.")
+        #     # inter-cluster analysis
+        #     logger.info(f"Starting inter-cluster analysis...")
+        #     inter_analysis_results = work_analyzer.inter_cluster_analysis(
+        #         intra_analysis_results
+        #     )
+        #     work_analyzer.log_inter_cluster_analysis(inter_analysis_results)
+        #     logger.info("Inter-cluster analysis completed.")
 
-        # survey generation
-        logger.info("Generating survey...")
-        # generate outline
-        outline = survey_generator.generate_outline(
-            intra_analysis_results, inter_analysis_results, collected_papers
-        )
-        survey_generator.log_outline(outline)
-        logger.info("Survey generation completed.")
-        logger.info("Drafting survey content...")
-        # generate draft
-        draft = survey_generator.draft_survey(
-            intra_analysis_results, inter_analysis_results, outline
-        )
+        # # survey generation
+        # logger.info("Generating survey...")
+        # # generate outline
+        # outline = survey_generator.generate_outline(
+        #     intra_analysis_results, inter_analysis_results, collected_papers
+        # )
+        # survey_generator.log_outline(outline)
+        # logger.info("Survey generation completed.")
+        # logger.info("Drafting survey content...")
+        # # generate draft
+        # draft = survey_generator.draft_survey(
+        #     intra_analysis_results, inter_analysis_results, outline
+        # )
 
-        # if config.BasicInfo.debug:
-        #     logger.info(f'DRAFT: {draft}')
+        # # if config.BasicInfo.debug:
+        # #     logger.info(f'DRAFT: {draft}')
 
-        logger.info("Reviewing and revising survey draft...")
-        draft = survey_generator.review_and_revise_survey_in_parts(draft, outline)
-        logger.info("Reviewing and revising survey completed.")
+        # logger.info("Reviewing and revising survey draft...")
+        # draft = survey_generator.review_and_revise_survey_in_parts(draft, outline)
+        # logger.info("Reviewing and revising survey completed.")
 
-        # print(draft)
-        logger.info("Survey drafting completed.")
-        logger.info("Refining survey draft...")
-        survey, references = survey_generator.refine_draft(draft)
-        survey_generator.save_survey(survey, references)
-        logger.info("Survey refinement completed.")
+        # # print(draft)
+        # logger.info("Survey drafting completed.")
+        # logger.info("Refining survey draft...")
+        # survey, references = survey_generator.refine_draft(draft)
+        # survey_generator.save_survey(survey, references)
+        # logger.info("Survey refinement completed.")
 
-        logger.info("Evaluating survey...")
-        results, reasons = judge.evaluate(survey, references)
-        logger.info("Survey evaluation completed.")
+        # logger.info("Evaluating survey...")
+        # results, reasons = judge.evaluate(survey, references)
+        # logger.info("Survey evaluation completed.")
     except Exception as e:
         logger.error(f"Error occurred during pipeline execution: {e}")
         return False, None, None
     return True, results, reasons
 
-@hydra.main(config_path="../config", config_name="deep_survey_batch_others", version_base=None)
+@hydra.main(config_path="../config", config_name="deep_survey_batch_xiaomi", version_base=None)
 def main(config):
     logger.info("Starting Deep Survey Pipeline")
     logger.yaml(OmegaConf.to_container(config, resolve=True))
@@ -173,8 +178,10 @@ def main(config):
                 work_analyzer  = WorkAnalyzer(cfg_for_topic, work_collector)
                 survey_generator = SurveyGenerator(cfg_for_topic, work_analyzer, database)
                 survey_judge = Judge(cfg_for_topic, work_analyzer)
+                code_collector = CodeCollector(config)
+                code_analyzer = CodeAnalyzer(config, code_collector=code_collector, work_collector=work_collector)
 
-                finished, eval_results, eval_reasons = run_pipeline_batch(cfg_for_topic, work_collector, database, work_analyzer, survey_generator, survey_judge)
+                finished, eval_results, eval_reasons = run_pipeline_batch(cfg_for_topic, work_collector, database, work_analyzer, survey_generator, survey_judge, code_collector, code_analyzer)
                 if finished:
                     logger.info(f"Pipeline completed successfully for topic: {topic}")
                     write_result(config.BasicInfo.evaluation_save_path, topic, eval_results, eval_reasons)

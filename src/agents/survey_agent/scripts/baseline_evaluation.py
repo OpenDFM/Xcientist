@@ -57,6 +57,23 @@ def get_DeepSurvey_cfg(config, domain, topic, save_path, paper_path):
                                         }
                                     })
     return cfg_for_topic, survey, references
+
+def get_Human_cfg(config, domain, topic, save_path, paper_path):
+    file_path = Path(paper_path) / f"{topic}" / "auto" /f"{topic}.md"
+    logger.info(f"Loading human survey from {file_path}")
+    with open(file_path , "r") as f:
+        survey = f.read()
+        references = []
+    
+        logger.info(f"Loaded survey and {len(references)} references for topic: {topic}")
+
+    cfg_for_topic = OmegaConf.merge(config, {
+                                    "BasicInfo": {
+                                        "topic": topic, 
+                                        "evaluation_save_path": save_path
+                                        }
+                                    })
+    return cfg_for_topic, survey, references
                             
 
 @hydra.main(config_path="../config", config_name="evaluate_baseline", version_base=None)
@@ -104,6 +121,8 @@ def main(config):
                         cfg_for_topic, survey, references_list = get_AutoSurvey_cfg(config, domain, topic, save_path, paper_path)
                     elif "deepsurvey" in baseline.lower():
                         cfg_for_topic, survey, references_list = get_DeepSurvey_cfg(config, domain, topic, save_path, paper_path)
+                    elif "human" in baseline.lower():
+                        cfg_for_topic, survey, references_list = get_Human_cfg(config, domain, topic, save_path, paper_path)
                     else:
                         logger.error(f"Baseline {baseline} not recognized.")
                         raise ValueError(f"Baseline {baseline} not recognized.")
@@ -126,8 +145,8 @@ def main(config):
                 logger.info("Initializing Survey Judge...")
                 survey_judge = Judge(cfg_for_topic, work_analyzer)
 
-                eval_result = survey_judge.evaluate(survey, references_list)
-                write_result(save_path, topic, eval_result)
+                eval_result, eval_reason = survey_judge.evaluate(survey, references_list)
+                write_result(save_path, topic, eval_result, eval_reason)
                 domain_results.append(eval_result)
                 
             logger.info("Calculating Average Evaluation Results Across All Topics:")

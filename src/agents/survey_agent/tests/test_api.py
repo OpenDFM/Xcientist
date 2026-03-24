@@ -1,7 +1,7 @@
 from openai import OpenAI
  
 api_key = "sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f"
-api_base = "http://122.193.22.114:8889/v1"
+api_base = "https://api.xi-ai.cn/v1"
 client = OpenAI(api_key=api_key, base_url=api_base)
  
 completion = client.chat.completions.create(

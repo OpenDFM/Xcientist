@@ -43,10 +43,12 @@ def write_domain_result(eval_path, domain, results):
 
         f.write('Domain End\n\n\n')
 
-def write_result(eval_path, description, results):
+def write_result(eval_path, description, results, reasons):
     with open(eval_path, 'a') as f:
         f.write(f"=== {description} Result ===\n")
         f.write('========================================\n')
         for key, value in results.items():
             f.write(f"{key}: {value}\n")
+            if key in reasons:
+                f.write(f"  Reason: {reasons[key]}\n")
         f.write('\n')

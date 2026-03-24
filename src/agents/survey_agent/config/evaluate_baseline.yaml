@@ -6,17 +6,18 @@ BasicInfo:
   debug: True
   error_conservatism_mode: False
   user_defiend_benchmarks: True
-  topic_path: ./topics/eval_topics.txt
+  topic_path: ./topics/ablation_topics.txt
   AutoSurvey_benchmark: False
   SurveyGen_benchmark: False
   sub_benchmark_test: False
 
 APIInfo:
-  llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f
-  llm_api_base_url: http://122.193.22.114:8889/v1/chat/completions
+  llm_api_key: 
+  llm_api_base_url: https://api-2.xi-ai.cn/v1/chat/completions
   llm_model_name: gpt-4o-mini
-  llm_max_context_length: 128000
+  llm_max_context_length: 256000
   batch_chat_agent_worker: 4
+  use_stream_mode: False
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
   low_flow_mode: False
   low_flow_latency: 0
@@ -24,19 +25,20 @@ APIInfo:
   semantic_scholar_api_max_retry: 3
 EvalInfo:
   baselines:
-    - autosurvey-4o-mini
-    - autosurvey-mimo-v2-flash
+    - deepsurvey
   save_paths:
-    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/AutoSurvey/output/survey_bench/evaluation_new_4dimensions.txt
-    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/AutoSurvey/output/survey_bench_xiaomi/evaluation_new_4dimensions.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0307-test-refinement2-whole-review-revise/user_defined/4o-mini-evaluation_10_exp.txt
   paper_paths:
-    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/AutoSurvey/output/survey_bench
-    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/AutoSurvey/output/survey_bench_xiaomi
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0307-test-refinement2-whole-review-revise/user_defined
+
+
 
 ModuleInfo:
   WorkCollector:
     download_safe_mode: False
     max_seed_paper_num: 5
+    use_seed_filter_LLM: True
+    LLM_seed_threshold: 4
     reference_graph_depth: 1
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
     sentence_transformer_batch_size: 32
@@ -51,7 +53,7 @@ ModuleInfo:
   Database:
     default_top_k: 20
   WorkAnalyzer:
-    abstract_only_mode: False
+    abstract_only_mode: True
     abstract_when_full_text_fail: True
     cache_enabled: True
     paper_reading_temperature: 1.0
@@ -71,6 +73,10 @@ ModuleInfo:
     intra_cluster_analysis_temperature: 1.0
     intra_clustering_probelm_proposing_max_retry: 4
   SurveyGenerator:
+    include_initial_analysis: True
+    include_relation_graph: False
+    include_relation_table: False
+    omit_error_preserve_retry_time: 2
     outline_generation_in_steps: True
     outline_generation_draft_max_retry: 4
     outline_generation_draft_batch_size: 20
@@ -113,15 +119,19 @@ ModuleInfo:
     no_suggestion_run_each_iteration: 1
     max_review_revise_iterations: 30
     draft_refinement_in_parts: True
+    refine_in_parts_mode: 2
+    review_and_revise_whole_survey_in_refinement: True
+    review_and_revise_whole_survey_max_iteration: 5
     valid_title_min_similarity: 0.5
   Judge:
     use_different_api_for_judge: False
-    model: gpt-4o-mini
-    judge_llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f
-    judge_llm_api_base_url: http://122.193.22.114:8889/v1/chat/completions
+    model: mimo-v2-flash
+    judge_llm_api_key: 
+    judge_llm_api_base_url: https://api.xiaomimimo.com/v1/chat/completions
     nli_temperature: 0.1
     citation_quality_threshold: 0.5
     remove_failed_citation_in_eval: True
-    rubrics_eval_10_dimensions: False
-    rubrics_eval_4_dimensions: True
-    citation_eval: True
+    rubrics_eval_10_dimensions: True
+    rubrics_eval_4_dimensions: False
+    explanation_in_rubric: False
+    citation_eval: False

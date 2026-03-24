@@ -17,54 +17,6 @@ from utils.file_utils import write_domain_header, write_topic_header, write_resu
 logger = get_logger("Deep Survey")
 
 
-def _merge_global_survey_config(config, survey_cfg):
-    api_mapping = {
-        "llm_api_key": "APIInfo.llm_api_key",
-        "llm_api_base_url": "APIInfo.llm_api_base_url",
-        "llm_model_name": "APIInfo.llm_model_name",
-        "llm_max_context_length": "APIInfo.llm_max_context_length",
-        "batch_chat_agent_worker": "APIInfo.batch_chat_agent_worker",
-        "semantic_scholar_api_key": "APIInfo.semantic_scholar_api_key",
-        "low_flow_mode": "APIInfo.low_flow_mode",
-    }
-    if hasattr(survey_cfg, "api"):
-        api_cfg = survey_cfg.api
-        for key, target in api_mapping.items():
-            if hasattr(api_cfg, key):
-                OmegaConf.update(config, target, getattr(api_cfg, key), merge=True)
-
-    if hasattr(survey_cfg, "output"):
-        output_cfg = survey_cfg.output
-        output_mapping = {
-            "base_dir": "BasicInfo.base_dir",
-            "save_path": "BasicInfo.save_path",
-            "save_json_path": "BasicInfo.save_json_path",
-            "evaluation_save_path": "BasicInfo.evaluation_save_path",
-        }
-        for key, target in output_mapping.items():
-            if hasattr(output_cfg, key):
-                OmegaConf.update(config, target, getattr(output_cfg, key), merge=True)
-
-    if hasattr(survey_cfg, "topic"):
-        current_topic = str(OmegaConf.select(config, "BasicInfo.topic", default="") or "").strip()
-        if not current_topic:
-            OmegaConf.update(config, "BasicInfo.topic", str(survey_cfg.topic), merge=True)
-
-    if hasattr(survey_cfg, "modules"):
-        modules_cfg = survey_cfg.modules
-        module_container = OmegaConf.to_container(modules_cfg, resolve=True)
-        if isinstance(module_container, dict):
-            for module_name, module_value in module_container.items():
-                OmegaConf.update(
-                    config,
-                    f"ModuleInfo.{module_name}",
-                    module_value,
-                    merge=True,
-                )
-
-    return config
-
-
 def run_pipeline(config, work_collector, database, work_analyzer, survey_generator, judge):
     # step 1: related work collection
     logger.info("Collecting related work...")
@@ -79,12 +31,15 @@ def run_pipeline(config, work_collector, database, work_analyzer, survey_generat
     expanded_paper_ids = work_collector.expand_seed_papers_by_reference_and_citation(
         seed_paper_ids
     )
+
     if config.BasicInfo.debug:
         logger.info(f"Expanded paper IDs: {expanded_paper_ids}")
         
     logger.info("Building paper embedding database...")
     database.build_with_graph()
     logger.info("Paper embedding database built.")
+
+    logger.info(f"valid_paper_ids: {database.valid_paper_ids}")
 
     # step 2: comprehend papers
     logger.info("Comprehending papers...")
@@ -106,19 +61,39 @@ def run_pipeline(config, work_collector, database, work_analyzer, survey_generat
     logger.info(f"Clustering completed. {len(clustering_result)} clusters formed.")
     work_analyzer.log_clusters(clustering_result)
 
-    # intra-cluster analysis
-    logger.info(f"Starting intra-cluster analysis...")
-    intra_analysis_results = work_analyzer.intra_cluster_analysis(clustering_result)
-    work_analyzer.log_intra_cluster_analysis(intra_analysis_results)
-    logger.info("Intra-cluster analysis completed.")
+    relation_graph = None
+    relation_table = None
+    intra_analysis_results = []
+    inter_analysis_results = ""
 
-    # inter-cluster analysis
-    logger.info(f"Starting inter-cluster analysis...")
-    inter_analysis_results = work_analyzer.inter_cluster_analysis(
-        intra_analysis_results
-    )
-    work_analyzer.log_inter_cluster_analysis(inter_analysis_results)
-    logger.info("Inter-cluster analysis completed.")
+    if config.ModuleInfo.SurveyGenerator.include_relation_graph:
+        logger.info("Generating relation graph among papers...")
+        relation_graph = work_analyzer.build_relationship_graphs(clustering_result)
+        logger.info("Relation graph generation completed.")
+
+    if config.ModuleInfo.SurveyGenerator.include_relation_table:
+        logger.info("Generating relation analysis table among papers...")
+        relation_table = work_analyzer.generate_cluster_tables(clustering_result)
+        logger.info("Relation analysis table generation completed.")
+        try:
+            logger.info(f"Relation tables:\n{work_analyzer.format_analysis_table(relation_table)}")
+        except Exception as e:
+            logger.warning(f"Failed to format relation tables: {e}")
+
+    if config.ModuleInfo.SurveyGenerator.include_initial_analysis:
+        # intra-cluster analysis
+        logger.info(f"Starting intra-cluster analysis...")
+        intra_analysis_results = work_analyzer.intra_cluster_analysis(clustering_result)
+        work_analyzer.log_intra_cluster_analysis(intra_analysis_results)
+        logger.info("Intra-cluster analysis completed.")
+
+        # inter-cluster analysis
+        logger.info(f"Starting inter-cluster analysis...")
+        inter_analysis_results = work_analyzer.inter_cluster_analysis(
+            intra_analysis_results
+        )
+        work_analyzer.log_inter_cluster_analysis(inter_analysis_results)
+        logger.info("Inter-cluster analysis completed.")
 
     # survey generation
     logger.info("Generating survey...")
@@ -139,7 +114,7 @@ def run_pipeline(config, work_collector, database, work_analyzer, survey_generat
     #     logger.info(f'DRAFT: {draft}')
 
     logger.info("Reviewing and revising survey draft...")
-    draft = survey_generator.review_and_revise_survey(draft, outline)
+    draft = survey_generator.review_and_revise_survey_in_parts(draft, outline)
     logger.info("Reviewing and revising survey completed.")
 
     # print(draft)
@@ -150,25 +125,16 @@ def run_pipeline(config, work_collector, database, work_analyzer, survey_generat
     logger.info("Survey refinement completed.")
 
     logger.info("Evaluating survey...")
-    result = judge.evaluate(survey, references)
+    result, reason = judge.evaluate(survey, references)
     logger.info("Survey evaluation completed.")
 
-    return result
+    return result, reason
 
 
 
 
 @hydra.main(config_path="../config", config_name="deep_survey_xiaomi", version_base=None)
 def main(config):
-    try:
-        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "..", ".."))
-        from src.config import load_config, get_survey_config
-        load_config()
-        survey_cfg = get_survey_config()
-        config = _merge_global_survey_config(config, survey_cfg)
-    except Exception as e:
-        logger.warning(f"Failed to load global config, using local config: {e}")
-
     logger.info("Starting Deep Survey Pipeline")
     logger.yaml(OmegaConf.to_container(config, resolve=True))
 
@@ -190,8 +156,8 @@ def main(config):
     logger.info("Initializing Survey Judge...")
     survey_judge = Judge(config, work_analyzer)
 
-    result = run_pipeline(config, work_collector, database, work_analyzer, survey_generator, survey_judge)
-    write_result(config.BasicInfo.evaluation_save_path, config.BasicInfo.topic, result)
+    result, reason = run_pipeline(config, work_collector, database, work_analyzer, survey_generator, survey_judge)
+    write_result(config.BasicInfo.evaluation_save_path, config.BasicInfo.topic, result, reason)
     
 
 if __name__ == "__main__":

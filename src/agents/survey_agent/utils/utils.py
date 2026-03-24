@@ -10,6 +10,8 @@ def get_hash(text):
 
 def extract_json(text):
     # remove ```json fences
+    if not text:
+        raise ValueError("Empty text in json extraction function")
     text = re.sub(r"```[\w]*", "", text).replace("```", "")
     text = text.strip()
 

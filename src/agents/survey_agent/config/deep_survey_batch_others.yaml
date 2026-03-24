@@ -1,35 +1,46 @@
 BasicInfo:
-  topic:  Multimodal Large Language Models
+  topic: ""
+  evaluation_save_path: "./outputs/minimax-0323-test/evaluation_10.txt"
+  save_path: ""
+  save_json_path: ""
+  user_defiend_benchmarks: True
+  topic_path: ./topics/ablation_topics.txt
+  AutoSurvey_benchmark: False
+  SurveyGen_benchmark: False
+  sub_benchmark_test: False
+  output_base_dir: ./outputs/minimax-0323-test
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
-  save_path: ./outputs/test/gemini-no-RAG/test.md
-  save_json_path: ./outputs/test/gemini-no-RAG/test.json
-  evaluation_save_path: ./outputs/test/gemini-no-RAG/test.txt
+  topic_max_retry: 3
   debug: True
   error_conservatism_mode: False
 APIInfo:
   llm_api_key: 
-  llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
-  llm_model_name: gpt-4.1-mini-2025-04-14
-  llm_max_context_length: 208000
+  llm_api_base_url: https://api.minimax.chat/v1/text/chatcompletion_v2
+  llm_model_name: minimax-m2.7
+  llm_max_context_length: 180000
   use_stream_mode: False
+  chat_timeout: 300
   batch_chat_agent_worker: 4
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
   low_flow_mode: False
-  low_flow_latency: 0
+  low_flow_latency: 2
   arxiv_api_max_retry: 3
-  semantic_scholar_api_max_retry: 3
+  semantic_scholar_api_max_retry: 5
 ModuleInfo:
   WorkCollector:
     download_safe_mode: False
+    download_timeout: 60
     cache_enabled: True
-    max_seed_paper_num: 5
+    max_seed_paper_num: 15
     use_seed_filter_LLM: True
-    LLM_seed_threshold: 4
+    LLM_seed_threshold: 3
     reference_graph_depth: 1
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
     sentence_transformer_batch_size: 32
-    related_work_top_k: 40  # for debug
+    expand_in_local_paper_graph: False
+    advanced_filter_in_local_paper_graph_expansion: True
+    related_work_top_k: 30  # for debug
     log_related_work_num: -1 # set to -1 to log all
     related_work_threshold: 0.5
     related_work_threshold_for_llm: 4 # 1-5 scale
@@ -39,45 +50,50 @@ ModuleInfo:
     RAG_source_downloadable_only: False
   Database:
     default_top_k: 20
+  PaperGraphRetriever:
+    db_path: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/database/paper_graph/graph.db
   WorkAnalyzer:
-    abstract_only_mode: True
-    abstract_when_full_text_fail: False
+    abstract_only_mode: False
+    abstract_when_full_text_fail: True
     cache_enabled: True
+    use_local_paper_graph_keynotes: False
     paper_reading_temperature: 1.0
-    paper_reading_max_retry: 5
+    paper_reading_max_retry: 6
     llm_max_context_overhead_length_in_paper_reading: 20000
     clustering_batch_size: 16
     clustering_temperature: 1.0
     clustering_in_steps: True
     clustering_batch_size_in_creation: 32
     clustering_batch_size_in_assignment: 8
-    paper_clustering_max_retry: 8
-    paper_clustering_creation_max_retry: 8
-    paper_clustering_assignment_max_retry: 8
+    cluster_assign_fast_mode: True
+    paper_clustering_max_retry: 10
+    paper_clustering_creation_max_retry: 3
+    paper_clustering_assignment_max_retry: 10
     propose_question_temperature: 1.0
     anwer_question_temperature: 1.0
-    intra_cluster_analysis_max_retry: 2
+    intra_cluster_analysis_max_retry: 10
     intra_cluster_analysis_temperature: 1.0
-    intra_clustering_probelm_proposing_max_retry: 4
+    intra_clustering_probelm_proposing_max_retry: 10
   SurveyGenerator:
-    include_initial_analysis: True
-    include_relation_graph: False
-    include_relation_table: False
+    include_initial_analysis: False
+    include_relation_graph: True
+    include_relation_table: True
     omit_error_preserve_retry_time: 2
     outline_generation_in_steps: True
-    outline_generation_draft_max_retry: 4
+    outline_generation_draft_max_retry: 10
     outline_generation_draft_batch_size: 20
     outline_draft_RAG_topk: 60
     outline_generation_assign_max_retry: 10
     outline_generation_assign_batch_size: 10
     outline_assign_RAG_topk: 20
+    outline_assign_fast_mode: True
     outline_generation_temperature: 0.5
     outline_generation_batch_size: 16
-    outline_generation_max_retry: 2
+    outline_generation_max_retry: 3
     outline_generation_max_retry_in_generation_loop: 6
     subsection_draft_temperature: 1.0
-    subsection_draft_max_retry: 20
-    section_draft_max_retry: 20
+    subsection_draft_max_retry: 10
+    section_draft_max_retry: 10
     section_draft_temperature: 1.0
     draft_refinement_temperature: 1.0
     section_draft_max_error_info_length: 500
@@ -85,14 +101,14 @@ ModuleInfo:
     outline_max_error_info_length: 500
     llm_max_context_overhead_length_generation: 20000
     llm_max_context_overhead_length_outline_generation: 10000
-    subsection_least_words: 700
+    subsection_least_words: 3000
     subsection_least_citations: 15
-    section_least_words: 2000
-    section_least_citations: 25
-    draft_length_relax_ratio: 0.6
+    section_least_words: 100
+    section_least_citations: 3
+    draft_length_relax_ratio: 0.1
     use_full_text_in_survey_generation: False
     include_other_relevant_papers_RAG_in_outline: True
-    outline_RAG_topk: 60
+    outline_RAG_topk: 200
     include_other_relevant_papers_RAG: True
     section_RAG_topk: 60
     subsection_RAG_topk: 60
@@ -103,21 +119,22 @@ ModuleInfo:
     section_revision_RAG_topk: 30
     section_revise_temperature: 0.5
     section_revise_retry: 5
-    no_suggestion_run_each_iteration: 1
-    max_review_revise_iterations: 30
+    no_suggestion_run_each_iteration: 2
+    max_review_revise_iterations: 13
     draft_refinement_in_parts: True
     refine_in_parts_mode: 2
     review_and_revise_whole_survey_in_refinement: True
+    review_and_revise_whole_survey_max_iteration: 5
     valid_title_min_similarity: 0.5
   Judge:
     use_different_api_for_judge: False
-    model: gpt-4o-mini
+    model: mimo-v2-flash
     judge_llm_api_key: 
     judge_llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
     nli_temperature: 0.1
     citation_quality_threshold: 0.5
     remove_failed_citation_in_eval: True
-    rubrics_eval_10_dimensions: True
+    rubrics_eval_10_dimensions: False
     rubrics_eval_4_dimensions: False
     explanation_in_rubric: False
-    citation_eval: True
+    citation_eval: False

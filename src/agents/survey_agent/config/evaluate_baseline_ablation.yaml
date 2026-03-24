@@ -1,17 +1,21 @@
 BasicInfo:
-  topic:  Multimodal Large Language Models
+  topic: ""
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
-  save_path: ./outputs/test/gemini-no-RAG/test.md
-  save_json_path: ./outputs/test/gemini-no-RAG/test.json
-  evaluation_save_path: ./outputs/test/gemini-no-RAG/test.txt
+  evaluation_save_path: ""
   debug: True
   error_conservatism_mode: False
+  user_defiend_benchmarks: True
+  topic_path: ./topics/ablation_topics.txt
+  AutoSurvey_benchmark: False
+  SurveyGen_benchmark: False
+  sub_benchmark_test: False
+
 APIInfo:
   llm_api_key: 
   llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
-  llm_model_name: gpt-4.1-mini-2025-04-14
-  llm_max_context_length: 208000
+  llm_model_name: gpt-4o-mini
+  llm_max_context_length: 128000
   use_stream_mode: False
   batch_chat_agent_worker: 4
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
@@ -19,19 +23,43 @@ APIInfo:
   low_flow_latency: 0
   arxiv_api_max_retry: 3
   semantic_scholar_api_max_retry: 3
+EvalInfo:
+  baselines:
+    - deepSurvey_ablation_no_analysis_1
+    - deepSurvey_ablation_no_analysis_2
+    - deepSurvey_ablation_no_analysis_3
+    - deepSurvey_review_revise_format_surveyforge_1
+    - deepSurvey_review_revise_format_surveyforge_2
+    - deepSurvey_review_revise_format_surveyforge_3
+  save_paths:
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0209-no_analysis_ablation/user_defined/gpt_exp/evaluation_1.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0209-no_analysis_ablation/user_defined/gpt_exp/evaluation_2.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0209-no_analysis_ablation/user_defined/gpt_exp/evaluation_3.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0114-review-revise-format-surveyforge/user_defined/gpt_exp/evaluation_1.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0114-review-revise-format-surveyforge/user_defined/gpt_exp/evaluation_2.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0114-review-revise-format-surveyforge/user_defined/gpt_exp/evaluation_3.txt
+  paper_paths:
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0209-no_analysis_ablation/user_defined
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0209-no_analysis_ablation/user_defined
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0209-no_analysis_ablation/user_defined
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0114-review-revise-format-surveyforge/user_defined
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0114-review-revise-format-surveyforge/user_defined
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0114-review-revise-format-surveyforge/user_defined
+
+
+
 ModuleInfo:
   WorkCollector:
     download_safe_mode: False
-    cache_enabled: True
     max_seed_paper_num: 5
     use_seed_filter_LLM: True
     LLM_seed_threshold: 4
     reference_graph_depth: 1
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
     sentence_transformer_batch_size: 32
-    related_work_top_k: 40  # for debug
+    related_work_top_k: 20  # for debug
     log_related_work_num: -1 # set to -1 to log all
-    related_work_threshold: 0.5
+    related_work_threshold: 0.6
     related_work_threshold_for_llm: 4 # 1-5 scale
     relatedness_temperature: 1.0
     RAG_source_use_embedding_filter: True
@@ -41,7 +69,7 @@ ModuleInfo:
     default_top_k: 20
   WorkAnalyzer:
     abstract_only_mode: True
-    abstract_when_full_text_fail: False
+    abstract_when_full_text_fail: True
     cache_enabled: True
     paper_reading_temperature: 1.0
     paper_reading_max_retry: 5
@@ -90,12 +118,12 @@ ModuleInfo:
     section_least_words: 2000
     section_least_citations: 25
     draft_length_relax_ratio: 0.6
-    use_full_text_in_survey_generation: False
-    include_other_relevant_papers_RAG_in_outline: True
-    outline_RAG_topk: 60
-    include_other_relevant_papers_RAG: True
-    section_RAG_topk: 60
-    subsection_RAG_topk: 60
+    use_full_text_in_survey_generation: True
+    include_other_relevant_papers_RAG_in_outline: False
+    outline_RAG_topk: 20
+    include_other_relevant_papers_RAG: False
+    section_RAG_topk: 20
+    subsection_RAG_topk: 20
     use_title_in_draft: True
     enable_review_and_revise: True
     section_review_temperature: 1.0
@@ -119,5 +147,5 @@ ModuleInfo:
     remove_failed_citation_in_eval: True
     rubrics_eval_10_dimensions: True
     rubrics_eval_4_dimensions: False
-    explanation_in_rubric: False
-    citation_eval: True
+    explanation_in_rubric: True
+    citation_eval: False

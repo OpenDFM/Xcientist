@@ -57,44 +57,44 @@ def run_pipeline(config, work_collector, database, work_analyzer, survey_generat
     logger.info(f"Clustering completed. {len(clustering_result)} clusters formed.")
     work_analyzer.log_clusters(clustering_result)
 
-    # intra-cluster analysis
-    logger.info(f"Starting intra-cluster analysis...")
-    intra_analysis_results = work_analyzer.intra_cluster_analysis(clustering_result)
-    work_analyzer.log_intra_cluster_analysis(intra_analysis_results)
-    logger.info("Intra-cluster analysis completed.")
+    # # intra-cluster analysis
+    # logger.info(f"Starting intra-cluster analysis...")
+    # intra_analysis_results = work_analyzer.intra_cluster_analysis(clustering_result)
+    # work_analyzer.log_intra_cluster_analysis(intra_analysis_results)
+    # logger.info("Intra-cluster analysis completed.")
 
-    # inter-cluster analysis
-    logger.info(f"Starting inter-cluster analysis...")
-    inter_analysis_results = work_analyzer.inter_cluster_analysis(
-        intra_analysis_results
-    )
-    work_analyzer.log_inter_cluster_analysis(inter_analysis_results)
-    logger.info("Inter-cluster analysis completed.")
+    # # inter-cluster analysis
+    # logger.info(f"Starting inter-cluster analysis...")
+    # inter_analysis_results = work_analyzer.inter_cluster_analysis(
+    #     intra_analysis_results
+    # )
+    # work_analyzer.log_inter_cluster_analysis(inter_analysis_results)
+    # logger.info("Inter-cluster analysis completed.")
 
-    # survey generation
-    logger.info("Generating survey...")
-    # generate outline
-    outline = survey_generator.generate_outline(
-        intra_analysis_results, inter_analysis_results, collected_papers
-    )
-    survey_generator.log_outline(outline)
-    logger.info("Survey generation completed.")
-    logger.info("Drafting survey content...")
+    # # survey generation
+    # logger.info("Generating survey...")
+    # # generate outline
+    # outline = survey_generator.generate_outline(
+    #     intra_analysis_results, inter_analysis_results, collected_papers
+    # )
+    # survey_generator.log_outline(outline)
+    # logger.info("Survey generation completed.")
+    # logger.info("Drafting survey content...")
 
-    # generate draft
-    draft = survey_generator.draft_survey(
-        intra_analysis_results, inter_analysis_results, outline
-    )
+    # # generate draft
+    # draft = survey_generator.draft_survey(
+    #     intra_analysis_results, inter_analysis_results, outline
+    # )
 
     # if config.BasicInfo.debug:
     #     logger.info(f'DRAFT: {draft}')
 
     # print(draft)
-    logger.info("Survey drafting completed.")
-    logger.info("Refining survey draft...")
-    survey, references = survey_generator.refine_draft(draft)
-    survey_generator.save_survey(survey, references)
-    logger.info("Survey refinement completed.")
+    # logger.info("Survey drafting completed.")
+    # logger.info("Refining survey draft...")
+    # survey, references = survey_generator.refine_draft(draft)
+    # survey_generator.save_survey(survey, references)
+    # logger.info("Survey refinement completed.")
 
     # logger.info("Evaluating survey...")
     # results = judge.evaluate(survey, references)

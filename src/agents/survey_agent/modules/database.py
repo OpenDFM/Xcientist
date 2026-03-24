@@ -15,8 +15,10 @@ class Database:
             self.device = "cuda"
         except Exception:
             self.device = "cpu"
-        self.index_path = os.path.join(config.BasicInfo.cache_path, "paper_embedding_index.pt")
-        self.title_index_path = os.path.join(config.BasicInfo.cache_path, "paper_title_embedding_index.pt")
+        # self.index_path = os.path.join(config.BasicInfo.cache_path, "paper_embedding_index.pt")
+        # self.title_index_path = os.path.join(config.BasicInfo.cache_path, "paper_title_embedding_index.pt")
+        self.emb_dict = None
+        self.title_emb_dict = None
 
     def build_with_graph(self):
         self.valid_paper_ids = set()
@@ -25,9 +27,13 @@ class Database:
         self.build(paper_ids)
 
     def _text_for(self, pid: str) -> str:
-        node = self.work_collector.reference_graph.nodes.get(pid, {})
-        title = node.get("title", "")
-        abstract = node.get("abstract", "")
+        if not self.work_collector.expand_in_local_paper_graph:
+            node = self.work_collector.reference_graph.nodes.get(pid, {})
+            title = node.get("title", "")
+            abstract = node.get("abstract", "")
+        else:
+            abstract = ""
+            title = ""
         if not abstract:
             try:
                 title, abstract = self.work_collector.get_paper_title_abstract(pid)
@@ -73,13 +79,15 @@ class Database:
             show_progress_bar=False,
         )
 
-        torch.save({"ids": valid_paper_embed_ids, "embs": embs.cpu()}, self.index_path)
-        torch.save({"ids": valid_paper_embed_ids, "embs": title_embs.cpu()}, self.title_index_path)
+        self.emb_dict = {"ids": valid_paper_embed_ids, "embs": embs.cpu()}
+        self.title_emb_dict = {"ids": valid_paper_embed_ids, "embs": title_embs.cpu()}
 
     def query(self, query_text: str, top_k: int = None):
+        if self.emb_dict is None:
+            raise RuntimeError("Database not built; call build/build_with_graph first.")
         if top_k is None:
             top_k = self.config.ModuleInfo.Database.default_top_k
-        data = torch.load(self.index_path)
+        data = self.emb_dict
         embs = data["embs"].to(self.device)
         q = self.model.encode([query_text], convert_to_tensor=True)
 
@@ -91,9 +99,11 @@ class Database:
 
     def query_titles(self, query_text: str, top_k: int = None):
         """Query against the title-only embedding index."""
+        if self.title_emb_dict is None:
+            raise RuntimeError("Database not built; call build/build_with_graph first.")
         if top_k is None:
             top_k = self.config.ModuleInfo.Database.default_top_k
-        data = torch.load(self.title_index_path) # use title index path
+        data = self.title_emb_dict
         embs = data["embs"].to(self.device)
         q = self.model.encode([query_text], convert_to_tensor=True)
 
@@ -107,8 +117,8 @@ class Database:
         if top_k is None:
             top_k = self.config.ModuleInfo.Database.default_top_k
         paper_ids, _ = self.query(query_text, top_k=top_k)
-        if self.config.BasicInfo.debug:
-            self.logger.info(f"Database query for '{query_text}' returned paper IDs: {paper_ids}")
+        # if self.config.BasicInfo.debug:
+        #     self.logger.info(f"Database query for '{query_text}' returned paper IDs: {paper_ids}")
         texts = ""
         for pid in paper_ids:
             text, _, _ = self._text_for(pid)

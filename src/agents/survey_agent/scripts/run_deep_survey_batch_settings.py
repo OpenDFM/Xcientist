@@ -59,19 +59,35 @@ def run_pipeline_batch(config, work_collector, database,work_analyzer, survey_ge
         logger.info(f"Clustering completed. {len(clustering_result)} clusters formed.")
         work_analyzer.log_clusters(clustering_result)
 
-        # intra-cluster analysis
-        logger.info(f"Starting intra-cluster analysis...")
-        intra_analysis_results = work_analyzer.intra_cluster_analysis(clustering_result)
-        work_analyzer.log_intra_cluster_analysis(intra_analysis_results)
-        logger.info("Intra-cluster analysis completed.")
+        relation_graph = None
+        relation_table = None
+        intra_analysis_results = []
+        inter_analysis_results = ""
 
-        # inter-cluster analysis
-        logger.info(f"Starting inter-cluster analysis...")
-        inter_analysis_results = work_analyzer.inter_cluster_analysis(
-            intra_analysis_results
-        )
-        work_analyzer.log_inter_cluster_analysis(inter_analysis_results)
-        logger.info("Inter-cluster analysis completed.")
+        if config.ModuleInfo.SurveyGenerator.include_relation_graph:
+            logger.info("Generating relation graph among papers...")
+            relation_graph = work_analyzer.build_relationship_graphs(clustering_result)
+            logger.info("Relation graph generation completed.")
+
+        if config.ModuleInfo.SurveyGenerator.include_relation_table:
+            logger.info("Generating relation analysis table among papers...")
+            relation_table = work_analyzer.generate_cluster_tables(clustering_result)
+            logger.info("Relation analysis table generation completed.")
+
+        if config.ModuleInfo.SurveyGenerator.include_initial_analysis:
+            # intra-cluster analysis
+            logger.info(f"Starting intra-cluster analysis...")
+            intra_analysis_results = work_analyzer.intra_cluster_analysis(clustering_result)
+            work_analyzer.log_intra_cluster_analysis(intra_analysis_results)
+            logger.info("Intra-cluster analysis completed.")
+
+            # inter-cluster analysis
+            logger.info(f"Starting inter-cluster analysis...")
+            inter_analysis_results = work_analyzer.inter_cluster_analysis(
+                intra_analysis_results
+            )
+            work_analyzer.log_inter_cluster_analysis(inter_analysis_results)
+            logger.info("Inter-cluster analysis completed.")
 
         # survey generation
         logger.info("Generating survey...")
@@ -91,7 +107,7 @@ def run_pipeline_batch(config, work_collector, database,work_analyzer, survey_ge
         #     logger.info(f'DRAFT: {draft}')
 
         logger.info("Reviewing and revising survey draft...")
-        draft = survey_generator.review_and_revise_survey(draft, outline)
+        draft = survey_generator.review_and_revise_survey_in_parts(draft, outline)
         logger.info("Reviewing and revising survey completed.")
 
         # print(draft)
@@ -102,12 +118,12 @@ def run_pipeline_batch(config, work_collector, database,work_analyzer, survey_ge
         logger.info("Survey refinement completed.")
 
         logger.info("Evaluating survey...")
-        results = judge.evaluate(survey, references)
+        results, reasons = judge.evaluate(survey, references)
         logger.info("Survey evaluation completed.")
     except Exception as e:
         logger.error(f"Error occurred during pipeline execution: {e}")
-        return False, None
-    return True, results
+        return False, None, None
+    return True, results, reasons
 
 def main(config):
     logger.info("Starting Deep Survey Pipeline")
@@ -167,10 +183,10 @@ def main(config):
                     survey_generator = SurveyGenerator(cfg_for_topic, work_analyzer, database)
                     survey_judge = Judge(cfg_for_topic, work_analyzer)
 
-                    finished, eval_results = run_pipeline_batch(cfg_for_topic, work_collector, database, work_analyzer, survey_generator, survey_judge)
+                    finished, eval_results, eval_reasons = run_pipeline_batch(cfg_for_topic, work_collector, database, work_analyzer, survey_generator, survey_judge)
                     if finished:
                         logger.info(f"Pipeline completed successfully for topic: {topic}")
-                        write_result(evaluation_save_path, topic, eval_results)
+                        write_result(evaluation_save_path, topic, eval_results, eval_reasons)
                         results.append(eval_results)
                         break
                     else:
