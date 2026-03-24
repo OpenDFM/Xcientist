@@ -85,6 +85,8 @@ def artifact_paths(workspace_root: str, project_root: Optional[str] = None) -> D
         "ablation_science_phase_report": os.path.join(
             reports_dir, "ablation_science_validator_report.json"
         ),
+        "iteration_summary": os.path.join(reports_dir, "iteration_summary.md"),
+        "iteration_status": os.path.join(reports_dir, "iteration_status.json"),
     }
 
 def load_json_file(path: str) -> Optional[Dict[str, Any]]:

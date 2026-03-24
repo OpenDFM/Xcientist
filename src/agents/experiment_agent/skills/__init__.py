@@ -34,6 +34,9 @@ REPORTING_SKILLS = {
     "science-execution",
     "convergence-gate",
 }
+ITERATION_REPORTER_SKILLS = {
+    "iteration-integration",
+}
 WORKER_SKILL_MAP = {
     "prepare_worker": {
         "resource-acquisition",
@@ -100,6 +103,9 @@ WORKER_SKILL_MAP = {
         "component-coverage",
         "science-execution",
         "convergence-gate",
+    },
+    "iteration_reporter": {
+        "iteration-integration",
     },
 }
 
