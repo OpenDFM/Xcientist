@@ -13,6 +13,15 @@ description: Introduce a structured alternative treatment for failure regimes so
 - State the observable condition that separates the primary regime from the alternative treatment.
 - Validate the regimes where the alternative treatment should dominate or recover failure.
 
+## structural_mode
+- path_branching
+
+## scope_preference
+- execution_path
+
+## requires_control_centered_parent
+- false
+
 ## atomic_blueprint
 - ADD_COMPONENT(alternative_path_module)
 - REWIRE(alternative_path_module -> failure_regime_interface)

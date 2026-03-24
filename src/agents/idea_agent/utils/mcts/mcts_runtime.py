@@ -23,6 +23,7 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _filter_component_mapping_to_plan_keys,
     _normalize_component_mapping,
     _safe_pretty_json,
+    build_structural_profile,
     clip_text,
     component_inventory_payload,
     normalize_component_explanations,
@@ -198,6 +199,9 @@ class EditPlan:
 class EditOperatorSkill:
     name: str
     description: str
+    structural_mode: str
+    scope_preference: str
+    requires_control_centered_parent: bool
     defects: List[str] = field(default_factory=list)
     guardrails: List[str] = field(default_factory=list)
     atomic_blueprint: List[str] = field(default_factory=list)
@@ -242,6 +246,8 @@ class SkillSelectionCandidate:
     defect_score: float
     prior_score: float
     preset_bias: float
+    structure_fit: float
+    structure_reason: str
     selection_total: float
     attempts: int = 0
 
@@ -251,6 +257,8 @@ class SkillSelectionCandidate:
             "defect_score": self.defect_score,
             "prior_score": self.prior_score,
             "preset_bias": self.preset_bias,
+            "structure_fit": self.structure_fit,
+            "structure_reason": self.structure_reason,
             "selection_total": self.selection_total,
             "attempts": self.attempts,
         }
@@ -360,6 +368,9 @@ class SkillCatalog:
             loaded[name] = EditOperatorSkill(
                 name=name,
                 description=payload["description"],
+                structural_mode=payload["structural_mode"],
+                scope_preference=payload["scope_preference"],
+                requires_control_centered_parent=bool(payload["requires_control_centered_parent"]),
                 defects=list(payload.get("defects", [])),
                 guardrails=list(payload.get("guardrails", [])),
                 atomic_blueprint=list(payload.get("atomic_blueprint", [])),
@@ -378,6 +389,11 @@ class SkillCatalog:
         name = str(frontmatter.get("name", "")).strip() or path.parent.name
         description = str(frontmatter.get("description", "")).strip()
         sections = _parse_markdown_sections(body)
+        structural_mode = sections["structural_mode"][0].strip()
+        scope_preference = sections["scope_preference"][0].strip()
+        requires_control_centered_parent = (
+            sections["requires_control_centered_parent"][0].strip().lower() == "true"
+        )
         defects = sections.get("defect_tags", []) or sections.get("defects", [])
         guardrails = sections.get("guardrails", [])
         atomic_blueprint = sections.get("atomic_blueprint", [])
@@ -404,6 +420,9 @@ class SkillCatalog:
         return EditOperatorSkill(
             name=name,
             description=description,
+            structural_mode=structural_mode,
+            scope_preference=scope_preference,
+            requires_control_centered_parent=requires_control_centered_parent,
             defects=defects,
             guardrails=guardrails,
             atomic_blueprint=atomic_blueprint,
@@ -442,6 +461,7 @@ class SkillCatalog:
         self,
         defect_tags: Sequence[str],
         max_children: int,
+        structural_profile: Dict[str, Any],
         preset: Optional[IdeaTastePreset] = None,
     ) -> List[SkillSelectionCandidate]:
         defects = {str(tag).strip().lower() for tag in defect_tags if str(tag).strip()}
@@ -462,17 +482,22 @@ class SkillCatalog:
                 preset_bias = max(0.0, min(1.0, float(raw_preset_bias)))
             except (TypeError, ValueError):
                 preset_bias = 0.0
+            structure_fit, structure_reason = self._structure_fit(skill, structural_profile)
+            if structure_fit == 0.0:
+                continue
             total = (
                 0.60 * defect_score
                 + 0.20 * prior
                 + 0.20 * preset_bias
-            )
+            ) * structure_fit
             scored.append(
                 SkillSelectionCandidate(
                     skill=skill,
                     defect_score=defect_score,
                     prior_score=prior,
                     preset_bias=preset_bias,
+                    structure_fit=structure_fit,
+                    structure_reason=structure_reason,
                     selection_total=total,
                     attempts=attempts,
                 )
@@ -500,6 +525,45 @@ class SkillCatalog:
         if not picked:
             return scored[: max(1, max_children)]
         return picked
+
+    def _scope_fit(self, scope_preference: str, scope_kind: str) -> float:
+        if scope_preference == scope_kind:
+            return 1.0
+        if {scope_preference, scope_kind} <= {"existing_component", "existing_subsystem"}:
+            return 0.85
+        if {scope_preference, scope_kind} <= {"execution_path", "broad_architecture"}:
+            return 0.75
+        if scope_preference == "core_objective" and scope_kind in {
+            "existing_subsystem",
+            "execution_path",
+            "broad_architecture",
+        }:
+            return 0.7
+        return 0.0
+
+    def _structure_fit(
+        self,
+        skill: EditOperatorSkill,
+        structural_profile: Dict[str, Any],
+    ) -> tuple[float, str]:
+        if (
+            skill.requires_control_centered_parent
+            and not bool(structural_profile["control_centered"])
+        ):
+            return 0.0, "requires_control_centered_parent"
+
+        scope_kind = str(structural_profile["scope_kind"])
+        fit = self._scope_fit(skill.scope_preference, scope_kind)
+        if fit == 0.0:
+            return 0.0, "scope_mismatch"
+
+        if skill.structural_mode == "path_branching" and scope_kind == "existing_component":
+            return 0.0, "path_branching_out_of_scope"
+        if skill.structural_mode == "feedback_loop" and bool(structural_profile["training_free_like"]):
+            return 0.0, "feedback_loop_out_of_scope"
+        if skill.structural_mode == "path_branching" and not bool(structural_profile["has_multi_path_shape"]):
+            return fit * 0.75, "scope_only"
+        return fit, "aligned"
 
     def compile_plan(
         self,
@@ -1213,10 +1277,23 @@ def expand_node_with_skills(
             "[MCTS] Expand: vector_memory\n%s",
             _safe_pretty_json(mcts._memory_bundle_log_payload(bundle), pretty_json),
         )
+    structural_profile = build_structural_profile(
+        node.state,
+        refinement_scope=mcts.refinement_scope,
+        mature_idea=mcts.mature_idea,
+    )
+    log_message(
+        mcts.logger,
+        mcts.log_sink,
+        "info",
+        "[MCTS] Expand: structural_profile\n%s",
+        _safe_pretty_json(structural_profile, pretty_json),
+    )
     selected_skill_candidates = mcts.skill_catalog.select_skills(
         defect_tags=node.state.target_defects,
         max_children=mcts.config.branching_factor,
         preset=getattr(mcts, "idea_taste_preset", None),
+        structural_profile=structural_profile,
     )
     skill_candidates = list(selected_skill_candidates)
     log_message(

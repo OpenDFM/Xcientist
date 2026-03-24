@@ -13,6 +13,15 @@ description: Inject a theory-backed mechanism or invariant from another domain a
 - Limit transfer to one main mechanism instead of a bundle of unrelated ideas.
 - Add the minimum stress coverage needed to detect negative transfer.
 
+## structural_mode
+- objective_injection
+
+## scope_preference
+- core_objective
+
+## requires_control_centered_parent
+- false
+
 ## atomic_blueprint
 - ADD_COMPONENT(theory_transfer_module)
 - REWIRE(theory_transfer_module -> core_objective)

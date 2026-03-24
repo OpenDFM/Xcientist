@@ -13,6 +13,15 @@ description: Turn an open-loop process into a feedback-guided update mechanism t
 - Keep the adaptive update lightweight relative to the controlled path.
 - Validate the loop under drift, delay, or stale-feedback regimes.
 
+## structural_mode
+- feedback_loop
+
+## scope_preference
+- execution_path
+
+## requires_control_centered_parent
+- true
+
 ## atomic_blueprint
 - ADD_COMPONENT(feedback_monitor)
 - REWIRE(feedback_monitor -> adaptation_rule)

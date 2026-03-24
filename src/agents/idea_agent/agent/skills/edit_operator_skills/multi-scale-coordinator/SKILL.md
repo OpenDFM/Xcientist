@@ -13,6 +13,15 @@ description: Add a cross-scale consistency mechanism that aligns representations
 - Quantify the coordination overhead in latency or compute terms.
 - Keep validation centered on whether cross-scale consistency improves the core task path.
 
+## structural_mode
+- cross_scale_coordination
+
+## scope_preference
+- broad_architecture
+
+## requires_control_centered_parent
+- false
+
 ## atomic_blueprint
 - ADD_COMPONENT(scale_consistency_module)
 - REWIRE(scale_consistency_module -> scale_interface)

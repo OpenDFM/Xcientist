@@ -5,7 +5,6 @@ import itertools
 import logging
 import math
 import os
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
@@ -35,6 +34,7 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     clip_metric_score,
     clip_text,
     coerce_integer_metric_score,
+    parent_centers_control_surface,
     format_mechanism_commit_references,
     format_theory_transfer_references,
     component_inventory_payload,
@@ -43,6 +43,7 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     normalize_theory_transfer_query_payload,
     normalize_component_explanations,
     parse_json_response,
+    text_uses_forbidden_query_terms,
 )
 from src.agents.idea_agent.utils.prompting.prompt_views import (
     format_idea_prompt_view,
@@ -115,21 +116,6 @@ INTEGER_EVALUATION_FIELDS = (
 )
 
 module_logger = get_logger()
-
-_CONTROL_CORE_RE = re.compile(
-    r"\b(threshold\w*|gat\w*|suppress\w*|quota\w*|controller\w*|control\w*)\b",
-    re.IGNORECASE,
-)
-_FORBIDDEN_QUERY_TERM_RE = re.compile(
-    r"\b(threshold\w*|gat\w*|suppress\w*|quota\w*)\b",
-    re.IGNORECASE,
-)
-
-
-def _normalize_term_scan_text(text: str) -> str:
-    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", str(text))
-    normalized = normalized.replace("_", " ").replace("-", " ")
-    return normalized.lower()
 
 
 def _load_mcts_defaults() -> Dict[str, Any]:
@@ -1008,25 +994,9 @@ class MemoryGuidedMCTS:
             )
             return None
 
-    def _parent_centers_control_surface(self, parent_state: IdeaState) -> bool:
-        haystack = "\n".join(
-            [
-                parent_state.title,
-                parent_state.abstract,
-                parent_state.core_contribution,
-                parent_state.method,
-                " ".join(parent_state.components or []),
-                " ".join((parent_state.component_explanations or {}).values()),
-            ]
-        )
-        return bool(_CONTROL_CORE_RE.search(_normalize_term_scan_text(haystack)))
-
-    def _text_uses_forbidden_query_terms(self, text: str) -> bool:
-        return bool(_FORBIDDEN_QUERY_TERM_RE.search(_normalize_term_scan_text(text)))
-
     def _query_payload_uses_forbidden_terms(self, payload: Dict[str, str]) -> bool:
         return any(
-            self._text_uses_forbidden_query_terms(str(payload.get(field_name) or ""))
+            text_uses_forbidden_query_terms(str(payload.get(field_name) or ""))
             for field_name in ("query", "mechanism_gap", "needed_content", "expected_role")
         )
 
@@ -1270,13 +1240,13 @@ class MemoryGuidedMCTS:
         if (
             plan.skill_name == "mechanism-commit-innovation"
             and isinstance(payload, dict)
-            and not self._parent_centers_control_surface(parent_state)
+            and not parent_centers_control_surface(parent_state)
         ):
             rendered = "\n".join(
                 str(payload.get(field_name) or "")
                 for field_name in ("title", "abstract", "core_contribution", "method", "rationale")
             )
-            if self._text_uses_forbidden_query_terms(rendered):
+            if text_uses_forbidden_query_terms(rendered):
                 return {
                     "_skip_child_creation": True,
                     "_skip_reason": (

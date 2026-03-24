@@ -22,6 +22,30 @@ ROOT_DOMAIN_CATALOG: Dict[str, str] = {
     "stat.ML": "Machine Learning (Statistics)",
 }
 DEFAULT_ROOT_DOMAIN = "cs.LG"
+_CONTROL_CORE_RE = re.compile(
+    r"\b(threshold\w*|gat\w*|suppress\w*|quota\w*|controller\w*|control\w*)\b",
+    re.IGNORECASE,
+)
+_FORBIDDEN_QUERY_TERM_RE = re.compile(
+    r"\b(threshold\w*|gat\w*|suppress\w*|quota\w*)\b",
+    re.IGNORECASE,
+)
+_EXECUTION_PATH_SCOPE_RE = re.compile(
+    r"\b(path|branch|fallback|route|routing|pipeline|repair|recovery|speculat\w*)\b",
+    re.IGNORECASE,
+)
+_BROAD_ARCHITECTURE_SCOPE_RE = re.compile(
+    r"\b(hierarch\w*|architecture|system|multi scale|multiscale|coordinat\w*|global)\b",
+    re.IGNORECASE,
+)
+_MULTI_PATH_SHAPE_RE = re.compile(
+    r"\b(path|branch|fallback|repair|hierarch\w*|multi scale|multiscale|feedback|monitor|speculat\w*)\b",
+    re.IGNORECASE,
+)
+_TRAINING_FREE_RE = re.compile(
+    r"\b(training free|inference time|no training|without training|frozen)\b",
+    re.IGNORECASE,
+)
 _ROOT_DOMAIN_FALLBACK_RULES: Tuple[Tuple[str, str], ...] = (
     ("cs.CV", "vision image video segmentation detection visual multimodal camera pixel"),
     ("cs.CL", "language text llm nlp translation summarization dialogue speech token prompt"),
@@ -35,6 +59,68 @@ _ROOT_DOMAIN_FALLBACK_RULES: Tuple[Tuple[str, str], ...] = (
     ("cs.LG", "learning machine learning training optimization representation model"),
     ("cs.AI", "reasoning planning agent artificial intelligence knowledge"),
 )
+
+
+def normalize_term_scan_text(text: str) -> str:
+    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", str(text))
+    normalized = normalized.replace("_", " ").replace("-", " ")
+    return normalized.lower()
+
+
+def _parent_state_text(parent_state: Any) -> str:
+    return "\n".join(
+        [
+            parent_state.title,
+            parent_state.abstract,
+            parent_state.core_contribution,
+            parent_state.method,
+            " ".join(parent_state.components or []),
+            " ".join((parent_state.component_explanations or {}).values()),
+        ]
+    )
+
+
+def parent_centers_control_surface(parent_state: Any) -> bool:
+    return bool(_CONTROL_CORE_RE.search(normalize_term_scan_text(_parent_state_text(parent_state))))
+
+
+def text_uses_forbidden_query_terms(text: str) -> bool:
+    return bool(_FORBIDDEN_QUERY_TERM_RE.search(normalize_term_scan_text(text)))
+
+
+def build_structural_profile(
+    parent_state: Any,
+    *,
+    refinement_scope: str,
+    mature_idea: str,
+) -> Dict[str, Any]:
+    scope_text = normalize_term_scan_text(refinement_scope or "")
+    component_names = [
+        normalize_term_scan_text(component)
+        for component in parent_state.components
+        if str(component).strip()
+    ]
+    parent_text = normalize_term_scan_text(_parent_state_text(parent_state))
+    if scope_text and any(name and name in scope_text for name in component_names):
+        scope_kind = "existing_component"
+    elif scope_text and _BROAD_ARCHITECTURE_SCOPE_RE.search(scope_text):
+        scope_kind = "broad_architecture"
+    elif scope_text and _EXECUTION_PATH_SCOPE_RE.search(scope_text):
+        scope_kind = "execution_path"
+    elif scope_text:
+        scope_kind = "existing_subsystem"
+    elif _MULTI_PATH_SHAPE_RE.search(parent_text):
+        scope_kind = "execution_path"
+    else:
+        scope_kind = "existing_subsystem"
+    return {
+        "control_centered": parent_centers_control_surface(parent_state),
+        "has_multi_path_shape": bool(_MULTI_PATH_SHAPE_RE.search(parent_text)),
+        "scope_kind": scope_kind,
+        "training_free_like": bool(
+            _TRAINING_FREE_RE.search(normalize_term_scan_text(mature_idea or parent_state.method))
+        ),
+    }
 
 
 def parse_json_response(raw: str) -> Dict[str, Any]:

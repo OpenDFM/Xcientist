@@ -1,6 +1,9 @@
 {
   "mechanism-commit-innovation": {
     "description": "Commit to one concrete mechanism-level innovation by strengthening one weak existing component and keep scaffolding secondary to the task-solving path.",
+    "structural_mode": "local_refinement",
+    "scope_preference": "existing_component",
+    "requires_control_centered_parent": false,
     "defects": [
       "stagnant_novelty",
       "unclear_mechanism",
@@ -30,6 +33,9 @@
   },
   "alternative-path-contrast": {
     "description": "Introduce a structured alternative treatment for failure regimes so rare cases and recovery behavior are explicit without turning the method into generic control scaffolding.",
+    "structural_mode": "path_branching",
+    "scope_preference": "execution_path",
+    "requires_control_centered_parent": false,
     "defects": [
       "brittle_single_path",
       "rare_regime_failure",
@@ -60,6 +66,9 @@
   },
   "surgical-modularity": {
     "description": "Perform a localized block-level intervention with replace/rewire and prove the gain with focused ablation.",
+    "structural_mode": "local_refinement",
+    "scope_preference": "existing_component",
+    "requires_control_centered_parent": false,
     "defects": [
       "feature_dumping",
       "monolithic_design",
@@ -89,6 +98,9 @@
   },
   "multi-scale-coordinator": {
     "description": "Add a cross-scale consistency mechanism that aligns representations or decisions across scales without making coordination overhead the main contribution.",
+    "structural_mode": "cross_scale_coordination",
+    "scope_preference": "broad_architecture",
+    "requires_control_centered_parent": false,
     "defects": [
       "scale_mismatch",
       "coordination_failure",
@@ -118,6 +130,9 @@
   },
   "hierarchical-decomposition": {
     "description": "Replace a flat control or execution flow with a hierarchy that assigns responsibilities across explicit levels.",
+    "structural_mode": "hierarchical_reorg",
+    "scope_preference": "broad_architecture",
+    "requires_control_centered_parent": false,
     "defects": [
       "responsibility_entanglement",
       "monolithic_design",
@@ -147,6 +162,9 @@
   },
   "feedback-closed-loop": {
     "description": "Turn an open-loop process into a feedback-guided update mechanism that measures outcomes and adapts an existing rule online.",
+    "structural_mode": "feedback_loop",
+    "scope_preference": "execution_path",
+    "requires_control_centered_parent": true,
     "defects": [
       "silent_failure",
       "drift",
@@ -177,6 +195,9 @@
   },
   "theory-transfer-injection": {
     "description": "Inject a theory-backed mechanism or invariant from another domain and wire it into the core objective or mechanism rule.",
+    "structural_mode": "objective_injection",
+    "scope_preference": "core_objective",
+    "requires_control_centered_parent": false,
     "defects": [
       "stagnant_novelty",
       "theory_gap",
@@ -207,6 +228,9 @@
   },
   "speculative-execution-with-repair": {
     "description": "Introduce speculative or optimistic execution plus explicit repair so the system can pursue fast paths without giving up recoverability.",
+    "structural_mode": "path_branching",
+    "scope_preference": "execution_path",
+    "requires_control_centered_parent": false,
     "defects": [
       "over_conservative_execution",
       "latency_bottleneck",

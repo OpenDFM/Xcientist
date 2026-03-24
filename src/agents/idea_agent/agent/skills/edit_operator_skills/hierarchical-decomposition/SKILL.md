@@ -13,6 +13,15 @@ description: Replace a flat control or execution flow with a hierarchy that assi
 - Avoid duplicating the same control logic in every layer.
 - Show that the hierarchy improves control, analysis, or scaling rather than adding ceremony.
 
+## structural_mode
+- hierarchical_reorg
+
+## scope_preference
+- broad_architecture
+
+## requires_control_centered_parent
+- false
+
 ## atomic_blueprint
 - REPLACE_COMPONENT(flat_pipeline -> hierarchical_pipeline)
 - REWIRE(hierarchical_pipeline -> execution_path)

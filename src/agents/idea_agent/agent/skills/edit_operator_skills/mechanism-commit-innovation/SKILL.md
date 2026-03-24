@@ -14,6 +14,15 @@ description: Commit to one concrete mechanism-level innovation by strengthening 
 - Prefer direct replacement of the weak internal block over adding a broader coordination structure.
 - Use the smallest validation suite that can falsify the core mechanism.
 
+## structural_mode
+- local_refinement
+
+## scope_preference
+- existing_component
+
+## requires_control_centered_parent
+- false
+
 ## atomic_blueprint
 - REPLACE_COMPONENT(weak_internal_component -> refined_internal_component)
 - ADD_PROTOCOL(ablation)

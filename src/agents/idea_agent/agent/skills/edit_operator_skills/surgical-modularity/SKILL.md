@@ -13,6 +13,15 @@ description: Perform a localized block-level intervention with replace/rewire an
 - Keep interfaces explicit after rewiring.
 - Include a mandatory block-level ablation.
 
+## structural_mode
+- local_refinement
+
+## scope_preference
+- existing_component
+
+## requires_control_centered_parent
+- false
+
 ## atomic_blueprint
 - REPLACE_COMPONENT(weak_block -> modular_block)
 - REWIRE(modular_block -> downstream_interface)
