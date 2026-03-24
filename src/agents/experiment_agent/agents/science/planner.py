@@ -119,11 +119,16 @@ def _register_science_subagents() -> None:
 
 def create_science_planner_agent(llm) -> Agent:
     _register_science_subagents()
+    from openhands.sdk.context import AgentContext
+    exp_context = get_exp_agent_context()
     return Agent(
         llm=llm,
         tools=_planner_tools(),
-        agent_context=get_exp_agent_context(),
-        system_prompt_kwargs={"prompt": _science_planner_system_prompt()},
+        agent_context=AgentContext(
+            skills=exp_context.skills,
+            system_message_suffix=_science_planner_system_prompt(),
+            load_public_skills=False,
+        ),
     )
 
 

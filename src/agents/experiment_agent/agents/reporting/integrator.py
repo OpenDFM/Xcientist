@@ -62,6 +62,8 @@ Core rules:
 
 
 def create_ablation_report_integrator_agent(llm) -> Agent:
+    from openhands.sdk.context import AgentContext
+    worker_context = get_worker_agent_context("ablation_report_integrator")
     return Agent(
         llm=llm,
         tools=build_tool_list(
@@ -71,8 +73,11 @@ def create_ablation_report_integrator_agent(llm) -> Agent:
                 TaskTrackerTool.name,
             ]
         ),
-        agent_context=get_worker_agent_context("ablation_report_integrator"),
-        system_prompt_kwargs={"prompt": _ablation_report_integrator_prompt()},
+        agent_context=AgentContext(
+            skills=worker_context.skills,
+            system_message_suffix=_ablation_report_integrator_prompt(),
+            load_public_skills=False,
+        ),
     )
 
 
