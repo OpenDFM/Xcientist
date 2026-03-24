@@ -8,6 +8,9 @@ from uuid import uuid4
 
 from src.agents.idea_agent.agent.artifacts import artifact_set
 from src.agents.idea_agent.agent.ligagent import LigAgent
+from src.agents.idea_agent.utils.core.ablation_inputs import (
+    ingest_ablation_results_if_available,
+)
 from src.agents.idea_agent.utils.core.logger import get_logger, init_logger
 from src.agents.idea_agent.utils.core.config_loader import get_config_value, load_idea_agent_config
 from src.agents.idea_agent.utils.core.run_inputs import clean_optional_text, load_topic, resolve_run_inputs
@@ -67,6 +70,7 @@ def _run_topic(
         "refinement_scope_source",
         str(resolved_inputs.get("refinement_scope_source") or ""),
     )
+    ingest_ablation_results_if_available(agent, resolved_inputs, logger)
 
     try:
         run_agent_loop(agent, logger)

@@ -89,6 +89,8 @@ idea:
     topic: "${idea.topic}"
     mature_idea: "${idea.mature_idea}"
     refinement_scope: "${idea.refinement_scope}"
+    # Optional directory containing exactly one ablation-results JSON file.
+    ablation_results_path: ""
     input_interpreter_model: "${idea.agent.model}"
     output_root: "runs"
     console_logs: true

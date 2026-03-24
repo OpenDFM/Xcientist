@@ -62,6 +62,7 @@ def _init_pipeline_state(pipeline_workspace: str, topic: str, mature_idea: str, 
         "pipeline_name": os.path.basename(pipeline_workspace),
         "topic": topic,
         "mature_idea": mature_idea,
+        "last_ablation_results_dir": "",
         "total_iterations": total_iterations,
         "current_iteration": 0,
         "phases_completed": {
@@ -169,7 +170,41 @@ def run_survey(topic: str, output_dir: str) -> bool:
     return returncode == 0
 
 
-def run_idea(topic: str, mature_idea: str, output_file: str) -> Dict[str, Any]:
+def _stage_ablation_results_dir(experiment_dir: Path, ablation_path: Path) -> str:
+    """Materialize a dedicated ablation-input directory containing one JSON file."""
+    if not ablation_path.exists():
+        return ""
+    staged_dir = experiment_dir / "ligagent_ablation_input"
+    staged_dir.mkdir(parents=True, exist_ok=True)
+    staged_path = staged_dir / ablation_path.name
+    shutil.copy(ablation_path, staged_path)
+    return str(staged_dir)
+
+
+def _find_previous_ablation_results_dir(pipeline_workspace: str, iteration_index: int) -> str:
+    """Best-effort lookup for the prior iteration's ablation input directory."""
+    if iteration_index <= 0:
+        return ""
+    experiments_dir = Path(pipeline_workspace) / "experiments"
+    if not experiments_dir.exists():
+        return ""
+    pattern = f"iter_{iteration_index - 1}_*"
+    for experiment_dir in sorted(experiments_dir.glob(pattern), reverse=True):
+        staged_dir = experiment_dir / "ligagent_ablation_input"
+        if staged_dir.exists():
+            return str(staged_dir)
+        ablation_path = experiment_dir / "ablation_results.json"
+        if ablation_path.exists():
+            return _stage_ablation_results_dir(experiment_dir, ablation_path)
+    return ""
+
+
+def run_idea(
+    topic: str,
+    mature_idea: str,
+    output_file: str,
+    ablation_results_path: str = "",
+) -> Dict[str, Any]:
     """Run Idea agent."""
     print("\n" + "=" * 50)
     print("Phase 2: Idea Generation")
@@ -185,6 +220,11 @@ def run_idea(topic: str, mature_idea: str, output_file: str) -> Dict[str, Any]:
 
     # Get environment with all required API keys
     env = _get_subprocess_env()
+    if ablation_results_path and os.path.isdir(ablation_results_path):
+        env["IDEA_AGENT_ABLATION_RESULTS_PATH"] = ablation_results_path
+        print(f"Using prior ablation results dir: {ablation_results_path}")
+    else:
+        env.pop("IDEA_AGENT_ABLATION_RESULTS_PATH", None)
 
     # Capture output to parse result - real-time
     process = subprocess.Popen(
@@ -352,7 +392,17 @@ def main(config_path: str = "src/config/default.yaml"):
             config.pipeline.output.get("idea_result_filename", "idea_result.json")
         )
         idea_output_file = os.path.join(temp_exp_workspace, idea_result_filename)
-        idea_result = run_idea(topic, mature_idea, idea_output_file)
+        prior_ablation_results_path = str(
+            state.get("last_ablation_results_dir", "") or state.get("last_ablation_results_path", "") or ""
+        )
+        if not prior_ablation_results_path or not os.path.isdir(prior_ablation_results_path):
+            prior_ablation_results_path = _find_previous_ablation_results_dir(pipeline_workspace, i)
+        idea_result = run_idea(
+            topic,
+            mature_idea,
+            idea_output_file,
+            ablation_results_path=prior_ablation_results_path,
+        )
 
         # 使用 idea title 作为 experiment_id（slugify 处理）
         title = idea_result.get("title", f"experiment_{i}")
@@ -429,6 +479,10 @@ def main(config_path: str = "src/config/default.yaml"):
 
         ablation_path = os.path.join(exp_workspace, "ablation_results.json")
         if os.path.exists(ablation_path):
+            state["last_ablation_results_dir"] = _stage_ablation_results_dir(
+                Path(exp_workspace),
+                Path(ablation_path),
+            )
             try:
                 symbolic_memory_path = os.path.join(
                     workspace_root,
@@ -443,6 +497,9 @@ def main(config_path: str = "src/config/default.yaml"):
                 print(f"✅ Converted ablation results to symbolic memory")
             except Exception as e:
                 print(f"⚠️ Failed to convert ablation results: {e}")
+        else:
+            state["last_ablation_results_dir"] = ""
+        _save_pipeline_state(pipeline_workspace, state, state_filename)
 
     state["current_iteration"] = max_iterations
     _save_pipeline_state(pipeline_workspace, state, state_filename)

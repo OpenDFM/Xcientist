@@ -1,3 +1,4 @@
+import os
 import re
 from typing import Dict, Optional
 
@@ -19,11 +20,17 @@ def load_topic(topic: Optional[str]) -> str:
 
 
 def load_run_defaults(config: Optional[object], *, default_output_root: str) -> dict:
+    ablation_results_path = clean_optional_text(os.getenv("IDEA_AGENT_ABLATION_RESULTS_PATH"))
+    if not ablation_results_path:
+        ablation_results_path = clean_optional_text(
+            str(get_config_value(config, "run.ablation_results_path", "") or "")
+        )
     return {
         "input": get_config_value(config, "run.input", ""),
         "topic": get_config_value(config, "run.topic", ""),
         "mature_idea": get_config_value(config, "run.mature_idea", ""),
         "refinement_scope": get_config_value(config, "run.refinement_scope", ""),
+        "ablation_results_path": ablation_results_path,
         "output_root": get_config_value(config, "run.output_root", default_output_root),
         "console_logs": get_config_value(config, "run.console_logs", False),
         "rag_config": get_config_value(
@@ -144,6 +151,7 @@ def resolve_run_inputs(config: Optional[object], *, default_output_root: str) ->
         "topic": topic,
         "mature_idea": mature_idea,
         "refinement_scope": refinement_scope,
+        "ablation_results_path": clean_optional_text(str(defaults.get("ablation_results_path") or "")),
         "input_text": input_text,
         "topic_source": "config_explicit" if explicit_topic else f"input_{interpreted_topic_source}",
         "mature_idea_source": (
