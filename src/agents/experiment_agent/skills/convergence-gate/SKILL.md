@@ -23,6 +23,9 @@ Help the master agent decide whether another iteration is needed by reading the 
   - `experiment_standard_science_planner`
   - `experiment_ablation_science_planner`
 - The master loop should not invent new phase or lane names.
+- **MANDATORY PHASE ORDER**: Code implementation (experiment_code_planner) MUST be completed before running any experiments (standard_science or ablation_science).
+  - If `agent_reports/code_validator_report.json` does not exist with status PASS, you MUST choose `experiment_code_planner`.
+  - If code implementation is incomplete or missing, experiments cannot run meaningfully.
 - The only control output the outer loop consumes is:
   - `{"continue_iteration": true}`
   - `{"continue_iteration": false}`

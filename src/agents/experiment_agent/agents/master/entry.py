@@ -149,21 +149,22 @@ You must inspect the actual contents of:
 Rules:
 1. Read file contents, not just filenames.
 2. Treat `master_report.md` as the previous iteration note only. It is useful for continuity but must never outweigh newer evidence.
-3. If more work is needed, choose exactly one next planner and call the `task` tool exactly once with one of:
+3. **MANDATORY PHASE ORDER**: Code implementation MUST be completed before experiments run. If `agent_reports/code_validator_report.json` does not exist with status PASS, you MUST choose `experiment_code_planner`.
+4. If more work is needed, choose exactly one next planner and call the `task` tool exactly once with one of:
    - `experiment_code_planner`
    - `experiment_standard_science_planner`
    - `experiment_ablation_science_planner`
-4. Do not invent any planner or phase name outside code, standard science, and ablation science.
-5. If no more work is needed, do not call any further agent. The ablation science planner will automatically call the ablation report integrator after ablation experiments complete.
-6. Update `{self.agent_md_path}` so it records:
+5. Do not invent any planner or phase name outside code, standard science, and ablation science.
+6. If no more work is needed, do not call any further agent. The ablation science planner will automatically call the ablation report integrator after ablation experiments complete.
+7. Update `{self.agent_md_path}` so it records:
 - current iteration number
 - current phase
 - current decision
 - the concrete reasons based on evidence
 - the evidence files you relied on
 - the next planner task you selected, or the final conclusion if stopping
-7. Your goal is to ensure the idea is sufficiently validated or falsified through substantial experiments, exact per-component ablations, and code that is correct enough for the scientific conclusion to be meaningful.
-8. When done, write to `{self.continue_flag_path}` exactly one of:
+8. Your goal is to ensure the idea is sufficiently validated or falsified through substantial experiments, exact per-component ablations, and code that is correct enough for the scientific conclusion to be meaningful.
+9. When done, write to `{self.continue_flag_path}` exactly one of:
    - `{{"continue_iteration": true}}` if more work is needed
    - `{{"continue_iteration": false}}` if the workflow should stop
 """
