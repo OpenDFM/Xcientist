@@ -14,6 +14,7 @@ Translate master requirements into an executable code DAG and parallel worker ba
 - Only place tasks in the same parallel batch when their write sets are disjoint.
 - Generate code skeleton or blueprint artifacts before delegating implementation.
 - End the plan with a mandatory `final_integration_smoke` node that uses the real prepared dataset and the real API/model path when required.
+- The real benchmark data from `dataset_candidate/` MUST be used in experiments, not synthetic data.
 - Keep step contracts, executor reports, worker reports, validator reports, and phase summaries under `agent_reports/` using flat filenames.
 - Merge worker outputs into `agent_reports/code_summary.md`, optional `agent_reports/code_usage.md`, `agent_reports/code_integration_readiness.json`, and the validator-backed phase reports.
 

@@ -323,6 +323,30 @@ def ensure_experiment_dirs(experiment_id: str) -> Dict[str, Any]:
     return paths
 
 
+def write_workspace_env_file(experiment_id: str) -> str:
+    """Write API configuration to workspace .env file for generated code to use."""
+    from .runtime.manifests import write_env_file
+
+    paths = get_path_config(experiment_id)
+    env_path = os.path.join(paths["workspace_dir"], ".env")
+
+    api_cfg = get_api_config()
+    env_vars = {}
+    if api_cfg.get("openai_api_key"):
+        env_vars["OPENAI_API_KEY"] = api_cfg["openai_api_key"]
+    if api_cfg.get("openai_api_base"):
+        env_vars["OPENAI_API_BASE"] = api_cfg["openai_api_base"]
+    if api_cfg.get("minimax_api_key"):
+        env_vars["MINIMAX_API_KEY"] = api_cfg["minimax_api_key"]
+    if api_cfg.get("minimax_api_base"):
+        env_vars["MINIMAX_API_BASE"] = api_cfg["minimax_api_base"]
+
+    if env_vars:
+        write_env_file(env_path, env_vars)
+
+    return env_path
+
+
 class ProjectContext:
     _instance: Optional["ProjectContext"] = None
 

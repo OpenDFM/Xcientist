@@ -29,6 +29,7 @@ def workspace_contract_paths(workspace_root: str, project_root: Optional[str] = 
         "standard_results_dir": os.path.join(results_dir, "standard"),
         "ablation_results_dir": os.path.join(results_dir, "ablation"),
         "agent_reports_dir": agent_reports_dir,
+        "env_file": os.path.join(workspace_dir, ".env"),
     }
 
 
@@ -101,6 +102,15 @@ def write_json_file(path: str, payload: Dict[str, Any]) -> str:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+    return path
+
+
+def write_env_file(path: str, env_vars: Dict[str, str]) -> str:
+    """Write environment variables to a .env file."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    lines = [f"{k}={v}" for k, v in env_vars.items()]
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
     return path
 
 

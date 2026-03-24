@@ -154,7 +154,7 @@ Rules:
    - `experiment_standard_science_planner`
    - `experiment_ablation_science_planner`
 4. Do not invent any planner or phase name outside code, standard science, and ablation science.
-5. If no more work is needed, do not call any further agent. The post-loop ablation report integrator will run after you stop.
+5. If no more work is needed, do not call any further agent. The ablation science planner will automatically call the ablation report integrator after ablation experiments complete.
 6. Update `{self.agent_md_path}` so it records:
 - current iteration number
 - current phase
