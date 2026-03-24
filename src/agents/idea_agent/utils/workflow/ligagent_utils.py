@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from time import perf_counter
 from typing import Any, Dict, List, Optional
 
+from src.agents.idea_agent.utils.core.json_utils import pretty_json
+from src.agents.idea_agent.utils.core.response_parsing import parse_json_response
 from src.agents.idea_agent.agent.artifacts import (
-    artifact_namespace,
     ensure_artifact_structure,
 )
 
@@ -50,18 +50,6 @@ def collect_paper_context_entries(
     return entries
 
 
-def paper_context_text(entries: List[Dict[str, Any]]) -> str:
-    if not entries:
-        return "No core references available yet."
-    lines = []
-    for idx, entry in enumerate(entries, 1):
-        title = entry.get("title") or entry.get("paper_id")
-        summary = entry.get("summary") or "No summary"
-        source = entry.get("source") or "graph"
-        lines.append(f"{idx}. {title} ({source}): {summary}")
-    return "\n".join(lines)
-
-
 def generate_idea_introduction(
     chat_fn,
     prompt_template: str,
@@ -78,8 +66,8 @@ def generate_idea_introduction(
     prompt = prompt_template.format(
         topic=topic,
         mature_idea=mature_idea or "",
-        idea=json.dumps(best_entry, ensure_ascii=False, indent=2),
-        papers=json.dumps(entries, ensure_ascii=False, indent=2),
+        idea=pretty_json(best_entry),
+        papers=pretty_json(entries),
     )
     try:
         response = chat_fn(prompt, temperature=0.3, max_output_tokens=65536, model=model)
@@ -131,8 +119,8 @@ def align_public_idea_entry(
         topic=topic,
         mature_idea=mature_idea or "",
         refinement_scope=refinement_scope or "",
-        idea=json.dumps(best_entry, ensure_ascii=False, indent=2),
-        papers=json.dumps(paper_entries or [], ensure_ascii=False, indent=2),
+        idea=pretty_json(best_entry),
+        papers=pretty_json(paper_entries or []),
     )
     try:
         response = chat_fn(prompt, temperature=0.2, max_output_tokens=8192, model=model)
@@ -148,33 +136,6 @@ def align_public_idea_entry(
     except Exception as exc:  # pragma: no cover - network
         logger.warning("⚠️ Public idea alignment failed: %s", exc)
         return dict(best_entry)
-
-
-def parse_json_response(raw: str) -> Dict[str, Any]:
-    text = (raw or "").strip()
-    if not text:
-        raise ValueError("Empty response")
-    if text.startswith("```"):
-        fence_end = text.find("\n")
-        if fence_end != -1:
-            text = text[fence_end + 1 :]
-        if text.endswith("```"):
-            text = text[: -3]
-    text = text.strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        decoder = json.JSONDecoder()
-        for idx, ch in enumerate(text):
-            if ch in "{[":
-                try:
-                    parsed, _ = decoder.raw_decode(text[idx:])
-                    return parsed
-                except json.JSONDecodeError:
-                    continue
-    raise ValueError(f"Unable to parse JSON from response: {text[:200]}")
-
-
 class LigRuntime:
     """Thin wrapper around LigAgent chat/tool calls with op-level tracing."""
 
@@ -265,11 +226,6 @@ class LigSession:
 
     def set_slot(self, name: str, value: Any) -> None:
         self._pending_slots[name] = value
-
-    def get_slot(self, name: str, default: Any = None) -> Any:
-        if name in self._pending_slots:
-            return self._pending_slots[name]
-        return artifact_namespace(self.artifact, "run")["context_slots"].get(name, default)
 
     def record_event(self, event_type: str, **payload: Any) -> None:
         event = {"event": event_type}

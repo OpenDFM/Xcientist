@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from tqdm import tqdm
@@ -16,6 +15,7 @@ from src.agents.idea_agent.agent.prompts.idea_fusion import (
     FUSION_REPAIR_PROMPT,
 )
 from src.agents.idea_agent.utils.core.config_loader import get_config_value
+from src.agents.idea_agent.utils.core.json_utils import compact_json, pretty_json
 from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     clip_text,
     component_inventory_payload,
@@ -173,30 +173,28 @@ def fuse_ligagent_pro_ideas(
     max_tokens = int(get_config_value(agent.config, "fusion.max_tokens", 65536))
     repair_max_steps = int(get_config_value(agent.config, "fusion.repair_max_steps", 10))
     repair_patience = int(get_config_value(agent.config, "fusion.repair_patience", 3))
-    repair_epsilon = float(get_config_value(agent.config, "fusion.repair_epsilon", 0.1))    
+    repair_epsilon = float(get_config_value(agent.config, "fusion.repair_epsilon", 0.1))
 
     candidate_pack = [_candidate_prompt_payload(entry) for entry in mode_entries]
     logger.info(
         "🧬 Fusion start:\n%s",
-        json.dumps(
+        pretty_json(
             {
                 "topic": topic,
                 "model": model,
                 "candidate_count": len(mode_entries),
                 "candidates": [_candidate_log_payload(entry) for entry in mode_entries],
-            },
-            ensure_ascii=False,
-            indent=2,
+            }
         ),
     )
     prompt = prompt_template.format(
         topic=topic,
         mature_idea=_summarize_text(context.get("mature_idea"), FUSION_MATURE_IDEA_LIMIT),
         refinement_scope=_summarize_text(context.get("refinement_scope"), FUSION_MATURE_IDEA_LIMIT) or "None",
-        root_domains=json.dumps(context.get("root_domains") or [], ensure_ascii=False),
+        root_domains=compact_json(context.get("root_domains") or []),
         analysis=_fusion_analysis_summary(context),
         mode_count=len(mode_entries),
-        candidate_ideas_json=json.dumps(candidate_pack, ensure_ascii=False, separators=(",", ":")),
+        candidate_ideas_json=compact_json(candidate_pack),
     )
     payload: Dict[str, Any] = {}
     fused_raw: Dict[str, Any] = {}
@@ -284,7 +282,7 @@ def fuse_ligagent_pro_ideas(
     )
     logger.info(
         "🧬 Fusion draft:\n%s",
-        json.dumps(
+        pretty_json(
             {
                 "host_idea_mode": fusion_metadata.get("host_idea_mode", ""),
                 "fused_title": fused_entry.get("title"),
@@ -294,9 +292,7 @@ def fuse_ligagent_pro_ideas(
                 "fused_core_thesis": fusion_metadata.get("fused_core_thesis", ""),
                 "why_stronger_than_each_input": fusion_metadata.get("why_stronger_than_each_input", ""),
                 "minimal_validation_plan": fusion_metadata.get("minimal_validation_plan", ""),
-            },
-            ensure_ascii=False,
-            indent=2,
+            }
         ),
     )
 
@@ -486,10 +482,10 @@ def repair_fused_entry(
                 op_name="idea_fusion_repair",
                 prompt=FUSION_REPAIR_PROMPT.format(
                     topic=topic,
-                    root_domains=json.dumps(prepared.get("root_domains") or [], ensure_ascii=False, indent=2),
-                    current_idea_json=json.dumps(_candidate_prompt_payload(best_entry), ensure_ascii=False, indent=2),
-                    current_evaluation_json=json.dumps(best_entry.get("evaluation") or {}, ensure_ascii=False, indent=2),
-                    candidate_ideas_json=json.dumps(source_candidates, ensure_ascii=False, indent=2),
+                    root_domains=pretty_json(prepared.get("root_domains") or []),
+                    current_idea_json=pretty_json(_candidate_prompt_payload(best_entry)),
+                    current_evaluation_json=pretty_json(best_entry.get("evaluation") or {}),
+                    candidate_ideas_json=pretty_json(source_candidates),
                     atomic_op_reference=format_op_descriptions(),
                 ),
                 model=model,
@@ -513,7 +509,7 @@ def repair_fused_entry(
             logger.info(
                 "🧬 Fusion repair step %d plan:\n%s",
                 step_idx,
-                json.dumps(_repair_plan_log_payload(plan), ensure_ascii=False, indent=2),
+                pretty_json(_repair_plan_log_payload(plan)),
             )
             instantiated = instantiate_compiled_plan_for_node(
                 mcts,

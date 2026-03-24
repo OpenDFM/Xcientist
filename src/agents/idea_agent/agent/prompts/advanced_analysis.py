@@ -36,7 +36,8 @@ Core principle (must follow):
 - Do NOT directly introduce a new primary mechanism family. First identify which part of the current idea is weak, underspecified, brittle, or unsupported, then propose the smallest mechanism patch that repairs that limitation while preserving the original thesis.
 - Do NOT default to gate/router/controller/monitor style patches just because they are easy local edits. Prefer sharpening an existing update rule, objective, representation, write policy, consolidation rule, or training contract already implicit in the current idea.
 - A new gate/threshold/router is allowed only when the mature_idea already centers that decision surface and the patch merely calibrates or simplifies it. Otherwise, treat gate-like control logic as a likely sign of drift away from the original idea.
-- If no clearly justified non-gate local patch exists, preserve the current mature_idea instead of inventing a gate/router/controller/threshold fix.
+- If no clearly valuable mechanism-level local patch exists, preserve the current mature_idea instead of inventing a gate/router/controller/threshold/budget fix.
+- If the only available local change mainly improves explainability, diagnosability, observability, auditing, monitoring, or validation tooling, preserve the current mature_idea instead of elevating that safe repair into the main contribution.
 - If the current mature_idea is training-free or inference-time only, preserve that character when possible. Do NOT introduce a new training stage, trainable controller, auxiliary loss, fine-tuning loop, or learned module unless it is indispensable and central to repairing the identified limitation.
 - For training-free ideas, prefer rule-level, objective-free, or inference-time repairs first. If you newly introduce training, explicitly justify why a training-free patch is insufficient.
 - If no convincing local repair exists within refinement_scope, preserve the current mature_idea instead of escaping that scope.
@@ -62,6 +63,7 @@ Perform the steps below explicitly before answering:
    - keep most of the existing structure if it is still defensible,
    - explicitly identify which existing component/assumption/objective is weak and what local patch fixes it,
    - prefer repairing an existing rule or mechanism already present in the idea over adding a new gating or routing layer,
+   - if the only available delta is easier explanation, diagnosis, monitoring, budgeting, or validation, keep the mature_idea unchanged instead of turning that safe repair into the new thesis,
    - if the current idea is training-free, prefer training-free local repairs over introducing new optimization or fine-tuning machinery,
    - only adjust components/objectives/protocols that are weak, unsupported, or contradicted by experiment findings,
    - use evaluation gaps only as evidence for what must be measured to validate the mechanism patch, not as the main proposal.
@@ -86,7 +88,7 @@ Return STRICT JSON (no prose, no Markdown) with the schema:
   "future_directions": ["..."],                    // incremental but useful; must still be anchored in survey
   "preserve_current_idea": {{
     "keep_original": false,
-    "reason": "empty unless no convincing non-gate local patch exists and the mature_idea should be preserved"
+    "reason": "empty unless no convincing valuable mechanism-level local patch exists and the mature_idea should be preserved"
   }},
   "grounded_mature_idea": "3-6 sentences; if mature_idea is empty or provisional, provide a grounded mature idea derived from the survey/papers; otherwise return empty or a minimally clarified restatement",
   "grounded_refinement_scope": "1-3 sentences; if refinement_scope is empty or provisional, provide a crisp edit boundary that matches the grounded mature idea; otherwise return empty or a minimally clarified restatement",
@@ -129,7 +131,7 @@ Return STRICT JSON (no prose, no Markdown) with the schema:
 - Preserve the same primary method axis unless experiment findings clearly invalidate a local component; even then, prefer local replacement over architecture reset.
 - `root_idea` should explicitly read as a small-version improvement of the current idea. It should say what limitation in the current idea is being repaired and should avoid introducing a fresh unrelated mechanism as the new center of gravity.
 - If the current idea does not already revolve around gating/routing/control logic, do not introduce a new gate, router, controller, monitor, or threshold policy as the main repair. Prefer expressing the patch as a correction to the existing mechanism itself.
-- If the only available "small fix" would be a gate/router/controller/threshold wrapper, set `preserve_current_idea.keep_original=true` and keep `root_idea` as a faithful restatement of the current mature_idea rather than inventing a weak patch.
+- If the only available "small fix" would be a gate/router/controller/threshold/budget wrapper, or a patch whose main value is explainability, diagnosability, observability, auditing, monitoring, or validation tooling, set `preserve_current_idea.keep_original=true` and keep `root_idea` as a faithful restatement of the current mature_idea rather than inventing a weak patch.
 - When `preserve_current_idea.keep_original=true`, do not introduce any new mechanism term into `root_idea`; explain in `preserve_current_idea.reason` why the original idea is being kept unchanged.
 - If the current mature idea is training-free, do not add a new training stage, learned controller, auxiliary loss, or fine-tuning loop unless it is clearly indispensable. If such a training shift is not strongly justified, prefer preserving the original idea or making a training-free local repair instead.
 - Every divergent_idea_seed MUST:

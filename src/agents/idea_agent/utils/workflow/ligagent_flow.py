@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.agents.idea_agent.agent.artifacts import artifact_get, artifact_set
 from src.agents.idea_agent.agent.prompts import PROMPTS
+from src.agents.idea_agent.utils.core.json_utils import write_json_file
 from src.agents.idea_agent.utils.workflow.idea_helpers import (
     build_fusion_evolution,
     build_mcts_evolution,
@@ -27,14 +27,6 @@ from src.agents.idea_agent.utils.workflow.ligagent_utils import (
     collect_paper_context_entries,
     generate_idea_introduction,
 )
-
-
-def build_action_workflow(agent, action: str) -> WorkflowSpec:
-    return WorkflowSpec(
-        name=f"ligagent.action.{action}",
-        entry_stage=action,
-        stages=_build_stage_specs(agent),
-    )
 
 
 def build_main_workflow(agent, logger) -> WorkflowSpec:
@@ -262,8 +254,7 @@ def save_idea_result_payload(
 ) -> None:
     try:
         idea_result_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(idea_result_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
+        write_json_file(idea_result_path, payload)
         logger.info("💾 Saved idea result to %s", idea_result_path)
     except OSError as exc:
         logger.error("⚠️ Failed to persist idea_result.json: %s", exc)

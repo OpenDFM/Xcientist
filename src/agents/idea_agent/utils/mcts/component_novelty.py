@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import math
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -12,7 +11,8 @@ from sentence_transformers import SentenceTransformer
 from src.agents.idea_agent.agent.prompts.component_novelty_evaluation import (
     COMPONENT_NOVELTY_EVALUATION_PROMPT,
 )
-from src.agents.idea_agent.utils.mcts.mcts_helpers import parse_json_response
+from src.agents.idea_agent.utils.core.json_utils import pretty_json
+from src.agents.idea_agent.utils.core.response_parsing import parse_json_response
 from src.agents.idea_agent.utils.papers.paper_graph_vector_store import (
     PaperGraphComponentVectorStore,
 )
@@ -227,14 +227,10 @@ class ComponentNoveltyScorer:
 
         prompt = COMPONENT_NOVELTY_EVALUATION_PROMPT.format(
             topic=topic or "Unknown topic",
-            idea_state=json.dumps(idea_payload, ensure_ascii=False, indent=2),
-            components_with_explanations=json.dumps(
-                list(components_with_explanations),
-                ensure_ascii=False,
-                indent=2,
-            ),
+            idea_state=pretty_json(idea_payload),
+            components_with_explanations=pretty_json(list(components_with_explanations)),
             retrieval_top_k=self.retrieval_top_k,
-            retrieved_nodes=json.dumps(list(evidence_nodes), ensure_ascii=False, indent=2),
+            retrieved_nodes=pretty_json(list(evidence_nodes)),
         )
         response = self.chat_fn(
             prompt,

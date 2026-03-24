@@ -100,7 +100,6 @@ graph TD
 | 字段 | 含义 |
 |------|------|
 | `topic` | 当前 topic 历史 |
-| `run_topic` | launcher 传入的原始 topic |
 | `mature_idea` | contract root 或 replanning 后的成熟想法 |
 | `background_knowledge` | 分析阶段生成的背景知识 |
 | `analysis` | 结构化分析结果 |
@@ -116,7 +115,6 @@ graph TD
 如果 `idea_taste_mode` 成功解析，`LigAgent.__init__` 还会补充：
 
 - `artifact["idea_taste_mode"]`
-- `artifact["idea_taste_label"]`
 
 每个 `latest_candidate` entry 会保留比最终 JSON 更多的信息：
 
@@ -245,7 +243,6 @@ Evaluator 只允许返回 `utils/mcts/defect_registry.py` 里的 canonical defec
 4. **实例化 plan**
    - prompt 现在会显式注入：
      - `idea_taste_mode`
-     - `idea_taste_label`
      - `taste_guidance`
      - 固定的 `root_domains`
    - taste guidance 只是软约束，不能覆盖 plan、target defects 或 guardrails

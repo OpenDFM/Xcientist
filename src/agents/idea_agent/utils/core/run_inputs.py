@@ -4,7 +4,7 @@ from typing import Dict, Optional
 from src.agents.idea_agent.agent.base import AgentBase
 from src.agents.idea_agent.agent.prompts.input_interpreter import INPUT_INTERPRETER_PROMPT
 from src.agents.idea_agent.utils.core.config_loader import get_config_value
-from src.agents.idea_agent.utils.workflow.ligagent_utils import parse_json_response
+from src.agents.idea_agent.utils.core.response_parsing import parse_json_response
 
 
 def clean_optional_text(value: Optional[str]) -> str:

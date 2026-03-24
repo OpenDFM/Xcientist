@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 from typing import Any, Dict, List, Optional
 
@@ -10,11 +9,13 @@ from src.agents.idea_agent.agent.artifacts import artifact_get
 from src.agents.idea_agent.agent.prompts.experiment_findings_extraction import (
     EXPERIMENT_FINDINGS_EXTRACTION_PROMPT,
 )
+from src.agents.idea_agent.utils.core.json_utils import (
+    compact_json,
+    pretty_json,
+)
+from src.agents.idea_agent.utils.core.response_parsing import parse_json_response
 from src.agents.idea_agent.utils.workflow.idea_helpers import fallback_algorithm_spec
 from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
-from src.agents.idea_agent.utils.workflow.ligagent_utils import (
-    parse_json_response,
-)
 from src.agents.idea_agent.utils.prompting.prompt_views import format_paper_context_prompt_view
 
 
@@ -27,7 +28,12 @@ _ABLATION_RESULT_SIGN = {
 }
 
 _GATE_STYLE_PATCH_RE = re.compile(
-    r"\b(gate|gated|router|routing|controller|threshold)\b",
+    r"\b(gat\w*|rout\w*|threshold\w*|quota\w*|suppress\w*|controller\w*|budget\w*)\b",
+    re.IGNORECASE,
+)
+
+_SAFE_REPAIR_STYLE_RE = re.compile(
+    r"\b(explain\w*|interpret\w*|diagnos\w*|observab\w*|audit\w*|monitor\w*|validat\w*|evaluat\w*)\b",
     re.IGNORECASE,
 )
 
@@ -208,52 +214,6 @@ def generate_background_brief(
     return None
 
 
-def normalize_search_papers(
-    papers: List[Any],
-    source_keywords: str,
-    logger,
-) -> List[Dict[str, Any]]:
-    normalized: List[Dict[str, Any]] = []
-    if not papers:
-        return normalized
-    for i, paper in enumerate(papers, 1):
-        if isinstance(paper, dict):
-            title = paper.get("title") or f"Paper {i}"
-            abstract = paper.get("abstract", "No abstract available.")
-            authors_field = paper.get("authors", [])
-            if isinstance(authors_field, list):
-                authors = [a.get("name", str(a)) for a in authors_field]
-            elif authors_field:
-                authors = [str(authors_field)]
-            else:
-                authors = []
-            paper_entry = {
-                "title": title,
-                "abstract": abstract,
-                "authors": authors,
-                "year": paper.get("year"),
-                "url": paper.get("url"),
-                "tldr": paper.get("tldr"),
-                "paper_id": paper.get("paperId") or paper.get("paper_id"),
-                "source_keywords": source_keywords,
-            }
-        else:
-            title = str(paper)
-            paper_entry = {
-                "title": title,
-                "abstract": "No abstract available.",
-                "authors": [],
-                "year": None,
-                "url": None,
-                "tldr": None,
-                "paper_id": None,
-                "source_keywords": source_keywords,
-            }
-        logger.info(f"📄 {i}. {paper_entry['title']}")
-        normalized.append(paper_entry)
-    return normalized
-
-
 def generate_rag_query(
     topic: str,
     prompts: Dict[str, str],
@@ -342,52 +302,6 @@ def select_core_references(
     top_k: int = 5,
 ) -> List[Dict[str, Any]]:
     return list(references[: max(0, int(top_k))])
-
-
-def format_rag_context(artifact: Dict[str, Any], max_hits: int = 5, max_chars: int = 320) -> str:
-    rag_entries = artifact_get(artifact, "rag_hits", [])
-    latest = rag_entries[-1] if rag_entries else None
-    hits = []
-    if isinstance(latest, dict):
-        hits = latest.get("hits") or []
-    elif isinstance(latest, list):
-        hits = latest
-    if not hits:
-        return ""
-    lines = []
-    for idx, hit in enumerate(hits[:max_hits], 1):
-        title = hit.get("title") or f"RAG hit {idx}"
-        snippet = (hit.get("subsection") or "").strip().replace("\n", " ")
-        if len(snippet) > max_chars:
-            snippet = snippet[: max_chars - 3] + "..."
-        citations = hit.get("citations") or []
-        cite_preview = "; ".join(citations[:5]) if citations else "no citations"
-        lines.append(f"{idx}. {title}: {snippet} (citations: {cite_preview})")
-    return "\n".join(lines)
-
-def format_survey_context(
-    artifact: Dict[str, Any],
-    max_items: int = 5,
-    max_chars: int = 360,
-) -> str:
-    contents = artifact_get(artifact, "rag_contents", [])
-    latest = contents[-1] if contents else None
-    if isinstance(latest, list):
-        items = latest
-    elif isinstance(latest, str):
-        items = [latest]
-    else:
-        items = []
-    if not items:
-        return ""
-    lines = []
-    for idx, section in enumerate(items[:max_items], 1):
-        snippet = (section or "").strip().replace("\n", " ")
-        if len(snippet) > max_chars:
-            snippet = snippet[: max_chars - 3] + "..."
-        if snippet:
-            lines.append(f"{idx}. {snippet}")
-    return "\n".join(lines)
 
 
 def _coerce_confidence(value: Any, default: float = 0.0) -> float:
@@ -616,7 +530,7 @@ def extract_experiment_findings_from_raw_ablation(
     )
 
     prompt = (prompt_template or EXPERIMENT_FINDINGS_EXTRACTION_PROMPT).format(
-        raw_ablation=json.dumps(raw_ablation, ensure_ascii=False, indent=2),
+        raw_ablation=pretty_json(raw_ablation),
     )
     try:
         response = chat_fn(
@@ -690,15 +604,6 @@ def normalize_analysis_entry(response: Any) -> Dict[str, Any]:
     }
 
 
-def ingest_analysis_background(analysis_entry: Dict[str, Any], artifact: Dict[str, Any]) -> None:
-    for line in collect_analysis_background_lines(analysis_entry):
-        if not line:
-            continue
-        background_store = artifact_get(artifact, "background_knowledge", [])
-        if line not in background_store:
-            background_store.append(line)
-
-
 def collect_analysis_background_lines(analysis_entry: Dict[str, Any]) -> List[str]:
     if not isinstance(analysis_entry, dict):
         return []
@@ -754,6 +659,10 @@ def _contains_gate_style_patch(text: Any) -> bool:
     return bool(_GATE_STYLE_PATCH_RE.search(str(text or "")))
 
 
+def _contains_safe_repair_style(text: Any) -> bool:
+    return bool(_SAFE_REPAIR_STYLE_RE.search(str(text or "")))
+
+
 def should_preserve_current_mature_idea(
     analysis_entry: Dict[str, Any],
     root_idea: Dict[str, Any],
@@ -766,16 +675,30 @@ def should_preserve_current_mature_idea(
     preserve_payload = analysis_entry.get("preserve_current_idea")
     if isinstance(preserve_payload, dict) and preserve_payload.get("keep_original"):
         reason = str(preserve_payload.get("reason") or "").strip()
-        return True, reason or "No convincing non-gate local patch was identified; preserve the current mature idea."
+        return True, reason or "No convincing valuable mechanism-level local patch was identified; preserve the current mature idea."
 
-    root_text = "\n".join(
+    root_primary_text = "\n".join(
+        str(root_idea.get(key) or "").strip()
+        for key in ("title", "core_contribution", "rationale")
+    )
+    root_context_text = "\n".join(
         str(root_idea.get(key) or "").strip()
         for key in ("title", "abstract", "core_contribution", "method", "rationale")
     )
-    if _contains_gate_style_patch(root_text) and not _contains_gate_style_patch(mature_text):
+    if _contains_gate_style_patch(root_primary_text) and not _contains_gate_style_patch(mature_text):
         return True, (
-            "Advanced analysis only found a gate/router/controller/threshold-style small patch, "
+            "Advanced analysis only found a gate/router/controller/threshold/budget-style small patch, "
             "so the current mature idea is preserved unchanged."
+        )
+    if _contains_safe_repair_style(root_primary_text) and not _contains_safe_repair_style(mature_text):
+        return True, (
+            "Advanced analysis only found an explainability/diagnostics/validation-style safe repair "
+            "rather than a valuable mechanism-level local patch, so the current mature idea is preserved unchanged."
+        )
+    if _contains_safe_repair_style(root_context_text) and not _contains_safe_repair_style(mature_text):
+        return True, (
+            "Advanced analysis mainly sharpened explainability/diagnostics/validation rather than proposing "
+            "a valuable mechanism-level local patch, so the current mature idea is preserved unchanged."
         )
     return False, ""
 
@@ -792,16 +715,16 @@ def preserve_mature_idea_as_root(
     return normalize_idea_contract(
         {
             "title": f"{topic} root idea",
-            "abstract": mature_text,
-            "core_contribution": summary,
-            "method": mature_text,
-            "risks": "No clearly better non-gate local patch was identified during advanced analysis.",
-            "operator": "analysis_root",
-            "target_defects": target_defects or ["unclear_mechanism"],
-            "rationale": reason or "Preserve the current mature idea because no convincing non-gate local refinement was identified.",
-        },
-        keep_extra=True,
-    )
+                "abstract": mature_text,
+                "core_contribution": summary,
+                "method": mature_text,
+                "risks": "No clearly better valuable mechanism-level local patch was identified during advanced analysis.",
+                "operator": "analysis_root",
+                "target_defects": target_defects or ["unclear_mechanism"],
+                "rationale": reason or "Preserve the current mature idea because no convincing valuable mechanism-level local refinement was identified.",
+            },
+            keep_extra=True,
+        )
 
 
 def extract_root_idea_from_analysis(
@@ -1002,7 +925,7 @@ def build_algorithm_spec(
         topic=topic,
         idea_title=idea.get("title", ""),
         idea_abstract=idea.get("abstract", ""),
-        idea=json.dumps(idea_for_prompt, ensure_ascii=False, separators=(",", ":")),
+        idea=compact_json(idea_for_prompt),
     )
     try:
         response = chat_fn(
@@ -1057,13 +980,9 @@ def align_algorithms_with_idea(
         idea_title=title,
         idea_abstract=abstract or "No abstract provided.",
         idea_method=idea.get("method", "") or "No method provided.",
-        components=json.dumps(idea.get("components") or [], ensure_ascii=False),
-        component_explanations=json.dumps(
-            idea.get("component_explanations") or {},
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ),
-        algorithms=json.dumps(algorithms, ensure_ascii=False, indent=2),
+        components=compact_json(idea.get("components") or []),
+        component_explanations=compact_json(idea.get("component_explanations") or {}),
+        algorithms=pretty_json(algorithms),
     )
     prompt += "\nDirectly output JSON."
     try:
@@ -1081,34 +1000,3 @@ def align_algorithms_with_idea(
     except Exception as exc:  # pragma: no cover - network
         logger.warning("⚠️ Algorithm alignment failed: %s", exc)
     return algorithms
-
-
-def synthesize_reference_summaries(
-    topic: str,
-    best_entry: Dict[str, Any],
-    algorithm: List[Dict[str, Any]],
-    raw_references: List[Dict[str, Any]],
-    prompts: Dict[str, str],
-    chat_fn,
-    model: str,
-    logger,
-) -> List[Dict[str, Any]]:
-    if not raw_references:
-        return []
-    prompt = prompts["reference_grounding"].format(
-        topic=topic,
-        idea_title=best_entry.get("title", ""),
-        idea_abstract=best_entry.get("abstract", ""),
-        algorithm=json.dumps(algorithm, ensure_ascii=False, indent=2),
-        references=json.dumps(raw_references, ensure_ascii=False, indent=2),
-    )
-    prompt += "\n Directly output JSON."
-    try:
-        response = chat_fn(prompt, temperature=0.01, max_output_tokens=65536, model=model)
-        payload = parse_json_response(response)
-        candidate = payload.get("reference_papers", payload)
-        if isinstance(candidate, list):
-            return candidate
-    except Exception as exc:  # pragma: no cover - network
-        logger.warning("⚠️ Reference synthesis failed: %s", exc)
-    return raw_references

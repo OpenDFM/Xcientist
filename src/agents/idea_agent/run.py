@@ -53,9 +53,6 @@ def _run_topic(
     agent = LigAgent(run_dir=run_dir, rag_config=rag_config, config=config)
     agent.bootstrap_topic(topic)
 
-    if clean_optional_text(str(resolved_inputs.get("input_text") or "")):
-        artifact_set(agent.artifact, "input_text", clean_optional_text(str(resolved_inputs["input_text"])))
-    artifact_set(agent.artifact, "topic_source", str(resolved_inputs.get("topic_source") or ""))
     if clean_optional_text(str(resolved_inputs.get("mature_idea") or "")):
         artifact_set(agent.artifact, "mature_idea", clean_optional_text(str(resolved_inputs["mature_idea"])))
     artifact_set(agent.artifact, "mature_idea_source", str(resolved_inputs.get("mature_idea_source") or ""))

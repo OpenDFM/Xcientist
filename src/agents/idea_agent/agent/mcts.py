@@ -4,7 +4,6 @@ import hashlib
 import itertools
 import logging
 import math
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
@@ -21,6 +20,8 @@ from memory.api.symbolic_memory_system_api import SymbolicMemorySystem
 from memory.memory_system import FaissVectorStore
 from memory.memory_system.models import EpisodicRecord, ProceduralRecord, SemanticRecord
 from memory.memory_system.utils import _multi_thread_run, _safe_dump_str
+from src.agents.idea_agent.utils.core.json_utils import pretty_json
+from src.agents.idea_agent.utils.core.response_parsing import parse_json_response
 from src.agents.idea_agent.utils.core.logger import get_logger
 from src.agents.idea_agent.utils.mcts.component_novelty import ComponentNoveltyScorer
 from src.agents.idea_agent.utils.mcts.mcts_helpers import (
@@ -28,7 +29,6 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _format_root_domains_for_prompt,
     _infer_root_domains_heuristically,
     _normalize_root_domains,
-    _pretty_json,
     _safe_float_default,
     apply_normalized_score_weights,
     clip_metric_score,
@@ -42,7 +42,6 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     normalize_mechanism_commit_query_payload,
     normalize_theory_transfer_query_payload,
     normalize_component_explanations,
-    parse_json_response,
     text_uses_forbidden_query_terms,
 )
 from src.agents.idea_agent.utils.prompting.prompt_views import (
@@ -918,7 +917,7 @@ class MemoryGuidedMCTS:
             root_domains=_format_root_domains_for_prompt(parent_state.root_domains),
             refinement_scope=self.refinement_scope or "None",
             idea=parent_state.to_prompt_view(heading="Current Idea"),
-            edit_plan=_pretty_json(plan.to_dict()),
+            edit_plan=pretty_json(plan.to_dict()),
         )
         empty_payload = {"query": "", "needed_content": "", "expected_role": ""}
         try:
@@ -961,7 +960,7 @@ class MemoryGuidedMCTS:
             root_domains=_format_root_domains_for_prompt(parent_state.root_domains),
             refinement_scope=self.refinement_scope or "None",
             idea=parent_state.to_prompt_view(heading="Current Idea"),
-            edit_plan=_pretty_json(plan.to_dict()),
+            edit_plan=pretty_json(plan.to_dict()),
         )
         empty_payload = {"query": "", "mechanism_gap": "", "expected_role": ""}
         try:
@@ -1236,6 +1235,7 @@ class MemoryGuidedMCTS:
                     "_skip_child_creation": True,
                     "_skip_reason": "theory-transfer-injection instantiation returned no structured payload",
                 }
+            payload.pop("_paper_graph_context", None)
             payload["_paper_graph_context"] = additional_retrieval_context
         if (
             plan.skill_name == "mechanism-commit-innovation"
@@ -1255,6 +1255,7 @@ class MemoryGuidedMCTS:
                     ),
                 }
         if plan.skill_name == "mechanism-commit-innovation" and isinstance(payload, dict):
+            payload.pop("_paper_graph_context", None)
             payload["_paper_graph_context"] = additional_retrieval_context
         return payload
 
@@ -1265,7 +1266,6 @@ class MemoryGuidedMCTS:
             path,
             min_components=MIN_COMPONENTS,
             max_components=MAX_COMPONENTS,
-            pretty_json=_pretty_json,
         )
 
 
@@ -1284,7 +1284,6 @@ class MemoryGuidedMCTS:
             path,
             experiences,
             idea_evaluation_cls=IdeaEvaluation,
-            pretty_json=_pretty_json,
         )
 
     def _update_skill_prior(self, node: IdeaNode, evaluation: IdeaEvaluation) -> None:

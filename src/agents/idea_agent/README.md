@@ -100,7 +100,6 @@ Then it:
 | Field | Meaning |
 |------|---------|
 | `topic` | active topic history |
-| `run_topic` | original launcher topic |
 | `mature_idea` | contract root or replanned mature idea |
 | `refinement_scope` | optional hard boundary describing which subsystem or edit surface LigAgent may refine |
 | `background_knowledge` | analysis-derived background lines |
@@ -117,7 +116,6 @@ Then it:
 If an `idea_taste_mode` preset resolves successfully, `LigAgent.__init__` also adds:
 
 - `artifact["idea_taste_mode"]`
-- `artifact["idea_taste_label"]`
 
 Each `latest_candidate` entry is richer than the final public JSON. It stores:
 
@@ -244,7 +242,6 @@ For each node being expanded:
 4. **Instantiate the plan**
    - the prompt now includes:
      - `idea_taste_mode`
-     - `idea_taste_label`
      - `taste_guidance`
      - fixed `root_domains`
    - taste guidance is a soft preference only; it cannot override the plan, defects, or guardrails

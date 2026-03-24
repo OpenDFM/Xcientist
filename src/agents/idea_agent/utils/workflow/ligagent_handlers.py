@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from src.agents.idea_agent.agent.artifacts import artifact_get
 from src.agents.idea_agent.agent.prompts import PROMPTS
 from src.agents.idea_agent.utils.core.config_loader import get_config_value
+from src.agents.idea_agent.utils.core.json_utils import pretty_json
 from src.agents.idea_agent.utils.core.logger import (
     get_or_create_mode_logger,
     suspend_console_handlers,
@@ -165,7 +165,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
         survey_contents="\n".join(latest_rag_contents) if isinstance(latest_rag_contents, list) else "",
         papers=format_paper_capsules_prompt_view(references),
         experiment_findings=(
-            json.dumps(experiment_findings, ensure_ascii=False, indent=2)
+            pretty_json(experiment_findings)
             if isinstance(experiment_findings, dict) and experiment_findings
             else "None"
         ),
@@ -184,7 +184,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     if isinstance(response, (dict, list)):
         logger.info(
             "📝 Advanced Analysis Result:\n%s",
-            json.dumps(response, ensure_ascii=False, indent=2),
+            pretty_json(response),
         )
     else:
         logger.info("📝 Advanced Analysis Result:\n%s", response)
@@ -529,8 +529,8 @@ def execute_reanalysis_replan_stage(agent: Any, ctx: StageContext) -> StageResul
         topic=topic,
         mature_idea=mature_idea or "(no mature idea yet)",
         refinement_scope=(refinement_scope or "").strip(),
-        analysis=json.dumps(analysis, ensure_ascii=False, indent=2) if isinstance(analysis, dict) else str(analysis),
-        ablation_results=json.dumps(ablation_results, ensure_ascii=False, indent=2) if ablation_results else "[]",
+        analysis=pretty_json(analysis) if isinstance(analysis, dict) else str(analysis),
+        ablation_results=pretty_json(ablation_results) if ablation_results else "[]",
     )
     response = runtime.llm_json(
         session=session,

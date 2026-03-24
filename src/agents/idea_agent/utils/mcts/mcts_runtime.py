@@ -4,16 +4,27 @@ from __future__ import annotations
 
 import hashlib
 import itertools
-import json
 import math
 import random
 import re
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
-from src.agents.idea_agent.utils.mcts.defect_registry import DEFECT_REGISTRY
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from src.agents.idea_agent.utils.core.json_utils import (
+    pretty_json,
+    read_json_file,
+)
+from src.agents.idea_agent.utils.core.response_parsing import parse_json_response
+from src.agents.idea_agent.utils.mcts.defect_registry import (
+    format_defect_registry,
+)
 from src.agents.idea_agent.utils.mcts.idea_taste_presets import IdeaTastePreset
+from src.agents.idea_agent.utils.mcts.skill_parsing import (
+    parse_blueprint_step,
+    parse_markdown_sections,
+    split_frontmatter,
+)
 from memory.memory_system.component_taxonomy import extract_component_families
 from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _format_root_domains_for_prompt,
@@ -22,13 +33,11 @@ from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _dedupe_keep_order_strings,
     _filter_component_mapping_to_plan_keys,
     _normalize_component_mapping,
-    _safe_pretty_json,
     build_structural_profile,
     clip_text,
     component_inventory_payload,
     normalize_component_explanations,
     parse_component_bundle_payload,
-    parse_json_response,
     plan_to_experiment_text,
     plan_to_method_text,
 )
@@ -47,7 +56,6 @@ class AtomicEditOp(str, Enum):
     ADD_PROTOCOL = "ADD_PROTOCOL"
 
 
-ATOMIC_OP_VALUES: Set[str] = {op.value for op in AtomicEditOp}
 # Descriptions for each atomic edit operation, used in prompt formatting and skill documentation.
 ATOMIC_OP_DESCRIPTIONS: Dict[str, str] = {
     AtomicEditOp.ADD_COMPONENT: "Introduce a new module or sub-module into the architecture. ",
@@ -65,16 +73,6 @@ def format_op_descriptions() -> str:
         desc = ATOMIC_OP_DESCRIPTIONS.get(op, "No description.")
         lines.append(f"  - {op.value}: {desc}")
     return "\n".join(lines)
-
-
-
-def format_defect_registry() -> str:
-    """Return a human-readable reference block listing every canonical defect tag and its description."""
-    lines = ["Canonical defect tag registry (use ONLY these tags in detected_defects):"]
-    for tag, desc in DEFECT_REGISTRY.items():
-        lines.append(f"  - {tag}: {desc}")
-    return "\n".join(lines)
-
 
 def _synthesize_component_explanation_from_edit(component: str, edit: Optional["ComponentEdit"]) -> str:
     if edit is None:
@@ -315,10 +313,7 @@ DEFAULT_SKILL_TEMPLATES_PATH = (
 def _load_default_skill_templates(path: Path) -> Dict[str, Dict[str, Any]]:
     if not path.exists():
         return {}
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    payload = read_json_file(path)
     if not isinstance(payload, dict):
         return {}
     normalized: Dict[str, Dict[str, Any]] = {}
@@ -385,23 +380,41 @@ class SkillCatalog:
 
     def _parse_skill_file(self, path: Path) -> Optional[EditOperatorSkill]:
         text = path.read_text(encoding="utf-8")
-        frontmatter, body = _split_frontmatter(text)
+        frontmatter, body = split_frontmatter(text)
         name = str(frontmatter.get("name", "")).strip() or path.parent.name
         description = str(frontmatter.get("description", "")).strip()
-        sections = _parse_markdown_sections(body)
-        structural_mode = sections["structural_mode"][0].strip()
-        scope_preference = sections["scope_preference"][0].strip()
-        requires_control_centered_parent = (
-            sections["requires_control_centered_parent"][0].strip().lower() == "true"
+        sections = parse_markdown_sections(body)
+        template = DEFAULT_SKILL_TEMPLATES.get(name, {})
+        structural_mode_entries = sections.get("structural_mode", [])
+        scope_preference_entries = sections.get("scope_preference", [])
+        requires_control_centered_entries = sections.get("requires_control_centered_parent", [])
+        structural_mode = (
+            structural_mode_entries[0].strip()
+            if structural_mode_entries and str(structural_mode_entries[0]).strip()
+            else str(template.get("structural_mode", "local_refinement")).strip()
         )
+        scope_preference = (
+            scope_preference_entries[0].strip()
+            if scope_preference_entries and str(scope_preference_entries[0]).strip()
+            else str(template.get("scope_preference", "existing_subsystem")).strip()
+        )
+        if (
+            requires_control_centered_entries
+            and str(requires_control_centered_entries[0]).strip()
+        ):
+            requires_control_centered_parent = (
+                requires_control_centered_entries[0].strip().lower() == "true"
+            )
+        else:
+            requires_control_centered_parent = bool(
+                template.get("requires_control_centered_parent", False)
+            )
         defects = sections.get("defect_tags", []) or sections.get("defects", [])
         guardrails = sections.get("guardrails", [])
         atomic_blueprint = sections.get("atomic_blueprint", [])
         required_protocols = sections.get("required_protocols", [])
         avoid_combinations = sections.get("avoid_combinations", [])
         execution_logic = sections.get("execution_logic", [])
-
-        template = DEFAULT_SKILL_TEMPLATES.get(name, {})
         if not description:
             description = str(template.get("description", ""))
         if not defects:
@@ -573,7 +586,7 @@ class SkillCatalog:
         target_defects: Sequence[str],
         memory_refs: Sequence[str],
     ) -> EditPlan:
-        parsed_steps = [_parse_blueprint_step(step) for step in skill.atomic_blueprint]
+        parsed_steps = [parse_blueprint_step(step) for step in skill.atomic_blueprint]
         parsed_steps = [step for step in parsed_steps if step is not None]
 
         component_edits: List[ComponentEdit] = []
@@ -664,98 +677,6 @@ class SkillCatalog:
         prior.rule_constraints = prior.rule_constraints[:8]
         return prior
 
-
-def _split_frontmatter(text: str) -> Tuple[Dict[str, str], str]:
-    stripped = text.lstrip()
-    if not stripped.startswith("---"):
-        return {}, text
-
-    lines = stripped.splitlines()
-    frontmatter: Dict[str, str] = {}
-    if len(lines) < 3:
-        return frontmatter, text
-
-    end_idx = None
-    for idx in range(1, len(lines)):
-        if lines[idx].strip() == "---":
-            end_idx = idx
-            break
-        line = lines[idx]
-        if ":" not in line:
-            continue
-        key, value = line.split(":", 1)
-        frontmatter[key.strip()] = value.strip().strip('"').strip("'")
-
-    if end_idx is None:
-        return frontmatter, text
-    body = "\n".join(lines[end_idx + 1 :])
-    return frontmatter, body
-
-
-def _parse_markdown_sections(body: str) -> Dict[str, List[str]]:
-    sections: Dict[str, List[str]] = {}
-    current: Optional[str] = None
-    for raw_line in body.splitlines():
-        line = raw_line.rstrip()
-        if line.startswith("## "):
-            title = line[3:].strip().lower().replace(" ", "_")
-            current = title
-            sections.setdefault(current, [])
-            continue
-        if current is None:
-            continue
-        stripped = line.strip()
-        if stripped.startswith("- "):
-            sections[current].append(stripped[2:].strip())
-        elif re.match(r"^\d+\.\s", stripped):
-            # Support numbered lists (e.g. "1. Step description")
-            sections[current].append(re.sub(r"^\d+\.\s", "", stripped).strip())
-    return sections
-
-
-def _parse_blueprint_step(step: str) -> Optional[Dict[str, Any]]:
-    raw = (step or "").strip()
-    if not raw:
-        return None
-    match = re.match(r"^(?P<op>[A-Z_]+)\((?P<body>.*)\)$", raw)
-    if not match:
-        return None
-
-    op = match.group("op").strip()
-    body = match.group("body").strip()
-    if op not in ATOMIC_OP_VALUES:
-        return None
-
-    if op == AtomicEditOp.ADD_PROTOCOL.value:
-        protocols = [token.strip().lower() for token in body.split(",") if token.strip()]
-        return {"op": op, "protocols": protocols or ["regression", "ablation", "stress"]}
-
-    if op == AtomicEditOp.REWIRE.value:
-        if "->" in body:
-            source, target = [segment.strip() for segment in body.split("->", 1)]
-        else:
-            source, target = body, "downstream"
-        return {
-            "op": op,
-            "component": source,
-            "target": target,
-            "details": f"Rewire {source} -> {target}",
-        }
-
-    if op == AtomicEditOp.REPLACE_COMPONENT.value:
-        if "->" in body:
-            old_component, new_component = [segment.strip() for segment in body.split("->", 1)]
-        else:
-            old_component, new_component = body, f"{body}_replacement"
-        return {
-            "op": op,
-            "component": new_component,
-            "target": old_component,
-            "details": f"Replace {old_component} with {new_component}",
-        }
-
-    component = body.strip() or "component"
-    return {"op": op, "component": component, "details": f"{op} on {component}"}
 
 
 def _default_protocol_text(
@@ -1191,21 +1112,15 @@ def extract_mature_idea_components_via_llm(
     prompt = prompt_template.format(
         mature_idea=mature_idea,
         topic=topic,
-        prior_components=json.dumps(
+        prior_components=pretty_json(
             component_inventory_payload(
                 normalized_prior_components,
                 normalized_prior_explanations,
             ),
-            ensure_ascii=False,
-            indent=2,
         )
         if normalized_prior_components
         else "[]",
-        component_decisions=json.dumps(
-            normalized_component_decisions,
-            ensure_ascii=False,
-            indent=2,
-        )
+        component_decisions=pretty_json(normalized_component_decisions)
         if normalized_component_decisions
         else "[]",
     )
@@ -1259,7 +1174,6 @@ def expand_node_with_skills(
     *,
     min_components: int,
     max_components: int,
-    pretty_json: Optional[Any] = None,
 ) -> Tuple[Optional[Any], List[Any]]:
     bundle = MemoryBundle()
     if getattr(mcts, "enable_vector_memory", True):
@@ -1275,19 +1189,20 @@ def expand_node_with_skills(
             mcts.log_sink,
             "info",
             "[MCTS] Expand: vector_memory\n%s",
-            _safe_pretty_json(mcts._memory_bundle_log_payload(bundle), pretty_json),
+            pretty_json(mcts._memory_bundle_log_payload(bundle)),
         )
     structural_profile = build_structural_profile(
         node.state,
         refinement_scope=mcts.refinement_scope,
         mature_idea=mcts.mature_idea,
+        defect_tags=node.state.target_defects,
     )
     log_message(
         mcts.logger,
         mcts.log_sink,
         "info",
         "[MCTS] Expand: structural_profile\n%s",
-        _safe_pretty_json(structural_profile, pretty_json),
+        pretty_json(structural_profile),
     )
     selected_skill_candidates = mcts.skill_catalog.select_skills(
         defect_tags=node.state.target_defects,
@@ -1301,9 +1216,8 @@ def expand_node_with_skills(
         mcts.log_sink,
         "info",
         "[MCTS] Expand: skill_prior\n%s",
-        _safe_pretty_json(
+        pretty_json(
             {candidate.skill.name: candidate.to_dict() for candidate in skill_candidates},
-            pretty_json,
         ),
     )
     payload_count = len(skill_candidates)
@@ -1356,11 +1270,10 @@ def expand_node_with_skills(
             "info",
             "[MCTS] Expand: skill=%s instantiation_result\n%s",
             skill.name,
-            _safe_pretty_json(
+            pretty_json(
                 instantiated
                 if instantiated is not None
                 else {"status": "empty", "message": "instantiation returned no output"},
-                pretty_json,
             ),
         )
 
@@ -1429,7 +1342,6 @@ def simulate_node_value(
     experiences: List[Dict[str, Any]],
     *,
     idea_evaluation_cls: Any,
-    pretty_json: Optional[Any] = None,
 ) -> Optional[Any]:
     path_summary_text = path_summary(path)
 
@@ -1467,7 +1379,7 @@ def simulate_node_value(
             "[MCTS] Simulate (cache hit): node=%s\n[MCTS] Score: %.4f\n%s",
             node.state.title,
             cached_evaluation.composite,
-            _safe_pretty_json(mcts._simulate_log_payload(cached_evaluation), pretty_json),
+            pretty_json(mcts._simulate_log_payload(cached_evaluation)),
         )
         maybe_record_experience(
             cache_key,
@@ -1525,7 +1437,7 @@ def simulate_node_value(
         "[MCTS] Simulate: node=%s\n[MCTS] Score: %.4f\n%s",
         node.state.title,
         evaluation.composite,
-        _safe_pretty_json(mcts._simulate_log_payload(evaluation), pretty_json),
+        pretty_json(mcts._simulate_log_payload(evaluation)),
     )
 
     cache_evaluation(node.state.signature, cache_key, evaluation, mcts.evaluation_cache)

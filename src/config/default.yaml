@@ -132,7 +132,7 @@ idea:
       max_output_tokens: 65536
 
   mcts:
-    max_iterations: 64
+    max_iterations: 3
     max_depth: 3
     branching_factor: 3
     exploration_constant: 1.2
