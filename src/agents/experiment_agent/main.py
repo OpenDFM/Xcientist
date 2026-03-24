@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.agents.experiment_agent.agents.master import run_master
 from src.agents.experiment_agent.agents.prepare import run_prepare
+from src.agents.experiment_agent.agents.reporting import run_ablation_report_integrator
 from src.agents.experiment_agent.config import print_config
 from src.agents.experiment_agent.config import (
     ensure_experiment_dirs,
@@ -122,8 +123,17 @@ async def main_async(args) -> int:
         resume=bool(args.resume),
     )
 
-    # Integrator is now called inside AblationScienceAgent.execute() after ablation steps
+    # Integrator is called inside AblationScienceAgent.execute() after ablation steps
     # so results are available for the next master iteration decision
+    # Also call as fallback in case AblationScienceAgent was not used via task tool
+    integrator_result = await run_ablation_report_integrator(
+        workspace_root=workspace_root,
+        project_root=project_root,
+        verbose=bool(args.verbose),
+        resume=bool(args.resume),
+    )
+    if integrator_result.get("valid"):
+        result["final_path"] = integrator_result["ablation_results_path"]
 
     if result.get("stopped_due_to_iteration_limit"):
         print_phase("ITERATION LIMIT HIT", width=65)
