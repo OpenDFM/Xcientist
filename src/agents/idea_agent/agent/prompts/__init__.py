@@ -9,6 +9,7 @@ from src.agents.idea_agent.agent.prompts.algorithm_structuring import ALGORITHM_
 from src.agents.idea_agent.agent.prompts.algorithm_alignment import ALGORITHM_ALIGNMENT_PROMPT
 from src.agents.idea_agent.agent.prompts.idea_introduction import IDEA_INTRODUCTION_PROMPT
 from src.agents.idea_agent.agent.prompts.idea_fusion import IDEA_FUSION_PROMPT
+from src.agents.idea_agent.agent.prompts.idea_result_alignment import IDEA_RESULT_ALIGNMENT_PROMPT
 from src.agents.idea_agent.agent.prompts.experiment_findings_extraction import (
     EXPERIMENT_FINDINGS_EXTRACTION_PROMPT,
 )
@@ -26,6 +27,7 @@ PROMPTS = {
     "algorithm_alignment": ALGORITHM_ALIGNMENT_PROMPT,
     "idea_introduction": IDEA_INTRODUCTION_PROMPT,
     "idea_fusion": IDEA_FUSION_PROMPT,
+    "idea_result_alignment": IDEA_RESULT_ALIGNMENT_PROMPT,
     "experiment_findings_extraction": EXPERIMENT_FINDINGS_EXTRACTION_PROMPT,
     "topic_background": TOPIC_BACKGROUND_PROMPT,
     "rag_query": RAG_QUERY_PROMPT,

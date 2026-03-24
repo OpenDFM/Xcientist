@@ -69,13 +69,15 @@ def generate_idea_introduction(
     topic: str,
     best_entry: Dict[str, Any],
     paper_entries: List[Dict[str, Any]],
+    mature_idea: str,
     logger,
 ) -> str:
     entries = paper_entries or []
     if not entries:
-        return fallback_introduction_text(best_entry, entries)
+        return fallback_introduction_text(best_entry, entries, mature_idea)
     prompt = prompt_template.format(
         topic=topic,
+        mature_idea=mature_idea or "",
         idea=json.dumps(best_entry, ensure_ascii=False, indent=2),
         papers=json.dumps(entries, ensure_ascii=False, indent=2),
     )
@@ -87,17 +89,23 @@ def generate_idea_introduction(
             return intro.strip()
     except Exception as exc:  # pragma: no cover - network
         logger.warning("⚠️ Introduction generation failed: %s", exc)
-    return fallback_introduction_text(best_entry, entries)
+    return fallback_introduction_text(best_entry, entries, mature_idea)
 
 
 def fallback_introduction_text(
-    best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]]
+    best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]], mature_idea: str
 ) -> str:
     title = best_entry.get("title", "This work")
     abstract = best_entry.get("abstract") or ""
-    intro_lines = [
-        f"{title} builds on recent literature to tackle the current topic. {abstract}".strip()
-    ]
+    mature_anchor = str(mature_idea or "").strip()
+    if mature_anchor:
+        intro_lines = [
+            f"{title} refines the mature idea by repairing a concrete limitation in the current design. {abstract}".strip()
+        ]
+    else:
+        intro_lines = [
+            f"{title} builds on recent literature to tackle the current topic. {abstract}".strip()
+        ]
     if paper_entries:
         cite_lines = []
         for entry in paper_entries:
@@ -106,6 +114,40 @@ def fallback_introduction_text(
             )
         intro_lines.append("Key references informing this idea:\n" + "\n".join(cite_lines))
     return "\n\n".join(intro_lines)
+
+
+def align_public_idea_entry(
+    chat_fn,
+    prompt_template: str,
+    model: str,
+    topic: str,
+    best_entry: Dict[str, Any],
+    mature_idea: str,
+    refinement_scope: str,
+    paper_entries: List[Dict[str, Any]],
+    logger,
+) -> Dict[str, Any]:
+    prompt = prompt_template.format(
+        topic=topic,
+        mature_idea=mature_idea or "",
+        refinement_scope=refinement_scope or "",
+        idea=json.dumps(best_entry, ensure_ascii=False, indent=2),
+        papers=json.dumps(paper_entries or [], ensure_ascii=False, indent=2),
+    )
+    try:
+        response = chat_fn(prompt, temperature=0.2, max_output_tokens=8192, model=model)
+        payload = parse_json_response(response)
+        if not isinstance(payload, dict):
+            return dict(best_entry)
+        aligned = dict(best_entry)
+        for key in ("title", "abstract", "core_contribution", "method", "risks"):
+            value = str(payload.get(key) or "").strip()
+            if value:
+                aligned[key] = value
+        return aligned
+    except Exception as exc:  # pragma: no cover - network
+        logger.warning("⚠️ Public idea alignment failed: %s", exc)
+        return dict(best_entry)
 
 
 def parse_json_response(raw: str) -> Dict[str, Any]:

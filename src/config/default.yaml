@@ -75,15 +75,21 @@ survey:
 # ============================================
 idea:
   enabled: true
-  topic: "Long-context Sequence Modeling"
-  mature_idea: "The core idea of Titans is to explicitly separate short-term context processing from long-term memory in sequence modeling: attention handles precise, local dependencies, while a neural memory module continuously stores and updates important information from much longer histories. In this way, the model can keep reading new tokens while also “remembering” useful past information beyond the standard context window. Intuitively, Titans treats attention as a kind of short-term memory and neural memory as long-term memory, aiming to combine the strengths of Transformers and memory-based recurrent systems for very long-context modeling."
-  refinement_scope: "Refine the mature idea only on the Transformer memory layer. Focus on improving the design of the memory module, and how it interfaces with attention. The core concept of separating short-term attention from long-term memory is solid, so keep that intact while enhancing the memory component to better capture and utilize long-range dependencies."
+  input: "The core idea of Titans is to explicitly separate short-term context processing from long-term memory in sequence modeling: attention handles precise, local dependencies, while a neural memory module continuously stores and updates important information from much longer histories. In this way, the model can keep reading new tokens while also “remembering” useful past information beyond the standard context window. Intuitively, Titans treats attention as a kind of short-term memory and neural memory as long-term memory, aiming to combine the strengths of Transformers and memory-based recurrent systems for very long-context modeling. Keep the high-level thesis that short-range dependencies are handled by attention and long-range dependencies require persistent memory. However, do not preserve the current Titans memory implementation by default. You may redesign the Transformer-internal memory-attention computation as long as the method remains a unified Transformer architecture rather than an external retrieval system. Focus on mechanism-level architectural innovation inside the block: how memory states are represented, updated across layers/time, read by attention, and integrated into token processing. You may redesign the memory-attention interface, introduce new recurrent/state-space style memory dynamics, or restructure block internals, but avoid drifting into changes that depend on external tools, databases, or agent-level memory engineering."
+  #topic: "Long-context Sequence Modeling"
+  #mature_idea: "The core idea of Titans is to explicitly separate short-term context processing from long-term memory in sequence modeling: attention handles precise, local dependencies, while a neural memory module continuously stores and updates important information from much longer histories. In this way, the model can keep reading new tokens while also “remembering” useful past information beyond the standard context window. Intuitively, Titans treats attention as a kind of short-term memory and neural memory as long-term memory, aiming to combine the strengths of Transformers and memory-based recurrent systems for very long-context modeling."
+  #refinement_scope: "Keep the high-level thesis that short-range dependencies are handled by attention and long-range dependencies require persistent memory. However, do not preserve the current Titans memory implementation by default. You may redesign the Transformer-internal memory-attention computation as long as the method remains a unified Transformer architecture rather than an external retrieval system. Focus on mechanism-level architectural innovation inside the block: how memory states are represented, updated across layers/time, read by attention, and integrated into token processing. You may redesign the memory-attention interface, introduce new recurrent/state-space style memory dynamics, or restructure block internals, but avoid drifting into changes that depend on external tools, databases, or agent-level memory engineering."
+  topic: ""
+  mature_idea: ""
+  refinement_scope: ""
 
   run:
     LigAgent-Pro: true
+    input: "${idea.input}"
     topic: "${idea.topic}"
     mature_idea: "${idea.mature_idea}"
     refinement_scope: "${idea.refinement_scope}"
+    input_interpreter_model: "${idea.agent.model}"
     output_root: "runs"
     console_logs: true
     rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"

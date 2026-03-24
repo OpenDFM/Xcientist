@@ -907,6 +907,27 @@ def root_idea_to_mature_idea_text(root_idea: Dict[str, Any]) -> str:
     return " ".join(parts[:3]).strip()
 
 
+def root_idea_to_refinement_scope_text(root_idea: Dict[str, Any]) -> str:
+    """Derive a concise edit boundary from the structured root idea."""
+    try:
+        normalized = normalize_idea_contract(root_idea, allow_legacy=True, keep_extra=True)
+    except Exception:
+        return ""
+
+    method = str(normalized.get("method") or "").strip()
+    core = str(normalized.get("core_contribution") or "").strip()
+    title = str(normalized.get("title") or "").strip()
+    anchor = _first_sentence(method) or _first_sentence(core) or title
+    if not anchor:
+        return ""
+    if anchor[-1] not in ".!?":
+        anchor += "."
+    return (
+        f"Refine the mature idea only around {anchor} "
+        "Keep the same overall method axis and avoid redesigning unrelated subsystems."
+    ).strip()
+
+
 def analysis_candidate_ideas(artifact: Dict[str, Any]) -> List[Dict[str, Any]]:
     analysis_entries = artifact_get(artifact, "analysis", [])
     if not analysis_entries:

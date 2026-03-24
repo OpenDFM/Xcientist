@@ -20,6 +20,9 @@ Write one retrieval query for the CURRENT idea as a single short paragraph. The 
 - Focus on one mechanism only.
 - Keep the query to 1-2 sentences.
 - Center the query on the needed component and its role, not on a long diagnosis of the current idea's weaknesses.
+- If the compiled edit plan is a component replacement, anchor the query to that existing component role and describe the stronger internal mechanism it should use.
+- If `refinement_scope` or the current idea narrows the edit to an existing subsystem, keep the query at that same subsystem granularity.
+- Prefer refining or replacing an existing component over introducing a broader architecture-level coordination policy unless the current idea already centers such a policy.
 - Do not list candidate implementations, paper families, examples, or long sub-mechanism enumerations.
 - If the current idea appears training-free, prefer retrieval queries for training-free mechanisms or inference-time rules. Do not steer retrieval toward new training modules unless a training shift appears indispensable.
 - Do NOT use threshold/gating/suppression/quota language in `query`, `mechanism_gap`, or `expected_role`.
@@ -61,6 +64,9 @@ Write one retrieval query for the CURRENT idea as a single short paragraph. The 
 - Focus on one conceptual repair and one mechanism only.
 - Keep the query to 1-2 sentences.
 - Center the query on the needed component and its role, not on a long diagnosis of the current idea's weaknesses.
+- If the compiled edit plan is a component replacement, anchor the query to that existing component role and the stronger internal mechanism that would replace it.
+- If `refinement_scope` or the current idea narrows the edit to an existing subsystem, keep the query at that same subsystem granularity.
+- Prefer a local repair of an existing component over introducing a broader architecture-level coordination policy unless the current idea already centers such a policy.
 - Do not list candidate implementations, paper families, examples, or long sub-mechanism enumerations.
 - If the current idea appears training-free, prefer conceptual repairs that can be realized without adding new training machinery. Only seek training-based grounding if the repair seems impossible otherwise.
 - Do NOT use threshold/gating/suppression/quota language in `query`, `mechanism_gap`, or `expected_role`.

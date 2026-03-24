@@ -16,8 +16,12 @@ ARTIFACT_NAMESPACES = (
 FIELD_SPECS: Dict[str, Dict[str, Any]] = {
     "topic": {"namespace": "run", "path": "topic", "kind": "list"},
     "run_topic": {"namespace": "run", "path": "run_topic", "kind": "str"},
+    "input_text": {"namespace": "run", "path": "input_text", "kind": "str"},
+    "topic_source": {"namespace": "run", "path": "topic_source", "kind": "str"},
     "mature_idea": {"namespace": "run", "path": "mature_idea", "kind": "str"},
+    "mature_idea_source": {"namespace": "run", "path": "mature_idea_source", "kind": "str"},
     "refinement_scope": {"namespace": "run", "path": "refinement_scope", "kind": "str"},
+    "refinement_scope_source": {"namespace": "run", "path": "refinement_scope_source", "kind": "str"},
     "dialogue": {"namespace": "run", "path": "dialogue", "kind": "dict"},
     "steps": {"namespace": "run", "path": "steps", "kind": "list"},
     "workflow_trace": {"namespace": "run", "path": "workflow_trace", "kind": "list"},
@@ -89,9 +93,13 @@ def _namespace_defaults() -> Dict[str, Dict[str, Any]]:
     return {
         "run": {
             "run_topic": "",
+            "input_text": "",
+            "topic_source": "",
             "topic": [],
             "mature_idea": "",
+            "mature_idea_source": "",
             "refinement_scope": "",
+            "refinement_scope_source": "",
             "dialogue": {},
             "steps": [],
             "workflow_trace": [],

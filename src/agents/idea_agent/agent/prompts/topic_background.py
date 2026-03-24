@@ -11,5 +11,5 @@ Return STRICT JSON with:
 
 == Rules ==
 - Do not include Markdown.
-- Keep bullet strings terse but specific enough for an ICML reviewer.
+- Keep bullet strings terse but specific enough for an expert reviewer.
 """

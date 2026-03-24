@@ -155,9 +155,10 @@ def format_analysis_prompt_view(analysis: Any) -> str:
             why = _clip_text(gap.get("why_it_matters"))
             if why:
                 evaluation_gap_lines.append(f"   Why it matters: {why}")
-            bar = _clip_text(gap.get("icml_expectation"))
+                
+            bar = _clip_text(gap.get("validation_expectation"))
             if bar:
-                evaluation_gap_lines.append(f"   ICML bar: {bar}")
+                evaluation_gap_lines.append(f"   Validation requirement: {bar}")
         else:
             evaluation_gap_lines.append(f"{idx}. {_clip_text(gap)}")
 

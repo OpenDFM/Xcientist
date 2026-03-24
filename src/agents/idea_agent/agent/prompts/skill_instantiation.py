@@ -55,6 +55,7 @@ Instantiate the above plan into a concrete research idea. You must:
 16. If you do introduce new training into an originally training-free idea, explicitly justify why a training-free realization is insufficient and why the training shift is central rather than optional.
 17. If `skill_name` is `mechanism-commit-innovation` and the parent idea is not already centered on threshold/control logic, do NOT realize the edit as thresholding, gating, suppression, or quota adjustment. Prefer a direct mechanism, representation change, memory update rule, or objective-local repair intrinsic to the parent idea.
 18. If `refinement_scope` is provided and not equal to `None`, treat it as a hard boundary on where the novelty may appear. Keep the instantiated contribution inside that scope and do not relocate the main change to another subsystem.
+19. If a mature idea is provided, write the title/abstract/method as a direct refinement of that mature idea. Do NOT frame the paper around temporary internal parent aliases or intermediate search artifacts unless they are truly part of the final public method.
 
 Return STRICT JSON (no Markdown wrapping):
 {{
@@ -82,11 +83,11 @@ Return STRICT JSON (no Markdown wrapping):
 
 CONCEPTUAL_SURPRISE_SKILL_INSTANTIATION_PROMPT = SKILL_INSTANTIATION_PROMPT.replace(
     "Return STRICT JSON (no Markdown wrapping):",
-    """19. Treat the main contribution as a local conceptual repair of the parent idea, not merely a new module insertion. First identify the weak assumption, framing, or principle in the parent idea; then use the compiled edits as the implementation vehicle for that repair.
-20. Keep the improvement small-version and thesis-preserving. Do NOT replace the parent idea with a different research paradigm.
-21. In `abstract`, lead with the scientific thesis or conceptual repair first, then explain the concrete mechanism that realizes it.
-22. In `core_contribution`, express the new insight as a principle, invariant, assumption repair, or reframing. A module name by itself is not a sufficient contribution.
-23. In `method`, explicitly separate the conceptual move from the mechanism realization, while still giving concrete implementation details.
+    """20. Treat the main contribution as a local conceptual repair of the parent idea, not merely a new module insertion. First identify the weak assumption, framing, or principle in the parent idea; then use the compiled edits as the implementation vehicle for that repair.
+21. Keep the improvement small-version and thesis-preserving. Do NOT replace the parent idea with a different research paradigm.
+22. In `abstract`, lead with the scientific thesis or conceptual repair first, then explain the concrete mechanism that realizes it.
+23. In `core_contribution`, express the new insight as a principle, invariant, assumption repair, or reframing. A module name by itself is not a sufficient contribution.
+24. In `method`, explicitly separate the conceptual move from the mechanism realization, while still giving concrete implementation details.
 
 Return STRICT JSON (no Markdown wrapping):""",
 ).replace(

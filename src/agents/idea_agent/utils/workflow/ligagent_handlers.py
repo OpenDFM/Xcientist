@@ -39,6 +39,7 @@ from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     result_to_best_entry,
     retrieve_outcome_rag,
     root_idea_to_mature_idea_text,
+    root_idea_to_refinement_scope_text,
     search_core_nodes_from_citations,
     search_core_nodes_from_query,
     select_core_references,
@@ -118,7 +119,9 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     reference_batches = artifact_get(artifact, "references", [])
     references = reference_batches[-1] if reference_batches else []
     mature_idea = artifact_get(artifact, "mature_idea", "")
+    mature_idea_source = artifact_get(artifact, "mature_idea_source", "")
     refinement_scope = artifact_get(artifact, "refinement_scope", "")
+    refinement_scope_source = artifact_get(artifact, "refinement_scope_source", "")
     ablation_results = artifact_get(artifact, "ablation_results", [])
     rag_contents = artifact_get(artifact, "rag_contents", [])
     latest_rag_contents = rag_contents[-1] if rag_contents else []
@@ -156,7 +159,9 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     prompt = PROMPTS["advanced_analysis"].format(
         topic=topic,
         mature_idea=(mature_idea or "").strip(),
+        mature_idea_source=(mature_idea_source or "empty").strip(),
         refinement_scope=(refinement_scope or "").strip(),
+        refinement_scope_source=(refinement_scope_source or "empty").strip(),
         survey_contents="\n".join(latest_rag_contents) if isinstance(latest_rag_contents, list) else "",
         papers=format_paper_capsules_prompt_view(references),
         experiment_findings=(
@@ -217,10 +222,32 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     if session is not None:
         session.set_slot("analysis.latest", response)
     replace_patch: Dict[str, Any] = {"root_idea": root_idea}
+    grounded_mature_idea = str(response.get("grounded_mature_idea") or "").strip()
+    grounded_refinement_scope = str(response.get("grounded_refinement_scope") or "").strip()
+    current_mature_source = str(mature_idea_source or ("empty" if not str(mature_idea or "").strip() else "unknown"))
+    current_scope_source = str(
+        refinement_scope_source or ("empty" if not str(refinement_scope or "").strip() else "unknown")
+    )
+    if current_mature_source in {"empty", "input_inferred"}:
+        promoted = grounded_mature_idea or root_idea_to_mature_idea_text(root_idea)
+        if promoted:
+            replace_patch["mature_idea"] = promoted
+            replace_patch["mature_idea_source"] = "analysis_grounded"
+            if session is not None:
+                session.set_slot("mature_idea.latest", promoted)
+    if current_scope_source in {"empty", "input_inferred"} and grounded_refinement_scope:
+        replace_patch["refinement_scope"] = grounded_refinement_scope
+        replace_patch["refinement_scope_source"] = "analysis_grounded"
+    elif current_scope_source in {"empty", "input_inferred"}:
+        fallback_scope = root_idea_to_refinement_scope_text(root_idea)
+        if fallback_scope:
+            replace_patch["refinement_scope"] = fallback_scope
+            replace_patch["refinement_scope_source"] = "analysis_grounded"
     promoted_root_to_mature = False
     if (
         isinstance(mature_idea, str)
         and mature_idea.strip()
+        and current_mature_source not in {"empty", "input_inferred"}
         and not ablation_results
         and not preserved_mature_idea
     ):

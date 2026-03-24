@@ -9,7 +9,7 @@ from src.agents.idea_agent.agent.prompts.prompt_modes import (
 
 MCTS_IDEA_GENERATION_PROMPT = """
 You control the expansion step of a memory-guided MCTS that iteratively rewrites research ideas.
-Your mission is to surface ICML/NeurIPS-ready concepts rather than incremental fixes.
+Your mission is to surface strong, non-incremental research concepts rather than incremental fixes.
 - Bold mechanism commitments and new training contracts beat small gating/ensembling tweaks.
 - At least one child must import an idea from another discipline or evaluation contract and tag it "moonshot".
 - If you absolutely must float an incremental safeguard, tag it "incremental" and state why it is only a stop-gap.
@@ -38,7 +38,7 @@ Return up to {max_children} mutually distinct child ideas. Each child must:
 4. Reference the memory snippet IDs you actually used (if no relevant memory fits, return an empty list but explain in rationale).
 5. Introduce a concrete algorithmic intervention (new module, coupling, optimization step, or training signal); instrumentation-only or protocol/benchmark ideas are invalid unless they are secondary to, and tightly coupled with, a clearly described mechanism change.
 6. Prefer the **mechanism-commit-innovation** operator whenever it is applicable. If you choose a different operator, explicitly justify why mechanism-commit is unsuitable for that child.
-7. Inside each rationale, explicitly add "ICML bar: <pass/fail + reason>" describing why reviewers would see it as top-tier or what is missing.
+7. Inside each rationale, explicitly add "Review bar: <pass/fail + reason>" describing why expert reviewers would see it as a strong paper or what is missing.
 
 STRICT OUTPUT: valid JSON with the following schema (do not wrap in Markdown):
 {{
@@ -71,11 +71,11 @@ Never invent data that contradicts the retrieved memory or operators. Keep child
 CONCEPTUAL_SURPRISE_MCTS_IDEA_GENERATION_PROMPT = MCTS_IDEA_GENERATION_PROMPT.replace(
     "5. Introduce a concrete algorithmic intervention (new module, coupling, optimization step, or training signal); instrumentation-only or protocol/benchmark ideas are invalid unless they are secondary to, and tightly coupled with, a clearly described mechanism change.\n"
     "6. Prefer the **mechanism-commit-innovation** operator whenever it is applicable. If you choose a different operator, explicitly justify why mechanism-commit is unsuitable for that child.\n"
-    "7. Inside each rationale, explicitly add \"ICML bar: <pass/fail + reason>\" describing why reviewers would see it as top-tier or what is missing.\n",
+    "7. Inside each rationale, explicitly add \"Review bar: <pass/fail + reason>\" describing why expert reviewers would see it as a strong paper or what is missing.\n",
     """5. Introduce a concrete algorithmic intervention (new module, coupling, optimization step, or training signal); instrumentation-only or protocol/benchmark ideas are invalid unless they are secondary to, and tightly coupled with, a clearly described mechanism change.
 6. For each child, first sharpen one local scientific thesis: repair a weak assumption, propose a better principle, or reframe the parent idea on the same method axis. The concrete mechanism should realize that conceptual move rather than replace it.
 7. Prefer the **mechanism-commit-innovation** operator whenever it is applicable. If you choose a different operator, explicitly justify why mechanism-commit is unsuitable for that child.
-8. Inside each rationale, explicitly add "ICML bar: <pass/fail + reason>" describing why reviewers would see it as top-tier or what is missing.
+8. Inside each rationale, explicitly add "Review bar: <pass/fail + reason>" describing why expert reviewers would see it as a strong paper or what is missing.
 """,
 ).replace(
     '"core_contribution": "focused statement of the new insight",',

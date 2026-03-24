@@ -103,9 +103,11 @@ class LigAgent(AgentBase):
         initial_mature_idea = get_config_value(config, "run.mature_idea", "")
         if isinstance(initial_mature_idea, str) and initial_mature_idea.strip():
             artifact_set(self.artifact, "mature_idea", initial_mature_idea.strip())
+            artifact_set(self.artifact, "mature_idea_source", "config_explicit")
         initial_refinement_scope = get_config_value(config, "run.refinement_scope", "")
         if isinstance(initial_refinement_scope, str) and initial_refinement_scope.strip():
             artifact_set(self.artifact, "refinement_scope", initial_refinement_scope.strip())
+            artifact_set(self.artifact, "refinement_scope_source", "config_explicit")
 
         mcts_config = MCTSConfig()
         for field in fields(MCTSConfig):
