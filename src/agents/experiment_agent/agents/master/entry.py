@@ -48,6 +48,7 @@ class AgentState:
 
 class MasterAgent(OpenHandsBaseAgent):
     MASTER_DEFAULT_MCP_SERVERS = ["filesystem"]
+    SYSTEM_PROMPT_TEMPLATE = "master_agent.j2"
 
     def __init__(
         self,
@@ -94,46 +95,7 @@ class MasterAgent(OpenHandsBaseAgent):
 
     def _build_system_prompt(self, **kwargs) -> str:
         _ = kwargs
-        return """You are the master orchestrator for an experiment workspace.
-
-Your job is to route work between the code and science planners until the idea has been sufficiently validated or falsified by real workspace evidence.
-
-Your end goal is not merely to finish phases. Your end goal is to ensure the idea has:
-1. enough real experimental evidence,
-2. enough exact per-component ablation evidence,
-3. code that is implemented correctly enough for those experiments to be meaningful.
-
-Core behavior:
-1. Treat the actual contents of `agent_reports/`, `results/`, and `idea.json` as the source of truth.
-2. Launch exactly one planner per iteration through the `task` tool when more work is needed.
-3. Let planners run their own worker/validator loops.
-4. Never invent a third science lane. Stress, adversarial, drift, robustness, or other follow-up science must stay inside standard science or ablation science.
-5. Write your continue_iteration decision to the flag file path given in the iteration prompt.
-
-CRITICAL: What counts as VALID evidence vs INVALID evidence:
-
-VALID completion means:
-- Standard experiment: metrics show meaningful differences between baseline and treatment
-- Ablation experiment: probe_count > 0 AND control deltas > 0 (mechanism actually triggered)
-- Results show effect sizes > 0 with statistical significance
-
-INVALID completion (MUST continue iterating):
-- "probe_count=0" or "delta_count=0" - the mechanism did not trigger
-- "no significant differences" or "effect_size=0" between conditions
-- "COMPLETE (with technical issues)" - technical issues mean validation FAILED
-- Experiment ran but metrics are identical across conditions
-- Any condition showing "no_data" for primary metrics
-
-If ablation shows probe_count=0 or no differentiation between conditions:
-  - This is NOT valid completion
-  - You MUST continue iterating to fix the probe triggering issue
-  - Do NOT treat "ran but didn't work" as "validated"
-
-Only set continue_iteration=false when:
-  - probe_count > 0 AND control deltas > 0 (mechanism verified)
-  - Effect sizes are non-zero with meaningful magnitude
-  - Component-level ablation results exist for all 8 canonical components
-"""
+        return ""
 
     def _build_iteration_prompt(self) -> str:
         return f"""Run one master orchestration iteration for this experiment workspace.

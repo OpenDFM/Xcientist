@@ -27,6 +27,7 @@ class IterationReporterAgent(OpenHandsBaseAgent):
     """Summarizes experiment status after each master iteration."""
 
     REPORTING_DEFAULT_MCP_SERVERS = ["filesystem"]
+    SYSTEM_PROMPT_TEMPLATE = "iteration_reporter.j2"
 
     def __init__(
         self,
@@ -57,45 +58,7 @@ class IterationReporterAgent(OpenHandsBaseAgent):
 
     def _build_system_prompt(self, **kwargs) -> str:
         _ = kwargs
-        return """You are the iteration integration reporter.
-
-Your job is to summarize the current experiment status after each master iteration and produce a machine-readable status file.
-
-You must read:
-- `idea.json` - to understand the experiment components and requirements
-- `agent_reports/` - all worker reports, validator reports, planner reports
-- `results/` - experiment results (standard, ablation)
-- `master_report.md` - previous master decisions
-
-You must produce TWO files:
-1. `iteration_summary.md` - Human-readable status summary
-2. `iteration_status.json` - Machine-readable status for master to read
-
-Hard rules:
-1. Read actual file contents, not just filenames.
-2. For each phase (code, standard_science, ablation), determine:
-   - Is it complete, partial, or not started?
-   - What evidence exists?
-   - What are the key findings?
-3. Identify blockers if any phase is incomplete.
-4. Make next recommendations based on current status.
-5. CRITICAL: In your output, explicitly tell the master agent to read `iteration_status.json` for the next iteration decision.
-
-iteration_status.json schema:
-{
-  "iteration": <number>,
-  "code_status": "complete|incomplete|not_started",
-  "code_evidence": ["file1", "file2"],
-  "standard_experiments": "none|partial|complete",
-  "standard_evidence": ["file1", "file2"],
-  "ablation_experiments": "none|partial|complete",
-  "ablation_evidence": ["file1", "file2"],
-  "validation_status": "pass|fail|partial|unknown",
-  "key_findings": ["..."],
-  "blockers": ["..."],
-  "next_recommendations": ["..."]
-}
-"""
+        return ""
 
     def _get_tools(self):
         return [

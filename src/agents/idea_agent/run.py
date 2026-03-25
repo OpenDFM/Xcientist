@@ -8,6 +8,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Sequence
 from uuid import uuid4
+from omegaconf import OmegaConf
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.agents.idea_agent.agent.ligagent import LigAgent
@@ -196,8 +197,19 @@ def _apply_env_config(config: Optional[object]) -> None:
 
 
 def main() -> None:
-    config = load_idea_agent_config()
-    _apply_env_config(config)
+    # If IDEA_AGENT_CONFIG is set (pointing to global src/config/default.yaml),
+    # use src.config as single source of truth.
+    # Otherwise fall back to local config files.
+    if os.environ.get("IDEA_AGENT_CONFIG"):
+        from src.config import load_config, get_idea_config
+        load_config()
+        idea_cfg = get_idea_config()
+        _apply_env_config(None)  # set env vars from global config
+        # Build a config-like object from idea_cfg for _load_run_defaults
+        config = OmegaConf.create(OmegaConf.to_container(idea_cfg, resolve=True))
+    else:
+        config = load_idea_agent_config()
+        _apply_env_config(config)
     defaults = _load_run_defaults(config)
     topics = _load_topics(defaults["topics"], defaults["topics_file"])
     output_root = Path(defaults["output_root"]).expanduser()

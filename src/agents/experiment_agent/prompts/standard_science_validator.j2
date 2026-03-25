@@ -51,11 +51,11 @@ Rejection rules:
 - Runs with mismatched model or dataset bindings → FAIL.
 - Runs without baseline and full method comparison → FAIL
 - **Missing metrics in final output → FAIL**
-- **probe_count=0 or control_deltas=0 when mechanism should have triggered → FAIL**
+- **Key mechanism count=0 when it should have triggered → FAIL**
 - **Effect size=0 or "no significant difference" between conditions → FAIL**
 
 **STRICT COMPLETION RULES**:
-- Standard science phase is "complete" only when BOTH conditions (baseline, full method) ran successfully with probe_count > 0
+- Standard science phase is "complete" only when BOTH conditions (baseline, full method) ran successfully with key mechanism triggering
 - If any condition failed or produced no_data → phase is NOT complete, return FAIL
 
 ## Skills Usage

@@ -56,7 +56,7 @@ class ArxivAPI:
 class SemanticScholarAPI:
     def __init__(self, config):
         self.headers = {"x-api-key": config.APIInfo.semantic_scholar_api_key}
-        self.base_url = "http://api.semanticscholar.org/graph/v1"
+        self.base_url = "https://api.semanticscholar.org/graph/v1"
         self.logger = get_logger("SemanticScholarAPI")
         self.config = config
 

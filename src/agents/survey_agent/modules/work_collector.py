@@ -1,5 +1,6 @@
 from typing import Dict, List
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from src.agents.survey_agent.utils.api_call import SemanticScholarAPI, ChatAgent, ArxivAPI
 from src.agents.survey_agent.utils.rich_logger import get_logger
 from src.agents.survey_agent.utils.mineru_utils import parse_doc
@@ -66,184 +67,197 @@ class WorkCollector:
         return valid_seed_papers_ids
 
 
-    def download_and_parse_papers(self, papers: list, limit: int = -1):
-        """
-        Download and parse the papers given their IDs.
+    def _get_paper_download_info(self, paper, index, total):
+        """Extract download info from a paper entry. Returns dict or None."""
+        download_urls = []
+        is_arxiv = False
+        paper_title = None
 
-        Returns the parsed document.
-        """
+        if isinstance(paper, dict):
+            if "ArXiv" in paper.get("externalIds", {}):
+                paper_id = paper["externalIds"]["ArXiv"]
+                is_arxiv = True
+            else:
+                paper_id = paper.get("paperId")
+                is_arxiv = False
 
-        valid_paper_ids = []
-        valid_paper_paths = []
-        valid_paper_paths_ids = []
-        # step 1: download the paper PDF
-        index = 0
-        total = min(len(papers), limit) if limit > 0 else len(papers)
-        while index < len(papers) and (limit < 0 or len(valid_paper_ids) < limit):
-            paper = papers[index]
-            index += 1
+            if is_arxiv:
+                download_urls.append(f"https://export.arxiv.org/pdf/{paper_id}.pdf")
+                download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
+            elif paper.get("openAccessPdf", {}).get("url"):
+                download_urls.append(paper["openAccessPdf"]["url"])
+            elif self.config.ModuleInfo.WorkAnalyzer.abstract_when_full_text_fail:
+                self.logger.info(f"No full text PDF found for paper {paper_id}, skipping download but keeping abstract.")
+                err = self.add_papers_abstracts_in_cache([paper_id])
+                return {"paper_id": paper_id, "skipped": True, "success": not err} if not err else None
+            else:
+                return None
+            paper_title = paper.get("title", paper_id)
+        elif isinstance(paper, str):
+            is_arxiv = "." in paper
+            if is_arxiv:
+                paper_id = paper
+                download_urls.append(f"https://export.arxiv.org/pdf/{paper_id}.pdf")
+                download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
+            else:
+                paper_id = paper
+                try:
+                    paper = self.semantic_scholar_api.get_paper_details(
+                        paper,
+                        fields="title,externalIds,openAccessPdf",
+                    )
+                except Exception as e:
+                    self.logger.error(f"Error fetching paper {paper_id} details from Semantic Scholar: {e}. Skipping.")
+                    return None
 
-            download_urls = []
-            is_arxiv = False
-            if isinstance(paper, dict):
-                if "ArXiv" in paper.get("externalIds", {}):
-                    paper_id = paper["externalIds"]["ArXiv"]
-                    is_arxiv = True
-                else:
-                    paper_id = paper.get("paperId")
-                    is_arxiv = False
-
+                if paper_id != paper.get("paperId"):
+                    self.logger.warning(f"Paper ID mismatch for {paper_id}, got {paper.get('paperId')} in DOWNLOAD AND PARSE PAPER, skipping.")
+                    return None
+                if not paper:
+                    return None
+                try:
+                    if "ArXiv" in paper.get("externalIds", {}):
+                        paper_id = paper["externalIds"]["ArXiv"]
+                        is_arxiv = True
+                    else:
+                        paper_id = paper.get("paperId")
+                        is_arxiv = False
+                except Exception as e:
+                    self.logger.warning(f"Error getting paper ID: {e} with paper data: {paper}, skipping.")
+                    return None
                 if is_arxiv:
                     download_urls.append(f"https://export.arxiv.org/pdf/{paper_id}.pdf")
                     download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
-
                 elif paper.get("openAccessPdf", {}).get("url"):
                     download_urls.append(paper["openAccessPdf"]["url"])
                 elif self.config.ModuleInfo.WorkAnalyzer.abstract_when_full_text_fail:
                     self.logger.info(f"No full text PDF found for paper {paper_id}, skipping download but keeping abstract.")
                     err = self.add_papers_abstracts_in_cache([paper_id])
-                    if not err:
-                        valid_paper_ids.append(paper_id)
-                    continue
+                    return {"paper_id": paper_id, "skipped": True, "success": not err} if not err else None
                 else:
-                    continue
-                paper_title = paper.get("title", paper_id)
-            elif isinstance(paper, str):
-                is_arxiv = "." in paper
-                if is_arxiv:
-                    paper_id = paper
-                    download_urls.append(f"https://export.arxiv.org/pdf/{paper_id}.pdf")
-                    download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
-                else:
-                    paper_id = paper
-                    try:
-                        paper = self.semantic_scholar_api.get_paper_details(
-                            paper,
-                            fields="title,externalIds,openAccessPdf",
-                        )
-                    except Exception as e:
-                        self.logger.error(f"Error fetching paper {paper_id} details from Semantic Scholar: {e}. Skipping.")
-                        continue
-                        
-                    if paper_id != paper.get("paperId"):
-                        self.logger.warning(
-                            f"Paper ID mismatch for {paper_id}, got {paper.get('paperId')} in DOWNLOAD AND PARSE PAPER, skipping."
-                        )
-                        continue
-                    if not paper:
-                        continue
-                    try:
-                    # YZY MODIFY: fix bug when paper is dict(str is meaning less)
-                        if "ArXiv" in paper.get("externalIds", {}):
-                            paper_id = paper["externalIds"]["ArXiv"]
-                            is_arxiv = True
-                        else:
-                            paper_id = paper.get("paperId")
-                            is_arxiv = False
-                    except Exception as e:
-                        self.logger.warning(f"Error getting paper ID: {e} with paper data: {paper}, skipping.")
-                        continue
-                    if is_arxiv:
-                        download_urls.append(f"https://export.arxiv.org/pdf/{paper_id}.pdf")
-                        download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
-                    elif paper.get("openAccessPdf", {}).get("url"):
-                        download_urls.append(paper["openAccessPdf"]["url"])
-                    elif self.config.ModuleInfo.WorkAnalyzer.abstract_when_full_text_fail:
-                        self.logger.info(f"No full text PDF found for paper {paper_id}, skipping download but keeping abstract.")
-                        err = self.add_papers_abstracts_in_cache([paper_id])
-                        if not err:
-                            valid_paper_ids.append(paper_id)
-                        continue
-                    else:
-                        continue
-                
-                paper_title = self.reference_graph.nodes.get(paper_id, {}).get(
-                    "title", paper_id
-                )
+                    return None
+
+            paper_title = self.reference_graph.nodes.get(paper_id, {}).get("title", paper_id)
+        else:
+            return None
+
+        return {
+            "paper_id": paper_id,
+            "download_urls": download_urls,
+            "paper_title": paper_title,
+            "index": index,
+            "total": total,
+            "skipped": False,
+        }
+
+    def _download_single_paper(self, info):
+        """Download a single paper. Returns (paper_id, pdf_path or None)."""
+        if info is None or info.get("skipped"):
+            return info.get("paper_id") if info else None, None
+
+        paper_id = info["paper_id"]
+        download_urls = info["download_urls"]
+        paper_title = info["paper_title"]
+        index = info["index"]
+        total = info["total"]
+
+        pdf_path = os.path.join(
+            self.config.BasicInfo.cache_path,
+            "pdf_papers",
+            paper_id,
+            f"{paper_id}.pdf",
+        )
+
+        # Check cache first
+        if not self.config.ModuleInfo.WorkCollector.download_safe_mode and os.path.exists(pdf_path):
+            if is_valid_pdf(pdf_path):
+                if self.config.BasicInfo.debug:
+                    self.logger.info(f"Cache Hit! Existing PDF at {pdf_path} is valid, skipping download.")
+                return paper_id, pdf_path
             else:
-                continue
-            pdf_path = os.path.join(
-                self.config.BasicInfo.cache_path,
-                "pdf_papers",
-                paper_id,
-                f"{paper_id}.pdf",
-            )
-
-            if (
-                not self.config.ModuleInfo.WorkCollector.download_safe_mode
-                and os.path.exists(pdf_path)
-            ):
-                if is_valid_pdf(pdf_path):
-                    if self.config.BasicInfo.debug:
-                        self.logger.info(f"Cache Hit! Existing PDF at {pdf_path} is valid, skipping download.")
-                    valid_paper_ids.append(paper_id)
-                    if not os.path.exists(
-                        os.path.join(
-                            self.config.BasicInfo.cache_path, "parsed_papers", paper_id
-                        )
-                    ):
-                        valid_paper_paths.append(pdf_path)
-                        valid_paper_paths_ids.append(paper_id)
-                    continue
-                else:
-                    try:
-                        os.remove(pdf_path)
-                    except OSError as e:
-                        self.logger.error(f"Failed to delete invalid PDF {pdf_path}: {e}")
-                        continue
-                    self.logger.warning(f"Existing PDF at {pdf_path} is invalid, re-downloading.")
-            os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-
-            for download_url in download_urls:
-                downloaded = None
-                downloaded = self._download_pdf_with_resume(
-                    url = download_url,
-                    filename = pdf_path,
-                    title = f"{paper_title} ({index}/{total})",
-                )
-                if not downloaded or not is_valid_pdf(pdf_path):
-                    self.logger.warning(
-                        f"Failed to download valid paper {paper_id} from {download_url}, trying next URL if available."
-                    )
-                    continue
-                else:
-                    break
-
-            if not downloaded:
-                self.logger.warning(
-                    f"Failed to download valid paper {paper_id} from {download_url}"
-                )
-                continue
-            if not is_valid_pdf(pdf_path):
-                self.logger.warning(
-                    f"Existing PDF at {pdf_path} is invalid, deleting."
-                )
                 try:
                     os.remove(pdf_path)
                 except OSError as e:
                     self.logger.error(f"Failed to delete invalid PDF {pdf_path}: {e}")
-                    continue  # 或 return / raise
+                    return paper_id, None
+                self.logger.warning(f"Existing PDF at {pdf_path} is invalid, re-downloading.")
+
+        os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+        downloaded = False
+
+        for download_url in download_urls:
+            downloaded = self._download_pdf_with_resume(
+                url=download_url,
+                filename=pdf_path,
+                title=f"{paper_title} ({index}/{total})",
+            )
+            if downloaded and is_valid_pdf(pdf_path):
+                break
+            self.logger.warning(f"Failed to download valid paper {paper_id} from {download_url}, trying next URL if available.")
+            downloaded = False
+
+        if not downloaded or not is_valid_pdf(pdf_path):
+            if downloaded:
+                self.logger.warning(f"Existing PDF at {pdf_path} is invalid, deleting.")
+                try:
+                    os.remove(pdf_path)
+                except OSError:
+                    pass
+            return paper_id, None
+
+        return paper_id, pdf_path
+
+    def download_and_parse_papers(self, papers: list, limit: int = -1):
+        """
+        Download and parse the papers given their IDs with concurrent downloads.
+
+        Returns the parsed document.
+        """
+        valid_paper_ids = []
+        valid_paper_paths = []
+        valid_paper_paths_ids = []
+
+        total = min(len(papers), limit) if limit > 0 else len(papers)
+
+        # Collect download tasks
+        download_tasks = []
+        for i, paper in enumerate(papers[:limit] if limit > 0 else papers):
+            info = self._get_paper_download_info(paper, i + 1, total)
+            if info is None:
                 continue
+            if info.get("skipped"):
+                if info.get("success"):
+                    valid_paper_ids.append(info["paper_id"])
+                continue
+            download_tasks.append(info)
 
-            valid_paper_ids.append(paper_id)
-            # skip parsing if already parsed
-            if not os.path.exists(
-                os.path.join(
-                    self.config.BasicInfo.cache_path, "parsed_papers", paper_id
-                )
-            ):
-                valid_paper_paths.append(pdf_path)
-                valid_paper_paths_ids.append(paper_id)
+        if not download_tasks:
+            return valid_paper_ids
 
-        # step 2: parse the downloaded PDFs
+        # Download papers concurrently
+        self.logger.info(f"Downloading {len(download_tasks)} papers with {self.config.ModuleInfo.WorkCollector.download_workers} workers...")
+        download_workers = self.config.ModuleInfo.WorkCollector.download_workers
+
+        with ThreadPoolExecutor(max_workers=download_workers) as executor:
+            futures = {executor.submit(self._download_single_paper, task): task for task in download_tasks}
+            for future in as_completed(futures):
+                paper_id, pdf_path = future.result()
+                if pdf_path is None:
+                    continue
+                valid_paper_ids.append(paper_id)
+                if not os.path.exists(
+                    os.path.join(self.config.BasicInfo.cache_path, "parsed_papers", paper_id)
+                ):
+                    valid_paper_paths.append(pdf_path)
+                    valid_paper_paths_ids.append(paper_id)
+
+        # Parse the downloaded PDFs
         self.logger.info(f"Parsing {len(valid_paper_paths)} downloaded papers...")
         if valid_paper_paths:
             try:
                 parse_doc(
                     valid_paper_paths,
-                    output_dir=os.path.join(
-                        self.config.BasicInfo.cache_path, "parsed_papers"
-                    ),
+                    output_dir=os.path.join(self.config.BasicInfo.cache_path, "parsed_papers"),
                     lang="en",
                 )
             except Exception as e:
@@ -251,18 +265,14 @@ class WorkCollector:
                     try:
                         parse_doc(
                             [paper_path],
-                            output_dir=os.path.join(
-                                self.config.BasicInfo.cache_path, "parsed_papers"
-                            ),
+                            output_dir=os.path.join(self.config.BasicInfo.cache_path, "parsed_papers"),
                             lang="en",
                         )
                     except Exception as e2:
                         self.logger.error(f"Failed to parse paper at {paper_path}: {e2}")
-                        valid_paper_ids.remove(
-                            valid_paper_paths_ids[
-                                valid_paper_paths.index(paper_path)
-                            ]
-                        )
+                        pid = valid_paper_paths_ids[valid_paper_paths.index(paper_path)]
+                        if pid in valid_paper_ids:
+                            valid_paper_ids.remove(pid)
 
         return valid_paper_ids
 

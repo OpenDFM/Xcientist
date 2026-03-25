@@ -50,9 +50,9 @@ If ablation shows probe_count=0 or no differentiation between conditions:
 
 Only set continue_iteration=false when ALL of the following are TRUE:
   - `ablation_experiments` status is "complete" (NOT "partial")
-  - probe_count > 0 AND control_deltas > 0 (mechanism verified)
+  - Key mechanism in the idea actually triggered (not zero counts)
   - Effect sizes are non-zero with meaningful magnitude
-  - Component-level ablation results exist for ALL 8 canonical components
+  - Component-level ablation results exist for ALL canonical components
   - No single component has result="inconclusive" with confidence < 0.6
 
 **FORBIDDEN - NEVER terminate when:**
