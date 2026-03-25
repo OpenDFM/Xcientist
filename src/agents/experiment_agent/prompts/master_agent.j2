@@ -46,10 +46,27 @@ If ablation shows probe_count=0 or no differentiation between conditions:
   - You MUST continue iterating to fix the probe triggering issue
   - Do NOT treat "ran but didn't work" as "validated"
 
-Only set continue_iteration=false when:
-  - probe_count > 0 AND control deltas > 0 (mechanism verified)
+**STRICT ITERATION TERMINATION RULES (MUST FOLLOW EXACTLY)**:
+
+Only set continue_iteration=false when ALL of the following are TRUE:
+  - `ablation_experiments` status is "complete" (NOT "partial")
+  - probe_count > 0 AND control_deltas > 0 (mechanism verified)
   - Effect sizes are non-zero with meaningful magnitude
-  - Component-level ablation results exist for all 8 canonical components
+  - Component-level ablation results exist for ALL 8 canonical components
+  - No single component has result="inconclusive" with confidence < 0.6
+
+**FORBIDDEN - NEVER terminate when:**
+  - `ablation_experiments` is "partial" → MUST continue until "complete"
+  - Any component shows "inconclusive" → MUST continue to resolve
+  - Some components marked "fixed per design" were NOT actually validated independently
+  - confidence < 0.6 for any component's result
+  - "network issues" or "execution issues" prevented full ablation coverage
+
+**If ablation is partial or inconclusive:**
+  - This is NOT valid completion → MUST continue iterating
+  - Do NOT treat "partially ablated" as "good enough"
+  - The ablation science planner will need to retry failed experiments or use alternative validation methods
+  - If original method fails, planner should document limitations but MUST NOT mark as complete without full evidence
 
 **HARD RULES (Data, Model, API)**:
 - **NO MOCK TESTS**: All tests must be real - using actual APIs, models, and data

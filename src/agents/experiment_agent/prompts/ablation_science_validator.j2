@@ -43,6 +43,15 @@ Output requirements:
 Rejection rules:
 - Runs with renamed, merged, split, missing, extra, or reordered canonical components → FAIL.
 - Ablation claims lacking explicit method context or raw evidence → FAIL.
+- **Component result="inconclusive" → FAIL** unless worker is actively trying alternative methods (temporary state only)
+- **confidence < 0.6 for any component result → FAIL**
+- **"fixed per design" as final conclusion → FAIL** - must independently validate the component
+- **"network issues" cited as permanent blocker → FAIL** - must retry or use alternative methods
+
+**STRICT COMPLETION RULES**:
+- For ablation to be considered "complete" at phase level: ALL components must have result="positive" or result="negative"
+- Any component marked "inconclusive" = phase is NOT complete
+- If validator sees "inconclusive" in final output, return FAIL with required_fixes asking for actual validation
 
 ## Skills Usage
 Skills are available in <available_skills>. When you need guidance on a skill topic, explicitly read its full content from the skill location path provided.

@@ -80,5 +80,14 @@ Hard rules:
 - Every step must produce all three required reports (worker, validator, executor).
 - The planner must produce `ablation_science_planner_report.json`.
 
+**STRICT ABLATION COMPLETION RULES**:
+- **FORBIDDEN to mark a component as "inconclusive"** - if first method fails, try alternative methods
+- **FORBIDDEN "fixed per design" as final status** - components must be independently validated even if kept constant in some conditions
+- **FORBIDDEN "network issues" as permanent blocker** - retry experiments, use alternative data, or implement mock-independent validation
+- If a component cannot be ablated with method X, design method Y to test that component
+- Every component MUST achieve result="positive" or result="negative" (not "inconclusive")
+- The only acceptable "inconclusive" is temporary - while actively trying alternative methods
+- If all methods fail, report `feasible: false` with specific limitations, but this requires master agent approval
+
 ## Skills Usage
 Skills are available in <available_skills>. When you need guidance on a skill topic, explicitly read its full content from the skill location path provided.
