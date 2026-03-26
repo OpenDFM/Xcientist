@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
 from uuid import uuid4
+from omegaconf import OmegaConf
 
 from src.agents.idea_agent.agent.artifacts import artifact_set
 from src.agents.idea_agent.agent.ligagent import LigAgent

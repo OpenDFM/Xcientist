@@ -46,47 +46,24 @@ def _planner_tools() -> List[Tool]:
     ]
 
 
-def _code_planner_system_prompt() -> str:
-    return """You are the code planner for experiment enablement.
-
-You own code orchestration, not benchmark validation. Define concrete implementation steps, dispatch them through `task`, and rely on `code_validator` for PASS/FAIL decisions.
-
-Core behavior:
-1. Read `prepare_idea.md`, `idea.json`, and validated prepare handoff artifacts before planning.
-2. Write a short ordered `code_plan.json`.
-3. Every step must map to a real prepared target or experiment path discovered from prior phase artifacts.
-4. For each step, run `code_step_executor`.
-5. The step executor owns the worker/validator repair loop for that step.
-6. The final required step must be `final_integration_smoke`.
-7. Only after validator-backed PASS should you mark a step done.
-8. Only after all steps pass should you write the final code handoff artifacts.
-
-**Key requirements**:
-- Experiments must use real data from `dataset_candidate/` directory, not synthetic data.
-- Experiments must use real API credentials from `{workspace}/.env` and real model checkpoints.
-- All code must be under `project/`, not `src/`.
-
-Hard rules:
-- Do not treat import success as sufficient when contract requires real integration.
-- Do not write science-owned artifacts.
-- Do not accept synthetic placeholders for real prepared benchmark paths.
-- Treat `idea.json.components` as canonical for component-scoped enablement.
-- The validator report is the source of truth for step completion.
-"""
+# Templates are now used via SYSTEM_PROMPT_TEMPLATE class attribute
+# CodePlanner uses "code_planner_agent.j2" template
 
 
 def create_experiment_code_planner_agent(llm) -> Agent:
     _register_code_subagents()
     from openhands.sdk.context import AgentContext
     code_context = get_code_agent_context()
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    template_path = os.path.join(base_dir, "prompts", "code_planner_agent.j2")
     return Agent(
         llm=llm,
         tools=_planner_tools(),
         agent_context=AgentContext(
             skills=code_context.skills,
-            system_message_suffix=_code_planner_system_prompt(),
             load_public_skills=False,
         ),
+        system_prompt_filename=template_path,
     )
 
 
@@ -126,6 +103,7 @@ def register_experiment_code_planner() -> None:
 
 class CodeAgent(OpenHandsBaseAgent):
     CODE_DEFAULT_MCP_SERVERS = ["filesystem"]
+    SYSTEM_PROMPT_TEMPLATE = "code_planner_agent.j2"
 
     def __init__(
         self,
@@ -164,7 +142,7 @@ class CodeAgent(OpenHandsBaseAgent):
 
     def _build_system_prompt(self, **kwargs) -> str:
         _ = kwargs
-        return _code_planner_system_prompt()
+        return ""
 
     def _get_tools(self):
         return _planner_tools()
@@ -214,6 +192,8 @@ class CodeAgent(OpenHandsBaseAgent):
         verdict_fields = format_field_bullets(PHASE_VERDICT_FIELDS)
         return f"""## Task: Enable Experiment Code Paths
 
+### Goal: Implement the FULL IDEA in `project/` to support standard science AND ablation science experiments.
+
 ### Master Plan
 {self.plan}
 
@@ -251,6 +231,18 @@ class CodeAgent(OpenHandsBaseAgent):
 14. The final validator report must use `status: PASS|FAIL` and include:
 {verdict_fields}
 
+### Standard Science Support
+The code must implement entrypoints for:
+- **Baseline condition**: run with standard/original components
+- **Full method condition**: run with ALL idea.json components enabled
+Both must use `dataset_candidate/` data and produce comparable metrics.
+
+### Ablation Science Support
+For each idea.json component, the code must provide:
+- A **disable/ablation mechanism** that can disable the component WITHOUT modifying other components
+- A **method_context** describing what the ablated variant does
+- The ablation mechanism must be invokable by ablation science experiments
+
 ### Hard Rules
 - The validator decides whether a step is complete.
 - Do not hardcode model, dataset, benchmark, or API names into the plan. Infer them from the workspace artifacts you read.
@@ -261,6 +253,7 @@ class CodeAgent(OpenHandsBaseAgent):
 - Do not collapse all steps into a single shared `code_worker` or `code_validator` path.
 - Do not call a target enabled unless it is materially runnable from the prepared workspace.
 - The code phase cannot pass without validator-backed success for `final_integration_smoke`.
+- Every idea.json component must have a corresponding ablation mechanism.
 - Candidate env vars: {", ".join(self._get_relevant_env_var_names()) if self._get_relevant_env_var_names() else "(none detected)"}.
 
 Finish by printing exactly: CODE ENABLEMENT COMPLETE"""

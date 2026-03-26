@@ -29,8 +29,43 @@ Decompose workspace preparation into ordered worker tasks and end with validator
   - Any external services or tokens
   - For each, document the exact purpose and which component uses it
 - **CRITICAL**: All implementation code MUST be written to `project/` directory in workspace, NOT `src/`. The `project/` directory is the designated location for experiment code.
+- **CRITICAL**: Code in `project/` must be SELF-CONTAINED. It must NOT depend on `repos/` for core functionality. Repos are for REFERENCE ONLY.
+- **CRITICAL**: `prepare_idea.md` must include `## Code Implementation Guidance` section with:
+  - Required project structure and file organization
+  - Key functions/methods to implement
+  - Entry points for running experiments
+  - Integration points between components
+  - Expected API interfaces
+- **CRITICAL**: `prepare_idea.md` must include `## Component Correspondence` section mapping:
+  - Each idea.json component name → which files/functions implement it
+  - Each component → which experiments validate it
+  - Dependencies between components
+
+## Report Requirements
+**Every stage produces exactly THREE reports under `agent_reports/`:**
+1. `<stage>_worker_report.json` - Worker details: commands run, files created, paths verified, blockers found
+2. `<stage>_validator_report.json` - Validator verdict: PASS/FAIL, findings, required fixes
+3. `<stage>_executor_report.json` - Executor summary: repair attempts used, final status
+
+**Phase-level reports:**
+- `prepare_plan.json` - Ordered stage plan
+- `prepare_planner_report.json` - Planner summary
+- `prepare_idea.md` - Self-complete handoff document
+- `prepare_validator_report.json` - Final phase verdict
 
 ## Hard Rules
 - Repositories must be validated before dataset-to-benchmark mappings are finalized.
 - `prepare_idea.md` is human-facing only; validator reports remain the source of truth.
-- `prepare_idea.md` must contain an explicit `## Idea Components` section that preserves the exact `idea.json.components` list and order.
+- `prepare_idea.md` must contain these EXACT sections:
+  - `## Idea Summary` - Complete restatement of the idea
+  - `## Idea JSON Components` - Full copy of idea.json.components
+  - `## Code Implementation Guidance` - How to implement as code
+  - `## Component Correspondence` - Which code implements which component
+  - `## Dataset Usage Guidance` - Exact paths and usage for datasets
+  - `## Environment Variable Usage Guidance` - Env vars needed by each component
+  - `## Resource Acquisition Log` - What was acquired
+  - `## Repository-to-Dataset Mapping` - Repo to dataset linkage
+  - `## Real Experiment Targets` - Verified targets
+  - `## Canonical Idea Components` - Canonical component list from idea.json
+- Do not rename, reorder, or omit any of these sections.
+- Every stage must produce all three required reports (worker, validator, executor).

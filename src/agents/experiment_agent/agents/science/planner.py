@@ -62,31 +62,9 @@ def _planner_tools() -> List[Tool]:
     ]
 
 
-def _science_planner_system_prompt() -> str:
-    return """You are a science planner.
-
-You own experiment orchestration, not experiment truth. Write precise science contracts, dispatch them through `task`, and treat the science validator as the authority for PASS/FAIL.
-
-Core behavior:
-1. Read validated prepare artifacts, code handoff, idea context, and existing science artifacts before planning.
-2. Write a short ordered plan for the current science lane.
-3. Use the lane-matching science step executor for per-step execution.
-4. The step executor owns the worker/validator repair loop for the current science step.
-5. Do not let summary JSON replace raw evidence.
-6. Do not let synthetic fallback paths silently replace validated prepared targets.
-7. Update human-readable summaries only after validator-backed evidence exists.
-8. Treat `idea.json.components` as canonical for component identity and order.
-
-**Key requirements**:
-- Experiments must use real data from `dataset_candidate/` directory, not synthetic data.
-- Experiments must use real API credentials from `{workspace}/.env` and real model checkpoints.
-- Download missing models from HuggingFace before declaring a blocker.
-
-Hard rules:
-- Standard lane owns validator-backed baseline/full-method evidence on the prepared targets.
-- Ablation lane owns validator-backed component-level ablation evidence and sufficiency decisions.
-- The validator report is the authority for whether a science batch is complete.
-"""
+# Templates are now used directly via SYSTEM_PROMPT_TEMPLATE class attribute
+# StandardScienceAgent uses "standard_science_planner_agent.j2"
+# AblationScienceAgent uses "ablation_science_planner_agent.j2"
 
 
 def _register_science_subagents() -> None:
@@ -122,7 +100,7 @@ def _register_science_subagents() -> None:
     _SCIENCE_SUBAGENTS_REGISTERED = True
 
 
-def create_science_planner_agent(llm) -> Agent:
+def create_standard_science_planner_agent(llm) -> Agent:
     _register_science_subagents()
     from openhands.sdk.context import AgentContext
     exp_context = get_exp_agent_context()
@@ -131,7 +109,20 @@ def create_science_planner_agent(llm) -> Agent:
         tools=_planner_tools(),
         agent_context=AgentContext(
             skills=exp_context.skills,
-            system_message_suffix=_science_planner_system_prompt(),
+            load_public_skills=False,
+        ),
+    )
+
+
+def create_ablation_science_planner_agent(llm) -> Agent:
+    _register_science_subagents()
+    from openhands.sdk.context import AgentContext
+    exp_context = get_exp_agent_context()
+    return Agent(
+        llm=llm,
+        tools=_planner_tools(),
+        agent_context=AgentContext(
+            skills=exp_context.skills,
             load_public_skills=False,
         ),
     )
@@ -141,20 +132,23 @@ def register_science_planners() -> None:
     global _SCIENCE_PLANNERS_REGISTERED
     if _SCIENCE_PLANNERS_REGISTERED:
         return
-    for name, description in (
+    registrations = (
         (
             EXPERIMENT_STANDARD_SCIENCE_PLANNER,
+            create_standard_science_planner_agent,
             "Plans standard benchmark execution with science step executors.",
         ),
         (
             EXPERIMENT_ABLATION_SCIENCE_PLANNER,
+            create_ablation_science_planner_agent,
             "Plans component-level ablation execution with science step executors.",
         ),
-    ):
+    )
+    for name, factory, description in registrations:
         try:
             register_agent(
                 name=name,
-                factory_func=create_science_planner_agent,
+                factory_func=factory,
                 description=description,
             )
         except ValueError:
@@ -164,6 +158,8 @@ def register_science_planners() -> None:
 
 class _BaseSciencePlanner(OpenHandsBaseAgent):
     SCIENCE_DEFAULT_MCP_SERVERS = ["filesystem"]
+    # Templates are set in subclasses: StandardScienceAgent and AblationScienceAgent
+    SYSTEM_PROMPT_TEMPLATE = None
     planner_type = "Science"
     plan_filename = "science_plan.json"
     completion_token = "SCIENCE COMPLETE"
@@ -220,7 +216,7 @@ class _BaseSciencePlanner(OpenHandsBaseAgent):
 
     def _build_system_prompt(self, **kwargs) -> str:
         _ = kwargs
-        return _science_planner_system_prompt()
+        return ""
 
     def _get_tools(self):
         return _planner_tools()
@@ -281,6 +277,7 @@ class _BaseSciencePlanner(OpenHandsBaseAgent):
 
 
 class StandardScienceAgent(_BaseSciencePlanner):
+    SYSTEM_PROMPT_TEMPLATE = "standard_science_planner_agent.j2"
     planner_type = "StandardScience"
     plan_filename = "standard_science_plan.json"
     completion_token = "STANDARD SCIENCE COMPLETE"
@@ -356,6 +353,7 @@ Finish by printing exactly: {self.completion_token}"""
 
 
 class AblationScienceAgent(_BaseSciencePlanner):
+    SYSTEM_PROMPT_TEMPLATE = "ablation_science_planner_agent.j2"
     planner_type = "AblationScience"
     plan_filename = "ablation_science_plan.json"
     completion_token = "ABLATION SCIENCE COMPLETE"
