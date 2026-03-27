@@ -17,7 +17,6 @@ workspace:
 # Survey Agent Configuration
 # ============================================
 survey:
-  # Basic Info (matches config.BasicInfo)
   BasicInfo:
     topic: "Knowledge transfer for LLM"
     base_dir: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace/transfer"
@@ -27,90 +26,99 @@ survey:
     evaluation_save_path: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace/transfer/evaluation.txt"
     debug: true
     error_conservatism_mode: false
-
-  # API configuration (matches config.APIInfo)
   APIInfo:
     llm_api_key: "${env:OPENAI_API_KEY}"
     llm_api_base_url: "https://api.xi-ai.cn/v1/chat/completions"
     llm_model_name: "gpt-5-mini"
     llm_max_context_length: 160000
-    batch_chat_agent_worker: 4
+    use_stream_mode: false
+    batch_chat_agent_worker: 32
     semantic_scholar_api_key: "${env:SEMANTIC_SCHOLAR_API_KEY}"
     low_flow_mode: false
     low_flow_latency: 0
     arxiv_api_max_retry: 3
     semantic_scholar_api_max_retry: 3
-
-  # Module configuration (matches config.ModuleInfo)
   ModuleInfo:
     WorkCollector:
       download_safe_mode: false
+      download_timeout: 60
+      download_in_parallel: true
+      download_parallel_workers: 8
       cache_enabled: true
-      download_workers: 32
       max_seed_paper_num: 5
+      use_seed_filter_LLM: true
+      LLM_seed_threshold: 3
       reference_graph_depth: 1
-      sentence_transformer_model: "sentence-transformers/all-MiniLM-L6-v2"
-      sentence_transformer_batch_size: 32
-      related_work_top_k: 30
+      sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
+      sentence_transformer_batch_size: 64
+      expand_in_local_paper_graph: false
+      advanced_filter_in_local_paper_graph_expansion: true
+      related_work_top_k: 30 
       log_related_work_num: -1
       related_work_threshold: 0.5
       related_work_threshold_for_llm: 4
-      relatedness_temperature: 1.0
+      relatedness_temperature: 0.1
       RAG_source_use_embedding_filter: true
       RAG_source_use_LLM_filter: false
       RAG_source_downloadable_only: false
-
     Database:
       default_top_k: 20
-
+    PaperGraphRetriever:
+      db_path: ./database/paper_graph/graph.db
     WorkAnalyzer:
       abstract_only_mode: false
+      abstract_when_full_text_fail: true
       cache_enabled: true
-      abstract_when_full_text_fail: false
-      paper_reading_temperature: 1.0
+      use_local_paper_graph_keynotes: false
+      paper_reading_temperature: 0.3
       paper_reading_max_retry: 5
       llm_max_context_overhead_length_in_paper_reading: 20000
       clustering_batch_size: 16
       clustering_temperature: 1.0
       clustering_in_steps: true
       clustering_batch_size_in_creation: 32
-      clustering_batch_size_in_assignment: 8
+      clustering_batch_size_in_assignment: 10
+      cluster_assign_fast_mode: true
       paper_clustering_max_retry: 10
       paper_clustering_creation_max_retry: 3
-      paper_clustering_assignment_max_retry: 10
-      propose_question_temperature: 1.0
-      anwer_question_temperature: 1.0
-      intra_cluster_analysis_max_retry: 2
+      paper_clustering_assignment_max_retry: 4
+      propose_question_temperature: 0.5
+      anwer_question_temperature: 0.2
+      intra_cluster_analysis_max_retry: 5
       intra_cluster_analysis_temperature: 1.0
-      intra_clustering_probelm_proposing_max_retry: 4
-
+      intra_clustering_probelm_proposing_max_retry: 10
     SurveyGenerator:
+      include_initial_analysis: false
+      include_relation_graph: true
+      include_relation_table: true
+      omit_error_preserve_retry_time: 2
       outline_generation_in_steps: true
       outline_generation_draft_max_retry: 3
       outline_generation_draft_batch_size: 20
       outline_draft_RAG_topk: 60
-      outline_generation_assign_max_retry: 5
-      outline_generation_assign_batch_size: 10
+      outline_generation_assign_max_retry: 10
+      outline_generation_assign_batch_size: 20
       outline_assign_RAG_topk: 20
+      outline_assign_fast_mode: true
       outline_generation_temperature: 0.5
       outline_generation_batch_size: 16
-      outline_generation_max_retry: 2
+      outline_generation_max_retry: 3
       outline_generation_max_retry_in_generation_loop: 6
-      subsection_draft_temperature: 1.0
+      subsection_draft_temperature: 0.5
       subsection_draft_max_retry: 5
-      section_draft_max_retry: 5
-      section_draft_temperature: 1.0
+      section_draft_max_retry: 3
+      section_draft_temperature: 0.1
       draft_refinement_temperature: 1.0
       section_draft_max_error_info_length: 500
       subsection_draft_max_error_info_length: 500
       outline_max_error_info_length: 500
       llm_max_context_overhead_length_generation: 20000
       llm_max_context_overhead_length_outline_generation: 10000
-      subsection_least_words: 700
+      subsection_least_words: 3000
       subsection_least_citations: 15
-      section_least_words: 2000
-      section_least_citations: 25
-      draft_length_relax_ratio: 0.5
+      section_least_words: 100
+      section_least_citations: 3
+      draft_length_relax_ratio: 0.1
       use_full_text_in_survey_generation: false
       include_other_relevant_papers_RAG_in_outline: true
       outline_RAG_topk: 200
@@ -123,23 +131,27 @@ survey:
       section_review_retry: 3
       section_revision_RAG_topk: 30
       section_revise_temperature: 0.5
-      section_revise_retry: 5
-      no_suggestion_run_each_iteration: 1
-      max_review_revise_iterations: 30
+      section_revise_retry: 3
+      no_suggestion_run_each_iteration: 2
+      max_review_revise_iterations: 3
       draft_refinement_in_parts: true
+      refine_in_parts_mode: 2
+      review_and_revise_whole_survey_in_refinement: true
+      review_and_revise_whole_survey_max_iteration: 5
       valid_title_min_similarity: 0.5
-
     Judge:
       use_different_api_for_judge: false
       model: "gpt-5-mini"
       judge_llm_api_key: "${env:OPENAI_API_KEY}"
-      judge_llm_api_base_url: "https://api.xi-ai.cn/v1/chat/completions"
+      judge_llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
       nli_temperature: 0.1
       citation_quality_threshold: 0.5
       remove_failed_citation_in_eval: true
       rubrics_eval_10_dimensions: true
       rubrics_eval_4_dimensions: false
+      explanation_in_rubric: false
       citation_eval: true
+
 
 # ============================================
 # Idea Agent Configuration
