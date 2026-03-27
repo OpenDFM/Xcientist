@@ -1,6 +1,6 @@
 ---
 name: alternative-path-contrast
-description: Introduce a structured alternative execution or recovery path so rare regimes and fallback behavior are explicitly contrasted and stress-tested.
+description: Introduce a structured alternative treatment for failure regimes so rare cases and recovery behavior are explicit without turning the method into generic control scaffolding.
 ---
 
 ## defect_tags
@@ -10,12 +10,21 @@ description: Introduce a structured alternative execution or recovery path so ra
 
 ## guardrails
 - Limit the number of new paths; one alternative path should address one concrete failure regime.
-- Make routing between primary and alternative paths explicit.
-- Validate the regimes where the alternative path should dominate or recover failure.
+- State the observable condition that separates the primary regime from the alternative treatment.
+- Validate the regimes where the alternative treatment should dominate or recover failure.
+
+## structural_mode
+- path_branching
+
+## scope_preference
+- execution_path
+
+## requires_control_centered_parent
+- false
 
 ## atomic_blueprint
 - ADD_COMPONENT(alternative_path_module)
-- REWIRE(alternative_path_module -> execution_router)
+- REWIRE(alternative_path_module -> failure_regime_interface)
 - ADD_PROTOCOL(ablation,stress)
 
 ## required_protocols
@@ -23,7 +32,7 @@ description: Introduce a structured alternative execution or recovery path so ra
 - stress
 
 ## avoid_combinations
-- REMOVE_COMPONENT(execution_router) in the same plan
+- REMOVE_COMPONENT(failure_regime_interface) in the same plan
 
 ## execution_logic
 1. Identify the defect from `defect_tags`.

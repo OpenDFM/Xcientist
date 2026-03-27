@@ -9,6 +9,11 @@ license: MIT
 ## Mission
 Prepare real, verifiable resources for the current experiment.
 
+**CRITICAL: Code in `project/` must be SELF-CONTAINED**
+- The code in `project/` must be COMPLETE and INDEPENDENT.
+- It must NOT depend on `repos/` for core functionality.
+- Repos are for REFERENCE ONLY - implement actual experiment code in `project/`.
+
 ## Protocol
 - Read `idea.json` or `agent_reports/prepare_idea.md` first.
 - Discover repositories, datasets, and benchmarks before writing documentation.
@@ -24,14 +29,25 @@ Prepare real, verifiable resources for the current experiment.
 - The dataset acquisition step may also download model checkpoints when those checkpoints are part of the formal benchmark target.
 - Create `agent_reports/prepare_idea.md` only after verification work is complete, not as an early summary artifact.
 - For HuggingFace downloads, use the official HuggingFace endpoints and inherit the current shell network environment instead of rewriting proxy settings inside the agent.
-- `prepare_idea.md` must use exact headings required by the prepare protocol:
-  - `## Environment Variables Used`
+- `prepare_idea.md` must use these EXACT headings:
+  - `## Idea Summary`
+  - `## Idea JSON Components`
+  - `## Code Implementation Guidance`
+  - `## Component Correspondence`
+  - `## Dataset Usage Guidance`
+  - `## Environment Variable Usage Guidance`
   - `## Resource Acquisition Log`
   - `## Repository-to-Dataset Mapping`
   - `## Real Experiment Targets`
-  - `## Idea Components`
-- Under `## Idea Components`, copy every `idea.json.components` entry exactly once, in the same order, with both `component` and `explanation`.
+  - `## Canonical Idea Components`
+- Under `## Canonical Idea Components`, copy every `idea.json.components` entry exactly once, in the same order, preserving the `component` name and `explanation`.
 - After writing `prepare_idea.md`, reopen it and confirm those headings exist before claiming completion.
+
+## Report Requirements
+**Every stage produces exactly THREE reports under `agent_reports/`:**
+1. `<stage>_worker_report.json` - Worker details: commands run, files created, paths verified, blockers found
+2. `<stage>_validator_report.json` - Validator verdict: PASS/FAIL, findings, required fixes
+3. `<stage>_executor_report.json` - Executor summary: repair attempts used, final status
 
 ## Required Outputs
 - Stage worker report requested by the planner

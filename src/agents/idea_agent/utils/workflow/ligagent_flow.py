@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from src.agents.idea_agent.agent.artifacts import artifact_get, artifact_set
 from src.agents.idea_agent.agent.prompts import PROMPTS
+from src.agents.idea_agent.utils.core.json_utils import write_json_file
 from src.agents.idea_agent.utils.workflow.idea_helpers import (
     build_fusion_evolution,
     build_mcts_evolution,
@@ -23,17 +23,10 @@ from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     build_algorithm_spec,
 )
 from src.agents.idea_agent.utils.workflow.ligagent_utils import (
+    align_public_idea_entry,
     collect_paper_context_entries,
     generate_idea_introduction,
 )
-
-
-def build_action_workflow(agent, action: str) -> WorkflowSpec:
-    return WorkflowSpec(
-        name=f"ligagent.action.{action}",
-        entry_stage=action,
-        stages=_build_stage_specs(agent),
-    )
 
 
 def build_main_workflow(agent, logger) -> WorkflowSpec:
@@ -132,30 +125,44 @@ def build_idea_result_payload(
     prompts = prompts or PROMPTS
     topic_history = artifact_get(artifact, "topic", [])
     topic = topic_history[-1] if topic_history else "unspecified topic"
+    mature_idea = str(artifact_get(artifact, "mature_idea", "") or "").strip()
+    refinement_scope = str(artifact_get(artifact, "refinement_scope", "") or "").strip()
+    entries = paper_entries or collect_paper_context_entries(
+        artifact, artifact_get(artifact, "references", [])
+    )
+    public_entry = align_public_idea_entry(
+        chat_fn=chat_fn,
+        prompt_template=prompts["idea_result_alignment"],
+        model=model,
+        topic=topic,
+        best_entry=best_entry,
+        mature_idea=mature_idea,
+        refinement_scope=refinement_scope,
+        paper_entries=entries,
+        logger=logger,
+    )
     algorithm = build_algorithm_spec(
-        best_entry,
+        public_entry,
         topic,
         prompts,
         chat_fn,
         model,
         logger,
     )
-    entries = paper_entries or collect_paper_context_entries(
-        artifact, artifact_get(artifact, "references", [])
-    )
     introduction = generate_idea_introduction(
         chat_fn=chat_fn,
         prompt_template=prompts["idea_introduction"],
         model=model,
         topic=topic,
-        best_entry=best_entry,
+        best_entry=public_entry,
         paper_entries=entries,
+        mature_idea=mature_idea,
         logger=logger,
     )
-    component_entries = best_entry.get("components_with_explanations")
+    component_entries = public_entry.get("components_with_explanations")
     if not isinstance(component_entries, list):
-        raw_components = best_entry.get("components") or []
-        raw_explanations = best_entry.get("component_explanations") or {}
+        raw_components = public_entry.get("components") or []
+        raw_explanations = public_entry.get("component_explanations") or {}
         component_entries = []
         if isinstance(raw_components, list):
             for component in raw_components:
@@ -214,9 +221,9 @@ def build_idea_result_payload(
         reference_titles.append(cleaned)
     mcts_evolution = build_mcts_evolution(best_entry)
     payload = {
-        "title": best_entry.get("title"),
-        "abstract": best_entry.get("abstract"),
-        "method": best_entry.get("method"),
+        "title": public_entry.get("title"),
+        "abstract": public_entry.get("abstract"),
+        "method": public_entry.get("method"),
         "introduction": introduction,
         "components": component_entries,
         "algorithm": algorithm,
@@ -233,6 +240,9 @@ def build_idea_result_payload(
         payload["fusion_evolution"] = build_fusion_evolution(best_entry)
     if best_entry.get("idea_contract"):
         payload["idea_contract"] = best_entry.get("idea_contract")
+    for key in ("title", "abstract", "core_contribution", "method", "risks"):
+        if public_entry.get(key):
+            best_entry[key] = public_entry[key]
     best_entry["introduction"] = introduction
     return payload
 
@@ -244,8 +254,7 @@ def save_idea_result_payload(
 ) -> None:
     try:
         idea_result_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(idea_result_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
+        write_json_file(idea_result_path, payload)
         logger.info("💾 Saved idea result to %s", idea_result_path)
     except OSError as exc:
         logger.error("⚠️ Failed to persist idea_result.json: %s", exc)

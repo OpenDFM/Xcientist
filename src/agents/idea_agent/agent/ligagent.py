@@ -18,6 +18,9 @@ from src.agents.idea_agent.agent.artifacts import (
     artifact_set,
 )
 from src.agents.idea_agent.agent.prompts import PROMPTS
+from src.agents.idea_agent.agent.prompts.mcts_evaluation import (
+    get_mcts_evaluation_prompt,
+)
 from src.agents.idea_agent.agent.mcts import (
     MemoryGuidedMCTS,
     MCTSConfig,
@@ -26,18 +29,7 @@ from src.agents.idea_agent.agent.mcts import (
 )
 from src.agents.idea_agent.utils.papers.paper_repository import PaperRepository
 from src.agents.idea_agent.utils.workflow import ligagent_handlers
-from src.agents.idea_agent.utils.workflow.ligagent_flow import (
-    build_action_workflow,
-    make_stage_context,
-    persist_final_idea,
-)
-from src.agents.idea_agent.utils.workflow.ligagent_utils import (
-    collect_paper_context_entries,
-    generate_idea_introduction,
-    LigRuntime,
-    LigSession,
-    parse_json_response,
-)
+from src.agents.idea_agent.utils.workflow.ligagent_utils import LigRuntime, LigSession
 from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     generate_background_brief,
     normalize_ablation_results_payload,
@@ -74,12 +66,6 @@ class LigAgent(AgentBase):
         model = get_config_value(config, "agent.model", "gpt-5-mini")
         super().__init__(*args, **kwargs)
         self.model = str(model or "gpt-5-mini")
-        self.action_space = [
-            "knowledge_aquisition",
-            "advanced_analysis",
-            "idea_generation",
-            "re_analysis_replan",
-        ]
         self.artifact = artifact_init()
         self.session = LigSession(self.artifact)
 
@@ -100,6 +86,11 @@ class LigAgent(AgentBase):
         initial_mature_idea = get_config_value(config, "run.mature_idea", "")
         if isinstance(initial_mature_idea, str) and initial_mature_idea.strip():
             artifact_set(self.artifact, "mature_idea", initial_mature_idea.strip())
+            artifact_set(self.artifact, "mature_idea_source", "config_explicit")
+        initial_refinement_scope = get_config_value(config, "run.refinement_scope", "")
+        if isinstance(initial_refinement_scope, str) and initial_refinement_scope.strip():
+            artifact_set(self.artifact, "refinement_scope", initial_refinement_scope.strip())
+            artifact_set(self.artifact, "refinement_scope_source", "config_explicit")
 
         mcts_config = MCTSConfig()
         for field in fields(MCTSConfig):
@@ -119,7 +110,6 @@ class LigAgent(AgentBase):
         idea_taste_preset = apply_idea_taste_preset(mcts_config)
         if idea_taste_preset:
             artifact_set(self.artifact, "idea_taste_mode", idea_taste_preset.mode)
-            artifact_set(self.artifact, "idea_taste_label", idea_taste_preset.label)
             logger.info(
                 "[LigAgent] Applied idea taste preset %s (%s).",
                 idea_taste_preset.mode,
@@ -132,7 +122,7 @@ class LigAgent(AgentBase):
         )
         self.mcts = MemoryGuidedMCTS(
             chat_fn=self.chat,
-            evaluation_prompt=PROMPTS.get("mcts_evaluation"),
+            evaluation_prompt=get_mcts_evaluation_prompt(mcts_config.prompt_mode),
             config=mcts_config,
             memory_accessor=self._build_memory_accessor(),
             paper_graph_vector_store=self._shared_paper_graph_vector_store,
@@ -219,8 +209,6 @@ class LigAgent(AgentBase):
             if isinstance(retrieval_keywords, str)
             else normalized_topic
         )
-        if not artifact_get(self.artifact, "run_topic", ""):
-            artifact_set(self.artifact, "run_topic", normalized_topic)
         artifact_append(self.artifact, "topic", [normalized_topic])
         artifact_append(self.artifact, "retrieval_keywords", [keywords])
         background = generate_background_brief(
@@ -233,9 +221,6 @@ class LigAgent(AgentBase):
         if background:
             artifact_append(self.artifact, "background_knowledge", [background])
 
-    def knowledge_aquisition(self) -> str:
-        return self._run_action_workflow("knowledge_aquisition")
-
     def get_paper_content(self, paper_id: str, include_markdown: bool = True) -> Dict[str, Any]:
         return load_paper_content(
             paper_id,
@@ -245,22 +230,13 @@ class LigAgent(AgentBase):
             logger,
         )
 
-    def advanced_analysis(self, **kwargs) -> str:
-        return self._run_action_workflow("advanced_analysis", **kwargs)
-
-    def idea_generation(self, **kwargs) -> str:
-        return self._run_action_workflow("idea_generation", **kwargs)
-
-    def re_analysis_replan(self, **kwargs) -> str:
-        return self._run_action_workflow("re_analysis_replan", **kwargs)
-
     def build_mcts_for_mode(self, idea_taste_mode: Optional[str]) -> MemoryGuidedMCTS:
         mcts_config = deepcopy(self.mcts.config)
         setattr(mcts_config, "idea_taste_mode", idea_taste_mode)
         apply_idea_taste_preset(mcts_config)
         mode_mcts = MemoryGuidedMCTS(
             chat_fn=self.chat,
-            evaluation_prompt=PROMPTS.get("mcts_evaluation"),
+            evaluation_prompt=get_mcts_evaluation_prompt(mcts_config.prompt_mode),
             config=mcts_config,
             memory_accessor=self._build_memory_accessor(),
             paper_graph_vector_store=self._shared_paper_graph_vector_store,
@@ -335,33 +311,6 @@ class LigAgent(AgentBase):
             logger=logger,
         )
 
-    def _persist_final_idea(
-        self, best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]]
-    ) -> None:
-        persist_final_idea(
-            best_entry=best_entry,
-            paper_entries=paper_entries,
-            artifact=self.artifact,
-            idea_result_path=self.idea_result_path,
-            chat_fn=self.chat,
-            model=self.model,
-            logger=logger,
-            prompts=PROMPTS,
-        )
-
-    def _run_action_workflow(self, action: str, **kwargs) -> str:
-        spec = build_action_workflow(self, action)
-        before_steps = len(artifact_get(self.artifact, "steps", []))
-        self.workflow_executor.run(
-            spec,
-            make_stage_context(self, workflow_name=spec.name, **kwargs),
-        )
-        new_steps = artifact_get(self.artifact, "steps", [])[before_steps:]
-        if new_steps:
-            logger.info(new_steps[-1])
-            return new_steps[-1]
-        return ""
-
     def _execute_knowledge_acquisition_stage(self, ctx: StageContext) -> StageResult:
         return ligagent_handlers.execute_knowledge_acquisition_stage(self, ctx)
 
@@ -425,25 +374,6 @@ class LigAgent(AgentBase):
 
     def _ka_reference_selection_stage(self, ctx: StageContext) -> StageResult:
         return ligagent_handlers.ka_reference_selection_stage(self, ctx)
-
-    def _generate_idea_introduction(
-        self, best_entry: Dict[str, Any], paper_entries: List[Dict[str, Any]]
-    ) -> str:
-        entries = paper_entries or collect_paper_context_entries(
-            self.artifact,
-            artifact_get(self.artifact, "references", []),
-        )
-        topic_history = artifact_get(self.artifact, "topic", [])
-        topic = topic_history[-1] if topic_history else "unspecified topic"
-        return generate_idea_introduction(
-            chat_fn=self.chat,
-            prompt_template=PROMPTS["idea_introduction"],
-            model=self.model,
-            topic=topic,
-            best_entry=best_entry,
-            paper_entries=entries,
-            logger=logger,
-        )
 
     def ingest_ablation_results(self, results: Any) -> None:
         if not results:

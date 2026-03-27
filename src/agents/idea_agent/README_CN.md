@@ -100,7 +100,6 @@ graph TD
 | 字段 | 含义 |
 |------|------|
 | `topic` | 当前 topic 历史 |
-| `run_topic` | launcher 传入的原始 topic |
 | `mature_idea` | contract root 或 replanning 后的成熟想法 |
 | `background_knowledge` | 分析阶段生成的背景知识 |
 | `analysis` | 结构化分析结果 |
@@ -116,7 +115,6 @@ graph TD
 如果 `idea_taste_mode` 成功解析，`LigAgent.__init__` 还会补充：
 
 - `artifact["idea_taste_mode"]`
-- `artifact["idea_taste_label"]`
 
 每个 `latest_candidate` entry 会保留比最终 JSON 更多的信息：
 
@@ -165,7 +163,7 @@ graph TD
 
 主要运行时结构有：
 
-- `IdeaState`：当前 idea 快照，含 components、defects、budget、`root_domains`、`edit_plan`、`skill_metrics`
+- `IdeaState`：当前 idea 快照，含 components、defects、`root_domains`、`edit_plan`、`skill_metrics`
 - `IdeaNode`：MCTS 节点，持有 parent / children / visits / value / evaluation
 - `IdeaEvaluation`：多指标评估结果
 - `EditPlan`：skill 编译后的原子 component 编辑计划和验证协议
@@ -186,7 +184,6 @@ graph TD
 | `feedback-closed-loop` | 从 open loop 变成可监控的反馈闭环 |
 | `theory-transfer-injection` | 从别的领域注入可迁移原则 |
 | `speculative-execution-with-repair` | 乐观路径加 repair / rollback |
-| `resource-aware-adaptive-path` | 让执行路径适应 budget / load |
 
 Evaluator 只允许返回 `utils/mcts/defect_registry.py` 里的 canonical defect tags。根节点会在第一次 expand 前先跑一次 evaluator，用真实 `detected_defects` 替换掉占位符 `unexplored_gap`。
 
@@ -230,15 +227,13 @@ Evaluator 只允许返回 `utils/mcts/defect_registry.py` 里的 canonical defec
      - `defect_score`
      - `skill_prior`
      - `preset_bias`
-     - `gate_score`
    - 当前权重公式是：
 
    ```text
    selection_total =
-       0.55 * defect_score +
+       0.60 * defect_score +
        0.20 * skill_prior +
-       0.20 * preset_bias +
-       0.05 * gate_score
+       0.20 * preset_bias
    ```
 
 3. **编译 plan**
@@ -248,7 +243,6 @@ Evaluator 只允许返回 `utils/mcts/defect_registry.py` 里的 canonical defec
 4. **实例化 plan**
    - prompt 现在会显式注入：
      - `idea_taste_mode`
-     - `idea_taste_label`
      - `taste_guidance`
      - 固定的 `root_domains`
    - taste guidance 只是软约束，不能覆盖 plan、target defects 或 guardrails

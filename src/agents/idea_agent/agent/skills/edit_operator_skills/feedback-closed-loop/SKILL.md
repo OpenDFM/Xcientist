@@ -1,6 +1,6 @@
 ---
 name: feedback-closed-loop
-description: Turn an open-loop process into a monitored feedback loop that measures outcomes and adapts future actions online.
+description: Turn an open-loop process into a feedback-guided update mechanism that measures outcomes and adapts an existing rule online.
 ---
 
 ## defect_tags
@@ -10,12 +10,21 @@ description: Turn an open-loop process into a monitored feedback loop that measu
 
 ## guardrails
 - Define the feedback signal, update cadence, and stability boundaries.
-- Keep the loop lightweight relative to the controlled path.
+- Keep the adaptive update lightweight relative to the controlled path.
 - Validate the loop under drift, delay, or stale-feedback regimes.
+
+## structural_mode
+- feedback_loop
+
+## scope_preference
+- execution_path
+
+## requires_control_centered_parent
+- true
 
 ## atomic_blueprint
 - ADD_COMPONENT(feedback_monitor)
-- REWIRE(feedback_monitor -> control_policy)
+- REWIRE(feedback_monitor -> adaptation_rule)
 - ADD_PROTOCOL(ablation,stress)
 
 ## required_protocols
@@ -23,7 +32,7 @@ description: Turn an open-loop process into a monitored feedback loop that measu
 - stress
 
 ## avoid_combinations
-- REMOVE_COMPONENT(control_policy) in the same plan
+- REMOVE_COMPONENT(adaptation_rule) in the same plan
 
 ## execution_logic
 1. Identify the defect from `defect_tags`.

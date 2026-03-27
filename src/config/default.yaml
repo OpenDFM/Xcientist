@@ -17,71 +17,152 @@ workspace:
 # Survey Agent Configuration
 # ============================================
 survey:
-  enabled: true
-  topic: "Diffusion Models for RL"
+  # Basic Info (matches config.BasicInfo)
+  BasicInfo:
+    topic: "Knowledge transfer for LLM"
+    base_dir: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace/transfer"
+    cache_path: "./database"
+    save_path: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace/transfer/survey.md"
+    save_json_path: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace/transfer/survey.json"
+    evaluation_save_path: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace/transfer/evaluation.txt"
+    debug: true
+    error_conservatism_mode: false
 
-  # Output settings
-  output:
-    base_dir: "${workspace}/surveys"
-    save_path: "${survey.output.base_dir}/survey.md"
-    save_json_path: "${survey.output.base_dir}/survey.json"
-    evaluation_save_path: "${survey.output.base_dir}/evaluation.txt"
-
-  # API configuration
-  api:
+  # API configuration (matches config.APIInfo)
+  APIInfo:
     llm_api_key: "${env:OPENAI_API_KEY}"
-    llm_api_base_url: "https://api.xi-ai.cn/v1"
+    llm_api_base_url: "https://api.xi-ai.cn/v1/chat/completions"
     llm_model_name: "gpt-5-mini"
     llm_max_context_length: 160000
     batch_chat_agent_worker: 4
     semantic_scholar_api_key: "${env:SEMANTIC_SCHOLAR_API_KEY}"
     low_flow_mode: false
+    low_flow_latency: 0
+    arxiv_api_max_retry: 3
+    semantic_scholar_api_max_retry: 3
 
-  # Module configuration
-  modules:
+  # Module configuration (matches config.ModuleInfo)
+  ModuleInfo:
     WorkCollector:
       download_safe_mode: false
       cache_enabled: true
+      download_workers: 32
       max_seed_paper_num: 5
       reference_graph_depth: 1
       sentence_transformer_model: "sentence-transformers/all-MiniLM-L6-v2"
+      sentence_transformer_batch_size: 32
       related_work_top_k: 30
+      log_related_work_num: -1
       related_work_threshold: 0.5
       related_work_threshold_for_llm: 4
+      relatedness_temperature: 1.0
+      RAG_source_use_embedding_filter: true
+      RAG_source_use_LLM_filter: false
+      RAG_source_downloadable_only: false
+
+    Database:
+      default_top_k: 20
 
     WorkAnalyzer:
       abstract_only_mode: false
       cache_enabled: true
       abstract_when_full_text_fail: false
+      paper_reading_temperature: 1.0
+      paper_reading_max_retry: 5
+      llm_max_context_overhead_length_in_paper_reading: 20000
       clustering_batch_size: 16
       clustering_temperature: 1.0
+      clustering_in_steps: true
+      clustering_batch_size_in_creation: 32
+      clustering_batch_size_in_assignment: 8
+      paper_clustering_max_retry: 10
+      paper_clustering_creation_max_retry: 3
+      paper_clustering_assignment_max_retry: 10
+      propose_question_temperature: 1.0
+      anwer_question_temperature: 1.0
+      intra_cluster_analysis_max_retry: 2
+      intra_cluster_analysis_temperature: 1.0
+      intra_clustering_probelm_proposing_max_retry: 4
 
     SurveyGenerator:
       outline_generation_in_steps: true
+      outline_generation_draft_max_retry: 3
+      outline_generation_draft_batch_size: 20
+      outline_draft_RAG_topk: 60
+      outline_generation_assign_max_retry: 5
+      outline_generation_assign_batch_size: 10
+      outline_assign_RAG_topk: 20
+      outline_generation_temperature: 0.5
+      outline_generation_batch_size: 16
+      outline_generation_max_retry: 2
+      outline_generation_max_retry_in_generation_loop: 6
+      subsection_draft_temperature: 1.0
+      subsection_draft_max_retry: 5
+      section_draft_max_retry: 5
+      section_draft_temperature: 1.0
+      draft_refinement_temperature: 1.0
+      section_draft_max_error_info_length: 500
+      subsection_draft_max_error_info_length: 500
+      outline_max_error_info_length: 500
+      llm_max_context_overhead_length_generation: 20000
+      llm_max_context_overhead_length_outline_generation: 10000
       subsection_least_words: 700
       subsection_least_citations: 15
       section_least_words: 2000
       section_least_citations: 25
+      draft_length_relax_ratio: 0.5
+      use_full_text_in_survey_generation: false
+      include_other_relevant_papers_RAG_in_outline: true
+      outline_RAG_topk: 200
+      include_other_relevant_papers_RAG: true
+      section_RAG_topk: 60
+      subsection_RAG_topk: 60
+      use_title_in_draft: true
       enable_review_and_revise: true
+      section_review_temperature: 1.0
+      section_review_retry: 3
+      section_revision_RAG_topk: 30
+      section_revise_temperature: 0.5
+      section_revise_retry: 5
+      no_suggestion_run_each_iteration: 1
       max_review_revise_iterations: 30
+      draft_refinement_in_parts: true
+      valid_title_min_similarity: 0.5
 
     Judge:
       use_different_api_for_judge: false
       model: "gpt-5-mini"
+      judge_llm_api_key: "${env:OPENAI_API_KEY}"
+      judge_llm_api_base_url: "https://api.xi-ai.cn/v1/chat/completions"
+      nli_temperature: 0.1
       citation_quality_threshold: 0.5
+      remove_failed_citation_in_eval: true
+      rubrics_eval_10_dimensions: true
+      rubrics_eval_4_dimensions: false
+      citation_eval: true
 
 # ============================================
 # Idea Agent Configuration
 # ============================================
 idea:
   enabled: true
-  topic: "LLM Agent Memory System"
-  mature_idea: "MemPrism's core insight is that agent trajectories contain heterogeneous signals and should be managed as multi-facet memory rather than a single flat memory bank. It therefore works in a retrospective encode-consolidate-integrate pipeline: the agent first segments past interaction traces into structured working slots, then routes them into semantic, episodic, and procedural memories with similarity-gated upsert and episodic clustering/abstraction, and finally retrieves them with facet-aware mechanisms, especially multi-directional slot retrieval, to inject complementary evidence back into the current context. In essence, MemPrism turns raw history into structured, type-specific, and reusable memory, improving both memory quality and downstream decision making."
+  input: "The core idea of Titans is to explicitly separate short-term context processing from long-term memory in sequence modeling: attention handles precise, local dependencies, while a neural memory module continuously stores and updates important information from much longer histories. In this way, the model can keep reading new tokens while also “remembering” useful past information beyond the standard context window. Intuitively, Titans treats attention as a kind of short-term memory and neural memory as long-term memory, aiming to combine the strengths of Transformers and memory-based recurrent systems for very long-context modeling. Keep the high-level thesis that short-range dependencies are handled by attention and long-range dependencies require persistent memory. However, do not preserve the current Titans memory implementation by default. You may redesign the Transformer-internal memory-attention computation as long as the method remains a unified Transformer architecture rather than an external retrieval system. Focus on mechanism-level architectural innovation inside the block: how memory states are represented, updated across layers/time, read by attention, and integrated into token processing. You may redesign the memory-attention interface, introduce new recurrent/state-space style memory dynamics, or restructure block internals, but avoid drifting into changes that depend on external tools, databases, or agent-level memory engineering."
+  #topic: "Long-context Sequence Modeling"
+  #mature_idea: "The core idea of Titans is to explicitly separate short-term context processing from long-term memory in sequence modeling: attention handles precise, local dependencies, while a neural memory module continuously stores and updates important information from much longer histories. In this way, the model can keep reading new tokens while also “remembering” useful past information beyond the standard context window. Intuitively, Titans treats attention as a kind of short-term memory and neural memory as long-term memory, aiming to combine the strengths of Transformers and memory-based recurrent systems for very long-context modeling."
+  #refinement_scope: "Keep the high-level thesis that short-range dependencies are handled by attention and long-range dependencies require persistent memory. However, do not preserve the current Titans memory implementation by default. You may redesign the Transformer-internal memory-attention computation as long as the method remains a unified Transformer architecture rather than an external retrieval system. Focus on mechanism-level architectural innovation inside the block: how memory states are represented, updated across layers/time, read by attention, and integrated into token processing. You may redesign the memory-attention interface, introduce new recurrent/state-space style memory dynamics, or restructure block internals, but avoid drifting into changes that depend on external tools, databases, or agent-level memory engineering."
+  topic: ""
+  mature_idea: ""
+  refinement_scope: ""
 
   run:
     LigAgent-Pro: true
+    input: "${idea.input}"
     topic: "${idea.topic}"
     mature_idea: "${idea.mature_idea}"
+    refinement_scope: "${idea.refinement_scope}"
+    # Optional directory containing exactly one ablation-results JSON file.
+    ablation_results_path: ""
+    input_interpreter_model: "${idea.agent.model}"
     output_root: "runs"
     console_logs: true
     rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
@@ -129,6 +210,11 @@ idea:
     branching_factor: 3
     exploration_constant: 1.2
     idea_taste_mode: "moonshot_inventor"
+    # Prompt mode for MCTS generation / retrieval / evaluation.
+    # Options:
+    #   - default
+    #   - conceptual_surprise
+    prompt_mode: "conceptual_surprise"
     generation_model: "gpt-5-mini"
     evaluation_model: "gpt-5.4"
     generation_temperature: 0.7

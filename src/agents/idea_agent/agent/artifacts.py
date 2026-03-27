@@ -15,17 +15,16 @@ ARTIFACT_NAMESPACES = (
 
 FIELD_SPECS: Dict[str, Dict[str, Any]] = {
     "topic": {"namespace": "run", "path": "topic", "kind": "list"},
-    "run_topic": {"namespace": "run", "path": "run_topic", "kind": "str"},
     "mature_idea": {"namespace": "run", "path": "mature_idea", "kind": "str"},
-    "dialogue": {"namespace": "run", "path": "dialogue", "kind": "dict"},
+    "mature_idea_source": {"namespace": "run", "path": "mature_idea_source", "kind": "str"},
+    "refinement_scope": {"namespace": "run", "path": "refinement_scope", "kind": "str"},
+    "refinement_scope_source": {"namespace": "run", "path": "refinement_scope_source", "kind": "str"},
     "steps": {"namespace": "run", "path": "steps", "kind": "list"},
     "workflow_trace": {"namespace": "run", "path": "workflow_trace", "kind": "list"},
     "workflow_state": {"namespace": "run", "path": "workflow_state", "kind": "dict"},
     "context_slots": {"namespace": "run", "path": "context_slots", "kind": "dict"},
     "operation_trace": {"namespace": "run", "path": "operation_trace", "kind": "list"},
     "idea_taste_mode": {"namespace": "run", "path": "idea_taste_mode", "kind": "str"},
-    "idea_taste_label": {"namespace": "run", "path": "idea_taste_label", "kind": "str"},
-    "survey": {"namespace": "retrieval", "path": "survey", "kind": "str"},
     "retrieval_keywords": {"namespace": "retrieval", "path": "retrieval_keywords", "kind": "list"},
     "references": {"namespace": "retrieval", "path": "references", "kind": "list"},
     "rag_query": {"namespace": "retrieval", "path": "rag_query", "kind": "list"},
@@ -43,7 +42,6 @@ FIELD_SPECS: Dict[str, Dict[str, Any]] = {
     "ablation_results_raw": {"namespace": "ideation", "path": "ablation_results_raw", "kind": "dict"},
     "ltm_experiences": {"namespace": "ideation", "path": "ltm_experiences", "kind": "list"},
     "idea_result": {"namespace": "persistence", "path": "idea_result", "kind": "dict"},
-    "artifact_structure": {"namespace": "persistence", "path": "artifact_structure", "kind": "dict"},
 }
 
 
@@ -87,20 +85,19 @@ class ArtifactContainer(dict):
 def _namespace_defaults() -> Dict[str, Dict[str, Any]]:
     return {
         "run": {
-            "run_topic": "",
             "topic": [],
             "mature_idea": "",
-            "dialogue": {},
+            "mature_idea_source": "",
+            "refinement_scope": "",
+            "refinement_scope_source": "",
             "steps": [],
             "workflow_trace": [],
             "workflow_state": {},
             "context_slots": {},
             "operation_trace": [],
             "idea_taste_mode": "",
-            "idea_taste_label": "",
         },
         "retrieval": {
-            "survey": "",
             "retrieval_keywords": [],
             "references": [],
             "rag_query": [],
@@ -124,7 +121,6 @@ def _namespace_defaults() -> Dict[str, Dict[str, Any]]:
         },
         "persistence": {
             "idea_result": {},
-            "artifact_structure": {},
             "schema_version": 4,
         },
     }

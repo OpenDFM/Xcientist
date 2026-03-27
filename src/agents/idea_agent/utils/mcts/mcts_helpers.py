@@ -1,10 +1,10 @@
 """Shared helper functions for MCTS parsing, normalization, fallback logic, and formatting."""
 
-import json
 import re
 
 from typing import Any, Dict, List, Sequence, Set, Tuple
 
+from src.agents.idea_agent.utils.core.json_utils import compact_json
 from src.agents.idea_agent.utils.prompting.prompt_views import format_analysis_prompt_view
 
 
@@ -22,6 +22,66 @@ ROOT_DOMAIN_CATALOG: Dict[str, str] = {
     "stat.ML": "Machine Learning (Statistics)",
 }
 DEFAULT_ROOT_DOMAIN = "cs.LG"
+_CONTROL_CORE_RE = re.compile(
+    r"\b(threshold\w*|gat\w*|suppress\w*|quota\w*|controller\w*|control\w*)\b",
+    re.IGNORECASE,
+)
+_FORBIDDEN_QUERY_TERM_RE = re.compile(
+    r"\b(threshold\w*|gat\w*|suppress\w*|quota\w*)\b",
+    re.IGNORECASE,
+)
+_EXECUTION_PATH_SCOPE_RE = re.compile(
+    r"\b(path|branch|fallback|route|routing|pipeline|repair|recovery|speculat\w*)\b",
+    re.IGNORECASE,
+)
+_BROAD_ARCHITECTURE_SCOPE_RE = re.compile(
+    r"\b(hierarch\w*|architecture|system|multi scale|multiscale|coordinat\w*|global)\b",
+    re.IGNORECASE,
+)
+_MULTI_PATH_SHAPE_RE = re.compile(
+    r"\b(path|branch|fallback|repair|hierarch\w*|multi scale|multiscale|feedback|monitor|speculat\w*)\b",
+    re.IGNORECASE,
+)
+_TRAINING_FREE_RE = re.compile(
+    r"\b(training free|inference time|no training|without training|frozen)\b",
+    re.IGNORECASE,
+)
+_SCOPE_KIND_BY_DEFECT: Dict[str, Set[str]] = {
+    "existing_component": {
+        "stagnant_novelty",
+        "unclear_mechanism",
+        "validation_gap",
+        "feature_dumping",
+        "harder_to_ablate",
+    },
+    "existing_subsystem": {
+        "theory_gap",
+        "weak_generalization",
+    },
+    "execution_path": {
+        "brittle_single_path",
+        "rare_regime_failure",
+        "weak_fallback_behavior",
+        "silent_failure",
+        "drift",
+        "open_loop_fragility",
+        "over_conservative_execution",
+        "rollback_blindspot",
+        "latency_bottleneck",
+    },
+    "broad_architecture": {
+        "monolithic_design",
+        "scale_mismatch",
+        "coordination_failure",
+        "responsibility_entanglement",
+    },
+}
+_SCOPE_KIND_PRIORITY: Dict[str, int] = {
+    "existing_subsystem": 0,
+    "existing_component": 1,
+    "execution_path": 2,
+    "broad_architecture": 3,
+}
 _ROOT_DOMAIN_FALLBACK_RULES: Tuple[Tuple[str, str], ...] = (
     ("cs.CV", "vision image video segmentation detection visual multimodal camera pixel"),
     ("cs.CL", "language text llm nlp translation summarization dialogue speech token prompt"),
@@ -37,33 +97,92 @@ _ROOT_DOMAIN_FALLBACK_RULES: Tuple[Tuple[str, str], ...] = (
 )
 
 
-def parse_json_response(raw: str) -> Dict[str, Any]:
-    """
-    Strip potential code fences and capture the first JSON object/array.
-    Fallbacks to incremental decoding if the model prepends commentary.
-    """
-    text = (raw or "").strip()
-    if not text:
-        raise ValueError("Empty response")
-    if text.startswith("```"):
-        fence_end = text.find("\n")
-        if fence_end != -1:
-            text = text[fence_end + 1 :]
-        if text.endswith("```"):
-            text = text[: -3]
-    text = text.strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        decoder = json.JSONDecoder()
-        for idx, ch in enumerate(text):
-            if ch in "{[":
-                try:
-                    parsed, _ = decoder.raw_decode(text[idx:])
-                    return parsed
-                except json.JSONDecodeError:
-                    continue
-    raise ValueError(f"Unable to parse JSON from response: {text[:200]}")
+def normalize_term_scan_text(text: str) -> str:
+    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", str(text))
+    normalized = normalized.replace("_", " ").replace("-", " ")
+    return normalized.lower()
+
+
+def _parent_state_text(parent_state: Any) -> str:
+    return "\n".join(
+        [
+            parent_state.title,
+            parent_state.abstract,
+            parent_state.core_contribution,
+            parent_state.method,
+            " ".join(parent_state.components or []),
+            " ".join((parent_state.component_explanations or {}).values()),
+        ]
+    )
+
+
+def parent_centers_control_surface(parent_state: Any) -> bool:
+    return bool(_CONTROL_CORE_RE.search(normalize_term_scan_text(_parent_state_text(parent_state))))
+
+
+def text_uses_forbidden_query_terms(text: str) -> bool:
+    return bool(_FORBIDDEN_QUERY_TERM_RE.search(normalize_term_scan_text(text)))
+
+
+def _infer_scope_kind_from_defects(defect_tags: Sequence[str]) -> str:
+    counts = {scope_kind: 0 for scope_kind in _SCOPE_KIND_BY_DEFECT}
+    for defect in defect_tags or []:
+        normalized = str(defect).strip().lower()
+        if not normalized:
+            continue
+        for scope_kind, tagged_defects in _SCOPE_KIND_BY_DEFECT.items():
+            if normalized in tagged_defects:
+                counts[scope_kind] += 1
+                break
+
+    ranked = [
+        (count, _SCOPE_KIND_PRIORITY[scope_kind], scope_kind)
+        for scope_kind, count in counts.items()
+        if count > 0
+    ]
+    if not ranked:
+        return ""
+    return max(ranked)[2]
+
+
+def build_structural_profile(
+    parent_state: Any,
+    *,
+    refinement_scope: str,
+    mature_idea: str,
+    defect_tags: Sequence[str] = (),
+) -> Dict[str, Any]:
+    scope_text = normalize_term_scan_text(refinement_scope or "")
+    component_names = [
+        normalize_term_scan_text(component)
+        for component in parent_state.components
+        if str(component).strip()
+    ]
+    parent_text = normalize_term_scan_text(_parent_state_text(parent_state))
+    if scope_text and any(name and name in scope_text for name in component_names):
+        scope_kind = "existing_component"
+    elif scope_text and _BROAD_ARCHITECTURE_SCOPE_RE.search(scope_text):
+        scope_kind = "broad_architecture"
+    elif scope_text and _EXECUTION_PATH_SCOPE_RE.search(scope_text):
+        scope_kind = "execution_path"
+    elif scope_text:
+        scope_kind = "existing_subsystem"
+    else:
+        defect_scope_kind = _infer_scope_kind_from_defects(defect_tags)
+        if defect_scope_kind:
+            scope_kind = defect_scope_kind
+        elif _MULTI_PATH_SHAPE_RE.search(parent_text):
+            scope_kind = "execution_path"
+        else:
+            scope_kind = "existing_subsystem"
+    return {
+        "control_centered": parent_centers_control_surface(parent_state),
+        "has_multi_path_shape": bool(_MULTI_PATH_SHAPE_RE.search(parent_text)),
+        "scope_kind": scope_kind,
+        "training_free_like": bool(
+            _TRAINING_FREE_RE.search(normalize_term_scan_text(mature_idea or parent_state.method))
+        ),
+    }
 
 
 def format_analysis_blob(analysis: List[Any]) -> str:
@@ -159,16 +278,6 @@ def _infer_root_domains_heuristically(topic: str, text: str) -> List[str]:
     if "cs.LG" in ranked and "cs.LG" not in chosen and len(chosen) < 2:
         chosen.append("cs.LG")
     return _normalize_root_domains(chosen or [DEFAULT_ROOT_DOMAIN])
-
-
-def _pretty_json(value: Any) -> str:
-    if isinstance(value, (dict, list)):
-        try:
-            return json.dumps(value, ensure_ascii=False, indent=2, default=str)
-        except Exception:
-            return str(value)
-    return str(value)
-
 
 def _humanize_component_name(component: str) -> str:
     raw = str(component).strip()
@@ -281,10 +390,7 @@ def _clean_component_explanation(explanation: Any, fallback_component: str) -> s
                     seen_chunks.add(norm)
             if ordered_chunks:
                 return " ".join(ordered_chunks)
-            try:
-                return json.dumps(value, ensure_ascii=False)
-            except Exception:
-                return str(value)
+            return compact_json(value)
         if isinstance(value, (list, tuple, set)):
             parts: List[str] = []
             seen_parts: Set[str] = set()
@@ -447,115 +553,11 @@ def _dedupe_keep_order_strings(items: Sequence[str]) -> List[str]:
         ordered.append(text)
     return ordered
 
-
-def _safe_pretty_json(value: Any, pretty_json: Any = None) -> str:
-    if pretty_json:
-        try:
-            return pretty_json(value)
-        except Exception:
-            pass
-    try:
-        return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True)
-    except Exception:
-        return str(value)
-
-
 def _safe_float_default(value: Any, fallback: float = 0.0) -> float:
     try:
         return float(value)
     except (TypeError, ValueError):
         return fallback
-
-
-def normalize_budget_dict(budget: Dict[str, Any]) -> Dict[str, Any]:
-    if not isinstance(budget, dict):
-        return {}
-    cleaned: Dict[str, Any] = {}
-    for key, value in budget.items():
-        if isinstance(value, (int, float)):
-            cleaned[str(key)] = float(value)
-        else:
-            try:
-                cleaned[str(key)] = float(value)
-            except (TypeError, ValueError):
-                cleaned[str(key)] = value
-    return cleaned
-
-
-def apply_budget_delta_to_parent(
-    parent_budget: Dict[str, Any],
-    delta: Dict[str, Any],
-) -> Dict[str, Any]:
-    next_budget = normalize_budget_dict(parent_budget)
-    for key, val in (delta or {}).items():
-        if key not in next_budget:
-            next_budget[key] = _safe_float_default(val, 0.0)
-            continue
-        base = next_budget.get(key)
-        if isinstance(base, (int, float)):
-            next_budget[key] = round(float(base) + _safe_float_default(val, 0.0), 4)
-    return next_budget
-
-
-def build_fallback_theory_transfer_query(
-    plan: Any,
-    *,
-    root_domains_text: str,
-    clip_limit: int,
-) -> Dict[str, str]:
-    target_defects = getattr(plan, "target_defects", []) or []
-    target_defect = next((str(tag).strip() for tag in target_defects if str(tag).strip()), "core gap")
-    component_names = [
-        str(getattr(edit, "component", "")).strip()
-        for edit in (getattr(plan, "component_edits", []) or [])
-        if str(getattr(edit, "component", "")).strip()
-        and getattr(getattr(edit, "op", None), "value", str(getattr(edit, "op", ""))) != "ADD_PROTOCOL"
-    ]
-    mechanism_target = component_names[0] if component_names else "core mechanism"
-    needed_content = (
-        f"The current idea still needs a transferable mechanism that strengthens {mechanism_target} "
-        f"while addressing {target_defect}."
-    )
-    expected_role = (
-        "The retrieved mechanism should plug into the current design as a focused theory-backed module "
-        f"without changing the idea's home domain ({root_domains_text})."
-    )
-    query = f"{needed_content} Expected role: {expected_role}"
-    return {
-        "query": clip_text(query, clip_limit),
-        "needed_content": clip_text(needed_content, clip_limit),
-        "expected_role": clip_text(expected_role, clip_limit),
-    }
-
-
-def build_fallback_mechanism_commit_query(
-    plan: Any,
-    *,
-    root_domains_text: str,
-    clip_limit: int,
-) -> Dict[str, str]:
-    target_defects = getattr(plan, "target_defects", []) or []
-    target_defect = next((str(tag).strip() for tag in target_defects if str(tag).strip()), "core gap")
-    component_names = [
-        str(getattr(edit, "component", "")).strip()
-        for edit in (getattr(plan, "component_edits", []) or [])
-        if str(getattr(edit, "component", "")).strip()
-        and getattr(getattr(edit, "op", None), "value", str(getattr(edit, "op", ""))) != "ADD_PROTOCOL"
-    ]
-    mechanism_target = component_names[0] if component_names else "core mechanism"
-    mechanism_gap = (
-        f"The current idea needs a concrete mechanism for {mechanism_target} to address {target_defect} "
-        f"within the root domain(s) {root_domains_text}."
-    )
-    expected_role = (
-        f"The retrieved mechanism should plug into the primary execution path as the main task-solving module for {mechanism_target}."
-    )
-    query = f"{mechanism_gap} Expected role: {expected_role}"
-    return {
-        "query": clip_text(query, clip_limit),
-        "mechanism_gap": clip_text(mechanism_gap, clip_limit),
-        "expected_role": clip_text(expected_role, clip_limit),
-    }
 
 
 def normalize_theory_transfer_query_payload(
@@ -706,7 +708,12 @@ def format_mechanism_commit_references(
                 lines.append(
                     f"   matched_component: {component_name or 'unknown'} | {component_summary}"
                 )
-    lines.append("Use these nodes to ground the concrete mechanism choice and execution path details.")
+    lines.append(
+        "Use these nodes to ground the concrete mechanism choice and execution path details."
+    )
+    lines.append(
+        "Use them as grounding patterns, not as modules to copy verbatim."
+    )
     return "\n".join(lines)
 
 

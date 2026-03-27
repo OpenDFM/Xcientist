@@ -7,6 +7,9 @@ You are a component-level fusion agent for LigAgent-Pro.
 == Current mature idea ==
 {mature_idea}
 
+== Refinement scope (optional) ==
+{refinement_scope}
+
 == Shared root domains ==
 {root_domains}
 
@@ -30,7 +33,6 @@ Return STRICT JSON only:
     "operator": "fusion_agent",
     "target_defects": ["string"],
     "rationale": "string",
-    "budget": {{}},
     "components": ["string"],
     "component_explanations": {{
       "component_name": "string"
@@ -80,6 +82,10 @@ Return STRICT JSON only:
 - Other kept components must be support modules, not a second competing core mechanism.
 - When you reuse a component, copy its name exactly from `components`.
 - Protocol, guardrail, evaluator, or audit components cannot be the main novelty.
+- Gate/router/controller/threshold-style components should almost never be the dominant core mechanism. Prefer the underlying task-solving mechanism, representation change, update rule, or transferred principle instead.
+- If the current mature idea is not centered on gating or routing, preserve that character in fusion. Do not elevate a gate/router wrapper into the fused thesis just because it is easy to combine.
+- If a gate/router/controller/threshold component mainly patches complexity created by another weak choice, reject it instead of carrying that patch into the fused idea.
+- If refinement_scope is provided, keep the fused novelty inside that scope. Reject candidates that look strong only because they move the contribution to a different subsystem.
 - Remove components that are redundant, conflicting, or only exist to patch complexity created by another weak choice.
 - Prefer components that strengthen novelty and impact while keeping the causal story coherent.
 - The final fused idea must read like one method with one clear causal chain.
@@ -92,6 +98,7 @@ You are materializing a local repair plan into a revised fused research idea.
 == Context ==
 Topic: {topic}
 Fixed root domains: {root_domains}
+Refinement scope: {refinement_scope}
 Current fused idea: {parent_summary}
 Current fused components: {parent_components}
 Literature context: {paper_context}
@@ -113,8 +120,10 @@ Guardrails: {guardrails}
 3. Treat component names in the repair plan as exact symbols. Do not rename or paraphrase them.
 4. Do not introduce extra structural components beyond what is already in the fused idea plus the explicit repair edits.
 5. Write a concrete title, abstract, core contribution, method, risks, and rationale for the repaired idea.
-6. Provide a `component_mapping` only for names that literally appear in the repair plan. Since these names are already concrete, use identity mappings such as `"router": "router"`.
-7. Provide `component_role_explanations` only for concrete names that appear in `component_mapping`.
+6. Avoid centering the repaired idea on a gate/router/controller/threshold component unless the current fused idea already depends on that mechanism as its core thesis.
+7. If `refinement_scope` is provided and not equal to `None`, keep the repaired novelty inside that scope.
+8. Provide a `component_mapping` only for names that literally appear in the repair plan. Since these names are already concrete, use identity mappings such as `"memory_updater": "memory_updater"`.
+9. Provide `component_role_explanations` only for concrete names that appear in `component_mapping`.
 
 Return STRICT JSON (no Markdown wrapping):
 {{
@@ -181,11 +190,13 @@ Return STRICT JSON only:
 
 == Repair rules == 
 - Use ONLY these operations: REMOVE_COMPONENT, REPLACE_COMPONENT, REWIRE.
-- Do NOT use ADD_COMPONENT, GATE_COMPONENT, or ADD_PROTOCOL.
+- Do NOT use ADD_COMPONENT or ADD_PROTOCOL.
 - Do NOT increase the number of structural components.
 - Prefer one small local repair, not a rewrite of the whole idea.
 - At least one structural edit must be present unless you choose to stop.
 - Replacements should come from source-mode components or be tighter versions of the current role.
+- Prefer removing or replacing gate/router/controller/threshold-style components when they are auxiliary scaffolding rather than the true core mechanism.
+- If a gate/router/controller/threshold component is only patching complexity created elsewhere, treat that as evidence to simplify the architecture rather than preserve the patch.
 - If no likely-improving local repair exists, set stop=true.
 - Treat component names as STRICT symbols, not paraphrases.
 - When you mention an existing component from the current fused idea, copy its name exactly, character-for-character.
@@ -229,15 +240,16 @@ Return STRICT JSON only:
   {{
     "op": "REWIRE",
     "component": "uncertainty estimator",
-    "target": "controller",
+    "target": "memory_updater",
     "condition": "",
-    "details": "Rewire uncertainty estimator -> controller",
-    "reason": "Lets the controller react directly to uncertainty"
+    "details": "Rewire uncertainty estimator -> memory_updater",
+    "reason": "Lets the update rule react directly to uncertainty"
   }}
 
 == Invalid patterns ==
-- Invalid: using ADD_COMPONENT, GATE_COMPONENT, or ADD_PROTOCOL.
+- Invalid: using ADD_COMPONENT or ADD_PROTOCOL.
 - Invalid: setting REPLACE_COMPONENT with "component" as the old name and "target" as the new name.
-- Invalid: inventing a near-match such as "dynamic uncertainty-aware controller" when the listed component is "uncertainty-aware controller".
+- Invalid: inventing a near-match such as "dynamic uncertainty-aware updater" when the listed component is "uncertainty-aware updater".
 - Invalid: producing a plan that effectively adds a new structural component instead of locally repairing the existing fused idea.
+- Invalid: preserving a gate/router/controller/threshold component as the repaired core mechanism when it only acts as auxiliary scaffolding.
 """

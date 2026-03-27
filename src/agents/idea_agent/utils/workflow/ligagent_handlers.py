@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from src.agents.idea_agent.agent.artifacts import artifact_get
 from src.agents.idea_agent.agent.prompts import PROMPTS
 from src.agents.idea_agent.utils.core.config_loader import get_config_value
+from src.agents.idea_agent.utils.core.json_utils import pretty_json
 from src.agents.idea_agent.utils.core.logger import (
     get_or_create_mode_logger,
     suspend_console_handlers,
@@ -39,9 +39,12 @@ from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     result_to_best_entry,
     retrieve_outcome_rag,
     root_idea_to_mature_idea_text,
+    root_idea_to_refinement_scope_text,
     search_core_nodes_from_citations,
     search_core_nodes_from_query,
     select_core_references,
+    should_preserve_current_mature_idea,
+    preserve_mature_idea_as_root,
 )
 from src.agents.idea_agent.utils.workflow.ligagent_utils import (
     collect_paper_context_entries,
@@ -116,6 +119,9 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     reference_batches = artifact_get(artifact, "references", [])
     references = reference_batches[-1] if reference_batches else []
     mature_idea = artifact_get(artifact, "mature_idea", "")
+    mature_idea_source = artifact_get(artifact, "mature_idea_source", "")
+    refinement_scope = artifact_get(artifact, "refinement_scope", "")
+    refinement_scope_source = artifact_get(artifact, "refinement_scope_source", "")
     ablation_results = artifact_get(artifact, "ablation_results", [])
     rag_contents = artifact_get(artifact, "rag_contents", [])
     latest_rag_contents = rag_contents[-1] if rag_contents else []
@@ -153,10 +159,13 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     prompt = PROMPTS["advanced_analysis"].format(
         topic=topic,
         mature_idea=(mature_idea or "").strip(),
+        mature_idea_source=(mature_idea_source or "empty").strip(),
+        refinement_scope=(refinement_scope or "").strip(),
+        refinement_scope_source=(refinement_scope_source or "empty").strip(),
         survey_contents="\n".join(latest_rag_contents) if isinstance(latest_rag_contents, list) else "",
         papers=format_paper_capsules_prompt_view(references),
         experiment_findings=(
-            json.dumps(experiment_findings, ensure_ascii=False, indent=2)
+            pretty_json(experiment_findings)
             if isinstance(experiment_findings, dict) and experiment_findings
             else "None"
         ),
@@ -175,7 +184,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     if isinstance(response, (dict, list)):
         logger.info(
             "📝 Advanced Analysis Result:\n%s",
-            json.dumps(response, ensure_ascii=False, indent=2),
+            pretty_json(response),
         )
     else:
         logger.info("📝 Advanced Analysis Result:\n%s", response)
@@ -183,6 +192,26 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     if experiment_findings is not None:
         response["experiment_findings"] = experiment_findings
     root_idea = extract_root_idea_from_analysis(response, topic=topic)
+    preserved_mature_idea = False
+    if isinstance(mature_idea, str) and mature_idea.strip():
+        preserve_original, preserve_reason = should_preserve_current_mature_idea(
+            response,
+            root_idea,
+            mature_idea,
+        )
+        if preserve_original:
+            preserved_mature_idea = True
+            response["preserve_current_idea"] = {
+                "keep_original": True,
+                "reason": preserve_reason,
+            }
+            root_idea = preserve_mature_idea_as_root(
+                topic,
+                mature_idea,
+                target_defects=list(root_idea.get("target_defects") or ["unclear_mechanism"]),
+                reason=preserve_reason,
+            )
+            response["tldr"] = preserve_reason
     response["root_idea"] = root_idea
     existing_background = set(artifact_get(artifact, "background_knowledge", []))
     background_lines = [
@@ -193,8 +222,35 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
     if session is not None:
         session.set_slot("analysis.latest", response)
     replace_patch: Dict[str, Any] = {"root_idea": root_idea}
+    grounded_mature_idea = str(response.get("grounded_mature_idea") or "").strip()
+    grounded_refinement_scope = str(response.get("grounded_refinement_scope") or "").strip()
+    current_mature_source = str(mature_idea_source or ("empty" if not str(mature_idea or "").strip() else "unknown"))
+    current_scope_source = str(
+        refinement_scope_source or ("empty" if not str(refinement_scope or "").strip() else "unknown")
+    )
+    if current_mature_source in {"empty", "input_inferred"}:
+        promoted = grounded_mature_idea or root_idea_to_mature_idea_text(root_idea)
+        if promoted:
+            replace_patch["mature_idea"] = promoted
+            replace_patch["mature_idea_source"] = "analysis_grounded"
+            if session is not None:
+                session.set_slot("mature_idea.latest", promoted)
+    if current_scope_source in {"empty", "input_inferred"} and grounded_refinement_scope:
+        replace_patch["refinement_scope"] = grounded_refinement_scope
+        replace_patch["refinement_scope_source"] = "analysis_grounded"
+    elif current_scope_source in {"empty", "input_inferred"}:
+        fallback_scope = root_idea_to_refinement_scope_text(root_idea)
+        if fallback_scope:
+            replace_patch["refinement_scope"] = fallback_scope
+            replace_patch["refinement_scope_source"] = "analysis_grounded"
     promoted_root_to_mature = False
-    if isinstance(mature_idea, str) and mature_idea.strip() and not ablation_results:
+    if (
+        isinstance(mature_idea, str)
+        and mature_idea.strip()
+        and current_mature_source not in {"empty", "input_inferred"}
+        and not ablation_results
+        and not preserved_mature_idea
+    ):
         promoted_mature_idea = root_idea_to_mature_idea_text(root_idea)
         if promoted_mature_idea:
             replace_patch["mature_idea"] = promoted_mature_idea
@@ -223,6 +279,7 @@ def execute_advanced_analysis_stage(agent: Any, ctx: StageContext) -> StageResul
             "root_idea_title": root_idea.get("title"),
             "experiment_findings_used": bool(experiment_findings),
             "promoted_root_to_mature_idea": promoted_root_to_mature,
+            "preserved_mature_idea": preserved_mature_idea,
         },
     )
 
@@ -251,6 +308,7 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
         else None
     )
     mature_idea = artifact_get(artifact, "mature_idea", "")
+    refinement_scope = artifact_get(artifact, "refinement_scope", "")
     component_decisions = artifact_get(artifact, "component_decisions", [])
     prior_components, prior_component_explanations = prior_component_seed(
         latest_candidate_payload,
@@ -270,6 +328,8 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
     }
     if isinstance(mature_idea, str) and mature_idea.strip():
         context["mature_idea"] = mature_idea.strip()
+    if isinstance(refinement_scope, str) and refinement_scope.strip():
+        context["refinement_scope"] = refinement_scope.strip()
     if prior_components:
         context["prior_components"] = prior_components
         context["prior_component_explanations"] = prior_component_explanations
@@ -462,13 +522,15 @@ def execute_reanalysis_replan_stage(agent: Any, ctx: StageContext) -> StageResul
     analysis = analysis_entries[-1] if analysis_entries else {}
     ablation_results = artifact_get(artifact, "ablation_results", [])
     mature_idea = artifact_get(artifact, "mature_idea", "")
+    refinement_scope = artifact_get(artifact, "refinement_scope", "")
     topic = artifact_get(artifact, "topic", [])[-1]
 
     prompt = PROMPTS["re_analysis_replan"].format(
         topic=topic,
         mature_idea=mature_idea or "(no mature idea yet)",
-        analysis=json.dumps(analysis, ensure_ascii=False, indent=2) if isinstance(analysis, dict) else str(analysis),
-        ablation_results=json.dumps(ablation_results, ensure_ascii=False, indent=2) if ablation_results else "[]",
+        refinement_scope=(refinement_scope or "").strip(),
+        analysis=pretty_json(analysis) if isinstance(analysis, dict) else str(analysis),
+        ablation_results=pretty_json(ablation_results) if ablation_results else "[]",
     )
     response = runtime.llm_json(
         session=session,
@@ -524,6 +586,7 @@ def ka_route_stage(agent: Any, ctx: StageContext) -> StageResult:
     topic_history = artifact_get(artifact, "topic", [])
     topic = topic_history[-1] if topic_history else search_keywords
     mature_idea = (artifact_get(artifact, "mature_idea", "") or "").strip()
+    refinement_scope = (artifact_get(artifact, "refinement_scope", "") or "").strip()
     mode = "mature_idea" if mature_idea else "standard"
     return StageResult(
         state_patch={
@@ -531,6 +594,7 @@ def ka_route_stage(agent: Any, ctx: StageContext) -> StageResult:
             "topic": topic,
             "search_keywords": search_keywords,
             "mature_idea": mature_idea,
+            "refinement_scope": refinement_scope,
             "rag_query": "",
             "rag_hits": [],
             "survey_contents": [],
@@ -550,6 +614,7 @@ def ka_query_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
 
     mode = ctx.state["mode"]
     mature_idea = ctx.state.get("mature_idea", "")
+    refinement_scope = ctx.state.get("refinement_scope", "")
     topic = ctx.state["topic"]
     search_keywords = ctx.state["search_keywords"]
     query_topic = search_keywords or topic
@@ -560,6 +625,7 @@ def ka_query_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
         agent.model,
         logger,
         mature_idea=mature_idea if mature_idea else None,
+        refinement_scope=refinement_scope if refinement_scope else None,
     )
     logger.info(
         "🔎 Generated RAG Query%s: %s",

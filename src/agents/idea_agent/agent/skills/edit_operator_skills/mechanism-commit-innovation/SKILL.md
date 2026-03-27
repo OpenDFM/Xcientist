@@ -1,6 +1,6 @@
 ---
 name: mechanism-commit-innovation
-description: Commit to one concrete mechanism-level innovation and keep scaffolding secondary to the task-solving path.
+description: Commit to one concrete mechanism-level innovation by strengthening one weak existing component and keep scaffolding secondary to the task-solving path.
 ---
 
 ## defect_tags
@@ -9,20 +9,29 @@ description: Commit to one concrete mechanism-level innovation and keep scaffold
 - validation_gap
 
 ## guardrails
-- Name the exact mechanism being introduced and the primary execution path it changes.
+- Name the exact mechanism being introduced and the existing component it strengthens or replaces.
 - Keep one main mechanism; move supporting implementation details to notes or protocols.
+- Prefer direct replacement of the weak internal block over adding a broader coordination structure.
 - Use the smallest validation suite that can falsify the core mechanism.
 
+## structural_mode
+- local_refinement
+
+## scope_preference
+- existing_component
+
+## requires_control_centered_parent
+- false
+
 ## atomic_blueprint
-- ADD_COMPONENT(core_mechanism_module)
-- REWIRE(core_mechanism_module -> primary_execution_path)
+- REPLACE_COMPONENT(weak_internal_component -> refined_internal_component)
 - ADD_PROTOCOL(ablation)
 
 ## required_protocols
 - ablation
 
 ## avoid_combinations
-- REMOVE_COMPONENT(core_mechanism_module) in the same plan
+- ADD_COMPONENT(refined_internal_component) in the same plan
 
 ## execution_logic
 1. Identify the defect from `defect_tags`.

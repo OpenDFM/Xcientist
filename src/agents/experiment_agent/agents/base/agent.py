@@ -913,6 +913,9 @@ class OpenHandsBaseAgent(ABC):
             GLOBAL_MCP_PREWARM_CACHE.add(warmup_signature)
         self._mcp_prewarmed = True
 
+    # Class attribute for template-based system prompt - subclasses should set this
+    SYSTEM_PROMPT_TEMPLATE: str = None
+
     def _create_conversation(
         self, tools: List[Tool], system_prompt: str = None
     ) -> Conversation:
@@ -925,15 +928,41 @@ class OpenHandsBaseAgent(ABC):
         mcp_config = self._build_mcp_config()
         self._prewarm_mcp_servers(mcp_config)
 
-        agent = Agent(
-            llm=self.llm,
-            system_prompt_kwargs={"prompt": instructions},
-            tools=tools,
-            agent_context=agent_context,
-            condenser=self._get_condenser(),
-            mcp_config=mcp_config,
-            filter_tools_regex=filter_tools_regex,
-        )
+        # Build AgentContext with system_message_suffix properly set
+        from openhands.sdk.context import AgentContext
+        if agent_context is None:
+            new_agent_context = AgentContext(
+                skills=[],
+                system_message_suffix=instructions,
+                load_public_skills=False,
+            )
+        else:
+            new_agent_context = AgentContext(
+                skills=agent_context.skills,
+                system_message_suffix=instructions,
+                load_public_skills=False,
+            )
+
+        # Check if we should use a template file
+        template_path = None
+        if self.SYSTEM_PROMPT_TEMPLATE:
+            # __file__ is .../src/agents/experiment_agent/agents/base/agent.py
+            # 3 dirname calls gives .../src/agents/experiment_agent
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+            template_path = os.path.join(base_dir, "prompts", self.SYSTEM_PROMPT_TEMPLATE)
+
+        agent_kwargs = {
+            "llm": self.llm,
+            "tools": tools,
+            "agent_context": new_agent_context,
+            "condenser": self._get_condenser(),
+            "mcp_config": mcp_config,
+            "filter_tools_regex": filter_tools_regex,
+        }
+        if template_path:
+            agent_kwargs["system_prompt_filename"] = template_path
+
+        agent = Agent(**agent_kwargs)
 
         has_orchestration_tool = any(
             getattr(tool, "name", "") == TaskToolSet.name

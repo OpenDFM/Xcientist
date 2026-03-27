@@ -13,6 +13,8 @@ from pathlib import Path
 from sentence_transformers import SentenceTransformer
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from src.agents.idea_agent.utils.core.json_utils import read_json_file
+
 _REPO_ROOT = Path(__file__).resolve().parents[5]
 _DEFAULT_MODEL_NAME = "bge-m3"
 _FAISS_FILE = "faiss.index"
@@ -272,7 +274,7 @@ class PaperGraphComponentVectorStore:
         if not faiss_path.exists() or not metadata_path.exists():
             raise FileNotFoundError(f"Component index files are missing under {target_dir}")
 
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        metadata = read_json_file(metadata_path)
 
         self._index = faiss.read_index(str(faiss_path))
         self.index_dir = target_dir

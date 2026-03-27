@@ -23,14 +23,17 @@ Help the master agent decide whether another iteration is needed by reading the 
   - `experiment_standard_science_planner`
   - `experiment_ablation_science_planner`
 - The master loop should not invent new phase or lane names.
+- **MANDATORY PHASE ORDER**: Code implementation (experiment_code_planner) MUST be completed before running any experiments (standard_science or ablation_science).
+  - If `agent_reports/code_validator_report.json` does not exist with status PASS, you MUST choose `experiment_code_planner`.
+  - If code implementation is incomplete or missing, experiments cannot run meaningfully.
 - The only control output the outer loop consumes is:
   - `{"continue_iteration": true}`
   - `{"continue_iteration": false}`
-- When `continue_iteration` becomes `false`, the outer runtime stops the master loop and then runs the final ablation report integrator.
+- When `continue_iteration` becomes `false`, the outer runtime stops the master loop.
 
 ## Hard Rule
 - Natural-language summaries can support a decision but never replace the underlying experiment evidence.
 - Smoke/debug/subset runs never count as sufficient final experiment evidence by themselves.
 - Code correctness matters only insofar as the experiments remain scientifically meaningful; do not declare completion if implementation flaws invalidate the conclusions.
 - Final ablation evidence must cover exactly the canonical components from `idea.json.components`, in the same order, with no extras or omissions.
-- `ablation_results.json` is written only after the master iteration loop exits, by a dedicated ablation report integrator agent that reads `idea.json` and the ablation experiment records.
+- `ablation_results.json` is written by the ablation science agent immediately after ablation experiments complete, so the results are available for the next master iteration decision.

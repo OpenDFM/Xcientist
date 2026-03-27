@@ -1,26 +1,29 @@
 {
   "mechanism-commit-innovation": {
-    "description": "Commit to one concrete mechanism-level innovation and keep scaffolding secondary to the task-solving path.",
+    "description": "Commit to one concrete mechanism-level innovation by strengthening one weak existing component and keep scaffolding secondary to the task-solving path.",
+    "structural_mode": "local_refinement",
+    "scope_preference": "existing_component",
+    "requires_control_centered_parent": false,
     "defects": [
       "stagnant_novelty",
       "unclear_mechanism",
       "validation_gap"
     ],
     "guardrails": [
-      "Name the exact mechanism being introduced and the primary execution path it changes.",
+      "Name the exact mechanism being introduced and the existing component it strengthens or replaces.",
       "Keep one main mechanism; move supporting implementation details to notes or protocols.",
+      "Prefer direct replacement of the weak internal block over adding a broader coordination structure.",
       "Use the smallest validation suite that can falsify the core mechanism."
     ],
     "atomic_blueprint": [
-      "ADD_COMPONENT(core_mechanism_module)",
-      "REWIRE(core_mechanism_module -> primary_execution_path)",
+      "REPLACE_COMPONENT(weak_internal_component -> refined_internal_component)",
       "ADD_PROTOCOL(ablation)"
     ],
     "required_protocols": [
       "ablation"
     ],
     "avoid_combinations": [
-      "REMOVE_COMPONENT(core_mechanism_module) in the same plan"
+      "ADD_COMPONENT(refined_internal_component) in the same plan"
     ],
     "execution_logic": [
       "Identify the defect from `defect_tags`.",
@@ -29,7 +32,10 @@
     ]
   },
   "alternative-path-contrast": {
-    "description": "Introduce a structured alternative execution or recovery path so rare regimes and fallback behavior are explicitly contrasted and stress-tested.",
+    "description": "Introduce a structured alternative treatment for failure regimes so rare cases and recovery behavior are explicit without turning the method into generic control scaffolding.",
+    "structural_mode": "path_branching",
+    "scope_preference": "execution_path",
+    "requires_control_centered_parent": false,
     "defects": [
       "brittle_single_path",
       "rare_regime_failure",
@@ -37,12 +43,12 @@
     ],
     "guardrails": [
       "Limit the number of new paths; one alternative path should address one concrete failure regime.",
-      "Make routing between primary and alternative paths explicit.",
-      "Validate the regimes where the alternative path should dominate or recover failure."
+      "State the observable condition that separates the primary regime from the alternative treatment.",
+      "Validate the regimes where the alternative treatment should dominate or recover failure."
     ],
     "atomic_blueprint": [
       "ADD_COMPONENT(alternative_path_module)",
-      "REWIRE(alternative_path_module -> execution_router)",
+      "REWIRE(alternative_path_module -> failure_regime_interface)",
       "ADD_PROTOCOL(ablation,stress)"
     ],
     "required_protocols": [
@@ -50,7 +56,7 @@
       "stress"
     ],
     "avoid_combinations": [
-      "REMOVE_COMPONENT(execution_router) in the same plan"
+      "REMOVE_COMPONENT(failure_regime_interface) in the same plan"
     ],
     "execution_logic": [
       "Identify the defect from `defect_tags`.",
@@ -60,6 +66,9 @@
   },
   "surgical-modularity": {
     "description": "Perform a localized block-level intervention with replace/rewire and prove the gain with focused ablation.",
+    "structural_mode": "local_refinement",
+    "scope_preference": "existing_component",
+    "requires_control_centered_parent": false,
     "defects": [
       "feature_dumping",
       "monolithic_design",
@@ -88,27 +97,30 @@
     ]
   },
   "multi-scale-coordinator": {
-    "description": "Add a coordinator that aligns decisions across scales, layers, or service tiers without making coordination overhead the main contribution.",
+    "description": "Add a cross-scale consistency mechanism that aligns representations or decisions across scales without making coordination overhead the main contribution.",
+    "structural_mode": "cross_scale_coordination",
+    "scope_preference": "broad_architecture",
+    "requires_control_centered_parent": false,
     "defects": [
       "scale_mismatch",
       "coordination_failure",
       "latency_bottleneck"
     ],
     "guardrails": [
-      "Specify how routing conflicts are resolved across scales or layers.",
+      "Specify the cross-scale consistency rule and what information each scale contributes.",
       "Quantify the coordination overhead in latency or compute terms.",
-      "Keep validation centered on whether coordination improves the core task path."
+      "Keep validation centered on whether cross-scale consistency improves the core task path."
     ],
     "atomic_blueprint": [
-      "ADD_COMPONENT(scale_coordinator)",
-      "REWIRE(scale_coordinator -> routing_layer)",
+      "ADD_COMPONENT(scale_consistency_module)",
+      "REWIRE(scale_consistency_module -> scale_interface)",
       "ADD_PROTOCOL(ablation)"
     ],
     "required_protocols": [
       "ablation"
     ],
     "avoid_combinations": [
-      "REMOVE_COMPONENT(routing_layer) in the same plan"
+      "REMOVE_COMPONENT(scale_interface) in the same plan"
     ],
     "execution_logic": [
       "Identify the defect from `defect_tags`.",
@@ -118,6 +130,9 @@
   },
   "hierarchical-decomposition": {
     "description": "Replace a flat control or execution flow with a hierarchy that assigns responsibilities across explicit levels.",
+    "structural_mode": "hierarchical_reorg",
+    "scope_preference": "broad_architecture",
+    "requires_control_centered_parent": false,
     "defects": [
       "responsibility_entanglement",
       "monolithic_design",
@@ -146,7 +161,10 @@
     ]
   },
   "feedback-closed-loop": {
-    "description": "Turn an open-loop process into a monitored feedback loop that measures outcomes and adapts future actions online.",
+    "description": "Turn an open-loop process into a feedback-guided update mechanism that measures outcomes and adapts an existing rule online.",
+    "structural_mode": "feedback_loop",
+    "scope_preference": "execution_path",
+    "requires_control_centered_parent": true,
     "defects": [
       "silent_failure",
       "drift",
@@ -154,12 +172,12 @@
     ],
     "guardrails": [
       "Define the feedback signal, update cadence, and stability boundaries.",
-      "Keep the loop lightweight relative to the controlled path.",
+      "Keep the adaptive update lightweight relative to the controlled path.",
       "Validate the loop under drift, delay, or stale-feedback regimes."
     ],
     "atomic_blueprint": [
       "ADD_COMPONENT(feedback_monitor)",
-      "REWIRE(feedback_monitor -> control_policy)",
+      "REWIRE(feedback_monitor -> adaptation_rule)",
       "ADD_PROTOCOL(ablation,stress)"
     ],
     "required_protocols": [
@@ -167,7 +185,7 @@
       "stress"
     ],
     "avoid_combinations": [
-      "REMOVE_COMPONENT(control_policy) in the same plan"
+      "REMOVE_COMPONENT(adaptation_rule) in the same plan"
     ],
     "execution_logic": [
       "Identify the defect from `defect_tags`.",
@@ -176,7 +194,10 @@
     ]
   },
   "theory-transfer-injection": {
-    "description": "Inject a theory-backed mechanism or invariant from another domain and wire it into the core objective or control rule.",
+    "description": "Inject a theory-backed mechanism or invariant from another domain and wire it into the core objective or mechanism rule.",
+    "structural_mode": "objective_injection",
+    "scope_preference": "core_objective",
+    "requires_control_centered_parent": false,
     "defects": [
       "stagnant_novelty",
       "theory_gap",
@@ -189,7 +210,7 @@
     ],
     "atomic_blueprint": [
       "ADD_COMPONENT(theory_transfer_module)",
-      "REWIRE(theory_transfer_module -> control_objective)",
+      "REWIRE(theory_transfer_module -> core_objective)",
       "ADD_PROTOCOL(ablation,stress)"
     ],
     "required_protocols": [
@@ -207,6 +228,9 @@
   },
   "speculative-execution-with-repair": {
     "description": "Introduce speculative or optimistic execution plus explicit repair so the system can pursue fast paths without giving up recoverability.",
+    "structural_mode": "path_branching",
+    "scope_preference": "execution_path",
+    "requires_control_centered_parent": false,
     "defects": [
       "over_conservative_execution",
       "latency_bottleneck",
@@ -215,7 +239,7 @@
     "guardrails": [
       "Define when speculation triggers and how mis-speculation is detected.",
       "Bound repair cost and rollback scope.",
-      "Compare against a conservative baseline at matched resource budgets."
+      "Compare against a conservative baseline under matched experimental conditions."
     ],
     "atomic_blueprint": [
       "ADD_COMPONENT(speculative_executor)",
@@ -229,37 +253,6 @@
     ],
     "avoid_combinations": [
       "REMOVE_COMPONENT(repair_handler) in the same plan"
-    ],
-    "execution_logic": [
-      "Identify the defect from `defect_tags`.",
-      "Generate the solution by instantiating the `atomic_blueprint`.",
-      "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
-    ]
-  },
-  "resource-aware-adaptive-path": {
-    "description": "Add resource-aware path selection so execution adapts to workload, budget, or service-level pressure.",
-    "defects": [
-      "budget_instability",
-      "load_sensitivity",
-      "latency_bottleneck"
-    ],
-    "guardrails": [
-      "Define which resource signals are observed and how path decisions are made.",
-      "Avoid hard-coded thresholds unless they are justified by system constraints.",
-      "Report the trade-off surface across quality, latency, and cost."
-    ],
-    "atomic_blueprint": [
-      "ADD_COMPONENT(resource_monitor)",
-      "ADD_COMPONENT(adaptive_path_router)",
-      "REWIRE(resource_monitor -> adaptive_path_router)",
-      "ADD_PROTOCOL(ablation,stress)"
-    ],
-    "required_protocols": [
-      "ablation",
-      "stress"
-    ],
-    "avoid_combinations": [
-      "REMOVE_COMPONENT(adaptive_path_router) in the same plan"
     ],
     "execution_logic": [
       "Identify the defect from `defect_tags`.",

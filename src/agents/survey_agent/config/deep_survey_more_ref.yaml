@@ -29,6 +29,8 @@ ModuleInfo:
     reference_graph_depth: 1
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
     sentence_transformer_batch_size: 32
+    expand_in_local_paper_graph: False
+    advanced_filter_in_local_paper_graph_expansion: True
     related_work_top_k: 20  # for debug
     log_related_work_num: -1 # set to -1 to log all
     related_work_threshold: 0.5

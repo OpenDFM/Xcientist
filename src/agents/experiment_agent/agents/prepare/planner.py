@@ -57,6 +57,7 @@ class PrepareReport:
 
 class PrepareAgent(BaseAgent):
     PREPARE_DEFAULT_MCP_SERVERS = ["filesystem", "fetch"]
+    SYSTEM_PROMPT_TEMPLATE = "prepare_agent.j2"
     PREPARE_STAGE_SPECS = [
         {
             "stage_id": "repos",
@@ -109,6 +110,9 @@ class PrepareAgent(BaseAgent):
             max_turns=PLANNER_MAX_TURNS,
             verbose=verbose,
             workspace_root=workspace_root,
+            enable_condenser=True,
+            condenser_max_size=150,
+            condenser_keep_first=20,
         )
         self._ensure_subagents_registered()
 
@@ -141,29 +145,7 @@ class PrepareAgent(BaseAgent):
 
     def _build_system_prompt(self, **kwargs) -> str:
         _ = kwargs
-        return """You are the prepare planner for an experiment workspace.
-
-You own orchestration, not direct execution. Your job is to define precise stage contracts, dispatch them through `task`, and rely on the prepare validator for completion decisions.
-
-Core responsibilities:
-1. Read the idea input and current workspace state before planning.
-2. Write a concise ordered prepare plan.
-3. Run the stage sequence strictly as `repos -> env -> dataset -> validated handoff synthesis`.
-4. For each stage, launch `prepare_step_executor`.
-5. Do not advance a stage until the stage executor reports validator-backed PASS.
-6. The stage executor, not you, owns the worker/validator repair loop for the current stage.
-7. Synthesize human-readable handoff artifacts and the final prepare phase verdict only after the stage executors have completed successfully.
-
-Hard rules:
-- The worker must do the real work; do not allow placeholder completion.
-- The validator is the authority for stage completion.
-- Datasets are not prepared until they exist on the prepared handoff surface under `dataset_candidate/`.
-- The final prepare output must describe the discovered real experiment targets from the actual prepared workspace state, not from hardcoded assumptions.
-- `idea.json.components` is canonical. Preserve its component names and order exactly in all prepare handoff artifacts.
-- Do not substitute synthetic benchmarks for real prepared targets unless the prepare contract explicitly allows it.
-- Keep all prepare-generated plans, reports, and handoff documents under `agent_reports/`.
-- Never print the completion token before re-reading the generated handoff artifacts and `prepare_idea.md`.
-"""
+        return ""
 
     def _build_user_prompt(self, **kwargs) -> str:
         pb = PromptBuilder()
@@ -283,16 +265,70 @@ Hard rules:
         )
 
         pb.add_header("prepare_idea.md Requirements", level=2)
-        pb.add_list(
-            [
-                "Use exact headings: `## Environment Variables Used`, `## Resource Acquisition Log`, `## Repository-to-Dataset Mapping`, `## Real Experiment Targets`.",
-                f"Add `{IDEA_COMPONENTS_HEADING}` as a dedicated section after `## Real Experiment Targets`.",
-                "Under that section, list every idea component exactly once, in the exact order from `idea.json.components`, including each explanation.",
-                "Write this document to `agent_reports/prepare_idea.md`.",
-                "Never print secret values; only print env var names and purposes.",
-                "Do not describe any target as ready unless the matching validator evidence supports it.",
-            ],
-            ordered=False,
+        pb.add_text(
+            "The `prepare_idea.md` is the authoritative handoff document for all subsequent phases. "
+            "It must be self-complete and contain all information needed for code implementation and experiment execution. "
+            "Use the following EXACT section structure:"
+        )
+        pb.add_code("""## Idea Summary
+[Complete restatement of the idea: what problem does it solve? What is the core hypothesis? What is the expected outcome?]
+
+## Idea JSON Components
+[Full copy of idea.json.components with each component's name and explanation, preserving exact order from idea.json]
+
+## Code Implementation Guidance
+[Detailed guidance on how to implement this idea as code:
+- Required project structure and file organization
+- Key functions/methods that need to be implemented
+- Entry points for running experiments
+- Integration points between components
+- Expected API interfaces]
+
+## Component Correspondence
+[Mapping of each idea.json component to concrete code elements:
+- Component name → which files/functions implement it
+- Component name → which experiments validate it
+- Dependencies between components
+- Component execution order]
+
+## Dataset Usage Guidance
+[Complete guide to datasets used by this idea:
+- dataset_candidate/ files to use (exact paths verified by validator)
+- How to load and preprocess each dataset
+- Dataset format requirements
+- Any dataset-specific configuration
+- Ground truth or evaluation data locations]
+
+## Environment Variable Usage Guidance
+[Complete guide to environment variables:
+- All required env vars (names only, never values)
+- Which component/phase uses each variable
+- Expected format and meaning of each variable
+- Fallback behavior if not set
+- Proxy configuration if needed]
+
+## Resource Acquisition Log
+[Record of: which repos were cloned, which models were downloaded, which datasets were acquired, with actual paths verified]
+
+## Repository-to-Dataset Mapping
+[Mapping of: which repository provides which dataset, benchmark code locations, entry point commands]
+
+## Real Experiment Targets
+[Exactly verified:
+- Model IDs/paths used
+- Dataset paths used
+- Benchmark entrypoints
+- Run commands for each experiment type
+- Expected output locations]
+
+## Canonical Idea Components
+{f"Use `{IDEA_COMPONENTS_HEADING}` as this section heading, then list every component from idea.json.components in exact order with explanations"}
+""", language="markdown")
+        pb.add_text(
+            "IMPORTANT: Write this document to `agent_reports/prepare_idea.md`. "
+            "Never print secret values; only print env var names and purposes. "
+            "Every claim must be backed by validator evidence. "
+            "Do not describe any target as ready unless the matching validator evidence supports it."
         )
 
         pb.add_header("Environment Variable Candidates", level=2)

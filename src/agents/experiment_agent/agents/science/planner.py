@@ -17,6 +17,11 @@ from openhands.tools.task_tracker import TaskTrackerTool
 from openhands.tools.terminal import TerminalTool
 
 from src.agents.experiment_agent.agents.base.agent import OpenHandsBaseAgent
+from src.agents.experiment_agent.agents.reporting import (
+    EXPERIMENT_ABLATION_REPORT_INTEGRATOR,
+    create_ablation_report_integrator_agent,
+    run_ablation_report_integrator,
+)
 from src.agents.experiment_agent.agents.science.step_executor import (
     ABLATION_SCIENCE_STEP_EXECUTOR,
     STANDARD_SCIENCE_STEP_EXECUTOR,
@@ -57,26 +62,9 @@ def _planner_tools() -> List[Tool]:
     ]
 
 
-def _science_planner_system_prompt() -> str:
-    return """You are a science planner.
-
-You own experiment orchestration, not experiment truth. Write precise science contracts, dispatch them through `task`, and treat the science validator as the authority for PASS/FAIL.
-
-Core behavior:
-1. Read the validated prepare artifacts, code handoff, idea context, and existing science artifacts before planning.
-2. Write a short ordered plan for the current science lane.
-3. Use the lane-matching science step executor for per-step execution.
-4. The step executor, not you, owns the worker/validator repair loop for the current science step.
-5. Do not let summary JSON replace raw evidence.
-6. Do not let synthetic fallback paths silently replace validated prepared targets.
-7. Update human-readable summaries only after validator-backed evidence exists.
-8. Treat `idea.json.components` as canonical for component identity and order.
-
-Hard rules:
-- Standard lane owns validator-backed baseline/full-method evidence on the prepared targets.
-- Ablation lane owns validator-backed component-level ablation evidence and sufficiency decisions.
-- The validator report is the authority for whether a science batch is complete.
-"""
+# Templates are now used directly via SYSTEM_PROMPT_TEMPLATE class attribute
+# StandardScienceAgent uses "standard_science_planner_agent.j2"
+# AblationScienceAgent uses "ablation_science_planner_agent.j2"
 
 
 def _register_science_subagents() -> None:
@@ -94,6 +82,11 @@ def _register_science_subagents() -> None:
             create_ablation_science_step_executor_agent,
             "Executes one ablation-science step through the worker/validator repair loop.",
         ),
+        (
+            EXPERIMENT_ABLATION_REPORT_INTEGRATOR,
+            create_ablation_report_integrator_agent,
+            "Integrates ablation experiment results into canonical ablation_results.json.",
+        ),
     )
     for name, factory, description in registrations:
         try:
@@ -107,13 +100,31 @@ def _register_science_subagents() -> None:
     _SCIENCE_SUBAGENTS_REGISTERED = True
 
 
-def create_science_planner_agent(llm) -> Agent:
+def create_standard_science_planner_agent(llm) -> Agent:
     _register_science_subagents()
+    from openhands.sdk.context import AgentContext
+    exp_context = get_exp_agent_context()
     return Agent(
         llm=llm,
         tools=_planner_tools(),
-        agent_context=get_exp_agent_context(),
-        system_prompt_kwargs={"prompt": _science_planner_system_prompt()},
+        agent_context=AgentContext(
+            skills=exp_context.skills,
+            load_public_skills=False,
+        ),
+    )
+
+
+def create_ablation_science_planner_agent(llm) -> Agent:
+    _register_science_subagents()
+    from openhands.sdk.context import AgentContext
+    exp_context = get_exp_agent_context()
+    return Agent(
+        llm=llm,
+        tools=_planner_tools(),
+        agent_context=AgentContext(
+            skills=exp_context.skills,
+            load_public_skills=False,
+        ),
     )
 
 
@@ -121,20 +132,23 @@ def register_science_planners() -> None:
     global _SCIENCE_PLANNERS_REGISTERED
     if _SCIENCE_PLANNERS_REGISTERED:
         return
-    for name, description in (
+    registrations = (
         (
             EXPERIMENT_STANDARD_SCIENCE_PLANNER,
+            create_standard_science_planner_agent,
             "Plans standard benchmark execution with science step executors.",
         ),
         (
             EXPERIMENT_ABLATION_SCIENCE_PLANNER,
+            create_ablation_science_planner_agent,
             "Plans component-level ablation execution with science step executors.",
         ),
-    ):
+    )
+    for name, factory, description in registrations:
         try:
             register_agent(
                 name=name,
-                factory_func=create_science_planner_agent,
+                factory_func=factory,
                 description=description,
             )
         except ValueError:
@@ -144,6 +158,8 @@ def register_science_planners() -> None:
 
 class _BaseSciencePlanner(OpenHandsBaseAgent):
     SCIENCE_DEFAULT_MCP_SERVERS = ["filesystem"]
+    # Templates are set in subclasses: StandardScienceAgent and AblationScienceAgent
+    SYSTEM_PROMPT_TEMPLATE = None
     planner_type = "Science"
     plan_filename = "science_plan.json"
     completion_token = "SCIENCE COMPLETE"
@@ -200,7 +216,7 @@ class _BaseSciencePlanner(OpenHandsBaseAgent):
 
     def _build_system_prompt(self, **kwargs) -> str:
         _ = kwargs
-        return _science_planner_system_prompt()
+        return ""
 
     def _get_tools(self):
         return _planner_tools()
@@ -261,6 +277,7 @@ class _BaseSciencePlanner(OpenHandsBaseAgent):
 
 
 class StandardScienceAgent(_BaseSciencePlanner):
+    SYSTEM_PROMPT_TEMPLATE = "standard_science_planner_agent.j2"
     planner_type = "StandardScience"
     plan_filename = "standard_science_plan.json"
     completion_token = "STANDARD SCIENCE COMPLETE"
@@ -336,6 +353,7 @@ Finish by printing exactly: {self.completion_token}"""
 
 
 class AblationScienceAgent(_BaseSciencePlanner):
+    SYSTEM_PROMPT_TEMPLATE = "ablation_science_planner_agent.j2"
     planner_type = "AblationScience"
     plan_filename = "ablation_science_plan.json"
     completion_token = "ABLATION SCIENCE COMPLETE"
@@ -422,6 +440,26 @@ Finish by printing exactly: {self.completion_token}"""
 
     def _required_artifacts_exist(self) -> bool:
         return True
+
+    async def execute(self) -> Dict[str, Any]:
+        # Run ablation steps via the base class run
+        result = await super().execute()
+
+        # After ablation experiments complete, call integrator immediately
+        # so results are available for the next master iteration decision
+        integrator_result = await run_ablation_report_integrator(
+            workspace_root=self.workspace_root,
+            project_root=self.project_root,
+            model=self.model,
+            verbose=self.verbose,
+            resume=self.resume,
+        )
+
+        # Merge integrator result into the return value
+        result["integrator_result"] = integrator_result
+        result["ablation_results_path"] = integrator_result.get("ablation_results_path")
+        result["integrator_valid"] = integrator_result.get("valid", False)
+        return result
 
 
 async def run_standard_science_agent(

@@ -1,7 +1,5 @@
-import hydra
 import sys
 import os
-import re
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from utils.rich_logger import get_logger
@@ -11,7 +9,7 @@ from modules.database import Database
 from modules.work_analyzer import WorkAnalyzer
 from modules.survey_generator import SurveyGenerator
 from modules.judge import Judge
-
+W
 from utils.file_utils import write_domain_header, write_topic_header, write_result, write_domain_result
 
 logger = get_logger("Deep Survey")

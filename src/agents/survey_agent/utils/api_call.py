@@ -105,7 +105,7 @@ class ArxivAPI:
 class SemanticScholarAPI:
     def __init__(self, config):
         self.headers = {"x-api-key": config.APIInfo.semantic_scholar_api_key}
-        self.base_url = "http://api.semanticscholar.org/graph/v1"
+        self.base_url = "https://api.semanticscholar.org/graph/v1"
         self.logger = get_logger("SemanticScholarAPI")
         self.config = config
 
@@ -208,10 +208,28 @@ class ChatAgent:
         temperature: float = 0.5,
         debug: bool = False,
         model=None,
+        max_output_tokens: int = 16000,
     ) -> str:
         """Chat with remote LLM, return result. Minimal logging; no file writes."""
         if model is None:
             model = self.model_name
+
+        # Estimate input tokens and truncate if necessary to leave room for output
+        # Default context window is 262144 for Qwen-235B-Instruct
+        context_window = 262144
+        input_tokens, enc = self.encode_with_fallback(text_content, model=model)
+        input_token_count = len(input_tokens)
+
+        # Reserve space for output tokens
+        max_input_tokens = context_window - max_output_tokens
+
+        if input_token_count > max_input_tokens:
+            self.logger.warning(
+                f"Input tokens ({input_token_count}) exceeds max allowed ({max_input_tokens}). "
+                f"Truncating to fit context window."
+            )
+            truncated_tokens = input_tokens[:max_input_tokens]
+            text_content = enc.decode(truncated_tokens)
 
         url = self.remote_url
         header = self.header

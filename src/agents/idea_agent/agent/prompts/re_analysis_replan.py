@@ -7,6 +7,9 @@ You are a meticulous research engineer specialized in iterative method design.
 == Current mature idea (the method you must refine — do NOT change the topic) ==
 {mature_idea}
 
+== Refinement scope (optional; if empty, ignore) ==
+{refinement_scope}
+
 == Advanced analysis ==
 {analysis}
 
@@ -22,6 +25,7 @@ Based on the ablation results, perform **minimal component-level targeted modifi
 - This stage is a 1.0 -> 1.1 patch stage, NOT a 2.0 invention stage.
 - Preserve the same topic, core hypothesis, and overall method axis.
 - If you use `replace`, it must be a local substitute for the same functional slot, not a new architecture or new research paradigm.
+- If refinement_scope is provided, treat it as a hard edit boundary. Keep all changes within that scope and do not move the repair to another subsystem.
 
 Do NOT change the research topic. Instead, surgically revise the method design by:
 1. Identifying which components to keep, strengthen, remove, or replace based on ablation evidence.
