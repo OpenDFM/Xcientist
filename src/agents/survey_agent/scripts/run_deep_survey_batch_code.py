@@ -8,6 +8,7 @@ from omegaconf import OmegaConf
 from modules.work_collector import WorkCollector
 from modules.database import Database
 from modules.work_analyzer import WorkAnalyzer
+from modules.code_report_generator import CodeReportGenerator
 from modules.survey_generator import SurveyGenerator
 from topics.Benchmark_topics import SURVEYGEN_TOPICS, AUTOSURVEY_TOPICS, SUBTEST_TOPICS
 from utils.file_utils import write_domain_header, write_topic_header, write_result, write_domain_result, write_header
@@ -17,7 +18,7 @@ from modules.code_collector import CodeCollector, CodeAnalyzer
 
 logger = get_logger("Deep Survey Batch")
 
-def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_generator, judge, code_collector, code_analyzer):
+def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_generator, judge, code_collector, code_analyzer, code_report_generator):
     try:
         results = []
         reasons = []
@@ -48,7 +49,16 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
         # deep reading for papers
         collected_papers = seed_paper_ids + expanded_paper_ids
 
-        code_analyzer.execute(collected_papers)
+        paper_mainfests = code_analyzer.execute(collected_papers)
+
+        env_report = code_report_generator.generate_framework_env_report(paper_mainfests = paper_mainfests, topic = config.BasicInfo.topic)
+        code_report = code_report_generator.generate_report(papers = paper_mainfests, topic = config.BasicInfo.topic)
+
+        logger.info("[ENV REPORT:]")
+        logger.info(f"{env_report}")
+        logger.info("[CODE REPORT:]")
+        logger.info(f"{code_report}")
+
         # logger.info(f"Total papers to read: {len(collected_papers)}")
         # err_papers = work_analyzer.read_papers_and_write_keynotes(collected_papers)
         # logger.info("Deep reading completed.")
@@ -130,7 +140,7 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
         return False, None, None
     return True, results, reasons
 
-@hydra.main(config_path="../config", config_name="deep_survey_batch_xiaomi", version_base=None)
+@hydra.main(config_path="../config", config_name="deep_survey_batch_others_huoshan", version_base=None)
 def main(config):
     logger.info("Starting Deep Survey Pipeline")
     logger.yaml(OmegaConf.to_container(config, resolve=True))
@@ -180,8 +190,9 @@ def main(config):
                 survey_judge = Judge(cfg_for_topic, work_analyzer)
                 code_collector = CodeCollector(config)
                 code_analyzer = CodeAnalyzer(config, code_collector=code_collector, work_collector=work_collector)
+                code_report_generator = CodeReportGenerator(config, work_collector=work_collector ,code_collector=code_collector, code_analyzer=code_analyzer)
 
-                finished, eval_results, eval_reasons = run_pipeline_batch(cfg_for_topic, work_collector, database, work_analyzer, survey_generator, survey_judge, code_collector, code_analyzer)
+                finished, eval_results, eval_reasons = run_pipeline_batch(cfg_for_topic, work_collector, database, work_analyzer, survey_generator, survey_judge, code_collector, code_analyzer, code_report_generator)
                 if finished:
                     logger.info(f"Pipeline completed successfully for topic: {topic}")
                     write_result(config.BasicInfo.evaluation_save_path, topic, eval_results, eval_reasons)

@@ -31,10 +31,10 @@ class WorkCollector:
         ## local paper graph parameter
         self.expand_in_local_paper_graph = self.config.ModuleInfo.WorkCollector.expand_in_local_paper_graph
         self.advanced_filter_in_local_paper_graph_expansion = self.config.ModuleInfo.WorkCollector.advanced_filter_in_local_paper_graph_expansion
-        if self.expand_in_local_paper_graph:
+        if not self.expand_in_local_paper_graph:
             self.paper_graph_retriever = paper_graph_retriever
         else:
-            self.paper_graph_retriever = None
+            self.paper_graph_retriever = PaperGraphRetriever(config)
 
         # load reference graph
         os.makedirs(self.cache_path, exist_ok=True)
@@ -226,6 +226,10 @@ class WorkCollector:
     def get_paper_with_title_semantic(self, title: str):
         """Get paper with title via semantic scholar - 委托给 DataManager"""
         return self.data_manager.get_paper_with_title_semantic(title)
+
+    def get_paper_with_title_batch(self, titles: List[str]):
+        """Get papers with titles in batch - 委托给 DataManager"""
+        return self.data_manager.get_paper_with_title_batch(titles)
 
     def is_valid_abstract(self, abstract: str) -> bool:
         """Check if abstract is valid - 委托给 DataManager"""
@@ -554,36 +558,63 @@ class WorkCollector:
             seed_paper_paper_graph_ids.append(results[0]["id"])
         
         expanded_papers = self.paper_graph_retriever.expand_nodes(seed_paper_paper_graph_ids, self.config.ModuleInfo.WorkCollector.reference_graph_depth)
+        self.logger.info(f"expansion finished")
         return list(set(expanded_papers) - set(seed_paper_paper_graph_ids))
 
     def filter_papers_local_paper_graph(self, expanded_papers: List[str], seed_paper_ids: List[str]):
         self.logger.info(f"paper number: {len(expanded_papers)} before filter")
         expanded_papers_info = []
-        expanded_papers_ids = []
         for paper in expanded_papers:
             self.logger.info(f"retrieving paper_id_in_graph {paper} in graph...")
-            paper_info = self.paper_graph_retriever.search_by_paper_id(paper)
+            paper_info = self.paper_graph_retriever.search_by_node_id(paper)
             if not paper_info:
                 self.logger.info(f"fail to retrieve paper_id_in_graph {paper} in graph: return info None...")
                 self.logger.info(f"return: {paper_info}")
                 continue
             expanded_papers_info.append(paper_info[0])
 
+        # Collect all titles that need to be queried
+        valid_titles = []
+        valid_paper_info_map = {}
         for paper_info in expanded_papers_info:
             paper_title = paper_info["paper_title"]
             if not paper_title:
                 self.logger.warning(f"paper_title is empty")
                 self.logger.warning(f"complete paper info: {paper_info}")
                 continue
-            paper_id = self.get_paper_with_title(paper_title)
+            valid_titles.append(paper_title)
+            valid_paper_info_map[paper_title] = paper_info
+
+        # Batch query papers by title
+        self.logger.info(f"Batch querying {len(valid_titles)} papers by title...")
+        batch_results = self.get_paper_with_title_batch(valid_titles)
+        
+        # Process batch results
+        # get_paper_with_title_batch returns Dict[str, dict]: title -> paper_info
+        expanded_papers_ids = []
+        for paper_title in valid_titles:
+            api_paper_info = batch_results.get(paper_title)
+            if api_paper_info is None or not api_paper_info:
+                self.logger.warning(f"{paper_title} cannot be retrieved from arxiv or semantic scholar")
+                continue
+
+            if api_paper_info.get("api_platform", "").lower() == "arxiv":
+                paper_id = api_paper_info.get("paper_id", "")
+            else:
+                paper_id = api_paper_info.get("externalIds", {}).get(
+                    "ArXiv", api_paper_info.get("paperId")
+                )
+
             if paper_id is None or not paper_id:
-                self.logger.warning(f"{paper_info['title']} cannot be retrieved from arxiv or semantic scholar")
+                self.logger.warning(f"{paper_title} cannot be retrieved from arxiv or semantic scholar")
                 continue
             expanded_papers_ids.append(paper_id)
 
         self.graph_paper_ids.update(expanded_papers_ids)
+        self.logger.info(f"expansion in graph find {len(expanded_papers_ids)} valid papers (can be found in arxiv/semantic scholar)")
         
         if self.advanced_filter_in_local_paper_graph_expansion:
+            self.logger.info(f"seed papers: {seed_paper_ids}")
             self.logger.info(f"papers before filter: {expanded_papers_ids}")
             
             def paper2text(paper_id: str) -> str:
@@ -607,7 +638,7 @@ class WorkCollector:
             for seed_pid in seed_paper_ids:
                 saved_papers[seed_pid] = set()
 
-                related_pids = [paper_id for paper_id in expanded_papers if paper_id not in self.ignore_paper]
+                related_pids = [paper_id for paper_id in expanded_papers_ids if paper_id not in self.ignore_paper]
                 if len(related_pids) == 0:
                     self.logger.warning(f"No related papers found for seed paper {seed_pid}, skipping relatedness computation.")
                     continue

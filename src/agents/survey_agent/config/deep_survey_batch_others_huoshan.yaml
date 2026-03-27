@@ -1,6 +1,6 @@
 BasicInfo:
   topic: ""
-  evaluation_save_path: "./outputs/minimax-0323-test/evaluation_10.txt"
+  evaluation_save_path: "./outputs/minimax-0324-test/evaluation_10.txt"
   save_path: ""
   save_json_path: ""
   user_defiend_benchmarks: True
@@ -8,7 +8,7 @@ BasicInfo:
   AutoSurvey_benchmark: False
   SurveyGen_benchmark: False
   sub_benchmark_test: False
-  output_base_dir: ./outputs/minimax-0323-test
+  output_base_dir: ./outputs/minimax-0324-test
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
   topic_max_retry: 3

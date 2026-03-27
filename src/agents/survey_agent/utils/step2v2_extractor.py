@@ -233,7 +233,7 @@ def validate_and_parse_main(response: str, info_dict: dict = None) -> Tuple[bool
     core_names = [c.get("name") for c in core_contributions if c.get("name")]
     
     result = {
-        'paper_id': info_dict.get('paper_id') if info_dict else None,
+        'node_id': info_dict.get('node_id') if info_dict else None,
         'result': parsed,
         'core_names': core_names
     }
@@ -250,11 +250,11 @@ def validate_and_parse_baseline(response: str, info_dict: dict = None) -> Tuple[
     
     Args:
         response: LLM response string
-        info_dict: Optional dict with 'paper_id' and 'core_names'
+        info_dict: Optional dict with 'node_id' and 'core_names'
         
     Returns:
         Tuple of (is_valid, parsed_result_or_response)
-        - If valid: (True, parsed dict with paper_id and result)
+        - If valid: (True, parsed dict with node_id and result)
         - If invalid: raises ValueError
     """
     if not response:
@@ -270,7 +270,7 @@ def validate_and_parse_baseline(response: str, info_dict: dict = None) -> Tuple[
         raise ValueError("Missing required keys: baselines or datasets")
     
     result = {
-        'paper_id': info_dict.get('paper_id') if info_dict else None,
+        'node_id': info_dict.get('node_id') if info_dict else None,
         'result': parsed,
         'core_names': info_dict.get('core_names', []) if info_dict else []
     }
@@ -286,14 +286,14 @@ def aggregate_results(
     source_info: Dict[str, dict]
 ) -> List[dict]:
     """Aggregate main and baseline results into final output."""
-    main_by_paper = {r['paper_id']: r for r in main_results if r}
-    baseline_by_paper = {r['paper_id']: r for r in baseline_results if r}
+    main_by_paper = {r['node_id']: r for r in main_results if r}
+    baseline_by_paper = {r['node_id']: r for r in baseline_results if r}
     
     aggregated = []
-    for paper_id in main_by_paper:
-        main_res = main_by_paper[paper_id]
-        baseline_res = baseline_by_paper.get(paper_id, {})
-        info = source_info.get(paper_id, {})
+    for node_id in main_by_paper:
+        main_res = main_by_paper[node_id]
+        baseline_res = baseline_by_paper.get(node_id, {})
+        info = source_info.get(node_id, {})
         
         result = main_res['result']
         core_contributions = result.get("core_contributions", [])
@@ -347,7 +347,7 @@ def aggregate_results(
             valid_datasets.append(ds)
         
         final_output = {
-            "paper_id": paper_id,
+            "node_id": node_id,
             "source_venue": info.get("source_venue", "Unknown"),
             "pub_year": info.get("pub_year", "2024"),
             "metadata": {
@@ -446,7 +446,7 @@ def extract_paper_info_batch(
     core_names_map = {}
     for res in main_results:
         if res:
-            core_names_map[res['paper_id']] = res.get('core_names', [])
+            core_names_map[res['node_id']] = res.get('core_names', [])
     
     # ===== Step 2: Baseline Extraction =====
     baseline_prompts = []

@@ -1063,7 +1063,13 @@ class CodeAnalyzer():
                 self.logger.warning(f"Core file {idx} does not have pseudocode")
                 return False
 
-            if len(pseudocode_file["pseudocode"]) < 30:
+            # Check if pseudocode is a valid string before checking length
+            pseudocode_value = pseudocode_file["pseudocode"]
+            if not isinstance(pseudocode_value, str):
+                self.logger.warning(f"Core file {idx} pseudocode is not a string, got {type(pseudocode_value)}: {pseudocode_value}")
+                return False
+
+            if len(pseudocode_value) < 30:
                 self.logger.warning(f"Core file {idx} pseudocode too short")
                 return False
         return True

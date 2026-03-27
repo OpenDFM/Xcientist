@@ -59,6 +59,49 @@ class ArxivAPI:
         
         return paper
 
+    def search_papers_by_title(self, title: str):
+        """通过标题搜索arXiv论文"""
+        import urllib.parse
+        # 标题搜索使用 ti: 前缀
+        search_query = f"ti:{urllib.parse.quote(title)}"
+        arxiv_url = f"{self.base_url}?search_query={search_query}&start=0&max_results=10"
+        
+        papers = []
+        for retry_count in range(self.config.APIInfo.arxiv_api_max_retry):
+            response = requests.get(arxiv_url, timeout=30)
+            if response.status_code == 200:
+                break
+            else:
+                self.logger.warning(f"arXiv search request failed: {response.status_code}. Retrying {retry_count + 1}/3...")
+        
+        if response.status_code == 200:
+            root = ET.fromstring(response.content)
+            ns = {'atom': 'http://www.w3.org/2005/Atom'}
+            
+            for entry in root.findall('.//atom:entry', ns):
+                paper = {}
+                # 提取 arXiv ID (从链接中提取)
+                id_link = entry.find('atom:id', ns)
+                if id_link is not None:
+                    # 从 URL 中提取 arXiv ID，如 http://arxiv.org/abs/2301.00001v1
+                    paper_id = id_link.text.split('/')[-1]
+                    # 移除版本号
+                    paper['paper_id'] = paper_id.split('v')[0] if 'v' in paper_id else paper_id
+                paper["api_platform"] = "arxiv"
+                paper["title"] = entry.find('atom:title', ns).text.strip() if entry.find('atom:title', ns) is not None else ""
+                paper["authors"] = [author.find('atom:name', ns).text for author in entry.findall('atom:author', ns) if author.find('atom:name', ns) is not None]
+                paper["year"] = entry.find('atom:published', ns).text[:4] if entry.find('atom:published', ns) is not None else ""
+                paper["venue"] = "arXiv"
+                summary_el = entry.find('atom:summary', ns)
+                paper["abstract"] = summary_el.text.strip() if summary_el is not None else ""
+                papers.append(paper)
+            
+            self.logger.info(f"Found {len(papers)} papers from arXiv for title: {title}")
+        else:
+            self.logger.warning(f"arXiv search request failed: {response.status_code}")
+        
+        return papers
+
 class SemanticScholarAPI:
     def __init__(self, config):
         self.headers = {"x-api-key": config.APIInfo.semantic_scholar_api_key}

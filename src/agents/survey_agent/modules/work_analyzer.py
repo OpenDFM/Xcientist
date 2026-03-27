@@ -19,6 +19,7 @@ from modules.pe import (
     PAPER_RELATIONSHIP_ANALYSIS,
     CLUSTER_TABLE_GENERATION
 )
+from modules.paper_graph_retriever import PaperGraphRetriever
 import hdbscan
 from sentence_transformers import SentenceTransformer
 from utils.rich_logger import get_logger
@@ -28,7 +29,7 @@ import xml.etree.ElementTree as ET
 import copy
 
 class WorkAnalyzer:
-    def __init__(self, config, work_collector):
+    def __init__(self, config, work_collector, paper_graph_retriever = None):
         self.config = config
         self.chat_agent = ChatAgent(config)
         self.semantic_scholar_api = SemanticScholarAPI(config)
@@ -37,7 +38,14 @@ class WorkAnalyzer:
         self.work_collector = work_collector
         self.relation_analysis_graph = None
         self.relation_analysis_table = None
+
         self.cluster_fast_mode = self.config.ModuleInfo.WorkAnalyzer.cluster_assign_fast_mode
+        self.use_graph_keynotes = self.config.ModuleInfo.WorkAnalyzer.use_local_paper_graph_keynotes
+        if self.use_graph_keynotes:
+            if not paper_graph_retriever:
+                self.paper_graph_retriever = PaperGraphRetriever(config)
+            else:
+                self.paper_graph_retriever = paper_graph_retriever
 
         # load reference graph
         self.cache_path = self.config.BasicInfo.cache_path
@@ -77,9 +85,10 @@ class WorkAnalyzer:
             return papers
 
         if self.config.ModuleInfo.WorkAnalyzer.use_local_paper_graph_keynotes:
-            error_papers = []
             # extract information for baselines and empty node and write back to graph
-            return error_papers
+            self.logger.info(f"getting keynotes in graph...")
+            error_ids =  self.paper_graph_retriever.read_papers_and_write_keynotes(papers)
+            return error_ids
         
         tasks = []
         err_papers = []
@@ -232,6 +241,11 @@ class WorkAnalyzer:
     def get_paper_keynote(self, paper_id: str):
         """Get the keynote of a paper by its ID."""
         hash_id = get_hash(paper_id)
+
+        if self.use_graph_keynotes:
+            results, errors = self.paper_graph_retriever.get_paper_keynote([paper_id])
+            if errors or None in results:
+                raise ValueError(f"Failed to get keynote for paper ID {paper_id} in paper graph")
 
         if self.config.ModuleInfo.WorkAnalyzer.abstract_only_mode:
             try:

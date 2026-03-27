@@ -1,14 +1,14 @@
 BasicInfo:
   topic: ""
-  evaluation_save_path: "./outputs/4o-mini-batch-0305-test-whole-review-revise/evaluation_10.txt"
+  evaluation_save_path: "./outputs/0326-5-mini-graph-test/evaluation_10.txt"
   save_path: ""
   save_json_path: ""
   user_defiend_benchmarks: True
-  topic_path: ./topics/debug_topics.txt
+  topic_path: ./topics/test_topic.txt
   AutoSurvey_benchmark: False
   SurveyGen_benchmark: False
   sub_benchmark_test: False
-  output_base_dir: ./outputs/4o-mini-batch-0305-test-whole-review-revise
+  output_base_dir: ./outputs/0326-5-mini-graph-test
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
   topic_max_retry: 3
@@ -20,7 +20,7 @@ APIInfo:
   llm_model_name: gpt-5-mini
   llm_max_context_length: 256000
   use_stream_mode: False
-  batch_chat_agent_worker: 1
+  batch_chat_agent_worker: 16
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
   low_flow_mode: True
   low_flow_latency: 2
@@ -37,8 +37,8 @@ ModuleInfo:
     reference_graph_depth: 1
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
     sentence_transformer_batch_size: 32
-    expand_in_local_paper_graph: False
-    advanced_filter_in_local_paper_graph_expansion: True
+    expand_in_local_paper_graph: True
+    advanced_filter_in_local_paper_graph_expansion: False
     related_work_top_k: 30  # for debug
     log_related_work_num: -1 # set to -1 to log all
     related_work_threshold: 0.5
@@ -55,7 +55,7 @@ ModuleInfo:
     abstract_only_mode: False
     abstract_when_full_text_fail: True
     cache_enabled: True
-    use_local_paper_graph_keynotes: False
+    use_local_paper_graph_keynotes: True
     paper_reading_temperature: 1.0
     paper_reading_max_retry: 6
     llm_max_context_overhead_length_in_paper_reading: 20000

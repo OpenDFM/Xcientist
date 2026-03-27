@@ -1,14 +1,14 @@
 BasicInfo:
   topic: ""
-  evaluation_save_path: "./outputs/minimax-0323-test/evaluation_10.txt"
+  evaluation_save_path: "./outputs/minimax-0326-test-graph/evaluation_10.txt"
   save_path: ""
   save_json_path: ""
   user_defiend_benchmarks: True
-  topic_path: ./topics/ablation_topics.txt
+  topic_path: ./topics/debug_topics.txt
   AutoSurvey_benchmark: False
   SurveyGen_benchmark: False
   sub_benchmark_test: False
-  output_base_dir: ./outputs/minimax-0323-test
+  output_base_dir: ./outputs/minimax-0326-test-graph
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
   topic_max_retry: 3
@@ -17,7 +17,7 @@ BasicInfo:
 APIInfo:
   llm_api_key: 
   llm_api_base_url: https://api.minimax.chat/v1/text/chatcompletion_v2
-  llm_model_name: minimax-m2.7
+  llm_model_name: minimax-m2.5
   llm_max_context_length: 180000
   use_stream_mode: False
   chat_timeout: 300
@@ -38,7 +38,7 @@ ModuleInfo:
     reference_graph_depth: 1
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
     sentence_transformer_batch_size: 32
-    expand_in_local_paper_graph: False
+    expand_in_local_paper_graph: True
     advanced_filter_in_local_paper_graph_expansion: True
     related_work_top_k: 30  # for debug
     log_related_work_num: -1 # set to -1 to log all
@@ -56,7 +56,7 @@ ModuleInfo:
     abstract_only_mode: False
     abstract_when_full_text_fail: True
     cache_enabled: True
-    use_local_paper_graph_keynotes: False
+    use_local_paper_graph_keynotes: True
     paper_reading_temperature: 1.0
     paper_reading_max_retry: 6
     llm_max_context_overhead_length_in_paper_reading: 20000

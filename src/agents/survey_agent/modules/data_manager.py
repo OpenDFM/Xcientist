@@ -15,6 +15,7 @@ from contextlib import closing
 import diskcache as dc
 import torch
 import gc
+import time
 from sentence_transformers import SentenceTransformer, util
 
 
@@ -485,22 +486,17 @@ class DataManager:
     def get_paper_with_title_arxiv(self, title: str):
         """通过ArXiv API根据title搜索paper"""
         self.logger.info(f"Searching for paper with title: {title}")
-        search_results = []
         
-        if "." in title:
-            try:
-                paper = self.arxiv_api.get_paper_details(title)
-                if paper:
-                    search_results.append(paper)
-                    self.logger.info(f"Found paper from arXiv API: {title}")
-            except Exception as e:
-                self.logger.warning(f"Error fetching from arXiv for '{title}': {e}")
+        try:
+            search_results = self.arxiv_api.search_papers_by_title(title)
+            if search_results:
+                self.logger.info(f"Found {len(search_results)} papers from arXiv for title: {title}")
+                return self._select_best_paper_by_similarity(title, search_results)
+        except Exception as e:
+            self.logger.warning(f"Error searching arXiv for '{title}': {e}")
         
-        if not search_results:
-            self.logger.warning(f"No papers found for title: {title}")
-            return None
-        
-        return self._select_best_paper_by_similarity(title, search_results)
+        self.logger.warning(f"No papers found for title: {title}")
+        return None
 
     def get_paper_with_title(self, title: str):
         """根据title搜索paper，优先使用Semantic Scholar，失败则用ArXiv"""
@@ -509,6 +505,119 @@ class DataManager:
             self.logger.info("Fail to retrieve out with semantic scholar, use arxiv instead")
             result = self.get_paper_with_title_arxiv(title)
         return result
+
+    def get_paper_with_title_batch(self, titles: List[str]):
+        """
+        批量根据title搜索paper，优先使用Semantic Scholar，失败则用ArXiv
+        统一计算embedding和相似度，显著提升性能
+        
+        Args:
+            titles: 论文标题列表
+            
+        Returns:
+            Dict[str, dict]: title -> paper_info 的映射，未找到的title对应None
+        """
+        if not titles:
+            return {}
+        
+        self.logger.info(f"Batch searching for {len(titles)} papers...")
+        
+        # 批量搜索Semantic Scholar
+        semantic_results = {}  # title -> list of search results
+        for title in titles:
+            try:
+                fields = "title,externalIds,openAccessPdf,abstract,authors,year,venue"
+                response = self.semantic_scholar_api.search_papers(query=title, fields=fields)
+                time.sleep(1) # avoid 400 error
+                if response and response.get("data"):
+                    semantic_results[title] = response["data"][:5]  # 取前5个结果
+            except Exception as e:
+                self.logger.warning(f"Error searching Semantic Scholar for '{title}': {e}")
+                semantic_results[title] = []
+        
+        # 批量搜索ArXiv作为fallback
+        arxiv_results = {}  # title -> list of search results
+        for title in titles:
+            try:
+                search_results = self.arxiv_api.search_papers_by_title(title)
+                arxiv_results[title] = search_results[:3] if search_results else []
+            except Exception as e:
+                self.logger.warning(f"Error searching arXiv for '{title}': {e}")
+                arxiv_results[title] = []
+        
+        # 批量计算embedding和相似度
+        model = self._get_embedding_model()
+        
+        # 收集所有需要计算相似度的title
+        all_titles_to_encode = []
+        title_to_results = {}  # query_title -> [(paper_info, source), ...]
+        
+        for title in titles:
+            title_to_results[title] = []
+            # 添加Semantic Scholar结果
+            for paper in semantic_results.get(title, [])[:3]:
+                title_to_results[title].append((paper, "semantic"))
+            # 添加ArXiv结果
+            for paper in arxiv_results.get(title, [])[:2]:
+                title_to_results[title].append((paper, "arxiv"))
+            
+            # 收集所有需要encode的title
+            all_titles_to_encode.append(title)
+            for paper, _ in title_to_results[title]:
+                all_titles_to_encode.append(paper.get("title", ""))
+        
+        # 批量编码所有title
+        self.logger.info(f"Batch encoding {len(all_titles_to_encode)} titles...")
+        all_embeddings = model.encode(
+            all_titles_to_encode,
+            convert_to_tensor=True,
+            batch_size=32,
+            show_progress_bar=True
+        )
+        
+        # 解析embeddings
+        embeddings_dict = {}
+        idx = 0
+        for title in all_titles_to_encode:
+            embeddings_dict[title] = all_embeddings[idx]
+            idx += 1
+        
+        # 批量计算相似度并选择最佳匹配
+        results = {}
+        for title in titles:
+            query_embedding = embeddings_dict[title]
+            best_paper = None
+            best_similarity = 0.0
+            best_source = None
+            
+            for paper, source in title_to_results[title]:
+                paper_title = paper.get("title", "")
+                if not paper_title or paper_title not in embeddings_dict:
+                    continue
+                
+                paper_embedding = embeddings_dict[paper_title]
+                similarity = util.pytorch_cos_sim(query_embedding, paper_embedding).item()
+                
+                if similarity > best_similarity:
+                    best_similarity = similarity
+                    best_paper = paper
+                    best_source = source
+                
+                if similarity > 0.95:
+                    self.logger.info(f"Paper: {paper_title[:50]}... Similarity: {similarity:.4f}")
+                
+                if similarity == 1.0:
+                    break
+            
+            if best_paper and best_similarity > 0.95:
+                self.logger.info(f"Found matching paper for '{title}' with similarity {best_similarity:.4f}: {best_paper.get('title', 'N/A')}")
+                best_paper["api_platform"] = best_source
+                results[title] = best_paper
+            else:
+                self.logger.warning(f"No paper found with similarity > 0.95 for title: {title}")
+                results[title] = None
+        
+        return results
 
     def _select_best_paper_by_similarity(self, query_title: str, search_results: List[dict]):
         """根据embedding相似度选择最佳匹配的paper"""
