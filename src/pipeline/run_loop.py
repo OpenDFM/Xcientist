@@ -155,13 +155,20 @@ def run_survey(topic: str, output_dir: str) -> bool:
     print("=" * 50)
 
     project_root = os.getcwd()
-    config_path = os.path.join(project_root, "src/agents/survey_agent/config")
+    config_path = os.path.join(project_root, "src", "config")
+    save_path = os.path.join(output_dir, "survey.md")
+    save_json_path = os.path.join(output_dir, "survey.json")
+    evaluation_save_path = os.path.join(output_dir, "evaluation.txt")
 
     cmd = [
         sys.executable, "-m", "src.agents.survey_agent.scripts.run_deep_survey",
-        f"BasicInfo.topic={topic}",
+        f"survey.BasicInfo.topic={topic}",
+        f"survey.BasicInfo.base_dir={output_dir}",
+        f"survey.BasicInfo.save_path={save_path}",
+        f"survey.BasicInfo.save_json_path={save_json_path}",
+        f"survey.BasicInfo.evaluation_save_path={evaluation_save_path}",
         "--config-path", config_path,
-        "--config-name", "deep_survey",
+        "--config-name", "default",
     ]
 
     print(f"Running survey: {topic}")
@@ -319,7 +326,9 @@ def main(config_path: str = "src/config/default.yaml"):
 
     # Get output roots from config
     pipeline_output_root = config.pipeline.output.root  # e.g., "pipeline_runs"
-    survey_output_base = config.survey.output.base_dir  # e.g., "/path/to/workspace/surveys"
+    survey_output_base = str(
+        config.survey.get("output", {}).get("base_dir", config.survey.BasicInfo.base_dir)
+    )
 
     # Pipeline name
     pipeline_name_config = config.pipeline.get("name", "")

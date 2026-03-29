@@ -19,11 +19,11 @@ workspace:
 survey:
   BasicInfo:
     topic: "Training-free Memory System for LLM Agents"
-    base_dir: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace/transfer"
+    base_dir: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/survey_agent/outputs/memory"
     cache_path: "./database"
-    save_path: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace/transfer/survey.md"
-    save_json_path: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace/transfer/survey.json"
-    evaluation_save_path: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace/transfer/evaluation.txt"
+    save_path: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/survey_agent/outputs/memory/survey.md"
+    save_json_path: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/survey_agent/outputs/memory/survey.json"
+    evaluation_save_path: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/survey_agent/outputs/memory/evaluation.txt"
     debug: true
     error_conservatism_mode: false
   APIInfo:
@@ -47,10 +47,10 @@ survey:
       cache_enabled: true
       max_seed_paper_num: 5
       use_seed_filter_LLM: true
-      LLM_seed_threshold: 3
+      LLM_seed_threshold: 4
       reference_graph_depth: 1
       sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
-      sentence_transformer_batch_size: 64
+      sentence_transformer_batch_size: 8
       expand_in_local_paper_graph: false
       advanced_filter_in_local_paper_graph_expansion: true
       related_work_top_k: 30 
@@ -73,10 +73,10 @@ survey:
       paper_reading_temperature: 0.3
       paper_reading_max_retry: 5
       llm_max_context_overhead_length_in_paper_reading: 20000
-      clustering_batch_size: 16
+      clustering_batch_size: 8
       clustering_temperature: 1.0
       clustering_in_steps: true
-      clustering_batch_size_in_creation: 32
+      clustering_batch_size_in_creation: 16
       clustering_batch_size_in_assignment: 10
       cluster_assign_fast_mode: true
       paper_clustering_max_retry: 10

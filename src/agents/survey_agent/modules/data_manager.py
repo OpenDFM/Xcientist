@@ -2,7 +2,7 @@
 DataManager: 负责数据读写、缓存管理和API调用
 从WorkCollector中分离出来，供其他模块（如PaperGraphRetriever）复用
 """
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -69,6 +69,29 @@ class DataManager:
                     raise e2
         
         return self.embedding_model
+
+    @staticmethod
+    def _resolve_paper_reference_id(paper_ref: Any) -> str:
+        """Normalize a paper lookup result into the cache/download paper id."""
+        if isinstance(paper_ref, str):
+            return paper_ref.strip()
+
+        if not isinstance(paper_ref, dict):
+            return ""
+
+        external_ids = paper_ref.get("externalIds")
+        if isinstance(external_ids, dict):
+            for key in ("ArXiv", "arXiv", "ARXIV"):
+                value = external_ids.get(key)
+                if value is not None and str(value).strip():
+                    return str(value).strip()
+
+        for key in ("paperId", "paper_id", "id", "corpusId"):
+            value = paper_ref.get(key)
+            if value is not None and str(value).strip():
+                return str(value).strip()
+
+        return ""
 
     def is_valid_abstract(self, abstract: str) -> bool:
         if not isinstance(abstract, str):
@@ -444,17 +467,25 @@ class DataManager:
 
         return valid_paper_ids
 
-    def get_paper_raw_markdown(self, paper_id: str) -> str:
-        if not paper_id or paper_id is None:
+    def get_paper_raw_markdown(self, paper_id: Any) -> str:
+        resolved_paper_id = self._resolve_paper_reference_id(paper_id)
+        if not resolved_paper_id:
              raise ValueError("Paper id is empty or none when get_paper_raw_markdown")
-        md_path = os.path.join(f"{self.cache_path}/parsed_papers", paper_id, "auto", f"{paper_id}.md")
+        md_path = os.path.join(
+            f"{self.cache_path}/parsed_papers",
+            resolved_paper_id,
+            "auto",
+            f"{resolved_paper_id}.md",
+        )
         if not os.path.exists(md_path):
             if self.config.BasicInfo.debug:
-                self.logger.info(f"Paper {paper_id} markdown not found in cache, re-downloading and parsing...")
+                self.logger.info(
+                    f"Paper {resolved_paper_id} markdown not found in cache, re-downloading and parsing..."
+                )
             try:
-                self.download_and_parse_papers([paper_id])
+                self.download_and_parse_papers([paper_id if isinstance(paper_id, dict) else resolved_paper_id])
             except Exception as e:
-                self.logger.error(f"Failed to parse paper {paper_id}: {e}")
+                self.logger.error(f"Failed to parse paper {resolved_paper_id}: {e}")
                 raise e
         if not os.path.exists(md_path):
             self.logger.warning(f"Markdown still missing after parse: {md_path}")

@@ -583,8 +583,10 @@ class PaperGraphRetriever:
         """Get the raw markdown text for a paper via data_manager."""
         try:
             paper_title = self.id_to_title(node_id)
-            ds_id = self.data_manager.get_paper_with_title(paper_title)
-            return self.data_manager.get_paper_raw_markdown(ds_id)
+            matched_paper = self.data_manager.get_paper_with_title(paper_title)
+            if not matched_paper:
+                raise ValueError(f"No download candidate found for title: {paper_title}")
+            return self.data_manager.get_paper_raw_markdown(matched_paper)
         except Exception as e:
             self.logger.warning(f"Failed to get markdown for paper {node_id}: {e}")
             return None
@@ -678,14 +680,16 @@ class PaperGraphRetriever:
         
         baseline_info_dict = {'metadata': baseline_metadata}
         
-        baseline_results = self.chat_agent.batch_remote_chat_with_retry(
+        '''baseline_results = self.chat_agent.batch_remote_chat_with_retry(
             prompts=baseline_prompts,
             validate_fn=self._make_baseline_validate_fn(baseline_metadata),
             max_retry=3,
             desc="Baseline extraction",
             temperature=0.05,
             info_dict=baseline_info_dict
-        )
+        )'''
+        # Skip baseline extraction for now.
+        baseline_results = []
         
         # ===== Step 3: Aggregate =====
         aggregated = aggregate_results(main_results, baseline_results, source_info)

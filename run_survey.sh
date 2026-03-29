@@ -9,7 +9,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Disable proxy for internal API calls (API server 58.210.177.113 cannot be reached via proxy)
 unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY
 export no_proxy="58.210.177.113,localhost,127.0.0.1"
-
+export HF_ENDPOINT=https://hf-mirror.com
 export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
 export MINERU_MODEL_SOURCE=modelscope
 
