@@ -50,12 +50,12 @@ ModuleInfo:
   Database:
     default_top_k: 20
   PaperGraphRetriever:
-    db_path: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/database/paper_graph/graph.db
+    db_path: data/processed/graph.db
   WorkAnalyzer:
     abstract_only_mode: False
     abstract_when_full_text_fail: True
     cache_enabled: True
-    use_local_paper_graph_keynotes: False
+    use_local_paper_graph_keynotes: True
     paper_reading_temperature: 1.0
     paper_reading_max_retry: 6
     llm_max_context_overhead_length_in_paper_reading: 20000

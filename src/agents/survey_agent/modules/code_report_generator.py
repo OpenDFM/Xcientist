@@ -15,6 +15,7 @@ import json
 from typing import List, Dict, Optional, Tuple
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from utils.config_utils import merge_with_default_survey_config
 from utils.rich_logger import get_logger
 from utils.api_call import ChatAgent
 # from modules.work_collector import WorkCollector
@@ -842,7 +843,7 @@ def generate_code_report(
                 "deep_survey_batch.yaml"
             )
             if os.path.exists(config_path):
-                config = OmegaConf.load(config_path)
+                config = merge_with_default_survey_config(OmegaConf.load(config_path))
             else:
                 config = OmegaConf.create({})
         except:
@@ -918,7 +919,7 @@ def generate_framework_env_guidance(
                 "deep_survey_batch.yaml"
             )
             if os.path.exists(config_path):
-                config = OmegaConf.load(config_path)
+                config = merge_with_default_survey_config(OmegaConf.load(config_path))
             else:
                 config = OmegaConf.create({})
         except:

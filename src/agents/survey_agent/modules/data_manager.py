@@ -528,7 +528,7 @@ class DataManager:
             try:
                 fields = "title,externalIds,openAccessPdf,abstract,authors,year,venue"
                 response = self.semantic_scholar_api.search_papers(query=title, fields=fields)
-                time.sleep(1) # avoid 400 error
+                time.sleep(3)
                 if response and response.get("data"):
                     semantic_results[title] = response["data"][:5]  # 取前5个结果
             except Exception as e:
@@ -538,6 +538,9 @@ class DataManager:
         # 批量搜索ArXiv作为fallback
         arxiv_results = {}  # title -> list of search results
         for title in titles:
+            if semantic_results.get(title):
+                arxiv_results[title] = []
+                continue
             try:
                 search_results = self.arxiv_api.search_papers_by_title(title)
                 arxiv_results[title] = search_results[:3] if search_results else []

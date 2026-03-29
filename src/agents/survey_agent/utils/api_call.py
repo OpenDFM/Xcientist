@@ -31,11 +31,13 @@ class ArxivAPI:
         paper = {}
         
         for retry_count in range(self.config.APIInfo.arxiv_api_max_retry):
-            response = requests.get(arxiv_url, timeout=10)
+            response = requests.get(arxiv_url, timeout=120)
             if response.status_code == 200:
                 break
             else:
                 self.logger.warning(f"arXiv API request failed for {paper_id}: {response.status_code}. Retrying {retry_count + 1}/3...")
+                if response.status_code == 429:
+                    time.sleep(60)
 
         if response.status_code == 200:
             root = ET.fromstring(response.content)
@@ -68,11 +70,13 @@ class ArxivAPI:
         
         papers = []
         for retry_count in range(self.config.APIInfo.arxiv_api_max_retry):
-            response = requests.get(arxiv_url, timeout=30)
+            response = requests.get(arxiv_url, timeout=120)
             if response.status_code == 200:
                 break
             else:
                 self.logger.warning(f"arXiv search request failed: {response.status_code}. Retrying {retry_count + 1}/3...")
+                if response.status_code == 429:
+                    time.sleep(60)
         
         if response.status_code == 200:
             root = ET.fromstring(response.content)
@@ -131,7 +135,7 @@ class SemanticScholarAPI:
         if resp.status_code == 429:
             self.logger.info("Rate limit exceeded. Waiting 60 seconds before retrying...")
             time.sleep(60)
-            return self.search_papers(query, fields, retry_time)
+            return self.search_papers(query, fields, retry_time + 1)
         else:
             time.sleep(min(5, 1 + retry_time))
 
@@ -158,7 +162,7 @@ class SemanticScholarAPI:
         if resp.status_code == 429:
             self.logger.info("Rate limit exceeded. Waiting 60 seconds before retrying...")
             time.sleep(60)
-            return self.get_paper_details(paper_id, fields, retry_time)
+            return self.get_paper_details(paper_id, fields, retry_time + 1)
         else:
             time.sleep(min(5, 1 + retry_time))
 

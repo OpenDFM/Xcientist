@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from utils.rich_logger import get_logger
 # from utils.rich_logger import get_logger
 from utils.api_call import ChatAgent
+from utils.config_utils import merge_with_default_survey_config
 from modules.work_collector import WorkCollector
 from modules.pseudo_reviser import PseudoReviser
 from modules.code_report_generator import CodeReportGenerator
@@ -1625,6 +1626,7 @@ def single_paper_test(config):
 
 @hydra.main(config_path="../config", config_name="deep_survey_batch_xiaomi", version_base=None)
 def main(config):
+    config = merge_with_default_survey_config(config)
     code_collector = CodeCollector(config)
     work_collector = WorkCollector(config)
     code_analyzer = CodeAnalyzer(config, code_collector, work_collector)

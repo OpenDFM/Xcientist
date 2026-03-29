@@ -41,10 +41,13 @@ ModuleInfo:
     RAG_source_downloadable_only: False
   Database:
     default_top_k: 20
+  PaperGraphRetriever:
+    db_path: data/processed/graph.db
   WorkAnalyzer:
     abstract_only_mode: True
     abstract_when_full_text_fail: False
     cache_enabled: True
+    use_local_paper_graph_keynotes: True
     paper_reading_temperature: 1.0
     paper_reading_max_retry: 5
     llm_max_context_overhead_length_in_paper_reading: 20000
@@ -53,6 +56,7 @@ ModuleInfo:
     clustering_in_steps: True
     clustering_batch_size_in_creation: 32
     clustering_batch_size_in_assignment: 8
+    cluster_assign_fast_mode: True
     paper_clustering_max_retry: 8
     paper_clustering_creation_max_retry: 8
     paper_clustering_assignment_max_retry: 8
@@ -73,6 +77,7 @@ ModuleInfo:
     outline_generation_assign_max_retry: 10
     outline_generation_assign_batch_size: 10
     outline_assign_RAG_topk: 20
+    outline_assign_fast_mode: True
     outline_generation_temperature: 0.5
     outline_generation_batch_size: 16
     outline_generation_max_retry: 2

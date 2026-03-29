@@ -51,7 +51,7 @@ ModuleInfo:
   Database:
     default_top_k: 20
   PaperGraphRetriever:
-    db_path: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/database/paper_graph/graph.db
+    db_path: data/processed/graph.db
   WorkAnalyzer:
     abstract_only_mode: False
     abstract_when_full_text_fail: True

@@ -18,7 +18,7 @@ workspace:
 # ============================================
 survey:
   BasicInfo:
-    topic: "Knowledge transfer for LLM"
+    topic: "Long-context Sequence Modeling in Transformers"
     base_dir: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace/transfer"
     cache_path: "./database"
     save_path: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace/transfer/survey.md"
@@ -27,13 +27,13 @@ survey:
     debug: true
     error_conservatism_mode: false
   APIInfo:
-    llm_api_key: "${env:OPENAI_API_KEY}"
+    llm_api_key: "${oc.env:OPENAI_API_KEY,}"
     llm_api_base_url: "https://api.xi-ai.cn/v1/chat/completions"
     llm_model_name: "gpt-5-mini"
     llm_max_context_length: 160000
     use_stream_mode: false
     batch_chat_agent_worker: 32
-    semantic_scholar_api_key: "${env:SEMANTIC_SCHOLAR_API_KEY}"
+    semantic_scholar_api_key: "${oc.env:SEMANTIC_SCHOLAR_API_KEY,}"
     low_flow_mode: false
     low_flow_latency: 0
     arxiv_api_max_retry: 3
@@ -64,12 +64,12 @@ survey:
     Database:
       default_top_k: 20
     PaperGraphRetriever:
-      db_path: ./database/paper_graph/graph.db
+      db_path: data/processed/graph.db
     WorkAnalyzer:
       abstract_only_mode: false
       abstract_when_full_text_fail: true
       cache_enabled: true
-      use_local_paper_graph_keynotes: false
+      use_local_paper_graph_keynotes: true
       paper_reading_temperature: 0.3
       paper_reading_max_retry: 5
       llm_max_context_overhead_length_in_paper_reading: 20000
@@ -142,7 +142,7 @@ survey:
     Judge:
       use_different_api_for_judge: false
       model: "gpt-5-mini"
-      judge_llm_api_key: "${env:OPENAI_API_KEY}"
+      judge_llm_api_key: "${oc.env:OPENAI_API_KEY,}"
       judge_llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
       nli_temperature: 0.1
       citation_quality_threshold: 0.5
@@ -178,7 +178,7 @@ idea:
     output_root: "runs"
     console_logs: true
     rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
-    openai_api_key: "sk-TUkxt3aRk2RqY94xEaEd4d5eE66d40298a27279aD83b4b43"
+    openai_api_key: "${oc.env:OPENAI_API_KEY,}"
     openai_base_url: "https://api.xi-ai.cn/v1"
 
   agent:
@@ -274,14 +274,14 @@ idea:
 experiment:
   enabled: true
   api:
-    openai_api_key: "${env:OPENAI_API_KEY}"
+    openai_api_key: "${oc.env:OPENAI_API_KEY,}"
     openai_api_base: "https://api.xi-ai.cn/v1"
-    minimax_api_key: "${env:MINIMAX_API_KEY}"
+    minimax_api_key: "${oc.env:MINIMAX_API_KEY,}"
     minimax_api_base: "https://api.minimaxi.com/v1"
     huggingface_endpoint: "https://hf-mirror.com"
-    github_ai_token: "${env:GITHUB_AI_TOKEN}"
-    serper_api_key: "${env:SERPER_API_KEY}"
-    jina_api_key: "${env:JINA_API_KEY}"
+    github_ai_token: "${oc.env:GITHUB_AI_TOKEN,}"
+    serper_api_key: "${oc.env:SERPER_API_KEY,}"
+    jina_api_key: "${oc.env:JINA_API_KEY,}"
 
   # Model configuration
   models:
@@ -328,11 +328,11 @@ paper:
   model: "MiniMax-M2.5"
 
   api:
-    openai_api_key: "${env:OPENAI_API_KEY}"
+    openai_api_key: "${oc.env:OPENAI_API_KEY,}"
     openai_api_base: "https://api.xi-ai.cn/v1"
-    minimax_api_key: "${env:MINIMAX_API_KEY}"
+    minimax_api_key: "${oc.env:MINIMAX_API_KEY,}"
     minimax_api_base: "https://api.minimaxi.com/v1"
-    semantic_scholar_api_key: "${env:SEMANTIC_SCHOLAR_API_KEY}"
+    semantic_scholar_api_key: "${oc.env:SEMANTIC_SCHOLAR_API_KEY,}"
     semantic_scholar_api_base: "https://api.semanticscholar.org"
 
   models:

@@ -11,6 +11,7 @@ from modules.survey_generator import SurveyGenerator
 from modules.survey_generator import SurveyGenerator
 from modules.judge import Judge
 from topics.Benchmark_topics import SURVEYGEN_TOPICS, AUTOSURVEY_TOPICS
+from utils.config_utils import merge_with_default_survey_config
 from utils.file_utils import write_domain_header, write_topic_header, write_result, write_domain_result, write_header
 
 import json
@@ -78,6 +79,7 @@ def get_Human_cfg(config, domain, topic, save_path, paper_path):
 
 @hydra.main(config_path="../config", config_name="evaluate_baseline", version_base=None)
 def main(config):
+    config = merge_with_default_survey_config(config)
     benchmarks = {}
 
     if config.BasicInfo.user_defiend_benchmarks:

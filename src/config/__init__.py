@@ -54,6 +54,7 @@ def _preprocess_yaml_content(content: str) -> str:
 
     This handles:
     - ${env:VAR_NAME} -> actual env var values
+    - ${oc.env:VAR_NAME[,default]} -> actual env var values
     - ${workspace} -> current working directory (will be resolved later)
     """
     workspace = os.getcwd()
@@ -61,6 +62,13 @@ def _preprocess_yaml_content(content: str) -> str:
     # First handle ${env:VAR_NAME} patterns
     env_pattern = re.compile(r'\$\{env:([^}]+)\}')
     content = env_pattern.sub(lambda m: os.environ.get(m.group(1), ""), content)
+
+    # Also support OmegaConf's built-in env interpolation with optional default
+    oc_env_pattern = re.compile(r'\$\{oc\.env:([^,}]+)(?:,([^}]*))?\}')
+    content = oc_env_pattern.sub(
+        lambda m: os.environ.get(m.group(1), m.group(2) or ""),
+        content,
+    )
 
     # Escape ${workspace} for now (will be resolved later)
     # Use a placeholder that won't conflict

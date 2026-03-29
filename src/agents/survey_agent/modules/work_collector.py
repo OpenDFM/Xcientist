@@ -3,6 +3,7 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from utils.api_call import ChatAgent
+from utils.config_utils import merge_with_default_survey_config
 from utils.rich_logger import get_logger
 from modules.paper_graph_retriever import PaperGraphRetriever
 from modules.data_manager import DataManager
@@ -763,6 +764,7 @@ class WorkCollector:
 
 @hydra.main(config_path="../config", config_name="deep_survey_batch_xiaomi_fast", version_base=None)
 def main(config):
+    config = merge_with_default_survey_config(config)
     title = "Learning to Refine Source Representations for Neural Machine Translation"
     work_collector = WorkCollector(config)
     print(work_collector.get_paper_with_title(title))

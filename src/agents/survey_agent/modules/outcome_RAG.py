@@ -13,6 +13,7 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from utils.rich_logger import get_logger
+from utils.config_utils import merge_with_default_survey_config
 from modules.work_collector import WorkCollector
 class OutcomeRAG:
     """Subsection retriever for DeepSurvey markdown output."""
@@ -209,6 +210,7 @@ class OutcomeRAG:
 
 @hydra.main(config_path="../config", config_name="outcomeRAG", version_base=None)
 def main(cfg):
+    cfg = merge_with_default_survey_config(cfg)
     logger = get_logger("OutcomeRAGMain")
     work_collector = WorkCollector(cfg)
 

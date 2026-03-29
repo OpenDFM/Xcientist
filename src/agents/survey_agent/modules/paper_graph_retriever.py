@@ -16,6 +16,7 @@ from utils.step2v2_extractor import (
     format_extraction_result,
 )
 from utils.api_call import ChatAgent
+from utils.config_utils import merge_with_default_survey_config, resolve_repo_relative_path
 from modules.data_manager import DataManager
 import diskcache as dc
 import re
@@ -25,7 +26,9 @@ class PaperGraphRetriever:
     def __init__(self, config, data_manager = None):
         self.config = config
         self.logger = get_logger("PaperGraphRetriever")
-        self.db_path = self.config.ModuleInfo.PaperGraphRetriever.db_path
+        self.db_path = resolve_repo_relative_path(
+            self.config.ModuleInfo.PaperGraphRetriever.db_path
+        )
         self.chat_agent = ChatAgent(config)
         if not data_manager:
             self.data_manager = DataManager(config)
@@ -753,6 +756,7 @@ class PaperGraphRetriever:
 
 @hydra.main(config_path="../config", config_name="deep_survey_batch_others_huoshan", version_base=None)
 def main(config):
+    config = merge_with_default_survey_config(config)
     retriever = PaperGraphRetriever(config)
     # retriever.print_debug_table("nodes", limit = 10)
     ids = ["Robust Training Methods", "Evaluation Protocol", "TWIST", "BUGFARM", "Multilingual Domain Adaptation with Adapters", "VAENAR-TTS", 

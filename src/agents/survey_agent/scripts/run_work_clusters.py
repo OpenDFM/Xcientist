@@ -10,6 +10,7 @@ from modules.work_analyzer import WorkAnalyzer
 from modules.database import Database
 from modules.survey_generator import SurveyGenerator
 from modules.judge import Judge
+from utils.config_utils import merge_with_default_survey_config
 
 import re
 
@@ -106,6 +107,7 @@ def run_pipeline(config, work_collector, database, work_analyzer, survey_generat
 
 @hydra.main(config_path="../config", config_name="deep_survey_more_ref", version_base=None)
 def main(config):
+    config = merge_with_default_survey_config(config)
     logger.info("Starting Deep Survey Pipeline")
     logger.yaml(OmegaConf.to_container(config, resolve=True))
 

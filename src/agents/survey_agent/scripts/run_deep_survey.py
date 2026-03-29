@@ -2,6 +2,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
+import hydra
 from utils.rich_logger import get_logger
 from omegaconf import OmegaConf
 from modules.work_collector import WorkCollector
@@ -9,7 +10,7 @@ from modules.database import Database
 from modules.work_analyzer import WorkAnalyzer
 from modules.survey_generator import SurveyGenerator
 from modules.judge import Judge
-W
+from utils.config_utils import merge_with_default_survey_config
 from utils.file_utils import write_domain_header, write_topic_header, write_result, write_domain_result
 
 logger = get_logger("Deep Survey")
@@ -133,6 +134,7 @@ def run_pipeline(config, work_collector, database, work_analyzer, survey_generat
 
 @hydra.main(config_path="../config", config_name="deep_survey_xiaomi", version_base=None)
 def main(config):
+    config = merge_with_default_survey_config(config)
     logger.info("Starting Deep Survey Pipeline")
     logger.yaml(OmegaConf.to_container(config, resolve=True))
 
