@@ -150,7 +150,6 @@ class ComponentSummaryFaissStore:
             texts,
             convert_to_numpy=True,
             normalize_embeddings=True,
-            show_progress_bar=False,
         )
         matrix = np.asarray(embeddings, dtype=np.float32)
         if matrix.ndim != 2:
@@ -435,7 +434,6 @@ class GraphCoreComponentIndexer:
 
     def _write_build_stats(self, stats: dict[str, Any]) -> None:
         payload = dict(stats)
-        payload["built_at"] = now_iso()
         target = self.store_path / "build_stats.json"
         target.parent.mkdir(parents=True, exist_ok=True)
         with target.open("w", encoding="utf-8") as handle:
@@ -449,7 +447,6 @@ def build_component_summary_vector_store(
     batch_size: int = DEFAULT_BATCH_SIZE,
     limit: Optional[int] = None,
     rebuild: bool = False,
-    show_progress: bool = True,
 ) -> dict[str, Any]:
     indexer = GraphCoreComponentIndexer(
         db_path=Path(db_path),
@@ -460,7 +457,6 @@ def build_component_summary_vector_store(
         batch_size=batch_size,
         limit=limit,
         rebuild=rebuild,
-        show_progress=show_progress,
     )
 
 
@@ -509,7 +505,6 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         batch_size=args.batch_size,
         limit=args.limit,
         rebuild=args.rebuild,
-        show_progress=not args.no_progress,
     )
     print(json.dumps(stats, ensure_ascii=False, indent=2))
     return 0
