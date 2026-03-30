@@ -218,14 +218,16 @@ class ChatAgent:
         if model is None:
             model = self.model_name
 
-        # Estimate input tokens and truncate if necessary to leave room for output
-        # Default context window is 262144 for Qwen-235B-Instruct
-        context_window = 262144
+        # Estimate input tokens and truncate if necessary to leave room for output.
+        # Keep a hard input-side truncation cap at 390000 tokens while still
+        # reserving the requested output budget.
+        context_window = 406000
+        hard_input_cap = 390000
         input_tokens, enc = self.encode_with_fallback(text_content, model=model)
         input_token_count = len(input_tokens)
 
         # Reserve space for output tokens
-        max_input_tokens = context_window - max_output_tokens
+        max_input_tokens = min(context_window - max_output_tokens, hard_input_cap)
 
         if input_token_count > max_input_tokens:
             self.logger.warning(

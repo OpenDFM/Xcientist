@@ -12,7 +12,11 @@ from src.agents.idea_agent.utils.core.ablation_inputs import (
     ingest_ablation_results_if_available,
 )
 from src.agents.idea_agent.utils.core.logger import get_logger, init_logger
-from src.agents.idea_agent.utils.core.config_loader import get_config_value, load_idea_agent_config
+from src.agents.idea_agent.utils.core.config_loader import (
+    get_config_value,
+    load_idea_agent_config,
+    load_project_config,
+)
 from src.agents.idea_agent.utils.core.run_inputs import clean_optional_text, load_topic, resolve_run_inputs
 from src.agents.idea_agent.utils.workflow.ligagent_flow import run_agent_loop
 
@@ -33,6 +37,7 @@ def _run_topic(
     include_console: bool,
     rag_config: str,
     resolved_inputs: Dict[str, object],
+    survey_config: Optional[object] = None,
 ) -> str:
     run_dir = Path(output_root) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -53,7 +58,12 @@ def _run_topic(
     logger.info("💡 The research topic is %s", topic)
 
     config = load_idea_agent_config()
-    agent = LigAgent(run_dir=run_dir, rag_config=rag_config, config=config)
+    agent = LigAgent(
+        run_dir=run_dir,
+        rag_config=rag_config,
+        config=config,
+        survey_config=survey_config,
+    )
     agent.bootstrap_topic(topic)
 
     if clean_optional_text(str(resolved_inputs.get("mature_idea") or "")):
@@ -101,8 +111,10 @@ def _apply_env_config(config: Optional[object]) -> None:
 
 def main() -> None:
     config = load_idea_agent_config()
+    project_config = load_project_config()
     _apply_env_config(config)
     resolved_inputs = resolve_run_inputs(config, default_output_root=str(DEFAULT_OUTPUT_ROOT))
+    survey_config = get_config_value(project_config, "survey", None)
     topic = load_topic(str(resolved_inputs["topic"]))
     output_root = Path(str(resolved_inputs["output_root"])).expanduser()
     if not output_root.is_absolute():
@@ -123,6 +135,7 @@ def main() -> None:
             include_console,
             rag_config,
             resolved_inputs,
+            survey_config,
         )
         print(f"[{topic}] ✅ completed -> {result_dir}")
     except Exception as exc:

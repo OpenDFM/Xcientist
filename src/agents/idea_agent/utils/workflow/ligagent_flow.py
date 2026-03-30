@@ -21,6 +21,7 @@ from src.agents.idea_agent.utils.workflow.workflow_runtime import (
 )
 from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     build_algorithm_spec,
+    collect_rag_citations,
 )
 from src.agents.idea_agent.utils.workflow.ligagent_utils import (
     align_public_idea_entry,
@@ -188,10 +189,7 @@ def build_idea_result_payload(
                 hits = rag_entry.get("hits") or []
             elif isinstance(rag_entry, list):
                 hits = rag_entry
-            for hit in hits:
-                if not isinstance(hit, dict):
-                    continue
-                title = str(hit.get("title") or "").strip()
+            for title in collect_rag_citations(hits):
                 if not title:
                     continue
                 key = title.lower()

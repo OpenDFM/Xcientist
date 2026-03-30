@@ -352,9 +352,15 @@ def format_paper_context_prompt_view(
         if not isinstance(hit, Mapping):
             rag_lines.append(f"[R{idx}] {_clip_text(hit)}")
             continue
-        rag_lines.append(f"[R{idx}] {_clip_text(hit.get('title') or f'RAG hit {idx}')}")
+        rag_lines.append(
+            f"[R{idx}] {_clip_text(hit.get('subsection_title') or hit.get('title') or f'RAG hit {idx}')}"
+        )
         rag_lines.append(f"  Signal: {_clip_text(hit.get('subsection')) or 'None'}")
-        citations = _format_inline_list(hit.get("citations"), max_items=4, item_limit=50)
+        citations = _format_inline_list(
+            hit.get("paper_titles") or hit.get("citations"),
+            max_items=4,
+            item_limit=50,
+        )
         rag_lines.append(f"  Citations: {citations}")
 
     survey_lines: List[str] = []

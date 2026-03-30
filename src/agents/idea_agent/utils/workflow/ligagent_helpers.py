@@ -259,7 +259,7 @@ def collect_rag_citations(hits: List[Dict[str, Any]]) -> List[str]:
     titles: List[str] = []
     seen = set()
     for hit in hits or []:
-        citations = hit.get("citations", [])
+        citations = hit.get("paper_titles") or hit.get("citations", [])
         for title in citations:
             cleaned = (title or "").strip()
             if not cleaned:
