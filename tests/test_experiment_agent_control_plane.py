@@ -25,6 +25,9 @@ if HAS_EXPERIMENT_DEPS:
         EXPERIMENT_ABLATION_SCIENCE_PLANNER,
         EXPERIMENT_STANDARD_SCIENCE_PLANNER,
     )
+    from src.agents.experiment_agent.runtime.ablation_results import (
+        build_ablation_results_artifacts,
+    )
     from src.agents.experiment_agent.runtime.manifests import artifact_paths, load_workspace_state
 
 pytestmark = pytest.mark.skipif(
@@ -136,6 +139,84 @@ def test_master_gate_and_materializer_follow_current_ablation_contract(tmp_path)
     assert "metadata" not in ablation_results
     assert "evidence_paths" not in ablation_results
     assert set(ablation_results["summary"].keys()) == {"feasible", "confidence", "key_findings"}
+    assert os.path.exists(paths["final_artifact_contract"])
+
+
+def test_master_gate_uses_generic_phase_completion_not_just_status(tmp_path):
+    idea_path = tmp_path / "idea.md"
+    idea_path.write_text("# idea", encoding="utf-8")
+    _write_idea_json(tmp_path / "idea.json")
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+
+    paths = artifact_paths(str(tmp_path))
+    _write_json(paths["prepare_validator"], _pass_report("prepare"))
+    _write_json(paths["code_validator"], _pass_report("code"))
+    _write_json(
+        paths["standard_science_validator"],
+        {
+            "verdict": "PASS",
+            "scope": "standard_science",
+            "checked_artifacts": [],
+            "findings": ["runs exist"],
+            "required_fixes": [],
+            "required_fixes_for_complete_evaluation": [
+                {"priority": "high", "issue": "missing coverage", "fix": "run more evidence"}
+            ],
+            "evidence_summary": "usable but incomplete",
+        },
+    )
+
+    agent = MasterAgent(
+        experiment_id="demo",
+        idea_path=str(idea_path),
+        workspace_root=str(tmp_path),
+        project_root=str(project_root),
+        verbose=False,
+    )
+
+    payload = agent._compute_gate_payload()
+    assert payload["decision"] == Decision.STANDARD_EXP_NEEDED
+    assert payload["phase_completion_status"] == "partial"
+    assert payload["ready_for_next_phase"] is False
+    assert payload["blocking_issues"]
+    assert "missing coverage" in payload["blocking_issues"][0]
+
+
+def test_ablation_materialization_rejects_non_phase_result_or_partial_phase(tmp_path):
+    _write_idea_json(tmp_path / "idea.json")
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    paths = artifact_paths(str(tmp_path))
+    _write_json(
+        paths["ablation_science_validator"],
+        {
+            "status": "PASS",
+            "phase_completion_status": "partial",
+            "artifact_role": "smoke_check",
+            "scope": "ablation_science",
+            "checked_artifacts": [],
+            "findings": [],
+            "required_fixes": [],
+            "evidence_summary": "smoke only",
+            "summary": {"feasible": True, "confidence": 0.9, "key_findings": ["placeholder"]},
+            "ablation_components": {
+                "component_a": {
+                    "result": "positive",
+                    "metric": "accuracy",
+                    "value": "+0.1",
+                    "confidence": 0.9,
+                    "analysis": "evidence-backed",
+                    "method_context": "ignored by runtime",
+                    "follow_up_required": False,
+                }
+            },
+        },
+    )
+
+    result = build_ablation_results_artifacts(str(tmp_path), str(project_root))
+    assert result["valid"] is False
+    assert "phase_result" in result["blocker"] or "not marked complete" in result["blocker"]
 
 
 def test_integrator_prefers_deterministic_materialization(tmp_path, monkeypatch):

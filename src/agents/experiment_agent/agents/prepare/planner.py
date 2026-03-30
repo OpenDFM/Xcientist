@@ -249,7 +249,7 @@ class PrepareAgent(BaseAgent):
             ],
             ordered=False,
         )
-        pb.add_text("Validator reports must use `status: PASS|PARTIAL|FAIL` and include the following shared verdict fields:")
+        pb.add_text("Validator reports must use `status: PASS|PARTIAL|FAIL`, set a generic `phase_completion_status`, and include the following shared verdict fields:")
         pb.add_text(verdict_fields)
 
         pb.add_header("Real Target Requirements", level=2)

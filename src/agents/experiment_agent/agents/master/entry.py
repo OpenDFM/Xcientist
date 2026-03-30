@@ -44,6 +44,7 @@ from src.agents.experiment_agent.runtime.manifests import (
     write_json_file,
     workspace_contract_paths,
 )
+from src.agents.experiment_agent.runtime.phase_contracts import normalize_phase_report
 from src.agents.experiment_agent.skills import get_master_agent_context
 
 logger = get_logger(__name__)
@@ -176,14 +177,11 @@ class MasterAgent(OpenHandsBaseAgent):
         payload = load_json_file(path)
         return payload if isinstance(payload, dict) else {}
 
-    def _report_status(self, payload: Dict[str, Any]) -> str:
-        return str(payload.get("status") or "").strip().upper()
-
     def _prepare_ready(self, payload: Dict[str, Any]) -> bool:
-        status = self._report_status(payload)
-        if status == "PASS":
+        phase_report = normalize_phase_report(payload)
+        if phase_report["status"] == "PASS":
             return True
-        if status == "PARTIAL" and bool(payload.get("ready_to_proceed")):
+        if phase_report["status"] == "PARTIAL" and phase_report["ready_for_next_phase"]:
             return True
         return False
 
@@ -210,37 +208,57 @@ class MasterAgent(OpenHandsBaseAgent):
     def _compute_gate_payload(self) -> Dict[str, Any]:
         prepare_payload = self._load_report(self.paths["prepare_validator"])
         if not self._prepare_ready(prepare_payload):
+            phase_report = normalize_phase_report(prepare_payload)
             return {
                 "decision": Decision.PREPARE_NEEDED,
                 "phase": DECISION_TO_PHASE[Decision.PREPARE_NEEDED],
-                "reasons": ["Prepare validator has not produced PASS or ready PARTIAL."],
+                "phase_completion_status": phase_report["phase_completion_status"],
+                "ready_for_next_phase": phase_report["ready_for_next_phase"],
+                "blocking_issues": phase_report["blocking_issues"],
+                "reasons": phase_report["blocking_issues"]
+                or ["Prepare validator has not produced a ready handoff."],
                 "evidence_files": [self.paths["prepare_validator"]],
             }
 
         code_payload = self._load_report(self.paths["code_validator"])
-        if self._report_status(code_payload) != "PASS":
+        code_phase = normalize_phase_report(code_payload)
+        if code_phase["phase_completion_status"] != "complete":
             return {
                 "decision": Decision.CODE_NEEDED,
                 "phase": DECISION_TO_PHASE[Decision.CODE_NEEDED],
-                "reasons": ["Code validator has not passed."],
+                "phase_completion_status": code_phase["phase_completion_status"],
+                "ready_for_next_phase": code_phase["ready_for_next_phase"],
+                "blocking_issues": code_phase["blocking_issues"],
+                "reasons": code_phase["blocking_issues"]
+                or ["Code phase is not complete."],
                 "evidence_files": [self.paths["code_validator"]],
             }
 
         standard_payload = self._load_report(self.paths["standard_science_validator"])
-        if self._report_status(standard_payload) != "PASS":
+        standard_phase = normalize_phase_report(standard_payload)
+        if standard_phase["phase_completion_status"] != "complete":
             return {
                 "decision": Decision.STANDARD_EXP_NEEDED,
                 "phase": DECISION_TO_PHASE[Decision.STANDARD_EXP_NEEDED],
-                "reasons": ["Standard science validator has not passed."],
+                "phase_completion_status": standard_phase["phase_completion_status"],
+                "ready_for_next_phase": standard_phase["ready_for_next_phase"],
+                "blocking_issues": standard_phase["blocking_issues"],
+                "reasons": standard_phase["blocking_issues"]
+                or ["Standard science phase is not complete."],
                 "evidence_files": [self.paths["standard_science_validator"]],
             }
 
         ablation_payload = self._load_report(self.paths["ablation_science_validator"])
-        if self._report_status(ablation_payload) != "PASS":
+        ablation_phase = normalize_phase_report(ablation_payload)
+        if ablation_phase["phase_completion_status"] != "complete":
             return {
                 "decision": Decision.ABLATION_NEEDED,
                 "phase": DECISION_TO_PHASE[Decision.ABLATION_NEEDED],
-                "reasons": ["Ablation science validator has not passed."],
+                "phase_completion_status": ablation_phase["phase_completion_status"],
+                "ready_for_next_phase": ablation_phase["ready_for_next_phase"],
+                "blocking_issues": ablation_phase["blocking_issues"],
+                "reasons": ablation_phase["blocking_issues"]
+                or ["Ablation science phase is not complete."],
                 "evidence_files": [self.paths["ablation_science_validator"]],
             }
 
@@ -253,6 +271,9 @@ class MasterAgent(OpenHandsBaseAgent):
             return {
                 "decision": Decision.ABLATION_NEEDED,
                 "phase": DECISION_TO_PHASE[Decision.ABLATION_NEEDED],
+                "phase_completion_status": "partial",
+                "ready_for_next_phase": False,
+                "blocking_issues": [materialization_preview.get("blocker") or ""],
                 "reasons": [
                     materialization_preview.get("blocker")
                     or "Ablation results cannot be materialized from current validator evidence."
@@ -264,6 +285,9 @@ class MasterAgent(OpenHandsBaseAgent):
         return {
             "decision": Decision.CONVERGED,
             "phase": DECISION_TO_PHASE[Decision.CONVERGED],
+            "phase_completion_status": "complete",
+            "ready_for_next_phase": True,
+            "blocking_issues": [],
             "reasons": ["All validator-backed gates passed."],
             "evidence_files": materialization_preview.get("source_evidence_files")
             or [
@@ -279,6 +303,9 @@ class MasterAgent(OpenHandsBaseAgent):
             "iteration": self.current_iteration,
             "decision": payload.get("decision"),
             "phase": payload.get("phase"),
+            "phase_completion_status": payload.get("phase_completion_status"),
+            "ready_for_next_phase": bool(payload.get("ready_for_next_phase")),
+            "blocking_issues": list(payload.get("blocking_issues") or []),
             "reasons": list(payload.get("reasons") or []),
             "evidence_files": list(payload.get("evidence_files") or []),
         }
@@ -289,6 +316,9 @@ class MasterAgent(OpenHandsBaseAgent):
             "iteration": self.current_iteration,
             "active_phase": payload.get("phase"),
             "decision": payload.get("decision"),
+            "phase_completion_status": payload.get("phase_completion_status"),
+            "ready_for_next_phase": bool(payload.get("ready_for_next_phase")),
+            "blocking_issues": list(payload.get("blocking_issues") or []),
             "conclusion": "; ".join(str(item).strip() for item in payload.get("reasons") or [] if str(item).strip()),
         }
         return write_json_file(self.paths["runtime_phase_state"], state_payload)
@@ -347,9 +377,13 @@ class MasterAgent(OpenHandsBaseAgent):
             f"- iteration: {self.current_iteration}",
             f"- decision: {payload.get('decision')}",
             f"- phase: {payload.get('phase')}",
+            f"- phase_completion_status: {payload.get('phase_completion_status')}",
+            f"- ready_for_next_phase: {bool(payload.get('ready_for_next_phase'))}",
             "- reasons:",
         ]
         lines.extend(f"  - {reason}" for reason in payload.get("reasons") or [])
+        lines.extend(["", "- blocking_issues:"])
+        lines.extend(f"  - {issue}" for issue in payload.get("blocking_issues") or [])
         lines.extend(["", "- evidence_files:"])
         lines.extend(f"  - {path}" for path in payload.get("evidence_files") or [])
         summary_path = self.paths["results_summary"]

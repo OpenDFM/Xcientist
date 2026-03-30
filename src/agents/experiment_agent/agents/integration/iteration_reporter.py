@@ -117,10 +117,38 @@ iteration_status.json MUST have this EXACT schema:
   "ablation_experiments": "none|partial|complete",
   "ablation_evidence": ["list of evidence files"],
   "validation_status": "pass|fail|partial|unknown",
+  "phase_states": {{
+    "code": {{
+      "phase_completion_status": "not_started|partial|complete|blocked",
+      "ready_for_next_phase": true|false,
+      "artifact_role": "phase_result",
+      "run_level": "smoke|full|mixed",
+      "blocking_issues": ["..."]
+    }},
+    "standard_science": {{
+      "phase_completion_status": "not_started|partial|complete|blocked",
+      "ready_for_next_phase": true|false,
+      "artifact_role": "phase_result",
+      "run_level": "smoke|full|mixed",
+      "blocking_issues": ["..."]
+    }},
+    "ablation_science": {{
+      "phase_completion_status": "not_started|partial|complete|blocked",
+      "ready_for_next_phase": true|false,
+      "artifact_role": "phase_result|final_result",
+      "run_level": "smoke|full|mixed",
+      "blocking_issues": ["..."]
+    }}
+  }},
   "key_findings": ["finding1", "finding2"],
   "blockers": ["blocker1"] or [],
   "next_recommendations": ["recommendation1", "recommendation2"]
 }}
+
+Evidence rules:
+- Treat only validator-backed artifacts with `artifact_role=phase_result|final_result` as formal phase evidence.
+- Treat `smoke_check` artifacts as implementation-readiness evidence only; they must not upgrade a science phase to `complete`.
+- When a phase validator is missing, do not infer completion from raw outputs alone.
 
 After writing both files, explicitly state: "Master agent should read {self.iteration_status_path} for the next iteration decision."
 """
@@ -140,6 +168,23 @@ After writing both files, explicitly state: "Master agent should read {self.iter
         }
         if not isinstance(payload, dict) or not all(k in payload for k in required_keys):
             return False
+        phase_states = payload.get("phase_states")
+        if phase_states is not None:
+            if not isinstance(phase_states, dict):
+                return False
+            for phase_name in ("code", "standard_science", "ablation_science"):
+                phase_payload = phase_states.get(phase_name)
+                if not isinstance(phase_payload, dict):
+                    return False
+                required_phase_keys = {
+                    "phase_completion_status",
+                    "ready_for_next_phase",
+                    "artifact_role",
+                    "run_level",
+                    "blocking_issues",
+                }
+                if not required_phase_keys.issubset(set(phase_payload.keys())):
+                    return False
         return True
 
     async def execute(self) -> Dict[str, Any]:

@@ -199,6 +199,7 @@ Requirements:
                 "output": "Existing ablation results artifact is already valid.",
                 "ablation_results_path": self.ablation_json_path,
                 "integrator_report_path": self.integrator_report_path,
+                "final_artifact_contract_path": self.paths["final_artifact_contract"],
                 "valid": True,
                 "mode": "existing",
             }
@@ -209,6 +210,7 @@ Requirements:
                 "output": "Deterministic ablation-results materialization succeeded.",
                 "ablation_results_path": self.ablation_json_path,
                 "integrator_report_path": self.integrator_report_path,
+                "final_artifact_contract_path": deterministic_result.get("final_artifact_contract_path"),
                 "valid": True,
                 "mode": "deterministic",
             }
@@ -227,6 +229,7 @@ Requirements:
             "output": self._extract_output(result),
             "ablation_results_path": self.ablation_json_path,
             "integrator_report_path": self.integrator_report_path,
+            "final_artifact_contract_path": self.paths["final_artifact_contract"],
             "valid": self._artifact_valid(),
             "mode": "llm_fallback",
             "deterministic_blocker": deterministic_result.get("blocker"),

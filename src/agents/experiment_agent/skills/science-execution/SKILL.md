@@ -40,7 +40,7 @@ Run standardized benchmark experiments (baseline vs full method) until all requi
 ## Ablation Requirements
 - Each step-level validator report must record: `result`, `metric`, `value`, `confidence`, `analysis`, `method_context`.
 - Component set and order must exactly equal `idea.json.components`.
-- Do not write the final `ablation_results.json` - that is owned by the later ablation report integrator.
+- Do not write the final `ablation_results.json` - that is owned by the later final-artifact materialization step.
 
 ## Hard Rules
 - Do not produce final verdict while required coverage is missing.

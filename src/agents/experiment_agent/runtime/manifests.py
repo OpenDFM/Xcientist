@@ -56,6 +56,7 @@ def artifact_paths(workspace_root: str, project_root: Optional[str] = None) -> D
         "master_report": os.path.join(reports_dir, "master_report.md"),
         "results_summary": os.path.join(reports_dir, "master_summary.md"),
         "ablation_results": os.path.join(contract["workspace_dir"], "ablation_results.json"),
+        "final_artifact_contract": os.path.join(reports_dir, "final_artifact_contract.json"),
         "ablation_report_integrator_report": os.path.join(
             reports_dir, "ablation_report_integrator_report.json"
         ),

@@ -236,7 +236,7 @@ class CodeAgent(OpenHandsBaseAgent):
    - `{self.paths["code_worker"]}`
    - `{self.paths["code_validator"]}`
 13. The top-level code worker/validator reports are phase summaries only; debugging details must remain in the per-step flat reports under `agent_reports_dir`.
-14. The final validator report must use `status: PASS|FAIL` and include:
+14. The final validator report must use `status: PASS|FAIL`, set a generic `phase_completion_status`, and include:
 {verdict_fields}
 
 ### Standard Science Support

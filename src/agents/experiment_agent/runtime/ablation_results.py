@@ -21,6 +21,11 @@ from src.agents.experiment_agent.runtime.manifests import (
     load_json_file,
     write_json_file,
 )
+from src.agents.experiment_agent.runtime.phase_contracts import (
+    ARTIFACT_ROLE_FINAL_RESULT,
+    ARTIFACT_ROLE_PHASE_RESULT,
+    normalize_phase_report,
+)
 
 
 REQUIRED_COMPONENT_FIELDS = (
@@ -32,6 +37,25 @@ REQUIRED_COMPONENT_FIELDS = (
     "method_context",
 )
 REQUIRED_SUMMARY_FIELDS = ("feasible", "confidence", "key_findings")
+
+
+def build_ablation_final_artifact_contract(
+    workspace_root: str,
+    idea_json_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    canonical_records = _canonical_component_records(
+        workspace_root,
+        idea_json_path=idea_json_path,
+    )
+    return {
+        "artifact_name": "ablation_results",
+        "artifact_role": ARTIFACT_ROLE_FINAL_RESULT,
+        "top_level_keys": ["components", "summary"],
+        "component_order_source": "idea.json.components",
+        "component_required_fields": list(REQUIRED_COMPONENT_FIELDS),
+        "summary_required_fields": list(REQUIRED_SUMMARY_FIELDS),
+        "canonical_components": [record["component"] for record in canonical_records],
+    }
 
 
 def _coerce_float(value: Any) -> Optional[float]:
@@ -259,11 +283,31 @@ def build_ablation_results_artifacts(
             "source_evidence_files": [idea_json_path],
         }
 
-    status = str(phase_payload.get("status") or "").strip().upper()
-    if status != "PASS":
+    normalized_phase = normalize_phase_report(phase_payload)
+    if normalized_phase["status"] != "PASS":
         return {
             "valid": False,
-            "blocker": f"Ablation validator status is `{status or 'UNKNOWN'}`, not PASS.",
+            "blocker": (
+                f"Ablation validator status is "
+                f"`{normalized_phase['status'] or 'UNKNOWN'}`, not PASS."
+            ),
+            "source_evidence_files": [idea_json_path, paths["ablation_science_validator"]],
+        }
+    if normalized_phase["artifact_role"] != ARTIFACT_ROLE_PHASE_RESULT:
+        return {
+            "valid": False,
+            "blocker": (
+                "Ablation validator artifact_role must be `phase_result` before "
+                "final materialization."
+            ),
+            "source_evidence_files": [idea_json_path, paths["ablation_science_validator"]],
+        }
+    if normalized_phase["phase_completion_status"] != "complete":
+        blockers = normalized_phase["blocking_issues"]
+        blocker_text = blockers[0] if blockers else "Ablation phase is not marked complete."
+        return {
+            "valid": False,
+            "blocker": blocker_text,
             "source_evidence_files": [idea_json_path, paths["ablation_science_validator"]],
         }
 
@@ -314,13 +358,19 @@ def build_ablation_results_artifacts(
         "valid": bool(valid),
         "generated_by": generated_by,
         "mode": "deterministic",
+        "artifact_role": ARTIFACT_ROLE_FINAL_RESULT,
         "source_evidence_files": source_evidence_files,
         "canonical_components": canonical_names,
         "blocker": None if valid else error,
+        "final_artifact_contract_path": paths["final_artifact_contract"],
     }
     return {
         "valid": bool(valid),
         "payload": payload if valid else None,
+        "final_artifact_contract": build_ablation_final_artifact_contract(
+            workspace_root,
+            idea_json_path=idea_json_path,
+        ),
         "report": report,
         "blocker": None if valid else error,
         "source_evidence_files": source_evidence_files,
@@ -346,16 +396,20 @@ def write_ablation_results_artifacts(
 
     target_results_path = ablation_results_path or paths["ablation_results"]
     target_report_path = integrator_report_path or paths["ablation_report_integrator_report"]
+    target_contract_path = paths["final_artifact_contract"]
     write_json_file(target_results_path, result["payload"])
     write_json_file(target_report_path, result["report"])
+    write_json_file(target_contract_path, result["final_artifact_contract"])
     result["ablation_results_path"] = target_results_path
     result["integrator_report_path"] = target_report_path
+    result["final_artifact_contract_path"] = target_contract_path
     return result
 
 
 __all__ = [
     "REQUIRED_COMPONENT_FIELDS",
     "REQUIRED_SUMMARY_FIELDS",
+    "build_ablation_final_artifact_contract",
     "build_ablation_results_artifacts",
     "validate_ablation_results_payload",
     "write_ablation_results_artifacts",

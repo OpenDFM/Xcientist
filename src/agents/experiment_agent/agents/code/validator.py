@@ -40,6 +40,10 @@ Validation standards:
 
 Output requirements:
 - `status`: `PASS` or `FAIL`
+- `phase_completion_status`: `complete`, `partial`, or `blocked`
+- `ready_for_next_phase`: `true|false`
+- `artifact_role`: `phase_result`
+- `run_level`: `smoke|full|mixed`
 - Shared verdict fields:
 {verdict_fields}
 - Optional `terminal_blocker: true` when no further iteration can fix without external intervention.

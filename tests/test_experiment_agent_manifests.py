@@ -121,6 +121,7 @@ def test_runtime_artifact_paths_focus_on_validator_backed_outputs(tmp_path):
     assert paths["ablation_summary"].endswith(os.path.join("agent_reports", "ablation_science_summary.md"))
     assert paths["results_summary"].endswith(os.path.join("agent_reports", "master_summary.md"))
     assert paths["ablation_results"].endswith("ablation_results.json")
+    assert paths["final_artifact_contract"].endswith(os.path.join("agent_reports", "final_artifact_contract.json"))
     assert not paths["ablation_results"].endswith(os.path.join("results", "ablation_results.json"))
     assert "prepare_validator" in paths
     assert "prepare_repo_validator" in paths

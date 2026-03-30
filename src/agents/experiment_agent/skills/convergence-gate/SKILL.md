@@ -37,4 +37,4 @@ Help the master agent decide whether another iteration is needed by prioritizing
 - Smoke/debug/subset runs never count as sufficient final experiment evidence by themselves.
 - Code correctness matters only insofar as the experiments remain scientifically meaningful; do not declare completion if implementation flaws invalidate the conclusions.
 - Final ablation evidence must cover exactly the canonical components from `idea.json.components`, in the same order, with no extras or omissions.
-- `ablation_results.json` is written by the ablation science agent immediately after ablation experiments complete, so the results are available for the next master iteration decision.
+- `ablation_results.json` is a canonical final artifact materialized from validator-backed ablation evidence. Do not treat raw ablation runner outputs or smoke artifacts as final results.

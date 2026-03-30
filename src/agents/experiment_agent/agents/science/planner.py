@@ -327,8 +327,8 @@ class StandardScienceAgent(_BaseSciencePlanner):
 9. The validator must write `{self.validator_report_path}` as the phase-level standard verdict after the step-local reports exist.
 10. Do not move to the next step until the step executor reports validator-backed PASS.
 11. Update `{self.report_path}` only as a human-readable summary of validator-backed evidence.
-12. Do not write downstream structured result artifacts yourself. In particular, do not materialize `ablation_results.json`; that file belongs to the later ablation report integrator.
-13. The final validator report must use `status: PASS|FAIL` and include:
+12. Do not write downstream structured final result artifacts yourself. In particular, do not materialize `ablation_results.json`; that file belongs to the later final-artifact materialization step.
+13. The final validator report must use `status: PASS|FAIL`, set a generic `phase_completion_status`, and include:
 {verdict_fields}
 
 ### Hard Rules
@@ -414,8 +414,8 @@ class AblationScienceAgent(_BaseSciencePlanner):
 13. Every step-level ablation validator report must include:
 {ablation_result_fields}
 14. Update `{self.report_path}` only as a human-readable summary of validator-backed evidence.
-15. Do not write `ablation_results.json` yourself. A later ablation report integrator owns that file.
-16. The final phase-level validator report must use `status: PASS|FAIL` and include:
+15. Do not write `ablation_results.json` yourself. A later final-artifact materialization step owns that file.
+16. The final phase-level validator report must use `status: PASS|FAIL`, set a generic `phase_completion_status`, and include:
 {verdict_fields}
 
 ### Hard Rules
@@ -427,7 +427,7 @@ class AblationScienceAgent(_BaseSciencePlanner):
 - Do not rename, merge, split, omit, or reorder canonical idea components.
 - Do not hardcode alternative component names into the plan. Use the exact component names from `idea.json.components`.
 - The validator is the authority for PASS/FAIL.
-- Preserve enough step-level evidence for a later ablation report integrator to produce the final canonical `ablation_results.json`.
+- Preserve enough step-level evidence for the later final-artifact materialization step to produce the final canonical `ablation_results.json`.
 
 Finish by printing exactly: {self.completion_token}"""
 

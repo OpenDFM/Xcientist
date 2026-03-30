@@ -23,7 +23,7 @@ Implement the FULL IDEA in `project/` such that:
 - Read `agent_reports/prepare_idea.md` and validated prepare worker/validator reports before editing code.
 - Read `idea.json.components` through the validated prepare handoff and preserve canonical component names.
 - Bind code changes to the declared real experiment targets discovered in those reports.
-- **CRITICAL**: Benchmark code MUST use real data files from `dataset_candidate/` (e.g. LongMemEval JSON files), NOT synthetic or random data.
+- **CRITICAL**: Benchmark code MUST use real data files from `dataset_candidate/`, NOT synthetic or random data.
 - **CRITICAL**: All experiment code MUST be under `project/`, NOT `src/`.
 - **CRITICAL**: Each idea.json component must have a disable/ablation mechanism that:
   - Allows the component to be disabled WITHOUT modifying other components
