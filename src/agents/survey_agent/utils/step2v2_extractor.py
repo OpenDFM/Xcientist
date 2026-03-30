@@ -287,7 +287,7 @@ def aggregate_results(
 ) -> List[dict]:
     """Aggregate main and baseline results into final output."""
     main_by_paper = {r['node_id']: r for r in main_results if r}
-    baseline_by_paper = {r['node_id']: r for r in baseline_results if r}
+    baseline_by_paper = {r['node_id']: r for r in (baseline_results or []) if r}
     
     aggregated = []
     for node_id in main_by_paper:

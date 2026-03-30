@@ -583,10 +583,16 @@ class PaperGraphRetriever:
         """Get the raw markdown text for a paper via data_manager."""
         try:
             paper_title = self.id_to_title(node_id)
+<<<<<<< HEAD
             matched_paper = self.data_manager.get_paper_with_title(paper_title)
             if not matched_paper:
                 raise ValueError(f"No download candidate found for title: {paper_title}")
             return self.data_manager.get_paper_raw_markdown(matched_paper)
+=======
+            paper_info = self.data_manager.get_paper_with_title(paper_title)
+            ds_id = paper_info.get("externalIds", {}).get("ArXiv") or paper_info.get("paperId")
+            return self.data_manager.get_paper_raw_markdown(ds_id)
+>>>>>>> origin/fix-main
         except Exception as e:
             self.logger.warning(f"Failed to get markdown for paper {node_id}: {e}")
             return None
@@ -668,12 +674,11 @@ class PaperGraphRetriever:
             info_dict=main_info_dict
         )
         
-        # Build core names map for baseline extraction
-        core_names_map = {}
-        for res in main_results:
-            if res:
-                core_names_map[res['node_id']] = res.get('core_names', [])
+        # Skip baseline extraction since format_extraction_result doesn't use graph_data
+        # (baselines and datasets are only used for graph building, not keynote strings)
+        baseline_results = None
         
+<<<<<<< HEAD
         # ===== Step 2: Baseline Extraction =====
         baseline_prompts, baseline_metadata = self._build_baseline_prompts(node_ids, markdowns, core_names_map)
         self.logger.info(f"Calling batch_remote_chat_with_retry for baseline extraction ({len(baseline_prompts)} papers)")
@@ -692,6 +697,9 @@ class PaperGraphRetriever:
         baseline_results = []
         
         # ===== Step 3: Aggregate =====
+=======
+        # ===== Step 2: Aggregate =====
+>>>>>>> origin/fix-main
         aggregated = aggregate_results(main_results, baseline_results, source_info)
         final_results = {}
         for result_dict in aggregated:

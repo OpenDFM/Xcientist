@@ -74,7 +74,7 @@ class ArxivAPI:
             if response.status_code == 200:
                 break
             else:
-                self.logger.warning(f"arXiv search request failed: {response.status_code}. Retrying {retry_count + 1}/3...")
+                self.logger.warning(f"arXiv search request failed for command{title}: {response.status_code}. Retrying {retry_count + 1}/3...")
                 if response.status_code == 429:
                     time.sleep(60)
         
@@ -513,6 +513,12 @@ class ChatAgent:
                 temperature=temperature,
                 future_timeout=future_timeout
             )
+            if not results:
+                self.logger.info(
+                    f"return None "
+                    f"retrying {retry + 1}/{max_retry}"
+                )
+                continue
             
             # Validate each result
             for i in range(len(results)):
@@ -526,7 +532,7 @@ class ChatAgent:
                     all_results[input_indices[i]] = result
                 except Exception as e:
                     self.logger.warning(f"Validation failed for prompt {input_indices[i]}: {e}")
-                    if self.config.BasicInfo.debug:
+                    if self.config.BasicInfo.debug and results[i]:
                         self.logger.warning(f"return text: {results[i][:50]}...")
                     error_prompts.append(input_prompts[i])
                     error_indices.append(input_indices[i])

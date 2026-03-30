@@ -14,6 +14,7 @@ from utils.api_call import ChatAgent
 from utils.config_utils import merge_with_default_survey_config
 from modules.work_collector import WorkCollector
 from modules.pseudo_reviser import PseudoReviser
+from modules.pseudo_creator import PseudoWriter
 from modules.code_report_generator import CodeReportGenerator
 from utils.utils import extract_json
 import hydra
@@ -443,21 +444,58 @@ class CodeCollector:
                     "clone",
                     "--depth",
                     str(depth),
+                    "--quiet",
                     repo_url,
                     target_path
                 ]
 
-                subprocess.run(cmd, check=True)
+                # Set stdin to DEVNULL to prevent interactive prompts (e.g., username/password)
+                # This ensures the process doesn't hang waiting for user input
+                result = subprocess.run(
+                    cmd,
+                    check=True,
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    timeout=300  # 5 minutes timeout to prevent indefinite hanging
+                )
 
                 self.logger.info(f"Cloned repo to {target_path}")
                 return target_path
 
+            except subprocess.TimeoutExpired as e:
+                retry += 1
+                if retry <= max_retry:
+                    self.logger.warning(f"Clone repo {repo_url} timed out: {e}, retrying for {retry}/{max_retry}")
+                else:
+                    self.logger.error(f"Clone repo {repo_url} timed out: {e}, max retry reached")
+                # Clean up partial clone if exists
+                if os.path.exists(target_path) and os.path.isdir(target_path):
+                    import shutil
+                    try:
+                        shutil.rmtree(target_path)
+                    except Exception:
+                        pass
+
             except subprocess.CalledProcessError as e:
+                # Check for authentication-related errors
+                stderr_output = e.stderr.decode() if e.stderr else ""
+                if "authentication" in stderr_output.lower() or "username" in stderr_output.lower() or "password" in stderr_output.lower():
+                    self.logger.error(f"Repo {repo_url} requires authentication (private repo or rate limit). Skipping.")
+                    return None
+                
                 retry += 1
                 if retry <= max_retry:
                     self.logger.warning(f"Failed to clone repo {repo_url}: {e}, retrying for {retry}/{max_retry}")
                 else:
                     self.logger.error(f"Failed to clone repo {repo_url}: {e}, max retry reached")
+                # Clean up partial clone if exists
+                if os.path.exists(target_path) and os.path.isdir(target_path):
+                    import shutil
+                    try:
+                        shutil.rmtree(target_path)
+                    except Exception:
+                        pass
 
         return None
 
@@ -485,6 +523,7 @@ class CodeAnalyzer():
         self.cache_result_json = True
         self.force_regenerate = False
         self.filter_in_steps = True
+        self.agentic_repo_anlysis = True
         
 
     def _list_repo_files(self, repo_name):
@@ -625,6 +664,7 @@ class CodeAnalyzer():
                        per_file_score_method: str = "avg"
                        ):
         repo_name = self.code_collector._extract_repo_name(repo_url)
+        self.logger.info(f"Generating mainfest for {repo_name}:{repo_url}")
 
         if not self.force_regenerate:
             mainfest = self.load_cached_mainfest(repo_name)
@@ -632,9 +672,14 @@ class CodeAnalyzer():
                 return mainfest
             else:
                 self.logger.warning("mainfest invalid. Regenerate.")
+        try:
+            mainfest = self.identify_and_collect_core_code(paper_id, repo_url, repo_name, min_core_score, per_file_score_method)
+        except Exception as e:
+            raise ValueError(f"Fail to build mainfest for {repo_name}: {e}")
 
-        mainfest = self.identify_and_collect_core_code(paper_id, repo_url, repo_name, min_core_score, per_file_score_method)
-
+        if self.agentic_generate_project_pseudocode:
+            self.logger.info("Agentic mode, skip core file pseudocode generation")
+            return mainfest
         mainfest = self.generate_pseudocode(mainfest)
 
         if self.cache_result_json:
@@ -651,7 +696,7 @@ class CodeAnalyzer():
                 raise ValueError(f"key {key} not in result original text: <{input}>")
         if not isinstance(input_dict["is_core"], bool) or not isinstance(input_dict["is_main_code"], bool):
             raise ValueError(f"key is_core or is_main_code not boolean")
-        return input, True
+        return True, input
 
     def _validate_filter_result_core(self, input, info_dict: dict = None):
         """Validation function for core filter results (step 1 of 2)."""
@@ -662,7 +707,7 @@ class CodeAnalyzer():
                 raise ValueError(f"key {key} not in result: original text: <{input}>")
         if not isinstance(input_dict["is_core"], bool):
             raise ValueError(f"key is_core not boolean")
-        return input, True
+        return True, input
 
     def _validate_filter_result_main(self, input, info_dict: dict = None):
         """Validation function for main filter results (step 2 of 2)."""
@@ -673,7 +718,7 @@ class CodeAnalyzer():
                 raise ValueError(f"key {key} not in result original text: <{input}>")
         if not isinstance(input_dict["is_main_code"], bool):
             raise ValueError(f"key is_main_code not boolean")
-        return input, True
+        return True, input
 
     def _filter_call_model_in_steps(self,
                                 files_chunks: dict,
@@ -791,9 +836,13 @@ class CodeAnalyzer():
         repo_path = os.path.join(self.repo_cache_path, repo_name)
         if not os.path.isdir(repo_path):
             self.logger.warning(f"repo not found: {repo_path}, cloneing...")
-            self.code_collector._clone_repo(repo_url, 1, 3)
+            target_path = self.code_collector._clone_repo(repo_url, 1, 3)
+            if not target_path:
+                raise ValueError(f"fail to clone target repository: {repo_name}")
         all_files = self._list_repo_files(repo_name)
         paper_title, paper_abstract = self.work_collector.get_paper_title_abstract(paper_id)
+
+        self.logger.info(f"Identifyng code for {repo_name}:{repo_url}")
 
         mainfest = {
                     "repo_info": {
@@ -811,6 +860,11 @@ class CodeAnalyzer():
                     "pseudocode_input": []
                 }
         repo_structure = self.scan_repo_structure(repo_name)
+        mainfest["repo_info"]["repo_structure"] = repo_structure
+
+        ## fast mode: do not identify core/main file but directly generate repository code report
+        if self.agentic_repo_anlysis:
+            return mainfest
 
         files_chunks = []
         file_num = len(all_files)
@@ -945,8 +999,6 @@ class CodeAnalyzer():
                         self.logger.debug(f"Could not set is_main_code for {rel_path} (not found in repo_structure)")
                 except Exception as e:
                     self.logger.debug(f"Error marking repo_structure for {rel_path}: {e}")
-
-        mainfest["repo_info"]["repo_structure"] = repo_structure
 
         return mainfest
 
@@ -1517,19 +1569,76 @@ class CodeAnalyzer():
         self.logger.info("Agent-based pseudocode refinement completed")
         return final_pseudocode
 
+    def agentic_generate_project_pseudocode(
+        self,
+        mainfest: dict = None, 
+        max_steps: int = 20,
+        hard_code_revise: bool = False,
+        max_rounds_without_revise: int = 3,
+        last_round_revise: bool = True,
+    ) -> tuple:
+        """
+        Agentic method to generate pseudocode using PseudoWriter.
+        
+        This method creates pseudocode from scratch based on repo_structure, 
+        paper title, and abstract - without relying on core_files and main_files.
+        
+        Args:
+            mainfest: mainfest dict containing repo_info (repo_name, paper_title, paper_abstract, repo_structure)
+            max_steps: Maximum number of agent steps (default 20)
+            hard_code_revise: If True, force call revise after max_rounds_without_revise rounds without revise
+            max_rounds_without_revise: Maximum rounds without revise before forcing (default: 3)
+            last_round_revise: If True, force revise in last round
+            
+        Returns:
+            Tuple of (final_pseudocode, initial_pseudocode) where initial_pseudocode is the first created pseudocode before any revision
+        """
+        repo_name = mainfest["repo_info"]["repo_name"]
+        paper_title = mainfest["repo_info"]["paper_title"]
+        paper_abstract = mainfest["repo_info"]["paper_abstract"]
+        repo_structure = mainfest["repo_info"]["repo_structure"]
+
+        self.logger.info(f"Agentic pseudocode generation for {repo_name} (max_steps={max_steps})")
+
+        # Create PseudoWriter instance
+        writer = PseudoWriter(
+            config=None,
+            chat_agent=self.chat_agent,
+            repo_cache_path=self.repo_cache_path
+        )
+        
+        # Call the agent-based creation - returns tuple (final_pseudocode, initial_pseudocode)
+        final_pseudocode, initial_pseudocode = writer.create_pseudocode_with_agent(
+            repo_name=repo_name,
+            paper_title=paper_title,
+            paper_abstract=paper_abstract,
+            repo_structure=repo_structure,
+            max_steps=max_steps,
+            hard_code_revise=hard_code_revise,
+            max_rounds_without_revise=max_rounds_without_revise,
+            last_round_revise=last_round_revise,
+        )
+        
+        self.logger.info(f"Agentic pseudocode generation completed for {repo_name}")
+        return final_pseudocode, initial_pseudocode
+
     def execute(self, papers: List[str], batch_refine: bool = True, agent_refine: bool = True, batch_size: int = 3):
         papers_sites = []
         site_num = 0
+        max_sites_per_paper = 1
+        max_papers = 50
         for paper in papers:
             try:
                 paper_markdown = self.work_collector.get_paper_raw_markdown(paper)
             except Exception as e:
                 papers_sites.append([])
                 continue
-            sites =  self.code_collector.extract_code_links(paper_id = paper, paper_markdown=paper_markdown)
+            sites =  self.code_collector.extract_code_links(paper_id = paper, paper_markdown=paper_markdown, valid_num=max_sites_per_paper)
             papers_sites.append(sites)
             site_num += len(sites)
         self.logger.info(f"[GENERAL] site number: {site_num}")
+        papers_sites = papers_sites[:max_papers]
+        
 
 
         paper_mainfests = []
@@ -1540,26 +1649,40 @@ class CodeAnalyzer():
             paper_repo_mainfests = []
             paper_concise_pseudocode = []
             for site in sites:
+                self.logger.info(f"processing {paper}: {site}")
                 repo_name = self.code_collector._extract_repo_name(site)
                 pseudocode, initial_pseudocode = self.read_repo_pseudocode_cache(repo_name, True)
 
                 if not pseudocode or not initial_pseudocode:
-                    main_fest = self.build_mainfest(paper, site, 8)
-                    initial_pseudocode = self.generate_project_pseudocode_from_main_files(main_fest)
+                    try:
+                        main_fest = self.build_mainfest(paper, site, 8)
+                    except Exception as e:
+                        self.logger.error(f"Fail to process {site} in analyzer execution: {e}. Skip this repo.")
+                        continue
+                    if not self.agentic_repo_anlysis:
+                        initial_pseudocode = self.generate_project_pseudocode_from_main_files(main_fest)
 
-                    pseudocode = initial_pseudocode
-                    # Refine
-                    if batch_refine:
-                        pseudocode = self.refine_project_pseudocode_with_core_files(mainfest = main_fest,
-                                                                                        current_pseudocode=pseudocode,
-                                                                                        batch_size = batch_size)
-                    if agent_refine:
-                        pseudocode = self.refine_project_pseudocode_with_agent(mainfest = main_fest,
-                                                                                        current_pseudocode=pseudocode,
-                                                                                        max_steps = 20,
-                                                                                        hard_code_revise = True,
-                                                                                        max_rounds_without_revise = 3,
-                                                                                        last_round_revise = True)
+                        pseudocode = initial_pseudocode
+                        # Refine
+                        if batch_refine:
+                            pseudocode = self.refine_project_pseudocode_with_core_files(mainfest = main_fest,
+                                                                                            current_pseudocode=pseudocode,
+                                                                                            batch_size = batch_size)
+                        if agent_refine:
+                            pseudocode = self.refine_project_pseudocode_with_agent(mainfest = main_fest,
+                                                                                            current_pseudocode=pseudocode,
+                                                                                            max_steps = 20,
+                                                                                            hard_code_revise = True,
+                                                                                            max_rounds_without_revise = 3,
+                                                                                            last_round_revise = True)
+                    else:
+                        pseudocode, initial_pseudocode = self.agentic_generate_project_pseudocode(
+                            mainfest=main_fest,
+                            max_steps=10,
+                            hard_code_revise=True,
+                            max_rounds_without_revise=5,
+                            last_round_revise=True
+                        )
                     pseudocode = f"[REPOSITORY NAME]:{repo_name}: \n" + pseudocode
                     initial_pseudocode = f"[REPOSITORY NAME]:{repo_name}: \n" + initial_pseudocode
 
@@ -1582,6 +1705,8 @@ class CodeAnalyzer():
                     "repo_names": paper_repo_names,
                     "mainfests": paper_repo_mainfests,
                 })
+            else:
+                self.logger.error(f"Get no pseudocode for {paper}. Skip this paper's code repo")
 
         self.logger.info(f"PAPER PSEUDOCODE SUCCESS NUM: {len(paper_mainfests)}")
         repo_num = 0

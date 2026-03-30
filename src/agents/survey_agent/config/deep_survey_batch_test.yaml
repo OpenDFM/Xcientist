@@ -31,6 +31,8 @@ ModuleInfo:
   WorkCollector:
     download_safe_mode: False
     download_timeout: 60
+    download_in_parallel: True
+    download_parallel_workers: 8
     cache_enabled: True
     max_seed_paper_num: 15
     use_seed_filter_LLM: True
@@ -116,6 +118,7 @@ ModuleInfo:
     enable_review_and_revise: True
     section_review_temperature: 1.0
     section_review_retry: 3
+    reviewer_max_suggestions: 5
     section_revision_RAG_topk: 30
     section_revise_temperature: 0.5
     section_revise_retry: 5

@@ -564,6 +564,8 @@ The draft section may contain inline paper citations in angle brackets (e.g., "<
 5. Only give suggestions on the current section. 
 6. There are some basic requirements as follow. If the section does not meet any, provide relevant modification suggestions.
 7. If the section is satisfactory, provide an empty suggestion list.
+8. Suggest sorting by importance, with important ones coming first.
+9. You are suggested to give no more than 5 suggestions
 
 ### Requirements:
 1. You should only provide suggestions on content. DO NOT give any suggestions that involve changing the titles of the section and any subsections.

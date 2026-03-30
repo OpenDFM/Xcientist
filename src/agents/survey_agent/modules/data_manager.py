@@ -17,6 +17,8 @@ import torch
 import gc
 import time
 from sentence_transformers import SentenceTransformer, util
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 
 class DataManager:
@@ -34,6 +36,11 @@ class DataManager:
         # 初始化缓存
         self.paper_abstract_cache = dc.Cache(
             os.path.join(self.cache_path, "paper_abstracts")
+        )
+        
+        # title to paper_id lookup cache (for filter_papers_local_paper_graph)
+        self.title_lookup_cache = dc.Cache(
+            os.path.join(self.cache_path, "title_lookup_cache")
         )
         
         # embedding model (lazy loading)
@@ -199,6 +206,200 @@ class DataManager:
         else:
             raise ValueError(f"Failed to get valid abstract for paper ID {paper_id} after {retry} retries.")
 
+    def _prepare_download_info(self, paper, reference_graph=None):
+        """准备下载信息，返回(paper_id, download_urls, pdf_path, paper_title, is_arxiv)或None"""
+        download_urls = []
+        is_arxiv = False
+        paper_id = None
+        paper_title = None
+        
+        if isinstance(paper, dict):
+            if "ArXiv" in paper.get("externalIds", {}):
+                paper_id = paper["externalIds"]["ArXiv"]
+                is_arxiv = True
+            else:
+                paper_id = paper.get("paperId")
+                is_arxiv = False
+
+            if is_arxiv:
+                download_urls.append(f"https://export.arxiv.org/pdf/{paper_id}.pdf")
+                download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
+            elif paper.get("openAccessPdf", {}).get("url"):
+                download_urls.append(paper["openAccessPdf"]["url"])
+            else:
+                return None
+            paper_title = paper.get("title", paper_id)
+            
+        elif isinstance(paper, str):
+            is_arxiv = "." in paper
+            if is_arxiv:
+                paper_id = paper
+                download_urls.append(f"https://export.arxiv.org/pdf/{paper_id}.pdf")
+                download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
+                paper_title = paper_id
+            else:
+                return None
+        else:
+            return None
+        
+        pdf_path = os.path.join(
+            self.cache_path,
+            "pdf_papers",
+            paper_id,
+            f"{paper_id}.pdf",
+        )
+        
+        return (paper_id, download_urls, pdf_path, paper_title, is_arxiv)
+
+    def _download_single_paper(self, paper, index, total, reference_graph=None):
+        """下载单个paper，返回(paper_id, pdf_path)或(None, None)"""
+        # 准备下载信息
+        info = self._prepare_download_info(paper, reference_graph)
+        if info is None:
+            return (None, None)
+        
+        paper_id, download_urls, pdf_path, paper_title, is_arxiv = info
+        
+        # 检查缓存
+        if (
+            not self.config.ModuleInfo.WorkCollector.download_safe_mode
+            and os.path.exists(pdf_path)
+        ):
+            if is_valid_pdf(pdf_path):
+                if self.config.BasicInfo.debug:
+                    self.logger.info(f"Cache Hit! Existing PDF at {pdf_path} is valid, skipping download.")
+                return (paper_id, pdf_path)
+            else:
+                try:
+                    os.remove(pdf_path)
+                except OSError as e:
+                    self.logger.error(f"Failed to delete invalid PDF {pdf_path}: {e}")
+                self.logger.warning(f"Existing PDF at {pdf_path} is invalid, re-downloading.")
+        
+        os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
+        
+        # 尝试下载
+        downloaded = False
+        for download_url in download_urls:
+            downloaded = self._download_pdf_with_resume(
+                url=download_url,
+                filename=pdf_path,
+                title=f"{paper_title} ({index}/{total})",
+            )
+            if not downloaded or not is_valid_pdf(pdf_path):
+                self.logger.warning(
+                    f"Failed to download valid paper {paper_id} from {download_url}, trying next URL if available."
+                )
+                continue
+            else:
+                break
+        
+        if not downloaded or not is_valid_pdf(pdf_path):
+            self.logger.warning(f"Failed to download valid paper {paper_id}")
+            if os.path.exists(pdf_path):
+                try:
+                    os.remove(pdf_path)
+                except OSError:
+                    pass
+            return (None, None)
+        
+        return (paper_id, pdf_path)
+
+    def _download_papers_serial(self, papers: list, limit: int = -1):
+        """串行下载papers"""
+        valid_paper_ids = []
+        valid_paper_paths = []
+        valid_paper_paths_ids = []
+        
+        reference_graph = self._get_reference_graph()
+        
+        index = 0
+        total = min(len(papers), limit) if limit > 0 else len(papers)
+        
+        while index < len(papers) and (limit < 0 or len(valid_paper_ids) < limit):
+            paper = papers[index]
+            index += 1
+            
+            # 处理abstract_when_full_text_fail的情况
+            if isinstance(paper, dict):
+                paper_id = paper.get("externalIds", {}).get("ArXiv") or paper.get("paperId")
+                if not paper.get("openAccessPdf", {}).get("url") and not ("ArXiv" in paper.get("externalIds", {})):
+                    if self.config.ModuleInfo.WorkAnalyzer.abstract_when_full_text_fail:
+                        self.logger.info(f"No full text PDF found for paper {paper_id}, skipping download but keeping abstract.")
+                        err = self.add_papers_abstracts_in_cache([paper_id])
+                        if not err:
+                            valid_paper_ids.append(paper_id)
+                        continue
+                    else:
+                        continue
+            
+            paper_id, pdf_path = self._download_single_paper(paper, index, total, reference_graph)
+            
+            if paper_id and pdf_path:
+                valid_paper_ids.append(paper_id)
+                if not os.path.exists(os.path.join(self.cache_path, "parsed_papers", paper_id)):
+                    valid_paper_paths.append(pdf_path)
+                    valid_paper_paths_ids.append(paper_id)
+        
+        return valid_paper_ids, valid_paper_paths, valid_paper_paths_ids
+
+    def _download_papers_parallel(self, papers: list, limit: int = -1):
+        """并行下载papers"""
+        valid_paper_ids = []
+        valid_paper_paths = []
+        valid_paper_paths_ids = []
+        
+        reference_graph = self._get_reference_graph()
+        
+        # 过滤需要下载的papers
+        download_tasks = []
+        limit = limit if limit > 0 else len(papers)
+        
+        for idx, paper in enumerate(papers[:limit]):
+            # 处理特殊情况
+            if isinstance(paper, dict):
+                paper_id = paper.get("externalIds", {}).get("ArXiv") or paper.get("paperId")
+                if not paper.get("openAccessPdf", {}).get("url") and not ("ArXiv" in paper.get("externalIds", {})):
+                    if self.config.ModuleInfo.WorkAnalyzer.abstract_when_full_text_fail:
+                        self.logger.info(f"No full text PDF found for paper {paper_id}, skipping download but keeping abstract.")
+                        err = self.add_papers_abstracts_in_cache([paper_id])
+                        if not err:
+                            valid_paper_ids.append(paper_id)
+                        continue
+                    else:
+                        continue
+            elif isinstance(paper, str) and "." not in paper:
+                continue
+            
+            download_tasks.append((idx + 1, paper))
+        
+        if not download_tasks:
+            return valid_paper_ids, valid_paper_paths, valid_paper_paths_ids
+        
+        total = len(download_tasks)
+        max_workers = getattr(self.config.ModuleInfo.WorkCollector, 'download_parallel_workers', 8)
+        
+        self.logger.info(f"Starting parallel download with {max_workers} workers for {len(download_tasks)} papers...")
+        
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(self._download_single_paper, paper, idx, total, reference_graph): idx
+                for idx, paper in download_tasks
+            }
+            
+            for future in as_completed(futures):
+                try:
+                    paper_id, pdf_path = future.result()
+                    if paper_id and pdf_path:
+                        valid_paper_ids.append(paper_id)
+                        if not os.path.exists(os.path.join(self.cache_path, "parsed_papers", paper_id)):
+                            valid_paper_paths.append(pdf_path)
+                            valid_paper_paths_ids.append(paper_id)
+                except Exception as e:
+                    self.logger.error(f"Error in parallel download: {e}")
+        
+        return valid_paper_ids, valid_paper_paths, valid_paper_paths_ids
+
     def _download_pdf_with_resume(self, url: str, filename: str, title: str, is_arxiv: bool = False, chunk_size: int = 1024 * 1024):
         """下载PDF文件，支持断点续传"""
         temp_size = 0
@@ -284,163 +485,15 @@ class DataManager:
 
     def download_and_parse_papers(self, papers: list, limit: int = -1):
         """下载并解析papers"""
-        valid_paper_ids = []
-        valid_paper_paths = []
-        valid_paper_paths_ids = []
+        # 检查是否启用并行下载
+        use_parallel = getattr(self.config.ModuleInfo.WorkCollector, 'download_in_parallel', False)
         
-        reference_graph = self._get_reference_graph()
-        
-        # step 1: download the paper PDF
-        index = 0
-        total = min(len(papers), limit) if limit > 0 else len(papers)
-        while index < len(papers) and (limit < 0 or len(valid_paper_ids) < limit):
-            paper = papers[index]
-            index += 1
-
-            download_urls = []
-            is_arxiv = False
-            if isinstance(paper, dict):
-                if "ArXiv" in paper.get("externalIds", {}):
-                    paper_id = paper["externalIds"]["ArXiv"]
-                    is_arxiv = True
-                else:
-                    paper_id = paper.get("paperId")
-                    is_arxiv = False
-
-                if is_arxiv:
-                    download_urls.append(f"https://export.arxiv.org/pdf/{paper_id}.pdf")
-                    download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
-
-                elif paper.get("openAccessPdf", {}).get("url"):
-                    download_urls.append(paper["openAccessPdf"]["url"])
-                elif self.config.ModuleInfo.WorkAnalyzer.abstract_when_full_text_fail:
-                    self.logger.info(f"No full text PDF found for paper {paper_id}, skipping download but keeping abstract.")
-                    err = self.add_papers_abstracts_in_cache([paper_id])
-                    if not err:
-                        valid_paper_ids.append(paper_id)
-                    continue
-                else:
-                    continue
-                paper_title = paper.get("title", paper_id)
-            elif isinstance(paper, str):
-                is_arxiv = "." in paper
-                if is_arxiv:
-                    paper_id = paper
-                    download_urls.append(f"https://export.arxiv.org/pdf/{paper_id}.pdf")
-                    download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
-                else:
-                    paper_id = paper
-                    try:
-                        paper = self.semantic_scholar_api.get_paper_details(
-                            paper,
-                            fields="title,externalIds,openAccessPdf",
-                        )
-                    except Exception as e:
-                        self.logger.error(f"Error fetching paper {paper_id} details from Semantic Scholar: {e}. Skipping.")
-                        continue
-                        
-                    if paper_id != paper.get("paperId"):
-                        self.logger.warning(
-                            f"Paper ID mismatch for {paper_id}, got {paper.get('paperId')} in DOWNLOAD AND PARSE PAPER, skipping."
-                        )
-                        continue
-                    if not paper:
-                        continue
-                    try:
-                        if "ArXiv" in paper.get("externalIds", {}):
-                            paper_id = paper["externalIds"]["ArXiv"]
-                            is_arxiv = True
-                        else:
-                            paper_id = paper.get("paperId")
-                            is_arxiv = False
-                    except Exception as e:
-                        self.logger.warning(f"Error getting paper ID: {e} with paper data: {paper}, skipping.")
-                        continue
-                    if is_arxiv:
-                        download_urls.append(f"https://export.arxiv.org/pdf/{paper_id}.pdf")
-                        download_urls.append(f"https://arxiv.org/pdf/{paper_id}.pdf")
-                    elif paper.get("openAccessPdf", {}).get("url"):
-                        download_urls.append(paper["openAccessPdf"]["url"])
-                    elif self.config.ModuleInfo.WorkAnalyzer.abstract_when_full_text_fail:
-                        self.logger.info(f"No full text PDF found for paper {paper_id}, skipping download but keeping abstract.")
-                        err = self.add_papers_abstracts_in_cache([paper_id])
-                        if not err:
-                            valid_paper_ids.append(paper_id)
-                        continue
-                    else:
-                        continue
-                
-                paper_title = reference_graph.nodes.get(paper_id, {}).get(
-                    "title", paper_id
-                ) if reference_graph else paper_id
-            else:
-                continue
-            
-            pdf_path = os.path.join(
-                self.cache_path,
-                "pdf_papers",
-                paper_id,
-                f"{paper_id}.pdf",
-            )
-
-            if (
-                not self.config.ModuleInfo.WorkCollector.download_safe_mode
-                and os.path.exists(pdf_path)
-            ):
-                if is_valid_pdf(pdf_path):
-                    if self.config.BasicInfo.debug:
-                        self.logger.info(f"Cache Hit! Existing PDF at {pdf_path} is valid, skipping download.")
-                    valid_paper_ids.append(paper_id)
-                    if not os.path.exists(
-                        os.path.join(self.cache_path, "parsed_papers", paper_id)
-                    ):
-                        valid_paper_paths.append(pdf_path)
-                        valid_paper_paths_ids.append(paper_id)
-                    continue
-                else:
-                    try:
-                        os.remove(pdf_path)
-                    except OSError as e:
-                        self.logger.error(f"Failed to delete invalid PDF {pdf_path}: {e}")
-                        continue
-                    self.logger.warning(f"Existing PDF at {pdf_path} is invalid, re-downloading.")
-            os.makedirs(os.path.dirname(pdf_path), exist_ok=True)
-
-            for download_url in download_urls:
-                downloaded = None
-                downloaded = self._download_pdf_with_resume(
-                    url=download_url,
-                    filename=pdf_path,
-                    title=f"{paper_title} ({index}/{total})",
-                )
-                if not downloaded or not is_valid_pdf(pdf_path):
-                    self.logger.warning(
-                        f"Failed to download valid paper {paper_id} from {download_url}, trying next URL if available."
-                    )
-                    continue
-                else:
-                    break
-
-            if not downloaded:
-                self.logger.warning(
-                    f"Failed to download valid paper {paper_id} from {download_url}"
-                )
-                continue
-            if not is_valid_pdf(pdf_path):
-                self.logger.warning(f"Existing PDF at {pdf_path} is invalid, deleting.")
-                try:
-                    os.remove(pdf_path)
-                except OSError as e:
-                    self.logger.error(f"Failed to delete invalid PDF {pdf_path}: {e}")
-                    continue
-                continue
-
-            valid_paper_ids.append(paper_id)
-            if not os.path.exists(
-                os.path.join(self.cache_path, "parsed_papers", paper_id)
-            ):
-                valid_paper_paths.append(pdf_path)
-                valid_paper_paths_ids.append(paper_id)
+        if use_parallel:
+            self.logger.info("Using parallel download mode")
+            valid_paper_ids, valid_paper_paths, valid_paper_paths_ids = self._download_papers_parallel(papers, limit)
+        else:
+            self.logger.info("Using serial download mode")
+            valid_paper_ids, valid_paper_paths, valid_paper_paths_ids = self._download_papers_serial(papers, limit)
 
         # step 2: parse the downloaded PDFs
         self.logger.info(f"Parsing {len(valid_paper_paths)} downloaded papers...")
@@ -531,16 +584,33 @@ class DataManager:
 
     def get_paper_with_title(self, title: str):
         """根据title搜索paper，优先使用Semantic Scholar，失败则用ArXiv"""
+        normalized = title.strip().lower()
+        if normalized in self.title_lookup_cache:
+            cached = self.title_lookup_cache[normalized]
+            self.logger.info(f"Cache hit for title: {title[:50]}...")
+            if cached["found"]:
+                return cached["paper_info"]
+            
         result = self.get_paper_with_title_semantic(title)
+        if result:
+            result["api_platform"] = "semantic"
         if not result:
             self.logger.info("Fail to retrieve out with semantic scholar, use arxiv instead")
             result = self.get_paper_with_title_arxiv(title)
+            if result:
+                result["api_platform"] = "semarxivantic"
+
+        if result:
+            self.title_lookup_cache[normalized] = {"found": True, "paper_info": result}
         return result
 
     def get_paper_with_title_batch(self, titles: List[str]):
         """
         批量根据title搜索paper，优先使用Semantic Scholar，失败则用ArXiv
         统一计算embedding和相似度，显著提升性能
+        
+        使用 title_lookup_cache 缓存查询结果，避免重复API调用。
+        缓存格式：title (lowercase, stripped) -> {"found": bool, "paper_info": dict or None}
         
         Args:
             titles: 论文标题列表
@@ -553,9 +623,35 @@ class DataManager:
         
         self.logger.info(f"Batch searching for {len(titles)} papers...")
         
+        # Normalize titles for cache lookup
+        normalized_titles = {title: title.strip().lower() for title in titles}
+        
+        # Separate titles into cache hits and misses
+        titles_to_query = []
+        results = {}
+        cache_misses = []
+        
+        for title in titles:
+            normalized = normalized_titles[title]
+            if normalized in self.title_lookup_cache:
+                cached = self.title_lookup_cache[normalized]
+                self.logger.info(f"Cache hit for title: {title[:50]}...")
+                if cached["found"]:
+                    results[title] = cached["paper_info"]
+                # else:
+                #     results[title] = None
+            else:
+                titles_to_query.append(title)
+                cache_misses.append(normalized)
+        
+        self.logger.info(f"Cache hits: {len(titles) - len(titles_to_query)}, Cache misses: {len(titles_to_query)}")
+        
+        if not titles_to_query:
+            return results
+        
         # 批量搜索Semantic Scholar
         semantic_results = {}  # title -> list of search results
-        for title in titles:
+        for title in titles_to_query:
             try:
                 fields = "title,externalIds,openAccessPdf,abstract,authors,year,venue"
                 response = self.semantic_scholar_api.search_papers(query=title, fields=fields)
@@ -568,10 +664,12 @@ class DataManager:
         
         # 批量搜索ArXiv作为fallback
         arxiv_results = {}  # title -> list of search results
-        for title in titles:
-            if semantic_results.get(title):
-                arxiv_results[title] = []
-                continue
+        # for title in titles_to_query:
+        #     if semantic_results.get(title) and len(semantic_results.get(title)) > 0:
+        #         arxiv_results[title] = []
+        #         continue
+
+        for title in titles_to_query:
             try:
                 search_results = self.arxiv_api.search_papers_by_title(title)
                 arxiv_results[title] = search_results[:3] if search_results else []
@@ -586,12 +684,12 @@ class DataManager:
         all_titles_to_encode = []
         title_to_results = {}  # query_title -> [(paper_info, source), ...]
         
-        for title in titles:
+        for title in titles_to_query:
             title_to_results[title] = []
-            # 添加Semantic Scholar结果
+
             for paper in semantic_results.get(title, [])[:3]:
                 title_to_results[title].append((paper, "semantic"))
-            # 添加ArXiv结果
+
             for paper in arxiv_results.get(title, [])[:2]:
                 title_to_results[title].append((paper, "arxiv"))
             
@@ -616,9 +714,9 @@ class DataManager:
             embeddings_dict[title] = all_embeddings[idx]
             idx += 1
         
-        # 批量计算相似度并选择最佳匹配
-        results = {}
-        for title in titles:
+        # 批量计算相似度并选择最佳匹配，同时更新缓存
+        for title in titles_to_query:
+            normalized = normalized_titles[title]
             query_embedding = embeddings_dict[title]
             best_paper = None
             best_similarity = 0.0
@@ -647,9 +745,13 @@ class DataManager:
                 self.logger.info(f"Found matching paper for '{title}' with similarity {best_similarity:.4f}: {best_paper.get('title', 'N/A')}")
                 best_paper["api_platform"] = best_source
                 results[title] = best_paper
+                # Cache the found result
+                self.title_lookup_cache[normalized] = {"found": True, "paper_info": best_paper}
             else:
                 self.logger.warning(f"No paper found with similarity > 0.95 for title: {title}")
                 results[title] = None
+                # Cache the "not found" result to avoid repeated lookups
+                # self.title_lookup_cache[normalized] = {"found": False, "paper_info": None}
         
         return results
 
@@ -692,3 +794,15 @@ class DataManager:
             with open(ref_graph_path, "rb") as reader:
                 return pickle.load(reader)
         return None
+
+    def clear_title_lookup_cache(self):
+        """清除title lookup缓存"""
+        self.title_lookup_cache.clear()
+        self.logger.info("Title lookup cache cleared.")
+        
+    def get_title_lookup_cache_stats(self):
+        """获取title lookup缓存的统计信息"""
+        return {
+            "size": len(self.title_lookup_cache),
+            "cache_path": os.path.join(self.cache_path, "title_lookup_cache")
+        }

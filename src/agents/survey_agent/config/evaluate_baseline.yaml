@@ -120,6 +120,7 @@ ModuleInfo:
     enable_review_and_revise: True
     section_review_temperature: 1.0
     section_review_retry: 3
+    reviewer_max_suggestions: 5
     section_revision_RAG_topk: 30
     section_revise_temperature: 0.5
     section_revise_retry: 5

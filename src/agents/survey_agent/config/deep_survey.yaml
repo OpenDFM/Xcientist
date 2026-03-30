@@ -10,10 +10,10 @@ BasicInfo:
 APIInfo:
   llm_api_key: 
   llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
-  llm_model_name: gpt-4o-mini
+  llm_model_name: gpt-5-mini
   llm_max_context_length: 160000
   use_stream_mode: False
-  batch_chat_agent_worker: 4
+  batch_chat_agent_worker: 32
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
   low_flow_mode: False
   low_flow_latency: 0
@@ -22,6 +22,9 @@ APIInfo:
 ModuleInfo:
   WorkCollector:
     download_safe_mode: False
+    download_timeout: 60
+    download_in_parallel: True
+    download_parallel_workers: 8
     cache_enabled: True
     max_seed_paper_num: 5
     use_seed_filter_LLM: True
@@ -29,7 +32,7 @@ ModuleInfo:
     reference_graph_depth: 1
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
     sentence_transformer_batch_size: 32
-    expand_in_local_paper_graph: False
+    expand_in_local_paper_graph: True
     advanced_filter_in_local_paper_graph_expansion: True
     related_work_top_k: 30  # for debug
     log_related_work_num: -1 # set to -1 to log all
@@ -47,12 +50,14 @@ ModuleInfo:
     abstract_only_mode: False
     cache_enabled: True
     use_local_paper_graph_keynotes: True
-    abstract_when_full_text_fail: False
-    paper_reading_temperature: 1.0
+    abstract_when_full_text_fail: True
+    cache_enabled: True
+    use_local_paper_graph_keynotes: True
+    paper_reading_temperature: 0.5
     paper_reading_max_retry: 5
     llm_max_context_overhead_length_in_paper_reading: 20000
     clustering_batch_size: 16
-    clustering_temperature: 1.0
+    clustering_temperature: 0.5
     clustering_in_steps: True
     clustering_batch_size_in_creation: 32
     clustering_batch_size_in_assignment: 8
@@ -62,25 +67,25 @@ ModuleInfo:
     paper_clustering_assignment_max_retry: 10
     propose_question_temperature: 1.0
     anwer_question_temperature: 1.0
-    intra_cluster_analysis_max_retry: 2
+    intra_cluster_analysis_max_retry: 10
     intra_cluster_analysis_temperature: 1.0
-    intra_clustering_probelm_proposing_max_retry: 4
+    intra_clustering_probelm_proposing_max_retry: 10
   SurveyGenerator:
     include_initial_analysis: True
-    include_relation_graph: False
+    include_relation_graph: True
     include_relation_table: False
     omit_error_preserve_retry_time: 2
     outline_generation_in_steps: True
     outline_generation_draft_max_retry: 3
     outline_generation_draft_batch_size: 20
     outline_draft_RAG_topk: 60
-    outline_generation_assign_max_retry: 5
+    outline_generation_assign_max_retry: 10
     outline_generation_assign_batch_size: 10
     outline_assign_RAG_topk: 20
     outline_assign_fast_mode: True
     outline_generation_temperature: 0.5
     outline_generation_batch_size: 16
-    outline_generation_max_retry: 2
+    outline_generation_max_retry: 3
     outline_generation_max_retry_in_generation_loop: 6
     subsection_draft_temperature: 1.0
     subsection_draft_max_retry: 5
@@ -94,9 +99,9 @@ ModuleInfo:
     llm_max_context_overhead_length_outline_generation: 10000
     subsection_least_words: 700
     subsection_least_citations: 15
-    section_least_words: 2000
-    section_least_citations: 25
-    draft_length_relax_ratio: 0.5
+    section_least_words: 100
+    section_least_citations: 3
+    draft_length_relax_ratio: 0.1
     use_full_text_in_survey_generation: False
     include_other_relevant_papers_RAG_in_outline: True
     outline_RAG_topk: 200
@@ -107,14 +112,16 @@ ModuleInfo:
     enable_review_and_revise: True
     section_review_temperature: 1.0
     section_review_retry: 3
+    reviewer_max_suggestions: 5
     section_revision_RAG_topk: 30
     section_revise_temperature: 0.5
     section_revise_retry: 5
     no_suggestion_run_each_iteration: 1
-    max_review_revise_iterations: 30
+    max_review_revise_iterations: 3
     draft_refinement_in_parts: True
     refine_in_parts_mode: 2
     review_and_revise_whole_survey_in_refinement: True
+    review_and_revise_whole_survey_max_iteration: 5
     valid_title_min_similarity: 0.5
   Judge:
     use_different_api_for_judge: False
