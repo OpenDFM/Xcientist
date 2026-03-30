@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
@@ -321,6 +322,17 @@ def ensure_experiment_dirs(experiment_id: str) -> Dict[str, Any]:
     os.makedirs(os.path.join(paths["results_dir"], "standard"), exist_ok=True)
     os.makedirs(os.path.join(paths["results_dir"], "ablation"), exist_ok=True)
     return paths
+
+
+def copy_prepared_data_to_workspace(workspace_dir: str) -> None:
+    source_dir = Path(__file__).resolve().parents[3] / "data" / "prepared"
+    destination_dir = Path(workspace_dir)
+    for item in source_dir.iterdir():
+        destination = destination_dir / item.name
+        if item.is_dir():
+            shutil.copytree(item, destination, dirs_exist_ok=True)
+        else:
+            shutil.copy2(item, destination)
 
 
 def write_workspace_env_file(experiment_id: str) -> str:

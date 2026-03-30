@@ -18,6 +18,7 @@ from src.agents.experiment_agent.agents.reporting import run_ablation_report_int
 from src.agents.experiment_agent.agents.integration import run_iteration_reporter
 from src.agents.experiment_agent.config import print_config
 from src.agents.experiment_agent.config import (
+    copy_prepared_data_to_workspace,
     ensure_experiment_dirs,
     get_idea_input_path,
     SCIENCE_MAX_ITERATIONS,
@@ -79,6 +80,7 @@ async def main_async(args) -> int:
 
     experiment_id = args.experiment
     paths = ensure_experiment_dirs(experiment_id)
+    copy_prepared_data_to_workspace(paths["workspace_dir"])
     write_workspace_env_file(experiment_id)
     Cache.initialize(paths["cache_dir"], enabled=True)
     workspace_root = paths["workspace_dir"]

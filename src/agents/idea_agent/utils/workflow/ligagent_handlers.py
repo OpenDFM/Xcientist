@@ -23,9 +23,11 @@ from src.agents.idea_agent.utils.workflow.ligagent_flow import (
     build_idea_result_payload,
     make_stage_context,
     persist_final_idea,
+    save_candidate_payload,
     save_idea_result_payload,
 )
 from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
+    build_replanned_idea_entry,
     collect_analysis_background_lines,
     collect_rag_citations,
     collect_rag_contents,
@@ -446,6 +448,11 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
         best_entry.get("retrieved_core_titles") or [],
         *[entry.get("retrieved_core_titles") or [] for entry in mode_entries],
     )
+    save_candidate_payload(
+        best_entry,
+        agent.run_dir / "idea_candidate.json",
+        logger,
+    )
     final_payload = persist_final_idea(
         best_entry=best_entry,
         paper_entries=paper_entries,
@@ -515,14 +522,17 @@ def execute_idea_generation_stage(agent: Any, ctx: StageContext) -> StageResult:
 
 def execute_reanalysis_replan_stage(agent: Any, ctx: StageContext) -> StageResult:
     artifact = agent.artifact
-    session = _session(agent, ctx)
+    logger = _logger(agent, ctx)
     runtime = _runtime(agent, ctx)
+    session = _session(agent, ctx)
 
     analysis_entries = artifact_get(artifact, "analysis", [])
     analysis = analysis_entries[-1] if analysis_entries else {}
     ablation_results = artifact_get(artifact, "ablation_results", [])
     mature_idea = artifact_get(artifact, "mature_idea", "")
     refinement_scope = artifact_get(artifact, "refinement_scope", "")
+    root_idea = artifact_get(artifact, "root_idea", {})
+    latest_candidate = artifact_get(artifact, "latest_candidate", {})
     topic = artifact_get(artifact, "topic", [])[-1]
 
     prompt = PROMPTS["re_analysis_replan"].format(
@@ -553,6 +563,33 @@ def execute_reanalysis_replan_stage(agent: Any, ctx: StageContext) -> StageResul
         append_patch["component_decisions"] = list(component_decisions)
     if search_kw:
         append_patch["retrieval_keywords"] = [search_kw]
+
+    updated_mature_idea = str(response.get("mature_idea") or mature_idea or "").strip()
+    replanned_entry = build_replanned_idea_entry(
+        latest_candidate=latest_candidate,
+        root_idea=root_idea,
+        mature_idea=updated_mature_idea,
+        component_decisions=component_decisions if isinstance(component_decisions, list) else [],
+    )
+    reference_batches = artifact_get(artifact, "references", [])
+    latest_batch = reference_batches[-1] if reference_batches else []
+    batch_list = [latest_batch] if latest_batch else reference_batches
+    paper_entries = collect_paper_context_entries(artifact, batch_list)
+    materialization_model = str(get_config_value(agent.config, "fusion.model", "gpt-5.4"))
+    materialize_chat = _chat(agent, ctx, "idea_materialization")
+    persist_final_idea(
+        best_entry=replanned_entry,
+        paper_entries=paper_entries,
+        artifact=artifact,
+        idea_result_path=agent.run_dir / "replanned_idea_result.json",
+        chat_fn=materialize_chat,
+        model=materialization_model,
+        logger=logger,
+        prompts=PROMPTS,
+        persist_to_artifact=False,
+        mature_idea_override=updated_mature_idea,
+        refinement_scope_override=(refinement_scope or "").strip(),
+    )
 
     if session is not None and response.get("mature_idea"):
         session.set_slot("mature_idea.latest", response["mature_idea"])

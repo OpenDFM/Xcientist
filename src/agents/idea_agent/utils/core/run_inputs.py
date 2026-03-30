@@ -36,7 +36,7 @@ def load_run_defaults(config: Optional[object], *, default_output_root: str) -> 
         "rag_config": get_config_value(
             config,
             "run.rag_config",
-            "src/agents/survey_agent/config/outcomeRAG.yaml",
+            "src/config/default.yaml",
         ),
     }
 

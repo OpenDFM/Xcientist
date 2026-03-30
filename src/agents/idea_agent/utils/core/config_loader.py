@@ -49,20 +49,25 @@ def _load_defaults(defaults: list[Any], base_dir: Path) -> Any:
     return merged
 
 
-def load_idea_agent_config(config_path: Optional[str] = None) -> Any:
+def load_project_config(config_path: Optional[str] = None) -> Any:
     path = _resolve_config_path(config_path)
     if not path.exists():
         raise FileNotFoundError(f"Idea agent config not found at {path}")
     config = OmegaConf.load(path)
-    idea_config = config.get("idea") if hasattr(config, "get") else None
-    if idea_config is not None:
-        return idea_config
     defaults = config.get("defaults") if isinstance(config, dict) or hasattr(config, "get") else None
     if not defaults:
         return config
     merged = _load_defaults(defaults, path.parent)
     without_defaults = OmegaConf.create({k: v for k, v in config.items() if k != "defaults"})
     return OmegaConf.merge(merged, without_defaults)
+
+
+def load_idea_agent_config(config_path: Optional[str] = None) -> Any:
+    config = load_project_config(config_path)
+    idea_config = config.get("idea") if hasattr(config, "get") else None
+    if idea_config is not None:
+        return idea_config
+    return config
 
 
 def get_config_value(config: Optional[Any], key: str, default: Any) -> Any:

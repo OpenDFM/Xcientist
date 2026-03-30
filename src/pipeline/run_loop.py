@@ -62,6 +62,7 @@ def _init_pipeline_state(pipeline_workspace: str, topic: str, mature_idea: str, 
         "pipeline_name": os.path.basename(pipeline_workspace),
         "topic": topic,
         "mature_idea": mature_idea,
+        "last_candidate_path": "",
         "last_ablation_results_dir": "",
         "total_iterations": total_iterations,
         "current_iteration": 0,
@@ -206,11 +207,103 @@ def _find_previous_ablation_results_dir(pipeline_workspace: str, iteration_index
     return ""
 
 
+def _idea_result_to_mature_idea_text(idea_result: Dict[str, Any]) -> str:
+    title = str(idea_result.get("title") or "").strip()
+    abstract = str(idea_result.get("abstract") or "").strip()
+    method = str(idea_result.get("method") or "").strip()
+    sections = []
+    if title:
+        sections.append(f"Title: {title}")
+    if abstract:
+        sections.append(f"Abstract: {abstract}")
+    if method:
+        sections.append(f"Method: {method}")
+    return "\n".join(sections).strip()
+
+
+def _build_experiment_id(iteration_index: int, title: str, branch: str = "") -> str:
+    slugified_title = re.sub(r'[^a-zA-Z0-9]+', '-', title.lower()).strip('-')
+    slugified_title = slugified_title[:50] if slugified_title else f"experiment_{iteration_index}"
+    if branch:
+        return f"iter_{iteration_index}_{branch}_{slugified_title}"
+    return f"iter_{iteration_index}_{slugified_title}"
+
+
+def _run_experiment_branch(
+    *,
+    iteration_index: int,
+    title: str,
+    branch: str,
+    idea_source_path: str,
+    candidate_source_path: str,
+    pipeline_workspace: str,
+    idea_result_filename: str,
+    experiment_result_filename: str,
+    experiment_agent_iterations: int,
+    resume_enabled: bool,
+    state: Dict[str, Any],
+    phase_name: str,
+) -> Dict[str, str]:
+    experiment_id = _build_experiment_id(iteration_index, title, branch=branch)
+    exp_workspace = os.path.join(pipeline_workspace, "experiments", experiment_id)
+    _ensure_dirs(exp_workspace)
+    _ensure_dirs(os.path.join(exp_workspace, "project"))
+    _ensure_dirs(os.path.join(exp_workspace, "results"))
+    _ensure_dirs(os.path.join(exp_workspace, "checkpoints"))
+
+    final_idea_file = os.path.join(exp_workspace, idea_result_filename)
+    final_idea_json = os.path.join(exp_workspace, "idea.json")
+    final_candidate_file = os.path.join(exp_workspace, "idea_candidate.json")
+    shutil.copy(idea_source_path, final_idea_file)
+    shutil.copy(final_idea_file, final_idea_json)
+    if candidate_source_path:
+        shutil.copy(candidate_source_path, final_candidate_file)
+
+    should_skip_prepare = resume_enabled and _should_skip_phase(phase_name, state)
+    success = run_experiment(
+        experiment_id=experiment_id,
+        workspace_root=exp_workspace,
+        max_agent_iterations=experiment_agent_iterations,
+        resume=resume_enabled,
+        skip_prepare=should_skip_prepare,
+    )
+    if not success:
+        raise RuntimeError(f"Experiment agent failed for {experiment_id}")
+
+    _mark_phase_complete(phase_name, state)
+
+    final_report_path = os.path.join(exp_workspace, "final_report.md")
+    experiment_result_path = os.path.join(exp_workspace, experiment_result_filename)
+    with open(experiment_result_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "experiment_id": experiment_id,
+                "workspace": exp_workspace,
+                "idea_path": final_idea_json,
+                "idea_result_path": final_idea_file,
+                "ablation_results_path": os.path.join(exp_workspace, "ablation_results.json"),
+                "final_report_path": final_report_path if os.path.exists(final_report_path) else "",
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+    return {
+        "experiment_id": experiment_id,
+        "workspace": exp_workspace,
+        "idea_result_path": final_idea_file,
+        "idea_path": final_idea_json,
+        "candidate_path": final_candidate_file if candidate_source_path else "",
+    }
+
+
 def run_idea(
     topic: str,
     mature_idea: str,
     output_file: str,
     ablation_results_path: str = "",
+    previous_candidate_path: str = "",
 ) -> Dict[str, Any]:
     """Run Idea agent."""
     print("\n" + "=" * 50)
@@ -232,6 +325,11 @@ def run_idea(
         print(f"Using prior ablation results dir: {ablation_results_path}")
     else:
         env.pop("IDEA_AGENT_ABLATION_RESULTS_PATH", None)
+    if previous_candidate_path:
+        env["IDEA_AGENT_PREVIOUS_CANDIDATE_PATH"] = previous_candidate_path
+        print(f"Using prior idea candidate: {previous_candidate_path}")
+    else:
+        env.pop("IDEA_AGENT_PREVIOUS_CANDIDATE_PATH", None)
 
     # Capture output to parse result - real-time
     process = subprocess.Popen(
@@ -257,7 +355,10 @@ def run_idea(
 
     # Find and copy idea_result.json to output location
     idea_path = "src/agents/idea_agent/idea_result.json"
+    result_dir = ""
     for line in stdout_lines:
+        if "✅ completed ->" in line:
+            result_dir = line.split("->", 1)[1].strip()
         if "idea_result.json" in line:
             for part in line.strip().split():
                 if "idea_result.json" in part:
@@ -273,7 +374,25 @@ def run_idea(
     print(f"Idea result saved to: {output_file}")
 
     with open(idea_path, "r", encoding="utf-8") as f:
-        return json.load(f)
+        payload = json.load(f)
+
+    replanned_idea_path = ""
+    candidate_path = ""
+    if result_dir:
+        main_candidate = Path(result_dir) / "idea_candidate.json"
+        if main_candidate.exists():
+            candidate_path = str(main_candidate)
+        candidate = Path(result_dir) / "replanned_idea_result.json"
+        if candidate.exists():
+            replanned_idea_path = str(candidate)
+
+    return {
+        "payload": payload,
+        "idea_path": idea_path,
+        "candidate_path": candidate_path,
+        "run_dir": result_dir,
+        "replanned_idea_path": replanned_idea_path,
+    }
 
 
 def run_experiment(
@@ -400,91 +519,70 @@ def main(config_path: str = "src/config/default.yaml"):
         idea_result_filename = str(
             config.pipeline.output.get("idea_result_filename", "idea_result.json")
         )
+        experiment_result_filename = config.pipeline.output.get(
+            "experiment_result_filename", "experiment_result.json"
+        )
         idea_output_file = os.path.join(temp_exp_workspace, idea_result_filename)
         prior_ablation_results_path = str(
             state.get("last_ablation_results_dir", "") or state.get("last_ablation_results_path", "") or ""
         )
         if not prior_ablation_results_path or not os.path.isdir(prior_ablation_results_path):
             prior_ablation_results_path = _find_previous_ablation_results_dir(pipeline_workspace, i)
-        idea_result = run_idea(
+        previous_candidate_path = str(state.get("last_candidate_path", "") or "")
+        idea_run = run_idea(
             topic,
             mature_idea,
             idea_output_file,
             ablation_results_path=prior_ablation_results_path,
+            previous_candidate_path=previous_candidate_path,
         )
+        idea_result = idea_run["payload"]
 
-        # 使用 idea title 作为 experiment_id（slugify 处理）
-        title = idea_result.get("title", f"experiment_{i}")
-        slugified_title = re.sub(r'[^a-zA-Z0-9]+', '-', title.lower()).strip('-')
-        # 限制长度避免路径过长，同时保留足够信息
-        slugified_title = slugified_title[:50] if slugified_title else f"experiment_{i}"
-        experiment_id = f"iter_{i}_{slugified_title}"
-
-        # 创建正式的实验目录
-        exp_workspace = os.path.join(pipeline_workspace, "experiments", experiment_id)
-        _ensure_dirs(exp_workspace)
-        _ensure_dirs(os.path.join(exp_workspace, "project"))
-        _ensure_dirs(os.path.join(exp_workspace, "results"))
-        _ensure_dirs(os.path.join(exp_workspace, "checkpoints"))
-
-        # Move idea output into the canonical experiment workspace inputs.
-        final_idea_file = os.path.join(exp_workspace, idea_result_filename)
-        final_idea_json = os.path.join(exp_workspace, "idea.json")
-        if os.path.exists(idea_output_file) and idea_output_file != final_idea_file:
-            shutil.move(idea_output_file, final_idea_file)
-
-        if os.path.exists(final_idea_file):
-            shutil.copy(final_idea_file, final_idea_json)
-
-        # 清理临时目录
-        if os.path.exists(temp_exp_workspace) and temp_exp_workspace != exp_workspace:
-            try:
-                shutil.rmtree(temp_exp_workspace)
-            except Exception:
-                pass
-
-        if os.path.exists(idea_output_file) and idea_output_file != os.path.join(exp_workspace, idea_result_filename):
-            shutil.move(idea_output_file, os.path.join(exp_workspace, idea_result_filename))
-        if os.path.exists(os.path.join(exp_workspace, idea_result_filename)):
-            shutil.copy(
-                os.path.join(exp_workspace, idea_result_filename),
-                final_idea_json,
-            )
-
-        should_skip_prepare = resume_enabled and _should_skip_phase(f"experiment_{i}", state)
-        success = run_experiment(
-            experiment_id=experiment_id,
-            workspace_root=exp_workspace,
-            max_agent_iterations=experiment_agent_iterations,
-            resume=resume_enabled,
-            skip_prepare=should_skip_prepare,
+        main_experiment = _run_experiment_branch(
+            iteration_index=i,
+            title=idea_result.get("title", f"experiment_{i}"),
+            branch="",
+            idea_source_path=idea_output_file,
+            candidate_source_path=str(idea_run.get("candidate_path") or ""),
+            pipeline_workspace=pipeline_workspace,
+            idea_result_filename=idea_result_filename,
+            experiment_result_filename=experiment_result_filename,
+            experiment_agent_iterations=experiment_agent_iterations,
+            resume_enabled=resume_enabled,
+            state=state,
+            phase_name=f"experiment_{i}",
         )
-        if not success:
-            raise RuntimeError(f"Experiment agent failed for {experiment_id}")
-
-        _mark_phase_complete(f"experiment_{i}", state)
-        state["current_iteration"] = i + 1
         _save_pipeline_state(pipeline_workspace, state, state_filename)
 
-        experiment_result_filename = config.pipeline.output.get(
-            "experiment_result_filename", "experiment_result.json"
-        )
-        experiment_result_path = os.path.join(exp_workspace, experiment_result_filename)
-        final_report_path = os.path.join(exp_workspace, "final_report.md")
-        with open(experiment_result_path, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "experiment_id": experiment_id,
-                    "workspace": exp_workspace,
-                    "idea_path": final_idea_json,
-                    "idea_result_path": final_idea_file,
-                    "ablation_results_path": os.path.join(exp_workspace, "ablation_results.json"),
-                    "final_report_path": final_report_path if os.path.exists(final_report_path) else "",
-                },
-                f,
-                ensure_ascii=False,
-                indent=2,
+        replanned_idea_path = str(idea_run.get("replanned_idea_path") or "")
+        if replanned_idea_path:
+            with open(replanned_idea_path, "r", encoding="utf-8") as f:
+                replanned_idea_result = json.load(f)
+            _run_experiment_branch(
+                iteration_index=i,
+                title=replanned_idea_result.get("title", f"replanned_experiment_{i}"),
+                branch="replan",
+                idea_source_path=replanned_idea_path,
+                candidate_source_path="",
+                pipeline_workspace=pipeline_workspace,
+                idea_result_filename=idea_result_filename,
+                experiment_result_filename=experiment_result_filename,
+                experiment_agent_iterations=experiment_agent_iterations,
+                resume_enabled=resume_enabled,
+                state=state,
+                phase_name=f"experiment_{i}_replan",
             )
+
+        if os.path.exists(temp_exp_workspace):
+            shutil.rmtree(temp_exp_workspace)
+
+        exp_workspace = main_experiment["workspace"]
+        final_idea_file = main_experiment["idea_result_path"]
+        state["last_candidate_path"] = main_experiment["candidate_path"]
+        mature_idea = _idea_result_to_mature_idea_text(idea_result)
+        state["mature_idea"] = mature_idea
+        state["current_iteration"] = i + 1
+        _save_pipeline_state(pipeline_workspace, state, state_filename)
 
         ablation_path = os.path.join(exp_workspace, "ablation_results.json")
         if os.path.exists(ablation_path):
@@ -499,7 +597,7 @@ def main(config_path: str = "src/config/default.yaml"):
                 )
                 convert_ablation_to_symbolic_memory(
                     ablation_path=ablation_path,
-                    experiment_id=experiment_id,
+                    experiment_id=main_experiment["experiment_id"],
                     symbolic_memory_path=symbolic_memory_path,
                     config=config,
                 )

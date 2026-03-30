@@ -20,6 +20,26 @@ def _as_text(value: Any) -> str:
     return "" if value is None else str(value).strip()
 
 
+def _clone_config(config: Any) -> Any:
+    if config is None:
+        return None
+    if isinstance(config, (str, Path)):
+        return OmegaConf.load(str(config))
+    if OmegaConf.is_config(config):
+        return OmegaConf.create(OmegaConf.to_container(config, resolve=False))
+    return OmegaConf.create(config)
+
+
+def _extract_survey_config(config: Any) -> Any:
+    cloned = _clone_config(config)
+    if cloned is None:
+        return None
+    survey_section = OmegaConf.select(cloned, "survey")
+    if survey_section is None:
+        return cloned
+    return OmegaConf.create(OmegaConf.to_container(survey_section, resolve=False))
+
+
 class PaperRepository:
     """Access survey RAG plus graph.db-backed Core references."""
 
@@ -32,9 +52,11 @@ class PaperRepository:
     ) -> None:
         self.logger = logger
         self._config_path = self._resolve_config_path(config_path, config)
-        self.config = config or OmegaConf.load(self._config_path)
+        survey_config = _extract_survey_config(config)
+        self.config = survey_config if survey_config is not None else OmegaConf.load(self._config_path)
         self.work_collector = WorkCollector(self.config)
-        self.rag_config = OmegaConf.load(str(rag_config))
+        self.rag_config = self._build_rag_config(rag_config, self.config)
+        self._repair_runtime_survey_paths(self.rag_config)
         self._outcome_rag: Optional[OutcomeRAG] = None
         self._graph_server: Optional[Any] = None
 
@@ -64,6 +86,53 @@ class PaperRepository:
                 "Set IDEA_AGENT_SURVEY_CONFIG to override the default path."
             )
         return config_path
+
+    def _build_rag_config(self, rag_config: Optional[object], survey_config: Optional[object]) -> Any:
+        base_config = _extract_survey_config(survey_config)
+        if base_config is None:
+            base_config = OmegaConf.create()
+        rag_override = _extract_survey_config(rag_config)
+        if rag_override is None:
+            return base_config
+
+        merged = OmegaConf.merge(base_config, rag_override)
+
+        # Keep the active survey runtime paths from src/config/default.yaml::survey,
+        # while still allowing the RAG preset to override retrieval/model knobs.
+        base_basic_info = OmegaConf.select(base_config, "BasicInfo")
+        if base_basic_info is not None:
+            OmegaConf.update(
+                merged,
+                "BasicInfo",
+                OmegaConf.to_container(base_basic_info, resolve=False),
+                merge=False,
+            )
+        return merged
+
+    def _repair_runtime_survey_paths(self, config: Any) -> None:
+        memory_dir = (_REPO_ROOT / "src" / "agents" / "survey_agent" / "outputs" / "memory").resolve()
+        fallback_paths = {
+            "BasicInfo.base_dir": str(memory_dir),
+            "BasicInfo.save_path": str(memory_dir / "survey.md"),
+            "BasicInfo.save_json_path": str(memory_dir / "survey.json"),
+            "BasicInfo.evaluation_save_path": str(memory_dir / "evaluation.txt"),
+        }
+
+        current_md = OmegaConf.select(config, "BasicInfo.save_path")
+        current_json = OmegaConf.select(config, "BasicInfo.save_json_path")
+        if current_md and current_json:
+            md_exists = Path(str(current_md)).expanduser().exists()
+            json_exists = Path(str(current_json)).expanduser().exists()
+            if md_exists and json_exists:
+                return
+
+        fallback_md = Path(fallback_paths["BasicInfo.save_path"])
+        fallback_json = Path(fallback_paths["BasicInfo.save_json_path"])
+        if not (fallback_md.exists() and fallback_json.exists()):
+            return
+
+        for key, value in fallback_paths.items():
+            OmegaConf.update(config, key, value, merge=False)
 
     def _get_outcome_rag(self) -> OutcomeRAG:
         if self._outcome_rag is None:
@@ -95,13 +164,14 @@ class PaperRepository:
         rag = self._get_outcome_rag()
         if rag.embeddings is None:
             rag.build_index()
-        return rag.retrieve(
+        raw_hits = rag.retrieve(
             query=query,
             top_k=top_k,
             mode=mode,
             alpha=alpha,
             cite_top_k=cite_top_k,
         )
+        return [self._normalize_rag_hit(hit) for hit in raw_hits or []]
 
     def get_core_node(self, node_id: str) -> Dict[str, Any]:
         server = self._get_graph_server()
@@ -170,6 +240,9 @@ class PaperRepository:
         source_keywords: str,
     ) -> Dict[str, Any]:
         node_id = _as_text(node.get("id") or node.get("node_id"))
+        raw_node = self.get_core_node(node_id) if node_id else {}
+        if not raw_node and isinstance(node, dict):
+            raw_node = dict(node)
         paper_title = _as_text(node.get("paper_title"))
         full_name = _as_text(node.get("full_name"))
         label = _as_text(node.get("label"))
@@ -200,4 +273,26 @@ class PaperRepository:
             "full_name": full_name,
             "label": label or title,
             "components": components,
+            "raw_node": raw_node,
         }
+
+    def _normalize_rag_hit(self, hit: Dict[str, Any]) -> Dict[str, Any]:
+        normalized = dict(hit) if isinstance(hit, dict) else {}
+        subsection_title = _as_text(normalized.get("subsection_title") or normalized.get("title"))
+        paper_titles: List[str] = []
+        seen_titles: set[str] = set()
+        for raw_title in normalized.get("paper_titles") or normalized.get("citations") or []:
+            cleaned = _as_text(raw_title)
+            if not cleaned:
+                continue
+            key = cleaned.lower()
+            if key in seen_titles:
+                continue
+            seen_titles.add(key)
+            paper_titles.append(cleaned)
+
+        normalized["subsection_title"] = subsection_title
+        normalized["paper_titles"] = paper_titles
+        # Keep backward-compatible access for prompt views / logs.
+        normalized["citations"] = paper_titles
+        return normalized

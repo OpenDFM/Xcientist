@@ -61,6 +61,7 @@ class LigAgent(AgentBase):
         chat_max_retries = get_config_value(config, "agent.chat_max_retries", 3)
         chat_retry_backoff = get_config_value(config, "agent.chat_retry_backoff", 2.0)
         survey_config_path = kwargs.pop("survey_config_path", None)
+        survey_config = kwargs.pop("survey_config", None)
         run_dir = kwargs.pop("run_dir", None)
         rag_config = kwargs.pop("rag_config", None)
         model = get_config_value(config, "agent.model", "gpt-5-mini")
@@ -131,6 +132,7 @@ class LigAgent(AgentBase):
 
         self.paper_repository = PaperRepository(
             config_path=survey_config_path,
+            config=survey_config,
             logger=logger,
             rag_config=rag_config,
         )

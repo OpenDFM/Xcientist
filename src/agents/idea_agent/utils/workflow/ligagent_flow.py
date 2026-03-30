@@ -21,6 +21,7 @@ from src.agents.idea_agent.utils.workflow.workflow_runtime import (
 )
 from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     build_algorithm_spec,
+    collect_rag_citations,
 )
 from src.agents.idea_agent.utils.workflow.ligagent_utils import (
     align_public_idea_entry,
@@ -121,12 +122,22 @@ def build_idea_result_payload(
     model: str,
     logger,
     prompts: Optional[Dict[str, str]] = None,
+    mature_idea_override: Optional[str] = None,
+    refinement_scope_override: Optional[str] = None,
 ) -> Dict[str, Any]:
     prompts = prompts or PROMPTS
     topic_history = artifact_get(artifact, "topic", [])
     topic = topic_history[-1] if topic_history else "unspecified topic"
-    mature_idea = str(artifact_get(artifact, "mature_idea", "") or "").strip()
-    refinement_scope = str(artifact_get(artifact, "refinement_scope", "") or "").strip()
+    mature_idea = str(
+        mature_idea_override
+        if mature_idea_override is not None
+        else artifact_get(artifact, "mature_idea", "")
+    ).strip()
+    refinement_scope = str(
+        refinement_scope_override
+        if refinement_scope_override is not None
+        else artifact_get(artifact, "refinement_scope", "")
+    ).strip()
     entries = paper_entries or collect_paper_context_entries(
         artifact, artifact_get(artifact, "references", [])
     )
@@ -188,10 +199,7 @@ def build_idea_result_payload(
                 hits = rag_entry.get("hits") or []
             elif isinstance(rag_entry, list):
                 hits = rag_entry
-            for hit in hits:
-                if not isinstance(hit, dict):
-                    continue
-                title = str(hit.get("title") or "").strip()
+            for title in collect_rag_citations(hits):
                 if not title:
                     continue
                 key = title.lower()
@@ -260,6 +268,19 @@ def save_idea_result_payload(
         logger.error("⚠️ Failed to persist idea_result.json: %s", exc)
 
 
+def save_candidate_payload(
+    payload: Dict[str, Any],
+    candidate_path: Path,
+    logger,
+) -> None:
+    try:
+        candidate_path.parent.mkdir(parents=True, exist_ok=True)
+        write_json_file(candidate_path, payload)
+        logger.info("💾 Saved idea candidate to %s", candidate_path)
+    except OSError as exc:
+        logger.error("⚠️ Failed to persist idea_candidate.json: %s", exc)
+
+
 def persist_final_idea(
     best_entry: Dict[str, Any],
     paper_entries: List[Dict[str, Any]],
@@ -270,6 +291,8 @@ def persist_final_idea(
     logger,
     prompts: Optional[Dict[str, str]] = None,
     persist_to_artifact: bool = True,
+    mature_idea_override: Optional[str] = None,
+    refinement_scope_override: Optional[str] = None,
 ) -> Dict[str, Any]:
     payload = build_idea_result_payload(
         best_entry,
@@ -279,6 +302,8 @@ def persist_final_idea(
         model=model,
         logger=logger,
         prompts=prompts,
+        mature_idea_override=mature_idea_override,
+        refinement_scope_override=refinement_scope_override,
     )
     if persist_to_artifact:
         artifact_set(artifact, "idea_result", payload)
