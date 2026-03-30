@@ -132,7 +132,7 @@ def run_pipeline(config, work_collector, database, work_analyzer, survey_generat
 
 
 
-@hydra.main(config_path="../config", config_name="deep_survey_xiaomi", version_base=None)
+@hydra.main(config_path="../config", config_name="deep_survey_fast", version_base=None)
 def main(config):
     config = merge_with_default_survey_config(config)
     logger.info("Starting Deep Survey Pipeline")

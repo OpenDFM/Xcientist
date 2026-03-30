@@ -20,45 +20,48 @@ from modules.code_collector import CodeCollector, CodeAnalyzer
 logger = get_logger("Deep Survey Batch")
 
 def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_generator, judge, code_collector, code_analyzer, code_report_generator):
-    try:
-        results = []
-        reasons = []
-        # step 1: related work collection
-        logger.info("Collecting related work...")
+    # try:
+    results = []
+    reasons = []
+    # step 1: related work collection
+    # logger.info("Collecting related work...")
 
-        # collect seed papers
-        seed_paper_ids = work_collector.collect_seed_papers(config.BasicInfo.topic)
-        # seed_paper_ids = work_collector.collect_seed_papers_debug()
-        logger.info(f"Collected seed paper IDs: {seed_paper_ids}")
+    # # collect seed papers
+    # seed_paper_ids = work_collector.collect_seed_papers(config.BasicInfo.topic)
+    # # seed_paper_ids = work_collector.collect_seed_papers_debug()
+    # logger.info(f"Collected seed paper IDs: {seed_paper_ids}")
 
-        # expand seed papers by reference and citation
-        logger.info("Expanding seed papers by reference and citation...")
-        expanded_paper_ids = work_collector.expand_seed_papers_by_reference_and_citation(
-            seed_paper_ids
-        )
+    # # expand seed papers by reference and citation
+    # logger.info("Expanding seed papers by reference and citation...")
+    # expanded_paper_ids = work_collector.expand_seed_papers_by_reference_and_citation(
+    #     seed_paper_ids
+    # )
 
-        if config.BasicInfo.debug:
-            logger.info(f"Expanded paper IDs: {expanded_paper_ids}")
+    # if config.BasicInfo.debug:
+    #     logger.info(f"Expanded paper IDs: {expanded_paper_ids}")
 
-        logger.info("Building paper embedding database...")
-        database.build_with_graph()
-        logger.info("Paper embedding database built.")
-            
-        # step 2: comprehend papers
-        logger.info("Comprehending papers...")
+    # logger.info("Building paper embedding database...")
+    # database.build_with_graph()
+    # logger.info("Paper embedding database built.")
+        
+    # # step 2: comprehend papers
+    # logger.info("Comprehending papers...")
 
-        # deep reading for papers
-        collected_papers = seed_paper_ids + expanded_paper_ids
+    # deep reading for papers
+    # collected_papers = seed_paper_ids + expanded_paper_ids
+    import json
+    with open("/hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0307-test-refinement2-whole-review-revise/user_defined/LLMs-based_Agents.json", "r") as f:
+        survey_dict = json.load(f)
+    collected_papers = survey_dict.get("references")
+    paper_mainfests = code_analyzer.execute(collected_papers)
 
-        paper_mainfests = code_analyzer.execute(collected_papers)
+    env_report = code_report_generator.generate_framework_env_report(paper_mainfests = paper_mainfests, topic = config.BasicInfo.topic)
+    code_report = code_report_generator.generate_report(papers = paper_mainfests, topic = config.BasicInfo.topic)
 
-        env_report = code_report_generator.generate_framework_env_report(paper_mainfests = paper_mainfests, topic = config.BasicInfo.topic)
-        code_report = code_report_generator.generate_report(papers = paper_mainfests, topic = config.BasicInfo.topic)
-
-        logger.info("[ENV REPORT:]")
-        logger.info(f"{env_report}")
-        logger.info("[CODE REPORT:]")
-        logger.info(f"{code_report}")
+    logger.info("[ENV REPORT:]")
+    logger.info(f"{env_report}")
+    logger.info("[CODE REPORT:]")
+    logger.info(f"{code_report}")
 
         # logger.info(f"Total papers to read: {len(collected_papers)}")
         # err_papers = work_analyzer.read_papers_and_write_keynotes(collected_papers)
@@ -136,12 +139,12 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
         # logger.info("Evaluating survey...")
         # results, reasons = judge.evaluate(survey, references)
         # logger.info("Survey evaluation completed.")
-    except Exception as e:
-        logger.error(f"Error occurred during pipeline execution: {e}")
-        return False, None, None
+    # except Exception as e:
+    #     logger.error(f"Error occurred during pipeline execution: {e}")
+    #     return False, None, None
     return True, results, reasons
 
-@hydra.main(config_path="../config", config_name="deep_survey_batch_others_huoshan", version_base=None)
+@hydra.main(config_path="../config", config_name="deep_survey_batch_others", version_base=None)
 def main(config):
     config = merge_with_default_survey_config(config)
     logger.info("Starting Deep Survey Pipeline")
@@ -179,7 +182,7 @@ def main(config):
                 logger.info(f"Attempt {attempt+1} for topic: {topic}")
                 cfg_for_topic = OmegaConf.merge(config, {
                                                         "BasicInfo": {
-                                                                "topic": topic, 
+                                                                "topic": "LLMs-based_Agents", 
                                                                 "save_path": f"{config.BasicInfo.output_base_dir}/{domain}/{topic.replace(' ', '_')}.md",
                                                                 "save_json_path": f"{config.BasicInfo.output_base_dir}/{domain}/{topic.replace(' ', '_')}.json"
                                                             }

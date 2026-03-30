@@ -588,28 +588,50 @@ class WorkCollector:
 
         # Batch query papers by title
         self.logger.info(f"Batch querying {len(valid_titles)} papers by title...")
-        batch_results = self.get_paper_with_title_batch(valid_titles)
-        
-        # Process batch results
-        # get_paper_with_title_batch returns Dict[str, dict]: title -> paper_info
+
+        self.batch_retrieve_paper_id_for_nodes = True
         expanded_papers_ids = []
-        for paper_title in valid_titles:
-            api_paper_info = batch_results.get(paper_title)
-            if api_paper_info is None or not api_paper_info:
-                self.logger.warning(f"{paper_title} cannot be retrieved from arxiv or semantic scholar")
-                continue
+        if self.batch_retrieve_paper_id_for_nodes:
+            batch_results = self.get_paper_with_title_batch(valid_titles)
+            
+            # Process batch results
+            # get_paper_with_title_batch returns Dict[str, dict]: title -> paper_info
+            for paper_title in valid_titles:
+                api_paper_info = batch_results.get(paper_title)
+                if api_paper_info is None or not api_paper_info:
+                    self.logger.warning(f"{paper_title} cannot be retrieved from arxiv or semantic scholar")
+                    continue
 
-            if api_paper_info.get("api_platform", "").lower() == "arxiv":
-                paper_id = api_paper_info.get("paper_id", "")
-            else:
-                paper_id = api_paper_info.get("externalIds", {}).get(
-                    "ArXiv", api_paper_info.get("paperId")
-                )
+                if api_paper_info.get("api_platform", "").lower() == "arxiv":
+                    paper_id = api_paper_info.get("paper_id", "")
+                else:
+                    paper_id = api_paper_info.get("externalIds", {}).get(
+                        "ArXiv", api_paper_info.get("paperId")
+                    )
 
-            if paper_id is None or not paper_id:
-                self.logger.warning(f"{paper_title} cannot be retrieved from arxiv or semantic scholar")
-                continue
-            expanded_papers_ids.append(paper_id)
+                if paper_id is None or not paper_id:
+                    self.logger.warning(f"{paper_title} cannot be retrieved from arxiv or semantic scholar")
+                    continue
+                expanded_papers_ids.append(paper_id)
+        else:
+            for paper_title in valid_titles:
+                api_paper_info = self.get_paper_with_title(paper_title)
+                if api_paper_info is None or not api_paper_info:
+                    self.logger.warning(f"{paper_title} cannot be retrieved from arxiv or semantic scholar")
+                    continue
+
+                if api_paper_info.get("api_platform", "").lower() == "arxiv":
+                    paper_id = api_paper_info.get("paper_id", "")
+                else:
+                    paper_id = api_paper_info.get("externalIds", {}).get(
+                        "ArXiv", api_paper_info.get("paperId")
+                    )
+
+                if paper_id is None or not paper_id:
+                    self.logger.warning(f"{paper_title} cannot be retrieved from arxiv or semantic scholar")
+                    continue
+                expanded_papers_ids.append(paper_id)
+
 
         self.graph_paper_ids.update(expanded_papers_ids)
         self.logger.info(f"expansion in graph find {len(expanded_papers_ids)} valid papers (can be found in arxiv/semantic scholar)")

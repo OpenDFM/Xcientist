@@ -1475,6 +1475,7 @@ class SurveyGenerator:
                 self.logger.error(f"Survey review failed in OUTER LOOP {i+1} with error {e}. Exiting review and revise loop.")
                 continue
             
+            suggestions = suggestions[:self.config.ModuleInfo.SurveyGenerator.reviewer_max_suggestions]
             if not suggestions or len(suggestions) == 0:
                 if (isinstance(suggestions, list) and len(suggestions) == 1 and suggestions[0].lower() == "done"):
                     self.logger.info("Reviewer indicates completion. Exiting.")
