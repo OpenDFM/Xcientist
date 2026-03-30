@@ -41,6 +41,7 @@ ModuleInfo:
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
     sentence_transformer_batch_size: 32
     expand_in_local_paper_graph: False
+    use_ds_when_graph_fail: True
     advanced_filter_in_local_paper_graph_expansion: True
     related_work_top_k: 30  # for debug
     log_related_work_num: -1 # set to -1 to log all
@@ -58,7 +59,12 @@ ModuleInfo:
     abstract_only_mode: False
     abstract_when_full_text_fail: True
     cache_enabled: True
+<<<<<<< HEAD
     use_local_paper_graph_keynotes: True
+=======
+    use_local_paper_graph_keynotes: False
+    use_ds_keynotes_when_graph_fail: True
+>>>>>>> origin/fix-main
     paper_reading_temperature: 1.0
     paper_reading_max_retry: 6
     llm_max_context_overhead_length_in_paper_reading: 20000

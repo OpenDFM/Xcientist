@@ -41,6 +41,7 @@ class WorkAnalyzer:
 
         self.cluster_fast_mode = self.config.ModuleInfo.WorkAnalyzer.cluster_assign_fast_mode
         self.use_graph_keynotes = self.config.ModuleInfo.WorkAnalyzer.use_local_paper_graph_keynotes
+        self.use_ds_keynotes_when_graph_fail = self.config.ModuleInfo.WorkAnalyzer.use_ds_keynotes_when_graph_fail
         if self.use_graph_keynotes:
             if not paper_graph_retriever:
                 self.paper_graph_retriever = PaperGraphRetriever(config)
@@ -73,7 +74,7 @@ class WorkAnalyzer:
 
         self.paper_abstract_cache = self.work_collector.paper_abstract_cache
 
-    def read_papers_and_write_keynotes(self, papers: List[str], retry: int = 1):
+    def read_papers_and_write_keynotes(self, papers: List[str], retry: int = 1, ds_keynotes_fallback: bool = False):
 
         if self.config.ModuleInfo.WorkAnalyzer.abstract_only_mode:
             self.logger.info("Abstract-only mode enabled, fetching abstracts instead of deep reading and get keynotes.")
@@ -84,10 +85,17 @@ class WorkAnalyzer:
             self.logger.error(f"Papers failed to read: {papers}")
             return papers
 
-        if self.config.ModuleInfo.WorkAnalyzer.use_local_paper_graph_keynotes:
+        if self.config.ModuleInfo.WorkAnalyzer.use_local_paper_graph_keynotes and not ds_keynotes_fallback:
             # extract information for baselines and empty node and write back to graph
             self.logger.info(f"getting keynotes in graph...")
             error_ids =  self.paper_graph_retriever.read_papers_and_write_keynotes(papers)
+            if self.use_ds_keynotes_when_graph_fail and error_ids:
+                self.logger.info(f"some paper not in graph, number: {len(error_ids)}, use previous methods")
+                error_ids =  self.read_papers_and_write_keynotes(
+                    papers = error_ids, 
+                    retry = retry, 
+                    ds_keynotes_fallback = True
+                )
             return error_ids
         
         tasks = []
@@ -238,14 +246,18 @@ class WorkAnalyzer:
         citation += "."
         return citation
 
-    def get_paper_keynote(self, paper_id: str):
+    def get_paper_keynote(self, paper_id: str, ds_keynote_fallback: bool = False):
         """Get the keynote of a paper by its ID."""
         hash_id = get_hash(paper_id)
 
-        if self.use_graph_keynotes:
+        if self.use_graph_keynotes and not ds_keynote_fallback:
             results, errors = self.paper_graph_retriever.get_paper_keynote([paper_id])
             if errors or None in results:
-                raise ValueError(f"Failed to get keynote for paper ID {paper_id} in paper graph")
+                if self.use_ds_keynotes_when_graph_fail:
+                    return self.get_paper_keynote(paper_id, True)
+                else:
+                    raise ValueError(f"Failed to get keynote for paper ID {paper_id} in paper graph")
+            return results
 
         if self.config.ModuleInfo.WorkAnalyzer.abstract_only_mode:
             try:
@@ -254,7 +266,7 @@ class WorkAnalyzer:
                 raise ValueError(f"Failed to get abstract for paper ID {paper_id}: {e}")
             return abstract
 
-        else:
+        elif not self.config.ModuleInfo.WorkAnalyzer.abstract_only_mode or ds_keynote_fallback:
             err = []
             if hash_id not in self.paper_keynote_cache or not self.config.ModuleInfo.WorkAnalyzer.cache_enabled:
                 err = self.read_papers_and_write_keynotes([paper_id])

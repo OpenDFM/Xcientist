@@ -255,11 +255,12 @@ class PseudoWriter:
     def __init__(self, config, chat_agent: ChatAgent, repo_cache_path: str):
         self.chat_agent = chat_agent
         self.logger = get_logger("PseudoWriter")
+        self.config = config
         self.repo_cache_path = repo_cache_path
         self.default_max_steps = 20
         self.memory_token_threshold = 50000  # Threshold for memory compression
         self.use_memory_result_uplimit = True
-        self.memory_result = 2000
+        self.memory_result_max_length = 8000  # Max characters for memory results to keep in memory display
         self.agent_source_code_max_read_lines = 700
         
         # Initialize tiktoken encoding for token counting
@@ -283,7 +284,7 @@ class PseudoWriter:
             self.logger.error(f"Error reading source code for {rel_path}: {e}")
         return None
     
-    def _truncate_text(self, text: str, max_length: int, suffix: str = "...") -> str:
+    def _truncate_text(self, text: str, max_length: int, suffix: str = "(too long, truncated)...") -> str:
         """Truncate text to max_length, adding suffix if truncated."""
         if not text:
             return text
@@ -316,7 +317,7 @@ class PseudoWriter:
                 # Show truncated pseudocode
                 pseudocode = op.get('pseudocode', op.get('result', ''))
                 if self.use_memory_result_uplimit:
-                    pseudocode = self._truncate_text(pseudocode, self.memory_result)
+                    pseudocode = self._truncate_text(pseudocode, self.memory_result_max_length)
                 lines.append(f"   Pseudocode: {pseudocode}")
                 
             elif op_type == "get_source_code":
@@ -324,7 +325,7 @@ class PseudoWriter:
                 file_path = op.get('file_path', 'unknown')
                 source_code = op.get('source_code_result', op.get('result', ''))
                 if self.use_memory_result_uplimit:
-                    source_code = self._truncate_text(source_code, self.memory_result)
+                    source_code = self._truncate_text(source_code, self.memory_result_max_length)
                 lines.append(f"   File: {file_path}")
                 lines.append(f"   Source: {source_code}")
                 
@@ -332,7 +333,7 @@ class PseudoWriter:
                 # Show truncated pseudocode
                 pseudocode = op.get('pseudocode', op.get('result', ''))
                 if self.use_memory_result_uplimit:
-                    pseudocode = self._truncate_text(pseudocode, self.memory_result)
+                    pseudocode = self._truncate_text(pseudocode, self.memory_result_max_length)
                 lines.append(f"   Revised to: {pseudocode}")
                 
             elif op_type == "review":
@@ -342,7 +343,7 @@ class PseudoWriter:
                 if suggestions:
                     suggestions_text = "; ".join(suggestions)  # Limit to 5 suggestions
                     if self.use_memory_result_uplimit:
-                        suggestions_text = self._truncate_text(suggestions_text, self.memory_result // 2)
+                        suggestions_text = self._truncate_text(suggestions_text, self.memory_result_max_length // 2)
                     lines.append(f"   Suggestions: {suggestions_text}")
                 if scores:
                     lines.append(f"   Scores: conciseness={scores.get('conciseness', 0)}, logic={scores.get('logic', 0)}, specificity={scores.get('specificity', 0)}")
@@ -350,9 +351,10 @@ class PseudoWriter:
             elif op_type == "finish":
                 # Show context and suggestions
                 context = op.get('context', '')
+                reason = op.get('reason', '')
                 suggestions = op.get('suggestions', [])
                 if context and self.use_memory_result_uplimit:
-                    context = self._truncate_text(context, self.memory_result)
+                    context = self._truncate_text(context, self.memory_result_max_length)
                 if context:
                     lines.append(f"   Final Context: {context}")
                 if suggestions:
@@ -360,6 +362,8 @@ class PseudoWriter:
                     if self.use_memory_result_uplimit:
                         suggestions_text = self._truncate_text(suggestions_text, self.memory_result // 2)
                     lines.append(f"   Final Suggestions: {suggestions_text}")
+                if reason:
+                    lines.append(f"   Reason: {reason}")
             
             else:
                 # Generic fallback
@@ -460,11 +464,12 @@ class PseudoWriter:
             self.logger.warning(f"Review response is not a dict: {result}")
             return {"suggestions": [str(result)] if result else [], "scores": {"conciseness": 0, "logic": 0, "specificity": 0}}
     
-    def _execute_operation(self, op: dict, agent_ctx: AgentContext) -> None:
+    def _execute_operation(self, op: dict, agent_ctx: AgentContext) -> dict:
         """Execute a single operation."""
         operation = op.get("operation", "")
         file_path = op.get("file_path", "")
         reason = op.get("reason", "")
+        memory_result = {}
         
         if operation == "create":
             # Create initial pseudocode from scratch
@@ -479,15 +484,23 @@ class PseudoWriter:
             agent_ctx.current_pseudocode = result
             agent_ctx.has_created_initial = True
             self.logger.info(f"Created initial pseudocode, reason: {reason}")
+            memory_result["pseudocode"] = result
+
+            agent_ctx.context = ""
+            agent_ctx.suggestions = []
             
         elif operation == "get_source_code":
             if file_path:
                 source_code = self._get_source_code(agent_ctx.repo_name, file_path)
                 agent_ctx.context += f"=== Source code of {file_path} ===\n{source_code if source_code else 'Not available'}\n"
                 self.logger.info(f"Retrieved source code for: {file_path}, reason: {reason}")
+                memory_result["file_path"] = file_path
+                memory_result["source_code_result"] = source_code if source_code else "Not available: file not exist or read failed"
             else:
                 self.logger.error("get_source_code: file_path not provided, skipped")
                 agent_ctx.error_log.append(f"Unknown filepath in retrieve: {file_path}")
+                memory_result["file_path"] = "file_path not provided corrctly"
+                memory_result["source_code_result"] = "file_path not provided"
                     
         elif operation == "revise":
             # Check if create has been called
@@ -507,21 +520,34 @@ class PseudoWriter:
             )
             result = self.chat_agent.remote_chat_with_retry(modify_prompt, temperature=0)
             agent_ctx.current_pseudocode = result
+            memory_result["pseudocode"] = result
             self.logger.info(f"Revised pseudocode, reason: {reason}")
+
+            agent_ctx.context = ""
+            agent_ctx.suggestions = []
                 
         elif operation == "finish":
             self.logger.info(f"Operation: finish, reason: {reason}")
                 
         elif operation == "review":
             review_result = self._call_review(agent_ctx)
-            agent_ctx.suggestions.extend(review_result.get("suggestions", []))
-            agent_ctx.review_scores = review_result.get("scores", {"conciseness": 0, "logic": 0, "specificity": 0})
+            suggestions = review_result.get("suggestions", [])
+            scores = review_result.get("scores", {"conciseness": 0, "logic": 0, "specificity": 0})
+            agent_ctx.suggestions.extend(suggestions)
+            agent_ctx.review_scores = scores
             self.logger.info(f"Review scores: conciseness={agent_ctx.review_scores['conciseness']}, logic={agent_ctx.review_scores['logic']}, specificity={agent_ctx.review_scores['specificity']}")
             self.logger.info(f"reason: {reason}")
+
+            memory_result["scores"] = scores
+            memory_result["suggestions"] = suggestions
                 
         else:
             self.logger.error(f"Unknown operation: {operation}, skipped")
             agent_ctx.error_log.append(f"Unknown operation: {operation}, skipped")
+
+            memory_result["result"] = f"Unknown operation: {operation}, skipped"
+
+        return memory_result
 
     def create_pseudocode_with_agent(
         self,
@@ -594,18 +620,17 @@ class PseudoWriter:
                 suggestions="\n".join(agent_ctx.suggestions) if agent_ctx.suggestions else "No suggestion yet.",
                 context=agent_ctx.context if agent_ctx.context else "No context retrieved yet."
             )
-            
+
             # Get agent's plan
-            response = self.chat_agent.remote_chat(prompt, temperature=0)
-            
-            # Parse the response
             try:
-                decision = extract_json(response)
-                plan = decision.get("plan", [])
-                if not isinstance(plan, list):
-                    plan = [decision]  # Fallback: treat as single operation
+                plan = self.chat_agent.remote_chat_with_retry(
+                    prompt=prompt, 
+                    validate_fn=self._validate_plan, 
+                    max_retry= self.config.ModuleInfo.CodeAnalysis.PseudoCreator.planner_max_retry, 
+                    temperature=self.config.ModuleInfo.CodeAnalysis.PseudoCreator.planner_temperature
+                )
             except Exception as e:
-                self.logger.error(f"Failed to parse agent response: {response[:200]}..., skipped this round")
+                self.logger.error(f"Failed to parse agent response: {e}..., skipped this round")
                 agent_ctx.error_log.append(f"error in parsing planning json: {e}")
                 continue
             
@@ -624,39 +649,39 @@ class PseudoWriter:
                     if agent_ctx.context or agent_ctx.suggestions:
                         memory_entry["context"] = agent_ctx.context
                         memory_entry["suggestions"] = agent_ctx.suggestions.copy()
+                        memory_entry["reason"] = reason
                     agent_ctx.memory.append(memory_entry)
                     break
                 
                 # Execute operation
-                self._execute_operation(op, agent_ctx)
+                result_info = self._execute_operation(op, agent_ctx)
                 
                 # Add complete operation results to memory entry
                 if op_type == "create":
                     # Store complete pseudocode result
-                    memory_entry["pseudocode"] = agent_ctx.current_pseudocode
-                    memory_entry["result"] = agent_ctx.current_pseudocode
+                    memory_entry["pseudocode"] = result_info.get("pseudocode", "pseudocode creation failed")
                     # Save first created pseudocode for return value
-                    if not first_created_pseudocode:
-                        first_created_pseudocode = agent_ctx.current_pseudocode
+                    if not first_created_pseudocode and "pseudocode" in result_info:
+                        first_created_pseudocode = result_info.get("pseudocode", "pseudocode creation failed")
                         
                 elif op_type == "get_source_code":
                     # Store complete file path and retrieved content
-                    file_path = op.get('file_path', 'unknown')
-                    source_result = agent_ctx.context.split(f"=== Source code of {file_path} ===")[-1] if f"=== Source code of {file_path} ===" in agent_ctx.context else "Not available"
+                    file_path = result_info.get("file_path", "unknown file path")
+                    source_result = result_info.get("source_code_result", "source code retrieval failed")
                     memory_entry["file_path"] = file_path
                     memory_entry["source_code_result"] = source_result
-                    memory_entry["result"] = source_result
+                    memory_entry["result"] = f"Retrieved source code for {file_path}: {source_result}"
                     
                 elif op_type == "revise":
                     # Store complete revised pseudocode
-                    memory_entry["pseudocode"] = agent_ctx.current_pseudocode
-                    memory_entry["result"] = agent_ctx.current_pseudocode
+                    memory_entry["pseudocode"] = result_info.get("pseudocode", "pseudocode revision failed")
+                    memory_entry["result"] = f"Revised pseudocode: {memory_entry['pseudocode']}"
                     
                 elif op_type == "review":
                     # Store complete review suggestions and scores
-                    memory_entry["suggestions"] = agent_ctx.suggestions.copy()
-                    memory_entry["review_scores"] = agent_ctx.review_scores.copy()
-                    memory_entry["result"] = f"Scores: {agent_ctx.review_scores}, Suggestions: {agent_ctx.suggestions}"
+                    memory_entry["suggestions"] = result_info.get("suggestions", []).copy()
+                    memory_entry["review_scores"] = result_info.get("scores", {}).copy()
+                    memory_entry["result"] = f"Scores: {memory_entry["review_scores"]}, Suggestions: {memory_entry["suggestions"]}"
                 
                 agent_ctx.memory.append(memory_entry)
                 
@@ -670,12 +695,12 @@ class PseudoWriter:
             if hard_code_revise and rounds_since_last_revise >= max_rounds_without_revise:
                 self.logger.info(f"Force calling revise after {rounds_since_last_revise} rounds without revise")
                 force_revise_op = {"operation": "revise", "reason": "Forced revise after max rounds without revise"}
-                self._execute_operation(force_revise_op, agent_ctx)
+                result_info = self._execute_operation(force_revise_op, agent_ctx)
                 force_memory_entry = {
                     "operation": "revise", 
                     "reason": "Forced revise (hard_code)",
-                    "pseudocode": agent_ctx.current_pseudocode,
-                    "result": agent_ctx.current_pseudocode
+                    "pseudocode": result_info.get("pseudocode", "pseudocode revision failed"),
+                    "result": f"Revised pseudocode: {result_info.get('pseudocode', 'pseudocode revision failed')}"
                 }
                 agent_ctx.memory.append(force_memory_entry)
                 rounds_since_last_revise = 0
@@ -685,12 +710,12 @@ class PseudoWriter:
                 if last_round_revise and rounds_since_last_revise > 0:
                     self.logger.info("Last round does not include revise, force calling revise")
                     force_revise_op = {"operation": "revise", "reason": "Forced revise in last round"}
-                    self._execute_operation(force_revise_op, agent_ctx)
+                    result_info = self._execute_operation(force_revise_op, agent_ctx)
                     force_memory_entry = {
                         "operation": "revise", 
                         "reason": "Forced revise (last round)",
-                        "pseudocode": agent_ctx.current_pseudocode,
-                        "result": agent_ctx.current_pseudocode
+                        "pseudocode": result_info.get("pseudocode", "pseudocode revision failed"),
+                        "result": f"Revised pseudocode: {result_info.get('pseudocode', 'pseudocode revision failed')}"
                     }
                     agent_ctx.memory.append(force_memory_entry)
                     rounds_since_last_revise = 0
@@ -699,8 +724,23 @@ class PseudoWriter:
             if any(m.get("operation") == "finish" for m in agent_ctx.memory[-len(plan):] if plan):
                 self.logger.info(f"Planning agent decided to finish at step {step}")
                 break
-                
+        
+        self.logger.info(f"[Memory Debug] Final memory after agent execution:\n{self._format_memory(agent_ctx.memory)}")
         self.logger.info(f"Agent-based creation completed after {step + 1} steps")
         
         # Return both final pseudocode and the first created pseudocode (initial)
         return agent_ctx.current_pseudocode, first_created_pseudocode
+
+    def _validate_plan(self, response: str, info_dict: dict = None):
+        result = extract_json(response)
+        if not isinstance(result, dict):
+            raise ValueError(f"Response is not a dict: {type(result)}")
+        if "plan" not in result:
+            raise ValueError("Missing 'plan' field in response")
+        plan = result.get("plan")
+        if not isinstance(plan, list):
+            raise ValueError("'plan' field is not a list")
+        for op in plan:
+            if "operation" not in op:
+                raise ValueError("Each operation must have an 'operation' field")
+        return True, plan

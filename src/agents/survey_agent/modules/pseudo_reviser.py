@@ -196,6 +196,7 @@ class PseudoReviser:
         self.logger = get_logger("PseudoReviser")
         self.repo_cache_path = repo_cache_path
         self.default_max_steps = 20  # Maximum number of agent steps
+        self.config = config
     
     def _get_pseudocode_from_repo_structure(self, repo_structure: dict, rel_path: str) -> Optional[str]:
         """Get pseudocode from repo_structure by file path."""

@@ -144,7 +144,7 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
     #     return False, None, None
     return True, results, reasons
 
-@hydra.main(config_path="../config", config_name="deep_survey_batch_others", version_base=None)
+@hydra.main(config_path="../config", config_name="deep_survey_batch_test", version_base=None)
 def main(config):
     config = merge_with_default_survey_config(config)
     logger.info("Starting Deep Survey Pipeline")

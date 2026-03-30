@@ -1,0 +1,6 @@
+hydra-core
+rich
+loguru
+tenacity
+sentence-transformers
+hdbscan

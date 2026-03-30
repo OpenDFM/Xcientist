@@ -32,6 +32,7 @@ class WorkCollector:
         ## local paper graph parameter
         self.expand_in_local_paper_graph = self.config.ModuleInfo.WorkCollector.expand_in_local_paper_graph
         self.advanced_filter_in_local_paper_graph_expansion = self.config.ModuleInfo.WorkCollector.advanced_filter_in_local_paper_graph_expansion
+        self.use_ds_when_graph_fail = self.config.ModuleInfo.WorkCollector.use_ds_when_graph_fail
         if not self.expand_in_local_paper_graph:
             self.paper_graph_retriever = paper_graph_retriever
         else:
@@ -160,6 +161,7 @@ class WorkCollector:
         valid_graph_seed_paper_ids = []
         if self.expand_in_local_paper_graph:
             self.logger.info("local paper graph enabled. Validating seed papers in paper graph...")
+            graph_fail_papers = []
             for seed_paper in papers:
 
                 if "ArXiv" in seed_paper.get("externalIds", {}):
@@ -172,15 +174,28 @@ class WorkCollector:
                     results = self.paper_graph_retriever.search_by_paper_title(title)
                 except Exception as e:
                     self.logger.error(f"Error occurs in seed paper validation in local paper graph mode: {e}")
+                    graph_fail_papers.append(seed_paper)
                     continue
                 if not results:
+                    graph_fail_papers.append(seed_paper)
                     continue
                 else:
                     valid_graph_seed_paper_ids.append(paper_id)
+            
+            if self.use_ds_when_graph_fail:
+                self.logger.info(f"use ds papers when graph fail enabled. Revalidating {len(graph_fail_papers)} seed papers")
+                fallback_valid_papers_ids = self.data_manager.download_and_parse_papers(
+                    graph_fail_papers, limit=self.config.ModuleInfo.WorkCollector.max_seed_paper_num
+                )
+                self.logger.info(f"{len(valid_graph_seed_paper_ids)} seed papers enabled through fallback")
+                valid_graph_seed_paper_ids.extend(fallback_valid_papers_ids)
+                self.graph_paper_ids.update(valid_graph_seed_paper_ids)
+            
             if len(valid_graph_seed_paper_ids) == 0:
                 raise ValueError("collected seed papers not in paper graph")
+            
             self.logger.info(f"{len(valid_graph_seed_paper_ids)} seed papers in local paper graph, no need to download in advance, return...")
-            self.graph_paper_ids.update(valid_graph_seed_paper_ids)
+            
             return valid_graph_seed_paper_ids
 
         self.logger.info(
@@ -508,11 +523,17 @@ class WorkCollector:
         )
         return list(set().union(*saved_papers.values()))
 
-    def expand_seed_papers_by_reference_and_citation(self, seed_paper_ids: List[str]):
+    def expand_seed_papers_by_reference_and_citation(self, seed_paper_ids: List[str], graph_fallback: bool= False):
         """Collect related papers based on the given seed paper IDs."""
-        if self.expand_in_local_paper_graph and self.paper_graph_retriever:
+        if self.expand_in_local_paper_graph and self.paper_graph_retriever and not graph_fallback:
             self.logger.info("Expanding seed papers by local paper graph...")
-            return self.expand_and_filter_in_local_paper_graph(seed_paper_ids)
+            expaneded_paper_ids, failed_seed_papers =  self.expand_and_filter_in_local_paper_graph(seed_paper_ids)
+            if self.use_ds_when_graph_fail:
+                self.logger.info(f"graph expansion fallback enabled. Expand {len(failed_seed_papers)} paper with citation")
+                fallback_expansion = self.expand_seed_papers_by_reference_and_citation(failed_seed_papers, True)
+                self.logger.info(f"graph expansion fallback enabled. get {len(fallback_expansion)} expanded paper")
+                expaneded_paper_ids = list(set(expaneded_paper_ids).union(set(fallback_expansion)))
+            return expaneded_paper_ids
         
         self.update_reference_graph(seed_paper_ids)
         related_paper_ids = self.compute_relatedness_scores_and_filter(seed_paper_ids)
@@ -536,11 +557,12 @@ class WorkCollector:
         return valid_expanded_paper_ids
 
     def expand_and_filter_in_local_paper_graph(self, seed_paper_ids: List[str]):
-        expanded_papers = self.expand_papers_by_local_paper_graph(seed_paper_ids)
+        expanded_papers, failed_seed_papers = self.expand_papers_by_local_paper_graph(seed_paper_ids)
         filtered_papers = self.filter_papers_local_paper_graph(expanded_papers, seed_paper_ids)
-        return filtered_papers
+        return filtered_papers, failed_seed_papers
 
     def expand_papers_by_local_paper_graph(self, seed_paper_ids: List[str]):
+        failed_seed_papers = []
         if not self.expand_in_local_paper_graph or not self.paper_graph_retriever:
             self.logger.error("Error: expand_in_local_paper_graph False or paper_graph_retriever not initialized")
             raise ValueError("expand_in_local_paper_graph False or paper_graph_retriever not initialized")
@@ -550,17 +572,26 @@ class WorkCollector:
             try:
                 title, abstract = self.data_manager.get_paper_title_abstract(seed_paper)
             except Exception as e:
-                self.logger.error(f"[Strange err: previous getting success] Error getting title and abstract for seed paper {seed_paper}: {e}. Skipping this seed paper for local graph expansion.")
+                if self.use_ds_when_graph_fail:
+                    self.logger.info(f" fallback paper: {seed_paper} fail to expand in graph")
+                    failed_seed_papers.append(seed_paper)
+                else:
+                    self.logger.error(f"[Strange err: previous getting success] Error getting title and abstract for seed paper {seed_paper}: {e}. Skipping this seed paper for local graph expansion.")
                 continue
             results = self.paper_graph_retriever.search_by_paper_title(title)
             if not results:
-                self.logger.error(f"error out of expectation: fail to get seed paper {title} in paper graph (previous can)")
-                raise ValueError(f"fail to get seed paper {title} in paper graph (previous can)")
+                if self.use_ds_when_graph_fail:
+                    self.logger.info(f"paper {title} not in graph. fall back to original api method")
+                    failed_seed_papers.append(seed_paper)
+                    continue
+                else:
+                    self.logger.error(f"error out of expectation: fail to get seed paper {title} in paper graph (previous can)")
+                    raise ValueError(f"fail to get seed paper {title} in paper graph (previous can)")
             seed_paper_paper_graph_ids.append(results[0]["id"])
         
         expanded_papers = self.paper_graph_retriever.expand_nodes(seed_paper_paper_graph_ids, self.config.ModuleInfo.WorkCollector.reference_graph_depth)
         self.logger.info(f"expansion finished")
-        return list(set(expanded_papers) - set(seed_paper_paper_graph_ids))
+        return list(set(expanded_papers) - set(seed_paper_paper_graph_ids)), failed_seed_papers
 
     def filter_papers_local_paper_graph(self, expanded_papers: List[str], seed_paper_ids: List[str]):
         self.logger.info(f"paper number: {len(expanded_papers)} before filter")

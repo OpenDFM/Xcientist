@@ -1,22 +1,27 @@
 BasicInfo:
   topic: ""
-  evaluation_save_path: "./outputs/minimax-0320-test/evaluation_10.txt"
+  evaluation_save_path: "./outputs/minimax-0326-test-graph/evaluation_10.txt"
   save_path: ""
   save_json_path: ""
   user_defiend_benchmarks: True
-  topic_path: ./topics/test_topic.txt
+  topic_path: ./topics/debug_topics.txt
   AutoSurvey_benchmark: False
   SurveyGen_benchmark: False
   sub_benchmark_test: False
-  output_base_dir: ./outputs/minimax-0320-test
+  output_base_dir: ./outputs/minimax-0326-test-graph
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
   topic_max_retry: 3
   debug: True
   error_conservatism_mode: False
 APIInfo:
+<<<<<<< HEAD
   llm_api_key: 
   llm_api_base_url: https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions
+=======
+  llm_api_key: sk-cp-R6adkh_rPxXPH0S-t_gb4ughwyrDs2pc2m9laV4p6-sRlpjSrs5F5aXZRxqFiUVD88iaxJPr_E_Jf2DfC-eZZ7oc1ZlR50Bnjfe6Na6MNLh_c4eMGVjnuAc
+  llm_api_base_url: https://api.minimax.chat/v1/text/chatcompletion_v2
+>>>>>>> origin/fix-main
   llm_model_name: minimax-m2.5
   llm_max_context_length: 180000
   use_stream_mode: False
@@ -41,6 +46,7 @@ ModuleInfo:
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
     sentence_transformer_batch_size: 32
     expand_in_local_paper_graph: True
+    use_ds_when_graph_fail: True
     advanced_filter_in_local_paper_graph_expansion: True
     related_work_top_k: 30  # for debug
     log_related_work_num: -1 # set to -1 to log all
@@ -59,6 +65,10 @@ ModuleInfo:
     abstract_when_full_text_fail: True
     cache_enabled: True
     use_local_paper_graph_keynotes: True
+<<<<<<< HEAD
+=======
+    use_ds_keynotes_when_graph_fail: True
+>>>>>>> origin/fix-main
     paper_reading_temperature: 1.0
     paper_reading_max_retry: 6
     llm_max_context_overhead_length_in_paper_reading: 20000
@@ -129,6 +139,10 @@ ModuleInfo:
     review_and_revise_whole_survey_in_refinement: True
     review_and_revise_whole_survey_max_iteration: 5
     valid_title_min_similarity: 0.5
+  CodeAnalysis:
+    PseudoCreator:
+      planner_temperature: 0.5
+      planner_max_retry: 3
   Judge:
     use_different_api_for_judge: False
     model: mimo-v2-flash
