@@ -14,7 +14,10 @@ from openhands.tools.task_tracker import TaskTrackerTool
 from openhands.tools.terminal import TerminalTool
 
 from src.agents.experiment_agent.agents.base.agent import OpenHandsBaseAgent
-from src.agents.experiment_agent.config import MASTER_AGENT_MODEL, PLANNER_MAX_TURNS
+from src.agents.experiment_agent.config import (
+    get_master_agent_model,
+    get_planner_max_turns,
+)
 from src.agents.experiment_agent.runtime.idea_components import find_idea_json_path
 from src.agents.experiment_agent.runtime.manifests import artifact_paths, workspace_contract_paths
 from src.agents.experiment_agent.skills import get_worker_agent_context
@@ -26,21 +29,21 @@ ITERATION_REPORTER = "experiment_iteration_reporter"
 class IterationReporterAgent(OpenHandsBaseAgent):
     """Summarizes experiment status after each master iteration."""
 
-    REPORTING_DEFAULT_MCP_SERVERS = ["filesystem"]
+    REPORTING_DEFAULT_MCP_SERVERS: list[str] = []
     SYSTEM_PROMPT_TEMPLATE = "iteration_reporter.j2"
 
     def __init__(
         self,
         workspace_root: str,
         project_root: str,
-        model: str = MASTER_AGENT_MODEL,
+        model: str | None = None,
         verbose: bool = True,
         resume: bool = False,
     ):
         super().__init__(
             agent_type="IterationReporter",
-            model=model,
-            max_turns=PLANNER_MAX_TURNS,
+            model=model or get_master_agent_model(),
+            max_turns=get_planner_max_turns(),
             verbose=verbose,
             workspace_root=workspace_root,
             enable_condenser=True,
@@ -98,7 +101,7 @@ Output paths (BOTH must be written to agent_reports/):
 - iteration_status_json: {self.iteration_status_path}
 
 CRITICAL:
-1. Read all relevant files to understand the current state
+1. Read `iteration_status.json` when present, then validator JSON, then only the targeted raw result windows needed to support findings.
 2. Write iteration_summary.md with human-readable summary
 3. Write iteration_status.json with machine-readable status
 4. The master agent will read iteration_status.json for the next iteration decision
@@ -114,10 +117,38 @@ iteration_status.json MUST have this EXACT schema:
   "ablation_experiments": "none|partial|complete",
   "ablation_evidence": ["list of evidence files"],
   "validation_status": "pass|fail|partial|unknown",
+  "phase_states": {{
+    "code": {{
+      "phase_completion_status": "not_started|partial|complete|blocked",
+      "ready_for_next_phase": true|false,
+      "artifact_role": "phase_result",
+      "run_level": "smoke|full|mixed",
+      "blocking_issues": ["..."]
+    }},
+    "standard_science": {{
+      "phase_completion_status": "not_started|partial|complete|blocked",
+      "ready_for_next_phase": true|false,
+      "artifact_role": "phase_result",
+      "run_level": "smoke|full|mixed",
+      "blocking_issues": ["..."]
+    }},
+    "ablation_science": {{
+      "phase_completion_status": "not_started|partial|complete|blocked",
+      "ready_for_next_phase": true|false,
+      "artifact_role": "phase_result|final_result",
+      "run_level": "smoke|full|mixed",
+      "blocking_issues": ["..."]
+    }}
+  }},
   "key_findings": ["finding1", "finding2"],
   "blockers": ["blocker1"] or [],
   "next_recommendations": ["recommendation1", "recommendation2"]
 }}
+
+Evidence rules:
+- Treat only validator-backed artifacts with `artifact_role=phase_result|final_result` as formal phase evidence.
+- Treat `smoke_check` artifacts as implementation-readiness evidence only; they must not upgrade a science phase to `complete`.
+- When a phase validator is missing, do not infer completion from raw outputs alone.
 
 After writing both files, explicitly state: "Master agent should read {self.iteration_status_path} for the next iteration decision."
 """
@@ -137,6 +168,23 @@ After writing both files, explicitly state: "Master agent should read {self.iter
         }
         if not isinstance(payload, dict) or not all(k in payload for k in required_keys):
             return False
+        phase_states = payload.get("phase_states")
+        if phase_states is not None:
+            if not isinstance(phase_states, dict):
+                return False
+            for phase_name in ("code", "standard_science", "ablation_science"):
+                phase_payload = phase_states.get(phase_name)
+                if not isinstance(phase_payload, dict):
+                    return False
+                required_phase_keys = {
+                    "phase_completion_status",
+                    "ready_for_next_phase",
+                    "artifact_role",
+                    "run_level",
+                    "blocking_issues",
+                }
+                if not required_phase_keys.issubset(set(phase_payload.keys())):
+                    return False
         return True
 
     async def execute(self) -> Dict[str, Any]:
@@ -155,14 +203,14 @@ After writing both files, explicitly state: "Master agent should read {self.iter
 async def run_iteration_reporter(
     workspace_root: str,
     project_root: str,
-    model: str = MASTER_AGENT_MODEL,
+    model: str | None = None,
     verbose: bool = True,
     resume: bool = False,
 ) -> Dict[str, Any]:
     agent = IterationReporterAgent(
         workspace_root=workspace_root,
         project_root=project_root,
-        model=model,
+        model=model or get_master_agent_model(),
         verbose=verbose,
         resume=resume,
     )

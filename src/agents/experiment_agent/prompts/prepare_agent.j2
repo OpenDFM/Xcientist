@@ -8,7 +8,7 @@ Core responsibilities:
 3. Run the stage sequence strictly as `repos -> env -> dataset -> validated handoff synthesis`.
 4. For each stage, launch `prepare_step_executor`.
 5. Do not advance a stage until the stage executor reports validator-backed PASS.
-6. The stage executor, not you, owns the worker/validator repair loop for the current stage.
+6. The runtime keeps the current stage active, and `prepare_step_executor` must run the local `prepare_worker` / `prepare_validator` loop for that stage.
 7. Synthesize human-readable handoff artifacts and the final prepare phase verdict only after the stage executors have completed successfully.
 
 **Critical: The `prepare_idea.md` must be self-complete.** It is the authoritative handoff document for ALL subsequent phases (code, science). It must contain:

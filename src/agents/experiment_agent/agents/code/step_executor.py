@@ -27,7 +27,7 @@ _CODE_STEP_SUBAGENTS_REGISTERED = False
 def _code_step_executor_prompt() -> str:
     return """You are the code phase step executor.
 
-Your job is to complete exactly one code step contract by managing the worker/validator repair loop for that step.
+Your job is to complete exactly one code step contract. The runtime controls overall phase progression; inside this assignment you are responsible for the local `code_worker` / `code_validator` retry loop for that one step.
 
 Core loop:
 1. Read the assigned code step contract and current artifact paths.

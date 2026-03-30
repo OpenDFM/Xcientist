@@ -27,7 +27,7 @@ _PREPARE_STEP_SUBAGENTS_REGISTERED = False
 def _prepare_step_executor_prompt() -> str:
     return """You are the prepare phase step executor.
 
-Your job is to complete exactly one prepare-stage contract by managing the local worker/validator repair loop for that stage.
+Your job is to complete exactly one prepare-stage contract. The runtime controls overall phase progression; inside this assignment you are responsible for the local `prepare_worker` / `prepare_validator` retry loop for that one stage.
 
 Core loop:
 1. Read the assigned stage contract before doing anything.

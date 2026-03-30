@@ -87,6 +87,12 @@ PHASE_VERDICT_FIELDS: Tuple[str, ...] = (
     "findings",
     "required_fixes",
     "evidence_summary",
+    "phase_completion_status",
+    "ready_for_next_phase",
+    "blocking_issues",
+    "required_followup",
+    "artifact_role",
+    "run_level",
 )
 
 ABLATION_COMPONENT_RESULT_FIELDS: Tuple[str, ...] = (

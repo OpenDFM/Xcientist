@@ -4,7 +4,6 @@ import json
 import os
 import re
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -23,9 +22,9 @@ from src.agents.experiment_agent.agents.prepare.step_executor import (
 from src.agents.experiment_agent.agents.prepare.validator import PREPARE_VALIDATOR
 from src.agents.experiment_agent.agents.prepare.worker import PREPARE_WORKER
 from src.agents.experiment_agent.config import (
-    PLANNER_MAX_TURNS,
-    PREPARE_AGENT_MODEL,
     ensure_experiment_dirs,
+    get_planner_max_turns,
+    get_prepare_agent_model,
     normalize_workspace_path,
 )
 from src.agents.experiment_agent.runtime.contracts import (
@@ -56,7 +55,7 @@ class PrepareReport:
 
 
 class PrepareAgent(BaseAgent):
-    PREPARE_DEFAULT_MCP_SERVERS = ["filesystem", "fetch"]
+    PREPARE_DEFAULT_MCP_SERVERS = ["fetch", "github"]
     SYSTEM_PROMPT_TEMPLATE = "prepare_agent.j2"
     PREPARE_STAGE_SPECS = [
         {
@@ -100,14 +99,14 @@ class PrepareAgent(BaseAgent):
 
     def __init__(
         self,
-        model: str = PREPARE_AGENT_MODEL,
+        model: Optional[str] = None,
         verbose: bool = True,
         workspace_root: Optional[str] = None,
     ):
         super().__init__(
             agent_type="PrepareAgent",
-            model=model,
-            max_turns=PLANNER_MAX_TURNS,
+            model=model or get_prepare_agent_model(),
+            max_turns=get_planner_max_turns(),
             verbose=verbose,
             workspace_root=workspace_root,
             enable_condenser=True,
@@ -186,7 +185,7 @@ class PrepareAgent(BaseAgent):
                 "Prepare a real execution surface for the experiment, not just a discovery summary.",
                 "Ground all later phases in exact prepared targets: exact model ids, exact env vars, exact dataset files, and exact benchmark entrypoints.",
                 "Carry the exact `idea.json.components` list forward into the handoff. Component names and order must not change.",
-                "Use `task` with `prepare_step_executor` for every stage.",
+                "Use `task` with `prepare_step_executor` for every stage. Each dispatched stage must run `prepare_worker` and `prepare_validator` for that stage under runtime-controlled retries.",
                 "Treat validator verdicts as binding.",
                 "Keep code under `project_dir`, datasets under `dataset_dir`, and reserve `results_dir` for later experiment outputs.",
             ],
@@ -198,10 +197,10 @@ class PrepareAgent(BaseAgent):
             [
                 "1. Inspect idea.json and current workspace state.",
                 "2. Write `agent_reports/prepare_plan.json` with explicit stage contracts and a matching `prepare_planner_report.json`.",
-                "3. Run repository stage via `prepare_step_executor`; it must manage the worker/validator loop internally.",
-                "4. Run environment stage via `prepare_step_executor`; it must manage the worker/validator loop internally.",
-                "5. Run dataset stage via `prepare_step_executor`; it must manage the worker/validator loop internally.",
-                "6. Run a synthesis stage via `prepare_step_executor` to produce the phase-level prepare verdict.",
+                "3. Run repository stage via `prepare_step_executor`; the runtime keeps the stage active while `prepare_worker` and `prepare_validator` iterate on that stage.",
+                "4. Run environment stage via `prepare_step_executor`; the runtime keeps the stage active while `prepare_worker` and `prepare_validator` iterate on that stage.",
+                "5. Run dataset stage via `prepare_step_executor`; the runtime keeps the stage active while `prepare_worker` and `prepare_validator` iterate on that stage.",
+                "6. Run a synthesis stage via `prepare_step_executor` to produce the phase-level prepare verdict through the same `prepare_worker` and `prepare_validator` contract.",
                 "7. Re-open the generated outputs, self-check them against the validator evidence, then print the completion token.",
             ],
             ordered=False,
@@ -245,12 +244,12 @@ class PrepareAgent(BaseAgent):
                 "Each worker run must write the stage-specific worker report named in the stage contract.",
                 "Each validator run must write the stage-specific validator report named in the stage contract.",
                 "Each step executor run must write the stage-specific executor report named in the stage contract.",
-                "The stage executor must keep the current stage active until validator-backed PASS, terminal blocker, or `max_repair_rounds` exhaustion.",
+                "The runtime keeps the current stage active until validator-backed PASS, terminal blocker, or `max_repair_rounds` exhaustion; `prepare_step_executor` must pass validator findings back through `prepare_worker` and `prepare_validator` without dropping details.",
                 "The final prepare validator report must represent the phase-level prepare verdict; later agents should not recompute prepare completeness from individual stage files.",
             ],
             ordered=False,
         )
-        pb.add_text("Validator reports must use `status: PASS|PARTIAL|FAIL` and include the following shared verdict fields:")
+        pb.add_text("Validator reports must use `status: PASS|PARTIAL|FAIL`, set a generic `phase_completion_status`, and include the following shared verdict fields:")
         pb.add_text(verdict_fields)
 
         pb.add_header("Real Target Requirements", level=2)
@@ -397,25 +396,6 @@ class PrepareAgent(BaseAgent):
         self.conversation_id = uuid4()
         self.resume = False
 
-    def _write_runtime_debug_summary(self, workspace_dir: str, project_dir: str) -> None:
-        mcp_config = self._build_mcp_config()
-        servers = mcp_config.get("mcpServers") if isinstance(mcp_config, dict) else {}
-        payload = {
-            "workspace_root": os.path.realpath(workspace_dir),
-            "project_root": os.path.realpath(project_dir),
-            "persistence_dir": self.persistence_dir,
-            "mcp_servers": {},
-        }
-        if isinstance(servers, dict):
-            for name, server in servers.items():
-                payload["mcp_servers"][name] = {
-                    "command": str((server or {}).get("command") or ""),
-                    "args": list((server or {}).get("args") or []),
-                    "env_keys": sorted(str(key) for key in ((server or {}).get("env") or {}).keys()),
-                }
-        output_path = Path(artifact_paths(workspace_dir, project_dir)["prepare_runtime_debug"])
-        output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-
     def _build_mcp_config(self) -> Dict[str, Any]:
         base_config = super()._build_mcp_config()
         servers = base_config.get("mcpServers") if isinstance(base_config, dict) else None
@@ -468,7 +448,6 @@ class PrepareAgent(BaseAgent):
             project_root=os.path.realpath(project_dir),
             workspace_root=os.path.realpath(workspace_dir),
         )
-        self._write_runtime_debug_summary(workspace_dir=workspace_dir, project_dir=project_dir)
 
         with open(idea_json_path, "r", encoding="utf-8") as f:
             raw_json_text = f.read()
@@ -535,7 +514,7 @@ async def run_prepare(
     paths = ensure_experiment_dirs(experiment_id)
     workspace_root = normalize_workspace_path(str(paths.get("workspace_dir") or ""))
     agent = PrepareAgent(
-        model=model or PREPARE_AGENT_MODEL,
+        model=model or get_prepare_agent_model(),
         verbose=bool(verbose),
         workspace_root=workspace_root,
     )

@@ -52,6 +52,10 @@ Prepare-specific rejection rules:
 Output requirements:
 - Include `status` with value `PASS`, `PARTIAL`, or `FAIL`.
 - Use `PARTIAL` only when the stage or phase is usable enough to proceed but still has caveats that must stay visible.
+- Include `phase_completion_status` with value `complete`, `partial`, or `blocked`.
+- Include `ready_for_next_phase: true|false`.
+- Include `artifact_role: phase_result`.
+- Include `run_level: full`.
 - Include the following shared verdict fields:
 {verdict_fields}
 - When you use `PARTIAL`, include `ready_to_proceed: true|false`.

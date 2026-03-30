@@ -17,10 +17,8 @@ from openhands.tools.task_tracker import TaskTrackerTool
 from openhands.tools.terminal import TerminalTool
 
 from src.agents.experiment_agent.agents.base.agent import OpenHandsBaseAgent
-from src.agents.experiment_agent.agents.reporting import (
-    EXPERIMENT_ABLATION_REPORT_INTEGRATOR,
-    create_ablation_report_integrator_agent,
-    run_ablation_report_integrator,
+from src.agents.experiment_agent.agents.base.subagents import (
+    default_builtin_tool_names,
 )
 from src.agents.experiment_agent.agents.science.step_executor import (
     ABLATION_SCIENCE_STEP_EXECUTOR,
@@ -28,7 +26,10 @@ from src.agents.experiment_agent.agents.science.step_executor import (
     create_ablation_science_step_executor_agent,
     create_standard_science_step_executor_agent,
 )
-from src.agents.experiment_agent.config import PLANNER_MAX_TURNS, SCIENCE_AGENT_MODEL
+from src.agents.experiment_agent.config import (
+    get_planner_max_turns,
+    get_science_agent_model,
+)
 from src.agents.experiment_agent.runtime.contracts import (
     ABLATION_COMPONENT_RESULT_FIELDS,
     PHASE_VERDICT_FIELDS,
@@ -82,11 +83,6 @@ def _register_science_subagents() -> None:
             create_ablation_science_step_executor_agent,
             "Executes one ablation-science step through the worker/validator repair loop.",
         ),
-        (
-            EXPERIMENT_ABLATION_REPORT_INTEGRATOR,
-            create_ablation_report_integrator_agent,
-            "Integrates ablation experiment results into canonical ablation_results.json.",
-        ),
     )
     for name, factory, description in registrations:
         try:
@@ -111,6 +107,7 @@ def create_standard_science_planner_agent(llm) -> Agent:
             skills=exp_context.skills,
             load_public_skills=False,
         ),
+        include_default_tools=default_builtin_tool_names(),
     )
 
 
@@ -125,11 +122,13 @@ def create_ablation_science_planner_agent(llm) -> Agent:
             skills=exp_context.skills,
             load_public_skills=False,
         ),
+        include_default_tools=default_builtin_tool_names(),
     )
 
 
 def register_science_planners() -> None:
     global _SCIENCE_PLANNERS_REGISTERED
+    _register_science_subagents()
     if _SCIENCE_PLANNERS_REGISTERED:
         return
     registrations = (
@@ -157,7 +156,7 @@ def register_science_planners() -> None:
 
 
 class _BaseSciencePlanner(OpenHandsBaseAgent):
-    SCIENCE_DEFAULT_MCP_SERVERS = ["filesystem"]
+    SCIENCE_DEFAULT_MCP_SERVERS: List[str] = []
     # Templates are set in subclasses: StandardScienceAgent and AblationScienceAgent
     SYSTEM_PROMPT_TEMPLATE = None
     planner_type = "Science"
@@ -175,14 +174,14 @@ class _BaseSciencePlanner(OpenHandsBaseAgent):
         plan: str,
         code_summary: str = "",
         code_usage: str = "",
-        model: str = SCIENCE_AGENT_MODEL,
+        model: str | None = None,
         verbose: bool = True,
         resume: bool = False,
     ):
         super().__init__(
             agent_type=self.planner_type,
-            model=model,
-            max_turns=PLANNER_MAX_TURNS,
+            model=model or get_science_agent_model(),
+            max_turns=get_planner_max_turns(),
             verbose=verbose,
             workspace_root=workspace_root,
             enable_condenser=True,
@@ -238,12 +237,6 @@ class _BaseSciencePlanner(OpenHandsBaseAgent):
             fallback = list(self.SCIENCE_DEFAULT_MCP_SERVERS)
             filtered_servers = {name: servers[name] for name in fallback if name in servers}
         return {"mcpServers": filtered_servers}
-
-    def _read_idea(self) -> str:
-        if not os.path.exists(self.idea_path):
-            return ""
-        with open(self.idea_path, "r", encoding="utf-8") as f:
-            return f.read()
 
     def _validator_passed(self) -> bool:
         if not os.path.exists(self.validator_report_path):
@@ -330,12 +323,12 @@ class StandardScienceAgent(_BaseSciencePlanner):
 5. Every step must use a unique flat `worker_report_path`, `validator_report_path`, `step_contract_path`, and `executor_report_path` under `agent_reports_dir`.
 6. Use filenames that stay flat under `agent_reports_dir`, for example `standard_science_step_01_<slug>_contract.json`, `standard_science_step_01_<slug>_executor_report.json`, and `standard_science_step_01_<slug>_attempt_01_worker_report.json`.
 7. For each step, call `task` with `subagent_type="{STANDARD_SCIENCE_STEP_EXECUTOR}"`.
-8. The standard step executor must manage the internal `standard_science_worker` -> `standard_science_validator` repair loop.
+8. The runtime uses the standard step executor to keep the `standard_science_worker` -> `standard_science_validator` loop active for the current step.
 9. The validator must write `{self.validator_report_path}` as the phase-level standard verdict after the step-local reports exist.
 10. Do not move to the next step until the step executor reports validator-backed PASS.
 11. Update `{self.report_path}` only as a human-readable summary of validator-backed evidence.
-12. Do not write downstream structured result artifacts yourself. In particular, do not materialize `ablation_results.json`; that file belongs to the later ablation report integrator.
-13. The final validator report must use `status: PASS|FAIL` and include:
+12. Do not write downstream structured final result artifacts yourself. In particular, do not materialize `ablation_results.json`; that file belongs to the later final-artifact materialization step.
+13. The final validator report must use `status: PASS|FAIL`, set a generic `phase_completion_status`, and include:
 {verdict_fields}
 
 ### Hard Rules
@@ -415,14 +408,14 @@ class AblationScienceAgent(_BaseSciencePlanner):
 7. Every step must use a unique flat `worker_report_path`, `validator_report_path`, `step_contract_path`, and `executor_report_path` under `agent_reports_dir`.
 8. Use filenames that stay flat under `agent_reports_dir`, for example `ablation_science_step_01_<component>_contract.json`, `ablation_science_step_01_<component>_executor_report.json`, and `ablation_science_step_01_<component>_attempt_01_worker_report.json`.
 9. For each step, call `task` with `subagent_type="{ABLATION_SCIENCE_STEP_EXECUTOR}"`.
-10. The ablation step executor must manage the internal `ablation_science_worker` -> `ablation_science_validator` repair loop.
+10. The runtime uses the ablation step executor to keep the `ablation_science_worker` -> `ablation_science_validator` loop active for the current step.
 11. The validator must write `{self.validator_report_path}` as the phase-level ablation verdict after the step-local reports exist.
 12. Do not move to the next step until the step executor reports validator-backed PASS.
 13. Every step-level ablation validator report must include:
 {ablation_result_fields}
 14. Update `{self.report_path}` only as a human-readable summary of validator-backed evidence.
-15. Do not write `ablation_results.json` yourself. A later ablation report integrator owns that file.
-16. The final phase-level validator report must use `status: PASS|FAIL` and include:
+15. Do not write `ablation_results.json` yourself. A later final-artifact materialization step owns that file.
+16. The final phase-level validator report must use `status: PASS|FAIL`, set a generic `phase_completion_status`, and include:
 {verdict_fields}
 
 ### Hard Rules
@@ -434,7 +427,7 @@ class AblationScienceAgent(_BaseSciencePlanner):
 - Do not rename, merge, split, omit, or reorder canonical idea components.
 - Do not hardcode alternative component names into the plan. Use the exact component names from `idea.json.components`.
 - The validator is the authority for PASS/FAIL.
-- Preserve enough step-level evidence for a later ablation report integrator to produce the final canonical `ablation_results.json`.
+- Preserve enough step-level evidence for the later final-artifact materialization step to produce the final canonical `ablation_results.json`.
 
 Finish by printing exactly: {self.completion_token}"""
 
@@ -442,24 +435,7 @@ Finish by printing exactly: {self.completion_token}"""
         return True
 
     async def execute(self) -> Dict[str, Any]:
-        # Run ablation steps via the base class run
-        result = await super().execute()
-
-        # After ablation experiments complete, call integrator immediately
-        # so results are available for the next master iteration decision
-        integrator_result = await run_ablation_report_integrator(
-            workspace_root=self.workspace_root,
-            project_root=self.project_root,
-            model=self.model,
-            verbose=self.verbose,
-            resume=self.resume,
-        )
-
-        # Merge integrator result into the return value
-        result["integrator_result"] = integrator_result
-        result["ablation_results_path"] = integrator_result.get("ablation_results_path")
-        result["integrator_valid"] = integrator_result.get("valid", False)
-        return result
+        return await super().execute()
 
 
 async def run_standard_science_agent(
@@ -470,7 +446,7 @@ async def run_standard_science_agent(
     plan: str,
     code_summary: str = "",
     code_usage: str = "",
-    model: str = SCIENCE_AGENT_MODEL,
+    model: str | None = None,
     verbose: bool = True,
     resume: bool = False,
 ) -> Dict[str, Any]:
@@ -482,7 +458,7 @@ async def run_standard_science_agent(
         plan=plan,
         code_summary=code_summary,
         code_usage=code_usage,
-        model=model,
+        model=model or get_science_agent_model(),
         verbose=verbose,
         resume=resume,
     )
@@ -497,7 +473,7 @@ async def run_ablation_science_agent(
     plan: str,
     code_summary: str = "",
     code_usage: str = "",
-    model: str = SCIENCE_AGENT_MODEL,
+    model: str | None = None,
     verbose: bool = True,
     resume: bool = False,
 ) -> Dict[str, Any]:
@@ -509,7 +485,7 @@ async def run_ablation_science_agent(
         plan=plan,
         code_summary=code_summary,
         code_usage=code_usage,
-        model=model,
+        model=model or get_science_agent_model(),
         verbose=verbose,
         resume=resume,
     )
@@ -524,7 +500,7 @@ async def run_science_agent(
     plan: str,
     code_summary: str = "",
     code_usage: str = "",
-    model: str = SCIENCE_AGENT_MODEL,
+    model: str | None = None,
     verbose: bool = True,
     resume: bool = False,
 ) -> Dict[str, Any]:

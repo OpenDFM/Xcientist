@@ -19,7 +19,7 @@ Core behavior:
 2. Write a short ordered `code_plan.json`.
 3. Every step must map to a real prepared target or experiment path discovered from prior phase artifacts.
 4. For each step, run `code_step_executor`.
-5. The step executor owns the worker/validator repair loop for that step.
+5. The runtime keeps the current step active, and `code_step_executor` must run the local `code_worker` / `code_validator` loop for that step.
 6. The final required step must be `final_integration_smoke`.
 7. Only after validator-backed PASS should you mark a step done.
 8. Only after all steps pass should you write the final code handoff artifacts.

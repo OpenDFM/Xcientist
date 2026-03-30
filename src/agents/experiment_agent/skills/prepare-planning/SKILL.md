@@ -19,7 +19,7 @@ Decompose workspace preparation into ordered worker tasks and end with validator
 - After validator-backed completion, synthesize `agent_reports/prepare_idea.md` and any lightweight handoff notes needed by later phases.
 - Treat `idea.json.components` as a first-class handoff artifact that must be copied into `prepare_idea.md` without renaming or reordering.
 - **CRITICAL**: Dataset discovery MUST identify and record the exact file paths under `dataset_candidate/` that later phases (code, science) must use. For each dataset file, explicitly document:
-  - The exact file path (e.g. `dataset_candidate/longmemeval_oracle.json`)
+  - The exact file path
   - The purpose/usage in experiments (e.g. "baseline evaluation", "ablation testing", "full method validation")
   - Which experiment conditions use it (baseline, full_method, ablation)
   - Any preprocessing or filtering required

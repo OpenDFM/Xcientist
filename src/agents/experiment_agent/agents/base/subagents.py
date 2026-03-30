@@ -13,6 +13,12 @@ from openhands.sdk.tool import Tool
 
 from src.agents.experiment_agent.skills import get_worker_agent_context
 
+DEFAULT_INCLUDE_DEFAULT_TOOLS: tuple[str, ...] = ("FinishTool", "ThinkTool")
+
+
+def default_builtin_tool_names() -> list[str]:
+    return list(DEFAULT_INCLUDE_DEFAULT_TOOLS)
+
 
 def build_tool_list(tool_names: Iterable[str]) -> List[Tool]:
     unique_names: List[str] = []
@@ -45,4 +51,5 @@ def create_phase_subagent(
         tools=build_tool_list(tool_names),
         agent_context=agent_context,
         system_prompt_filename=template_path,
+        include_default_tools=default_builtin_tool_names(),
     )

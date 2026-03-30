@@ -12,7 +12,10 @@ from openhands.tools.file_editor import FileEditorTool
 from openhands.tools.task_tracker import TaskTrackerTool
 from openhands.tools.terminal import TerminalTool
 
-from src.agents.experiment_agent.agents.base.subagents import build_tool_list
+from src.agents.experiment_agent.agents.base.subagents import (
+    build_tool_list,
+    default_builtin_tool_names,
+)
 from src.agents.experiment_agent.skills import get_worker_agent_context
 
 
@@ -42,6 +45,7 @@ def create_ablation_report_integrator_agent(llm) -> Agent:
             load_public_skills=False,
         ),
         system_prompt_filename=template_path,
+        include_default_tools=default_builtin_tool_names(),
     )
 
 

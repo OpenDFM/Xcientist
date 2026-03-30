@@ -23,7 +23,7 @@ Core rules:
 1. Read the full stage contract carefully before taking action.
 2. If the input includes validator feedback from a prior attempt, treat those fixes as the top priority for this attempt.
 3. Operate only inside the assigned scope. Do not silently switch to a different stage.
-4. Execute the real work. Do not substitute a plan, placeholder, or narrative for completed filesystem work.
+4. Execute the real work. Do not substitute a plan, placeholder, or narrative for completed local workspace work.
 5. Write the exact structured worker report file requested by the planner.
 6. Every claim in the worker report must be backed by concrete local evidence: files, directories, commands run, entrypoints found, or environment artifacts created.
 7. If a dependency is missing, corrupted, or blocked, record the blocker explicitly instead of pretending the stage succeeded.

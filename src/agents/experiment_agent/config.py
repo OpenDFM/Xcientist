@@ -91,6 +91,26 @@ def get_models_config() -> Dict[str, str]:
     }
 
 
+def get_prepare_agent_model() -> str:
+    return get_models_config()["prepare"]
+
+
+def get_code_agent_model() -> str:
+    return get_models_config()["code"]
+
+
+def get_master_agent_model() -> str:
+    return get_models_config()["master"]
+
+
+def get_science_agent_model() -> str:
+    return get_models_config()["science"]
+
+
+def get_default_model_name() -> str:
+    return get_models_config()["default"]
+
+
 def get_execution_config() -> Dict[str, Any]:
     cfg = _execution_cfg()
     return {
@@ -110,6 +130,34 @@ def get_execution_config() -> Dict[str, Any]:
         "bash_timeout_seconds": _as_int(cfg.get("bash_timeout_seconds"), 600000),
         "mcp_timeout_seconds": _as_int(cfg.get("mcp_timeout_seconds"), 120),
     }
+
+
+def get_science_max_iterations() -> int:
+    return get_execution_config()["max_iterations"]
+
+
+def get_delegate_max_children() -> int:
+    return get_execution_config()["delegate_max_children"]
+
+
+def get_planner_max_turns() -> int:
+    return get_execution_config()["planner_max_turns"]
+
+
+def get_worker_max_turns() -> int:
+    return get_execution_config()["worker_max_turns"]
+
+
+def get_prepare_validation_feedback_rounds() -> int:
+    return get_execution_config()["prepare_validation_feedback_rounds"]
+
+
+def get_code_validation_feedback_rounds() -> int:
+    return get_execution_config()["code_validation_feedback_rounds"]
+
+
+def get_science_validation_feedback_rounds() -> int:
+    return get_execution_config()["science_validation_feedback_rounds"]
 
 
 def get_memory_config() -> Dict[str, Any]:
@@ -151,27 +199,19 @@ SERPER_API_KEY: str = get_api_config()["serper_api_key"]
 JINA_API_KEY: str = get_api_config()["jina_api_key"]
 GITHUB_AI_TOKEN: str = get_api_config()["github_ai_token"]
 
-CODE_AGENT_MODEL: str = get_models_config()["code"]
-PREPARE_AGENT_MODEL: str = get_models_config()["prepare"]
-MASTER_AGENT_MODEL: str = get_models_config()["master"]
-SCIENCE_AGENT_MODEL: str = get_models_config()["science"]
-DEFAULT_MODEL: str = get_models_config()["default"]
+CODE_AGENT_MODEL: str = get_code_agent_model()
+PREPARE_AGENT_MODEL: str = get_prepare_agent_model()
+MASTER_AGENT_MODEL: str = get_master_agent_model()
+SCIENCE_AGENT_MODEL: str = get_science_agent_model()
+DEFAULT_MODEL: str = get_default_model_name()
 
-SCIENCE_MAX_ITERATIONS: int = get_execution_config()["max_iterations"]
-DELEGATE_MAX_CHILDREN: int = get_execution_config()["delegate_max_children"]
-PLANNER_MAX_TURNS: int = get_execution_config()["planner_max_turns"]
-WORKER_MAX_TURNS: int = get_execution_config()["worker_max_turns"]
-PREPARE_VALIDATION_FEEDBACK_ROUNDS: int = get_execution_config()[
-    "prepare_validation_feedback_rounds"
-]
-CODE_VALIDATION_FEEDBACK_ROUNDS: int = get_execution_config()[
-    "code_validation_feedback_rounds"
-]
-SCIENCE_VALIDATION_FEEDBACK_ROUNDS: int = get_execution_config()[
-    "science_validation_feedback_rounds"
-]
-MAX_SCIENCE_ITERATIONS: int = 1
-MAX_FIX_ITERATIONS: int = 50
+SCIENCE_MAX_ITERATIONS: int = get_science_max_iterations()
+DELEGATE_MAX_CHILDREN: int = get_delegate_max_children()
+PLANNER_MAX_TURNS: int = get_planner_max_turns()
+WORKER_MAX_TURNS: int = get_worker_max_turns()
+PREPARE_VALIDATION_FEEDBACK_ROUNDS: int = get_prepare_validation_feedback_rounds()
+CODE_VALIDATION_FEEDBACK_ROUNDS: int = get_code_validation_feedback_rounds()
+SCIENCE_VALIDATION_FEEDBACK_ROUNDS: int = get_science_validation_feedback_rounds()
 
 MEMORY_ENABLED: bool = get_memory_config()["enabled"]
 MEMORY_SHARED_DIR: str = get_memory_config()["shared_dir"]
@@ -431,25 +471,26 @@ def ensure_minimax_no_proxy_env(base_url: Optional[str] = None) -> None:
 
 
 def get_openai_config(model: Optional[str] = None) -> Dict[str, Any]:
-    model_name = str(model or DEFAULT_MODEL or "").strip()
+    model_name = str(model or get_default_model_name() or "").strip()
     if is_minimax_model(model_name):
         ensure_minimax_no_proxy_env(MINIMAX_API_BASE)
         return {
-            "api_key": MINIMAX_API_KEY,
+            "api_key": get_api_config()["minimax_api_key"],
             "model_name": model_name,
-            "base_url": MINIMAX_API_BASE,
+            "base_url": get_api_config()["minimax_api_base"],
             "extra_body": MINIMAX_MODEL_EXTRA_BODY,
             "provider_prefix": "minimax",
             "is_minimax": True,
         }
     cfg: Dict[str, Any] = {
-        "api_key": OPENAI_API_KEY,
+        "api_key": get_api_config()["openai_api_key"],
         "model_name": model_name,
         "provider_prefix": "",
         "is_minimax": False,
     }
-    if OPENAI_API_BASE:
-        cfg["base_url"] = OPENAI_API_BASE
+    openai_base = get_api_config()["openai_api_base"]
+    if openai_base:
+        cfg["base_url"] = openai_base
     return cfg
 
 
@@ -459,10 +500,10 @@ def get_llm_config(model: Optional[str] = None) -> Dict[str, Any]:
 
 def get_model_config() -> Dict[str, Any]:
     return {
-        "prepare": {"agent": PREPARE_AGENT_MODEL},
-        "code": {"agent": CODE_AGENT_MODEL},
-        "science": {"agent": SCIENCE_AGENT_MODEL},
-        "default": DEFAULT_MODEL,
+        "prepare": {"agent": get_prepare_agent_model()},
+        "code": {"agent": get_code_agent_model()},
+        "science": {"agent": get_science_agent_model()},
+        "default": get_default_model_name(),
     }
 
 
@@ -494,15 +535,16 @@ def setup_openai_api(model: Optional[str] = None, verbose: bool = True) -> bool:
 
 def validate_config() -> tuple[bool, List[str]]:
     errors: List[str] = []
-    if not DEFAULT_MODEL:
+    if not get_default_model_name():
         errors.append("DEFAULT_MODEL is not set")
-    if not OPENAI_API_KEY and not MINIMAX_API_KEY:
+    api_cfg = get_api_config()
+    if not api_cfg["openai_api_key"] and not api_cfg["minimax_api_key"]:
         errors.append("Either experiment.api.openai_api_key or experiment.api.minimax_api_key must be set")
     for name, value in {
-        "PREPARE_AGENT_MODEL": PREPARE_AGENT_MODEL,
-        "CODE_AGENT_MODEL": CODE_AGENT_MODEL,
-        "MASTER_AGENT_MODEL": MASTER_AGENT_MODEL,
-        "SCIENCE_AGENT_MODEL": SCIENCE_AGENT_MODEL,
+        "PREPARE_AGENT_MODEL": get_prepare_agent_model(),
+        "CODE_AGENT_MODEL": get_code_agent_model(),
+        "MASTER_AGENT_MODEL": get_master_agent_model(),
+        "SCIENCE_AGENT_MODEL": get_science_agent_model(),
     }.items():
         if not value:
             errors.append(f"{name} is not set")
@@ -515,31 +557,32 @@ def print_config() -> None:
     print("=" * 60)
     print("\n[API Configuration]")
     print(f"  API Provider: {API_PROVIDER}")
-    print(f"  OpenAI API Key: {'*' * 10}...{OPENAI_API_KEY[-4:] if OPENAI_API_KEY else 'NOT SET'}")
-    if OPENAI_API_BASE:
-        print(f"  OpenAI API Base: {OPENAI_API_BASE}")
-    print(f"  MiniMax API Key: {'*' * 10}...{MINIMAX_API_KEY[-4:] if MINIMAX_API_KEY else 'NOT SET'}")
-    print(f"  MiniMax API Base: {MINIMAX_API_BASE}")
-    print(f"  GitHub AI Token: {'*' * 10}...{GITHUB_AI_TOKEN[-4:] if GITHUB_AI_TOKEN else 'NOT SET'}")
+    api_cfg = get_api_config()
+    print(f"  OpenAI API Key: {'*' * 10}...{api_cfg['openai_api_key'][-4:] if api_cfg['openai_api_key'] else 'NOT SET'}")
+    if api_cfg["openai_api_base"]:
+        print(f"  OpenAI API Base: {api_cfg['openai_api_base']}")
+    print(f"  MiniMax API Key: {'*' * 10}...{api_cfg['minimax_api_key'][-4:] if api_cfg['minimax_api_key'] else 'NOT SET'}")
+    print(f"  MiniMax API Base: {api_cfg['minimax_api_base']}")
+    print(f"  GitHub AI Token: {'*' * 10}...{api_cfg['github_ai_token'][-4:] if api_cfg['github_ai_token'] else 'NOT SET'}")
     print("\n[Web Search Configuration]")
-    print(f"  Serper API Key: {'*' * 10}...{SERPER_API_KEY[-4:] if SERPER_API_KEY else 'NOT SET'}")
-    print(f"  Jina API Key: {'*' * 10}...{JINA_API_KEY[-4:] if JINA_API_KEY else 'NOT SET'}")
+    print(f"  Serper API Key: {'*' * 10}...{api_cfg['serper_api_key'][-4:] if api_cfg['serper_api_key'] else 'NOT SET'}")
+    print(f"  Jina API Key: {'*' * 10}...{api_cfg['jina_api_key'][-4:] if api_cfg['jina_api_key'] else 'NOT SET'}")
     print("\n[Model Configuration]")
-    print(f"  Prepare: {PREPARE_AGENT_MODEL}")
-    print(f"  Code: {CODE_AGENT_MODEL}")
-    print(f"  Master: {MASTER_AGENT_MODEL}")
-    print(f"  Science: {SCIENCE_AGENT_MODEL}")
-    print(f"  Default: {DEFAULT_MODEL}")
+    print(f"  Prepare: {get_prepare_agent_model()}")
+    print(f"  Code: {get_code_agent_model()}")
+    print(f"  Master: {get_master_agent_model()}")
+    print(f"  Science: {get_science_agent_model()}")
+    print(f"  Default: {get_default_model_name()}")
     print("\n[Workspace Configuration]")
-    print(f"  Base Workspaces Dir: {BASE_WORKSPACES_DIR}")
+    print(f"  Base Workspaces Dir: {get_workspace_config()['root']}")
     if WORKSPACE_ROOT:
         print(f"  Current Workspace: {WORKSPACE_ROOT}")
     if PROJECT_ROOT:
         print(f"  Current Project: {PROJECT_ROOT}")
     print("\n[Execution Configuration]")
-    print(f"  Delegate Max Children: {DELEGATE_MAX_CHILDREN}")
-    print(f"  Planner Max Turns: {PLANNER_MAX_TURNS}")
-    print(f"  Worker Max Turns: {WORKER_MAX_TURNS}")
+    print(f"  Delegate Max Children: {get_delegate_max_children()}")
+    print(f"  Planner Max Turns: {get_planner_max_turns()}")
+    print(f"  Worker Max Turns: {get_worker_max_turns()}")
     print("=" * 60)
 
 

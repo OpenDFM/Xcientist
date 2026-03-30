@@ -46,6 +46,7 @@ from openhands.tools.task import TaskToolSet
 from src.agents.experiment_agent.skills import load_all_skills
 
 from src.agents.experiment_agent.telemetry.hooks import OHColors
+from src.agents.experiment_agent.tools import enable_experiment_tool_overrides
 from src.agents.experiment_agent.tools.parsing import (
     extract_json_from_llm_output,
 )
@@ -53,9 +54,13 @@ from src.agents.experiment_agent.config import (
     get_llm_config,
     is_minimax_model,
     setup_openai_api,
+    get_api_config,
 )
 from src.agents.experiment_agent.runtime.checkpoint import (
     get_checkpoint_manager,
+)
+from src.agents.experiment_agent.agents.base.subagents import (
+    default_builtin_tool_names,
 )
 
 
@@ -68,17 +73,20 @@ GLOBAL_MCP_PREWARM_CACHE = set()
 MCP_WRAPPER_FILENAMES = {
     "filesystem": "mcp-filesystem",
     "fetch": "mcp-fetch",
+    "github": "mcp-github",
     "MiniMax": "mcp-minimax",
     "context7": "mcp-context7",
 }
 LOCAL_MCP_BINARIES = {
     "filesystem": "~/.cache/researchagent_mcp/npm/node_modules/.bin/mcp-server-filesystem",
     "fetch": "~/.cache/researchagent_mcp/npm/node_modules/.bin/mcp-fetch",
+    "github": "~/.cache/researchagent_mcp/npm/node_modules/.bin/mcp-server-github",
     "context7": "~/.cache/researchagent_mcp/npm/node_modules/.bin/context7-mcp",
     "MiniMax": "~/.local/bin/minimax-coding-plan-mcp",
 }
 MCP_COMMAND_REWRITE_MAP = {
     "mcp-fetch": ("npx", ["-y", "@kazuph/mcp-fetch"]),
+    "mcp-github": ("npx", ["-y", "@modelcontextprotocol/server-github"]),
     "context7-mcp": ("npx", ["-y", "@upstash/context7-mcp"]),
 }
 SECRET_ENV_KEYWORDS = (
@@ -158,22 +166,6 @@ def _is_allowed_local_mcp_command(command: str) -> bool:
     return command_path.startswith(f"{wrapper_dir}{os.sep}") or command_path in local_binary_paths
 
 
-def _load_claude_mcp_servers() -> Dict[str, Dict[str, Any]]:
-    config_path = os.environ.get(
-        "CLAUDE_CONFIG_PATH", os.path.expanduser("~/.claude.json")
-    )
-    try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            payload = json.load(f)
-    except Exception as e:
-        logger.warning(f"Failed to load Claude MCP config from {config_path}: {e}")
-        return {}
-    servers = payload.get("mcpServers")
-    if not isinstance(servers, dict):
-        return {}
-    return servers
-
-
 def _inherit_proxy_env(env: Dict[str, Any]) -> Dict[str, Any]:
     merged = dict(env or {})
     has_proxy = False
@@ -190,11 +182,6 @@ def _inherit_proxy_env(env: Dict[str, Any]) -> Dict[str, Any]:
 
 def _default_mcp_servers() -> Dict[str, Dict[str, Any]]:
     defaults = {
-        "thinking": {
-            "command": "npx",
-            "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
-            "env": {},
-        },
         "filesystem": {
             "command": "npx",
             "args": ["-y", "@modelcontextprotocol/server-filesystem"],
@@ -204,6 +191,19 @@ def _default_mcp_servers() -> Dict[str, Dict[str, Any]]:
             "command": "npx",
             "args": ["-y", "@kazuph/mcp-fetch"],
             "env": {},
+        },
+        "github": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-github"],
+            "env": {
+                "GITHUB_PERSONAL_ACCESS_TOKEN": (
+                    os.environ.get("GITHUB_PERSONAL_ACCESS_TOKEN")
+                    or os.environ.get("GITHUB_TOKEN")
+                    or os.environ.get("GH_TOKEN")
+                    or os.environ.get("GITHUB_AI_TOKEN")
+                    or ""
+                ),
+            },
         },
         "playwright": {
             "command": "npx",
@@ -267,6 +267,8 @@ def _normalize_mcp_server(
         command, args = MCP_COMMAND_REWRITE_MAP[command]
     if name == "fetch" and command in NON_LOCAL_MCP_COMMANDS:
         command, args = "npx", ["-y", "@kazuph/mcp-fetch"]
+    if name == "github" and command in NON_LOCAL_MCP_COMMANDS:
+        command, args = "npx", ["-y", "@modelcontextprotocol/server-github"]
     if name == "context7" and command in {"context7-mcp", "context7"}:
         command, args = "npx", ["-y", "@upstash/context7-mcp"]
     is_non_local = command in NON_LOCAL_MCP_COMMANDS
@@ -281,6 +283,17 @@ def _normalize_mcp_server(
             args = [workspace_root]
     if name in {"fetch", "context7"}:
         env = _inherit_proxy_env(env)
+    if name == "github":
+        merged_env = dict(env)
+        token = (
+            os.environ.get("GITHUB_PERSONAL_ACCESS_TOKEN")
+            or os.environ.get("GITHUB_TOKEN")
+            or os.environ.get("GH_TOKEN")
+            or os.environ.get("GITHUB_AI_TOKEN")
+        )
+        if token:
+            merged_env["GITHUB_PERSONAL_ACCESS_TOKEN"] = token
+        env = merged_env
     if name == "MiniMax":
         merged_env = dict(env)
         if os.environ.get("MINIMAX_API_KEY"):
@@ -376,6 +389,7 @@ class OpenHandsBaseAgent(ABC):
         self.resume = resume
 
         self.workspace_root = os.path.realpath(workspace_root or os.getcwd())
+        enable_experiment_tool_overrides()
         
         # Only create .conversations in workspace subdirectories, not in root
         if persistence_dir:
@@ -557,6 +571,9 @@ class OpenHandsBaseAgent(ABC):
         os.makedirs(artifact_dir, exist_ok=True)
 
         conversation_stats = conversation.conversation_stats
+        observation_metrics = self._summarize_observation_metrics(conversation)
+        mcp_config = self._build_mcp_config()
+        mcp_servers = mcp_config.get("mcpServers") if isinstance(mcp_config, dict) else {}
         payload = {
             "agent_type": self.agent_type,
             "conversation_id": str(self.conversation_id),
@@ -567,6 +584,9 @@ class OpenHandsBaseAgent(ABC):
                 conversation_stats.get_combined_metrics()
             ),
             "secret_names": sorted(self._collect_conversation_secrets().keys()),
+            "tool_observation_metrics": observation_metrics,
+            "filesystem_mcp_enabled": isinstance(mcp_servers, dict)
+            and "filesystem" in mcp_servers,
         }
         try:
             title = self._maybe_generate_conversation_title(conversation)
@@ -579,6 +599,41 @@ class OpenHandsBaseAgent(ABC):
             artifact_dir, f"{self.agent_type.lower()}_conversation_stats.json"
         )
         with open(stats_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+
+    def _persist_runtime_config_snapshot(self) -> None:
+        artifact_dir = self._get_runtime_artifact_dir()
+        os.makedirs(artifact_dir, exist_ok=True)
+        llm_cfg = get_llm_config(self.model)
+        api_cfg = get_api_config()
+        mcp_config = self._build_mcp_config()
+        mcp_servers = mcp_config.get("mcpServers") if isinstance(mcp_config, dict) else {}
+        payload = {
+            "agent_type": self.agent_type,
+            "workspace_root": self.workspace_root,
+            "persistence_dir": self.persistence_dir,
+            "model": self.model,
+            "max_turns": self.max_turns,
+            "resume": self.resume,
+            "llm": {
+                "model_name": llm_cfg.get("model_name"),
+                "base_url": llm_cfg.get("base_url"),
+                "provider_prefix": llm_cfg.get("provider_prefix"),
+                "is_minimax": bool(llm_cfg.get("is_minimax")),
+            },
+            "api_presence": {
+                "openai_api_key": bool(api_cfg.get("openai_api_key")),
+                "minimax_api_key": bool(api_cfg.get("minimax_api_key")),
+                "serper_api_key": bool(api_cfg.get("serper_api_key")),
+                "jina_api_key": bool(api_cfg.get("jina_api_key")),
+                "github_ai_token": bool(api_cfg.get("github_ai_token")),
+            },
+            "mcp_servers": sorted(mcp_servers.keys()) if isinstance(mcp_servers, dict) else [],
+        }
+        output_path = os.path.join(
+            artifact_dir, f"{self.agent_type.lower()}_runtime_config.json"
+        )
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, ensure_ascii=False, indent=2)
 
     def _serialize_event_payload(self, payload: Any) -> str:
@@ -721,6 +776,44 @@ class OpenHandsBaseAgent(ABC):
                         seen.add(match)
         return summary
 
+    def _summarize_observation_metrics(self, conversation: Conversation) -> Dict[str, Any]:
+        largest_chars = 0
+        largest_lines = 0
+        truncated_count = 0
+        raw_terminal_artifacts = 0
+        events = getattr(getattr(conversation, "state", None), "events", []) or []
+        for event in events:
+            obs = getattr(event, "observation", None)
+            if obs is None:
+                continue
+            payload = self._safe_model_dump(obs)
+            if not isinstance(payload, dict):
+                continue
+            text_parts: List[str] = []
+            content = payload.get("content")
+            if isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict):
+                        text = item.get("text")
+                        if isinstance(text, str):
+                            text_parts.append(text)
+            if isinstance(payload.get("text"), str):
+                text_parts.append(payload["text"])
+            combined = "\n".join(part for part in text_parts if part)
+            if combined:
+                largest_chars = max(largest_chars, len(combined))
+                largest_lines = max(largest_lines, combined.count("\n") + 1)
+            if payload.get("truncated") or payload.get("output_truncated"):
+                truncated_count += 1
+            if payload.get("raw_output_path"):
+                raw_terminal_artifacts += 1
+        return {
+            "largest_tool_observation_chars": largest_chars,
+            "largest_file_window_lines": largest_lines,
+            "truncated_tool_observation_count": truncated_count,
+            "terminal_raw_log_artifacts": raw_terminal_artifacts,
+        }
+
     def get_last_tool_usage_summary(self) -> Dict[str, Any]:
         return dict(self._last_tool_usage_summary)
 
@@ -784,14 +877,12 @@ class OpenHandsBaseAgent(ABC):
             logger.warning(f"Failed to save checkpoint: {e}")
 
     def _build_mcp_config(self) -> Dict[str, Any]:
-        source_servers = _load_claude_mcp_servers()
-        if not source_servers:
-            source_servers = _default_mcp_servers()
+        source_servers = _default_mcp_servers()
         normalized_servers: Dict[str, Any] = {}
         for name in [
-            "thinking",
             "filesystem",
             "fetch",
+            "github",
             "playwright",
             "memory",
             "MiniMax",
@@ -803,11 +894,14 @@ class OpenHandsBaseAgent(ABC):
                 if isinstance(fallback, dict):
                     server = fallback
             if isinstance(server, dict):
-                normalized_servers[name] = _normalize_mcp_server(
-                    name=name,
-                    server=server,
-                    workspace_root=os.path.realpath(self.workspace_root),
-                )
+                try:
+                    normalized_servers[name] = _normalize_mcp_server(
+                        name=name,
+                        server=server,
+                        workspace_root=os.path.realpath(self.workspace_root),
+                    )
+                except ValueError as exc:
+                    logger.warning("Skipping MCP server '%s': %s", name, exc)
         return {"mcpServers": normalized_servers}
 
     def _extract_package_name(self, command: str, args: List[Any]) -> str:
@@ -956,9 +1050,12 @@ class OpenHandsBaseAgent(ABC):
             "tools": tools,
             "agent_context": new_agent_context,
             "condenser": self._get_condenser(),
-            "mcp_config": mcp_config,
             "filter_tools_regex": filter_tools_regex,
+            "include_default_tools": default_builtin_tool_names(),
         }
+        servers = mcp_config.get("mcpServers") if isinstance(mcp_config, dict) else None
+        if isinstance(servers, dict) and servers:
+            agent_kwargs["mcp_config"] = mcp_config
         if template_path:
             agent_kwargs["system_prompt_filename"] = template_path
 
@@ -1088,6 +1185,7 @@ class OpenHandsBaseAgent(ABC):
                 self._log_info(f"Running agent...")
                 self._print_prompt(user_prompt)
 
+        self._persist_runtime_config_snapshot()
         conversation = self._create_conversation(tools, system_prompt)
 
         # Save checkpoint after creating conversation
@@ -1287,8 +1385,21 @@ class OpenHandsBaseAgent(ABC):
         if not path or not os.path.exists(path):
             return ""
         try:
-            with open(path, "r", encoding="utf-8") as f:
-                return f.read()
+            max_chars = max(256, int(os.environ.get("EXPERIMENT_AGENT_TOOL_MAX_CHARS", "12000")))
+            max_lines = max(16, int(os.environ.get("EXPERIMENT_AGENT_FILE_VIEW_MAX_LINES", "160")))
+            lines: List[str] = []
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                for _ in range(max_lines):
+                    line = f.readline()
+                    if line == "":
+                        break
+                    lines.append(line)
+            text = "".join(lines)
+            if len(text) > max_chars:
+                return text[: max_chars - 16] + "... <truncated>"
+            if len(lines) >= max_lines:
+                return text.rstrip("\n") + "\n... <truncated>"
+            return text
         except Exception:
             return ""
 

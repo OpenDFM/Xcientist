@@ -15,7 +15,7 @@ Translate datasets and repository evidence into the exact benchmark surfaces tha
 - Mark each benchmark as `ready` or `blocked`.
 - Include `required_conditions` such as `baseline`, `full_method`, and stress conditions.
 - For each benchmark, record the concrete real data path and the definition of a full run.
-- **CRITICAL**: The benchmark data files from `dataset_candidate/` MUST be used in experiments. Record the exact file paths (e.g. `dataset_candidate/longmemeval_*.json`) so later phases use them.
+- **CRITICAL**: The benchmark data files from `dataset_candidate/` MUST be used in experiments. Record the exact file paths so later phases use them.
 - Feed the benchmark evidence back into `agent_reports/prepare_idea.md` under `## Dataset Usage Guidance` and `## Repository-to-Dataset Mapping` so the human-readable document matches the validated worker evidence.
 - If a repository has no confirmed benchmark linkage, record `no direct mapping` instead of inventing one.
 

@@ -24,7 +24,7 @@ Translate validated handoff artifacts into explicit experiment batches that clos
 - Only place tasks in the same parallel batch when they use disjoint output dirs and do not overwrite the same result files.
 - Keep the lane plan, step contracts, executor reports, worker reports, validator reports, and human-readable lane summaries under `agent_reports/` using flat filenames.
 - Update the lane summary under `agent_reports/standard_science_summary.md` or `agent_reports/ablation_science_summary.md` only as a human-readable summary of validator-backed evidence.
-- For ablation, require step-level reports to preserve structured component verdicts and `method_context` so a later ablation report integrator can write `ablation_results.json`.
+- For ablation, require step-level reports to preserve structured component verdicts and `method_context` so the later final-artifact materialization step can write `ablation_results.json`.
 
 ## Standard Science Requirements
 - Plan for `baseline` (standard/original) and `full_method` (all components) conditions
