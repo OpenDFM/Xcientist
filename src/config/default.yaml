@@ -21,8 +21,8 @@ survey:
     topic: "Training-free Memory System for LLM Agents"
     base_dir: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/survey_agent/outputs/memory"
     cache_path: "./database"
-    save_path: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/survey_agent/outputs/memory/survey.md"
-    save_json_path: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/survey_agent/outputs/memory/survey.json"
+    save_path: "/home/lococo/project/ResearchAgent/src/agents/survey_agent/outputs/memory/survey.md"
+    save_json_path: "/home/lococo/project/ResearchAgent/src/agents/survey_agent/outputs/memory/survey.json"
     evaluation_save_path: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/survey_agent/outputs/memory/evaluation.txt"
     debug: true
     error_conservatism_mode: false
@@ -174,7 +174,7 @@ idea:
     input_interpreter_model: "${idea.agent.model}"
     output_root: "runs"
     console_logs: true
-    rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
+    rag_config: "src/config/default.yaml"
     openai_api_key: "${oc.env:OPENAI_API_KEY,}"
     openai_base_url: "https://api.xi-ai.cn/v1"
 

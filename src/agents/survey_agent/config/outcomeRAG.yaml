@@ -2,8 +2,8 @@ BasicInfo:
   topic:  Multimodal Large Language Models
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
-  save_path: ./outputs/test/reference_test-mimo-v2-flash/0106-longerlonger-test-review.md
-  save_json_path: ./outputs/test/reference_test-mimo-v2-flash/0106-longerlonger-test-review.json
+  save_path: ./outputs/memory/survey.md
+  save_json_path: ./outputs/memory/survey.json
   evaluation_save_path: ./outputs/test/reference_test-mimo-v2-flash/0106-longerlonger-test-review.txt
   debug: True
   error_conservatism_mode: False

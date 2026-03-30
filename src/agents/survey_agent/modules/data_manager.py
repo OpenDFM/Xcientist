@@ -664,12 +664,11 @@ class DataManager:
         
         # 批量搜索ArXiv作为fallback
         arxiv_results = {}  # title -> list of search results
-        # for title in titles_to_query:
-        #     if semantic_results.get(title) and len(semantic_results.get(title)) > 0:
-        #         arxiv_results[title] = []
-        #         continue
 
         for title in titles_to_query:
+            if semantic_results.get(title):
+                arxiv_results[title] = []
+                continue
             try:
                 search_results = self.arxiv_api.search_papers_by_title(title)
                 arxiv_results[title] = search_results[:3] if search_results else []

@@ -797,6 +797,91 @@ def extract_root_idea_from_analysis(
     )
 
 
+def build_replanned_idea_entry(
+    latest_candidate: Optional[Dict[str, Any]],
+    root_idea: Dict[str, Any],
+    mature_idea: str,
+    component_decisions: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    base = (
+        normalize_idea_contract(latest_candidate, allow_legacy=True, keep_extra=True)
+        if isinstance(latest_candidate, dict) and latest_candidate
+        else normalize_idea_contract(root_idea, allow_legacy=True, keep_extra=True)
+    )
+    calibrated_root = normalize_idea_contract(root_idea, allow_legacy=True, keep_extra=True)
+
+    components = list(base.get("components") or [])
+    component_explanations = dict(base.get("component_explanations") or {})
+    for item in component_decisions:
+        if not isinstance(item, dict):
+            continue
+        component = str(item.get("component") or "").strip()
+        decision = str(item.get("decision") or "").strip().lower()
+        replacement = str(item.get("replacement") or "").strip()
+        rationale = str(item.get("rationale") or "").strip()
+        if decision == "remove":
+            components = [name for name in components if name != component]
+            component_explanations.pop(component, None)
+            continue
+        if decision == "replace":
+            components = [name for name in components if name != component]
+            component_explanations.pop(component, None)
+            if replacement and replacement not in components:
+                components.append(replacement)
+            if replacement and rationale:
+                component_explanations[replacement] = rationale
+            continue
+        if component and component not in components:
+            components.append(component)
+        if component and rationale:
+            component_explanations[component] = rationale
+
+    decision_lines = []
+    for item in component_decisions:
+        if not isinstance(item, dict):
+            continue
+        component = str(item.get("component") or "").strip()
+        decision = str(item.get("decision") or "").strip().lower()
+        replacement = str(item.get("replacement") or "").strip()
+        if decision == "replace" and replacement:
+            decision_lines.append(f"Replace {component} with {replacement}.")
+        elif component and decision:
+            decision_lines.append(f"{decision.capitalize()} {component}.")
+    method_parts = [
+        str(calibrated_root.get("method") or base.get("method") or "").strip(),
+        " ".join(decision_lines).strip(),
+    ]
+    method = " ".join(part for part in method_parts if part).strip()
+
+    entry = normalize_idea_contract(
+        {
+            "title": str(calibrated_root.get("title") or base.get("title") or "").strip(),
+            "abstract": str(mature_idea or calibrated_root.get("abstract") or base.get("abstract") or "").strip(),
+            "core_contribution": str(
+                calibrated_root.get("core_contribution")
+                or base.get("core_contribution")
+                or mature_idea
+                or ""
+            ).strip(),
+            "method": method,
+            "risks": str(calibrated_root.get("risks") or base.get("risks") or "").strip(),
+            "tags": list(base.get("tags") or []),
+            "operator": "replanned_root",
+            "target_defects": list(calibrated_root.get("target_defects") or base.get("target_defects") or []),
+            "rationale": str(calibrated_root.get("rationale") or "").strip(),
+            "memory_refs": list(base.get("memory_refs") or []),
+            "components": components,
+            "component_explanations": component_explanations,
+            "root_domains": list(base.get("root_domains") or []),
+        },
+        keep_extra=True,
+    )
+    entry["idea_source"] = "replanned"
+    entry["idea_contract"] = normalize_idea_contract(entry, allow_legacy=True, keep_extra=True)
+    entry["retrieved_core_titles"] = list(base.get("retrieved_core_titles") or [])
+    return entry
+
+
 def root_idea_to_mature_idea_text(root_idea: Dict[str, Any]) -> str:
     """Flatten a structured root idea into the text anchor used by mature_idea."""
     try:

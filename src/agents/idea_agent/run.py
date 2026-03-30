@@ -17,7 +17,9 @@ from src.agents.idea_agent.utils.core.config_loader import (
     load_idea_agent_config,
     load_project_config,
 )
+from src.agents.idea_agent.utils.core.json_utils import read_json_file
 from src.agents.idea_agent.utils.core.run_inputs import clean_optional_text, load_topic, resolve_run_inputs
+from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
 from src.agents.idea_agent.utils.workflow.ligagent_flow import run_agent_loop
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"
@@ -28,6 +30,14 @@ def _slugify(value: str) -> str:
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower())
     slug = slug.strip("-")
     return slug or "topic"
+
+
+def _load_previous_idea_candidate() -> Optional[Dict[str, Any]]:
+    previous_candidate_path = clean_optional_text(os.getenv("IDEA_AGENT_PREVIOUS_CANDIDATE_PATH"))
+    if not previous_candidate_path:
+        return None
+    payload = read_json_file(Path(previous_candidate_path))
+    return normalize_idea_contract(payload, allow_legacy=True, keep_extra=True)
 
 
 def _run_topic(
@@ -65,6 +75,9 @@ def _run_topic(
         survey_config=survey_config,
     )
     agent.bootstrap_topic(topic)
+    previous_candidate = _load_previous_idea_candidate()
+    if previous_candidate is not None:
+        artifact_set(agent.artifact, "latest_candidate", previous_candidate)
 
     if clean_optional_text(str(resolved_inputs.get("mature_idea") or "")):
         artifact_set(agent.artifact, "mature_idea", clean_optional_text(str(resolved_inputs["mature_idea"])))

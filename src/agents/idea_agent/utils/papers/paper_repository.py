@@ -30,6 +30,16 @@ def _clone_config(config: Any) -> Any:
     return OmegaConf.create(config)
 
 
+def _extract_survey_config(config: Any) -> Any:
+    cloned = _clone_config(config)
+    if cloned is None:
+        return None
+    survey_section = OmegaConf.select(cloned, "survey")
+    if survey_section is None:
+        return cloned
+    return OmegaConf.create(OmegaConf.to_container(survey_section, resolve=False))
+
+
 class PaperRepository:
     """Access survey RAG plus graph.db-backed Core references."""
 
@@ -42,7 +52,7 @@ class PaperRepository:
     ) -> None:
         self.logger = logger
         self._config_path = self._resolve_config_path(config_path, config)
-        survey_config = _clone_config(config)
+        survey_config = _extract_survey_config(config)
         self.config = survey_config if survey_config is not None else OmegaConf.load(self._config_path)
         self.work_collector = WorkCollector(self.config)
         self.rag_config = self._build_rag_config(rag_config, self.config)
@@ -78,10 +88,10 @@ class PaperRepository:
         return config_path
 
     def _build_rag_config(self, rag_config: Optional[object], survey_config: Optional[object]) -> Any:
-        base_config = _clone_config(survey_config)
+        base_config = _extract_survey_config(survey_config)
         if base_config is None:
             base_config = OmegaConf.create()
-        rag_override = _clone_config(rag_config)
+        rag_override = _extract_survey_config(rag_config)
         if rag_override is None:
             return base_config
 
