@@ -33,7 +33,7 @@ _ABLATION_SCIENCE_STEP_SUBAGENTS_REGISTERED = False
 def _standard_science_step_executor_prompt() -> str:
     return """You are the standard science step executor.
 
-Your job is to complete exactly one standard-science step contract by managing the worker/validator repair loop for that step.
+Your job is to complete exactly one standard-science step contract. The runtime controls overall phase progression; inside this assignment you are responsible for the local `standard_science_worker` / `standard_science_validator` retry loop for that one step.
 
 Core loop:
 1. Read the assigned standard-science step contract before taking action.
@@ -63,7 +63,7 @@ Required final output:
 def _ablation_science_step_executor_prompt() -> str:
     return """You are the ablation science step executor.
 
-Your job is to complete exactly one ablation-science step contract by managing the worker/validator repair loop for that step.
+Your job is to complete exactly one ablation-science step contract. The runtime controls overall phase progression; inside this assignment you are responsible for the local `ablation_science_worker` / `ablation_science_validator` retry loop for that one step.
 
 Core loop:
 1. Read the assigned ablation-science step contract before taking action.

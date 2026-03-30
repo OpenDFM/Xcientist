@@ -271,14 +271,14 @@ idea:
 experiment:
   enabled: true
   api:
-    openai_api_key: "${oc.env:OPENAI_API_KEY,}"
+    openai_api_key: "${env:OPENAI_API_KEY}"
     openai_api_base: "https://api.xi-ai.cn/v1"
-    minimax_api_key: "${oc.env:MINIMAX_API_KEY,}"
+    minimax_api_key: "${env:MINIMAX_API_KEY}"
     minimax_api_base: "https://api.minimaxi.com/v1"
     huggingface_endpoint: "https://hf-mirror.com"
-    github_ai_token: "${oc.env:GITHUB_AI_TOKEN,}"
-    serper_api_key: "${oc.env:SERPER_API_KEY,}"
-    jina_api_key: "${oc.env:JINA_API_KEY,}"
+    github_ai_token: "${env:GITHUB_AI_TOKEN}"
+    serper_api_key: "${env:SERPER_API_KEY}"
+    jina_api_key: "${env:JINA_API_KEY}"
 
   # Model configuration
   models:

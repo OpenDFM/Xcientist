@@ -14,30 +14,36 @@ from openhands.tools.task_tracker import TaskTrackerTool
 from openhands.tools.terminal import TerminalTool
 
 from src.agents.experiment_agent.agents.base.agent import OpenHandsBaseAgent
-from src.agents.experiment_agent.config import MASTER_AGENT_MODEL, PLANNER_MAX_TURNS
+from src.agents.experiment_agent.config import (
+    get_master_agent_model,
+    get_planner_max_turns,
+)
 from src.agents.experiment_agent.runtime.idea_components import (
     canonical_component_names,
     find_idea_json_path,
+)
+from src.agents.experiment_agent.runtime.ablation_results import (
+    write_ablation_results_artifacts,
 )
 from src.agents.experiment_agent.runtime.manifests import artifact_paths, workspace_contract_paths
 from src.agents.experiment_agent.skills import get_worker_agent_context
 
 
 class AblationReportIntegratorAgent(OpenHandsBaseAgent):
-    REPORTING_DEFAULT_MCP_SERVERS = ["filesystem"]
+    REPORTING_DEFAULT_MCP_SERVERS: List[str] = []
 
     def __init__(
         self,
         workspace_root: str,
         project_root: str,
-        model: str = MASTER_AGENT_MODEL,
+        model: str | None = None,
         verbose: bool = True,
         resume: bool = False,
     ):
         super().__init__(
             agent_type="AblationReportIntegrator",
-            model=model,
-            max_turns=PLANNER_MAX_TURNS,
+            model=model or get_master_agent_model(),
+            max_turns=get_planner_max_turns(),
             verbose=verbose,
             workspace_root=workspace_root,
             enable_condenser=True,
@@ -63,8 +69,8 @@ Your only job is to write the final `ablation_results.json` from `idea.json` and
 Hard rules:
 1. Ignore any pre-existing `ablation_results.json`. Treat it as stale and do not use it as evidence.
 2. Treat `idea.json.components` as the only canonical source for component names, count, and order.
-3. Read substantive experiment evidence from `agent_reports/` and raw outputs under `results/ablation/`.
-4. Do not rely on file existence alone. Read plans, worker reports, validator reports, summaries, and raw evidence content.
+3. Prefer validator-backed JSON, structured evidence refs, and targeted result windows from `agent_reports/` and `results/ablation/`.
+4. Do not rely on file existence alone. Use `read_json`, `search`, and bounded `view` calls instead of broad file dumps.
 5. Write `ablation_results.json` with exactly two top-level keys and no extras:
    - `components`
    - `summary`
@@ -143,6 +149,7 @@ CRITICAL FORMAT - ablation_results.json must have EXACTLY this structure:
 Requirements:
 - Ignore any existing file at {self.ablation_json_path}; do not read it and do not use it as evidence.
 - Use only `idea.json`, `agent_reports/`, and `results/ablation/` as evidence sources.
+- Prefer machine-readable status files and validator reports before raw logs.
 - The top-level keys must be EXACTLY "components" and "summary" - no other top-level keys allowed.
 - Each component must have ALL 6 fields: result, metric, value, confidence, analysis, method_context.
 - method_context must be COPIED FROM idea.json.components[<index>].description (the idea's original description of this component).
@@ -177,7 +184,35 @@ Requirements:
             return False
         return True
 
+    def _try_deterministic_materialization(self) -> Dict[str, Any]:
+        return write_ablation_results_artifacts(
+            workspace_root=self.workspace_root,
+            project_root=self.project_root,
+            generated_by="ablation_report_integrator_runtime",
+            ablation_results_path=self.ablation_json_path,
+            integrator_report_path=self.integrator_report_path,
+        )
+
     async def execute(self) -> Dict[str, Any]:
+        if self._artifact_valid() and os.path.exists(self.integrator_report_path):
+            return {
+                "output": "Existing ablation results artifact is already valid.",
+                "ablation_results_path": self.ablation_json_path,
+                "integrator_report_path": self.integrator_report_path,
+                "valid": True,
+                "mode": "existing",
+            }
+
+        deterministic_result = self._try_deterministic_materialization()
+        if deterministic_result.get("valid") and self._artifact_valid():
+            return {
+                "output": "Deterministic ablation-results materialization succeeded.",
+                "ablation_results_path": self.ablation_json_path,
+                "integrator_report_path": self.integrator_report_path,
+                "valid": True,
+                "mode": "deterministic",
+            }
+
         for stale_path in (self.ablation_json_path, self.integrator_report_path):
             if os.path.exists(stale_path):
                 try:
@@ -193,20 +228,22 @@ Requirements:
             "ablation_results_path": self.ablation_json_path,
             "integrator_report_path": self.integrator_report_path,
             "valid": self._artifact_valid(),
+            "mode": "llm_fallback",
+            "deterministic_blocker": deterministic_result.get("blocker"),
         }
 
 
 async def run_ablation_report_integrator(
     workspace_root: str,
     project_root: str,
-    model: str = MASTER_AGENT_MODEL,
+    model: str | None = None,
     verbose: bool = True,
     resume: bool = False,
 ) -> Dict[str, Any]:
     agent = AblationReportIntegratorAgent(
         workspace_root=workspace_root,
         project_root=project_root,
-        model=model,
+        model=model or get_master_agent_model(),
         verbose=verbose,
         resume=resume,
     )

@@ -14,14 +14,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.agents.experiment_agent.agents.master import run_master
 from src.agents.experiment_agent.agents.prepare import run_prepare
-from src.agents.experiment_agent.agents.reporting import run_ablation_report_integrator
 from src.agents.experiment_agent.agents.integration import run_iteration_reporter
 from src.agents.experiment_agent.config import print_config
 from src.agents.experiment_agent.config import (
     copy_prepared_data_to_workspace,
     ensure_experiment_dirs,
     get_idea_input_path,
-    SCIENCE_MAX_ITERATIONS,
+    get_science_max_iterations,
     write_workspace_env_file,
 )
 from src.agents.experiment_agent.runtime.cache import Cache
@@ -29,6 +28,7 @@ from src.agents.experiment_agent.telemetry import print_phase
 
 
 def get_args():
+    default_max_iterations = get_science_max_iterations()
     parser = argparse.ArgumentParser(
         description="Experiment Agent - unified prepare + orchestration entrypoint"
     )
@@ -58,8 +58,8 @@ def get_args():
     parser.add_argument(
         "--max-iterations",
         type=int,
-        default=SCIENCE_MAX_ITERATIONS,
-        help=f"Maximum iterations (default: {SCIENCE_MAX_ITERATIONS})",
+        default=default_max_iterations,
+        help=f"Maximum iterations (default: {default_max_iterations})",
     )
     parser.add_argument(
         "--resume", action="store_true", help="Resume from prior conversation state"
@@ -135,18 +135,6 @@ async def main_async(args) -> int:
     )
     if iteration_result.get("valid"):
         result["iteration_summary_path"] = iteration_result["iteration_summary_path"]
-
-    # Integrator is called inside AblationScienceAgent.execute() after ablation steps
-    # so results are available for the next master iteration decision
-    # Also call as fallback in case AblationScienceAgent was not used via task tool
-    integrator_result = await run_ablation_report_integrator(
-        workspace_root=workspace_root,
-        project_root=project_root,
-        verbose=bool(args.verbose),
-        resume=bool(args.resume),
-    )
-    if integrator_result.get("valid"):
-        result["final_path"] = integrator_result["ablation_results_path"]
 
     if result.get("stopped_due_to_iteration_limit"):
         print_phase("ITERATION LIMIT HIT", width=65)

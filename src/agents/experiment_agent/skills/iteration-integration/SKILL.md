@@ -14,8 +14,8 @@ Summarize the current experiment iteration status and produce machine-readable a
 
 After each master iteration completes, this agent reads:
 - `idea.json` - experiment components and requirements
-- `agent_reports/` - all worker reports, validator reports, planner reports
-- `results/` - experiment results (standard, ablation)
+- `agent_reports/iteration_status.json` when present, then validator reports and planner reports
+- `results/` - only targeted experiment evidence windows that are needed to support findings
 - `master_report.md` - previous master decisions
 
 And produces:
@@ -56,7 +56,7 @@ Machine-readable status with this schema:
 
 ## Hard Rules
 
-- Read actual file contents, not just filenames
+- Prefer machine-readable status files and validator JSON before raw logs or long markdown reports
 - For each phase, determine completeness based on evidence
 - Identify blockers if phases are incomplete
 - CRITICAL: Explicitly tell master agent to read `iteration_status.json` for next decision

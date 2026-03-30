@@ -17,11 +17,17 @@ from openhands.tools.task_tracker import TaskTrackerTool
 from openhands.tools.terminal import TerminalTool
 
 from src.agents.experiment_agent.agents.base.agent import OpenHandsBaseAgent
+from src.agents.experiment_agent.agents.base.subagents import (
+    default_builtin_tool_names,
+)
 from src.agents.experiment_agent.agents.code.step_executor import (
     CODE_STEP_EXECUTOR,
     create_code_step_executor_agent,
 )
-from src.agents.experiment_agent.config import CODE_AGENT_MODEL, PLANNER_MAX_TURNS
+from src.agents.experiment_agent.config import (
+    get_code_agent_model,
+    get_planner_max_turns,
+)
 from src.agents.experiment_agent.runtime.contracts import (
     CODE_STEP_CONTRACT_FIELDS,
     PHASE_VERDICT_FIELDS,
@@ -64,6 +70,7 @@ def create_experiment_code_planner_agent(llm) -> Agent:
             load_public_skills=False,
         ),
         system_prompt_filename=template_path,
+        include_default_tools=default_builtin_tool_names(),
     )
 
 
@@ -88,6 +95,7 @@ def _register_code_subagents() -> None:
 
 def register_experiment_code_planner() -> None:
     global _CODE_PLANNER_REGISTERED
+    _register_code_subagents()
     if _CODE_PLANNER_REGISTERED:
         return
     try:
@@ -102,7 +110,7 @@ def register_experiment_code_planner() -> None:
 
 
 class CodeAgent(OpenHandsBaseAgent):
-    CODE_DEFAULT_MCP_SERVERS = ["filesystem"]
+    CODE_DEFAULT_MCP_SERVERS: List[str] = []
     SYSTEM_PROMPT_TEMPLATE = "code_planner_agent.j2"
 
     def __init__(
@@ -112,14 +120,14 @@ class CodeAgent(OpenHandsBaseAgent):
         project_root: str,
         workspace_root: str,
         plan: str,
-        model: str = CODE_AGENT_MODEL,
+        model: str | None = None,
         verbose: bool = True,
         resume: bool = False,
     ):
         super().__init__(
             agent_type="Code",
-            model=model,
-            max_turns=PLANNER_MAX_TURNS,
+            model=model or get_code_agent_model(),
+            max_turns=get_planner_max_turns(),
             verbose=verbose,
             workspace_root=workspace_root,
             enable_condenser=True,
@@ -217,7 +225,7 @@ class CodeAgent(OpenHandsBaseAgent):
    - run the actual integrated command path that science will later rely on
    - save bounded raw smoke artifacts under flat filenames in `agent_reports_dir`
 8. For each step, use `task` with `subagent_type="{CODE_STEP_EXECUTOR}"`.
-9. The step executor must manage the internal `code_worker` -> `code_validator` repair loop.
+9. The runtime uses that step executor to keep the current `code_worker` -> `code_validator` loop active for the step until a validator-backed outcome exists.
 10. Do not move to the next step until the step executor reports validator-backed PASS.
 11. Do not manually paraphrase validator fixes back to the worker at the planner level.
 12. After all steps pass, write:
@@ -292,7 +300,7 @@ async def run_code_agent(
     project_root: str,
     workspace_root: str,
     plan: str,
-    model: str = CODE_AGENT_MODEL,
+    model: str | None = None,
     verbose: bool = True,
     resume: bool = False,
 ) -> Dict[str, Any]:
@@ -302,7 +310,7 @@ async def run_code_agent(
         project_root=project_root,
         workspace_root=workspace_root,
         plan=plan,
-        model=model,
+        model=model or get_code_agent_model(),
         verbose=verbose,
         resume=resume,
     )

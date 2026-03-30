@@ -7,6 +7,9 @@ from src.agents.experiment_agent.tools.openhands import (
     SecurityError,
     SecurityValidator,
 )
+from src.agents.experiment_agent.tools.bounded_io import (
+    enable_experiment_tool_overrides,
+)
 from src.agents.experiment_agent.tools.parsing import (
     clean_llm_output,
     extract_code_block,
@@ -20,6 +23,7 @@ __all__ = [
     "SecurityContext",
     "SecurityError",
     "SecurityValidator",
+    "enable_experiment_tool_overrides",
     "clean_llm_output",
     "extract_code_block",
     "extract_json_from_llm_output",

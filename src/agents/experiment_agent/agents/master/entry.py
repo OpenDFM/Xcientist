@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -18,15 +17,31 @@ from openhands.tools.task_tracker import TaskTrackerTool
 from openhands.tools.terminal import TerminalTool
 
 from src.agents.experiment_agent.agents.base.agent import OpenHandsBaseAgent
-from src.agents.experiment_agent.agents.code import register_experiment_code_planner
-from src.agents.experiment_agent.agents.science import register_science_planners
+from src.agents.experiment_agent.agents.code import (
+    EXPERIMENT_CODE_PLANNER,
+    register_experiment_code_planner,
+    run_code_agent,
+)
+from src.agents.experiment_agent.agents.science import (
+    EXPERIMENT_ABLATION_SCIENCE_PLANNER,
+    EXPERIMENT_STANDARD_SCIENCE_PLANNER,
+    register_science_planners,
+    run_ablation_science_agent,
+    run_standard_science_agent,
+)
 from src.agents.experiment_agent.config import (
-    MASTER_AGENT_MODEL,
-    PLANNER_MAX_TURNS,
-    SCIENCE_MAX_ITERATIONS,
+    get_master_agent_model,
+    get_planner_max_turns,
+    get_science_max_iterations,
+)
+from src.agents.experiment_agent.runtime.ablation_results import (
+    build_ablation_results_artifacts,
+    write_ablation_results_artifacts,
 )
 from src.agents.experiment_agent.runtime.manifests import (
     artifact_paths,
+    load_json_file,
+    write_json_file,
     workspace_contract_paths,
 )
 from src.agents.experiment_agent.skills import get_master_agent_context
@@ -35,7 +50,26 @@ logger = get_logger(__name__)
 
 
 class Decision(str):
+    PREPARE_NEEDED = "PREPARE_NEEDED"
+    CODE_NEEDED = "CODE_NEEDED"
+    STANDARD_EXP_NEEDED = "STANDARD_EXP_NEEDED"
+    ABLATION_NEEDED = "ABLATION_NEEDED"
     CONVERGED = "CONVERGED"
+
+
+DECISION_TO_PHASE = {
+    Decision.PREPARE_NEEDED: "prepare",
+    Decision.CODE_NEEDED: "code",
+    Decision.STANDARD_EXP_NEEDED: "standard_science",
+    Decision.ABLATION_NEEDED: "ablation_science",
+    Decision.CONVERGED: "complete",
+}
+
+DECISION_TO_PLANNER = {
+    Decision.CODE_NEEDED: EXPERIMENT_CODE_PLANNER,
+    Decision.STANDARD_EXP_NEEDED: EXPERIMENT_STANDARD_SCIENCE_PLANNER,
+    Decision.ABLATION_NEEDED: EXPERIMENT_ABLATION_SCIENCE_PLANNER,
+}
 
 
 @dataclass
@@ -47,7 +81,7 @@ class AgentState:
 
 
 class MasterAgent(OpenHandsBaseAgent):
-    MASTER_DEFAULT_MCP_SERVERS = ["filesystem"]
+    MASTER_DEFAULT_MCP_SERVERS: list[str] = []
     SYSTEM_PROMPT_TEMPLATE = "master_agent.j2"
 
     def __init__(
@@ -56,15 +90,15 @@ class MasterAgent(OpenHandsBaseAgent):
         idea_path: str,
         workspace_root: str,
         project_root: str,
-        model: str = MASTER_AGENT_MODEL,
+        model: str | None = None,
         verbose: bool = True,
-        max_iterations: int = SCIENCE_MAX_ITERATIONS,
+        max_iterations: int | None = None,
         resume: bool = False,
     ):
         super().__init__(
             agent_type="Master",
-            model=model,
-            max_turns=PLANNER_MAX_TURNS,
+            model=model or get_master_agent_model(),
+            max_turns=get_planner_max_turns(),
             verbose=verbose,
             workspace_root=workspace_root,
             enable_condenser=True,
@@ -76,60 +110,26 @@ class MasterAgent(OpenHandsBaseAgent):
         self.idea_path = idea_path
         self.workspace_root = workspace_root
         self.project_root = project_root
-        self.max_iterations = max_iterations
+        self.max_iterations = (
+            int(max_iterations)
+            if max_iterations is not None
+            else get_science_max_iterations()
+        )
         self.contract = workspace_contract_paths(workspace_root, project_root)
         self.paths = artifact_paths(workspace_root, project_root)
         self.agent_md_path = self.paths["master_report"]
-        self.continue_flag_path = os.path.join(
-            os.path.dirname(self.agent_md_path), "master_continue_flag.json"
-        )
         self.current_iteration = 1
         self.state = AgentState(iteration=1, phase="delegating", decision="")
         register_experiment_code_planner()
         register_science_planners()
 
     def _build_user_prompt(self, **kwargs) -> str:
-        """Build the user prompt for the agent. MasterAgent uses _build_iteration_prompt directly."""
         _ = kwargs
         return ""
 
     def _build_system_prompt(self, **kwargs) -> str:
         _ = kwargs
         return ""
-
-    def _build_iteration_prompt(self) -> str:
-        return f"""Run one master orchestration iteration for this experiment workspace.
-
-This iteration must be controlled only by you. The outer loop will only read `{self.continue_flag_path}` to determine whether to continue.
-
-You must inspect the actual contents of:
-- agent_reports: {self.contract["agent_reports_dir"]}
-- results: {self.contract["results_dir"]}
-- idea input: {self.paths["idea_json"]}
-- previous master note: {self.agent_md_path}
-
-Rules:
-1. Read file contents, not just filenames.
-2. Treat `master_report.md` as the previous iteration note only. It is useful for continuity but must never outweigh newer evidence.
-3. **MANDATORY PHASE ORDER**: Code implementation MUST be completed before experiments run. If `agent_reports/code_validator_report.json` does not exist with status PASS, you MUST choose `experiment_code_planner`.
-4. If more work is needed, choose exactly one next planner and call the `task` tool exactly once with one of:
-   - `experiment_code_planner`
-   - `experiment_standard_science_planner`
-   - `experiment_ablation_science_planner`
-5. Do not invent any planner or phase name outside code, standard science, and ablation science.
-6. If no more work is needed, do not call any further agent. The ablation science planner will automatically call the ablation report integrator after ablation experiments complete.
-7. Update `{self.agent_md_path}` so it records:
-- current iteration number
-- current phase
-- current decision
-- the concrete reasons based on evidence
-- the evidence files you relied on
-- the next planner task you selected, or the final conclusion if stopping
-8. Your goal is to ensure the idea is sufficiently validated or falsified through substantial experiments, exact per-component ablations, and code that is correct enough for the scientific conclusion to be meaningful.
-9. When done, write to `{self.continue_flag_path}` exactly one of:
-   - `{{"continue_iteration": true}}` if more work is needed
-   - `{{"continue_iteration": false}}` if the workflow should stop
-"""
 
     def _build_mcp_config(self) -> Dict[str, Any]:
         base_config = super()._build_mcp_config()
@@ -154,77 +154,327 @@ Rules:
     def _get_agent_context(self):
         return get_master_agent_context()
 
-    def _load_agent_md(self) -> Optional[AgentState]:
-        if not os.path.exists(self.agent_md_path):
+    def _load_runtime_state(self) -> Optional[AgentState]:
+        payload = load_json_file(self.paths["runtime_phase_state"])
+        if not isinstance(payload, dict):
             return None
         try:
-            content = open(self.agent_md_path, "r", encoding="utf-8").read()
-        except Exception as exc:
-            logger.warning("Failed to read master report: %s", exc)
-            return None
-        iteration = 1
-        phase = "delegating"
-        decision = ""
-        conclusion = ""
-        match = re.search(r"# Agent State - Iteration (\d+)", content)
-        if match:
-            iteration = int(match.group(1))
-        for line in content.splitlines():
-            if line.startswith("**Phase:**"):
-                phase = line.split("**Phase:**", 1)[1].strip()
-            elif line.startswith("**Decision:**"):
-                decision = line.split("**Decision:**", 1)[1].strip()
-        conclusion_match = re.search(r"## Conclusion\s*\n(.+)", content, re.DOTALL)
-        if conclusion_match:
-            conclusion = conclusion_match.group(1).strip()
-        return AgentState(iteration=iteration, phase=phase, decision=decision, conclusion=conclusion)
-
-    def _read_continue_flag(self) -> bool:
-        """Read continue_iteration flag from file."""
-        if not os.path.exists(self.continue_flag_path):
-            return True  # Default to continue if no flag file
-        try:
-            with open(self.continue_flag_path, "r") as f:
-                data = json.load(f)
-            return bool(data.get("continue_iteration", True))
+            iteration = int(payload.get("iteration") or 1)
         except Exception:
+            iteration = 1
+        phase = str(payload.get("active_phase") or "delegating").strip() or "delegating"
+        decision = str(payload.get("decision") or "").strip()
+        conclusion = str(payload.get("conclusion") or "").strip()
+        return AgentState(
+            iteration=iteration,
+            phase=phase,
+            decision=decision,
+            conclusion=conclusion,
+        )
+
+    def _load_report(self, path: str) -> Dict[str, Any]:
+        payload = load_json_file(path)
+        return payload if isinstance(payload, dict) else {}
+
+    def _report_status(self, payload: Dict[str, Any]) -> str:
+        return str(payload.get("status") or "").strip().upper()
+
+    def _prepare_ready(self, payload: Dict[str, Any]) -> bool:
+        status = self._report_status(payload)
+        if status == "PASS":
             return True
+        if status == "PARTIAL" and bool(payload.get("ready_to_proceed")):
+            return True
+        return False
+
+    def _format_phase_prompt(self, decision: str, reasons: list[str]) -> str:
+        lines = [
+            f"Master runtime selected {DECISION_TO_PHASE.get(decision, 'unknown')} work.",
+            "",
+            "Reasons:",
+        ]
+        lines.extend(f"- {reason}" for reason in reasons)
+        lines.extend(
+            [
+                "",
+                "Workspace paths:",
+                f"- idea_path: {self.idea_path}",
+                f"- idea_json_path: {self.paths['idea_json']}",
+                f"- project_root: {self.project_root}",
+                f"- results_dir: {self.contract['results_dir']}",
+                f"- agent_reports_dir: {self.contract['agent_reports_dir']}",
+            ]
+        )
+        return "\n".join(lines)
+
+    def _compute_gate_payload(self) -> Dict[str, Any]:
+        prepare_payload = self._load_report(self.paths["prepare_validator"])
+        if not self._prepare_ready(prepare_payload):
+            return {
+                "decision": Decision.PREPARE_NEEDED,
+                "phase": DECISION_TO_PHASE[Decision.PREPARE_NEEDED],
+                "reasons": ["Prepare validator has not produced PASS or ready PARTIAL."],
+                "evidence_files": [self.paths["prepare_validator"]],
+            }
+
+        code_payload = self._load_report(self.paths["code_validator"])
+        if self._report_status(code_payload) != "PASS":
+            return {
+                "decision": Decision.CODE_NEEDED,
+                "phase": DECISION_TO_PHASE[Decision.CODE_NEEDED],
+                "reasons": ["Code validator has not passed."],
+                "evidence_files": [self.paths["code_validator"]],
+            }
+
+        standard_payload = self._load_report(self.paths["standard_science_validator"])
+        if self._report_status(standard_payload) != "PASS":
+            return {
+                "decision": Decision.STANDARD_EXP_NEEDED,
+                "phase": DECISION_TO_PHASE[Decision.STANDARD_EXP_NEEDED],
+                "reasons": ["Standard science validator has not passed."],
+                "evidence_files": [self.paths["standard_science_validator"]],
+            }
+
+        ablation_payload = self._load_report(self.paths["ablation_science_validator"])
+        if self._report_status(ablation_payload) != "PASS":
+            return {
+                "decision": Decision.ABLATION_NEEDED,
+                "phase": DECISION_TO_PHASE[Decision.ABLATION_NEEDED],
+                "reasons": ["Ablation science validator has not passed."],
+                "evidence_files": [self.paths["ablation_science_validator"]],
+            }
+
+        materialization_preview = build_ablation_results_artifacts(
+            self.workspace_root,
+            self.project_root,
+            generated_by="master_runtime_preview",
+        )
+        if not materialization_preview.get("valid"):
+            return {
+                "decision": Decision.ABLATION_NEEDED,
+                "phase": DECISION_TO_PHASE[Decision.ABLATION_NEEDED],
+                "reasons": [
+                    materialization_preview.get("blocker")
+                    or "Ablation results cannot be materialized from current validator evidence."
+                ],
+                "evidence_files": materialization_preview.get("source_evidence_files")
+                or [self.paths["ablation_science_validator"]],
+            }
+
+        return {
+            "decision": Decision.CONVERGED,
+            "phase": DECISION_TO_PHASE[Decision.CONVERGED],
+            "reasons": ["All validator-backed gates passed."],
+            "evidence_files": materialization_preview.get("source_evidence_files")
+            or [
+                self.paths["prepare_validator"],
+                self.paths["code_validator"],
+                self.paths["standard_science_validator"],
+                self.paths["ablation_science_validator"],
+            ],
+        }
+
+    def _write_master_decision_artifact(self, payload: Dict[str, Any]) -> str:
+        artifact_payload = {
+            "iteration": self.current_iteration,
+            "decision": payload.get("decision"),
+            "phase": payload.get("phase"),
+            "reasons": list(payload.get("reasons") or []),
+            "evidence_files": list(payload.get("evidence_files") or []),
+        }
+        return write_json_file(self.paths["master_decision"], artifact_payload)
+
+    def _write_runtime_phase_state(self, payload: Dict[str, Any]) -> str:
+        state_payload = {
+            "iteration": self.current_iteration,
+            "active_phase": payload.get("phase"),
+            "decision": payload.get("decision"),
+            "conclusion": "; ".join(str(item).strip() for item in payload.get("reasons") or [] if str(item).strip()),
+        }
+        return write_json_file(self.paths["runtime_phase_state"], state_payload)
+
+    def _write_master_report(self, payload: Dict[str, Any]) -> str:
+        decision = str(payload.get("decision") or "")
+        phase = str(payload.get("phase") or "delegating")
+        reasons = [str(item).strip() for item in payload.get("reasons") or [] if str(item).strip()]
+        evidence_files = [
+            str(item).strip() for item in payload.get("evidence_files") or [] if str(item).strip()
+        ]
+
+        lines = [
+            f"# Agent State - Iteration {self.current_iteration}",
+            "",
+            f"**Phase:** {phase}",
+            f"**Decision:** {decision}",
+            "",
+            "## Reasons",
+        ]
+        if reasons:
+            lines.extend(f"- {reason}" for reason in reasons)
+        else:
+            lines.append("- (none)")
+        lines.extend(["", "## Evidence"])
+        if evidence_files:
+            lines.extend(f"- {path}" for path in evidence_files)
+        else:
+            lines.append("- (none)")
+        lines.extend(
+            [
+                "",
+                "## Conclusion",
+                "Converged." if decision == Decision.CONVERGED else f"Next required phase: {phase}.",
+                "",
+            ]
+        )
+        os.makedirs(os.path.dirname(self.agent_md_path), exist_ok=True)
+        with open(self.agent_md_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+        return self.agent_md_path
+
+    def _materialize_ablation_results(self) -> bool:
+        result = write_ablation_results_artifacts(
+            self.workspace_root,
+            self.project_root,
+            generated_by="master_runtime",
+        )
+        return bool(result.get("valid"))
+
+    def _materialize_results_summary(self) -> str:
+        payload = self._compute_gate_payload()
+        lines = [
+            "# Master Summary",
+            "",
+            f"- iteration: {self.current_iteration}",
+            f"- decision: {payload.get('decision')}",
+            f"- phase: {payload.get('phase')}",
+            "- reasons:",
+        ]
+        lines.extend(f"  - {reason}" for reason in payload.get("reasons") or [])
+        lines.extend(["", "- evidence_files:"])
+        lines.extend(f"  - {path}" for path in payload.get("evidence_files") or [])
+        summary_path = self.paths["results_summary"]
+        os.makedirs(os.path.dirname(summary_path), exist_ok=True)
+        with open(summary_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        return summary_path
+
+    async def _run_planner_task(
+        self,
+        subagent_type: str,
+        description: str,
+        planner_prompt: str,
+    ) -> Dict[str, Any]:
+        logger.info("Master routing to %s: %s", subagent_type, description)
+        if subagent_type == EXPERIMENT_CODE_PLANNER:
+            return await run_code_agent(
+                experiment_id=self.experiment_id,
+                idea_path=self.idea_path,
+                project_root=self.project_root,
+                workspace_root=self.workspace_root,
+                plan=planner_prompt,
+                verbose=self.verbose,
+                resume=self.resume,
+            )
+        if subagent_type == EXPERIMENT_STANDARD_SCIENCE_PLANNER:
+            return await run_standard_science_agent(
+                experiment_id=self.experiment_id,
+                idea_path=self.idea_path,
+                project_root=self.project_root,
+                workspace_root=self.workspace_root,
+                plan=planner_prompt,
+                code_summary=self._read_text_file(self.paths["code_summary"]),
+                code_usage=self._read_text_file(self.paths["code_usage"]),
+                verbose=self.verbose,
+                resume=self.resume,
+            )
+        if subagent_type == EXPERIMENT_ABLATION_SCIENCE_PLANNER:
+            return await run_ablation_science_agent(
+                experiment_id=self.experiment_id,
+                idea_path=self.idea_path,
+                project_root=self.project_root,
+                workspace_root=self.workspace_root,
+                plan=planner_prompt,
+                code_summary=self._read_text_file(self.paths["code_summary"]),
+                code_usage=self._read_text_file(self.paths["code_usage"]),
+                verbose=self.verbose,
+                resume=self.resume,
+            )
+        raise ValueError(f"Unsupported planner task: {subagent_type}")
 
     async def run_orchestration(self) -> Dict[str, Any]:
-        logger.info("Starting Master Agent multi-round orchestration...")
-        previous_state = self._load_agent_md()
+        logger.info("Starting Master runtime-controlled orchestration...")
+        previous_state = self._load_runtime_state()
         if previous_state:
-            self.current_iteration = previous_state.iteration
+            self.current_iteration = max(1, previous_state.iteration)
             self.state = previous_state
 
         start_iteration = self.current_iteration if self.current_iteration >= 1 else 1
-        last_continue_iteration = False
+        last_decision = ""
         for iteration in range(start_iteration, self.max_iterations + 1):
             self.current_iteration = iteration
-            result = await self.run(
-                user_prompt=self._build_iteration_prompt(),
-                system_prompt=self._build_system_prompt(),
+            payload = self._compute_gate_payload()
+            decision = str(payload.get("decision") or "")
+            phase = str(payload.get("phase") or "delegating")
+            reasons = list(payload.get("reasons") or [])
+
+            self.state = AgentState(
+                iteration=iteration,
+                phase=phase,
+                decision=decision,
+                conclusion="; ".join(reasons),
             )
-            continue_iteration = self._read_continue_flag()
-            last_continue_iteration = continue_iteration
-            latest_state = self._load_agent_md()
-            if latest_state:
-                self.state = latest_state
-            if not continue_iteration:
+            self._write_master_decision_artifact(payload)
+            self._write_runtime_phase_state(payload)
+            self._write_master_report(payload)
+
+            if decision == Decision.CONVERGED:
+                self._materialize_ablation_results()
+                self._materialize_results_summary()
                 return {
                     "iterations": self.current_iteration,
-                    "final_path": self.agent_md_path,
-                    "converged": self.state.decision == Decision.CONVERGED,
-                    "decision": self.state.decision or "",
+                    "final_path": self.paths["ablation_results"] if os.path.exists(self.paths["ablation_results"]) else self.agent_md_path,
+                    "converged": True,
+                    "decision": decision,
                     "stopped_due_to_iteration_limit": False,
                 }
 
+            if decision == Decision.PREPARE_NEEDED:
+                self._materialize_results_summary()
+                return {
+                    "iterations": self.current_iteration,
+                    "final_path": self.agent_md_path,
+                    "converged": False,
+                    "decision": decision,
+                    "stopped_due_to_iteration_limit": False,
+                }
+
+            if decision == last_decision:
+                logger.info(
+                    "Master decision %s is unchanged after the previous planner run; skipping duplicate dispatch.",
+                    decision,
+                )
+                continue
+
+            planner_name = DECISION_TO_PLANNER[decision]
+            planner_prompt = self._format_phase_prompt(decision, reasons)
+            await self._run_planner_task(
+                planner_name,
+                description=f"Run {phase} phase",
+                planner_prompt=planner_prompt,
+            )
+            last_decision = decision
+
+        payload = self._compute_gate_payload()
+        self._write_master_decision_artifact(payload)
+        self._write_runtime_phase_state(payload)
+        self._write_master_report(payload)
+        self._materialize_results_summary()
         return {
             "iterations": self.current_iteration,
             "final_path": self.agent_md_path,
-            "converged": self.state.decision == Decision.CONVERGED,
-            "decision": self.state.decision or "",
-            "stopped_due_to_iteration_limit": bool(last_continue_iteration),
+            "converged": str(payload.get("decision") or "") == Decision.CONVERGED,
+            "decision": str(payload.get("decision") or ""),
+            "stopped_due_to_iteration_limit": True,
         }
 
 
@@ -233,7 +483,7 @@ async def run_master(
     idea_path: str,
     workspace_root: str,
     project_root: str,
-    max_iterations: int = SCIENCE_MAX_ITERATIONS,
+    max_iterations: int | None = None,
     verbose: bool = True,
     resume: bool = False,
 ) -> Dict[str, Any]:

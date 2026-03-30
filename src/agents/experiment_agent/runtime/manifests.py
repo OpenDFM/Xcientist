@@ -40,7 +40,6 @@ def artifact_paths(workspace_root: str, project_root: Optional[str] = None) -> D
         **contract,
         "idea": os.path.join(reports_dir, "prepare_idea.md"),
         "idea_json": os.path.join(contract["workspace_dir"], "idea.json"),
-        "prepare_runtime_debug": os.path.join(reports_dir, "prepare_runtime_debug.json"),
         "prepare_target_inventory": os.path.join(reports_dir, "prepare_target_inventory.json"),
         "prepare_planner_report": os.path.join(reports_dir, "prepare_planner_report.json"),
         "code_plan": os.path.join(reports_dir, "code_plan.json"),
@@ -69,22 +68,19 @@ def artifact_paths(workspace_root: str, project_root: Optional[str] = None) -> D
         "prepare_dataset_validator": os.path.join(reports_dir, "prepare_dataset_validator_report.json"),
         "prepare_handoff_worker": os.path.join(reports_dir, "prepare_handoff_worker_report.json"),
         "prepare_validator": os.path.join(reports_dir, "prepare_validator_report.json"),
-        "prepare_phase_report": os.path.join(reports_dir, "prepare_validator_report.json"),
         "code_worker": os.path.join(reports_dir, "code_worker_report.json"),
         "code_validator": os.path.join(reports_dir, "code_validator_report.json"),
-        "code_phase_report": os.path.join(reports_dir, "code_validator_report.json"),
         "standard_science_validator": os.path.join(
-            reports_dir, "standard_science_validator_report.json"
-        ),
-        "standard_science_phase_report": os.path.join(
             reports_dir, "standard_science_validator_report.json"
         ),
         "ablation_science_validator": os.path.join(
             reports_dir, "ablation_science_validator_report.json"
         ),
-        "ablation_science_phase_report": os.path.join(
-            reports_dir, "ablation_science_validator_report.json"
-        ),
+        "master_decision": os.path.join(reports_dir, "master_decision.json"),
+        "runtime_phase_state": os.path.join(reports_dir, "runtime_phase_state.json"),
+        "execution_budget": os.path.join(reports_dir, "execution_budget.json"),
+        "blocker_state": os.path.join(reports_dir, "blocker_state.json"),
+        "step_attempt_state": os.path.join(reports_dir, "step_attempt_state.json"),
         "iteration_summary": os.path.join(reports_dir, "iteration_summary.md"),
         "iteration_status": os.path.join(reports_dir, "iteration_status.json"),
     }

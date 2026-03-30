@@ -16,7 +16,7 @@ Run standardized benchmark experiments (baseline vs full method) until all requi
 - **Standardized comparison**: Run baseline (standard/original) vs full method (all components enabled) for comparison.
 
 ## Internal Loop
-1. Read validated prepare artifacts, code handoff, idea context, and existing science artifacts.
+1. Read validated prepare artifacts, code handoff, idea context, and existing science artifacts with bounded tool usage: `read_json` first, then `search`, then the smallest useful `view` window.
 2. Treat those validated artifacts as the only allowed model/API/data target inventory.
 3. For standard science: derive commands for `baseline` and `full_method` conditions.
 4. Use smoke/debug runs only to unblock execution; they do not count as completion evidence.

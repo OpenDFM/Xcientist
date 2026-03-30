@@ -14,7 +14,10 @@ from openhands.tools.task_tracker import TaskTrackerTool
 from openhands.tools.terminal import TerminalTool
 
 from src.agents.experiment_agent.agents.base.agent import OpenHandsBaseAgent
-from src.agents.experiment_agent.config import MASTER_AGENT_MODEL, PLANNER_MAX_TURNS
+from src.agents.experiment_agent.config import (
+    get_master_agent_model,
+    get_planner_max_turns,
+)
 from src.agents.experiment_agent.runtime.idea_components import find_idea_json_path
 from src.agents.experiment_agent.runtime.manifests import artifact_paths, workspace_contract_paths
 from src.agents.experiment_agent.skills import get_worker_agent_context
@@ -26,21 +29,21 @@ ITERATION_REPORTER = "experiment_iteration_reporter"
 class IterationReporterAgent(OpenHandsBaseAgent):
     """Summarizes experiment status after each master iteration."""
 
-    REPORTING_DEFAULT_MCP_SERVERS = ["filesystem"]
+    REPORTING_DEFAULT_MCP_SERVERS: list[str] = []
     SYSTEM_PROMPT_TEMPLATE = "iteration_reporter.j2"
 
     def __init__(
         self,
         workspace_root: str,
         project_root: str,
-        model: str = MASTER_AGENT_MODEL,
+        model: str | None = None,
         verbose: bool = True,
         resume: bool = False,
     ):
         super().__init__(
             agent_type="IterationReporter",
-            model=model,
-            max_turns=PLANNER_MAX_TURNS,
+            model=model or get_master_agent_model(),
+            max_turns=get_planner_max_turns(),
             verbose=verbose,
             workspace_root=workspace_root,
             enable_condenser=True,
@@ -98,7 +101,7 @@ Output paths (BOTH must be written to agent_reports/):
 - iteration_status_json: {self.iteration_status_path}
 
 CRITICAL:
-1. Read all relevant files to understand the current state
+1. Read `iteration_status.json` when present, then validator JSON, then only the targeted raw result windows needed to support findings.
 2. Write iteration_summary.md with human-readable summary
 3. Write iteration_status.json with machine-readable status
 4. The master agent will read iteration_status.json for the next iteration decision
@@ -155,14 +158,14 @@ After writing both files, explicitly state: "Master agent should read {self.iter
 async def run_iteration_reporter(
     workspace_root: str,
     project_root: str,
-    model: str = MASTER_AGENT_MODEL,
+    model: str | None = None,
     verbose: bool = True,
     resume: bool = False,
 ) -> Dict[str, Any]:
     agent = IterationReporterAgent(
         workspace_root=workspace_root,
         project_root=project_root,
-        model=model,
+        model=model or get_master_agent_model(),
         verbose=verbose,
         resume=resume,
     )

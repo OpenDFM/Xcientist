@@ -12,45 +12,54 @@ from openhands.sdk.context.skills import load_project_skills, load_skills_from_d
 SKILLS_DIR = Path(__file__).parent
 
 PREPARE_SKILLS = {
+    "bounded-tool-use",
     "prepare-planning",
     "resource-acquisition",
     "benchmark-discovery",
     "component-coverage",
 }
 CODE_SKILLS = {
+    "bounded-tool-use",
     "code-planning",
     "code-enablement",
 }
 SCIENCE_SKILLS = {
+    "bounded-tool-use",
     "science-planning",
     "science-execution",
     "component-coverage",
 }
 MASTER_SKILLS = {
+    "bounded-tool-use",
     "convergence-gate",
 }
 REPORTING_SKILLS = {
+    "bounded-tool-use",
     "component-coverage",
     "science-execution",
     "convergence-gate",
 }
 ITERATION_REPORTER_SKILLS = {
+    "bounded-tool-use",
     "iteration-integration",
 }
 WORKER_SKILL_MAP = {
     "prepare_worker": {
+        "bounded-tool-use",
         "resource-acquisition",
         "environment-setup",
         "benchmark-discovery",
         "component-coverage",
     },
     "prepare_validator": {
+        "bounded-tool-use",
         "resource-acquisition",
         "environment-setup",
         "benchmark-discovery",
         "component-coverage",
     },
     "prepare_step_executor": {
+        "bounded-tool-use",
         "prepare-planning",
         "resource-acquisition",
         "environment-setup",
@@ -58,53 +67,64 @@ WORKER_SKILL_MAP = {
         "component-coverage",
     },
     "code_worker": {
+        "bounded-tool-use",
         "code-planning",
         "code-enablement",
     },
     "code_validator": {
+        "bounded-tool-use",
         "code-planning",
         "code-enablement",
     },
     "code_step_executor": {
+        "bounded-tool-use",
         "code-planning",
         "code-enablement",
     },
     "standard_science_worker": {
+        "bounded-tool-use",
         "science-planning",
         "science-execution",
         "component-coverage",
     },
     "standard_science_validator": {
+        "bounded-tool-use",
         "science-planning",
         "science-execution",
         "component-coverage",
     },
     "standard_science_step_executor": {
+        "bounded-tool-use",
         "science-planning",
         "science-execution",
         "component-coverage",
     },
     "ablation_science_worker": {
+        "bounded-tool-use",
         "science-planning",
         "science-execution",
         "component-coverage",
     },
     "ablation_science_validator": {
+        "bounded-tool-use",
         "science-planning",
         "science-execution",
         "component-coverage",
     },
     "ablation_science_step_executor": {
+        "bounded-tool-use",
         "science-planning",
         "science-execution",
         "component-coverage",
     },
     "ablation_report_integrator": {
+        "bounded-tool-use",
         "component-coverage",
         "science-execution",
         "convergence-gate",
     },
     "iteration_reporter": {
+        "bounded-tool-use",
         "iteration-integration",
     },
 }
