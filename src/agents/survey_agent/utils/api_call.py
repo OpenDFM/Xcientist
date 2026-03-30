@@ -213,21 +213,19 @@ class ChatAgent:
         debug: bool = False,
         model=None,
         max_output_tokens: int = 16000,
+        request_timeout: float = None,
     ) -> str:
         """Chat with remote LLM, return result. Minimal logging; no file writes."""
         if model is None:
             model = self.model_name
 
         # Estimate input tokens and truncate if necessary to leave room for output.
-        # Keep a hard input-side truncation cap at 390000 tokens while still
-        # reserving the requested output budget.
-        context_window = 406000
-        hard_input_cap = 390000
+        context_window = int(self.config.APIInfo.llm_max_context_length)
         input_tokens, enc = self.encode_with_fallback(text_content, model=model)
         input_token_count = len(input_tokens)
 
         # Reserve space for output tokens
-        max_input_tokens = min(context_window - max_output_tokens, hard_input_cap)
+        max_input_tokens = context_window - max_output_tokens
 
         if input_token_count > max_input_tokens:
             self.logger.warning(
@@ -251,9 +249,11 @@ class ChatAgent:
         use_stream = self.config.APIInfo.use_stream_mode
         
         payload = {"model": model, "messages": messages, "temperature": temperature, "stream": use_stream}
+        if request_timeout is None:
+            request_timeout = getattr(self.config.APIInfo, "chat_timeout", 120)
         
         # Enable stream=True in requests if streaming mode is on
-        response = requests.post(url, headers=header, json=payload, timeout=getattr(self.config.APIInfo, "chat_timeout", 120), stream=use_stream)
+        response = requests.post(url, headers=header, json=payload, timeout=request_timeout, stream=use_stream)
 
         if self.config.APIInfo.low_flow_mode:
             time.sleep(self.config.APIInfo.low_flow_latency)
@@ -324,7 +324,12 @@ class ChatAgent:
         return res_text
 
     def __remote_chat(
-        self, index, content, temperature: float = 0.5, debug: bool = False
+        self,
+        index,
+        content,
+        temperature: float = 0.5,
+        debug: bool = False,
+        request_timeout: float = None,
     ):
         model = self.model_name
         return index, self.remote_chat(
@@ -334,6 +339,7 @@ class ChatAgent:
             temperature=temperature,
             debug=debug,
             model=model,
+            request_timeout=request_timeout,
         )
 
     def _default_validate_fn(self, result: str, info_dict: dict = None) -> bool:
@@ -427,9 +433,20 @@ class ChatAgent:
     ) -> list[str]:
         if workers is None:
             workers = self.batch_workers
+        request_timeout = min(
+            future_timeout,
+            getattr(self.config.APIInfo, "chat_timeout", future_timeout),
+        )
         with ThreadPoolExecutor(max_workers=workers) as executor:
             future_l = [
-                executor.submit(self.__remote_chat, i, prompt_l[i], temperature)
+                executor.submit(
+                    self.__remote_chat,
+                    i,
+                    prompt_l[i],
+                    temperature,
+                    False,
+                    request_timeout,
+                )
                 for i in range(len(prompt_l))
             ]
             res_l = [None] * len(prompt_l)
@@ -440,12 +457,10 @@ class ChatAgent:
                 dynamic_ncols=True,
             ):
                 try:
-                    i, resp = future.result(timeout=future_timeout)
+                    i, resp = future.result()
                 except Exception as e:
-                    # Cancel the hanging future and record the error
-                    future.cancel()
                     self.logger.warning(
-                        f"batch_remote_chat future timed out or failed: {e}. Marking as timeout."
+                        f"batch_remote_chat future failed or timed out at request layer: {e}. Marking as timeout."
                     )
                     continue
                 res_l[i] = resp

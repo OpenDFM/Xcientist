@@ -3,7 +3,7 @@ import re
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 from uuid import uuid4
 
 from src.agents.idea_agent.agent.artifacts import artifact_set
