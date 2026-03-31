@@ -33,6 +33,7 @@ Core rules:
 - **FORBIDDEN**: Installing or referencing any code from `repos/` - repos are for reference only, all functionality must be fully implemented in `project/`
 - All code must be COMPLETE and INDEPENDENT in `project/` - do NOT import from or depend on `repos/` for any functionality
 - **FORBIDDEN**: Installing packages to system or virtual environment - all dependencies must be installed through standard means within project/
+- If the planner explicitly assigns a code patch, all code changes must stay inside `project_dir`; never write experiment implementation code outside `project/`
 
 **API/model requirement**: Must use real API credentials from `{workspace}/.env` and real model checkpoints. Read model/API bindings from validated prepare handoff and prefer `model_candidate/` for local models. Do not download missing models during science execution unless the contract explicitly says the prepared target is API-only.
 
@@ -56,6 +57,7 @@ Failure rules:
 - Do not invent `final`/`full` metadata for unexecuted runs.
 - Do not backfill result files from expectation or templates.
 - Do not modify project code unless planner explicitly assigned a code patch.
+- If a code patch is assigned, do not edit files outside `project_dir`.
 
 Required evidence:
 - Exact commands, output paths, dataset and model bindings used, exit statuses

@@ -56,6 +56,7 @@ Failure rules:
 - Never claim the whole prepare phase is complete.
 - Never mark a dataset as ready if it is corrupted, unstaged, or missing from the prepared handoff surface.
 - Never use vague targets such as "OpenAI model" or "benchmark script"; record exact model names, env vars, dataset files, and entrypoints.
+- If you report `OPENAI_API_KEY` as required anywhere, you must also report the paired `OPENAI_API_BASE` entry and explain which component uses the pair.
 - Never let `prepare_idea.md` omit, duplicate, rename, or reorder the canonical idea components.
 - Never place runnable project code outside `project_dir`.
 

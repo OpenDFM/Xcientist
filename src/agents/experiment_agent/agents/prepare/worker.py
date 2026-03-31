@@ -36,10 +36,11 @@ Stage focus:
 
 Hard prepare rules:
 - Datasets must land under `dataset_candidate/` to count as prepared.
-- Local models must land under `model_candidate/` to count as prepared.
+- Local models must be available from the prepared surface under `model_candidate/`, either as workspace-local downloads or as read-only shared assets under `model_candidate/model_share/`.
 - API-only models may be recorded, but they are not local model downloads.
 - Never use editable installs, local-path installs, import-path injection, or copied repo code to satisfy project requirements.
 - Never claim the whole prepare phase is complete; report only the current stage outcome.
+- Stage reports must separate researched candidates, selected targets, downloaded assets, reused assets, and skipped candidates.
 """
 
 
@@ -57,8 +58,9 @@ def create_prepare_repo_worker_agent(llm):
         system_prompt=_base_prepare_worker_prompt(
             "repos",
             "- Research benchmark repositories, official codebases, and exact runnable entrypoints.\n"
-            "- Use web search and GitHub search as needed, then clone or inspect only the repos required for the formal experiment surface.\n"
-            "- Record exact repository URLs, local checkout paths, benchmark entrypoints, and support files.",
+            "- Use web search and GitHub search as needed, then clone or refresh the repositories required for the formal experiment surface.\n"
+            "- Prefer acquiring the validated relevant set of repositories instead of merely verifying what already exists.\n"
+            "- Record exact repository URLs, local checkout paths, revisions, benchmark entrypoints, support files, and whether each repo was downloaded this run or reused.",
         ),
     )
 
@@ -101,7 +103,8 @@ def create_prepare_dataset_worker_agent(llm):
             "dataset",
             "- Research and stage the formal experiment datasets.\n"
             "- Prefer registry-backed dataset discovery through HuggingFace or ModelScope tools, using web search only for confirmation.\n"
-            "- Download or stage verified datasets under `dataset_candidate/` and record exact file paths used by later phases.",
+            "- After selecting the validated relevant datasets, download as many required prepared datasets as possible into `dataset_candidate/`, reusing only when a matching prepared copy already exists.\n"
+            "- Record exact file paths, versions, whether each dataset was downloaded or reused, and any remaining acquisition blockers.",
         ),
     )
 
@@ -123,8 +126,9 @@ def create_prepare_model_worker_agent(llm):
         system_prompt=_base_prepare_worker_prompt(
             "model",
             "- Research and stage only the local models that the formal experiment requires to exist on disk.\n"
-            "- Use HuggingFace or ModelScope search and download tools. Reuse already-mounted `model_candidate/` contents when they satisfy the declared revision and files.\n"
-            "- Record API-only models separately from local downloaded models.",
+            "- Use HuggingFace or ModelScope search and download tools. Reuse `model_candidate/` local contents or `model_candidate/model_share/` shared contents only when they satisfy the declared revision and required files.\n"
+            "- If a required local model is not already available, download it into a dedicated subdirectory under `model_candidate/` instead of relying on runtime auto-download.\n"
+            "- Record API-only models separately from local downloaded models, and explicitly distinguish downloaded, reused local, and reused shared model sources.",
         ),
     )
 
@@ -141,7 +145,7 @@ def create_prepare_synthesis_worker_agent(llm):
         ],
         system_prompt=_base_prepare_worker_prompt(
             "synthesis",
-            "- Produce `prepare_idea.md`, handoff notes, and prepare target inventory using only validator-backed outputs from earlier stages.\n"
+            "- Produce `prepare_idea.md`, `prepare_target_inventory.json`, and handoff notes using only validator-backed outputs from earlier stages.\n"
             "- Do not perform primary discovery in this stage. Only verify and summarize previously validated facts.\n"
             "- Copy the exact ordered component list from `idea.json.components` without renaming, merging, or reordering.",
         ),

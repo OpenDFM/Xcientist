@@ -19,6 +19,7 @@ Core responsibilities:
 - Dataset usage guidance (exact paths, loading, preprocessing, format requirements)
 - Local model usage guidance (exact `model_candidate/` paths when required)
 - Environment variable usage guidance (which env vars each component needs)
+- If `OPENAI_API_KEY` is required anywhere, you must also record the paired `OPENAI_API_BASE` entry in the environment-variable guidance and any machine-readable handoff that lists required env vars.
 - Verified real experiment targets (model IDs, dataset paths, benchmark entrypoints, run commands)
 
 **CRITICAL: Code must be self-contained in `project/`**

@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.agents.experiment_agent.agents.master import run_master
 from src.agents.experiment_agent.agents.prepare import run_prepare
-from src.agents.experiment_agent.agents.integration import run_iteration_reporter
+from src.agents.experiment_agent.agents.reporting import run_ablation_report_integrator
 from src.agents.experiment_agent.config import print_config
 from src.agents.experiment_agent.config import (
     copy_prepared_data_to_workspace,
@@ -149,15 +149,17 @@ async def main_async(args) -> int:
         resume=bool(args.resume),
     )
 
-    # After master loop, run iteration integration to summarize status
-    iteration_result = await run_iteration_reporter(
-        workspace_root=workspace_root,
-        project_root=project_root,
-        verbose=bool(args.verbose),
-        resume=bool(args.resume),
-    )
-    if iteration_result.get("valid"):
-        result["iteration_summary_path"] = iteration_result["iteration_summary_path"]
+    if result.get("converged"):
+        reporting_result = await run_ablation_report_integrator(
+            workspace_root=workspace_root,
+            project_root=project_root,
+            verbose=bool(args.verbose),
+            resume=bool(args.resume),
+        )
+        if reporting_result.get("valid"):
+            result["final_path"] = reporting_result["ablation_results_path"]
+            result["ablation_results_path"] = reporting_result["ablation_results_path"]
+            result["integrator_report_path"] = reporting_result["integrator_report_path"]
 
     if result.get("stopped_due_to_iteration_limit"):
         print_phase("ITERATION LIMIT HIT", width=65)

@@ -69,9 +69,15 @@ def normalize_workspace_path(path: str) -> str:
 
 def get_api_config() -> Dict[str, str]:
     cfg = _api_cfg()
+    openai_api_base = str(
+        cfg.get("openai_api_base")
+        or os.environ.get("OPENAI_BASE_URL")
+        or os.environ.get("OPENAI_API_BASE")
+        or ""
+    )
     return {
         "openai_api_key": str(cfg.get("openai_api_key") or ""),
-        "openai_api_base": str(cfg.get("openai_api_base") or ""),
+        "openai_api_base": openai_api_base,
         "minimax_api_key": str(cfg.get("minimax_api_key") or ""),
         "minimax_api_base": str(cfg.get("minimax_api_base") or "https://api.minimaxi.com/v1"),
         "serper_api_key": str(cfg.get("serper_api_key") or ""),
@@ -297,6 +303,10 @@ def get_model_dir(experiment_id: str) -> str:
     return os.path.join(get_workspace_dir(experiment_id), "model_candidate")
 
 
+def get_model_share_dir(experiment_id: str) -> str:
+    return os.path.join(get_model_dir(experiment_id), "model_share")
+
+
 def get_model_candidate_seed() -> str:
     return normalize_workspace_path(get_workspace_config()["model_candidate_seed"])
 
@@ -355,6 +365,7 @@ def get_path_config(experiment_id: str) -> Dict[str, Any]:
         "cache_dir": get_cache_dir(experiment_id),
         "dataset_dir": get_dataset_dir(experiment_id),
         "model_dir": get_model_dir(experiment_id),
+        "model_share_dir": get_model_share_dir(experiment_id),
         "model_candidate_seed": get_model_candidate_seed(),
         "results_dir": get_results_dir(experiment_id),
         "reports_dir": get_reports_dir(experiment_id),
@@ -387,6 +398,35 @@ def _ensure_seed_symlink(link_path: str, target_path: str) -> None:
     os.symlink(target_real, link_real)
 
 
+def _ensure_model_share_mount(model_dir: str, seed_path: str) -> str:
+    model_dir_real = os.path.abspath(os.path.expanduser(model_dir))
+    seed_real = os.path.realpath(os.path.abspath(os.path.expanduser(seed_path)))
+    share_link = os.path.join(model_dir_real, "model_share")
+
+    if not os.path.exists(seed_real):
+        raise FileNotFoundError(f"model_candidate_seed does not exist: {seed_real}")
+
+    if os.path.islink(model_dir_real):
+        current_target = os.path.realpath(
+            os.path.join(os.path.dirname(model_dir_real), os.readlink(model_dir_real))
+        )
+        if current_target != seed_real:
+            raise RuntimeError(
+                f"Refusing to replace model_candidate link {model_dir_real}: points to {current_target}, expected {seed_real}"
+            )
+        os.unlink(model_dir_real)
+        os.makedirs(model_dir_real, exist_ok=True)
+    elif os.path.exists(model_dir_real) and not os.path.isdir(model_dir_real):
+        raise RuntimeError(
+            f"Refusing to replace existing non-directory model_candidate path: {model_dir_real}"
+        )
+    else:
+        os.makedirs(model_dir_real, exist_ok=True)
+
+    _ensure_seed_symlink(share_link, seed_real)
+    return share_link
+
+
 def ensure_experiment_dirs(experiment_id: str) -> Dict[str, Any]:
     paths = get_path_config(experiment_id)
     for key in (
@@ -395,12 +435,15 @@ def ensure_experiment_dirs(experiment_id: str) -> Dict[str, Any]:
         "logs_dir",
         "cache_dir",
         "dataset_dir",
+        "model_dir",
         "results_dir",
         "reports_dir",
         "repos_dir",
     ):
         os.makedirs(paths[key], exist_ok=True)
-    _ensure_seed_symlink(paths["model_dir"], paths["model_candidate_seed"])
+    paths["model_share_dir"] = _ensure_model_share_mount(
+        paths["model_dir"], paths["model_candidate_seed"]
+    )
     os.makedirs(os.path.join(paths["workspace_dir"], "specs"), exist_ok=True)
     os.makedirs(os.path.join(paths["workspace_dir"], "templates"), exist_ok=True)
     os.makedirs(os.path.join(paths["results_dir"], "standard"), exist_ok=True)
@@ -431,6 +474,7 @@ def write_workspace_env_file(experiment_id: str) -> str:
     if api_cfg.get("openai_api_key"):
         env_vars["OPENAI_API_KEY"] = api_cfg["openai_api_key"]
     if api_cfg.get("openai_api_base"):
+        env_vars["OPENAI_BASE_URL"] = api_cfg["openai_api_base"]
         env_vars["OPENAI_API_BASE"] = api_cfg["openai_api_base"]
     if api_cfg.get("minimax_api_key"):
         env_vars["MINIMAX_API_KEY"] = api_cfg["minimax_api_key"]

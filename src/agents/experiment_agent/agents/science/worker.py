@@ -29,7 +29,7 @@ Core rules:
 
 **Data requirement**: Must use real data from `dataset_candidate/` directory. Do NOT use synthetic or randomly generated data.
 
-**API/model requirement**: Must use real API credentials from `{workspace}/.env` and real model checkpoints from the prepared surface (prefer `model_candidate/` for local models). Do not download missing models here; they must have been prepared already unless the contract explicitly says API-only.
+**API/model requirement**: Must use real API credentials from `{workspace}/.env` and real model checkpoints from the prepared surface (prefer `model_candidate/` local downloads, then `model_candidate/model_share/` shared prepared models). Do not download missing models here; they must have been prepared already unless the contract explicitly says API-only.
 
 Standard-science requirements:
 - Use only prepare-declared real targets unless planner explicitly authorized synthetic benchmark.
@@ -61,7 +61,7 @@ Core rules:
 
 **Data requirement**: Must use real data from `dataset_candidate/` directory. Do NOT use synthetic or randomly generated data.
 
-**API/model requirement**: Must use real API credentials from `{workspace}/.env` and real model checkpoints from the prepared surface (prefer `model_candidate/` for local models). Do not download missing models here; they must have been prepared already unless the contract explicitly says API-only.
+**API/model requirement**: Must use real API credentials from `{workspace}/.env` and real model checkpoints from the prepared surface (prefer `model_candidate/` local downloads, then `model_candidate/model_share/` shared prepared models). Do not download missing models here; they must have been prepared already unless the contract explicitly says API-only.
 
 Ablation-specific requirements:
 - Isolate the assigned canonical component exactly as named in the contract.

@@ -26,9 +26,7 @@ if HAS_EXPERIMENT_DEPS:
         EXPERIMENT_ABLATION_SCIENCE_PLANNER,
         EXPERIMENT_STANDARD_SCIENCE_PLANNER,
     )
-    from src.agents.experiment_agent.runtime.ablation_results import (
-        build_ablation_results_artifacts,
-    )
+    from src.agents.experiment_agent.runtime.ablation_results import build_ablation_results_artifacts
     from src.agents.experiment_agent.runtime.manifests import artifact_paths, load_workspace_state
     from src.agents.experiment_agent.tools.bounded_io import _parent_env_export_chunks
 
@@ -72,7 +70,7 @@ def _write_idea_json(path: str, components=None):
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
 
-def test_master_gate_and_materializer_follow_current_ablation_contract(tmp_path):
+def test_master_gate_writes_final_contract_without_materializing_ablation_results(tmp_path):
     idea_path = tmp_path / "idea.md"
     idea_path.write_text("# idea", encoding="utf-8")
     _write_idea_json(
@@ -132,15 +130,8 @@ def test_master_gate_and_materializer_follow_current_ablation_contract(tmp_path)
     payload = agent._compute_gate_payload()
     assert payload["decision"] == Decision.CONVERGED
     assert agent._materialize_ablation_results() is True
-
-    ablation_results = load_workspace_state(str(tmp_path))["ablation_results"]
-    assert set(ablation_results.keys()) == {"components", "summary"}
-    assert list(ablation_results["components"].keys()) == ["component_a", "component_b"]
-    assert ablation_results["components"]["component_a"]["method_context"] == "component A description"
-    assert ablation_results["components"]["component_b"]["method_context"] == "component B explanation"
-    assert "metadata" not in ablation_results
-    assert "evidence_paths" not in ablation_results
-    assert set(ablation_results["summary"].keys()) == {"feasible", "confidence", "key_findings"}
+    state = load_workspace_state(str(tmp_path))
+    assert state["ablation_results"] == {}
     assert os.path.exists(paths["final_artifact_contract"])
 
 
@@ -246,8 +237,8 @@ def test_main_reuses_valid_prepare_before_entering_master(tmp_path, monkeypatch)
     async def fake_master(**kwargs):
         return {"iterations": 1, "final_path": "master.md", "stopped_due_to_iteration_limit": False}
 
-    async def fake_iteration_reporter(**kwargs):
-        return {"valid": False}
+    async def fake_reporter(**kwargs):
+        raise AssertionError("final reporter should not run when master did not converge")
 
     monkeypatch.setattr(experiment_main, "print_config", lambda: None)
     monkeypatch.setattr(experiment_main, "print_phase", lambda *args, **kwargs: None)
@@ -264,7 +255,7 @@ def test_main_reuses_valid_prepare_before_entering_master(tmp_path, monkeypatch)
     monkeypatch.setattr(experiment_main.Cache, "initialize", lambda *args, **kwargs: None)
     monkeypatch.setattr(experiment_main, "run_prepare", fail_prepare)
     monkeypatch.setattr(experiment_main, "run_master", fake_master)
-    monkeypatch.setattr(experiment_main, "run_iteration_reporter", fake_iteration_reporter)
+    monkeypatch.setattr(experiment_main, "run_ablation_report_integrator", fake_reporter)
     monkeypatch.setattr(experiment_main, "get_idea_input_path", lambda experiment_id: str(workspace_root / "idea.md"))
 
     args = type("Args", (), {
@@ -346,7 +337,7 @@ def test_ablation_materialization_rejects_non_phase_result_or_partial_phase(tmp_
     assert "phase_result" in result["blocker"] or "not marked complete" in result["blocker"]
 
 
-def test_integrator_prefers_deterministic_materialization(tmp_path, monkeypatch):
+def test_integrator_always_uses_agent_write_path(tmp_path, monkeypatch):
     _write_idea_json(tmp_path / "idea.json")
     project_root = tmp_path / "project"
     project_root.mkdir()
@@ -372,14 +363,32 @@ def test_integrator_prefers_deterministic_materialization(tmp_path, monkeypatch)
         verbose=False,
     )
 
-    async def fail_run(*args, **kwargs):
-        raise AssertionError("LLM fallback should not run when deterministic integration succeeds")
+    ablation_payload = {
+        "components": {
+            "component_a": {
+                "result": "positive",
+                "metric": "accuracy",
+                "value": "+0.1",
+                "confidence": 0.9,
+                "analysis": "evidence-backed",
+                "method_context": "demo explanation",
+            }
+        },
+        "summary": {"feasible": True, "confidence": 0.9, "key_findings": ["component_a matters"]},
+    }
 
-    monkeypatch.setattr(agent, "run", fail_run)
+    async def fake_run(*args, **kwargs):
+        with open(agent.ablation_json_path, "w", encoding="utf-8") as f:
+            json.dump(ablation_payload, f, ensure_ascii=False, indent=2)
+        with open(agent.integrator_report_path, "w", encoding="utf-8") as f:
+            json.dump({"status": "PASS"}, f, ensure_ascii=False, indent=2)
+        return {"messages": []}
+
+    monkeypatch.setattr(agent, "run", fake_run)
     result = asyncio.run(agent.execute())
 
     assert result["valid"] is True
-    assert result["mode"] == "deterministic"
+    assert result["mode"] == "agent_write"
 
 
 def test_ablation_science_agent_no_longer_calls_integrator(tmp_path, monkeypatch):
@@ -438,6 +447,7 @@ def test_master_runtime_deduplicates_adjacent_phase_dispatches(tmp_path, monkeyp
         ]
     )
     calls = []
+    integrator_calls = []
 
     def fake_gate():
         return next(gate_sequence)
@@ -446,8 +456,13 @@ def test_master_runtime_deduplicates_adjacent_phase_dispatches(tmp_path, monkeyp
         calls.append(subagent_type)
         return {"status": "completed"}
 
+    async def fake_iteration_integrator(**kwargs):
+        integrator_calls.append(kwargs)
+        return {"valid": True}
+
     monkeypatch.setattr(agent, "_compute_gate_payload", fake_gate)
     monkeypatch.setattr(agent, "_run_planner_task", fake_run_planner_task)
+    monkeypatch.setattr("src.agents.experiment_agent.agents.master.entry.run_iteration_reporter", fake_iteration_integrator)
     monkeypatch.setattr(agent, "_materialize_ablation_results", lambda: True)
     monkeypatch.setattr(agent, "_materialize_results_summary", lambda: str(tmp_path / "master_summary.md"))
 
@@ -460,3 +475,4 @@ def test_master_runtime_deduplicates_adjacent_phase_dispatches(tmp_path, monkeyp
         EXPERIMENT_STANDARD_SCIENCE_PLANNER,
         EXPERIMENT_ABLATION_SCIENCE_PLANNER,
     ]
+    assert len(integrator_calls) == 3

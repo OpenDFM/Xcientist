@@ -35,17 +35,29 @@ class SecurityValidator:
     """Validates paths stay within the declared workspace root."""
 
     @staticmethod
+    def _trusted_mounts(workspace_root: str) -> tuple[str, ...]:
+        workspace_abs = os.path.abspath(os.path.expanduser(workspace_root))
+        return (os.path.join(workspace_abs, "model_candidate", "model_share"),)
+
+    @staticmethod
     def validate_path(path: str, workspace_root: str) -> bool:
         if not path:
             return False
         try:
-            abs_path = os.path.realpath(os.path.abspath(os.path.expanduser(path)))
+            abs_path = os.path.abspath(os.path.expanduser(path))
+            real_path = os.path.realpath(abs_path)
             abs_workspace = os.path.realpath(
                 os.path.abspath(os.path.expanduser(workspace_root))
             )
         except Exception:
             return False
-        return abs_path.startswith(abs_workspace + os.sep) or abs_path == abs_workspace
+        if real_path.startswith(abs_workspace + os.sep) or real_path == abs_workspace:
+            return True
+        for mount_root in SecurityValidator._trusted_mounts(workspace_root):
+            mount_abs = os.path.abspath(os.path.expanduser(mount_root))
+            if abs_path.startswith(mount_abs + os.sep) or abs_path == mount_abs:
+                return True
+        return False
 
     @staticmethod
     def validate_or_raise(path: str, workspace_root: str, operation: str = "access") -> None:
@@ -57,18 +69,14 @@ class SecurityValidator:
     @staticmethod
     def resolve_path(path: str, workspace_root: str, project_root: str | None = None) -> str:
         if os.path.isabs(path):
-            full_path = os.path.realpath(os.path.abspath(os.path.expanduser(path)))
+            full_path = os.path.abspath(os.path.expanduser(path))
         else:
             if workspace_root:
-                full_path = os.path.realpath(
-                    os.path.abspath(os.path.join(workspace_root, path))
-                )
+                full_path = os.path.abspath(os.path.join(workspace_root, path))
             elif project_root:
-                full_path = os.path.realpath(
-                    os.path.abspath(os.path.join(project_root, path))
-                )
+                full_path = os.path.abspath(os.path.join(project_root, path))
             else:
-                full_path = os.path.realpath(os.path.abspath(path))
+                full_path = os.path.abspath(path)
 
         SecurityValidator.validate_or_raise(full_path, workspace_root, "access")
         return full_path

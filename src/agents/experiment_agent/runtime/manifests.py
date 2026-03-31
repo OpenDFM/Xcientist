@@ -19,6 +19,7 @@ def workspace_contract_paths(workspace_root: str, project_root: Optional[str] = 
     repos_dir = os.path.join(workspace_dir, "repos")
     dataset_dir = os.path.join(workspace_dir, "dataset_candidate")
     model_dir = os.path.join(workspace_dir, "model_candidate")
+    model_share_dir = os.path.join(model_dir, "model_share")
     results_dir = os.path.join(workspace_dir, "results")
     agent_reports_dir = os.path.join(workspace_dir, "agent_reports")
     return {
@@ -27,6 +28,7 @@ def workspace_contract_paths(workspace_root: str, project_root: Optional[str] = 
         "repos_dir": repos_dir,
         "dataset_dir": dataset_dir,
         "model_dir": model_dir,
+        "model_share_dir": model_share_dir,
         "results_dir": results_dir,
         "standard_results_dir": os.path.join(results_dir, "standard"),
         "ablation_results_dir": os.path.join(results_dir, "ablation"),

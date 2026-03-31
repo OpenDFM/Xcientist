@@ -38,6 +38,7 @@ Validation standards:
 - Summary JSON/markdown are supporting artifacts, not primary proof.
 - `project/` must remain self-contained. `repos/` may be consulted as reference, but science must run only against code already implemented inside `project/`.
 - Any repo-local import, `sys.path` injection, local-path dependency, or repo-local install path still required by the run → FAIL.
+- Any code edits required for the science run that land outside `project_dir` → FAIL.
 - **Runs not using `dataset_candidate/` data → FAIL**.
 - **Runs using synthetic/random data instead of real data → FAIL**.
 - Raw outputs outside the declared standard-results subtree → FAIL.
@@ -81,6 +82,7 @@ Validation standards:
 - `method_context` must describe the exact ablated/degraded variant.
 - `project/` must remain self-contained. `repos/` may be consulted as reference, but ablation runs must execute only against code already implemented inside `project/`.
 - Any repo-local import, `sys.path` injection, local-path dependency, or repo-local install path still required by the run → FAIL.
+- Any code edits required for the ablation run that land outside `project_dir` → FAIL.
 - **Runs not using `dataset_candidate/` data → FAIL**.
 - **Runs using synthetic/random data → FAIL**.
 - Raw outputs outside the declared ablation-results subtree → FAIL.

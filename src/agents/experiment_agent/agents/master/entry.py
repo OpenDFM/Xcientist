@@ -29,14 +29,14 @@ from src.agents.experiment_agent.agents.science import (
     run_ablation_science_agent,
     run_standard_science_agent,
 )
+from src.agents.experiment_agent.agents.integration import run_iteration_reporter
 from src.agents.experiment_agent.config import (
     get_master_agent_model,
     get_planner_max_turns,
     get_science_max_iterations,
 )
 from src.agents.experiment_agent.runtime.ablation_results import (
-    build_ablation_results_artifacts,
-    write_ablation_results_artifacts,
+    build_ablation_final_artifact_contract,
 )
 from src.agents.experiment_agent.runtime.manifests import (
     artifact_paths,
@@ -242,6 +242,62 @@ class MasterAgent(OpenHandsBaseAgent):
                 "self_contained_violations": violation_lines,
             }
 
+        iteration_payload = self._load_report(self.paths["iteration_status"])
+        iteration_phase_states = (
+            iteration_payload.get("phase_states")
+            if isinstance(iteration_payload, dict)
+            else None
+        )
+        if isinstance(iteration_phase_states, dict):
+            def _phase_state(name: str) -> Dict[str, Any]:
+                payload = iteration_phase_states.get(name)
+                return payload if isinstance(payload, dict) else {}
+
+            code_state = _phase_state("code")
+            if str(code_state.get("phase_completion_status") or "not_started") != "complete":
+                blocking = list(code_state.get("blocking_issues") or [])
+                return {
+                    "decision": Decision.CODE_NEEDED,
+                    "phase": DECISION_TO_PHASE[Decision.CODE_NEEDED],
+                    "phase_completion_status": str(code_state.get("phase_completion_status") or "not_started"),
+                    "ready_for_next_phase": bool(code_state.get("ready_for_next_phase")),
+                    "blocking_issues": blocking,
+                    "reasons": blocking or ["Code phase is not complete."],
+                    "evidence_files": list(iteration_payload.get("code_evidence") or []) + [self.paths["self_contained_report"]],
+                    "self_contained_project": self_contained_report.get("self_contained_project"),
+                    "self_contained_violations": list(self_contained_report.get("self_contained_violations") or []),
+                }
+
+            standard_state = _phase_state("standard_science")
+            if str(standard_state.get("phase_completion_status") or "not_started") != "complete":
+                blocking = list(standard_state.get("blocking_issues") or [])
+                return {
+                    "decision": Decision.STANDARD_EXP_NEEDED,
+                    "phase": DECISION_TO_PHASE[Decision.STANDARD_EXP_NEEDED],
+                    "phase_completion_status": str(standard_state.get("phase_completion_status") or "not_started"),
+                    "ready_for_next_phase": bool(standard_state.get("ready_for_next_phase")),
+                    "blocking_issues": blocking,
+                    "reasons": blocking or ["Standard science phase is not complete."],
+                    "evidence_files": list(iteration_payload.get("standard_evidence") or []) + [self.paths["self_contained_report"]],
+                    "self_contained_project": self_contained_report.get("self_contained_project"),
+                    "self_contained_violations": list(self_contained_report.get("self_contained_violations") or []),
+                }
+
+            ablation_state = _phase_state("ablation_science")
+            if str(ablation_state.get("phase_completion_status") or "not_started") != "complete":
+                blocking = list(ablation_state.get("blocking_issues") or [])
+                return {
+                    "decision": Decision.ABLATION_NEEDED,
+                    "phase": DECISION_TO_PHASE[Decision.ABLATION_NEEDED],
+                    "phase_completion_status": str(ablation_state.get("phase_completion_status") or "not_started"),
+                    "ready_for_next_phase": bool(ablation_state.get("ready_for_next_phase")),
+                    "blocking_issues": blocking,
+                    "reasons": blocking or ["Ablation science phase is not complete."],
+                    "evidence_files": list(iteration_payload.get("ablation_evidence") or []) + [self.paths["self_contained_report"]],
+                    "self_contained_project": self_contained_report.get("self_contained_project"),
+                    "self_contained_violations": list(self_contained_report.get("self_contained_violations") or []),
+                }
+
         code_payload = self._load_report(self.paths["code_validator"])
         code_phase = normalize_phase_report(code_payload)
         if code_phase["phase_completion_status"] != "complete":
@@ -398,12 +454,12 @@ class MasterAgent(OpenHandsBaseAgent):
         return self.agent_md_path
 
     def _materialize_ablation_results(self) -> bool:
-        result = write_ablation_results_artifacts(
+        contract = build_ablation_final_artifact_contract(
             self.workspace_root,
-            self.project_root,
-            generated_by="master_runtime",
+            idea_json_path=self.paths["idea_json"],
         )
-        return bool(result.get("valid"))
+        write_json_file(self.paths["final_artifact_contract"], contract)
+        return True
 
     def _materialize_results_summary(self) -> str:
         payload = self._compute_gate_payload()
@@ -475,7 +531,7 @@ class MasterAgent(OpenHandsBaseAgent):
         logger.info("Starting Master runtime-controlled orchestration...")
         self._ensure_prepare_ready()
         previous_state = self._load_runtime_state()
-        if previous_state:
+        if self.resume and previous_state:
             self.current_iteration = max(1, previous_state.iteration)
             self.state = previous_state
 
@@ -503,7 +559,7 @@ class MasterAgent(OpenHandsBaseAgent):
                 self._materialize_results_summary()
                 return {
                     "iterations": self.current_iteration,
-                    "final_path": self.paths["ablation_results"] if os.path.exists(self.paths["ablation_results"]) else self.agent_md_path,
+                    "final_path": self.agent_md_path,
                     "converged": True,
                     "decision": decision,
                     "stopped_due_to_iteration_limit": False,
@@ -522,6 +578,12 @@ class MasterAgent(OpenHandsBaseAgent):
                 planner_name,
                 description=f"Run {phase} phase",
                 planner_prompt=planner_prompt,
+            )
+            await run_iteration_reporter(
+                workspace_root=self.workspace_root,
+                project_root=self.project_root,
+                verbose=self.verbose,
+                resume=self.resume,
             )
             last_decision = decision
 

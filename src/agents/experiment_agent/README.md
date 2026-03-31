@@ -1,6 +1,6 @@
 # Experiment Agent
 
-Experiment Agent is the OpenHands-based execution stack for the experiment phase of the X-Scientist pipeline. It prepares a workspace, delegates code and science work through a master agent, and routes completion through planner/worker/validator loops plus a final post-loop ablation report integrator.
+Experiment Agent is the OpenHands-based execution stack for the experiment phase of the X-Scientist pipeline. It prepares a workspace, delegates code and science work through a master agent, runs an iteration integrator after each master-loop phase, and finishes with a final ablation report agent.
 
 ## Runtime Shape
 
@@ -34,7 +34,7 @@ experiment_agent/
 │   ├── master/         # Master orchestrator
 │   ├── code/           # Code planner, step executor, worker, validator
 │   ├── science/        # Science planners, step executor, worker, validator
-│   └── reporting/      # Final report integrator agents
+│   └── reporting/      # Final ablation report agents
 ├── config.py           # Experiment-agent config and path helpers
 ├── runtime/            # Lightweight artifact helpers, shared contracts, cache, checkpoints, memory hooks
 ├── tools/              # Local helpers such as parsing and security helpers
@@ -56,7 +56,7 @@ The runtime keeps validator reports and step-level evidence as the authority for
 
 - `ablation_results.json`
 
-That file is materialized only after the master iteration loop exits, by a dedicated ablation report integrator agent. It is written at workspace root and is derived from `idea.json` plus the ablation experiment records under `agent_reports/` and `results/ablation/`.
+That file is written only after the master iteration loop exits, by a dedicated final ablation report agent. The master loop itself uses the iteration integrator's `iteration_status.json` for next-step decisions. The final ablation artifact is written at workspace root from `idea.json` plus the ablation experiment records under `agent_reports/` and `results/ablation/`.
 
 ## Workspace Path Contract
 

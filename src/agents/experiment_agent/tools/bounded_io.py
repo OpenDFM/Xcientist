@@ -350,7 +350,20 @@ class BoundedFileEditorExecutor(ToolExecutor[BoundedFileEditorAction, BoundedFil
             omitted_entries=omitted_entries,
         )
 
+    def _is_model_share_path(self, path: Path) -> bool:
+        model_share_root = Path(self.workspace_root) / "model_candidate" / "model_share"
+        model_share_abs = os.path.abspath(str(model_share_root))
+        path_abs = os.path.abspath(str(path))
+        return path_abs == model_share_abs or path_abs.startswith(model_share_abs + os.sep)
+
     def _run_edit(self, action: BoundedFileEditorAction, path: Path) -> BoundedFileEditorObservation:
+        if self._is_model_share_path(path):
+            return self._observe_text(
+                text=f"Editing is not allowed under read-only shared model mount: {path}",
+                command=action.command,
+                path=path,
+                is_error=True,
+            )
         upstream_action = UpstreamFileEditorAction(
             command=action.command,  # type: ignore[arg-type]
             path=str(path),

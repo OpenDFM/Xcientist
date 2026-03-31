@@ -68,10 +68,15 @@ def _resolve_local_dir(local_dir: str, workspace_root: str) -> str:
         if os.path.isabs(local_dir)
         else os.path.join(workspace_root, local_dir)
     )
-    resolved = os.path.realpath(os.path.abspath(resolved))
+    resolved = os.path.abspath(resolved)
     SecurityValidator.validate_or_raise(resolved, workspace_root, "download into")
-    model_root = os.path.realpath(os.path.join(workspace_root, "model_candidate"))
-    dataset_root = os.path.realpath(os.path.join(workspace_root, "dataset_candidate"))
+    model_root = os.path.abspath(os.path.join(workspace_root, "model_candidate"))
+    model_share_root = os.path.abspath(os.path.join(model_root, "model_share"))
+    dataset_root = os.path.abspath(os.path.join(workspace_root, "dataset_candidate"))
+    if resolved == model_share_root or resolved.startswith(model_share_root + os.sep):
+        raise ValueError(
+            f"Download destination must not write into model_candidate/model_share/: {resolved}"
+        )
     if resolved == model_root or resolved.startswith(model_root + os.sep):
         return resolved
     if resolved == dataset_root or resolved.startswith(dataset_root + os.sep):

@@ -34,11 +34,11 @@ Core rules:
 6. Enforce the planner-provided path contract.
 
 Validation standards:
-- Repository stage passes only if the required repositories, benchmark entrypoints, and local benchmark support files are actually present and readable.
+- Repository stage passes only if the required repositories, benchmark entrypoints, and local benchmark support files are actually present and readable, with worker evidence showing whether each validated target was downloaded, refreshed, or explicitly reused.
 - Environment stage passes only if the promised runtime environment actually exists and the claimed imports or commands succeed.
-- Dataset stage passes only if the declared experiment datasets are verified and staged on the prepared handoff surface under `dataset_candidate/`.
-- Model stage passes only if the required local models are verified and staged on the prepared handoff surface under `model_candidate/`, with API-only models recorded separately.
-- Final synthesis stage passes only if the idea document and handoff notes accurately reflect validated stage outputs and exact experiment targets.
+- Dataset stage passes only if the declared experiment datasets are verified and staged on the prepared handoff surface under `dataset_candidate/`, with worker evidence distinguishing downloaded assets from reused prepared copies.
+- Model stage passes only if the required local models are available on the prepared handoff surface via `model_candidate/` or `model_candidate/model_share/`, with API-only models recorded separately. Documentation of runtime auto-download behavior is not sufficient by itself.
+- Final synthesis stage passes only if the idea document, `prepare_target_inventory.json`, and handoff notes accurately reflect validated stage outputs and exact experiment targets.
 - Final synthesis stage passes only if `prepare_idea.md` contains `{IDEA_COMPONENTS_HEADING}` and lists every `idea.json.components` entry exactly once, in the same order, with no extra components.
 - The final synthesis-stage validator report is also the phase-level prepare verdict that later phases and the master agent must trust.
 
@@ -49,6 +49,8 @@ Prepare-specific rejection rules:
 - Reject any prepare-stage handoff or setup that makes `project/` depend on `repos/` at runtime. `repos/` are reference-only.
 - Reject local-path installs, editable installs, import path injection, or copied repo code presented as project implementation.
 - Reject handoff notes that describe targets not backed by prepared artifacts.
+- Reject synthesis output if `prepare_target_inventory.json` is missing or does not distinguish downloaded vs reused resources.
+- Reject environment-variable guidance or machine-readable handoff that lists `OPENAI_API_KEY` without the paired `OPENAI_API_BASE` entry.
 - Reject `prepare_idea.md` when the canonical component list is missing, renamed, duplicated, incomplete, or reordered.
 - Reject misplaced outputs when artifacts are written outside the planner-declared directories.
 

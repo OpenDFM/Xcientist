@@ -222,11 +222,11 @@ class PrepareAgent(BaseAgent):
         pb.add_header("Stage Contracts", level=2)
         pb.add_list(
             [
-                "Repository stage must verify exact repos, benchmark code locations, and runnable entrypoints.",
+                "Repository stage must research, then acquire or refresh the validated relevant repositories, benchmark code locations, and runnable entrypoints.",
                 "Environment stage must create or validate `project/venv` and record actual imports and commands.",
-                "Dataset stage must place final verified datasets under `dataset_candidate/` and reject repo-local-only handoff paths.",
-                "Model stage must place final verified local models under `model_candidate/` and record API-only models separately.",
-                "Synthesis stage must only summarize validated facts and exact real experiment targets, then produce the phase-level prepare verdict.",
+                "Dataset stage must research the validated relevant datasets, then place as many required prepared datasets as possible under `dataset_candidate/` and reject repo-local-only handoff paths.",
+                "Model stage must research the validated relevant models, then prepare as many required local models as possible under `model_candidate/` or record them as reused shared targets under `model_candidate/model_share/`; API-only models must be recorded separately.",
+                "Synthesis stage must only summarize validated facts and exact real experiment targets, write `prepare_target_inventory.json`, then produce the phase-level prepare verdict.",
                 "Synthesis stage must write `prepare_idea.md` with the exact canonical component list from `idea.json.components` in the same order.",
                 "Each stage contract must define a flat `*_contract.json` path plus a flat `*_executor_report.json` path under `agent_reports/`.",
             ],
@@ -247,7 +247,7 @@ class PrepareAgent(BaseAgent):
                 "Every stage contract must set `repos_policy` to `reference_only` and `project_must_be_self_contained` to `true`.",
                 "Prepare may discover and inspect repositories under `repos/`, but it must never treat them as installable runtime dependencies for `project/`.",
                 "Prepared datasets must live under `dataset_dir`.",
-                "Prepared local models must live under `model_dir`.",
+                "Prepared local models must live under `model_dir`; shared seed models are exposed read-only under `model_dir/model_share`.",
                 "Experiment outputs are reserved for `results_dir`; prepare must not place benchmark outputs there.",
                 "Planner, step executor, worker, validator, and handoff files must live under `agent_reports_dir`.",
                 "Use flat filenames only. Do not create subdirectories under `agent_reports_dir`.",
@@ -263,6 +263,7 @@ class PrepareAgent(BaseAgent):
                 "Each step executor run must write the stage-specific executor report named in the stage contract.",
                 "The runtime keeps the current stage active until validator-backed PASS, terminal blocker, or `max_repair_rounds` exhaustion; `prepare_step_executor` must pass validator findings back through the stage-specific worker and `prepare_validator` without dropping details.",
                 "The final prepare validator report must represent the phase-level prepare verdict; later agents should not recompute prepare completeness from individual stage files.",
+                "The synthesis stage must write `prepare_target_inventory.json` as the machine-readable inventory of repos, datasets, local models, API-only models, benchmarks, and environment requirements.",
             ],
             ordered=False,
         )
@@ -276,6 +277,7 @@ class PrepareAgent(BaseAgent):
                 "When you describe targets in `prepare_idea.md`, use the exact names and paths you actually verified.",
                 "If a target is still ambiguous, record the ambiguity explicitly instead of inventing a canonical name.",
                 "When you describe components in `prepare_idea.md`, copy the exact component names and order from `idea.json.components`.",
+                "For repos, datasets, and models, prefer acquiring the validated relevant set instead of stopping at discovery-only notes when acquisition is possible.",
             ],
             ordered=False,
         )
@@ -321,10 +323,11 @@ class PrepareAgent(BaseAgent):
 - Which component/phase uses each variable
 - Expected format and meaning of each variable
 - Fallback behavior if not set
-- Proxy configuration if needed]
+- Proxy configuration if needed
+- If `OPENAI_API_KEY` is required anywhere, you must also record the paired `OPENAI_API_BASE` entry in this section and in any machine-readable handoff that lists required env vars]
 
 ## Resource Acquisition Log
-[Record of: which repos were cloned, which models were downloaded or reused from model_candidate seed, which datasets were acquired, with actual paths verified]
+[Record of: which repos were cloned or refreshed, which models were downloaded, reused locally, or reused from model_candidate/model_share, which datasets were acquired, with actual paths and revisions verified]
 
 ## Repository-to-Dataset Mapping
 [Mapping of: which repository provides which dataset, benchmark code locations, entry point commands]
@@ -332,6 +335,7 @@ class PrepareAgent(BaseAgent):
 ## Real Experiment Targets
 [Exactly verified:
 - Model IDs/paths used
+- Shared model paths under model_candidate/model_share when reused from seed
 - Dataset paths used
 - Benchmark entrypoints
 - Run commands for each experiment type
@@ -343,6 +347,7 @@ class PrepareAgent(BaseAgent):
         pb.add_text(
             "IMPORTANT: Write this document to `agent_reports/prepare_idea.md`. "
             "Never print secret values; only print env var names and purposes. "
+            "If `OPENAI_API_KEY` appears anywhere in the report, `OPENAI_API_BASE` must also appear as its paired endpoint configuration. "
             "Every claim must be backed by validator evidence. "
             "Do not describe any target as ready unless the matching validator evidence supports it."
         )

@@ -28,6 +28,7 @@ Decompose workspace preparation into ordered worker tasks and end with validator
   - Model IDs to use (e.g. `sentence-transformers/all-MiniLM-L6-v2` for embeddings, `gpt-4o` for LLM)
   - Any external services or tokens
   - For each, document the exact purpose and which component uses it
+  - If `OPENAI_API_KEY` is required, always record the paired `OPENAI_API_BASE` entry alongside it in reports and handoff artifacts
 - **CRITICAL**: All implementation code MUST be written to `project/` directory in workspace, NOT `src/`. The `project/` directory is the designated location for experiment code.
 - **CRITICAL**: Code in `project/` must be SELF-CONTAINED. It must NOT depend on `repos/` for core functionality. Repos are for REFERENCE ONLY.
 - **CRITICAL**: `prepare_idea.md` must include `## Code Implementation Guidance` section with:

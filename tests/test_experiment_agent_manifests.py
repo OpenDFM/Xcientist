@@ -21,8 +21,10 @@ if HAS_EXPERIMENT_DEPS:
         CODE_VALIDATION_FEEDBACK_ROUNDS,
         PREPARE_VALIDATION_FEEDBACK_ROUNDS,
         SCIENCE_VALIDATION_FEEDBACK_ROUNDS,
+        ensure_experiment_dirs,
         ensure_minimax_no_proxy_env,
         get_model_config,
+        get_model_share_dir,
         get_workspace_dir,
     )
     from src.agents.experiment_agent.agents.prepare import run_prepare
@@ -64,6 +66,8 @@ if HAS_EXPERIMENT_DEPS:
     )
     from src.agents.experiment_agent.tools import enable_experiment_tool_overrides
     from src.agents.experiment_agent.tools.bounded_io import BoundedFileEditorAction
+    from src.agents.experiment_agent.tools.resource_tools import _resolve_local_dir
+    from src.agents.experiment_agent.tools.openhands import SecurityValidator
     from openhands.sdk.tool.registry import get_tool_module_qualnames
 else:
     CODE_VALIDATION_FEEDBACK_ROUNDS = 1
@@ -129,6 +133,7 @@ def test_runtime_artifact_paths_focus_on_validator_backed_outputs(tmp_path):
     assert "prepare_model_worker" in paths
     assert "prepare_model_validator" in paths
     assert paths["model_dir"].endswith("model_candidate")
+    assert paths["model_share_dir"].endswith(os.path.join("model_candidate", "model_share"))
     assert "code_validator" in paths
     assert "standard_science_validator" in paths
     assert "prepare_manifest" not in paths
@@ -201,6 +206,10 @@ def test_prepare_prompt_uses_phase_local_worker_and_validator(tmp_path):
     assert "prepare_validator" in prompt
     assert "dataset_candidate/" in prompt
     assert "model_candidate/" in prompt
+    assert "model_candidate/model_share" in prompt
+    assert "prepare_target_inventory.json" in prompt
+    assert "OPENAI_API_KEY" in prompt
+    assert "OPENAI_API_BASE" in prompt
     assert "results_dir" in prompt
     assert "agent_reports_dir" in prompt
     assert "## Canonical Idea Components" in prompt
@@ -727,3 +736,48 @@ def test_workspace_dir_falls_back_to_legacy_workspace_env(monkeypatch):
     monkeypatch.setenv("CODEAGENT_WORKSPACES_DIR", "/tmp/old-workspace")
 
     assert get_workspace_dir("demo") == "/tmp/old-workspace"
+
+
+def test_model_share_dir_helper_nests_under_model_candidate(monkeypatch):
+    monkeypatch.setenv("EXPERIMENT_AGENT_WORKSPACE_DIR", "/tmp/demo-workspace")
+    assert get_model_share_dir("demo") == "/tmp/demo-workspace/model_candidate/model_share"
+
+
+def test_resolve_local_dir_rejects_model_share_writes(tmp_path):
+    workspace = tmp_path / "workspace"
+    (workspace / "model_candidate" / "model_share").mkdir(parents=True)
+    with pytest.raises(ValueError, match="model_candidate/model_share"):
+        _resolve_local_dir("model_candidate/model_share/demo-model", str(workspace))
+
+
+def test_security_validator_allows_model_share_lexical_reads(tmp_path):
+    workspace = tmp_path / "workspace"
+    mounted = workspace / "model_candidate" / "model_share" / "demo-model"
+    mounted.mkdir(parents=True)
+    assert SecurityValidator.validate_path(str(mounted), str(workspace)) is True
+
+
+def test_ensure_experiment_dirs_creates_model_share_mount(tmp_path, monkeypatch):
+    workspace_root = tmp_path / "workspaces"
+    seed_root = tmp_path / "seed_models"
+    seed_root.mkdir()
+    monkeypatch.setenv("EXPERIMENT_AGENT_WORKSPACE_DIR", str(workspace_root / "demo"))
+
+    original = os.environ.get("EXPERIMENT_AGENT_WORKSPACE_DIR")
+    from src.agents.experiment_agent import config as experiment_config
+    original_root = experiment_config.BASE_WORKSPACES_DIR
+    original_cfg = experiment_config.get_workspace_config
+
+    def fake_workspace_cfg():
+        cfg = original_cfg()
+        cfg["root"] = str(workspace_root)
+        cfg["model_candidate_seed"] = str(seed_root)
+        return cfg
+
+    monkeypatch.setattr(experiment_config, "get_workspace_config", fake_workspace_cfg)
+    monkeypatch.setattr(experiment_config, "BASE_WORKSPACES_DIR", str(workspace_root))
+
+    paths = ensure_experiment_dirs("demo")
+    assert os.path.isdir(paths["model_dir"])
+    assert os.path.islink(paths["model_share_dir"])
+    assert os.path.realpath(paths["model_share_dir"]) == os.path.realpath(str(seed_root))

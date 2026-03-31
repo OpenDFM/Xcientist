@@ -57,7 +57,7 @@ def register_ablation_report_integrator() -> None:
         register_agent(
             name=EXPERIMENT_ABLATION_REPORT_INTEGRATOR,
             factory_func=create_ablation_report_integrator_agent,
-            description="Reads idea and ablation evidence, then writes the final ablation_results.json artifact.",
+            description="Reads idea and ablation evidence, then writes the final canonical ablation_results.json artifact after master convergence.",
         )
     except ValueError:
         pass

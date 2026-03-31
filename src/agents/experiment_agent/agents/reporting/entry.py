@@ -23,9 +23,9 @@ from src.agents.experiment_agent.runtime.idea_components import (
     find_idea_json_path,
 )
 from src.agents.experiment_agent.runtime.ablation_results import (
-    write_ablation_results_artifacts,
+    build_ablation_final_artifact_contract,
 )
-from src.agents.experiment_agent.runtime.manifests import artifact_paths, workspace_contract_paths
+from src.agents.experiment_agent.runtime.manifests import artifact_paths, workspace_contract_paths, write_json_file
 from src.agents.experiment_agent.skills import get_worker_agent_context
 
 
@@ -185,37 +185,15 @@ Requirements:
             return False
         return True
 
-    def _try_deterministic_materialization(self) -> Dict[str, Any]:
-        return write_ablation_results_artifacts(
-            workspace_root=self.workspace_root,
-            project_root=self.project_root,
-            generated_by="ablation_report_integrator_runtime",
-            ablation_results_path=self.ablation_json_path,
-            integrator_report_path=self.integrator_report_path,
+    def _write_final_artifact_contract(self) -> str:
+        contract = build_ablation_final_artifact_contract(
+            self.workspace_root,
+            idea_json_path=self.idea_json_path,
         )
+        return write_json_file(self.paths["final_artifact_contract"], contract)
 
     async def execute(self) -> Dict[str, Any]:
-        if self._artifact_valid() and os.path.exists(self.integrator_report_path):
-            return {
-                "output": "Existing ablation results artifact is already valid.",
-                "ablation_results_path": self.ablation_json_path,
-                "integrator_report_path": self.integrator_report_path,
-                "final_artifact_contract_path": self.paths["final_artifact_contract"],
-                "valid": True,
-                "mode": "existing",
-            }
-
-        deterministic_result = self._try_deterministic_materialization()
-        if deterministic_result.get("valid") and self._artifact_valid():
-            return {
-                "output": "Deterministic ablation-results materialization succeeded.",
-                "ablation_results_path": self.ablation_json_path,
-                "integrator_report_path": self.integrator_report_path,
-                "final_artifact_contract_path": deterministic_result.get("final_artifact_contract_path"),
-                "valid": True,
-                "mode": "deterministic",
-            }
-
+        final_artifact_contract_path = self._write_final_artifact_contract()
         for stale_path in (self.ablation_json_path, self.integrator_report_path):
             if os.path.exists(stale_path):
                 try:
@@ -230,10 +208,9 @@ Requirements:
             "output": self._extract_output(result),
             "ablation_results_path": self.ablation_json_path,
             "integrator_report_path": self.integrator_report_path,
-            "final_artifact_contract_path": self.paths["final_artifact_contract"],
+            "final_artifact_contract_path": final_artifact_contract_path,
             "valid": self._artifact_valid(),
-            "mode": "llm_fallback",
-            "deterministic_blocker": deterministic_result.get("blocker"),
+            "mode": "agent_write",
         }
 
 
