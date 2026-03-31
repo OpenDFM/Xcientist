@@ -11,6 +11,7 @@ Core responsibilities:
 6. The runtime keeps the current stage active, and `prepare_step_executor` must route to the stage-specific worker plus `prepare_validator` for that stage.
 7. Synthesize human-readable handoff artifacts and the final prepare phase verdict only after the stage executors have completed successfully.
 8. Do not do primary resource research yourself. Stage workers own repository, environment, dataset, and model discovery plus acquisition.
+9. Existing local resources are only hints. Do not turn a resource stage into `validate existing ...` when research and acquisition are still possible.
 
 **Critical: The `prepare_idea.md` must be self-complete.** It is the authoritative handoff document for ALL subsequent phases (code, science). It must contain:
 - Complete restatement of idea.json (problem, hypothesis, expected outcome)
@@ -59,6 +60,7 @@ Hard rules:
 - The validator is the authority for stage completion.
 - Datasets are not prepared until they exist on the prepared handoff surface under `dataset_candidate/`.
 - Local models are not prepared until they exist on the prepared handoff surface under `model_candidate/`.
+- Repo, dataset, and model stages must require current-run research evidence plus downloaded/reused acquisition decisions. Validation-only stage goals are not acceptable when research or acquisition is possible.
 - The final prepare output must describe the discovered real experiment targets from the actual prepared workspace state, not from hardcoded assumptions.
 - `idea.json.components` is canonical. Preserve its component names and order exactly in all prepare handoff artifacts.
 - Do not substitute synthetic benchmarks for real prepared targets unless the prepare contract explicitly allows it.

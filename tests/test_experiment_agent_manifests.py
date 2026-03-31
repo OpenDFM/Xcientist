@@ -210,6 +210,11 @@ def test_prepare_prompt_uses_phase_local_worker_and_validator(tmp_path):
     assert "prepare_target_inventory.json" in prompt
     assert "OPENAI_API_KEY" in prompt
     assert "OPENAI_API_BASE" in prompt
+    assert "Existing local resources are only hints" in prompt
+    assert "validate existing" in prompt
+    assert "research_required" in prompt
+    assert "acquisition_required" in prompt
+    assert "existing_local_hints" in prompt
     assert "results_dir" in prompt
     assert "agent_reports_dir" in prompt
     assert "## Canonical Idea Components" in prompt

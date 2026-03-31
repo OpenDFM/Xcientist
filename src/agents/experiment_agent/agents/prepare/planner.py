@@ -200,6 +200,7 @@ class PrepareAgent(BaseAgent):
                 "Treat validator verdicts as binding.",
                 "Keep code under `project_dir`, datasets under `dataset_dir`, and reserve `results_dir` for later experiment outputs.",
                 "Do not perform primary resource research yourself. Stage workers own discovery and acquisition authority.",
+                "Existing local repos, datasets, models, and environments are only hints. They must not cause the plan to collapse into validate-only stages.",
             ],
             ordered=False,
         )
@@ -229,6 +230,7 @@ class PrepareAgent(BaseAgent):
                 "Synthesis stage must only summarize validated facts and exact real experiment targets, write `prepare_target_inventory.json`, then produce the phase-level prepare verdict.",
                 "Synthesis stage must write `prepare_idea.md` with the exact canonical component list from `idea.json.components` in the same order.",
                 "Each stage contract must define a flat `*_contract.json` path plus a flat `*_executor_report.json` path under `agent_reports/`.",
+                "For repo, dataset, and model stages, the contract must not reduce the stage goal to `validate existing` or equivalent wording when external research or acquisition is still possible.",
             ],
             ordered=False,
         )
@@ -238,6 +240,11 @@ class PrepareAgent(BaseAgent):
         pb.add_text(stage_contract_fields)
         pb.add_text(
             f"The synthesis stage must use `{kwargs.get('reports_dir')}/prepare_validator_report.json` as its phase-level validator verdict path."
+        )
+        pb.add_text(
+            "Set `research_required: true` for repos/env/dataset/model stages. "
+            "Set `acquisition_required: true` for repos/dataset/model stages whenever any validated relevant target can be downloaded, refreshed, or reused. "
+            "Use `existing_local_hints` only to point workers at possible reusable assets, never to justify a validate-only stage goal."
         )
 
         pb.add_header("Path Contract", level=2)
@@ -278,6 +285,7 @@ class PrepareAgent(BaseAgent):
                 "If a target is still ambiguous, record the ambiguity explicitly instead of inventing a canonical name.",
                 "When you describe components in `prepare_idea.md`, copy the exact component names and order from `idea.json.components`.",
                 "For repos, datasets, and models, prefer acquiring the validated relevant set instead of stopping at discovery-only notes when acquisition is possible.",
+                "Do not treat pre-staged workspace contents as sufficient by themselves. They must still be justified through current-stage research and recorded as reused assets when selected.",
             ],
             ordered=False,
         )

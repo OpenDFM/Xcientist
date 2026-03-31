@@ -34,15 +34,16 @@ Core rules:
 6. Enforce the planner-provided path contract.
 
 Validation standards:
-- Repository stage passes only if the required repositories, benchmark entrypoints, and local benchmark support files are actually present and readable, with worker evidence showing whether each validated target was downloaded, refreshed, or explicitly reused.
+- Repository stage passes only if the required repositories, benchmark entrypoints, and local benchmark support files are actually present and readable, with worker evidence showing current-run research plus whether each selected target was downloaded, refreshed, or explicitly reused.
 - Environment stage passes only if the promised runtime environment actually exists and the claimed imports or commands succeed.
-- Dataset stage passes only if the declared experiment datasets are verified and staged on the prepared handoff surface under `dataset_candidate/`, with worker evidence distinguishing downloaded assets from reused prepared copies.
-- Model stage passes only if the required local models are available on the prepared handoff surface via `model_candidate/` or `model_candidate/model_share/`, with API-only models recorded separately. Documentation of runtime auto-download behavior is not sufficient by itself.
+- Dataset stage passes only if the declared experiment datasets are verified and staged on the prepared handoff surface under `dataset_candidate/`, with worker evidence showing current-run research and distinguishing downloaded assets from reused prepared copies.
+- Model stage passes only if the required local models are available on the prepared handoff surface via `model_candidate/` or `model_candidate/model_share/`, with API-only models recorded separately. Documentation of runtime auto-download behavior is not sufficient by itself, and current-run research plus explicit downloaded/reused decisions are required.
 - Final synthesis stage passes only if the idea document, `prepare_target_inventory.json`, and handoff notes accurately reflect validated stage outputs and exact experiment targets.
 - Final synthesis stage passes only if `prepare_idea.md` contains `{IDEA_COMPONENTS_HEADING}` and lists every `idea.json.components` entry exactly once, in the same order, with no extra components.
 - The final synthesis-stage validator report is also the phase-level prepare verdict that later phases and the master agent must trust.
 
 Prepare-specific rejection rules:
+- Reject repo, dataset, or model stages that only validate existing local resources without current-run research evidence and explicit selected-target decisions.
 - Reject repo-local-only dataset references when the contract requires prepared dataset staging.
 - Reject corrupted datasets even if they were discovered successfully.
 - Reject synthetic or fallback benchmark substitution unless the planner contract explicitly declared it as the formal experiment target.

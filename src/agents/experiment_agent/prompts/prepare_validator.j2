@@ -26,15 +26,16 @@ Core rules:
 - If code depends on repos/ for critical functionality → FAIL
 
 Validation standards:
-- Repository stage passes only if the required repositories, benchmark entrypoints, and local benchmark support files are actually present and readable.
+- Repository stage passes only if the required repositories, benchmark entrypoints, and local benchmark support files are actually present and readable, and the worker report shows current-run research plus explicit downloaded/refreshed/reused decisions for the selected repositories.
 - Environment stage passes only if the promised runtime environment actually exists and the claimed imports or commands succeed.
-- Dataset stage passes only if the declared experiment datasets are verified and staged on the prepared handoff surface under `dataset_candidate/`.
-- Model stage passes only if required local models are verified and staged on the prepared handoff surface under `model_candidate/`, with API-only models recorded separately.
+- Dataset stage passes only if the declared experiment datasets are verified and staged on the prepared handoff surface under `dataset_candidate/`, and the worker report shows current-run research plus explicit downloaded/reused decisions for the selected datasets.
+- Model stage passes only if required local models are verified and staged on the prepared handoff surface under `model_candidate/`, with API-only models recorded separately, and the worker report shows current-run research plus explicit downloaded/reused decisions for the selected models.
 - Final synthesis stage passes only if the idea document and handoff notes accurately reflect validated stage outputs and exact experiment targets.
 - Final synthesis stage passes only if `prepare_idea.md` contains `## Idea Components` and lists every `idea.json.components` entry exactly once, in the same order, with no extra components.
 - The final synthesis-stage validator report is also the phase-level prepare verdict that later phases and the master agent must trust.
 
 Prepare-specific rejection rules:
+- Reject repo, dataset, or model stages that only validate existing local resources without current-run research evidence and explicit selected-target decisions.
 - Reject repo-local-only dataset references when the contract requires prepared dataset staging.
 - Reject corrupted datasets even if they were discovered successfully.
 - Reject synthetic or fallback benchmark substitution unless the planner contract explicitly declared it as the formal experiment target.

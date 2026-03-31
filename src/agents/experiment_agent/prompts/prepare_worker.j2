@@ -35,6 +35,7 @@ Prepare-specific requirements:
 - Final synthesis stage: write idea documentation and lightweight handoff notes only from completed worker and validator evidence. Do not invent missing resources.
 - Final synthesis stage: copy the exact ordered component list from `idea.json.components` into `prepare_idea.md` under `## Idea Components`. Do not rename, merge, split, or reorder components.
 - Do not place benchmark outputs under `results_dir` during prepare.
+- For repo, dataset, and model stages, do current-run research first. Existing local resources are only reusable hints, not enough by themselves to complete the stage.
 
 **Report requirements** - You MUST produce:
 1. `<stage>_worker_report.json` - Your worker report with:
@@ -51,12 +52,14 @@ Evidence requirements:
 - Record the concrete paths you verified.
 - Record blocked items separately from completed items.
 - Distinguish observed facts from recommendations.
+- Explicitly record `researched_candidates`, `selected_targets`, `downloaded_assets`, `reused_assets`, `skipped_candidates`, and `selection_rationale` for repo, dataset, and model stages.
 
 Failure rules:
 - Never claim the whole prepare phase is complete.
 - Never mark a dataset as ready if it is corrupted, unstaged, or missing from the prepared handoff surface.
 - Never use vague targets such as "OpenAI model" or "benchmark script"; record exact model names, env vars, dataset files, and entrypoints.
 - If you report `OPENAI_API_KEY` as required anywhere, you must also report the paired `OPENAI_API_BASE` entry and explain which component uses the pair.
+- Never treat pre-staged local resources as sufficient without recording current-run research evidence and explicit downloaded/reused decisions.
 - Never let `prepare_idea.md` omit, duplicate, rename, or reorder the canonical idea components.
 - Never place runnable project code outside `project_dir`.
 

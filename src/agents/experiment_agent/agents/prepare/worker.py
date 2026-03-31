@@ -41,6 +41,7 @@ Hard prepare rules:
 - Never use editable installs, local-path installs, import-path injection, or copied repo code to satisfy project requirements.
 - Never claim the whole prepare phase is complete; report only the current stage outcome.
 - Stage reports must separate researched candidates, selected targets, downloaded assets, reused assets, and skipped candidates.
+- Stage reports must not stop at `validated existing resources`. For repo, dataset, and model stages, explicitly record current-run research evidence, selection rationale, and whether each selected target was downloaded, refreshed, or reused.
 """
 
 

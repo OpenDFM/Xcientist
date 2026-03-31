@@ -23,6 +23,9 @@ PREPARE_STAGE_CONTRACT_FIELDS: Tuple[str, ...] = (
     "validator_report_path",
     "repos_policy",
     "project_must_be_self_contained",
+    "research_required",
+    "acquisition_required",
+    "existing_local_hints",
     "max_repair_rounds",
     "done_condition",
 )

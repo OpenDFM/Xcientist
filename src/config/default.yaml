@@ -167,7 +167,7 @@ idea:
 
   run:
     LigAgent-Pro: true
-    input: "${idea.idea}"
+    input: "${idea.input}"
     topic: "${idea.topic}"
     mature_idea: "${idea.mature_idea}"
     refinement_scope: "${idea.refinement_scope}"
