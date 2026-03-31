@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
@@ -20,7 +19,13 @@ from src.agents.experiment_agent.agents.prepare.step_executor import (
     create_prepare_step_executor_agent,
 )
 from src.agents.experiment_agent.agents.prepare.validator import PREPARE_VALIDATOR
-from src.agents.experiment_agent.agents.prepare.worker import PREPARE_WORKER
+from src.agents.experiment_agent.agents.prepare.worker import (
+    PREPARE_DATASET_WORKER,
+    PREPARE_ENV_WORKER,
+    PREPARE_MODEL_WORKER,
+    PREPARE_REPO_WORKER,
+    PREPARE_SYNTHESIS_WORKER,
+)
 from src.agents.experiment_agent.config import (
     ensure_experiment_dirs,
     get_planner_max_turns,
@@ -49,19 +54,20 @@ class PrepareReport:
     project_dir: str
     repos_dir: str
     dataset_dir: str
+    model_dir: str
     results_dir: str
     reports_dir: str
     idea_md_path: str
 
 
 class PrepareAgent(BaseAgent):
-    PREPARE_DEFAULT_MCP_SERVERS = ["fetch", "github"]
+    PREPARE_DEFAULT_MCP_SERVERS = ["fetch", "github", "tavily"]
     SYSTEM_PROMPT_TEMPLATE = "prepare_agent.j2"
     PREPARE_STAGE_SPECS = [
         {
             "stage_id": "repos",
             "executor_type": PREPARE_STEP_EXECUTOR,
-            "worker_type": PREPARE_WORKER,
+            "worker_type": PREPARE_REPO_WORKER,
             "validator_type": PREPARE_VALIDATOR,
             "worker_report_filename": "prepare_repo_worker_report.json",
             "validator_report_filename": "prepare_repo_validator_report.json",
@@ -70,7 +76,7 @@ class PrepareAgent(BaseAgent):
         {
             "stage_id": "env",
             "executor_type": PREPARE_STEP_EXECUTOR,
-            "worker_type": PREPARE_WORKER,
+            "worker_type": PREPARE_ENV_WORKER,
             "validator_type": PREPARE_VALIDATOR,
             "worker_report_filename": "prepare_env_worker_report.json",
             "validator_report_filename": "prepare_env_validator_report.json",
@@ -79,16 +85,25 @@ class PrepareAgent(BaseAgent):
         {
             "stage_id": "dataset",
             "executor_type": PREPARE_STEP_EXECUTOR,
-            "worker_type": PREPARE_WORKER,
+            "worker_type": PREPARE_DATASET_WORKER,
             "validator_type": PREPARE_VALIDATOR,
             "worker_report_filename": "prepare_dataset_worker_report.json",
             "validator_report_filename": "prepare_dataset_validator_report.json",
             "goal": "dataset staging under dataset_candidate and exact target declaration",
         },
         {
+            "stage_id": "model",
+            "executor_type": PREPARE_STEP_EXECUTOR,
+            "worker_type": PREPARE_MODEL_WORKER,
+            "validator_type": PREPARE_VALIDATOR,
+            "worker_report_filename": "prepare_model_worker_report.json",
+            "validator_report_filename": "prepare_model_validator_report.json",
+            "goal": "model staging under model_candidate and exact target declaration",
+        },
+        {
             "stage_id": "synthesis",
             "executor_type": PREPARE_STEP_EXECUTOR,
-            "worker_type": PREPARE_WORKER,
+            "worker_type": PREPARE_SYNTHESIS_WORKER,
             "validator_type": PREPARE_VALIDATOR,
             "worker_report_filename": "prepare_handoff_worker_report.json",
             "validator_report_filename": "prepare_validator_report.json",
@@ -150,12 +165,6 @@ class PrepareAgent(BaseAgent):
         pb = PromptBuilder()
         stage_contract_fields = format_field_bullets(PREPARE_STAGE_CONTRACT_FIELDS)
         verdict_fields = format_field_bullets(PHASE_VERDICT_FIELDS)
-        candidate_env_vars = kwargs.get("candidate_env_vars") or []
-        env_var_display = (
-            "\n".join(f"- {name}" for name in candidate_env_vars)
-            if candidate_env_vars
-            else "- (none detected)"
-        )
 
         pb.add_header("Prepare Workspace Task", level=1)
         pb.add_key_value("experiment_id", str(kwargs.get("experiment_id") or ""))
@@ -164,6 +173,7 @@ class PrepareAgent(BaseAgent):
         pb.add_key_value("project_dir", str(kwargs.get("project_dir") or ""))
         pb.add_key_value("repos_dir", str(kwargs.get("repos_dir") or ""))
         pb.add_key_value("dataset_dir", str(kwargs.get("dataset_dir") or ""))
+        pb.add_key_value("model_dir", str(kwargs.get("model_dir") or ""))
         pb.add_key_value("results_dir", str(kwargs.get("results_dir") or ""))
         pb.add_key_value("agent_reports_dir", str(kwargs.get("reports_dir") or ""))
         pb.add_text("")
@@ -185,9 +195,10 @@ class PrepareAgent(BaseAgent):
                 "Prepare a real execution surface for the experiment, not just a discovery summary.",
                 "Ground all later phases in exact prepared targets: exact model ids, exact env vars, exact dataset files, and exact benchmark entrypoints.",
                 "Carry the exact `idea.json.components` list forward into the handoff. Component names and order must not change.",
-                "Use `task` with `prepare_step_executor` for every stage. Each dispatched stage must run `prepare_worker` and `prepare_validator` for that stage under runtime-controlled retries.",
+                "Use `task` with `prepare_step_executor` for every stage. Each dispatched stage must route to the stage-specific worker and `prepare_validator` under runtime-controlled retries.",
                 "Treat validator verdicts as binding.",
                 "Keep code under `project_dir`, datasets under `dataset_dir`, and reserve `results_dir` for later experiment outputs.",
+                "Do not perform primary resource research yourself. Stage workers own discovery and acquisition authority.",
             ],
             ordered=False,
         )
@@ -197,11 +208,12 @@ class PrepareAgent(BaseAgent):
             [
                 "1. Inspect idea.json and current workspace state.",
                 "2. Write `agent_reports/prepare_plan.json` with explicit stage contracts and a matching `prepare_planner_report.json`.",
-                "3. Run repository stage via `prepare_step_executor`; the runtime keeps the stage active while `prepare_worker` and `prepare_validator` iterate on that stage.",
-                "4. Run environment stage via `prepare_step_executor`; the runtime keeps the stage active while `prepare_worker` and `prepare_validator` iterate on that stage.",
-                "5. Run dataset stage via `prepare_step_executor`; the runtime keeps the stage active while `prepare_worker` and `prepare_validator` iterate on that stage.",
-                "6. Run a synthesis stage via `prepare_step_executor` to produce the phase-level prepare verdict through the same `prepare_worker` and `prepare_validator` contract.",
-                "7. Re-open the generated outputs, self-check them against the validator evidence, then print the completion token.",
+                "3. Run repository stage via `prepare_step_executor`; it must route to `prepare_repo_worker` and `prepare_validator`.",
+                "4. Run environment stage via `prepare_step_executor`; it must route to `prepare_env_worker` and `prepare_validator`.",
+                "5. Run dataset stage via `prepare_step_executor`; it must route to `prepare_dataset_worker` and `prepare_validator`.",
+                "6. Run model stage via `prepare_step_executor`; it must route to `prepare_model_worker` and `prepare_validator`.",
+                "7. Run a synthesis stage via `prepare_step_executor`; it must route to `prepare_synthesis_worker` and `prepare_validator` to produce the phase-level prepare verdict.",
+                "8. Re-open the generated outputs, self-check them against the validator evidence, then print the completion token.",
             ],
             ordered=False,
         )
@@ -212,6 +224,7 @@ class PrepareAgent(BaseAgent):
                 "Repository stage must verify exact repos, benchmark code locations, and runnable entrypoints.",
                 "Environment stage must create or validate `project/venv` and record actual imports and commands.",
                 "Dataset stage must place final verified datasets under `dataset_candidate/` and reject repo-local-only handoff paths.",
+                "Model stage must place final verified local models under `model_candidate/` and record API-only models separately.",
                 "Synthesis stage must only summarize validated facts and exact real experiment targets, then produce the phase-level prepare verdict.",
                 "Synthesis stage must write `prepare_idea.md` with the exact canonical component list from `idea.json.components` in the same order.",
                 "Each stage contract must define a flat `*_contract.json` path plus a flat `*_executor_report.json` path under `agent_reports/`.",
@@ -230,7 +243,10 @@ class PrepareAgent(BaseAgent):
         pb.add_list(
             [
                 "All runnable project code must live under `project_dir`.",
+                "Every stage contract must set `repos_policy` to `reference_only` and `project_must_be_self_contained` to `true`.",
+                "Prepare may discover and inspect repositories under `repos/`, but it must never treat them as installable runtime dependencies for `project/`.",
                 "Prepared datasets must live under `dataset_dir`.",
+                "Prepared local models must live under `model_dir`.",
                 "Experiment outputs are reserved for `results_dir`; prepare must not place benchmark outputs there.",
                 "Planner, step executor, worker, validator, and handoff files must live under `agent_reports_dir`.",
                 "Use flat filenames only. Do not create subdirectories under `agent_reports_dir`.",
@@ -244,7 +260,7 @@ class PrepareAgent(BaseAgent):
                 "Each worker run must write the stage-specific worker report named in the stage contract.",
                 "Each validator run must write the stage-specific validator report named in the stage contract.",
                 "Each step executor run must write the stage-specific executor report named in the stage contract.",
-                "The runtime keeps the current stage active until validator-backed PASS, terminal blocker, or `max_repair_rounds` exhaustion; `prepare_step_executor` must pass validator findings back through `prepare_worker` and `prepare_validator` without dropping details.",
+                "The runtime keeps the current stage active until validator-backed PASS, terminal blocker, or `max_repair_rounds` exhaustion; `prepare_step_executor` must pass validator findings back through the stage-specific worker and `prepare_validator` without dropping details.",
                 "The final prepare validator report must represent the phase-level prepare verdict; later agents should not recompute prepare completeness from individual stage files.",
             ],
             ordered=False,
@@ -307,7 +323,7 @@ class PrepareAgent(BaseAgent):
 - Proxy configuration if needed]
 
 ## Resource Acquisition Log
-[Record of: which repos were cloned, which models were downloaded, which datasets were acquired, with actual paths verified]
+[Record of: which repos were cloned, which models were downloaded or reused from model_candidate seed, which datasets were acquired, with actual paths verified]
 
 ## Repository-to-Dataset Mapping
 [Mapping of: which repository provides which dataset, benchmark code locations, entry point commands]
@@ -330,9 +346,6 @@ class PrepareAgent(BaseAgent):
             "Do not describe any target as ready unless the matching validator evidence supports it."
         )
 
-        pb.add_header("Environment Variable Candidates", level=2)
-        pb.add_text(env_var_display)
-
         pb.add_header("HuggingFace Rule", level=2)
         pb.add_list(
             [
@@ -346,43 +359,6 @@ class PrepareAgent(BaseAgent):
         pb.add_header("Completion Token", level=2)
         pb.add_text("Finish by printing exactly: PREPARE COMPLETE")
         return pb.build()
-
-    def _extract_urls_from_text(self, text: str) -> Dict[str, List[str]]:
-        github_urls: List[str] = []
-        dataset_urls: List[str] = []
-        if not text:
-            return {"repos": github_urls, "datasets": dataset_urls}
-        github_pattern = r"https?://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"
-        hf_pattern = r"https?://huggingface\.co/datasets/[A-Za-z0-9_.\-/]+"
-        for match in re.findall(github_pattern, text):
-            clean = match.rstrip(").,;\"' ")
-            if clean not in github_urls:
-                github_urls.append(clean)
-        for match in re.findall(hf_pattern, text):
-            clean = match.rstrip(").,;\"' ")
-            if clean not in dataset_urls:
-                dataset_urls.append(clean)
-        return {"repos": github_urls, "datasets": dataset_urls}
-
-    def _detect_candidate_env_vars(self) -> List[str]:
-        keywords = [
-            "TOKEN",
-            "KEY",
-            "API",
-            "ENDPOINT",
-            "BASE_URL",
-            "PROXY",
-            "HF",
-            "HUGGINGFACE",
-            "GITHUB",
-            "CACHE",
-        ]
-        names = [
-            name
-            for name in os.environ.keys()
-            if any(keyword in name.upper() for keyword in keywords)
-        ]
-        return sorted(set(names))[:40]
 
     def _refresh_runtime_roots(self, workspace_dir: str) -> None:
         normalized = os.path.realpath(workspace_dir)
@@ -431,6 +407,7 @@ class PrepareAgent(BaseAgent):
         project_dir = contract["project_dir"]
         repos_dir = normalize_workspace_path(str(paths.get("repos_dir") or contract["repos_dir"]))
         dataset_dir = normalize_workspace_path(str(paths.get("dataset_dir") or contract["dataset_dir"]))
+        model_dir = normalize_workspace_path(str(paths.get("model_dir") or contract["model_dir"]))
         results_dir = normalize_workspace_path(str(paths.get("results_dir") or contract["results_dir"]))
         reports_dir = normalize_workspace_path(str(paths.get("reports_dir") or contract["agent_reports_dir"]))
         self._refresh_runtime_roots(workspace_dir)
@@ -462,7 +439,6 @@ class PrepareAgent(BaseAgent):
         summary: Dict[str, Any] = {
             "idea_json_content": data,
             "raw_idea_json_text": raw_json_text,
-            "auto_discovered_candidates": self._extract_urls_from_text(raw_json_text),
             "canonical_components": canonical_components,
         }
 
@@ -474,6 +450,7 @@ class PrepareAgent(BaseAgent):
                 project_dir=normalize_workspace_path(project_dir),
                 repos_dir=normalize_workspace_path(repos_dir),
                 dataset_dir=normalize_workspace_path(dataset_dir),
+                model_dir=normalize_workspace_path(model_dir),
                 results_dir=normalize_workspace_path(results_dir),
                 reports_dir=normalize_workspace_path(reports_dir),
                 idea_summary=summary,
@@ -482,7 +459,6 @@ class PrepareAgent(BaseAgent):
                 clone_depth=int(clone_depth),
                 skip_repos=bool(skip_repos),
                 skip_datasets=bool(skip_datasets),
-                candidate_env_vars=self._detect_candidate_env_vars(),
             ),
             system_prompt=self._build_system_prompt(),
             tools=self._get_tools(),
@@ -496,6 +472,7 @@ class PrepareAgent(BaseAgent):
             project_dir=os.path.realpath(project_dir),
             repos_dir=os.path.realpath(repos_dir),
             dataset_dir=os.path.realpath(dataset_dir),
+            model_dir=os.path.realpath(model_dir),
             results_dir=os.path.realpath(results_dir),
             reports_dir=os.path.realpath(reports_dir),
             idea_md_path=os.path.realpath(idea_md_path),

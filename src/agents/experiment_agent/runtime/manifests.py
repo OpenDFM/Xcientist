@@ -18,6 +18,7 @@ def workspace_contract_paths(workspace_root: str, project_root: Optional[str] = 
     project_dir = os.path.realpath(project_root or os.path.join(workspace_dir, "project"))
     repos_dir = os.path.join(workspace_dir, "repos")
     dataset_dir = os.path.join(workspace_dir, "dataset_candidate")
+    model_dir = os.path.join(workspace_dir, "model_candidate")
     results_dir = os.path.join(workspace_dir, "results")
     agent_reports_dir = os.path.join(workspace_dir, "agent_reports")
     return {
@@ -25,6 +26,7 @@ def workspace_contract_paths(workspace_root: str, project_root: Optional[str] = 
         "project_dir": project_dir,
         "repos_dir": repos_dir,
         "dataset_dir": dataset_dir,
+        "model_dir": model_dir,
         "results_dir": results_dir,
         "standard_results_dir": os.path.join(results_dir, "standard"),
         "ablation_results_dir": os.path.join(results_dir, "ablation"),
@@ -67,6 +69,8 @@ def artifact_paths(workspace_root: str, project_root: Optional[str] = None) -> D
         "prepare_env_validator": os.path.join(reports_dir, "prepare_env_validator_report.json"),
         "prepare_dataset_worker": os.path.join(reports_dir, "prepare_dataset_worker_report.json"),
         "prepare_dataset_validator": os.path.join(reports_dir, "prepare_dataset_validator_report.json"),
+        "prepare_model_worker": os.path.join(reports_dir, "prepare_model_worker_report.json"),
+        "prepare_model_validator": os.path.join(reports_dir, "prepare_model_validator_report.json"),
         "prepare_handoff_worker": os.path.join(reports_dir, "prepare_handoff_worker_report.json"),
         "prepare_validator": os.path.join(reports_dir, "prepare_validator_report.json"),
         "code_worker": os.path.join(reports_dir, "code_worker_report.json"),
@@ -79,6 +83,7 @@ def artifact_paths(workspace_root: str, project_root: Optional[str] = None) -> D
         ),
         "master_decision": os.path.join(reports_dir, "master_decision.json"),
         "runtime_phase_state": os.path.join(reports_dir, "runtime_phase_state.json"),
+        "self_contained_report": os.path.join(reports_dir, "self_contained_report.json"),
         "execution_budget": os.path.join(reports_dir, "execution_budget.json"),
         "blocker_state": os.path.join(reports_dir, "blocker_state.json"),
         "step_attempt_state": os.path.join(reports_dir, "step_attempt_state.json"),

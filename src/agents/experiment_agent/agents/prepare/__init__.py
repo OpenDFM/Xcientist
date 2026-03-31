@@ -13,7 +13,16 @@ from src.agents.experiment_agent.agents.prepare.step_executor import (
 )
 from src.agents.experiment_agent.agents.prepare.worker import (
     PREPARE_WORKER,
-    create_prepare_worker_agent,
+    PREPARE_DATASET_WORKER,
+    PREPARE_ENV_WORKER,
+    PREPARE_MODEL_WORKER,
+    PREPARE_REPO_WORKER,
+    PREPARE_SYNTHESIS_WORKER,
+    create_prepare_dataset_worker_agent,
+    create_prepare_env_worker_agent,
+    create_prepare_model_worker_agent,
+    create_prepare_repo_worker_agent,
+    create_prepare_synthesis_worker_agent,
 )
 
 __all__ = [
@@ -21,9 +30,18 @@ __all__ = [
     "PrepareReport",
     "PREPARE_STEP_EXECUTOR",
     "PREPARE_WORKER",
+    "PREPARE_REPO_WORKER",
+    "PREPARE_ENV_WORKER",
+    "PREPARE_DATASET_WORKER",
+    "PREPARE_MODEL_WORKER",
+    "PREPARE_SYNTHESIS_WORKER",
     "PREPARE_VALIDATOR",
     "create_prepare_step_executor_agent",
-    "create_prepare_worker_agent",
+    "create_prepare_repo_worker_agent",
+    "create_prepare_env_worker_agent",
+    "create_prepare_dataset_worker_agent",
+    "create_prepare_model_worker_agent",
+    "create_prepare_synthesis_worker_agent",
     "create_prepare_validator_agent",
     "run_prepare",
 ]

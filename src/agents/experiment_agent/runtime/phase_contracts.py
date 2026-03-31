@@ -156,10 +156,19 @@ def normalize_phase_report(
             "artifact_role": default_artifact_role,
             "run_level": default_run_level,
             "terminal_blocker": False,
+            "self_contained_project": None,
+            "self_contained_violations": [],
         }
 
     blocking_issues = phase_blocking_issues(payload)
     required_followup = _normalize_text_list(payload.get("required_followup"))
+    self_contained_value = payload.get("self_contained_project")
+    self_contained_project = (
+        bool(self_contained_value)
+        if isinstance(self_contained_value, bool)
+        else None
+    )
+    self_contained_violations = _normalize_text_list(payload.get("self_contained_violations"))
     return {
         "status": phase_report_status(payload),
         "phase_completion_status": infer_phase_completion_status(payload),
@@ -175,6 +184,8 @@ def normalize_phase_report(
             default_level=default_run_level,
         ),
         "terminal_blocker": bool(payload.get("terminal_blocker")),
+        "self_contained_project": self_contained_project,
+        "self_contained_violations": self_contained_violations,
     }
 
 

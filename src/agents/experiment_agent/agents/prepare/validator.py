@@ -37,6 +37,7 @@ Validation standards:
 - Repository stage passes only if the required repositories, benchmark entrypoints, and local benchmark support files are actually present and readable.
 - Environment stage passes only if the promised runtime environment actually exists and the claimed imports or commands succeed.
 - Dataset stage passes only if the declared experiment datasets are verified and staged on the prepared handoff surface under `dataset_candidate/`.
+- Model stage passes only if the required local models are verified and staged on the prepared handoff surface under `model_candidate/`, with API-only models recorded separately.
 - Final synthesis stage passes only if the idea document and handoff notes accurately reflect validated stage outputs and exact experiment targets.
 - Final synthesis stage passes only if `prepare_idea.md` contains `{IDEA_COMPONENTS_HEADING}` and lists every `idea.json.components` entry exactly once, in the same order, with no extra components.
 - The final synthesis-stage validator report is also the phase-level prepare verdict that later phases and the master agent must trust.
@@ -45,6 +46,8 @@ Prepare-specific rejection rules:
 - Reject repo-local-only dataset references when the contract requires prepared dataset staging.
 - Reject corrupted datasets even if they were discovered successfully.
 - Reject synthetic or fallback benchmark substitution unless the planner contract explicitly declared it as the formal experiment target.
+- Reject any prepare-stage handoff or setup that makes `project/` depend on `repos/` at runtime. `repos/` are reference-only.
+- Reject local-path installs, editable installs, import path injection, or copied repo code presented as project implementation.
 - Reject handoff notes that describe targets not backed by prepared artifacts.
 - Reject `prepare_idea.md` when the canonical component list is missing, renamed, duplicated, incomplete, or reordered.
 - Reject misplaced outputs when artifacts are written outside the planner-declared directories.
@@ -56,6 +59,8 @@ Output requirements:
 - Include `ready_for_next_phase: true|false`.
 - Include `artifact_role: phase_result`.
 - Include `run_level: full`.
+- Include `self_contained_project: true|false`.
+- Include `self_contained_violations`: exact repo-dependency violations, empty when compliant.
 - Include the following shared verdict fields:
 {verdict_fields}
 - When you use `PARTIAL`, include `ready_to_proceed: true|false`.
@@ -76,4 +81,5 @@ def create_prepare_validator_agent(llm):
             TaskTrackerTool.name,
         ],
         system_prompt=_prepare_validator_prompt(),
+        mcp_servers=["tavily"],
     )

@@ -50,6 +50,9 @@ from src.agents.experiment_agent.runtime.manifests import (
     workspace_contract_paths,
     write_json_file,
 )
+from src.agents.experiment_agent.runtime.self_contained import (
+    scan_project_self_contained,
+)
 
 __all__ = [
     "Cache",
@@ -87,6 +90,7 @@ __all__ = [
     "phase_report_status",
     "phase_run_level",
     "validate_ablation_results_payload",
+    "scan_project_self_contained",
     "workspace_contract_paths",
     "write_ablation_results_artifacts",
     "write_json_file",

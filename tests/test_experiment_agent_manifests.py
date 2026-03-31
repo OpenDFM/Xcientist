@@ -124,7 +124,11 @@ def test_runtime_artifact_paths_focus_on_validator_backed_outputs(tmp_path):
     assert paths["final_artifact_contract"].endswith(os.path.join("agent_reports", "final_artifact_contract.json"))
     assert not paths["ablation_results"].endswith(os.path.join("results", "ablation_results.json"))
     assert "prepare_validator" in paths
+    assert "self_contained_report" in paths
     assert "prepare_repo_validator" in paths
+    assert "prepare_model_worker" in paths
+    assert "prepare_model_validator" in paths
+    assert paths["model_dir"].endswith("model_candidate")
     assert "code_validator" in paths
     assert "standard_science_validator" in paths
     assert "prepare_manifest" not in paths
@@ -179,6 +183,7 @@ def test_prepare_prompt_uses_phase_local_worker_and_validator(tmp_path):
         project_dir=str(tmp_path / "project"),
         repos_dir=str(tmp_path / "repos"),
         dataset_dir=str(tmp_path / "dataset_candidate"),
+        model_dir=str(tmp_path / "model_candidate"),
         results_dir=str(tmp_path / "results"),
         reports_dir=str(tmp_path / "agent_reports"),
         idea_summary={},
@@ -191,9 +196,11 @@ def test_prepare_prompt_uses_phase_local_worker_and_validator(tmp_path):
     )
     assert "`task`" in prompt
     assert "prepare_step_executor" in prompt
-    assert "prepare_worker" in prompt
+    assert "prepare_repo_worker" in prompt
+    assert "prepare_model_worker" in prompt
     assert "prepare_validator" in prompt
     assert "dataset_candidate/" in prompt
+    assert "model_candidate/" in prompt
     assert "results_dir" in prompt
     assert "agent_reports_dir" in prompt
     assert "## Canonical Idea Components" in prompt
@@ -227,7 +234,7 @@ def test_bounded_file_editor_action_exposes_targeted_commands():
 
 
 def test_experiment_agents_disable_filesystem_mcp_by_default():
-    assert PrepareAgent.PREPARE_DEFAULT_MCP_SERVERS == ["fetch", "github"]
+    assert PrepareAgent.PREPARE_DEFAULT_MCP_SERVERS == ["fetch", "github", "tavily"]
     assert CodeAgent.CODE_DEFAULT_MCP_SERVERS == []
     assert StandardScienceAgent.SCIENCE_DEFAULT_MCP_SERVERS == []
     assert AblationScienceAgent.SCIENCE_DEFAULT_MCP_SERVERS == []
@@ -259,13 +266,14 @@ def test_experiment_agent_mcp_configs_exclude_thinking_server(tmp_path):
     )
 
     prepare_mcp = prepare_agent._build_mcp_config()["mcpServers"]
-    assert sorted(prepare_mcp.keys()) == ["fetch", "github"]
+    assert "fetch" in prepare_mcp
+    assert "github" in prepare_mcp
     assert "thinking" not in prepare_mcp
     assert "thinking" not in code_agent._build_mcp_config()["mcpServers"]
     assert "thinking" not in master_agent._build_mcp_config()["mcpServers"]
 
 
-def test_phase_and_planner_subagent_factories_force_builtin_think_and_empty_mcp(monkeypatch):
+def test_phase_and_planner_subagent_factories_force_builtin_think_and_prepare_mcp(monkeypatch):
     captured = {}
 
     class DummyAgent:
@@ -281,9 +289,11 @@ def test_phase_and_planner_subagent_factories_force_builtin_think_and_empty_mcp(
         role="prepare_worker",
         tool_names=["terminal"],
         system_prompt="test",
+        mcp_servers=["tavily"],
     )
     assert captured["include_default_tools"] == ["FinishTool", "ThinkTool"]
-    assert "mcp_config" not in captured
+    if "mcp_config" in captured:
+        assert captured["mcp_config"]["mcpServers"].keys() == {"tavily"}
 
     monkeypatch.setattr(
         "src.agents.experiment_agent.agents.code.planner.Agent",
@@ -352,10 +362,11 @@ def test_prepare_stage_specs_use_phase_local_subagents():
         for spec in PrepareAgent.PREPARE_STAGE_SPECS
     ]
     assert observed_triplets == [
-        ("prepare_step_executor", "prepare_worker", "prepare_validator"),
-        ("prepare_step_executor", "prepare_worker", "prepare_validator"),
-        ("prepare_step_executor", "prepare_worker", "prepare_validator"),
-        ("prepare_step_executor", "prepare_worker", "prepare_validator"),
+        ("prepare_step_executor", "prepare_repo_worker", "prepare_validator"),
+        ("prepare_step_executor", "prepare_env_worker", "prepare_validator"),
+        ("prepare_step_executor", "prepare_dataset_worker", "prepare_validator"),
+        ("prepare_step_executor", "prepare_model_worker", "prepare_validator"),
+        ("prepare_step_executor", "prepare_synthesis_worker", "prepare_validator"),
     ]
 
 

@@ -118,6 +118,7 @@ Hard rules:
 Input paths:
 - idea_json_path: {self.idea_json_path}
 - agent_reports_dir: {self.contract['agent_reports_dir']}
+- model_dir: {self.contract['model_dir']}
 - ablation_results_dir: {self.contract['ablation_results_dir']}
 
 Output paths:

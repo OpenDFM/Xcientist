@@ -35,6 +35,8 @@ def create_phase_subagent(
     tool_names: Iterable[str],
     system_prompt: str,
     extra_skills: Optional[List[Skill]] = None,
+    mcp_servers: Optional[Iterable[str]] = None,
+    workspace_root: Optional[str] = None,
 ) -> Agent:
     # __file__ is .../src/agents/experiment_agent/agents/base/subagents.py
     # 3 dirname calls gives .../src/agents/experiment_agent
@@ -46,10 +48,24 @@ def create_phase_subagent(
         skills=[*base_context.skills, *(extra_skills or [])],
         load_public_skills=False,
     )
-    return Agent(
+    agent_kwargs = dict(
         llm=llm,
         tools=build_tool_list(tool_names),
         agent_context=agent_context,
-        system_prompt_filename=template_path,
         include_default_tools=default_builtin_tool_names(),
+    )
+    if os.path.isfile(template_path):
+        agent_kwargs["system_prompt_filename"] = template_path
+    else:
+        agent_kwargs["system_prompt"] = system_prompt
+    from src.agents.experiment_agent.agents.base.agent import build_experiment_mcp_config
+
+    mcp_config = build_experiment_mcp_config(
+        workspace_root=workspace_root or os.environ.get("EXPERIMENT_AGENT_WORKSPACE_DIR") or os.getcwd(),
+        allowed_servers=list(mcp_servers or []),
+    )
+    if mcp_config:
+        agent_kwargs["mcp_config"] = mcp_config
+    return Agent(
+        **agent_kwargs,
     )

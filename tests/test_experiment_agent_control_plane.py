@@ -29,6 +29,7 @@ if HAS_EXPERIMENT_DEPS:
         build_ablation_results_artifacts,
     )
     from src.agents.experiment_agent.runtime.manifests import artifact_paths, load_workspace_state
+    from src.agents.experiment_agent.tools.bounded_io import _parent_env_export_chunks
 
 pytestmark = pytest.mark.skipif(
     not HAS_EXPERIMENT_DEPS,
@@ -181,6 +182,43 @@ def test_master_gate_uses_generic_phase_completion_not_just_status(tmp_path):
     assert payload["ready_for_next_phase"] is False
     assert payload["blocking_issues"]
     assert "missing coverage" in payload["blocking_issues"][0]
+
+
+def test_master_routes_back_to_code_when_project_is_not_self_contained(tmp_path):
+    idea_path = tmp_path / "idea.md"
+    idea_path.write_text("# idea", encoding="utf-8")
+    _write_idea_json(tmp_path / "idea.json")
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+    (project_root / "runner.py").write_text(
+        "import sys\nsys.path.insert(0, '../repos/demo')\n",
+        encoding="utf-8",
+    )
+
+    paths = artifact_paths(str(tmp_path))
+    _write_json(paths["prepare_validator"], _pass_report("prepare"))
+
+    agent = MasterAgent(
+        experiment_id="demo",
+        idea_path=str(idea_path),
+        workspace_root=str(tmp_path),
+        project_root=str(project_root),
+        verbose=False,
+    )
+
+    payload = agent._compute_gate_payload()
+    assert payload["decision"] == Decision.CODE_NEEDED
+    assert payload["self_contained_project"] is False
+    assert payload["blocking_issues"]
+    assert os.path.exists(paths["self_contained_report"])
+
+
+def test_terminal_parent_env_export_includes_external_variables(monkeypatch):
+    monkeypatch.setenv("EXPERIMENT_AGENT_TEST_PARENT_ENV", "visible_value")
+    chunks = _parent_env_export_chunks()
+    rendered = "\n".join(chunks)
+    assert "EXPERIMENT_AGENT_TEST_PARENT_ENV" in rendered
+    assert "visible_value" in rendered
 
 
 def test_ablation_materialization_rejects_non_phase_result_or_partial_phase(tmp_path):

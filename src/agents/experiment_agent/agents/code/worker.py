@@ -28,7 +28,7 @@ Core rules:
 
 **Data requirement**: Must use real data files from `dataset_candidate/` directory. Do NOT use synthetic or randomly generated data. Do NOT implement mock vectorstores with random embeddings.
 
-**API/model requirement**: Must use real API credentials from `{workspace}/.env` and real model checkpoints (e.g. from HuggingFace). Download missing models before declaring a blocker.
+**API/model requirement**: Must use real API credentials from `{workspace}/.env` and real model checkpoints from the prepared surface (prefer `model_candidate/` for local models). Do not download missing models here; they must have been prepared already unless the contract explicitly says API-only.
 
 **Code placement**: All experiment code MUST be under `project/` directory, NOT `src/`.
 

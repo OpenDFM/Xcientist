@@ -34,6 +34,8 @@ Validation standards:
 - A step passes only if the experiment path is materially more runnable after the change.
 - Import success alone is insufficient for benchmark integration.
 - Code changes outside `project_dir` → FAIL.
+- `project/` must remain self-contained. `repos/` may be read for reference only and must never become a runtime dependency.
+- Any repo-local import, `sys.path` injection, local-path dependency, or `pip install`/editable install pointing into `repos/` → FAIL.
 - For `final_integration_smoke`: must show bounded real run on `dataset_candidate/` data AND real API/model path. Raw smoke artifacts under `agent_reports_dir` must exist.
 - **Benchmark code using synthetic/random data instead of `dataset_candidate/` → FAIL**.
 - **Code using mock vectorstores with random embeddings instead of real models → FAIL**.
@@ -44,6 +46,8 @@ Output requirements:
 - `ready_for_next_phase`: `true|false`
 - `artifact_role`: `phase_result`
 - `run_level`: `smoke|full|mixed`
+- `self_contained_project`: `true|false`
+- `self_contained_violations`: list of exact repo-dependency violations, empty when compliant
 - Shared verdict fields:
 {verdict_fields}
 - Optional `terminal_blocker: true` when no further iteration can fix without external intervention.

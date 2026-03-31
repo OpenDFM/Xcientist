@@ -21,6 +21,8 @@ PREPARE_STAGE_CONTRACT_FIELDS: Tuple[str, ...] = (
     "required_output_roots",
     "worker_report_path",
     "validator_report_path",
+    "repos_policy",
+    "project_must_be_self_contained",
     "max_repair_rounds",
     "done_condition",
 )
@@ -35,6 +37,8 @@ CODE_STEP_CONTRACT_FIELDS: Tuple[str, ...] = (
     "required_output_roots",
     "worker_report_path",
     "validator_report_path",
+    "repos_policy",
+    "project_must_be_self_contained",
     "write_scope",
     "verify_command",
     "max_repair_rounds",
@@ -52,6 +56,8 @@ SCIENCE_STANDARD_STEP_FIELDS: Tuple[str, ...] = (
     "required_output_roots",
     "worker_report_path",
     "validator_report_path",
+    "repos_policy",
+    "project_must_be_self_contained",
     "command",
     "output_dir",
     "raw_evidence",
@@ -73,6 +79,8 @@ SCIENCE_ABLATION_STEP_FIELDS: Tuple[str, ...] = (
     "required_output_roots",
     "worker_report_path",
     "validator_report_path",
+    "repos_policy",
+    "project_must_be_self_contained",
     "command",
     "output_dir",
     "raw_evidence",
@@ -93,6 +101,8 @@ PHASE_VERDICT_FIELDS: Tuple[str, ...] = (
     "required_followup",
     "artifact_role",
     "run_level",
+    "self_contained_project",
+    "self_contained_violations",
 )
 
 ABLATION_COMPONENT_RESULT_FIELDS: Tuple[str, ...] = (

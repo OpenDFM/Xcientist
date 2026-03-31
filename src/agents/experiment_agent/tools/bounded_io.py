@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import re
+import shlex
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Iterable, Literal, Sequence
 
@@ -34,7 +35,9 @@ from openhands.tools.terminal.definition import (
 )
 from openhands.tools.terminal.impl import TerminalExecutor as UpstreamTerminalExecutor
 
+from src.agents.experiment_agent.runtime.self_contained import VALID_ENV_NAME
 from src.agents.experiment_agent.tools.openhands import SecurityValidator
+from src.agents.experiment_agent.tools.resource_tools import enable_resource_tools
 
 if TYPE_CHECKING:
     from openhands.sdk.conversation.state import ConversationState
@@ -716,6 +719,58 @@ class BoundedTerminalObservation(TerminalObservation):
         return [TextContent(text="\n".join(part for part in lines if part))]
 
 
+def _parent_env_export_chunks() -> list[str]:
+    exports: list[str] = []
+    for key, value in os.environ.items():
+        if not VALID_ENV_NAME.match(key):
+            continue
+        exports.append(f"export {key}={shlex.quote(value)}")
+    chunk_size = 64
+    return [" && ".join(exports[index : index + chunk_size]) for index in range(0, len(exports), chunk_size)]
+
+
+class ExperimentTerminalExecutor(UpstreamTerminalExecutor):
+    """Upstream terminal executor with explicit parent-env propagation."""
+
+    def __init__(
+        self,
+        working_dir: str,
+        username: str | None = None,
+        no_change_timeout_seconds: int | None = None,
+        terminal_type: Literal["tmux", "subprocess"] | None = None,
+        shell_path: str | None = None,
+        full_output_save_dir: str | None = None,
+    ):
+        super().__init__(
+            working_dir=working_dir,
+            username=username,
+            no_change_timeout_seconds=no_change_timeout_seconds,
+            terminal_type=terminal_type,
+            shell_path=shell_path,
+            full_output_save_dir=full_output_save_dir,
+        )
+        self._export_parent_envs()
+
+    def _export_parent_envs(self) -> None:
+        if not getattr(self, "session", None):
+            return
+        for command in _parent_env_export_chunks():
+            if not command:
+                continue
+            _ = self.session.execute(
+                TerminalAction(
+                    command=command,
+                    is_input=False,
+                    timeout=10,
+                )
+            )
+
+    def reset(self) -> TerminalObservation:
+        observation = super().reset()
+        self._export_parent_envs()
+        return observation
+
+
 class BoundedTerminalExecutor(ToolExecutor[TerminalAction, BoundedTerminalObservation]):
     """Wrap the upstream terminal executor with bounded observations."""
 
@@ -730,7 +785,7 @@ class BoundedTerminalExecutor(ToolExecutor[TerminalAction, BoundedTerminalObserv
         full_output_save_dir: str | None = None,
     ):
         self.full_output_save_dir = full_output_save_dir
-        self._upstream = UpstreamTerminalExecutor(
+        self._upstream = ExperimentTerminalExecutor(
             working_dir=working_dir,
             username=username,
             no_change_timeout_seconds=no_change_timeout_seconds,
@@ -841,6 +896,7 @@ def enable_experiment_tool_overrides() -> None:
         return
     register_tool(BoundedFileEditorTool.name, BoundedFileEditorTool)
     register_tool(BoundedTerminalTool.name, BoundedTerminalTool)
+    enable_resource_tools()
     _OVERRIDES_ENABLED = True
 
 

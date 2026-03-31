@@ -51,6 +51,37 @@ WORKER_SKILL_MAP = {
         "benchmark-discovery",
         "component-coverage",
     },
+    "prepare_repo_worker": {
+        "bounded-tool-use",
+        "resource-acquisition",
+        "benchmark-discovery",
+        "component-coverage",
+    },
+    "prepare_env_worker": {
+        "bounded-tool-use",
+        "resource-acquisition",
+        "environment-setup",
+        "benchmark-discovery",
+        "component-coverage",
+    },
+    "prepare_dataset_worker": {
+        "bounded-tool-use",
+        "resource-acquisition",
+        "benchmark-discovery",
+        "component-coverage",
+    },
+    "prepare_model_worker": {
+        "bounded-tool-use",
+        "resource-acquisition",
+        "benchmark-discovery",
+        "component-coverage",
+    },
+    "prepare_synthesis_worker": {
+        "bounded-tool-use",
+        "resource-acquisition",
+        "benchmark-discovery",
+        "component-coverage",
+    },
     "prepare_validator": {
         "bounded-tool-use",
         "resource-acquisition",

@@ -45,6 +45,7 @@ from src.agents.experiment_agent.runtime.manifests import (
     workspace_contract_paths,
 )
 from src.agents.experiment_agent.runtime.phase_contracts import normalize_phase_report
+from src.agents.experiment_agent.runtime.self_contained import scan_project_self_contained
 from src.agents.experiment_agent.skills import get_master_agent_context
 
 logger = get_logger(__name__)
@@ -185,6 +186,14 @@ class MasterAgent(OpenHandsBaseAgent):
             return True
         return False
 
+    def _write_self_contained_report(self) -> Dict[str, Any]:
+        report = scan_project_self_contained(
+            self.project_root,
+            self.workspace_root,
+        )
+        write_json_file(self.paths["self_contained_report"], report)
+        return report
+
     def _format_phase_prompt(self, decision: str, reasons: list[str]) -> str:
         lines = [
             f"Master runtime selected {DECISION_TO_PHASE.get(decision, 'unknown')} work.",
@@ -199,6 +208,7 @@ class MasterAgent(OpenHandsBaseAgent):
                 f"- idea_path: {self.idea_path}",
                 f"- idea_json_path: {self.paths['idea_json']}",
                 f"- project_root: {self.project_root}",
+                f"- model_dir: {self.contract['model_dir']}",
                 f"- results_dir: {self.contract['results_dir']}",
                 f"- agent_reports_dir: {self.contract['agent_reports_dir']}",
             ]
@@ -220,6 +230,25 @@ class MasterAgent(OpenHandsBaseAgent):
                 "evidence_files": [self.paths["prepare_validator"]],
             }
 
+        self_contained_report = self._write_self_contained_report()
+        if not self_contained_report.get("self_contained_project"):
+            violation_lines = [
+                f"{item.get('path')}:{item.get('line')} [{item.get('rule')}] {item.get('snippet')}"
+                for item in self_contained_report.get("self_contained_violations") or []
+            ]
+            return {
+                "decision": Decision.CODE_NEEDED,
+                "phase": DECISION_TO_PHASE[Decision.CODE_NEEDED],
+                "phase_completion_status": "partial",
+                "ready_for_next_phase": False,
+                "blocking_issues": violation_lines,
+                "reasons": violation_lines
+                or ["Project code is not self-contained; remove runtime dependency on repos/."],
+                "evidence_files": [self.paths["self_contained_report"]],
+                "self_contained_project": False,
+                "self_contained_violations": violation_lines,
+            }
+
         code_payload = self._load_report(self.paths["code_validator"])
         code_phase = normalize_phase_report(code_payload)
         if code_phase["phase_completion_status"] != "complete":
@@ -231,7 +260,9 @@ class MasterAgent(OpenHandsBaseAgent):
                 "blocking_issues": code_phase["blocking_issues"],
                 "reasons": code_phase["blocking_issues"]
                 or ["Code phase is not complete."],
-                "evidence_files": [self.paths["code_validator"]],
+                "evidence_files": [self.paths["code_validator"], self.paths["self_contained_report"]],
+                "self_contained_project": self_contained_report.get("self_contained_project"),
+                "self_contained_violations": list(self_contained_report.get("self_contained_violations") or []),
             }
 
         standard_payload = self._load_report(self.paths["standard_science_validator"])
@@ -245,7 +276,9 @@ class MasterAgent(OpenHandsBaseAgent):
                 "blocking_issues": standard_phase["blocking_issues"],
                 "reasons": standard_phase["blocking_issues"]
                 or ["Standard science phase is not complete."],
-                "evidence_files": [self.paths["standard_science_validator"]],
+                "evidence_files": [self.paths["standard_science_validator"], self.paths["self_contained_report"]],
+                "self_contained_project": self_contained_report.get("self_contained_project"),
+                "self_contained_violations": list(self_contained_report.get("self_contained_violations") or []),
             }
 
         ablation_payload = self._load_report(self.paths["ablation_science_validator"])
@@ -259,7 +292,9 @@ class MasterAgent(OpenHandsBaseAgent):
                 "blocking_issues": ablation_phase["blocking_issues"],
                 "reasons": ablation_phase["blocking_issues"]
                 or ["Ablation science phase is not complete."],
-                "evidence_files": [self.paths["ablation_science_validator"]],
+                "evidence_files": [self.paths["ablation_science_validator"], self.paths["self_contained_report"]],
+                "self_contained_project": self_contained_report.get("self_contained_project"),
+                "self_contained_violations": list(self_contained_report.get("self_contained_violations") or []),
             }
 
         materialization_preview = build_ablation_results_artifacts(
@@ -279,7 +314,9 @@ class MasterAgent(OpenHandsBaseAgent):
                     or "Ablation results cannot be materialized from current validator evidence."
                 ],
                 "evidence_files": materialization_preview.get("source_evidence_files")
-                or [self.paths["ablation_science_validator"]],
+                or [self.paths["ablation_science_validator"], self.paths["self_contained_report"]],
+                "self_contained_project": self_contained_report.get("self_contained_project"),
+                "self_contained_violations": list(self_contained_report.get("self_contained_violations") or []),
             }
 
         return {
@@ -295,7 +332,10 @@ class MasterAgent(OpenHandsBaseAgent):
                 self.paths["code_validator"],
                 self.paths["standard_science_validator"],
                 self.paths["ablation_science_validator"],
+                self.paths["self_contained_report"],
             ],
+            "self_contained_project": self_contained_report.get("self_contained_project"),
+            "self_contained_violations": list(self_contained_report.get("self_contained_violations") or []),
         }
 
     def _write_master_decision_artifact(self, payload: Dict[str, Any]) -> str:
@@ -308,6 +348,8 @@ class MasterAgent(OpenHandsBaseAgent):
             "blocking_issues": list(payload.get("blocking_issues") or []),
             "reasons": list(payload.get("reasons") or []),
             "evidence_files": list(payload.get("evidence_files") or []),
+            "self_contained_project": payload.get("self_contained_project"),
+            "self_contained_violations": list(payload.get("self_contained_violations") or []),
         }
         return write_json_file(self.paths["master_decision"], artifact_payload)
 
@@ -319,6 +361,7 @@ class MasterAgent(OpenHandsBaseAgent):
             "phase_completion_status": payload.get("phase_completion_status"),
             "ready_for_next_phase": bool(payload.get("ready_for_next_phase")),
             "blocking_issues": list(payload.get("blocking_issues") or []),
+            "self_contained_project": payload.get("self_contained_project"),
             "conclusion": "; ".join(str(item).strip() for item in payload.get("reasons") or [] if str(item).strip()),
         }
         return write_json_file(self.paths["runtime_phase_state"], state_payload)

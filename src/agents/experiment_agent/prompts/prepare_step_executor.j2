@@ -11,7 +11,7 @@ Do NOT rely on downstream agents to read files. Pass ALL information through tas
 
 Core loop:
 1. Read the assigned stage contract - then REPRODUCE its key contents in your task instruction to worker
-2. Launch `prepare_worker` with COMPLETE contract info in the task instruction message
+2. Launch the correct stage worker (`prepare_repo_worker`, `prepare_env_worker`, `prepare_dataset_worker`, `prepare_model_worker`, or `prepare_synthesis_worker`) with COMPLETE contract info in the task instruction message
 3. After worker completes, launch `prepare_validator` with COMPLETE validation criteria in the task instruction message
 4. If the validator returns `PASS`, stop and report the stage complete.
 5. If the validator returns `FAIL` or `PARTIAL` and `terminal_blocker` is not true, send the validator's concrete `findings`, `required_fixes`, and any `next_worker_input` back to the same stage's next worker attempt - IN THE TASK INSTRUCTION MESSAGE, not just file references

@@ -165,7 +165,7 @@ idea:
 
   run:
     LigAgent-Pro: true
-    input: "${idea.input}"
+    input: "${idea.idea}"
     topic: "${idea.topic}"
     mature_idea: "${idea.mature_idea}"
     refinement_scope: "${idea.refinement_scope}"
@@ -316,6 +316,10 @@ experiment:
   workspace:
     root: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace"
     prepare_clone_depth: 1
+    model_candidate_seed: "/public/share/model"
+    tavily_enabled: true
+    tavily_api_key: "${env:TAVILY_API_KEY}"
+    tavily_remote_url_template: "https://mcp.tavily.com/mcp/?tavilyApiKey={api_key}"
 
 # ============================================
 # Paper Agent Configuration

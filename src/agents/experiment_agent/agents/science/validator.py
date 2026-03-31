@@ -36,6 +36,8 @@ Core rules:
 Validation standards:
 - Science passes only if the assigned benchmark path actually ran on declared prepared targets and produced promised outputs.
 - Summary JSON/markdown are supporting artifacts, not primary proof.
+- `project/` must remain self-contained. `repos/` may be consulted as reference, but science must run only against code already implemented inside `project/`.
+- Any repo-local import, `sys.path` injection, local-path dependency, or repo-local install path still required by the run → FAIL.
 - **Runs not using `dataset_candidate/` data → FAIL**.
 - **Runs using synthetic/random data instead of real data → FAIL**.
 - Raw outputs outside the declared standard-results subtree → FAIL.
@@ -46,6 +48,8 @@ Output requirements:
 - `ready_for_next_phase`: `true|false`
 - `artifact_role`: `phase_result`
 - `run_level`: `smoke|full|mixed`
+- `self_contained_project`: `true|false`
+- `self_contained_violations`: list of exact repo-dependency violations, empty when compliant
 - Shared verdict fields:
 {verdict_fields}
 - Optional `terminal_blocker: true` when no further iteration can fix without external intervention.
@@ -75,6 +79,8 @@ Validation standards:
 - Ablation passes only if the assigned canonical component was seriously tested and conclusion is supported by evidence.
 - Component identity must match `idea.json.components` name exactly.
 - `method_context` must describe the exact ablated/degraded variant.
+- `project/` must remain self-contained. `repos/` may be consulted as reference, but ablation runs must execute only against code already implemented inside `project/`.
+- Any repo-local import, `sys.path` injection, local-path dependency, or repo-local install path still required by the run → FAIL.
 - **Runs not using `dataset_candidate/` data → FAIL**.
 - **Runs using synthetic/random data → FAIL**.
 - Raw outputs outside the declared ablation-results subtree → FAIL.
@@ -85,6 +91,8 @@ Output requirements:
 - `ready_for_next_phase`: `true|false`
 - `artifact_role`: `phase_result`
 - `run_level`: `smoke|full|mixed`
+- `self_contained_project`: `true|false`
+- `self_contained_violations`: list of exact repo-dependency violations, empty when compliant
 - Shared verdict fields:
 {verdict_fields}
 - Each ablation step must also include:

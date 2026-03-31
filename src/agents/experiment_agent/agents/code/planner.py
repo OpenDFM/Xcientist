@@ -192,6 +192,7 @@ class CodeAgent(OpenHandsBaseAgent):
                 "workspace_dir": self.contract["workspace_dir"],
                 "project_dir": self.contract["project_dir"],
                 "dataset_dir": self.contract["dataset_dir"],
+                "model_dir": self.contract["model_dir"],
                 "results_dir": self.contract["results_dir"],
                 "agent_reports_dir": self.contract["agent_reports_dir"],
             }
@@ -221,7 +222,7 @@ class CodeAgent(OpenHandsBaseAgent):
 6. Use filenames that stay flat under `agent_reports_dir`, for example `code_step_01_<slug>_contract.json`, `code_step_01_<slug>_executor_report.json`, and `code_step_01_<slug>_attempt_01_worker_report.json`.
 7. The `final_integration_smoke` step must:
    - use the real prepared dataset path from `dataset_dir`
-   - use the real API/model path if the method depends on one
+   - use the real API/model path if the method depends on one, preferring `model_dir` for local models
    - run the actual integrated command path that science will later rely on
    - save bounded raw smoke artifacts under flat filenames in `agent_reports_dir`
 8. For each step, use `task` with `subagent_type="{CODE_STEP_EXECUTOR}"`.
@@ -256,6 +257,8 @@ For each idea.json component, the code must provide:
 - Do not hardcode model, dataset, benchmark, or API names into the plan. Infer them from the workspace artifacts you read.
 - When a step concerns ablation support, use the exact component names from the validated idea handoff. Do not rename, merge, split, omit, or reorder them.
 - All code edits and runnable entrypoints must live under `project_dir`.
+- `repos_policy` must be `reference_only` for every step, and `project_must_be_self_contained` must be `true`.
+- The plan must never ask workers to import from, install from, editable-install from, or copy implementation code out of `repos/`.
 - Do not place experiment outputs under `results_dir` during the code phase.
 - Do not write any formal science result artifact or lane summary under `results/`. In particular, the code phase must not materialize `ablation_results.json`.
 - Do not collapse all steps into a single shared `code_worker` or `code_validator` path.

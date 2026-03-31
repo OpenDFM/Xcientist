@@ -34,7 +34,7 @@ Core rules:
 - All code must be COMPLETE and INDEPENDENT in `project/` - do NOT import from or depend on `repos/` for any functionality
 - **FORBIDDEN**: Installing packages to system or virtual environment - all dependencies must be installed through standard means within project/
 
-**API/model requirement**: Must use real API credentials from `{workspace}/.env` and real model checkpoints. Read model/API bindings from validated prepare handoff. Download missing models from HuggingFace before declaring a blocker.
+**API/model requirement**: Must use real API credentials from `{workspace}/.env` and real model checkpoints. Read model/API bindings from validated prepare handoff and prefer `model_candidate/` for local models. Do not download missing models during science execution unless the contract explicitly says the prepared target is API-only.
 
 **No hardcoding**: Do NOT hardcode specific dataset names, model IDs, or API keys. Read them from:
 - `agent_reports/prepare_idea.md`

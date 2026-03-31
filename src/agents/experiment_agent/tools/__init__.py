@@ -10,6 +10,9 @@ from src.agents.experiment_agent.tools.openhands import (
 from src.agents.experiment_agent.tools.bounded_io import (
     enable_experiment_tool_overrides,
 )
+from src.agents.experiment_agent.tools.resource_tools import (
+    enable_resource_tools,
+)
 from src.agents.experiment_agent.tools.parsing import (
     clean_llm_output,
     extract_code_block,
@@ -24,6 +27,7 @@ __all__ = [
     "SecurityError",
     "SecurityValidator",
     "enable_experiment_tool_overrides",
+    "enable_resource_tools",
     "clean_llm_output",
     "extract_code_block",
     "extract_json_from_llm_output",

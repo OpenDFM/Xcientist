@@ -91,6 +91,7 @@ class IterationReporterAgent(OpenHandsBaseAgent):
 Input paths:
 - idea_json_path: {self.idea_json_path}
 - agent_reports_dir: {self.contract['agent_reports_dir']}
+- model_dir: {self.contract['model_dir']}
 - results_dir: {self.contract['results_dir']}
 - standard_results_dir: {self.contract['standard_results_dir']}
 - ablation_results_dir: {self.contract['ablation_results_dir']}

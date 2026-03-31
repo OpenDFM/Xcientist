@@ -77,6 +77,7 @@ def get_api_config() -> Dict[str, str]:
         "serper_api_key": str(cfg.get("serper_api_key") or ""),
         "jina_api_key": str(cfg.get("jina_api_key") or ""),
         "github_ai_token": str(cfg.get("github_ai_token") or ""),
+        "huggingface_endpoint": str(cfg.get("huggingface_endpoint") or "https://huggingface.co"),
     }
 
 
@@ -188,6 +189,15 @@ def get_workspace_config() -> Dict[str, Any]:
     return {
         "root": normalize_workspace_path(str(cfg.get("root") or default_root)),
         "prepare_clone_depth": _as_int(cfg.get("prepare_clone_depth"), 1),
+        "model_candidate_seed": normalize_workspace_path(
+            str(cfg.get("model_candidate_seed") or "/public/share/model")
+        ),
+        "tavily_enabled": _as_bool(cfg.get("tavily_enabled"), True),
+        "tavily_api_key": str(cfg.get("tavily_api_key") or os.environ.get("TAVILY_API_KEY") or ""),
+        "tavily_remote_url_template": str(
+            cfg.get("tavily_remote_url_template")
+            or "https://mcp.tavily.com/mcp/?tavilyApiKey={api_key}"
+        ),
     }
 
 
@@ -283,6 +293,14 @@ def get_dataset_dir(experiment_id: str) -> str:
     return os.path.join(get_workspace_dir(experiment_id), "dataset_candidate")
 
 
+def get_model_dir(experiment_id: str) -> str:
+    return os.path.join(get_workspace_dir(experiment_id), "model_candidate")
+
+
+def get_model_candidate_seed() -> str:
+    return normalize_workspace_path(get_workspace_config()["model_candidate_seed"])
+
+
 def get_results_dir(experiment_id: str) -> str:
     return os.path.join(get_workspace_dir(experiment_id), "results")
 
@@ -336,12 +354,37 @@ def get_path_config(experiment_id: str) -> Dict[str, Any]:
         "logs_dir": get_logs_dir(experiment_id),
         "cache_dir": get_cache_dir(experiment_id),
         "dataset_dir": get_dataset_dir(experiment_id),
+        "model_dir": get_model_dir(experiment_id),
+        "model_candidate_seed": get_model_candidate_seed(),
         "results_dir": get_results_dir(experiment_id),
         "reports_dir": get_reports_dir(experiment_id),
         "repos_dir": get_repos_dir(experiment_id),
         "reference_repos": get_reference_repos(experiment_id),
         "blueprint_path": get_blueprint_path(experiment_id),
     }
+
+
+def _ensure_seed_symlink(link_path: str, target_path: str) -> None:
+    link_real = os.path.realpath(os.path.abspath(os.path.expanduser(link_path)))
+    target_real = os.path.realpath(os.path.abspath(os.path.expanduser(target_path)))
+    parent_dir = os.path.dirname(link_real)
+    os.makedirs(parent_dir, exist_ok=True)
+    if not os.path.exists(target_real):
+        raise FileNotFoundError(f"model_candidate_seed does not exist: {target_real}")
+    if os.path.lexists(link_real):
+        if os.path.islink(link_real):
+            current_target = os.path.realpath(
+                os.path.join(os.path.dirname(link_real), os.readlink(link_real))
+            )
+            if current_target == target_real:
+                return
+            raise RuntimeError(
+                f"Refusing to replace model_candidate link {link_real}: points to {current_target}, expected {target_real}"
+            )
+        raise RuntimeError(
+            f"Refusing to replace existing non-symlink model_candidate path: {link_real}"
+        )
+    os.symlink(target_real, link_real)
 
 
 def ensure_experiment_dirs(experiment_id: str) -> Dict[str, Any]:
@@ -357,6 +400,7 @@ def ensure_experiment_dirs(experiment_id: str) -> Dict[str, Any]:
         "repos_dir",
     ):
         os.makedirs(paths[key], exist_ok=True)
+    _ensure_seed_symlink(paths["model_dir"], paths["model_candidate_seed"])
     os.makedirs(os.path.join(paths["workspace_dir"], "specs"), exist_ok=True)
     os.makedirs(os.path.join(paths["workspace_dir"], "templates"), exist_ok=True)
     os.makedirs(os.path.join(paths["results_dir"], "standard"), exist_ok=True)
@@ -575,6 +619,8 @@ def print_config() -> None:
     print(f"  Default: {get_default_model_name()}")
     print("\n[Workspace Configuration]")
     print(f"  Base Workspaces Dir: {get_workspace_config()['root']}")
+    print(f"  Model Candidate Seed: {get_workspace_config()['model_candidate_seed']}")
+    print(f"  Tavily Enabled: {get_workspace_config()['tavily_enabled']}")
     if WORKSPACE_ROOT:
         print(f"  Current Workspace: {WORKSPACE_ROOT}")
     if PROJECT_ROOT:

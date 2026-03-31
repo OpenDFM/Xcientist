@@ -31,6 +31,7 @@ Core rules:
 **Model/inference requirement (CRITICAL)**:
 - **NO MOCK TESTS**: All tests must be real - using actual APIs, models, and data
 - All model inference MUST use real models - no mock or fake inference
+- Prefer validated local models from `model_candidate/` when the prepared target is local; do not download missing models during code phase unless the contract explicitly says the target is API-only
 - **FORBIDDEN**: Using random generators or pseudo-random to simulate model outputs
 - If model import fails, fix the import - do NOT substitute with random alternatives
 - **You MUST run real integration tests in code phase** - use a small sample (e.g., 10-50 items) from `dataset_candidate/` but it must be REAL data with REAL model inference

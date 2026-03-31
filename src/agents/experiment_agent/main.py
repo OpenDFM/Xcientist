@@ -90,6 +90,7 @@ async def main_async(args) -> int:
     print(f"Workspace: {workspace_root}")
     print(f"Project: {project_root}")
     print(f"Results: {paths['results_dir']}")
+    print(f"Model Candidate: {paths['model_dir']}")
     print(f"Agent Reports: {paths['reports_dir']}")
 
     if not args.skip_prepare:
@@ -106,6 +107,7 @@ async def main_async(args) -> int:
         print(f"  Project dir: {prepare_report.project_dir}")
         print(f"  Repos dir: {prepare_report.repos_dir}")
         print(f"  Dataset dir: {prepare_report.dataset_dir}")
+        print(f"  Model dir: {prepare_report.model_dir}")
         print(f"  Results dir: {prepare_report.results_dir}")
         print(f"  Agent reports dir: {prepare_report.reports_dir}")
         if args.prepare_only:

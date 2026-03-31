@@ -25,6 +25,7 @@ import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Literal
+from urllib.parse import quote
 from uuid import uuid4
 
 from pydantic import SecretStr
@@ -55,6 +56,7 @@ from src.agents.experiment_agent.config import (
     is_minimax_model,
     setup_openai_api,
     get_api_config,
+    get_workspace_config,
 )
 from src.agents.experiment_agent.runtime.checkpoint import (
     get_checkpoint_manager,
@@ -181,6 +183,7 @@ def _inherit_proxy_env(env: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _default_mcp_servers() -> Dict[str, Dict[str, Any]]:
+    workspace_cfg = get_workspace_config()
     defaults = {
         "filesystem": {
             "command": "npx",
@@ -231,12 +234,52 @@ def _default_mcp_servers() -> Dict[str, Dict[str, Any]]:
             "env": {},
         },
     }
+    tavily_enabled = bool(workspace_cfg.get("tavily_enabled"))
+    tavily_api_key = str(workspace_cfg.get("tavily_api_key") or "").strip()
+    tavily_url_template = str(
+        workspace_cfg.get("tavily_remote_url_template")
+        or "https://mcp.tavily.com/mcp/?tavilyApiKey={api_key}"
+    )
+    if tavily_enabled and tavily_api_key:
+        tavily_url = tavily_url_template.format(api_key=quote(tavily_api_key, safe=""))
+        defaults["tavily"] = {
+            "command": "npx",
+            "args": ["-y", "mcp-remote", tavily_url],
+            "env": {},
+        }
     for name, server in defaults.items():
         wrapper_command = _resolve_mcp_wrapper_command(name)
         if wrapper_command:
             server["command"] = wrapper_command
             server["args"] = []
     return defaults
+
+
+def build_experiment_mcp_config(
+    *,
+    workspace_root: str,
+    allowed_servers: Iterable[str] | None = None,
+) -> Dict[str, Any] | None:
+    source_servers = _default_mcp_servers()
+    allowed = [name for name in (allowed_servers or []) if isinstance(name, str) and name]
+    if not allowed:
+        return None
+    normalized_servers: Dict[str, Any] = {}
+    for name in allowed:
+        server = source_servers.get(name)
+        if not isinstance(server, dict):
+            continue
+        try:
+            normalized_servers[name] = _normalize_mcp_server(
+                name=name,
+                server=server,
+                workspace_root=os.path.realpath(workspace_root),
+            )
+        except ValueError as exc:
+            logger.warning("Skipping MCP server '%s': %s", name, exc)
+    if not normalized_servers:
+        return None
+    return {"mcpServers": normalized_servers}
 
 
 def _normalize_mcp_server(
@@ -615,6 +658,8 @@ class OpenHandsBaseAgent(ABC):
             "model": self.model,
             "max_turns": self.max_turns,
             "resume": self.resume,
+            "terminal_env_inheritance": "full_parent_env",
+            "self_contained_policy_enabled": True,
             "llm": {
                 "model_name": llm_cfg.get("model_name"),
                 "base_url": llm_cfg.get("base_url"),
@@ -627,6 +672,8 @@ class OpenHandsBaseAgent(ABC):
                 "serper_api_key": bool(api_cfg.get("serper_api_key")),
                 "jina_api_key": bool(api_cfg.get("jina_api_key")),
                 "github_ai_token": bool(api_cfg.get("github_ai_token")),
+                "tavily_api_key": bool(get_workspace_config().get("tavily_api_key")),
+                "hf_token": bool(os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_TOKEN")),
             },
             "mcp_servers": sorted(mcp_servers.keys()) if isinstance(mcp_servers, dict) else [],
         }
@@ -877,32 +924,20 @@ class OpenHandsBaseAgent(ABC):
             logger.warning(f"Failed to save checkpoint: {e}")
 
     def _build_mcp_config(self) -> Dict[str, Any]:
-        source_servers = _default_mcp_servers()
-        normalized_servers: Dict[str, Any] = {}
-        for name in [
-            "filesystem",
-            "fetch",
-            "github",
-            "playwright",
-            "memory",
-            "MiniMax",
-            "context7",
-        ]:
-            server = source_servers.get(name)
-            if not isinstance(server, dict):
-                fallback = _default_mcp_servers().get(name)
-                if isinstance(fallback, dict):
-                    server = fallback
-            if isinstance(server, dict):
-                try:
-                    normalized_servers[name] = _normalize_mcp_server(
-                        name=name,
-                        server=server,
-                        workspace_root=os.path.realpath(self.workspace_root),
-                    )
-                except ValueError as exc:
-                    logger.warning("Skipping MCP server '%s': %s", name, exc)
-        return {"mcpServers": normalized_servers}
+        config = build_experiment_mcp_config(
+            workspace_root=self.workspace_root,
+            allowed_servers=[
+                "filesystem",
+                "fetch",
+                "github",
+                "playwright",
+                "memory",
+                "MiniMax",
+                "context7",
+                "tavily",
+            ],
+        )
+        return config or {"mcpServers": {}}
 
     def _extract_package_name(self, command: str, args: List[Any]) -> str:
         string_args = [str(token) for token in args if isinstance(token, str)]

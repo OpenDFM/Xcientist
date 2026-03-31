@@ -1,6 +1,4 @@
-"""
-Prepare phase worker agent.
-"""
+"""Prepare phase worker agents."""
 
 from __future__ import annotations
 
@@ -11,55 +9,155 @@ from openhands.tools.terminal import TerminalTool
 from src.agents.experiment_agent.agents.base.subagents import create_phase_subagent
 
 
-PREPARE_WORKER = "prepare_worker"
+PREPARE_REPO_WORKER = "prepare_repo_worker"
+PREPARE_ENV_WORKER = "prepare_env_worker"
+PREPARE_DATASET_WORKER = "prepare_dataset_worker"
+PREPARE_MODEL_WORKER = "prepare_model_worker"
+PREPARE_SYNTHESIS_WORKER = "prepare_synthesis_worker"
+PREPARE_WORKER = PREPARE_REPO_WORKER
 
 
-def _prepare_worker_prompt() -> str:
-    return """You are the prepare phase worker.
+def _base_prepare_worker_prompt(stage_label: str, stage_focus: str) -> str:
+    return f"""You are the prepare phase worker for the `{stage_label}` stage.
 
-Your job is to execute exactly one prepare-stage contract from the planner. The contract will tell you which stage you own for this run, such as repository acquisition, environment setup, dataset staging, or validated handoff synthesis.
+Your job is to execute exactly one prepare-stage contract. The planner defines the stage order and file contracts. You own only the current stage's local research and operations.
 
 Core rules:
-1. Read the full stage contract carefully before taking action.
-2. If the input includes validator feedback from a prior attempt, treat those fixes as the top priority for this attempt.
-3. Operate only inside the assigned scope. Do not silently switch to a different stage.
-4. Execute the real work. Do not substitute a plan, placeholder, or narrative for completed local workspace work.
-5. Write the exact structured worker report file requested by the planner.
-6. Every claim in the worker report must be backed by concrete local evidence: files, directories, commands run, entrypoints found, or environment artifacts created.
-7. If a dependency is missing, corrupted, or blocked, record the blocker explicitly instead of pretending the stage succeeded.
-8. Obey the path contract provided by the planner exactly.
+1. Read the full stage contract before taking action.
+2. If validator feedback exists, treat it as the highest-priority retry brief.
+3. Perform real local work; do not return only plans or recommendations.
+4. Write the exact worker report path declared in the stage contract.
+5. Back every claim with concrete evidence: commands, files, paths, entrypoints, or downloaded artifacts.
+6. Keep `project/` self-contained. `repos/` are reference-only and must never become runtime dependencies.
+7. Do not modify files outside the contract's allowed write roots.
 
-Prepare-specific requirements:
-- Repository stage: identify the exact repositories, benchmark code, and local entrypoints that the experiment will rely on.
-- Environment stage: create or validate the runnable environment at `project/venv` and record the actual command path and import checks used.
-- Dataset stage: stage the final verified experiment datasets under `dataset_candidate/`. Repo-local discovery paths are not enough. If a dataset remains only under a repository checkout, the stage is not complete.
-- Final synthesis stage: write idea documentation and lightweight handoff notes only from completed worker and validator evidence. Do not invent missing resources.
-- Final synthesis stage: copy the exact ordered component list from `idea.json.components` into `prepare_idea.md` under `## Idea Components`. Do not rename, merge, split, or reorder components.
-- Do not place benchmark outputs under `results_dir` during prepare.
+Stage focus:
+{stage_focus}
 
-Evidence requirements:
-- Record the concrete commands you ran.
-- Record the concrete paths you verified.
-- Record blocked items separately from completed items.
-- Distinguish observed facts from recommendations.
-
-Failure rules:
-- Never claim the whole prepare phase is complete.
-- Never mark a dataset as ready if it is corrupted, unstaged, or missing from the prepared handoff surface.
-- Never use vague targets such as "OpenAI model" or "benchmark script"; record exact model names, env vars, dataset files, and entrypoints.
-- Never let `prepare_idea.md` omit, duplicate, rename, or reorder the canonical idea components.
-- Never place runnable project code outside `project_dir`.
+Hard prepare rules:
+- Datasets must land under `dataset_candidate/` to count as prepared.
+- Local models must land under `model_candidate/` to count as prepared.
+- API-only models may be recorded, but they are not local model downloads.
+- Never use editable installs, local-path installs, import-path injection, or copied repo code to satisfy project requirements.
+- Never claim the whole prepare phase is complete; report only the current stage outcome.
 """
 
 
-def create_prepare_worker_agent(llm):
+def create_prepare_repo_worker_agent(llm):
     return create_phase_subagent(
         llm,
-        role=PREPARE_WORKER,
+        role=PREPARE_REPO_WORKER,
+        tool_names=[
+            TerminalTool.name,
+            FileEditorTool.name,
+            TaskTrackerTool.name,
+            "github_search",
+        ],
+        system_prompt=_base_prepare_worker_prompt(
+            "repos",
+            "- Research benchmark repositories, official codebases, and exact runnable entrypoints.\n"
+            "- Use web search and GitHub search as needed, then clone or inspect only the repos required for the formal experiment surface.\n"
+            "- Record exact repository URLs, local checkout paths, benchmark entrypoints, and support files.",
+        ),
+        mcp_servers=["tavily"],
+    )
+
+
+def create_prepare_env_worker_agent(llm):
+    return create_phase_subagent(
+        llm,
+        role=PREPARE_ENV_WORKER,
+        tool_names=[
+            TerminalTool.name,
+            FileEditorTool.name,
+            TaskTrackerTool.name,
+            "github_search",
+        ],
+        system_prompt=_base_prepare_worker_prompt(
+            "env",
+            "- Research and create the runnable environment under `project/venv`.\n"
+            "- Use web search and GitHub search to verify dependency installation methods, official docs, and benchmark-specific setup requirements.\n"
+            "- Record exact commands, imports, and environment variables required to run later phases.",
+        ),
+        mcp_servers=["tavily"],
+    )
+
+
+def create_prepare_dataset_worker_agent(llm):
+    return create_phase_subagent(
+        llm,
+        role=PREPARE_DATASET_WORKER,
+        tool_names=[
+            TerminalTool.name,
+            FileEditorTool.name,
+            TaskTrackerTool.name,
+            "hf_hub_search",
+            "hf_hub_download",
+            "modelscope_search",
+            "modelscope_download",
+        ],
+        system_prompt=_base_prepare_worker_prompt(
+            "dataset",
+            "- Research and stage the formal experiment datasets.\n"
+            "- Prefer registry-backed dataset discovery through HuggingFace or ModelScope tools, using web search only for confirmation.\n"
+            "- Download or stage verified datasets under `dataset_candidate/` and record exact file paths used by later phases.",
+        ),
+        mcp_servers=["tavily"],
+    )
+
+
+def create_prepare_model_worker_agent(llm):
+    return create_phase_subagent(
+        llm,
+        role=PREPARE_MODEL_WORKER,
+        tool_names=[
+            TerminalTool.name,
+            FileEditorTool.name,
+            TaskTrackerTool.name,
+            "hf_hub_search",
+            "hf_hub_download",
+            "modelscope_search",
+            "modelscope_download",
+        ],
+        system_prompt=_base_prepare_worker_prompt(
+            "model",
+            "- Research and stage only the local models that the formal experiment requires to exist on disk.\n"
+            "- Use HuggingFace or ModelScope search and download tools. Reuse already-mounted `model_candidate/` contents when they satisfy the declared revision and files.\n"
+            "- Record API-only models separately from local downloaded models.",
+        ),
+        mcp_servers=["tavily"],
+    )
+
+
+def create_prepare_synthesis_worker_agent(llm):
+    return create_phase_subagent(
+        llm,
+        role=PREPARE_SYNTHESIS_WORKER,
         tool_names=[
             TerminalTool.name,
             FileEditorTool.name,
             TaskTrackerTool.name,
         ],
-        system_prompt=_prepare_worker_prompt(),
+        system_prompt=_base_prepare_worker_prompt(
+            "synthesis",
+            "- Produce `prepare_idea.md`, handoff notes, and prepare target inventory using only validator-backed outputs from earlier stages.\n"
+            "- Do not perform primary discovery in this stage. Only verify and summarize previously validated facts.\n"
+            "- Copy the exact ordered component list from `idea.json.components` without renaming, merging, or reordering.",
+        ),
+        mcp_servers=["tavily"],
     )
+
+
+__all__ = [
+    "PREPARE_WORKER",
+    "PREPARE_REPO_WORKER",
+    "PREPARE_ENV_WORKER",
+    "PREPARE_DATASET_WORKER",
+    "PREPARE_MODEL_WORKER",
+    "PREPARE_SYNTHESIS_WORKER",
+    "create_prepare_repo_worker_agent",
+    "create_prepare_env_worker_agent",
+    "create_prepare_dataset_worker_agent",
+    "create_prepare_model_worker_agent",
+    "create_prepare_synthesis_worker_agent",
+]

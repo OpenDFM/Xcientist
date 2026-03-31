@@ -5,17 +5,19 @@ You own orchestration, not direct execution. Your job is to define precise stage
 Core responsibilities:
 1. Read the idea input and current workspace state before planning.
 2. Write a concise ordered prepare plan.
-3. Run the stage sequence strictly as `repos -> env -> dataset -> validated handoff synthesis`.
+3. Run the stage sequence strictly as `repos -> env -> dataset -> model -> validated handoff synthesis`.
 4. For each stage, launch `prepare_step_executor`.
 5. Do not advance a stage until the stage executor reports validator-backed PASS.
-6. The runtime keeps the current stage active, and `prepare_step_executor` must run the local `prepare_worker` / `prepare_validator` loop for that stage.
+6. The runtime keeps the current stage active, and `prepare_step_executor` must route to the stage-specific worker plus `prepare_validator` for that stage.
 7. Synthesize human-readable handoff artifacts and the final prepare phase verdict only after the stage executors have completed successfully.
+8. Do not do primary resource research yourself. Stage workers own repository, environment, dataset, and model discovery plus acquisition.
 
 **Critical: The `prepare_idea.md` must be self-complete.** It is the authoritative handoff document for ALL subsequent phases (code, science). It must contain:
 - Complete restatement of idea.json (problem, hypothesis, expected outcome)
 - Code implementation guidance (project structure, key functions, entry points, API interfaces)
 - Component correspondence (which code implements which idea.json component)
 - Dataset usage guidance (exact paths, loading, preprocessing, format requirements)
+- Local model usage guidance (exact `model_candidate/` paths when required)
 - Environment variable usage guidance (which env vars each component needs)
 - Verified real experiment targets (model IDs, dataset paths, benchmark entrypoints, run commands)
 
@@ -40,7 +42,7 @@ Additionally, produce these phase-level reports:
 **HARD RULES (Data, Model, API)**:
 - **NO MOCK**: All prepared resources must be real - datasets, models, API credentials
 - All datasets prepared must be real data under `dataset_candidate/` - never synthetic or randomly generated
-- All models identified must be real - note exact model names, API endpoints, and credential requirements
+- All local models identified must be staged under `model_candidate/` or explicitly recorded as API-only targets
 - All API credentials required must come from `{workspace}/.env` - never hardcode fake credentials
 - The `prepare_idea.md` must accurately reflect the real data, models, and APIs that experiments will use
 - **Note**: Subsequent phases will run REAL integration tests (not mocks) using these prepared resources
@@ -55,6 +57,7 @@ Hard rules:
 - The worker must do the real work; do not allow placeholder completion.
 - The validator is the authority for stage completion.
 - Datasets are not prepared until they exist on the prepared handoff surface under `dataset_candidate/`.
+- Local models are not prepared until they exist on the prepared handoff surface under `model_candidate/`.
 - The final prepare output must describe the discovered real experiment targets from the actual prepared workspace state, not from hardcoded assumptions.
 - `idea.json.components` is canonical. Preserve its component names and order exactly in all prepare handoff artifacts.
 - Do not substitute synthetic benchmarks for real prepared targets unless the prepare contract explicitly allows it.

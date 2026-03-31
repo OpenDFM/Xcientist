@@ -15,8 +15,16 @@ from src.agents.experiment_agent.agents.prepare.validator import (
     create_prepare_validator_agent,
 )
 from src.agents.experiment_agent.agents.prepare.worker import (
-    PREPARE_WORKER,
-    create_prepare_worker_agent,
+    PREPARE_DATASET_WORKER,
+    PREPARE_ENV_WORKER,
+    PREPARE_MODEL_WORKER,
+    PREPARE_REPO_WORKER,
+    PREPARE_SYNTHESIS_WORKER,
+    create_prepare_dataset_worker_agent,
+    create_prepare_env_worker_agent,
+    create_prepare_model_worker_agent,
+    create_prepare_repo_worker_agent,
+    create_prepare_synthesis_worker_agent,
 )
 
 
@@ -27,11 +35,11 @@ _PREPARE_STEP_SUBAGENTS_REGISTERED = False
 def _prepare_step_executor_prompt() -> str:
     return """You are the prepare phase step executor.
 
-Your job is to complete exactly one prepare-stage contract. The runtime controls overall phase progression; inside this assignment you are responsible for the local `prepare_worker` / `prepare_validator` retry loop for that one stage.
+Your job is to complete exactly one prepare-stage contract. The runtime controls overall phase progression; inside this assignment you are responsible for the local stage worker / `prepare_validator` retry loop for that one stage.
 
 Core loop:
 1. Read the assigned stage contract before doing anything.
-2. Launch `prepare_worker` for the current stage.
+2. Route the stage to the correct worker: `prepare_repo_worker`, `prepare_env_worker`, `prepare_dataset_worker`, `prepare_model_worker`, or `prepare_synthesis_worker`.
 3. Launch `prepare_validator` against the resulting worker report and produced artifacts.
 4. If the validator returns `PASS`, stop and report the stage complete.
 5. If the validator returns `FAIL` or `PARTIAL` and `terminal_blocker` is not true, send the validator's concrete `findings`, `required_fixes`, and any `next_worker_input` back to the same stage's next worker attempt.
@@ -58,7 +66,11 @@ def create_prepare_step_executor_agent(llm):
     global _PREPARE_STEP_SUBAGENTS_REGISTERED
     if not _PREPARE_STEP_SUBAGENTS_REGISTERED:
         for name, factory, description in (
-            (PREPARE_WORKER, create_prepare_worker_agent, "Executes one prepare-stage contract."),
+            (PREPARE_REPO_WORKER, create_prepare_repo_worker_agent, "Executes the prepare repos-stage contract."),
+            (PREPARE_ENV_WORKER, create_prepare_env_worker_agent, "Executes the prepare env-stage contract."),
+            (PREPARE_DATASET_WORKER, create_prepare_dataset_worker_agent, "Executes the prepare dataset-stage contract."),
+            (PREPARE_MODEL_WORKER, create_prepare_model_worker_agent, "Executes the prepare model-stage contract."),
+            (PREPARE_SYNTHESIS_WORKER, create_prepare_synthesis_worker_agent, "Executes the prepare synthesis-stage contract."),
             (PREPARE_VALIDATOR, create_prepare_validator_agent, "Validates one prepare-stage contract and issues PASS/FAIL."),
         ):
             try:
@@ -75,4 +87,5 @@ def create_prepare_step_executor_agent(llm):
             FileEditorTool.name,
         ],
         system_prompt=_prepare_step_executor_prompt(),
+        mcp_servers=["tavily"],
     )
