@@ -24,6 +24,7 @@ from openhands.sdk.tool import (
 )
 
 from src.agents.experiment_agent.config import get_api_config
+from src.agents.experiment_agent.tools.openhands import SecurityValidator
 
 if TYPE_CHECKING:
     from openhands.sdk.conversation.state import ConversationState
@@ -61,6 +62,25 @@ def _project_python(workspace_root: str) -> str:
     return os.environ.get("PYTHON", "python3")
 
 
+def _resolve_local_dir(local_dir: str, workspace_root: str) -> str:
+    resolved = (
+        local_dir
+        if os.path.isabs(local_dir)
+        else os.path.join(workspace_root, local_dir)
+    )
+    resolved = os.path.realpath(os.path.abspath(resolved))
+    SecurityValidator.validate_or_raise(resolved, workspace_root, "download into")
+    model_root = os.path.realpath(os.path.join(workspace_root, "model_candidate"))
+    dataset_root = os.path.realpath(os.path.join(workspace_root, "dataset_candidate"))
+    if resolved == model_root or resolved.startswith(model_root + os.sep):
+        return resolved
+    if resolved == dataset_root or resolved.startswith(dataset_root + os.sep):
+        return resolved
+    raise ValueError(
+        f"Download destination must stay under model_candidate/ or dataset_candidate/: {resolved}"
+    )
+
+
 def _hf_endpoint() -> str:
     endpoint = str(get_api_config().get("huggingface_endpoint") or "https://huggingface.co")
     return endpoint.rstrip("/")
@@ -77,6 +97,7 @@ class ResourceSearchAction(Action):
     top_k: int = Field(default=5, ge=1, le=20, description="Maximum results to return.")
     search_type: str | None = Field(default=None, description="Provider-specific search type.")
     repo: str | None = Field(default=None, description="Optional repo qualifier for code search.")
+    domains: list[str] | None = Field(default=None, description="Optional domain filters for web search.")
 
 
 class ResourceDownloadAction(Action):
@@ -98,6 +119,75 @@ class ResourceObservation(Observation):
         if self.raw_output_path:
             lines.append(f"[Raw output saved to: {self.raw_output_path}]")
         return [TextContent(text="\n".join(part for part in lines if part))]
+
+
+class WebSearchExecutor(ToolExecutor[ResourceSearchAction, ResourceObservation]):
+    def __call__(
+        self,
+        action: ResourceSearchAction,
+        conversation: "LocalConversation | None" = None,
+    ) -> ResourceObservation:
+        api_key = os.environ.get("TAVILY_API_KEY") or ""
+        if not api_key:
+            return ResourceObservation.from_text(
+                text=json.dumps(
+                    {
+                        "provider": "tavily",
+                        "error": "TAVILY_API_KEY is not set",
+                        "query": action.query,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                is_error=True,
+                provider="tavily",
+                resource_type="web_search",
+            )
+        payload: dict[str, Any] = {
+            "api_key": api_key,
+            "query": action.query,
+            "max_results": action.top_k,
+            "search_depth": "advanced",
+            "include_answer": False,
+            "include_raw_content": False,
+        }
+        if action.domains:
+            payload["include_domains"] = action.domains
+        request = urllib.request.Request(
+            "https://api.tavily.com/search",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=30) as response:
+            charset = response.headers.get_content_charset() or "utf-8"
+            body = response.read().decode(charset, errors="replace")
+        response_payload = json.loads(body)
+        results = []
+        for item in (response_payload.get("results") or [])[: action.top_k]:
+            results.append(
+                {
+                    "title": item.get("title"),
+                    "url": item.get("url"),
+                    "snippet": item.get("content"),
+                    "source": item.get("url"),
+                    "score": item.get("score"),
+                }
+            )
+        text = _render_results(
+            {
+                "provider": "tavily",
+                "query": action.query,
+                "top_k": action.top_k,
+                "domains": action.domains or [],
+            },
+            results,
+        )
+        return ResourceObservation.from_text(
+            text=text,
+            provider="tavily",
+            resource_type="web_search",
+        )
 
 
 class GitHubSearchExecutor(ToolExecutor[ResourceSearchAction, ResourceObservation]):
@@ -218,9 +308,7 @@ class HFHubDownloadExecutor(ToolExecutor[ResourceDownloadAction, ResourceObserva
     ) -> ResourceObservation:
         conv_workspace = getattr(getattr(conversation, "state", None), "workspace", None)
         workspace_root = getattr(conv_workspace, "working_dir", None) or os.getcwd()
-        local_dir = action.local_dir
-        if not os.path.isabs(local_dir):
-            local_dir = os.path.join(workspace_root, local_dir)
+        local_dir = _resolve_local_dir(action.local_dir, workspace_root)
         os.makedirs(local_dir, exist_ok=True)
         token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_TOKEN") or ""
         hf_cli = shutil.which("hf")
@@ -321,9 +409,7 @@ class ModelScopeDownloadExecutor(ToolExecutor[ResourceDownloadAction, ResourceOb
     ) -> ResourceObservation:
         conv_workspace = getattr(getattr(conversation, "state", None), "workspace", None)
         workspace_root = getattr(conv_workspace, "working_dir", None) or os.getcwd()
-        local_dir = action.local_dir
-        if not os.path.isabs(local_dir):
-            local_dir = os.path.join(workspace_root, local_dir)
+        local_dir = _resolve_local_dir(action.local_dir, workspace_root)
         os.makedirs(local_dir, exist_ok=True)
         env = os.environ.copy()
         token = os.environ.get("MODELSCOPE_API_TOKEN") or os.environ.get("MODELSCOPE_TOKEN") or ""
@@ -378,6 +464,28 @@ class GitHubSearchTool(ToolDefinition[ResourceSearchAction, ResourceObservation]
                     openWorldHint=True,
                 ),
                 executor=GitHubSearchExecutor(),
+            )
+        ]
+
+
+class WebSearchTool(ToolDefinition[ResourceSearchAction, ResourceObservation]):
+    name: ClassVar[str] = "web_search"
+
+    @classmethod
+    def create(cls, conv_state: "ConversationState") -> Sequence["WebSearchTool"]:
+        return [
+            cls(
+                action_type=ResourceSearchAction,
+                observation_type=ResourceObservation,
+                description="Search the web for official docs, benchmark pages, setup instructions, and other prepare-stage resource discovery using Tavily.",
+                annotations=ToolAnnotations(
+                    title="web_search",
+                    readOnlyHint=True,
+                    destructiveHint=False,
+                    idempotentHint=True,
+                    openWorldHint=True,
+                ),
+                executor=WebSearchExecutor(),
             )
         ]
 
@@ -477,6 +585,7 @@ def enable_resource_tools() -> None:
     global _RESOURCE_TOOLS_ENABLED
     if _RESOURCE_TOOLS_ENABLED:
         return
+    register_tool(WebSearchTool.name, WebSearchTool)
     register_tool(GitHubSearchTool.name, GitHubSearchTool)
     register_tool(HFHubSearchTool.name, HFHubSearchTool)
     register_tool(HFHubDownloadTool.name, HFHubDownloadTool)
@@ -487,6 +596,7 @@ def enable_resource_tools() -> None:
 
 __all__ = [
     "GitHubSearchTool",
+    "WebSearchTool",
     "HFHubSearchTool",
     "HFHubDownloadTool",
     "ModelScopeSearchTool",

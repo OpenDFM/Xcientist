@@ -79,7 +79,7 @@ def create_prepare_validator_agent(llm):
             TerminalTool.name,
             FileEditorTool.name,
             TaskTrackerTool.name,
+            "web_search",
         ],
         system_prompt=_prepare_validator_prompt(),
-        mcp_servers=["tavily"],
     )

@@ -51,6 +51,7 @@ def create_prepare_repo_worker_agent(llm):
             TerminalTool.name,
             FileEditorTool.name,
             TaskTrackerTool.name,
+            "web_search",
             "github_search",
         ],
         system_prompt=_base_prepare_worker_prompt(
@@ -59,7 +60,6 @@ def create_prepare_repo_worker_agent(llm):
             "- Use web search and GitHub search as needed, then clone or inspect only the repos required for the formal experiment surface.\n"
             "- Record exact repository URLs, local checkout paths, benchmark entrypoints, and support files.",
         ),
-        mcp_servers=["tavily"],
     )
 
 
@@ -71,6 +71,7 @@ def create_prepare_env_worker_agent(llm):
             TerminalTool.name,
             FileEditorTool.name,
             TaskTrackerTool.name,
+            "web_search",
             "github_search",
         ],
         system_prompt=_base_prepare_worker_prompt(
@@ -79,7 +80,6 @@ def create_prepare_env_worker_agent(llm):
             "- Use web search and GitHub search to verify dependency installation methods, official docs, and benchmark-specific setup requirements.\n"
             "- Record exact commands, imports, and environment variables required to run later phases.",
         ),
-        mcp_servers=["tavily"],
     )
 
 
@@ -91,6 +91,7 @@ def create_prepare_dataset_worker_agent(llm):
             TerminalTool.name,
             FileEditorTool.name,
             TaskTrackerTool.name,
+            "web_search",
             "hf_hub_search",
             "hf_hub_download",
             "modelscope_search",
@@ -102,7 +103,6 @@ def create_prepare_dataset_worker_agent(llm):
             "- Prefer registry-backed dataset discovery through HuggingFace or ModelScope tools, using web search only for confirmation.\n"
             "- Download or stage verified datasets under `dataset_candidate/` and record exact file paths used by later phases.",
         ),
-        mcp_servers=["tavily"],
     )
 
 
@@ -114,6 +114,7 @@ def create_prepare_model_worker_agent(llm):
             TerminalTool.name,
             FileEditorTool.name,
             TaskTrackerTool.name,
+            "web_search",
             "hf_hub_search",
             "hf_hub_download",
             "modelscope_search",
@@ -125,7 +126,6 @@ def create_prepare_model_worker_agent(llm):
             "- Use HuggingFace or ModelScope search and download tools. Reuse already-mounted `model_candidate/` contents when they satisfy the declared revision and files.\n"
             "- Record API-only models separately from local downloaded models.",
         ),
-        mcp_servers=["tavily"],
     )
 
 
@@ -137,6 +137,7 @@ def create_prepare_synthesis_worker_agent(llm):
             TerminalTool.name,
             FileEditorTool.name,
             TaskTrackerTool.name,
+            "web_search",
         ],
         system_prompt=_base_prepare_worker_prompt(
             "synthesis",
@@ -144,7 +145,6 @@ def create_prepare_synthesis_worker_agent(llm):
             "- Do not perform primary discovery in this stage. Only verify and summarize previously validated facts.\n"
             "- Copy the exact ordered component list from `idea.json.components` without renaming, merging, or reordering.",
         ),
-        mcp_servers=["tavily"],
     )
 
 

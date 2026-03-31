@@ -24,7 +24,7 @@ import subprocess
 import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Literal
+from typing import Any, Dict, List, Optional, Literal, Iterable
 from urllib.parse import quote
 from uuid import uuid4
 

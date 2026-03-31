@@ -11,15 +11,15 @@ python -m src.agents.experiment_agent.main --experiment <experiment_id> [options
 ```
 
 Default behavior:
-1. Run `prepare`
-2. Run `master`
-3. Let `master` delegate to `code` and `science` sub-agents
+1. Check for a validator-backed prepare handoff
+2. Run `prepare` only if the handoff is missing, invalid, or `--force` is set
+3. Run `master`
+4. Let `master` delegate to `code` and `science` sub-agents
 
 Useful flags:
 
 ```bash
 python -m src.agents.experiment_agent.main --experiment exp001 --prepare-only
-python -m src.agents.experiment_agent.main --experiment exp001 --skip-prepare
 python -m src.agents.experiment_agent.main --experiment exp001 --max-iterations 8 --resume
 ```
 
@@ -68,3 +68,4 @@ That file is materialized only after the master iteration loop exits, by a dedic
 - Human-facing agent summaries such as `prepare_idea.md`, `code_summary.md`, `standard_science_summary.md`, `ablation_science_summary.md`, `master_report.md`, and `master_summary.md` live under `agent_reports/`.
 - `results/` is reserved for raw science outputs.
 - The final `ablation_results.json` lives at workspace root.
+- `prepare` is a startup prerequisite, not a master-controlled phase. `master` governs only `code`, `standard_science`, and `ablation_science`.

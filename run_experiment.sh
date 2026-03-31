@@ -11,7 +11,6 @@ export EXPERIMENT_AGENT_MCP_USE_WRAPPERS="${EXPERIMENT_AGENT_MCP_USE_WRAPPERS:-1
 export EXPERIMENT_AGENT_MCP_WRAPPER_DIR="${EXPERIMENT_AGENT_MCP_WRAPPER_DIR:-$HOME/.cache/researchagent_mcp/bin}"
 export EXPERIMENT_AGENT_INSTALL_MCP_WRAPPERS_ON_BOOT="${EXPERIMENT_AGENT_INSTALL_MCP_WRAPPERS_ON_BOOT:-0}"
 
-DO_PREPARE=0
 EXPERIMENT=""
 IDEA_JSON=""
 
@@ -23,7 +22,6 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         --experiment) EXPERIMENT="$2"; shift ;;
         --idea-json) IDEA_JSON="$2"; shift ;;
-        --prepare) DO_PREPARE=1 ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -62,7 +60,7 @@ get_python_cmd() {
 
 PYTHON_CMD="$(get_python_cmd)"
 
-WORKSPACE_ROOT="$("$PYTHON_CMD" -c 'from src.config import load_config; print(load_config().experiment.workspace.root)' 2>/dev/null)"
+WORKSPACE_ROOT="$("$PYTHON_CMD" -c 'from src.config import load_config; print(load_config().experiment.workspace.root)')"
 if [[ -z "$WORKSPACE_ROOT" ]]; then
     echo "Error: failed to resolve experiment.workspace.root from $CONFIG_PATH"
     exit 1
@@ -120,12 +118,7 @@ MAIN_CMD=(
     "$PYTHON_CMD" -m src.agents.experiment_agent.main
     --experiment "$EXPERIMENT"
     --verbose
+    --clone-depth 1
 )
-
-if [[ "$DO_PREPARE" == "1" ]]; then
-    MAIN_CMD+=(--force --clone-depth 1)
-else
-    MAIN_CMD+=(--skip-prepare)
-fi
 
 EXPERIMENT_AGENT_WORKSPACE_DIR="$EXPERIMENT_DIR" "${MAIN_CMD[@]}"

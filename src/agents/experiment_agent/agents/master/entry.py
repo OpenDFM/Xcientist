@@ -52,7 +52,6 @@ logger = get_logger(__name__)
 
 
 class Decision(str):
-    PREPARE_NEEDED = "PREPARE_NEEDED"
     CODE_NEEDED = "CODE_NEEDED"
     STANDARD_EXP_NEEDED = "STANDARD_EXP_NEEDED"
     ABLATION_NEEDED = "ABLATION_NEEDED"
@@ -60,7 +59,6 @@ class Decision(str):
 
 
 DECISION_TO_PHASE = {
-    Decision.PREPARE_NEEDED: "prepare",
     Decision.CODE_NEEDED: "code",
     Decision.STANDARD_EXP_NEEDED: "standard_science",
     Decision.ABLATION_NEEDED: "ablation_science",
@@ -186,6 +184,15 @@ class MasterAgent(OpenHandsBaseAgent):
             return True
         return False
 
+    def _ensure_prepare_ready(self) -> None:
+        prepare_payload = self._load_report(self.paths["prepare_validator"])
+        if self._prepare_ready(prepare_payload):
+            return
+        raise ValueError(
+            "Master requires a validator-backed prepare handoff before code/science orchestration. "
+            f"Expected ready prepare artifact at {self.paths['prepare_validator']}."
+        )
+
     def _write_self_contained_report(self) -> Dict[str, Any]:
         report = scan_project_self_contained(
             self.project_root,
@@ -216,20 +223,6 @@ class MasterAgent(OpenHandsBaseAgent):
         return "\n".join(lines)
 
     def _compute_gate_payload(self) -> Dict[str, Any]:
-        prepare_payload = self._load_report(self.paths["prepare_validator"])
-        if not self._prepare_ready(prepare_payload):
-            phase_report = normalize_phase_report(prepare_payload)
-            return {
-                "decision": Decision.PREPARE_NEEDED,
-                "phase": DECISION_TO_PHASE[Decision.PREPARE_NEEDED],
-                "phase_completion_status": phase_report["phase_completion_status"],
-                "ready_for_next_phase": phase_report["ready_for_next_phase"],
-                "blocking_issues": phase_report["blocking_issues"],
-                "reasons": phase_report["blocking_issues"]
-                or ["Prepare validator has not produced a ready handoff."],
-                "evidence_files": [self.paths["prepare_validator"]],
-            }
-
         self_contained_report = self._write_self_contained_report()
         if not self_contained_report.get("self_contained_project"):
             violation_lines = [
@@ -480,6 +473,7 @@ class MasterAgent(OpenHandsBaseAgent):
 
     async def run_orchestration(self) -> Dict[str, Any]:
         logger.info("Starting Master runtime-controlled orchestration...")
+        self._ensure_prepare_ready()
         previous_state = self._load_runtime_state()
         if previous_state:
             self.current_iteration = max(1, previous_state.iteration)
@@ -511,16 +505,6 @@ class MasterAgent(OpenHandsBaseAgent):
                     "iterations": self.current_iteration,
                     "final_path": self.paths["ablation_results"] if os.path.exists(self.paths["ablation_results"]) else self.agent_md_path,
                     "converged": True,
-                    "decision": decision,
-                    "stopped_due_to_iteration_limit": False,
-                }
-
-            if decision == Decision.PREPARE_NEEDED:
-                self._materialize_results_summary()
-                return {
-                    "iterations": self.current_iteration,
-                    "final_path": self.agent_md_path,
-                    "converged": False,
                     "decision": decision,
                     "stopped_due_to_iteration_limit": False,
                 }

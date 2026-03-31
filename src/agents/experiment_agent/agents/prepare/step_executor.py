@@ -85,7 +85,7 @@ def create_prepare_step_executor_agent(llm):
             TaskToolSet.name,
             TaskTrackerTool.name,
             FileEditorTool.name,
+            "web_search",
         ],
         system_prompt=_prepare_step_executor_prompt(),
-        mcp_servers=["tavily"],
     )

@@ -17,6 +17,7 @@ HAS_EXPERIMENT_DEPS = (
 )
 
 if HAS_EXPERIMENT_DEPS:
+    from src.agents.experiment_agent import main as experiment_main
     from src.agents.experiment_agent.agents.science.planner import AblationScienceAgent
     from src.agents.experiment_agent.agents.master.entry import Decision, MasterAgent
     from src.agents.experiment_agent.agents.reporting.entry import AblationReportIntegratorAgent
@@ -211,6 +212,94 @@ def test_master_routes_back_to_code_when_project_is_not_self_contained(tmp_path)
     assert payload["self_contained_project"] is False
     assert payload["blocking_issues"]
     assert os.path.exists(paths["self_contained_report"])
+
+
+def test_master_requires_prepare_handoff_before_orchestration(tmp_path):
+    idea_path = tmp_path / "idea.md"
+    idea_path.write_text("# idea", encoding="utf-8")
+    _write_idea_json(tmp_path / "idea.json")
+    project_root = tmp_path / "project"
+    project_root.mkdir()
+
+    agent = MasterAgent(
+        experiment_id="demo",
+        idea_path=str(idea_path),
+        workspace_root=str(tmp_path),
+        project_root=str(project_root),
+        verbose=False,
+    )
+
+    with pytest.raises(ValueError, match="prepare handoff"):
+        agent._ensure_prepare_ready()
+
+
+def test_main_reuses_valid_prepare_before_entering_master(tmp_path, monkeypatch):
+    workspace_root = tmp_path / "workspace"
+    project_root = workspace_root / "project"
+    project_root.mkdir(parents=True)
+    paths = artifact_paths(str(workspace_root), str(project_root))
+    _write_json(paths["prepare_validator"], {"validation_status": "PASS", "scope": "prepare"})
+
+    async def fail_prepare(*args, **kwargs):
+        raise AssertionError("prepare should be reused, not rerun")
+
+    async def fake_master(**kwargs):
+        return {"iterations": 1, "final_path": "master.md", "stopped_due_to_iteration_limit": False}
+
+    async def fake_iteration_reporter(**kwargs):
+        return {"valid": False}
+
+    monkeypatch.setattr(experiment_main, "print_config", lambda: None)
+    monkeypatch.setattr(experiment_main, "print_phase", lambda *args, **kwargs: None)
+    monkeypatch.setattr(experiment_main, "ensure_experiment_dirs", lambda experiment_id: {
+        "workspace_dir": str(workspace_root),
+        "project_dir": str(project_root),
+        "results_dir": str(workspace_root / "results"),
+        "model_dir": str(workspace_root / "model_candidate"),
+        "reports_dir": str(workspace_root / "agent_reports"),
+        "cache_dir": str(workspace_root / ".cache"),
+    })
+    monkeypatch.setattr(experiment_main, "copy_prepared_data_to_workspace", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(experiment_main, "write_workspace_env_file", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(experiment_main.Cache, "initialize", lambda *args, **kwargs: None)
+    monkeypatch.setattr(experiment_main, "run_prepare", fail_prepare)
+    monkeypatch.setattr(experiment_main, "run_master", fake_master)
+    monkeypatch.setattr(experiment_main, "run_iteration_reporter", fake_iteration_reporter)
+    monkeypatch.setattr(experiment_main, "get_idea_input_path", lambda experiment_id: str(workspace_root / "idea.md"))
+
+    args = type("Args", (), {
+        "experiment": "demo",
+        "prepare_only": False,
+        "skip_prepare": False,
+        "force": False,
+        "clone_depth": 1,
+        "skip_repos": False,
+        "skip_datasets": False,
+        "max_iterations": 1,
+        "resume": False,
+        "verbose": False,
+    })()
+
+    result = asyncio.run(experiment_main.main_async(args))
+    assert result == 0
+
+
+def test_main_rejects_skip_prepare_flag(tmp_path):
+    args = type("Args", (), {
+        "experiment": "demo",
+        "prepare_only": False,
+        "skip_prepare": True,
+        "force": False,
+        "clone_depth": 1,
+        "skip_repos": False,
+        "skip_datasets": False,
+        "max_iterations": 1,
+        "resume": False,
+        "verbose": False,
+    })()
+
+    with pytest.raises(ValueError, match="no longer supported"):
+        asyncio.run(experiment_main.main_async(args))
 
 
 def test_terminal_parent_env_export_includes_external_variables(monkeypatch):

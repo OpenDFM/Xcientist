@@ -318,7 +318,7 @@ experiment:
   workspace:
     root: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace"
     prepare_clone_depth: 1
-    model_candidate_seed: "/public/share/model"
+    model_candidate_seed: "/hpc_stor03/sjtu_home/hanqi.li/ckpts/huggingface"
     tavily_enabled: true
     tavily_api_key: "${env:TAVILY_API_KEY}"
     tavily_remote_url_template: "https://mcp.tavily.com/mcp/?tavilyApiKey={api_key}"

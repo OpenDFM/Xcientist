@@ -365,7 +365,7 @@ def get_path_config(experiment_id: str) -> Dict[str, Any]:
 
 
 def _ensure_seed_symlink(link_path: str, target_path: str) -> None:
-    link_real = os.path.realpath(os.path.abspath(os.path.expanduser(link_path)))
+    link_real = os.path.abspath(os.path.expanduser(link_path))
     target_real = os.path.realpath(os.path.abspath(os.path.expanduser(target_path)))
     parent_dir = os.path.dirname(link_real)
     os.makedirs(parent_dir, exist_ok=True)

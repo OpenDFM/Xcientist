@@ -59,6 +59,12 @@ def phase_report_status(payload: Dict[str, Any]) -> str:
     raw = payload.get("status")
     if raw in (None, ""):
         raw = payload.get("verdict")
+    if raw in (None, ""):
+        raw = payload.get("validation_status")
+    if raw in (None, ""):
+        validation_summary = payload.get("validation_summary")
+        if isinstance(validation_summary, dict):
+            raw = validation_summary.get("stage_status")
     status = str(raw or "").strip().upper()
     if status in {"PASS", "PARTIAL", "FAIL"}:
         return status

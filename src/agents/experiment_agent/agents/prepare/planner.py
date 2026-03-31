@@ -61,7 +61,7 @@ class PrepareReport:
 
 
 class PrepareAgent(BaseAgent):
-    PREPARE_DEFAULT_MCP_SERVERS = ["fetch", "github", "tavily"]
+    PREPARE_DEFAULT_MCP_SERVERS = ["fetch", "github"]
     SYSTEM_PROMPT_TEMPLATE = "prepare_agent.j2"
     PREPARE_STAGE_SPECS = [
         {
@@ -152,6 +152,7 @@ class PrepareAgent(BaseAgent):
             Tool(name=FileEditorTool.name),
             Tool(name=TaskTrackerTool.name),
             Tool(name=TaskToolSet.name),
+            Tool(name="web_search"),
         ]
 
     def _get_agent_context(self):

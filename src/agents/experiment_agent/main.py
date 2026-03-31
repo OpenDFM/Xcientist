@@ -24,6 +24,8 @@ from src.agents.experiment_agent.config import (
     write_workspace_env_file,
 )
 from src.agents.experiment_agent.runtime.cache import Cache
+from src.agents.experiment_agent.runtime.manifests import artifact_paths, load_json_file
+from src.agents.experiment_agent.runtime.phase_contracts import normalize_phase_report
 from src.agents.experiment_agent.telemetry import print_phase
 
 
@@ -43,7 +45,7 @@ def get_args():
     parser.add_argument(
         "--skip-prepare",
         action="store_true",
-        help="Skip prepare and start directly from master orchestration",
+        help="Deprecated: prepare is now a required startup prerequisite and cannot be skipped",
     )
     parser.add_argument(
         "--force", action="store_true", help="Overwrite prepare_idea.md and re-download/clone"
@@ -70,6 +72,17 @@ def get_args():
     return parser.parse_args()
 
 
+def _prepare_ready_for_master(workspace_root: str, project_root: str) -> bool:
+    paths = artifact_paths(workspace_root, project_root)
+    payload = load_json_file(paths["prepare_validator"])
+    phase_report = normalize_phase_report(payload)
+    if phase_report["status"] == "PASS":
+        return True
+    if phase_report["status"] == "PARTIAL" and phase_report["ready_for_next_phase"]:
+        return True
+    return False
+
+
 async def main_async(args) -> int:
     print_config()
     print_phase(
@@ -93,7 +106,12 @@ async def main_async(args) -> int:
     print(f"Model Candidate: {paths['model_dir']}")
     print(f"Agent Reports: {paths['reports_dir']}")
 
-    if not args.skip_prepare:
+    if args.skip_prepare:
+        raise ValueError("--skip-prepare is no longer supported; prepare is a required startup prerequisite")
+
+    should_run_prepare = bool(args.force) or not _prepare_ready_for_master(workspace_root, project_root)
+
+    if should_run_prepare:
         prepare_report = await run_prepare(
             experiment_id=experiment_id,
             force=bool(args.force),
@@ -112,8 +130,11 @@ async def main_async(args) -> int:
         print(f"  Agent reports dir: {prepare_report.reports_dir}")
         if args.prepare_only:
             return 0
-    elif args.prepare_only:
-        raise ValueError("--prepare-only cannot be combined with --skip-prepare")
+    else:
+        print_phase("PREPARE REUSED", width=65)
+        print("  Existing validator-backed prepare handoff is ready; skipping prepare rerun.")
+        if args.prepare_only:
+            return 0
 
     idea_path = get_idea_input_path(experiment_id)
     print(f"Idea: {idea_path}")

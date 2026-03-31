@@ -215,6 +215,7 @@ def test_prepare_planner_tools_are_capability_isolated(tmp_path):
     assert "task_tool_set" in tool_names
     assert "task_tracker" in tool_names
     assert "file_editor" in tool_names
+    assert "web_search" in tool_names
     assert "terminal" not in tool_names
 
 
@@ -234,7 +235,7 @@ def test_bounded_file_editor_action_exposes_targeted_commands():
 
 
 def test_experiment_agents_disable_filesystem_mcp_by_default():
-    assert PrepareAgent.PREPARE_DEFAULT_MCP_SERVERS == ["fetch", "github", "tavily"]
+    assert PrepareAgent.PREPARE_DEFAULT_MCP_SERVERS == ["fetch", "github"]
     assert CodeAgent.CODE_DEFAULT_MCP_SERVERS == []
     assert StandardScienceAgent.SCIENCE_DEFAULT_MCP_SERVERS == []
     assert AblationScienceAgent.SCIENCE_DEFAULT_MCP_SERVERS == []
@@ -266,14 +267,13 @@ def test_experiment_agent_mcp_configs_exclude_thinking_server(tmp_path):
     )
 
     prepare_mcp = prepare_agent._build_mcp_config()["mcpServers"]
-    assert "fetch" in prepare_mcp
-    assert "github" in prepare_mcp
+    assert sorted(prepare_mcp.keys()) == ["fetch", "github"]
     assert "thinking" not in prepare_mcp
     assert "thinking" not in code_agent._build_mcp_config()["mcpServers"]
     assert "thinking" not in master_agent._build_mcp_config()["mcpServers"]
 
 
-def test_phase_and_planner_subagent_factories_force_builtin_think_and_prepare_mcp(monkeypatch):
+def test_phase_and_planner_subagent_factories_force_builtin_think_and_optional_prepare_mcp(monkeypatch):
     captured = {}
 
     class DummyAgent:
@@ -289,11 +289,9 @@ def test_phase_and_planner_subagent_factories_force_builtin_think_and_prepare_mc
         role="prepare_worker",
         tool_names=["terminal"],
         system_prompt="test",
-        mcp_servers=["tavily"],
     )
     assert captured["include_default_tools"] == ["FinishTool", "ThinkTool"]
-    if "mcp_config" in captured:
-        assert captured["mcp_config"]["mcpServers"].keys() == {"tavily"}
+    assert "mcp_config" not in captured
 
     monkeypatch.setattr(
         "src.agents.experiment_agent.agents.code.planner.Agent",
@@ -535,7 +533,7 @@ def test_master_gate_is_validator_driven_and_writes_ablation_results(tmp_path):
     assert "metadata" not in ablation_results
 
 
-def test_master_returns_prepare_needed_when_prepare_phase_verdict_is_missing(tmp_path):
+def test_master_requires_prepare_handoff_before_running(tmp_path):
     idea_path = tmp_path / "idea.md"
     idea_path.write_text("# idea", encoding="utf-8")
     _write_idea_json(tmp_path / "idea.json")
@@ -550,8 +548,8 @@ def test_master_returns_prepare_needed_when_prepare_phase_verdict_is_missing(tmp
         verbose=False,
     )
 
-    payload = agent._compute_gate_payload()
-    assert payload["decision"] == Decision.PREPARE_NEEDED
+    with pytest.raises(ValueError, match="prepare handoff"):
+        agent._ensure_prepare_ready()
 
 
 def test_master_accepts_partial_prepare_verdict_when_ready_to_proceed(tmp_path):
@@ -583,6 +581,7 @@ def test_master_accepts_partial_prepare_verdict_when_ready_to_proceed(tmp_path):
         verbose=False,
     )
 
+    agent._ensure_prepare_ready()
     payload = agent._compute_gate_payload()
     assert payload["decision"] == Decision.CODE_NEEDED
 
