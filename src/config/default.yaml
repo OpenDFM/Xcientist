@@ -306,7 +306,7 @@ experiment:
   memory:
     enabled: true
     shared_dir: "~/.researchagent/shared_memory"
-    embedding_model_path: "/hpc_stor03/sjtu_home/hanqi.li/ckpts/huggingface/all-MiniLM-L6-v2"
+    embedding_model_path: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/models/all-MiniLM-L6-v2"
     llm_name: "gpt-5-mini"
     query_method: "embedding"
     writeback_enabled: true
@@ -316,9 +316,9 @@ experiment:
 
   # Workspace configuration
   workspace:
-    root: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace"
+    root: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent"
     prepare_clone_depth: 1
-    model_candidate_seed: "/hpc_stor03/sjtu_home/hanqi.li/ckpts/huggingface"
+    model_candidate_seed: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/models"
     tavily_enabled: true
     tavily_api_key: "${env:TAVILY_API_KEY}"
     tavily_remote_url_template: "https://mcp.tavily.com/mcp/?tavilyApiKey={api_key}"
@@ -349,10 +349,10 @@ paper:
     vlm: "gpt-4o"
 
   workspace:
-    root: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/paper_agent/workspaces"
-    experiment_root: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/workspace"
+    root: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/paper_agent/workspaces"
+    experiment_root: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent"
 
-  template_dir: "/hpc_stor03/sjtu_home/hanqi.li/agent_workspace/ResearchAgent/src/agents/paper_agent/latex/ICML2025_Template"
+  template_dir: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/paper_agent/latex/ICML2025_Template"
 
 # ============================================
 # Pipeline Configuration

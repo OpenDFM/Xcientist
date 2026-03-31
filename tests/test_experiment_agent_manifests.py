@@ -166,6 +166,15 @@ def test_curated_contexts_include_project_agents_skill():
     assert "component-coverage" in science_worker_skill_names
 
 
+def test_curated_skill_sources_are_sanitized_for_workspace_bounded_agents():
+    prepare_context = get_prepare_agent_context()
+    code_context = get_code_agent_context()
+    science_worker_context = get_worker_agent_context("science_worker")
+
+    for context in (prepare_context, code_context, science_worker_context):
+        assert all(getattr(skill, "source", None) is None for skill in context.skills)
+
+
 def test_new_agent_entrypoints_are_importable():
     assert callable(run_prepare)
     assert callable(run_master)

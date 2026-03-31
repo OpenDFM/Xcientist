@@ -204,13 +204,28 @@ def _merge_skill_lists(*skill_groups: Iterable) -> List:
     return merged
 
 
+def _sanitize_skill_sources(skills: Iterable) -> List:
+    """Drop filesystem source paths so workspace-bounded agents do not chase repo files."""
+    sanitized: List = []
+    for skill in skills:
+        source = getattr(skill, "source", None)
+        if source and hasattr(skill, "model_copy"):
+            try:
+                sanitized.append(skill.model_copy(update={"source": None}))
+                continue
+            except Exception:
+                pass
+        sanitized.append(skill)
+    return sanitized
+
+
 def load_skills(skill_names: Optional[Iterable[str]] = None) -> AgentContext:
     skill_map = _load_skill_map()
     requested: Set[str] = set(skill_names or skill_map.keys())
     selected = [skill for name, skill in skill_map.items() if name in requested]
     project_skills = _load_project_skill_list()
     return AgentContext(
-        skills=_merge_skill_lists(project_skills, selected),
+        skills=_sanitize_skill_sources(_merge_skill_lists(project_skills, selected)),
         load_public_skills=False,
     )
 

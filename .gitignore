@@ -59,6 +59,7 @@ database/paper_abstracts/cache.db
 database/pdf_papers/
 database/
 tests
+memory_test_1/
 
 # Pipeline workspace
 workspace/

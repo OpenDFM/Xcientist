@@ -13,6 +13,7 @@ export EXPERIMENT_AGENT_INSTALL_MCP_WRAPPERS_ON_BOOT="${EXPERIMENT_AGENT_INSTALL
 
 EXPERIMENT=""
 IDEA_JSON=""
+PREPARE_ONLY=0
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 export PYTHONPATH="$SCRIPT_DIR:${PYTHONPATH:-}"
@@ -22,6 +23,7 @@ while [[ "$#" -gt 0 ]]; do
     case $1 in
         --experiment) EXPERIMENT="$2"; shift ;;
         --idea-json) IDEA_JSON="$2"; shift ;;
+        --prepare_only) PREPARE_ONLY=1 ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -120,5 +122,9 @@ MAIN_CMD=(
     --verbose
     --clone-depth 1
 )
+
+if [[ "$PREPARE_ONLY" == "1" ]]; then
+    MAIN_CMD+=(--prepare-only)
+fi
 
 EXPERIMENT_AGENT_WORKSPACE_DIR="$EXPERIMENT_DIR" "${MAIN_CMD[@]}"
