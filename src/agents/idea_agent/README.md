@@ -44,9 +44,8 @@ Cold-start retrieval stage.
 
 - Generates a focused query from `artifact["retrieval_keywords"]` or directly from `mature_idea`
 - Uses that query against OutcomeRAG to retrieve survey sections
-- If survey citations are available, uses citation titles to retrieve `Core` nodes from `graph.db`
-- Otherwise falls back to using the query directly against the graph server
-- Selects a compact batch of Core references for downstream analysis and MCTS context
+- If survey citations are available, reads the corresponding SurveyAgent-prestored keynotes one paper at a time by citation `paper_id`
+- Scores, ranks, and compresses those keynotes into a compact paper-capsule batch for downstream analysis and MCTS context
 
 Writes:
 
@@ -104,7 +103,7 @@ Then it:
 | `refinement_scope` | optional hard boundary describing which subsystem or edit surface LigAgent may refine |
 | `background_knowledge` | analysis-derived background lines |
 | `analysis` | structured analysis entries |
-| `references` | selected Core-reference batches from `graph.db` |
+| `references` | paper capsules compressed from survey-cited papers' prestored keynotes |
 | `rag_query`, `rag_hits`, `rag_contents` | OutcomeRAG query plus retrieved survey sections |
 | `latest_candidate` | current best canonical idea payload from `idea_generation` |
 | `ligagent_pro_candidates` | raw per-mode best candidates collected by LigAgent-Pro |

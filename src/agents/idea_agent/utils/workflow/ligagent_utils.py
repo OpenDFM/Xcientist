@@ -43,7 +43,7 @@ def collect_paper_context_entries(
                     "paper_id": node_id,
                     "title": reference.get("title") or reference.get("paper_title") or node_id,
                     "summary": summary,
-                    "source": reference.get("source") or "graph",
+                    "source": reference.get("source") or "survey_keynote",
                     "authors": reference.get("authors") or [],
                 }
             )

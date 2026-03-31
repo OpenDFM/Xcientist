@@ -44,9 +44,8 @@ graph TD
 
 - 根据 `artifact["retrieval_keywords"]` 或 `mature_idea` 生成聚焦 query
 - 用该 query 在 OutcomeRAG 上检索 survey 片段
-- 如果拿到了 survey citations，就用 citation titles 去 `graph.db` 检索 `Core` 节点
-- 否则直接用 query 去 graph server 检索
-- 选出一小批 Core references，供下游分析和 MCTS 使用
+- 如果拿到了 survey citations，就按 citation 对应的 `paper_id` 逐条读取 SurveyAgent 预存的 keynote
+- 对读取到的 keynote 逐条打分、排序并压缩，供下游分析和 MCTS 使用
 
 写入：
 
@@ -103,7 +102,7 @@ graph TD
 | `mature_idea` | contract root 或 replanning 后的成熟想法 |
 | `background_knowledge` | 分析阶段生成的背景知识 |
 | `analysis` | 结构化分析结果 |
-| `references` | 从 `graph.db` 选出的 Core reference 批次 |
+| `references` | 由 survey cited papers 的 pre-stored keynote 压缩得到的 paper capsules |
 | `rag_query`、`rag_hits`、`rag_contents` | OutcomeRAG 查询和检索出的 survey 片段 |
 | `latest_candidate` | `idea_generation` 产出的当前最佳 canonical idea payload |
 | `ligagent_pro_candidates` | LigAgent-Pro 收集到的各 mode raw best candidates |

@@ -130,6 +130,11 @@ def _format_authors(authors: Any, max_items: int = 4) -> str:
     return ", ".join(names) if names else ""
 
 
+def _reference_mode(paper: Mapping[str, Any]) -> str:
+    explicit = _clip_text(paper.get("reference_mode"))
+    return explicit or "paper_summary"
+
+
 def format_analysis_prompt_view(analysis: Any) -> str:
     if isinstance(analysis, list):
         entries = analysis
@@ -275,23 +280,29 @@ def format_latest_candidate_prompt_view(latest_candidate: Any) -> str:
     )
 
 
-def format_paper_capsules_prompt_view(papers: Any, *, max_papers: int = 8) -> str:
+def format_paper_capsules_prompt_view(
+    papers: Any,
+    *,
+    max_papers: Optional[int] = None,
+) -> str:
     items = [item for item in _normalize_list(papers) if item is not None]
     if not items:
-        return "No core reference capsules."
+        return "No survey-cited paper capsules."
+    visible_items = items if max_papers is None or max_papers <= 0 else items[:max_papers]
 
     sections = [
         _format_section(
-            "Core Reference Capsules",
-            [f"Available capsules: {len(items)}", f"Showing: {min(len(items), max_papers)}"],
+            "Survey-Cited Paper Capsules",
+            [f"Available capsules: {len(items)}", f"Showing: {len(visible_items)}"],
         )
     ]
-    for idx, raw in enumerate(items[:max_papers], start=1):
+    for idx, raw in enumerate(visible_items, start=1):
         if not isinstance(raw, Mapping):
             sections.append(_format_section(f"Paper {idx}", [_format_kv_line("Raw", raw, 300)]))
             continue
 
         authors = _format_authors(raw.get("authors"))
+        mode = _reference_mode(raw)
         meta_parts: List[str] = []
         if raw.get("year"):
             meta_parts.append(f"year={raw.get('year')}")
@@ -302,18 +313,24 @@ def format_paper_capsules_prompt_view(papers: Any, *, max_papers: int = 8) -> st
         if raw.get("paper_id"):
             meta_parts.append(f"id={_clip_text(raw.get('paper_id'))}")
 
+        body_lines = [
+            _format_kv_line("Title", raw.get("title") or raw.get("paper_title"), 140),
+            f"Metadata: {' | '.join(meta_parts) if meta_parts else 'None'}",
+            f"Type: {mode}",
+        ]
+        summary = _clip_text(raw.get("summary"), 800) or _extract_paper_summary(raw)
+        insight = _clip_text(raw.get("insight"), 500)
+        body_lines.append(_format_kv_line("Summary", summary, 1000))
+        if insight:
+            body_lines.append(_format_kv_line("Insight", insight, 700))
         sections.append(
             _format_section(
                 f"Paper {idx}",
-                [
-                    _format_kv_line("Title", raw.get("title") or raw.get("paper_title"), 140),
-                    f"Metadata: {' | '.join(meta_parts) if meta_parts else 'None'}",
-                    _format_kv_line("Summary", _extract_paper_summary(raw), 260),
-                ],
+                body_lines,
             )
         )
 
-    return _join_sections(sections, empty="No core reference capsules.")
+    return _join_sections(sections, empty="No survey-cited paper capsules.")
 
 
 def format_paper_context_prompt_view(
@@ -375,12 +392,12 @@ def format_paper_context_prompt_view(
         _format_section(
             "Paper Context Snapshot",
             [
-                f"Core references: {len(entries or [])}",
+                f"Survey-cited papers: {len(entries or [])}",
                 f"RAG hits: {len(hits)}",
                 f"Survey excerpts: {len(_normalize_list(latest_sections))}",
             ],
         ),
-        _format_section("Core References", paper_lines),
+        _format_section("Survey-Cited Papers", paper_lines),
         _format_section("RAG Evidence", rag_lines),
         _format_section("Survey Excerpts", survey_lines),
     ]

@@ -149,14 +149,15 @@ class OutcomeRAG:
         results = []
         for score, idx in zip(values.tolist(), indices.tolist()):
             subsection_text = self.subsections[idx]
-            citations = self._collect_citations(subsection_text, top_k=cite_top_k) #{"id": cid, "count": cnt, "title": entry} for each item
-            citations = [c.get("title") for c in citations if c.get("title")]
+            citation_entries = self._collect_citations(subsection_text, top_k=cite_top_k)
+            citations = [c.get("title") for c in citation_entries if c.get("title")]
             # self.logger.info(f"Retrieved subsection citations: {citations}")
             results.append({
                 "subsection": subsection_text,
                 "title": self.subsection_titles[idx] if idx < len(self.subsection_titles) else None,
                 "score": float(score),
-                "citations": citations, 
+                "citations": citations,
+                "citation_entries": citation_entries,
             })
         return results
     
@@ -168,7 +169,7 @@ class OutcomeRAG:
         out = []
         for cid, cnt in paired:
             entry = self._lookup_citation(cid)
-            out.append({"id": cid, "count": cnt, "title": entry})
+            out.append({"id": cid, "count": cnt, **entry})
         if top_k is not None:
             out = out[:top_k]
         return out
@@ -186,14 +187,17 @@ class OutcomeRAG:
                 occurs[uniq.index(i)] += 1
         return uniq, occurs
 
-    def _lookup_citation(self, cid: int) -> str:
+    def _lookup_citation(self, cid: int) -> Dict[str, str]:
         paper_ids = self.json_data.get("references") if self.json_data else None
         if isinstance(paper_ids, list) and 1 <= cid <= len(paper_ids):
             paper_id = paper_ids[cid - 1]  # assuming cid starts from 1
-            return self.work_collector.get_paper_title(paper_id)
+            return {
+                "paper_id": paper_id,
+                "title": self.work_collector.get_paper_title(paper_id),
+            }
         else:
             self.logger.warning(f"Invalid citation id {cid} or references missing; skipping title lookup")
-            return ""
+            return {"paper_id": "", "title": ""}
 
     def log_hits(self, hits: List[Dict], label: str = "Hits") -> None:
         self.logger.info(f"{label}: {len(hits)} result(s)")

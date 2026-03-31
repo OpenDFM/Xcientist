@@ -278,9 +278,6 @@ class PaperGraphComponentVectorStore:
 
         self._index = faiss.read_index(str(faiss_path))
         self.index_dir = target_dir
-        stored_model = _normalize_text(metadata.get("model_name_or_path"))
-        if stored_model:
-            self.model_name_or_path = _resolve_repo_path(stored_model)
 
         raw_meta = metadata.get("meta") or {}
         if not isinstance(raw_meta, dict):

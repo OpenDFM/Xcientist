@@ -78,3 +78,21 @@ def get_config_value(config: Optional[Any], key: str, default: Any) -> Any:
     except Exception:
         value = None
     return default if value is None else value
+
+
+def get_workspace_root(config: Optional[Any] = None) -> Path:
+    workspace_root = get_config_value(config, "workspace.root", None)
+    if workspace_root is None:
+        project_config = load_project_config()
+        workspace_root = get_config_value(project_config, "workspace.root", None)
+    return Path(str(workspace_root)).expanduser().resolve()
+
+
+def resolve_workspace_path(path_value: Any, config: Optional[Any] = None) -> str:
+    raw = str(path_value or "").strip()
+    if not raw:
+        return raw
+    candidate = Path(raw).expanduser()
+    if candidate.is_absolute():
+        return str(candidate.resolve())
+    return str((get_workspace_root(config) / candidate).resolve())

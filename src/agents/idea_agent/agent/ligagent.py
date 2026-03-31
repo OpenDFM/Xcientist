@@ -45,7 +45,10 @@ from src.agents.idea_agent.utils.workflow.workflow_runtime import (
     WorkflowExecutor,
     WorkflowSpec,
 )
-from src.agents.idea_agent.utils.core.config_loader import get_config_value
+from src.agents.idea_agent.utils.core.config_loader import (
+    get_config_value,
+    resolve_workspace_path,
+)
 from src.agents.idea_agent.utils.papers.paper_graph_vector_store import (
     PaperGraphComponentVectorStore,
 )
@@ -257,15 +260,19 @@ class LigAgent(AgentBase):
         self,
         mcts_config: MCTSConfig,
     ) -> PaperGraphComponentVectorStore:
+        component_model_path = resolve_workspace_path(
+            mcts_config.component_novelty_model_path,
+            self.config,
+        )
         shared_store = PaperGraphComponentVectorStore(
-            model_name_or_path=mcts_config.component_novelty_model,
+            model_name_or_path=component_model_path,
             index_dir=mcts_config.component_novelty_index_dir or None,
         )
         try:
             shared_store.warmup(allow_stale_graph=True)
             logger.info(
                 "[LigAgent] Eager-loaded component retrieval resources from model=%s index_dir=%s",
-                mcts_config.component_novelty_model,
+                component_model_path,
                 shared_store.index_dir,
             )
             return shared_store
@@ -276,19 +283,20 @@ class LigAgent(AgentBase):
                 exc,
             )
             return PaperGraphComponentVectorStore(
-                model_name_or_path=mcts_config.component_novelty_model,
+                model_name_or_path=component_model_path,
                 index_dir=mcts_config.component_novelty_index_dir or None,
                 disabled_error=str(exc),
             )
 
     def _build_memory_accessor(self) -> VectorMemoryAccessor:
-        model_path = str(
+        model_path = resolve_workspace_path(
             get_config_value(
                 self.config,
                 "memory.vector_store.model_path",
-                ".cache/all-MiniLM-L6-v2",
+                "src/memory/memory_system/.cache/all-MiniLM-L6-v2",
             )
-            or ".cache/all-MiniLM-L6-v2"
+            or "src/memory/memory_system/.cache/all-MiniLM-L6-v2",
+            self.config,
         )
         return VectorMemoryAccessor(
             semantic_cfg={"model_path": model_path},
@@ -344,9 +352,9 @@ class LigAgent(AgentBase):
                     handler=self._ka_outcome_rag_stage,
                     allowed_artifact_namespaces={"retrieval"},
                 ),
-                "ka_graph_retrieval": StageSpec(
-                    name="ka_graph_retrieval",
-                    handler=self._ka_graph_retrieval_stage,
+                "ka_keynote_ranking": StageSpec(
+                    name="ka_keynote_ranking",
+                    handler=self._ka_keynote_ranking_stage,
                     allowed_artifact_namespaces={"retrieval"},
                 ),
                 "ka_reference_selection": StageSpec(
@@ -357,8 +365,8 @@ class LigAgent(AgentBase):
             },
             transitions={
                 "ka_query_generation": [WorkflowEdge("ka_outcome_rag")],
-                "ka_outcome_rag": [WorkflowEdge("ka_graph_retrieval")],
-                "ka_graph_retrieval": [WorkflowEdge("ka_reference_selection")],
+                "ka_outcome_rag": [WorkflowEdge("ka_keynote_ranking")],
+                "ka_keynote_ranking": [WorkflowEdge("ka_reference_selection")],
             },
         )
 
@@ -371,8 +379,8 @@ class LigAgent(AgentBase):
     def _ka_outcome_rag_stage(self, ctx: StageContext) -> StageResult:
         return ligagent_handlers.ka_outcome_rag_stage(self, ctx)
 
-    def _ka_graph_retrieval_stage(self, ctx: StageContext) -> StageResult:
-        return ligagent_handlers.ka_graph_retrieval_stage(self, ctx)
+    def _ka_keynote_ranking_stage(self, ctx: StageContext) -> StageResult:
+        return ligagent_handlers.ka_keynote_ranking_stage(self, ctx)
 
     def _ka_reference_selection_stage(self, ctx: StageContext) -> StageResult:
         return ligagent_handlers.ka_reference_selection_stage(self, ctx)

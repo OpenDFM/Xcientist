@@ -63,7 +63,10 @@ from src.agents.idea_agent.agent.prompts.theory_transfer_query import (
     get_theory_transfer_query_prompt,
 )
 from src.agents.idea_agent.agent.prompts.component_extraction import COMPONENT_EXTRACTION_PROMPT
-from src.agents.idea_agent.utils.core.config_loader import load_idea_agent_config
+from src.agents.idea_agent.utils.core.config_loader import (
+    load_idea_agent_config,
+    resolve_workspace_path,
+)
 from src.agents.idea_agent.utils.mcts.idea_taste_presets import (
     IdeaTastePreset,
     SCORE_WEIGHT_FIELDS,
@@ -440,8 +443,8 @@ class MCTSConfig:
     evaluation_temperature: float = _mcts_default("evaluation_temperature", 0.01)
     generation_max_tokens: int = _mcts_default("generation_max_tokens", 8192)
     evaluation_max_tokens: int = _mcts_default("evaluation_max_tokens", 8192)
-    component_novelty_model: str = _mcts_default(
-        "component_novelty_model", "all-MiniLM-L6-v2"
+    component_novelty_model_path: str = _mcts_default(
+        "component_novelty_model_path", "models/bge-m3"
     )
     component_novelty_index_dir: Optional[str] = _mcts_default(
         "component_novelty_index_dir", None
@@ -561,7 +564,7 @@ class VectorMemoryAccessor:
 
     def _get_embedding_model(self, cfg: Dict[str, Any]) -> Any:
         model_path = str((cfg or {}).get("model_path") or ".cache/all-MiniLM-L6-v2").strip()
-        resolved_model_path = FaissVectorStore._resolve_model_source(model_path)
+        resolved_model_path = resolve_workspace_path(model_path)
         cached_model = self._embedding_models.get(resolved_model_path)
         if cached_model is not None:
             return cached_model
@@ -765,12 +768,15 @@ class MemoryGuidedMCTS:
         self.enable_vector_memory = bool(self.config.enable_vector_memory)
         self.enable_symbolic_memory = bool(self.config.enable_symbolic_memory)
         self.memory_accessor = memory_accessor or VectorMemoryAccessor(logger=self.logger)
+        component_model_path = resolve_workspace_path(
+            self.config.component_novelty_model_path
+        )
         self.paper_graph_vector_store = paper_graph_vector_store or PaperGraphComponentVectorStore(
-            model_name_or_path=self.config.component_novelty_model,
+            model_name_or_path=component_model_path,
             index_dir=self.config.component_novelty_index_dir or None,
         )
         self.component_novelty_scorer = ComponentNoveltyScorer(
-            model_name_or_path=self.config.component_novelty_model,
+            model_name_or_path=component_model_path,
             index_dir=self.config.component_novelty_index_dir or None,
             retrieval_top_k=self.config.component_novelty_retrieval_top_k,
             evidence_node_top_k=self.config.component_novelty_evidence_top_k,

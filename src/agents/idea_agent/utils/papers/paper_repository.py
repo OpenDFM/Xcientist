@@ -1,4 +1,4 @@
-"""Graph-backed repository for survey RAG and Core-node retrieval."""
+"""Repository for survey RAG, survey keynotes, and core-node lookup."""
 
 from __future__ import annotations
 
@@ -8,8 +8,10 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from omegaconf import OmegaConf
+from tqdm import tqdm
 
 from src.agents.survey_agent.modules.outcome_RAG import OutcomeRAG
+from src.agents.survey_agent.modules.paper_graph_retriever import PaperGraphRetriever
 from src.agents.survey_agent.modules.work_collector import WorkCollector
 
 
@@ -41,7 +43,7 @@ def _extract_survey_config(config: Any) -> Any:
 
 
 class PaperRepository:
-    """Access survey RAG plus graph.db-backed Core references."""
+    """Access survey RAG plus SurveyAgent keynote retrieval."""
 
     def __init__(
         self,
@@ -59,6 +61,7 @@ class PaperRepository:
         self._repair_runtime_survey_paths(self.rag_config)
         self._outcome_rag: Optional[OutcomeRAG] = None
         self._graph_server: Optional[Any] = None
+        self._paper_graph_retriever: Optional[PaperGraphRetriever] = None
 
     def _resolve_config_path(self, provided_path, config):
         if config is not None:
@@ -153,6 +156,14 @@ class PaperRepository:
         self._graph_server = module
         return module
 
+    def _get_paper_graph_retriever(self) -> PaperGraphRetriever:
+        if self._paper_graph_retriever is None:
+            self._paper_graph_retriever = PaperGraphRetriever(
+                self.config,
+                data_manager=self.work_collector.data_manager,
+            )
+        return self._paper_graph_retriever
+
     def retrieve_outcome_rag(
         self,
         query: str,
@@ -181,107 +192,72 @@ class PaperRepository:
         node = payload.get("node")
         return dict(node) if isinstance(node, dict) else {}
 
-    def search_core_nodes_by_titles(
+    def retrieve_keynotes_by_paper_ids(
         self,
-        titles: Iterable[str],
-        *,
-        limit_per_title: int = 1,
+        references: Iterable[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        server = self._get_graph_server()
-        references: List[Dict[str, Any]] = []
-        seen: set[str] = set()
-        for title in titles or []:
-            query = _as_text(title)
-            if not query:
+        keynote_retriever = self._get_paper_graph_retriever()
+        keynote_references: List[Dict[str, Any]] = []
+        seen_paper_ids: set[str] = set()
+        for reference in tqdm(list(references or []), desc="Reading keynotes", dynamic_ncols=True):
+            paper_id = _as_text(reference.get("paper_id"))
+            title = _as_text(reference.get("title"))
+            if not paper_id or paper_id in seen_paper_ids:
                 continue
-            payload = server.search_simple(q=query, node_type="Core", limit=limit_per_title)
-            results = payload.get("results") if isinstance(payload, dict) else []
-            for node in results or []:
-                reference = self._normalize_core_reference(
-                    node,
-                    source="survey_citation",
-                    source_keywords=query,
+            seen_paper_ids.add(paper_id)
+            keynotes, _ = keynote_retriever.get_paper_keynote([paper_id])
+            keynote = keynotes[0]
+            if not keynote:
+                continue
+            keynote_references.append(
+                self._normalize_keynote_reference(
+                    paper_id=paper_id,
+                    title=title,
+                    keynote=keynote,
                 )
-                node_key = reference.get("node_id")
-                if node_key and node_key not in seen:
-                    seen.add(node_key)
-                    references.append(reference)
-        return references
-
-    def search_core_nodes_by_query(
-        self,
-        query: str,
-        *,
-        limit: int = 10,
-    ) -> List[Dict[str, Any]]:
-        server = self._get_graph_server()
-        payload = server.search_simple(q=query, node_type="Core", limit=limit)
-        results = payload.get("results") if isinstance(payload, dict) else []
-
-        references: List[Dict[str, Any]] = []
-        seen: set[str] = set()
-        for node in results or []:
-            reference = self._normalize_core_reference(
-                node,
-                source="graph_query",
-                source_keywords=query,
             )
-            node_key = reference.get("node_id")
-            if node_key and node_key not in seen:
-                seen.add(node_key)
-                references.append(reference)
-        return references
+        return keynote_references
 
-    def _normalize_core_reference(
+    def _normalize_keynote_reference(
         self,
-        node: Dict[str, Any],
         *,
-        source: str,
-        source_keywords: str,
+        paper_id: str,
+        title: str,
+        keynote: str,
     ) -> Dict[str, Any]:
-        node_id = _as_text(node.get("id") or node.get("node_id"))
-        raw_node = self.get_core_node(node_id) if node_id else {}
-        if not raw_node and isinstance(node, dict):
-            raw_node = dict(node)
-        paper_title = _as_text(node.get("paper_title"))
-        full_name = _as_text(node.get("full_name"))
-        label = _as_text(node.get("label"))
-        summary = _as_text(node.get("summary"))
-        insight = _as_text(node.get("insight"))
-        components = node.get("components") if isinstance(node.get("components"), list) else []
-        component_names = [
-            _as_text(component.get("name") or component.get("label"))
-            for component in components[:4]
-            if isinstance(component, dict) and _as_text(component.get("name") or component.get("label"))
-        ]
-        summary_parts = [part for part in [summary, f"Insight: {insight}" if insight else ""] if part]
-        if component_names:
-            summary_parts.append("Components: " + ", ".join(component_names))
-        summary_text = " ".join(summary_parts) or "No summary available."
-        title = paper_title or full_name or label or node_id
         return {
-            "paper_id": node_id,
-            "node_id": node_id,
+            "paper_id": paper_id,
+            "node_id": paper_id,
             "title": title,
-            "paper_title": paper_title or title,
-            "summary": summary_text,
-            "insight": insight,
+            "paper_title": title,
+            "summary": "",
+            "insight": "",
+            "keynote": _as_text(keynote),
             "authors": [],
-            "source": source,
-            "source_keywords": source_keywords,
-            "paper_domain": _as_text(node.get("paper_domain")),
-            "full_name": full_name,
-            "label": label or title,
-            "components": components,
-            "raw_node": raw_node,
+            "source": "survey_keynote",
+            "source_keywords": title,
+            "paper_domain": "",
+            "venue": "",
+            "year": "",
+            "reference_mode": "raw_keynote",
         }
 
     def _normalize_rag_hit(self, hit: Dict[str, Any]) -> Dict[str, Any]:
         normalized = dict(hit) if isinstance(hit, dict) else {}
         subsection_title = _as_text(normalized.get("subsection_title") or normalized.get("title"))
+        citation_entries: List[Dict[str, str]] = []
+        seen_paper_ids: set[str] = set()
+        for raw_entry in normalized.get("citation_entries") or []:
+            paper_id = _as_text(raw_entry.get("paper_id"))
+            title = _as_text(raw_entry.get("title"))
+            if not paper_id or not title or paper_id in seen_paper_ids:
+                continue
+            seen_paper_ids.add(paper_id)
+            citation_entries.append({"paper_id": paper_id, "title": title})
+
         paper_titles: List[str] = []
         seen_titles: set[str] = set()
-        for raw_title in normalized.get("paper_titles") or normalized.get("citations") or []:
+        for raw_title in normalized.get("paper_titles") or normalized.get("citations") or [entry["title"] for entry in citation_entries]:
             cleaned = _as_text(raw_title)
             if not cleaned:
                 continue
@@ -292,6 +268,7 @@ class PaperRepository:
             paper_titles.append(cleaned)
 
         normalized["subsection_title"] = subsection_title
+        normalized["citation_entries"] = citation_entries
         normalized["paper_titles"] = paper_titles
         # Keep backward-compatible access for prompt views / logs.
         normalized["citations"] = paper_titles

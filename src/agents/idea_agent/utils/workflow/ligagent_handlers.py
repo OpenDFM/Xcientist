@@ -4,6 +4,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from typing import Any, Dict, List
 
+from tqdm import tqdm
+
 from src.agents.idea_agent.agent.artifacts import artifact_get
 from src.agents.idea_agent.agent.prompts import PROMPTS
 from src.agents.idea_agent.utils.core.config_loader import get_config_value
@@ -28,6 +30,7 @@ from src.agents.idea_agent.utils.workflow.ligagent_flow import (
 )
 from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     build_replanned_idea_entry,
+    collect_rag_citation_references,
     collect_analysis_background_lines,
     collect_rag_citations,
     collect_rag_contents,
@@ -42,9 +45,6 @@ from src.agents.idea_agent.utils.workflow.ligagent_helpers import (
     retrieve_outcome_rag,
     root_idea_to_mature_idea_text,
     root_idea_to_refinement_scope_text,
-    search_core_nodes_from_citations,
-    search_core_nodes_from_query,
-    select_core_references,
     should_preserve_current_mature_idea,
     preserve_mature_idea_as_root,
 )
@@ -88,6 +88,130 @@ def _chat(agent: Any, ctx: StageContext, op_name: str):
         )
 
     return _invoke
+
+
+def _score_keynote_reference(
+    agent: Any,
+    ctx: StageContext,
+    topic: str,
+    rag_query: str,
+    reference: Dict[str, Any],
+) -> Dict[str, Any]:
+    runtime = _runtime(agent, ctx)
+    session = _session(agent, ctx)
+    prompt = PROMPTS["keynote_scoring"].format(
+        topic=topic,
+        rag_query=rag_query,
+        title=str(reference.get("title") or reference.get("paper_title") or "").strip(),
+        keynote=str(reference.get("keynote") or "").strip(),
+    )
+    payload = runtime.llm_json(
+        session=session,
+        stage="ka_keynote_scoring",
+        workflow_name=ctx.workflow_name,
+        op_name="keynote_scoring",
+        prompt=prompt,
+        model=agent.model,
+        temperature=0.0,
+        max_output_tokens=512,
+    )
+    scored = dict(reference)
+    scored["score"] = int(payload["score"])
+    return scored
+
+
+def _compress_single_keynote_reference(
+    agent: Any,
+    ctx: StageContext,
+    topic: str,
+    rag_query: str,
+    reference: Dict[str, Any],
+) -> Dict[str, Any]:
+    runtime = _runtime(agent, ctx)
+    session = _session(agent, ctx)
+    prompt = PROMPTS["keynote_single_compression"].format(
+        topic=topic,
+        rag_query=rag_query,
+        title=str(reference.get("title") or reference.get("paper_title") or "").strip(),
+        keynote=str(reference.get("keynote") or "").strip(),
+    )
+    payload = runtime.llm_json(
+        session=session,
+        stage="ka_keynote_single_compression",
+        workflow_name=ctx.workflow_name,
+        op_name="keynote_single_compression",
+        prompt=prompt,
+        model=agent.model,
+        temperature=0.1,
+        max_output_tokens=2048,
+    )
+    return {
+        "paper_id": reference.get("paper_id"),
+        "node_id": reference.get("node_id"),
+        "title": reference.get("title"),
+        "paper_title": reference.get("paper_title"),
+        "summary": str(payload["summary"]).strip(),
+        "insight": str(payload["insight"]).strip(),
+        "authors": reference.get("authors") or [],
+        "source": reference.get("source") or "survey_keynote",
+        "source_keywords": reference.get("source_keywords") or rag_query,
+        "paper_domain": reference.get("paper_domain"),
+        "venue": reference.get("venue"),
+        "year": reference.get("year"),
+        "score": int(reference["score"]),
+        "reference_mode": "paper_summary",
+    }
+
+
+def _summarize_remaining_keynotes(
+    agent: Any,
+    ctx: StageContext,
+    topic: str,
+    rag_query: str,
+    references: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    runtime = _runtime(agent, ctx)
+    session = _session(agent, ctx)
+    prompt = PROMPTS["keynote_group_summary"].format(
+        topic=topic,
+        rag_query=rag_query,
+        papers=pretty_json(
+            [
+                {
+                    "title": reference.get("title"),
+                    "score": reference.get("score"),
+                    "keynote": reference.get("keynote"),
+                }
+                for reference in references
+            ]
+        ),
+    )
+    payload = runtime.llm_json(
+        session=session,
+        stage="ka_keynote_group_summary",
+        workflow_name=ctx.workflow_name,
+        op_name="keynote_group_summary",
+        prompt=prompt,
+        model=agent.model,
+        temperature=0.1,
+        max_output_tokens=4096,
+    )
+    return {
+        "paper_id": "remaining_survey_cited_papers",
+        "node_id": "remaining_survey_cited_papers",
+        "title": f"Remaining survey-cited papers ({len(references)})",
+        "paper_title": f"Remaining survey-cited papers ({len(references)})",
+        "summary": str(payload["summary"]).strip(),
+        "insight": "",
+        "authors": [],
+        "source": "survey_keynote_rollup",
+        "source_keywords": rag_query,
+        "paper_domain": "",
+        "venue": "",
+        "year": "",
+        "score": int(references[0]["score"]),
+        "reference_mode": "group_summary",
+    }
 
 
 def execute_knowledge_acquisition_stage(agent: Any, ctx: StageContext) -> StageResult:
@@ -636,7 +760,8 @@ def ka_route_stage(agent: Any, ctx: StageContext) -> StageResult:
             "rag_hits": [],
             "survey_contents": [],
             "citation_titles": [],
-            "graph_references": [],
+            "citation_references": [],
+            "ranked_keynotes": [],
             "curated_references": [],
             "retrieval_source": "",
             "summary": "",
@@ -687,6 +812,7 @@ def ka_outcome_rag_stage(agent: Any, ctx: StageContext) -> StageResult:
         logger=_logger(agent, ctx),
     )
     survey_contents = collect_rag_contents(rag_hits)
+    citation_references = collect_rag_citation_references(rag_hits)
     citation_titles = collect_rag_citations(rag_hits)
     if session is not None:
         session.set_slot("rag.latest", {"query": rag_query, "hits": rag_hits})
@@ -702,6 +828,7 @@ def ka_outcome_rag_stage(agent: Any, ctx: StageContext) -> StageResult:
             "rag_hits": rag_hits,
             "survey_contents": survey_contents,
             "citation_titles": citation_titles,
+            "citation_references": citation_references,
         },
         metrics={
             "rag_hits": len(rag_hits),
@@ -710,47 +837,31 @@ def ka_outcome_rag_stage(agent: Any, ctx: StageContext) -> StageResult:
     )
 
 
-def ka_graph_retrieval_stage(agent: Any, ctx: StageContext) -> StageResult:
+def ka_keynote_ranking_stage(agent: Any, ctx: StageContext) -> StageResult:
     logger = _logger(agent, ctx)
+    topic = ctx.state["topic"]
     rag_query = ctx.state["rag_query"]
-    citation_titles = ctx.state.get("citation_titles", [])
-    if citation_titles:
-        graph_references = search_core_nodes_from_citations(
-            citation_titles,
-            rag_query,
-            agent.paper_repository,
-        )
-        retrieval_source = "survey_citations"
-    else:
-        graph_references = search_core_nodes_from_query(
-            rag_query,
-            agent.paper_repository,
-        )
-        retrieval_source = "query_fallback"
+    citation_references = ctx.state.get("citation_references", [])
+    keynote_references = agent.paper_repository.retrieve_keynotes_by_paper_ids(citation_references)
+    scored_keynotes = [
+        _score_keynote_reference(agent, ctx, topic, rag_query, {**reference, "source_keywords": rag_query})
+        for reference in tqdm(keynote_references, desc="Scoring keynotes", dynamic_ncols=True)
+    ]
+    scored_keynotes.sort(key=lambda item: int(item["score"]), reverse=True)
+    retrieval_source = "survey_keynotes"
     if logger is not None:
-        for idx, reference in enumerate(graph_references, 1):
-            if not isinstance(reference, dict):
-                continue
-            title = str(
-                reference.get("title")
-                or reference.get("paper_title")
-                or reference.get("node_id")
-                or f"graph_reference_{idx}"
-            ).strip()
-            summary = str(
-                reference.get("summary")
-                or reference.get("insight")
-                or "No summary available."
-            ).strip()
-            logger.info("📚 Graph Reference %d Title: %s", idx, title)
-            logger.info("📚 Graph Reference %d Summary: %s", idx, summary)
+        for idx, reference in enumerate(scored_keynotes, 1):
+            title = str(reference.get("title") or reference.get("paper_title") or "").strip()
+            logger.info("📚 Survey Paper %d Title: %s", idx, title)
+            logger.info("📚 Survey Paper %d Score: %s", idx, int(reference["score"]))
     return StageResult(
         state_patch={
-            "graph_references": graph_references,
+            "ranked_keynotes": scored_keynotes,
             "retrieval_source": retrieval_source,
         },
         metrics={
-            "graph_references": len(graph_references),
+            "keynote_references": len(keynote_references),
+            "scored_keynotes": len(scored_keynotes),
             "retrieval_source": retrieval_source,
         },
     )
@@ -758,26 +869,38 @@ def ka_graph_retrieval_stage(agent: Any, ctx: StageContext) -> StageResult:
 
 def ka_reference_selection_stage(agent: Any, ctx: StageContext) -> StageResult:
     session = _session(agent, ctx)
+    topic = ctx.state["topic"]
     rag_query = ctx.state["rag_query"]
     rag_hits = ctx.state.get("rag_hits", [])
-    curated_references = select_core_references(
-        ctx.state.get("graph_references", []),
-        top_k=5,
-    )
+    ranked_keynotes = list(ctx.state.get("ranked_keynotes", []) or [])
+    top_keynotes = ranked_keynotes[:5]
+    remaining_keynotes = ranked_keynotes[5:]
+    curated_references = [
+        _compress_single_keynote_reference(agent, ctx, topic, rag_query, reference)
+        for reference in top_keynotes
+    ]
+    if remaining_keynotes:
+        curated_references.append(
+            _summarize_remaining_keynotes(agent, ctx, topic, rag_query, remaining_keynotes)
+        )
     mode = ctx.state["mode"]
     retrieval_source = ctx.state.get("retrieval_source", "")
+    top_kept = len(top_keynotes)
+    rolled_up = len(remaining_keynotes)
     if mode == "mature_idea":
         summary = (
             f"\nIn this knowledge_aquisition action, I used the mature idea to generate "
             f"a focused query '{rag_query}', retrieved {len(rag_hits)} survey hits, "
-            f"and selected {len(curated_references)} core references from graph.db "
-            f"via {retrieval_source or 'graph retrieval'}."
+            f"and materialized {len(curated_references)} survey-cited paper capsules "
+            f"via {retrieval_source or 'survey keynotes'} "
+            f"({top_kept} individual paper summaries, {rolled_up} papers rolled into one summary)."
         )
     else:
         summary = (
             f"\nIn this knowledge_aquisition action, I generated a focused query '{rag_query}', "
-            f"retrieved {len(rag_hits)} survey hits, and selected {len(curated_references)} "
-            f"core references from graph.db via {retrieval_source or 'graph retrieval'}."
+            f"retrieved {len(rag_hits)} survey hits, and materialized {len(curated_references)} "
+            f"survey-cited paper capsules via {retrieval_source or 'survey keynotes'} "
+            f"({top_kept} individual paper summaries, {rolled_up} papers rolled into one summary)."
         )
     if session is not None:
         session.set_slot("references.latest", curated_references)

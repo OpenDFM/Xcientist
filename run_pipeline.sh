@@ -6,6 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 export PYTHONPATH="$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+export HF_ENDPOINT=https://hf-mirror.com
 
 # Use conda environment python if available
 CONDA_PYTHON="$HOME/anaconda3/envs/openhands/bin/python"

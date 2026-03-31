@@ -17,7 +17,7 @@ You have:
 (1) Survey contents (PRIMARY source of problem framing, clusters, and gaps):
 {survey_contents}
 
-(2) Curated core reference capsules (SECONDARY source; use for evidence, baselines, feasibility details, and concrete instantiations ONLY):
+(2) Curated cited-paper capsules derived from survey keynotes (SECONDARY source; use for evidence, baselines, feasibility details, and concrete instantiations ONLY):
 {papers}
 
 (3) Experiment findings extracted from raw ablation results (OPTIONAL; use only if present):
@@ -25,7 +25,7 @@ You have:
 
 Core principle (must follow):
 - Survey drives the agenda: method clusters + unresolved mechanism bottlenecks + evaluation blind spots MUST be derived from survey_contents.
-- Core references may refine or substantiate the survey-derived bottlenecks and gaps, but MUST NOT redefine the agenda or introduce a new main axis not present in the survey framing.
+- Cited-paper capsules may refine or substantiate the survey-derived bottlenecks and gaps, but MUST NOT redefine the agenda or introduce a new main axis not present in the survey framing.
 - This stage is a 1.0 -> 1.1 calibrator, NOT a 2.0 invention stage. Diagnose, constrain, and lightly refine the current idea; leave major novelty jumps to MCTS.
 - If mature_idea is provided and mature_idea_source is `config_explicit` or `input_explicit`, keep the same topic, core hypothesis, and primary mechanism axis. Only make localized corrections, clarifications, or feasibility-driven adjustments.
 - If mature_idea_source is `input_inferred` or `empty`, treat the current mature_idea as provisional. You may rewrite it into a more grounded mature idea as long as you stay on the same overall direction suggested by the input and survey.
@@ -48,11 +48,11 @@ Perform the steps below explicitly before answering:
    - assumptions
    - supervision/training signals
    - implementation constraints or operating assumptions (as described or implied by the survey)
-   Core references can be used only to add concrete examples, representative baselines, or implementation constraints for clusters already defined by the survey.
+   Cited-paper capsules can be used only to add concrete examples, representative baselines, or implementation constraints for clusters already defined by the survey.
 
 2) Mechanism bottleneck stress test (survey is the ground truth for "what is missing"):
    Extract unresolved mechanism-level limitations from the survey first, then list any evaluation blind spots that prevent those limitations from being measured cleanly.
-   You MAY use core references to corroborate a bottleneck (e.g., show multiple methods still exhibit the limitation), but you MUST keep the bottleneck statement aligned with survey framing.
+   You MAY use cited-paper capsules to corroborate a bottleneck (e.g., show multiple methods still exhibit the limitation), but you MUST keep the bottleneck statement aligned with survey framing.
    Do NOT let an evaluation gap become the main novelty unless it directly reveals a missing mechanism on the current method axis.
 
 3) Conservative root calibration:
@@ -144,7 +144,7 @@ Return STRICT JSON (no prose, no Markdown) with the schema:
   - representative baselines and fair comparison protocol details,
   - feasibility constraints (latency/memory/compute),
   - evidence that a survey bottleneck or gap persists across recent works.
-  Core references may NOT contribute:
+  Cited-paper capsules may NOT contribute:
   - a new main problem statement that is absent from survey,
   - a new core mechanism term as the central novelty unless it is only a local substitute for a weak component.
 - Evaluation gaps alone should not define the root idea unless they expose a concrete missing mechanism that the root idea patches.

@@ -10,6 +10,11 @@ from src.agents.idea_agent.agent.prompts.algorithm_alignment import ALGORITHM_AL
 from src.agents.idea_agent.agent.prompts.idea_introduction import IDEA_INTRODUCTION_PROMPT
 from src.agents.idea_agent.agent.prompts.idea_fusion import IDEA_FUSION_PROMPT
 from src.agents.idea_agent.agent.prompts.idea_result_alignment import IDEA_RESULT_ALIGNMENT_PROMPT
+from src.agents.idea_agent.agent.prompts.keynote_ops import (
+    KEYNOTE_GROUP_SUMMARY_PROMPT,
+    KEYNOTE_SCORING_PROMPT,
+    KEYNOTE_SINGLE_COMPRESSION_PROMPT,
+)
 from src.agents.idea_agent.agent.prompts.experiment_findings_extraction import (
     EXPERIMENT_FINDINGS_EXTRACTION_PROMPT,
 )
@@ -28,6 +33,9 @@ PROMPTS = {
     "idea_introduction": IDEA_INTRODUCTION_PROMPT,
     "idea_fusion": IDEA_FUSION_PROMPT,
     "idea_result_alignment": IDEA_RESULT_ALIGNMENT_PROMPT,
+    "keynote_group_summary": KEYNOTE_GROUP_SUMMARY_PROMPT,
+    "keynote_scoring": KEYNOTE_SCORING_PROMPT,
+    "keynote_single_compression": KEYNOTE_SINGLE_COMPRESSION_PROMPT,
     "experiment_findings_extraction": EXPERIMENT_FINDINGS_EXTRACTION_PROMPT,
     "topic_background": TOPIC_BACKGROUND_PROMPT,
     "rag_query": RAG_QUERY_PROMPT,

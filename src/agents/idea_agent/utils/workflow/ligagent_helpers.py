@@ -271,37 +271,29 @@ def collect_rag_citations(hits: List[Dict[str, Any]]) -> List[str]:
             titles.append(cleaned)
     return titles
 
+
+def collect_rag_citation_references(hits: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    references: List[Dict[str, str]] = []
+    seen = set()
+    for hit in hits or []:
+        for entry in hit.get("citation_entries") or []:
+            paper_id = str(entry.get("paper_id") or "").strip()
+            title = str(entry.get("title") or "").strip()
+            if not paper_id or not title:
+                continue
+            if paper_id in seen:
+                continue
+            seen.add(paper_id)
+            references.append({"paper_id": paper_id, "title": title})
+    return references
+
+
 def collect_rag_contents(hits: List[Dict[str, Any]]) -> List[str]:
     contents: List[str] = []
     for hit in hits or []:
         subsection = hit.get("subsection", "").strip()
         contents.append(subsection)
     return contents
-
-
-def search_core_nodes_from_citations(
-    titles: List[str],
-    rag_query: str,
-    paper_repository,
-) -> List[Dict[str, Any]]:
-    references = paper_repository.search_core_nodes_by_titles(titles)
-    for reference in references:
-        reference["source_keywords"] = rag_query
-    return references
-
-
-def search_core_nodes_from_query(
-    query: str,
-    paper_repository,
-) -> List[Dict[str, Any]]:
-    return paper_repository.search_core_nodes_by_query(query)
-
-
-def select_core_references(
-    references: List[Dict[str, Any]],
-    top_k: int = 5,
-) -> List[Dict[str, Any]]:
-    return list(references[: max(0, int(top_k))])
 
 
 def _coerce_confidence(value: Any, default: float = 0.0) -> float:
