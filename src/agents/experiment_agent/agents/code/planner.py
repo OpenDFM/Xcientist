@@ -26,6 +26,7 @@ from src.agents.experiment_agent.agents.code.step_executor import (
 )
 from src.agents.experiment_agent.config import (
     get_code_agent_model,
+    get_agent_model,
     get_planner_max_turns,
 )
 from src.agents.experiment_agent.runtime.contracts import (
@@ -60,11 +61,12 @@ def _planner_tools() -> List[Tool]:
 def create_experiment_code_planner_agent(llm) -> Agent:
     _register_code_subagents()
     from openhands.sdk.context import AgentContext
+    from src.agents.experiment_agent.agents.base.agent import create_oh_llm
     code_context = get_code_agent_context()
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
     template_path = os.path.join(base_dir, "prompts", "code_planner_agent.j2")
     return Agent(
-        llm=llm,
+        llm=create_oh_llm(get_agent_model("code_agent", "code"), usage_id="code_agent", stream=False),
         tools=_planner_tools(),
         agent_context=AgentContext(
             skills=code_context.skills,

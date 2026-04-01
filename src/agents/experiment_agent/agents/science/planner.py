@@ -27,6 +27,7 @@ from src.agents.experiment_agent.agents.science.step_executor import (
     create_standard_science_step_executor_agent,
 )
 from src.agents.experiment_agent.config import (
+    get_agent_model,
     get_planner_max_turns,
     get_science_agent_model,
 )
@@ -100,9 +101,14 @@ def _register_science_subagents() -> None:
 def create_standard_science_planner_agent(llm) -> Agent:
     _register_science_subagents()
     from openhands.sdk.context import AgentContext
+    from src.agents.experiment_agent.agents.base.agent import create_oh_llm
     exp_context = get_exp_agent_context()
     return Agent(
-        llm=llm,
+        llm=create_oh_llm(
+            get_agent_model("standard_science_agent", "science"),
+            usage_id="standard_science_agent",
+            stream=False,
+        ),
         tools=_planner_tools(),
         agent_context=AgentContext(
             skills=exp_context.skills,
@@ -115,9 +121,14 @@ def create_standard_science_planner_agent(llm) -> Agent:
 def create_ablation_science_planner_agent(llm) -> Agent:
     _register_science_subagents()
     from openhands.sdk.context import AgentContext
+    from src.agents.experiment_agent.agents.base.agent import create_oh_llm
     exp_context = get_exp_agent_context()
     return Agent(
-        llm=llm,
+        llm=create_oh_llm(
+            get_agent_model("ablation_science_agent", "science"),
+            usage_id="ablation_science_agent",
+            stream=False,
+        ),
         tools=_planner_tools(),
         agent_context=AgentContext(
             skills=exp_context.skills,
@@ -181,7 +192,10 @@ class _BaseSciencePlanner(OpenHandsBaseAgent):
     ):
         super().__init__(
             agent_type=self.planner_type,
-            model=model or get_science_agent_model(),
+            model=model or get_agent_model(
+                "standard_science_agent" if self.planner_type == "StandardScience" else "ablation_science_agent",
+                "science",
+            ),
             max_turns=get_planner_max_turns(),
             verbose=verbose,
             workspace_root=workspace_root,
@@ -499,7 +513,7 @@ async def run_standard_science_agent(
         plan=plan,
         code_summary=code_summary,
         code_usage=code_usage,
-        model=model or get_science_agent_model(),
+        model=model or get_agent_model("standard_science_agent", "science"),
         verbose=verbose,
         resume=resume,
     )
@@ -526,7 +540,7 @@ async def run_ablation_science_agent(
         plan=plan,
         code_summary=code_summary,
         code_usage=code_usage,
-        model=model or get_science_agent_model(),
+        model=model or get_agent_model("ablation_science_agent", "science"),
         verbose=verbose,
         resume=resume,
     )

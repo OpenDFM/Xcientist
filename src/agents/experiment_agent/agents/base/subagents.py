@@ -58,7 +58,11 @@ def create_phase_subagent(
         agent_kwargs["system_prompt_filename"] = template_path
     else:
         agent_kwargs["system_prompt"] = system_prompt
-    from src.agents.experiment_agent.agents.base.agent import build_experiment_mcp_config
+    from src.agents.experiment_agent.agents.base.agent import (
+        build_experiment_mcp_config,
+        create_oh_llm,
+    )
+    from src.agents.experiment_agent.config import get_agent_model
 
     mcp_config = build_experiment_mcp_config(
         workspace_root=workspace_root or os.environ.get("EXPERIMENT_AGENT_WORKSPACE_DIR") or os.getcwd(),
@@ -66,6 +70,9 @@ def create_phase_subagent(
     )
     if mcp_config:
         agent_kwargs["mcp_config"] = mcp_config
+    model_name = get_agent_model(role)
+    if model_name:
+        agent_kwargs["llm"] = create_oh_llm(model_name, usage_id=role, stream=False)
     return Agent(
         **agent_kwargs,
     )

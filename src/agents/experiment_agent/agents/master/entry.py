@@ -31,6 +31,7 @@ from src.agents.experiment_agent.agents.science import (
 )
 from src.agents.experiment_agent.agents.integration import run_iteration_reporter
 from src.agents.experiment_agent.config import (
+    get_agent_model,
     get_master_agent_model,
     get_planner_max_turns,
     get_science_max_iterations,
@@ -97,7 +98,7 @@ class MasterAgent(OpenHandsBaseAgent):
     ):
         super().__init__(
             agent_type="Master",
-            model=model or get_master_agent_model(),
+            model=model or get_agent_model("master_agent", "master"),
             max_turns=get_planner_max_turns(),
             verbose=verbose,
             workspace_root=workspace_root,

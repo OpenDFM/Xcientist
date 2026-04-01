@@ -98,20 +98,80 @@ def get_models_config() -> Dict[str, str]:
     }
 
 
+def get_agent_models_config() -> Dict[str, str]:
+    cfg = _models_cfg()
+    raw = dict(cfg.get("agents", {}) or {})
+    return {str(key): str(value) for key, value in raw.items() if str(value).strip()}
+
+
+_AGENT_MODEL_FALLBACKS: Dict[str, List[str]] = {
+    "prepareagent": ["prepare_agent", "prepare", "default"],
+    "prepare_step_executor": ["prepare_step_executor", "prepare", "default"],
+    "prepare_repo_worker": ["prepare_repo_worker", "prepare", "default"],
+    "prepare_env_worker": ["prepare_env_worker", "prepare", "default"],
+    "prepare_dataset_worker": ["prepare_dataset_worker", "prepare", "default"],
+    "prepare_model_worker": ["prepare_model_worker", "prepare", "default"],
+    "prepare_synthesis_worker": ["prepare_synthesis_worker", "prepare", "default"],
+    "prepare_validator": ["prepare_validator", "prepare", "default"],
+    "code": ["code_agent", "code", "default"],
+    "code_step_executor": ["code_step_executor", "code", "default"],
+    "code_worker": ["code_worker", "code", "default"],
+    "code_validator": ["code_validator", "code", "default"],
+    "master": ["master_agent", "master", "default"],
+    "standardscience": ["standard_science_agent", "science", "default"],
+    "ablationscience": ["ablation_science_agent", "science", "default"],
+    "standard_science_step_executor": ["standard_science_step_executor", "science", "default"],
+    "ablation_science_step_executor": ["ablation_science_step_executor", "science", "default"],
+    "standard_science_worker": ["standard_science_worker", "science", "default"],
+    "ablation_science_worker": ["ablation_science_worker", "science", "default"],
+    "standard_science_validator": ["standard_science_validator", "science", "default"],
+    "ablation_science_validator": ["ablation_science_validator", "science", "default"],
+    "iterationreporter": ["iteration_reporter", "master", "default"],
+    "ablationreportintegrator": ["ablation_report_integrator", "master", "default"],
+}
+
+
+def _normalize_agent_model_key(name: str) -> str:
+    return str(name or "").strip().lower().replace("-", "_")
+
+
+def get_agent_model(agent_name: str, fallback: Optional[str] = None) -> str:
+    agent_models = get_agent_models_config()
+    normalized = _normalize_agent_model_key(agent_name)
+    candidates = list(_AGENT_MODEL_FALLBACKS.get(normalized, []))
+    if normalized and normalized not in candidates:
+        candidates.insert(0, normalized)
+    if fallback:
+        fallback_key = _normalize_agent_model_key(fallback)
+        if fallback_key and fallback_key not in candidates:
+            candidates.append(fallback_key)
+
+    shared_models = get_models_config()
+    for candidate in candidates:
+        value = str(agent_models.get(candidate) or "").strip()
+        if value:
+            return value
+        if candidate in shared_models:
+            shared_value = str(shared_models.get(candidate) or "").strip()
+            if shared_value:
+                return shared_value
+    return get_default_model_name()
+
+
 def get_prepare_agent_model() -> str:
-    return get_models_config()["prepare"]
+    return get_agent_model("prepare_agent", "prepare")
 
 
 def get_code_agent_model() -> str:
-    return get_models_config()["code"]
+    return get_agent_model("code_agent", "code")
 
 
 def get_master_agent_model() -> str:
-    return get_models_config()["master"]
+    return get_agent_model("master_agent", "master")
 
 
 def get_science_agent_model() -> str:
-    return get_models_config()["science"]
+    return get_agent_model("standard_science_agent", "science")
 
 
 def get_default_model_name() -> str:
@@ -592,6 +652,7 @@ def get_model_config() -> Dict[str, Any]:
         "code": {"agent": get_code_agent_model()},
         "science": {"agent": get_science_agent_model()},
         "default": get_default_model_name(),
+        "agents": get_agent_models_config(),
     }
 
 
@@ -661,6 +722,11 @@ def print_config() -> None:
     print(f"  Master: {get_master_agent_model()}")
     print(f"  Science: {get_science_agent_model()}")
     print(f"  Default: {get_default_model_name()}")
+    agent_models = get_agent_models_config()
+    if agent_models:
+        print("  Per-agent overrides:")
+        for key in sorted(agent_models):
+            print(f"    {key}: {agent_models[key]}")
     print("\n[Workspace Configuration]")
     print(f"  Base Workspaces Dir: {get_workspace_config()['root']}")
     print(f"  Model Candidate Seed: {get_workspace_config()['model_candidate_seed']}")

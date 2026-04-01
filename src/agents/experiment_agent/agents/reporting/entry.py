@@ -15,6 +15,7 @@ from openhands.tools.terminal import TerminalTool
 
 from src.agents.experiment_agent.agents.base.agent import OpenHandsBaseAgent
 from src.agents.experiment_agent.config import (
+    get_agent_model,
     get_master_agent_model,
     get_planner_max_turns,
 )
@@ -42,7 +43,7 @@ class AblationReportIntegratorAgent(OpenHandsBaseAgent):
     ):
         super().__init__(
             agent_type="AblationReportIntegrator",
-            model=model or get_master_agent_model(),
+            model=model or get_agent_model("ablation_report_integrator", "master"),
             max_turns=get_planner_max_turns(),
             verbose=verbose,
             workspace_root=workspace_root,
@@ -224,7 +225,7 @@ async def run_ablation_report_integrator(
     agent = AblationReportIntegratorAgent(
         workspace_root=workspace_root,
         project_root=project_root,
-        model=model or get_master_agent_model(),
+        model=model or get_agent_model("ablation_report_integrator", "master"),
         verbose=verbose,
         resume=resume,
     )

@@ -15,6 +15,7 @@ from openhands.tools.terminal import TerminalTool
 
 from src.agents.experiment_agent.agents.base.agent import OpenHandsBaseAgent
 from src.agents.experiment_agent.config import (
+    get_agent_model,
     get_master_agent_model,
     get_planner_max_turns,
 )
@@ -42,7 +43,7 @@ class IterationReporterAgent(OpenHandsBaseAgent):
     ):
         super().__init__(
             agent_type="IterationReporter",
-            model=model or get_master_agent_model(),
+            model=model or get_agent_model("iteration_reporter", "master"),
             max_turns=get_planner_max_turns(),
             verbose=verbose,
             workspace_root=workspace_root,
@@ -213,7 +214,7 @@ async def run_iteration_reporter(
     agent = IterationReporterAgent(
         workspace_root=workspace_root,
         project_root=project_root,
-        model=model or get_master_agent_model(),
+        model=model or get_agent_model("iteration_reporter", "master"),
         verbose=verbose,
         resume=resume,
     )
