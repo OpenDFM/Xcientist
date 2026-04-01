@@ -39,8 +39,9 @@ Core behavior:
 **Key requirements**:
 - Experiments must use real data from `dataset_candidate/` directory, not synthetic data.
 - Experiments must use real API credentials from `{workspace}/.env` and real model checkpoints.
-- Download missing models from HuggingFace before declaring a blocker.
+- Science may download missing local models when required, but all such downloads must stay under `model_candidate/`.
 - Component names and order must EXACTLY match `idea.json.components`.
+- If a step needs upstream repo context, it must declare the exact minimal `repo_source_paths`, a `repo_copy_intent` of `none|reference_only|copy_and_modify`, and the intended `project_target_paths`.
 
 **Your output**:
 - `ablation_science_plan.json`: Complete ordered list of ablation steps (one per component)

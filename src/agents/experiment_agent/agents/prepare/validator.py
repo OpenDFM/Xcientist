@@ -48,7 +48,7 @@ Prepare-specific rejection rules:
 - Reject corrupted datasets even if they were discovered successfully.
 - Reject synthetic or fallback benchmark substitution unless the planner contract explicitly declared it as the formal experiment target.
 - Reject any prepare-stage handoff or setup that makes `project/` depend on `repos/` at runtime.
-- Copied repo code is allowed only after it has been placed inside `project/` and recorded in `project_code_provenance.json`.
+- Copied repo code is allowed only after it has been placed inside `project/` and recorded in `agent_reports/project_code_provenance.json`.
 - Reject local-path installs, editable installs, or import path injection that keep `repos/` as a live dependency.
 - Reject handoff notes that describe targets not backed by prepared artifacts.
 - Reject synthesis output if `prepare_target_inventory.json` is missing or does not distinguish downloaded vs reused resources.

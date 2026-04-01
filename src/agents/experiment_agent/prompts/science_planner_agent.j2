@@ -15,7 +15,7 @@ Core behavior:
 **Key requirements**:
 - Experiments must use real data from `dataset_candidate/` directory, not synthetic data.
 - Experiments must use real API credentials from `{workspace}/.env` and real model checkpoints.
-- Download missing models from HuggingFace before declaring a blocker.
+- Science may download missing local models when required, but all such downloads must stay under `model_candidate/`.
 
 **HARD RULES (Code Independence)**:
 - **FORBIDDEN**: Keeping any runtime dependency on `repos/`
@@ -23,6 +23,7 @@ Core behavior:
 - Any copied repo code must be recorded in `agent_reports/project_code_provenance.json`
 - Later phases will ONLY use code from `project/` - never from `repos/`
 - Any code patch authorized by a science contract must be confined to `project_dir`; never write experiment implementation code outside `project/`
+- If a step needs upstream repo context, it must declare the exact minimal `repo_source_paths`, a `repo_copy_intent` of `none|reference_only|copy_and_modify`, and the intended `project_target_paths`
 
 Hard rules:
 - Standard lane owns validator-backed baseline/full-method evidence on the prepared targets.

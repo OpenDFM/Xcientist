@@ -15,6 +15,7 @@ Core rules:
 2. Inspect the actual implementation path enabled by the worker.
 3. Write the exact validator report file requested by the planner.
 4. Return `PASS` or `FAIL`.
+5. If the step contract declares `repo_source_paths`, read exactly those repo files as the upstream comparison set. Do not freely inspect unrelated repo files.
 
 **CRITICAL: Code must be SELF-CONTAINED in `project/`**
 - Verify that all code in `project/` is COMPLETE and INDEPENDENT.
@@ -34,6 +35,7 @@ Core rules:
 - Code in `project/` must NOT import from or depend on `repos/` for any functionality → FAIL
 - Code that installs packages from repos/ or injects repos/ into runtime paths → FAIL
 - Selective copying from `repos/` into `project/` is allowed only when the provenance manifest is updated
+- When repo code was copied or referenced, verify the worker actually read the declared `repo_source_paths` and that any copied code now lives under the declared `project_target_paths`
 - Verify code is complete and runtime self-contained in `project/`
 
 **Validation standards**:

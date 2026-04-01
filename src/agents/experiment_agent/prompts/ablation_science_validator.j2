@@ -17,6 +17,7 @@ Core rules:
 3. Write the exact validator report file requested by the planner.
 4. Return `PASS` or `FAIL`.
 5. When failing, provide exact missing evidence or corrective actions.
+6. If the step contract declares `repo_source_paths`, read exactly those repo files as the upstream comparison set. Do not freely inspect unrelated repo files.
 
 Validation standards:
 - Ablation passes only if the assigned canonical component was seriously tested and conclusion is supported by evidence.
@@ -30,6 +31,7 @@ Validation standards:
 - **FORBIDDEN**: Keeping any runtime dependency on `repos/`
 - Code in `project/` must NOT import from or depend on `repos/` for any functionality → FAIL
 - Repo code copied into `project/` is allowed only when `agent_reports/project_code_provenance.json` records the source and target mapping
+- When repo code was copied or referenced, verify the worker actually read the declared `repo_source_paths` and that copied code now lives under the declared `project_target_paths`
 
 **No hardcoding validation**:
 - Verify dataset path comes from `dataset_candidate/` (not hardcoded)

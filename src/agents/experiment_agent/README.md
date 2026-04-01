@@ -70,4 +70,5 @@ That file is written only after the master iteration loop exits, by a dedicated 
 - `results/` is reserved for raw science outputs.
 - The final `ablation_results.json` lives at workspace root.
 - If repo code is copied into `project/`, record its source/target mapping in `agent_reports/project_code_provenance.json`.
+- Code/science step contracts must explicitly declare `repo_source_paths`, `repo_copy_intent`, and `project_target_paths`; repo usage must never remain implicit.
 - `prepare` is a startup prerequisite, not a master-controlled phase. `master` governs only `code`, `standard_science`, and `ablation_science`.

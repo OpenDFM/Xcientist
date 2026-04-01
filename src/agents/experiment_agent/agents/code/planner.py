@@ -33,6 +33,7 @@ from src.agents.experiment_agent.runtime.contracts import (
     PHASE_VERDICT_FIELDS,
     format_field_bullets,
     format_named_paths,
+    validate_repo_contract_fields,
 )
 from src.agents.experiment_agent.runtime.manifests import artifact_paths, workspace_contract_paths
 from src.agents.experiment_agent.skills import get_code_agent_context
@@ -220,24 +221,25 @@ class CodeAgent(OpenHandsBaseAgent):
 4. Every step must tie to a real prepared target or benchmark path discovered from the prepare artifacts above.
 5. Every step must use a unique flat `worker_report_path`, `validator_report_path`, `step_contract_path`, and `executor_report_path` under `agent_reports_dir`; do not reuse a phase-global path for multiple steps.
 6. Use filenames that stay flat under `agent_reports_dir`, for example `code_step_01_<slug>_contract.json`, `code_step_01_<slug>_executor_report.json`, and `code_step_01_<slug>_attempt_01_worker_report.json`.
-7. The `final_integration_smoke` step must:
+7. If a step needs upstream implementation context, it must declare the exact minimal `repo_source_paths`, a `repo_copy_intent` of `none|reference_only|copy_and_modify`, and the intended `project_target_paths`.
+8. The `final_integration_smoke` step must:
    - use the real prepared dataset path from `dataset_dir`
    - use the real API/model path if the method depends on one, preferring `model_dir` for local models
    - run the actual integrated command path that science will later rely on
    - save bounded raw smoke artifacts under flat filenames in `agent_reports_dir`
-8. For each step, use `task` with `subagent_type="{CODE_STEP_EXECUTOR}"`.
-9. The runtime uses that step executor to keep the current `code_worker` -> `code_validator` loop active for the step until a validator-backed outcome exists.
-10. Do not move to the next step until the step executor reports validator-backed PASS.
-11. Do not manually paraphrase validator fixes back to the worker at the planner level.
-12. After all steps pass, write:
+9. For each step, use `task` with `subagent_type="{CODE_STEP_EXECUTOR}"`.
+10. The runtime uses that step executor to keep the current `code_worker` -> `code_validator` loop active for the step until a validator-backed outcome exists.
+11. Do not move to the next step until the step executor reports validator-backed PASS.
+12. Do not manually paraphrase validator fixes back to the worker at the planner level.
+13. After all steps pass, write:
    - `{self.paths["code_planner_report"]}`
    - `{self.summary_path}`
    - optional `{self.usage_path}`
    - `{self.paths["code_integration_readiness"]}`
    - `{self.paths["code_worker"]}`
    - `{self.paths["code_validator"]}`
-13. The top-level code worker/validator reports are phase summaries only; debugging details must remain in the per-step flat reports under `agent_reports_dir`.
-14. The final validator report must use `status: PASS|FAIL`, set a generic `phase_completion_status`, and include:
+14. The top-level code worker/validator reports are phase summaries only; debugging details must remain in the per-step flat reports under `agent_reports_dir`.
+15. The final validator report must use `status: PASS|FAIL`, set a generic `phase_completion_status`, and include:
 {verdict_fields}
 
 ### Standard Science Support
@@ -259,6 +261,8 @@ For each idea.json component, the code must provide:
 - All code edits and runnable entrypoints must live under `project_dir`.
 - `repos_policy` must be `reference_or_copy` for every step, `project_must_be_self_contained` must be `true`, and `provenance_manifest_path` must point to the shared manifest under `agent_reports/`.
 - The plan may ask workers to selectively copy implementation code from `repos/` into `project/` and modify it there, but it must never ask workers to keep a runtime dependency on `repos/`.
+- Do not leave repo usage implicit. If a step needs repo context, list the exact minimal `repo_source_paths`.
+- If `repo_copy_intent` is not `none`, `project_target_paths` must be populated and point only inside `project_dir`.
 - Do not ask workers to import from, install from, or editable-install from `repos/`.
 - Do not place experiment outputs under `results_dir` during the code phase.
 - Do not write any formal science result artifact or lane summary under `results/`. In particular, the code phase must not materialize `ablation_results.json`.
@@ -280,11 +284,35 @@ Finish by printing exactly: CODE ENABLEMENT COMPLETE"""
             return False
         return str(payload.get("status") or "").strip().upper() == "PASS"
 
+    def _validate_plan_artifact(self) -> None:
+        if not os.path.exists(self.plan_path):
+            raise RuntimeError(f"Code planner did not write required plan file: {self.plan_path}")
+        try:
+            with open(self.plan_path, "r", encoding="utf-8") as f:
+                plan_payload = json.load(f)
+        except Exception as exc:
+            raise RuntimeError(f"Code plan is not valid JSON: {self.plan_path}") from exc
+        if not isinstance(plan_payload, list) or not plan_payload:
+            raise RuntimeError("Code plan must be a non-empty JSON list of step contracts.")
+
+        errors: list[str] = []
+        for index, step in enumerate(plan_payload, start=1):
+            if not isinstance(step, dict):
+                errors.append(f"step {index}: expected object, got {type(step).__name__}")
+                continue
+            errors.extend(
+                f"step {index}: {message}"
+                for message in validate_repo_contract_fields(step, project_dir=self.project_root)
+            )
+        if errors:
+            raise RuntimeError("Invalid code plan contract:\n- " + "\n- ".join(errors))
+
     async def execute(self) -> Dict[str, Any]:
         result = await self.run(
             user_prompt=self._build_user_prompt(),
             system_prompt=self._build_system_prompt(),
         )
+        self._validate_plan_artifact()
         output = self._extract_output(result)
         summary_content = self._read_text_file(self.summary_path).strip() or output or ""
         usage_content = self._read_text_file(self.usage_path).strip()

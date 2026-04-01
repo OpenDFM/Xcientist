@@ -37,6 +37,7 @@ from src.agents.experiment_agent.runtime.contracts import (
     SCIENCE_STANDARD_STEP_FIELDS,
     format_field_bullets,
     format_named_paths,
+    validate_repo_contract_fields,
 )
 from src.agents.experiment_agent.runtime.idea_components import (
     format_canonical_components_markdown,
@@ -259,6 +260,7 @@ class _BaseSciencePlanner(OpenHandsBaseAgent):
             user_prompt=self._build_user_prompt(),
             system_prompt=self._build_system_prompt(),
         )
+        self._validate_plan_artifact()
         output = self._extract_output(result)
         report_content = self._read_text_file(self.report_path).strip() or output or ""
         status = "completed" if self._validator_passed() else "insufficient"
@@ -267,6 +269,31 @@ class _BaseSciencePlanner(OpenHandsBaseAgent):
             "report_path": self.report_path,
             "status": status,
         }
+
+    def _validate_plan_artifact(self) -> None:
+        if not os.path.exists(self.plan_path):
+            raise RuntimeError(
+                f"{self.planner_type} planner did not write required plan file: {self.plan_path}"
+            )
+        try:
+            with open(self.plan_path, "r", encoding="utf-8") as f:
+                plan_payload = json.load(f)
+        except Exception as exc:
+            raise RuntimeError(f"Science plan is not valid JSON: {self.plan_path}") from exc
+        if not isinstance(plan_payload, list) or not plan_payload:
+            raise RuntimeError("Science plan must be a non-empty JSON list of step contracts.")
+
+        errors: list[str] = []
+        for index, step in enumerate(plan_payload, start=1):
+            if not isinstance(step, dict):
+                errors.append(f"step {index}: expected object, got {type(step).__name__}")
+                continue
+            errors.extend(
+                f"step {index}: {message}"
+                for message in validate_repo_contract_fields(step, project_dir=self.project_root)
+            )
+        if errors:
+            raise RuntimeError("Invalid science plan contract:\n- " + "\n- ".join(errors))
 
 
 class StandardScienceAgent(_BaseSciencePlanner):
@@ -324,6 +351,7 @@ class StandardScienceAgent(_BaseSciencePlanner):
 4. Derive target names and paths from the workspace artifacts above instead of hardcoding them.
 5. Every step must use a unique flat `worker_report_path`, `validator_report_path`, `step_contract_path`, and `executor_report_path` under `agent_reports_dir`.
 6. Use filenames that stay flat under `agent_reports_dir`, for example `standard_science_step_01_<slug>_contract.json`, `standard_science_step_01_<slug>_executor_report.json`, and `standard_science_step_01_<slug>_attempt_01_worker_report.json`.
+6a. If a step needs upstream implementation context, it must declare the exact minimal `repo_source_paths`, a `repo_copy_intent` of `none|reference_only|copy_and_modify`, and the intended `project_target_paths`.
 7. For each step, call `task` with `subagent_type="{STANDARD_SCIENCE_STEP_EXECUTOR}"`.
 8. The runtime uses the standard step executor to keep the `standard_science_worker` -> `standard_science_validator` loop active for the current step.
 9. The validator must write `{self.validator_report_path}` as the phase-level standard verdict after the step-local reports exist.
@@ -338,6 +366,8 @@ class StandardScienceAgent(_BaseSciencePlanner):
 - Every experiment command must write its raw outputs under `standard_results_dir`.
 - Every step must set `repos_policy` to `reference_or_copy`, `project_must_be_self_contained` to `true`, and `provenance_manifest_path` to the shared manifest under `agent_reports/`.
 - Science may read repository artifacts for reference and may rely on code previously copied into `project/`, but it must never rely on `repos/` as a runtime dependency.
+- Do not leave repo usage implicit. If a step needs repo context, list the exact minimal `repo_source_paths`.
+- If `repo_copy_intent` is not `none`, `project_target_paths` must be populated and point only inside `project_dir`.
 - Do not claim a run is `final/full` unless the assigned command chain actually ran.
 - Do not use synthetic stress fallback as a silent replacement for formal prepared targets.
 - Do not ask the runtime to infer coverage from your summaries.
@@ -413,6 +443,7 @@ class AblationScienceAgent(_BaseSciencePlanner):
 6. Each step's `component_explanation` must carry the matching explanation from `idea.json.components`.
 7. Every step must use a unique flat `worker_report_path`, `validator_report_path`, `step_contract_path`, and `executor_report_path` under `agent_reports_dir`.
 8. Use filenames that stay flat under `agent_reports_dir`, for example `ablation_science_step_01_<component>_contract.json`, `ablation_science_step_01_<component>_executor_report.json`, and `ablation_science_step_01_<component>_attempt_01_worker_report.json`.
+8a. If a step needs upstream implementation context, it must declare the exact minimal `repo_source_paths`, a `repo_copy_intent` of `none|reference_only|copy_and_modify`, and the intended `project_target_paths`.
 9. For each step, call `task` with `subagent_type="{ABLATION_SCIENCE_STEP_EXECUTOR}"`.
 10. The runtime uses the ablation step executor to keep the `ablation_science_worker` -> `ablation_science_validator` loop active for the current step.
 11. The validator must write `{self.validator_report_path}` as the phase-level ablation verdict after the step-local reports exist.
@@ -428,6 +459,8 @@ class AblationScienceAgent(_BaseSciencePlanner):
 - Even if the master review highlights one missing area such as stress testing, you must still produce a full canonical ablation plan whose step list exactly matches all components from `idea.json.components`.
 - Every step must set `repos_policy` to `reference_or_copy`, `project_must_be_self_contained` to `true`, and `provenance_manifest_path` to the shared manifest under `agent_reports/`.
 - Ablation may read repository artifacts for reference and may rely on code previously copied into `project/`, but it must never rely on `repos/` as a runtime dependency.
+- Do not leave repo usage implicit. If a step needs repo context, list the exact minimal `repo_source_paths`.
+- If `repo_copy_intent` is not `none`, `project_target_paths` must be populated and point only inside `project_dir`.
 - Do not collapse the plan to only one missing experiment unless `idea.json.components` itself contains only one component.
 - Do not mark an ablation complete without serious evidence and explicit method context.
 - Do not invent ablation verdicts from expectation or narrative.

@@ -25,6 +25,8 @@ Core rules:
 3. Implement only the requested step inside the declared write scope.
 4. Make the real integration changes required for the experiment path to run.
 5. Write the exact worker report file requested by the planner.
+6. If the step contract declares `repo_source_paths`, read those exact repo files before deciding how to implement the step.
+7. If `repo_copy_intent` is `copy_and_modify`, copy only the declared minimal implementation into the declared `project_target_paths`, then continue modifying only inside `project/`.
 
 **Data requirement**: Must use real data files from `dataset_candidate/` directory. Do NOT use synthetic or randomly generated data. Do NOT implement mock vectorstores with random embeddings.
 
@@ -48,6 +50,10 @@ Required evidence:
 - Exact dataset path from `dataset_candidate/` used
 - Exact API/model path used
 - What is now enabled vs still blocked
+- `repo_sources_read`
+- `repo_files_copied`
+- `project_targets_written`
+- `provenance_updated`
 """
 
 

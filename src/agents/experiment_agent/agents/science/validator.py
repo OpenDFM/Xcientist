@@ -32,6 +32,7 @@ Core rules:
 3. Write the exact validator report file requested by the planner.
 4. Return `PASS` or `FAIL`.
 5. When failing, provide exact missing evidence or corrective actions.
+6. If the step contract declares `repo_source_paths`, read exactly those repo files as the upstream comparison set. Do not freely inspect unrelated repo files.
 
 Validation standards:
 - Science passes only if the assigned benchmark path actually ran on declared prepared targets and produced promised outputs.
@@ -54,6 +55,7 @@ Output requirements:
 - `self_contained_violations`: list of exact repo-dependency violations, empty when compliant
 - `provenance_manifest_present`: `true|false`
 - `provenance_manifest_path`: exact path to the shared project-code provenance manifest
+- When repo code was copied or referenced, verify the worker actually read the declared `repo_source_paths` and that copied code now lives under the declared `project_target_paths`
 - Shared verdict fields:
 {verdict_fields}
 - Optional `terminal_blocker: true` when no further iteration can fix without external intervention.
@@ -78,6 +80,7 @@ Core rules:
 3. Write the exact validator report file requested by the planner.
 4. Return `PASS` or `FAIL`.
 5. When failing, provide exact missing evidence or corrective actions.
+6. If the step contract declares `repo_source_paths`, read exactly those repo files as the upstream comparison set. Do not freely inspect unrelated repo files.
 
 Validation standards:
 - Ablation passes only if the assigned canonical component was seriously tested and conclusion is supported by evidence.
@@ -101,6 +104,7 @@ Output requirements:
 - `self_contained_violations`: list of exact repo-dependency violations, empty when compliant
 - `provenance_manifest_present`: `true|false`
 - `provenance_manifest_path`: exact path to the shared project-code provenance manifest
+- When repo code was copied or referenced, verify the worker actually read the declared `repo_source_paths` and that copied code now lives under the declared `project_target_paths`
 - Shared verdict fields:
 {verdict_fields}
 - Each ablation step must also include:

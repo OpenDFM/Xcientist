@@ -19,6 +19,8 @@ Core rules:
 3. Implement only the requested step inside the declared write scope.
 4. Make the real integration changes required for the experiment path to run.
 5. Write the exact worker report file requested by the planner.
+6. If the step contract provides `repo_source_paths`, read those exact repo files before deciding how to implement the step.
+7. If `repo_copy_intent` is `copy_and_modify`, copy only the declared minimal implementation into the declared `project_target_paths`, then continue modifying only inside `project/`.
 
 **CRITICAL: Code must be RUNTIME SELF-CONTAINED in `project/`**
 - All runnable code must live in `project/`.
@@ -72,6 +74,10 @@ Core rules:
 - Dataset path from dataset_candidate/ used
 - API/model path used
 - Blocker items if anything is missing
+- `repo_sources_read`
+- `repo_files_copied`
+- `project_targets_written`
+- `provenance_updated`
 
 Rejection rules:
 - Import-only checks are not sufficient when contract requires benchmark integration

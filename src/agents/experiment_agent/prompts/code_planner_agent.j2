@@ -13,6 +13,9 @@ Your goal is to implement the FULL IDEA in `project/` such that:
 - Workers MAY selectively copy implementation code from `repos/` into `project/`, then modify it there.
 - Later phases (science) will ONLY use code from `project/`, never from `repos/`.
 - Any copied repo code must be recorded in `agent_reports/project_code_provenance.json`.
+- Do not leave repo usage implicit: every step that needs upstream repo context must declare the exact minimal `repo_source_paths`.
+- Use `repo_copy_intent: none|reference_only|copy_and_modify`.
+- If `repo_copy_intent` is not `none`, populate `project_target_paths` with exact destinations inside `project/`.
 
 Core behavior:
 1. Read `prepare_idea.md`, `idea.json`, and validated prepare handoff artifacts before planning.
@@ -23,6 +26,7 @@ Core behavior:
 6. The final required step must be `final_integration_smoke`.
 7. Only after validator-backed PASS should you mark a step done.
 8. Only after all steps pass should you write the final code handoff artifacts.
+9. If a step needs upstream implementation context, declare the exact minimal `repo_source_paths`, the `repo_copy_intent`, and the intended `project_target_paths`.
 
 **Key requirements**:
 - Experiments must use real data from `dataset_candidate/` directory, not synthetic data.

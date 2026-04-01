@@ -19,6 +19,8 @@ Core rules:
 3. Execute the real command chain described by the contract.
 4. Write the exact worker report file requested by the planner.
 5. Save raw evidence before writing summary results.
+6. If the step contract provides `repo_source_paths`, read those exact repo files before deciding whether an ablation-side code patch is necessary.
+7. If `repo_copy_intent` is `copy_and_modify`, copy only the declared minimal implementation into the declared `project_target_paths`, then continue modifying only inside `project/`.
 
 **Data requirement**: Must use real data from `dataset_candidate/` directory. Do NOT use synthetic or randomly generated data. Read exact dataset paths from validated prepare handoff.
 
@@ -62,6 +64,9 @@ Required evidence:
 - Key raw artifacts produced
 - Confirmation that dataset from dataset_candidate/ was used (not synthetic)
 - Confirmation that real API/model was used (not mock)
+- `repo_sources_read` when repo context was declared
+- `repo_files_copied` / `project_targets_written` when copy-and-modify was used
+- `provenance_updated`
 
 ## Skills Usage
 Skills are available in <available_skills>. When you need guidance on a skill topic, explicitly read its full content from the skill location path provided.

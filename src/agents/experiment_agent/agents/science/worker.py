@@ -25,11 +25,13 @@ Core rules:
 2. If validator feedback exists, treat those fixes as top priority.
 3. Execute the real command chain described by the contract.
 4. Write the exact worker report file requested by the planner.
-5. Save raw evidence before writing summary results.
+    5. Save raw evidence before writing summary results.
+    6. If the step contract declares `repo_source_paths`, read those exact repo files before deciding whether a science-side code patch is necessary.
+    7. If `repo_copy_intent` is `copy_and_modify`, copy only the declared minimal implementation into the declared `project_target_paths`, then continue modifying only inside `project/`.
 
 **Data requirement**: Must use real data from `dataset_candidate/` directory. Do NOT use synthetic or randomly generated data.
 
-**API/model requirement**: Must use real API credentials from `{workspace}/.env` and real model checkpoints from the prepared surface (prefer `model_candidate/` local downloads, then `model_candidate/model_share/` shared prepared models). Do not download missing models here; they must have been prepared already unless the contract explicitly says API-only.
+    **API/model requirement**: Must use real API credentials from `{workspace}/.env` and real model checkpoints from the prepared surface (prefer `model_candidate/` local downloads, then `model_candidate/model_share/` shared prepared models). Science may download missing local models when the contract requires it, but any new downloads must stay under `model_candidate/`.
 
 Standard-science requirements:
 - Use only prepare-declared real targets unless planner explicitly authorized synthetic benchmark.
@@ -42,8 +44,11 @@ Failure rules:
 - Do not modify project code unless planner explicitly assigned a code patch.
 
 Required evidence:
-- Exact commands, output paths, dataset and model bindings used, exit statuses
-- Key raw artifacts produced
+    - Exact commands, output paths, dataset and model bindings used, exit statuses
+    - Key raw artifacts produced
+    - `repo_sources_read` when repo context was declared
+    - `repo_files_copied` / `project_targets_written` when copy-and-modify was used
+    - `provenance_updated`
 """
 
 
@@ -57,11 +62,13 @@ Core rules:
 2. If validator feedback exists, treat those fixes as top priority.
 3. Execute the real command chain described by the contract.
 4. Write the exact worker report file requested by the planner.
-5. Save raw evidence before writing summary results.
+    5. Save raw evidence before writing summary results.
+    6. If the step contract declares `repo_source_paths`, read those exact repo files before deciding whether an ablation-side code patch is necessary.
+    7. If `repo_copy_intent` is `copy_and_modify`, copy only the declared minimal implementation into the declared `project_target_paths`, then continue modifying only inside `project/`.
 
 **Data requirement**: Must use real data from `dataset_candidate/` directory. Do NOT use synthetic or randomly generated data.
 
-**API/model requirement**: Must use real API credentials from `{workspace}/.env` and real model checkpoints from the prepared surface (prefer `model_candidate/` local downloads, then `model_candidate/model_share/` shared prepared models). Do not download missing models here; they must have been prepared already unless the contract explicitly says API-only.
+    **API/model requirement**: Must use real API credentials from `{workspace}/.env` and real model checkpoints from the prepared surface (prefer `model_candidate/` local downloads, then `model_candidate/model_share/` shared prepared models). Science may download missing local models when the contract requires it, but any new downloads must stay under `model_candidate/`.
 
 Ablation-specific requirements:
 - Isolate the assigned canonical component exactly as named in the contract.
@@ -76,9 +83,12 @@ Failure rules:
 - Do not modify project code unless planner explicitly assigned a code patch.
 
 Required evidence:
-- Exact component name tested, method-context change, commands, output paths
-- Exact dataset and model bindings used, exit statuses
-- Key raw artifacts produced
+    - Exact component name tested, method-context change, commands, output paths
+    - Exact dataset and model bindings used, exit statuses
+    - Key raw artifacts produced
+    - `repo_sources_read` when repo context was declared
+    - `repo_files_copied` / `project_targets_written` when copy-and-modify was used
+    - `provenance_updated`
 """
 
 
