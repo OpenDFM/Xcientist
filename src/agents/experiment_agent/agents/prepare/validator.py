@@ -47,8 +47,9 @@ Prepare-specific rejection rules:
 - Reject repo-local-only dataset references when the contract requires prepared dataset staging.
 - Reject corrupted datasets even if they were discovered successfully.
 - Reject synthetic or fallback benchmark substitution unless the planner contract explicitly declared it as the formal experiment target.
-- Reject any prepare-stage handoff or setup that makes `project/` depend on `repos/` at runtime. `repos/` are reference-only.
-- Reject local-path installs, editable installs, import path injection, or copied repo code presented as project implementation.
+- Reject any prepare-stage handoff or setup that makes `project/` depend on `repos/` at runtime.
+- Copied repo code is allowed only after it has been placed inside `project/` and recorded in `project_code_provenance.json`.
+- Reject local-path installs, editable installs, or import path injection that keep `repos/` as a live dependency.
 - Reject handoff notes that describe targets not backed by prepared artifacts.
 - Reject synthesis output if `prepare_target_inventory.json` is missing or does not distinguish downloaded vs reused resources.
 - Reject environment-variable guidance or machine-readable handoff that lists `OPENAI_API_KEY` without the paired `OPENAI_API_BASE` entry.
@@ -64,6 +65,8 @@ Output requirements:
 - Include `run_level: full`.
 - Include `self_contained_project: true|false`.
 - Include `self_contained_violations`: exact repo-dependency violations, empty when compliant.
+- Include `provenance_manifest_present: true|false`.
+- Include `provenance_manifest_path`: exact path to the shared project-code provenance manifest.
 - Include the following shared verdict fields:
 {verdict_fields}
 - When you use `PARTIAL`, include `ready_to_proceed: true|false`.

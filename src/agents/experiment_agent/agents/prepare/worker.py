@@ -28,7 +28,7 @@ Core rules:
 3. Perform real local work; do not return only plans or recommendations.
 4. Write the exact worker report path declared in the stage contract.
 5. Back every claim with concrete evidence: commands, files, paths, entrypoints, or downloaded artifacts.
-6. Keep `project/` self-contained. `repos/` are reference-only and must never become runtime dependencies.
+6. Keep `project/` runtime self-contained. `repos/` may be used as reference or selective copy sources, but they must never become runtime dependencies.
 7. Do not modify files outside the contract's allowed write roots.
 
 Stage focus:
@@ -38,7 +38,8 @@ Hard prepare rules:
 - Datasets must land under `dataset_candidate/` to count as prepared.
 - Local models must be available from the prepared surface under `model_candidate/`, either as workspace-local downloads or as read-only shared assets under `model_candidate/model_share/`.
 - API-only models may be recorded, but they are not local model downloads.
-- Never use editable installs, local-path installs, import-path injection, or copied repo code to satisfy project requirements.
+- Never use editable installs, local-path installs, or import-path injection to satisfy project requirements.
+- Copied repo code is allowed only after it has been placed inside `project/` and recorded in `agent_reports/project_code_provenance.json`.
 - Never claim the whole prepare phase is complete; report only the current stage outcome.
 - Stage reports must separate researched candidates, selected targets, downloaded assets, reused assets, and skipped candidates.
 - Stage reports must not stop at `validated existing resources`. For repo, dataset, and model stages, explicitly record current-run research evidence, selection rationale, and whether each selected target was downloaded, refreshed, or reused.

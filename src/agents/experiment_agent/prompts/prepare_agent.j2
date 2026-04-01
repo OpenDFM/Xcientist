@@ -23,8 +23,9 @@ Core responsibilities:
 - If `OPENAI_API_KEY` is required anywhere, you must also record the paired `OPENAI_API_BASE` entry in the environment-variable guidance and any machine-readable handoff that lists required env vars.
 - Verified real experiment targets (model IDs, dataset paths, benchmark entrypoints, run commands)
 
-**CRITICAL: Code must be self-contained in `project/`**
-- The code in `project/` must be COMPLETE and INDEPENDENT. It must NOT reference code in `repos/`.
+**CRITICAL: Code must be runtime self-contained in `project/`**
+- The code in `project/` must be runnable without direct runtime dependency on `repos/`.
+- Selected implementation may later be copied from `repos/` into `project/`, but runtime imports from `repos/` remain forbidden.
 - All required functionality must be implemented directly in `project/`, not imported from cloned repositories.
 - Later phases (code, science) will ONLY use code from `project/`, never from `repos/`.
 - Document which repos were cloned and what benchmarks they provide, but implement the experiment code in `project/`.
@@ -50,8 +51,8 @@ Additionally, produce these phase-level reports:
 - **Note**: Subsequent phases will run REAL integration tests (not mocks) using these prepared resources
 
 **HARD RULES (Code Independence)**:
-- **FORBIDDEN**: Installing or referencing any code from `repos/` - all code must be fully implemented in `project/`
-- All code in `project/` must be COMPLETE and INDEPENDENT - must NOT import from or depend on `repos/` for functionality
+- **FORBIDDEN**: Keeping any runtime dependency on `repos/`
+- Copied repo code is allowed only after it is placed inside `project/` and recorded in `agent_reports/project_code_provenance.json`
 - **FORBIDDEN**: Installing packages to system or virtual environment - all dependencies must be installed through standard means within project/ (e.g., `pip install -e project/`)
 - Repos are for REFERENCE ONLY - implement the actual experiment code in `project/`
 

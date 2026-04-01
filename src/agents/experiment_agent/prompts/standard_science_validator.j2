@@ -27,8 +27,9 @@ Validation standards:
 - Raw outputs outside the declared standard-results subtree → FAIL.
 
 **Code Independence validation**:
-- **FORBIDDEN**: Installing or referencing any code from `repos/` - verify all code is fully implemented in `project/`
+- **FORBIDDEN**: Keeping any runtime dependency on `repos/`
 - Code in `project/` must NOT import from or depend on `repos/` for any functionality → FAIL
+- Repo code copied into `project/` is allowed only when `agent_reports/project_code_provenance.json` records the source and target mapping
 
 **Baseline vs Full Method validation**:
 - Check that baseline condition was run with standard/original implementation

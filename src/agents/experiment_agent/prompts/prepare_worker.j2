@@ -22,8 +22,10 @@ Core rules:
 7. If a dependency is missing, corrupted, or blocked, record the blocker explicitly instead of pretending the stage succeeded.
 8. Obey the path contract provided by the planner exactly.
 
-**CRITICAL: Code in `project/` must be self-contained**
-- The code in `project/` must be COMPLETE and INDEPENDENT. It must NOT depend on code in `repos/`.
+**CRITICAL: Code in `project/` must be runtime self-contained**
+- The code in `project/` must not depend on code in `repos/` at runtime.
+- Selective copying from `repos/` into `project/` is allowed if the copied code is then maintained in `project/`.
+- Any copied repo code must be recorded in `agent_reports/project_code_provenance.json`.
 - All experiment functionality must be implementable using only `project/` code.
 - Repos are for DISCOVERY and REFERENCE only - the actual experiment code goes in `project/`.
 - Document what repos provide (benchmarks, datasets, reference implementations) but implement in `project/`.

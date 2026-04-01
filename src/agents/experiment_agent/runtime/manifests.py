@@ -45,6 +45,7 @@ def artifact_paths(workspace_root: str, project_root: Optional[str] = None) -> D
         "idea": os.path.join(reports_dir, "prepare_idea.md"),
         "idea_json": os.path.join(contract["workspace_dir"], "idea.json"),
         "prepare_target_inventory": os.path.join(reports_dir, "prepare_target_inventory.json"),
+        "project_code_provenance": os.path.join(reports_dir, "project_code_provenance.json"),
         "prepare_planner_report": os.path.join(reports_dir, "prepare_planner_report.json"),
         "code_plan": os.path.join(reports_dir, "code_plan.json"),
         "code_planner_report": os.path.join(reports_dir, "code_planner_report.json"),

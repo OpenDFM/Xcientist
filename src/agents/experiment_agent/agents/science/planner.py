@@ -336,8 +336,8 @@ class StandardScienceAgent(_BaseSciencePlanner):
 ### Hard Rules
 - Final evidence must come from real execution on validated prepared targets.
 - Every experiment command must write its raw outputs under `standard_results_dir`.
-- Every step must set `repos_policy` to `reference_only` and `project_must_be_self_contained` to `true`.
-- Science may read repository artifacts for reference, but it must never rely on `repos/` as a runtime dependency.
+- Every step must set `repos_policy` to `reference_or_copy`, `project_must_be_self_contained` to `true`, and `provenance_manifest_path` to the shared manifest under `agent_reports/`.
+- Science may read repository artifacts for reference and may rely on code previously copied into `project/`, but it must never rely on `repos/` as a runtime dependency.
 - Do not claim a run is `final/full` unless the assigned command chain actually ran.
 - Do not use synthetic stress fallback as a silent replacement for formal prepared targets.
 - Do not ask the runtime to infer coverage from your summaries.
@@ -426,8 +426,8 @@ class AblationScienceAgent(_BaseSciencePlanner):
 
 ### Hard Rules
 - Even if the master review highlights one missing area such as stress testing, you must still produce a full canonical ablation plan whose step list exactly matches all components from `idea.json.components`.
-- Every step must set `repos_policy` to `reference_only` and `project_must_be_self_contained` to `true`.
-- Ablation may read repository artifacts for reference, but it must never rely on `repos/` as a runtime dependency.
+- Every step must set `repos_policy` to `reference_or_copy`, `project_must_be_self_contained` to `true`, and `provenance_manifest_path` to the shared manifest under `agent_reports/`.
+- Ablation may read repository artifacts for reference and may rely on code previously copied into `project/`, but it must never rely on `repos/` as a runtime dependency.
 - Do not collapse the plan to only one missing experiment unless `idea.json.components` itself contains only one component.
 - Do not mark an ablation complete without serious evidence and explicit method context.
 - Do not invent ablation verdicts from expectation or narrative.

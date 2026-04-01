@@ -23,6 +23,7 @@ PREPARE_STAGE_CONTRACT_FIELDS: Tuple[str, ...] = (
     "validator_report_path",
     "repos_policy",
     "project_must_be_self_contained",
+    "provenance_manifest_path",
     "research_required",
     "acquisition_required",
     "existing_local_hints",
@@ -42,6 +43,7 @@ CODE_STEP_CONTRACT_FIELDS: Tuple[str, ...] = (
     "validator_report_path",
     "repos_policy",
     "project_must_be_self_contained",
+    "provenance_manifest_path",
     "write_scope",
     "verify_command",
     "max_repair_rounds",
@@ -61,6 +63,7 @@ SCIENCE_STANDARD_STEP_FIELDS: Tuple[str, ...] = (
     "validator_report_path",
     "repos_policy",
     "project_must_be_self_contained",
+    "provenance_manifest_path",
     "command",
     "output_dir",
     "raw_evidence",
@@ -84,6 +87,7 @@ SCIENCE_ABLATION_STEP_FIELDS: Tuple[str, ...] = (
     "validator_report_path",
     "repos_policy",
     "project_must_be_self_contained",
+    "provenance_manifest_path",
     "command",
     "output_dir",
     "raw_evidence",
@@ -106,6 +110,8 @@ PHASE_VERDICT_FIELDS: Tuple[str, ...] = (
     "run_level",
     "self_contained_project",
     "self_contained_violations",
+    "provenance_manifest_present",
+    "provenance_manifest_path",
 )
 
 ABLATION_COMPONENT_RESULT_FIELDS: Tuple[str, ...] = (

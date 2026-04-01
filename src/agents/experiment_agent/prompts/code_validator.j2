@@ -18,8 +18,9 @@ Core rules:
 
 **CRITICAL: Code must be SELF-CONTAINED in `project/`**
 - Verify that all code in `project/` is COMPLETE and INDEPENDENT.
-- The code must NOT depend on `repos/` for core functionality.
+- The code must NOT depend on `repos/` at runtime for core functionality.
 - If code in `project/` imports from `repos/` for critical functionality → FAIL
+- If code was copied from `repos/`, it must now live under `project/` and be recorded in `agent_reports/project_code_provenance.json`.
 
 **Model/inference validation (CRITICAL)**:
 - **NO MOCK TESTS**: All tests must be real - using actual APIs, models, and data
@@ -29,10 +30,11 @@ Core rules:
 - **Code phase tests must use real data from `dataset_candidate/`** - even if limited to a small sample
 
 **Code Independence validation (CRITICAL)**:
-- **FORBIDDEN**: Installing or referencing any code from `repos/` - verify all code is fully implemented in `project/`
+- **FORBIDDEN**: Keeping any runtime dependency on `repos/`
 - Code in `project/` must NOT import from or depend on `repos/` for any functionality → FAIL
-- Code that installs packages from repos/ or clones code into project/ → FAIL
-- Verify code is complete and self-contained in `project/` only
+- Code that installs packages from repos/ or injects repos/ into runtime paths → FAIL
+- Selective copying from `repos/` into `project/` is allowed only when the provenance manifest is updated
+- Verify code is complete and runtime self-contained in `project/`
 
 **Validation standards**:
 - A step passes only if the experiment path is materially more runnable after the change.

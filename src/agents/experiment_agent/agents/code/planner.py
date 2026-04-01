@@ -257,8 +257,9 @@ For each idea.json component, the code must provide:
 - Do not hardcode model, dataset, benchmark, or API names into the plan. Infer them from the workspace artifacts you read.
 - When a step concerns ablation support, use the exact component names from the validated idea handoff. Do not rename, merge, split, omit, or reorder them.
 - All code edits and runnable entrypoints must live under `project_dir`.
-- `repos_policy` must be `reference_only` for every step, and `project_must_be_self_contained` must be `true`.
-- The plan must never ask workers to import from, install from, editable-install from, or copy implementation code out of `repos/`.
+- `repos_policy` must be `reference_or_copy` for every step, `project_must_be_self_contained` must be `true`, and `provenance_manifest_path` must point to the shared manifest under `agent_reports/`.
+- The plan may ask workers to selectively copy implementation code from `repos/` into `project/` and modify it there, but it must never ask workers to keep a runtime dependency on `repos/`.
+- Do not ask workers to import from, install from, or editable-install from `repos/`.
 - Do not place experiment outputs under `results_dir` during the code phase.
 - Do not write any formal science result artifact or lane summary under `results/`. In particular, the code phase must not materialize `ablation_results.json`.
 - Do not collapse all steps into a single shared `code_worker` or `code_validator` path.

@@ -1,10 +1,10 @@
 """
-Deterministic checks that `project/` remains self-contained.
+Deterministic checks that `project/` remains self-contained at runtime.
 
-The policy is generic: project code may read `repos/` as reference material,
-but the runnable implementation inside `project/` must not depend on `repos/`
-at runtime via imports, path injection, repo-local installs, or local-path
-dependencies.
+The policy is generic: project code may read `repos/` as reference material
+and may copy selected implementation into `project/`, but the runnable
+implementation inside `project/` must not depend on `repos/` at runtime via
+imports, path injection, repo-local installs, or local-path dependencies.
 """
 
 from __future__ import annotations
@@ -156,18 +156,18 @@ def scan_project_self_contained(project_root: str, workspace_root: str) -> Dict[
             if path.name in {"requirements.txt", "requirements-dev.txt", "requirements.in", "setup.py", "pyproject.toml"} and _matches_repo_reference(normalized, markers):
                 violations.append(_violation("repo_local_dependency", path, index, line, project_dir))
                 continue
-            if ("cp " in normalized or "rsync " in normalized or "shutil.copy" in normalized) and _matches_repo_reference(normalized, markers):
-                violations.append(_violation("repo_code_copy", path, index, line, project_dir))
-                continue
-
     return {
         "self_contained_project": len(violations) == 0,
         "self_contained_violations": violations,
         "checked_files": checked_files,
         "project_root": str(project_dir),
         "repos_root": repos_root,
+        "provenance_manifest_path": os.path.join(workspace_dir, "agent_reports", "project_code_provenance.json"),
+        "provenance_manifest_present": os.path.exists(
+            os.path.join(workspace_dir, "agent_reports", "project_code_provenance.json")
+        ),
         "policy": {
-            "repos_policy": "reference_only",
+            "repos_policy": "reference_or_copy",
             "project_must_be_self_contained": True,
         },
     }

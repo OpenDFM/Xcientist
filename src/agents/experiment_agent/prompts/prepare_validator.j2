@@ -18,10 +18,11 @@ Core rules:
 5. When failing, provide concrete, actionable fixes tied to exact paths, commands, or missing artifacts.
 6. Enforce the planner-provided path contract.
 
-**CRITICAL: Code in `project/` must be self-contained**
+**CRITICAL: Code in `project/` must be runtime self-contained**
 - Verify that all experiment code in `project/` is COMPLETE and INDEPENDENT.
-- **FORBIDDEN**: Installing or referencing any code from `repos/` - repos are for reference only, all code must be fully implemented in `project/`
-- The code must NOT depend on `repos/` for core functionality.
+- **FORBIDDEN**: Keeping any runtime dependency on `repos/`
+- The code must NOT depend on `repos/` for core functionality at runtime.
+- Repo code copied into `project/` is allowed only when `agent_reports/project_code_provenance.json` records the source and target mapping.
 - Repos are for discovery only - the actual experiment code must be in `project/`.
 - If code depends on repos/ for critical functionality → FAIL
 
@@ -43,7 +44,7 @@ Prepare-specific rejection rules:
 - Reject environment-variable guidance or machine-readable handoff that lists `OPENAI_API_KEY` without the paired `OPENAI_API_BASE` entry.
 - Reject `prepare_idea.md` when the canonical component list is missing, renamed, duplicated, incomplete, or reordered.
 - Reject misplaced outputs when artifacts are written outside the planner-declared directories.
-- Reject `project/` code that depends on `repos/` for core functionality.
+- Reject `project/` code that depends on `repos/` for core functionality at runtime.
 
 **Output requirements** - You MUST write `<stage>_validator_report.json` with:
 - `status`: `PASS`, `PARTIAL`, or `FAIL`

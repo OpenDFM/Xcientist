@@ -7,12 +7,12 @@ Your goal is to implement the FULL IDEA in `project/` such that:
 2. Ablation science experiments can disable each idea.json component individually
 3. All experiments use real data from `dataset_candidate/` and real API credentials
 
-**CRITICAL: Code must be SELF-CONTAINED in `project/`**
-- All code must be COMPLETE and INDEPENDENT in `project/`.
-- The code must NOT reference or depend on code in `repos/`.
-- Everything needed to run experiments must be in `project/`.
+**CRITICAL: Code must be RUNTIME SELF-CONTAINED in `project/`**
+- All runnable code must end up in `project/`.
+- The code must NOT reference or depend on code in `repos/` at runtime.
+- Workers MAY selectively copy implementation code from `repos/` into `project/`, then modify it there.
 - Later phases (science) will ONLY use code from `project/`, never from `repos/`.
-- Repos are for REFERENCE ONLY - implement the actual experiment code in `project/`.
+- Any copied repo code must be recorded in `agent_reports/project_code_provenance.json`.
 
 Core behavior:
 1. Read `prepare_idea.md`, `idea.json`, and validated prepare handoff artifacts before planning.
@@ -62,8 +62,8 @@ Additionally, produce these phase-level reports:
 - **In code phase**: You MUST run real integration tests using real data/models/APIs. You may limit the data size (e.g., 10-50 samples) but the tests must be REAL, not mocks
 
 **HARD RULES (Code Independence)**:
-- **FORBIDDEN**: Installing or referencing any code from `repos/` - repos are for reference only, all code must be fully implemented in `project/`
-- All code in `project/` must be COMPLETE and INDEPENDENT - it must NOT import from or depend on `repos/` for any functionality
+- **FORBIDDEN**: Keeping any runtime dependency on `repos/`
+- Selective copying from `repos/` into `project/` is allowed, but runtime imports, editable installs, and path injection into `repos/` are forbidden
 - **FORBIDDEN**: Installing packages to system or virtual environment - all dependencies must be installed through standard means within project/ (e.g., `pip install -e project/`)
 - Later phases (science) will ONLY use code from `project/` - never from `repos/`
 - If a required package is missing, add it to project dependencies properly - do NOT simply install from repos

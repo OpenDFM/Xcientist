@@ -72,8 +72,9 @@ Only set continue_iteration=false when ALL of the following are TRUE:
 - Even in code phase: integration tests must use real data/models/APIs (may use small sample)
 
 **HARD RULES (Code Independence)**:
-- **FORBIDDEN**: Installing or referencing any code from `repos/` - all code must be fully implemented in `project/`
-- All code in `project/` must be COMPLETE and INDEPENDENT - must NOT import from or depend on `repos/` for functionality
+- **FORBIDDEN**: Keeping any runtime dependency on `repos/`
+- Code in `project/` may include selected implementation copied from `repos/`, but must not import from or depend on `repos/` directly
+- If repo code was copied into `project/`, expect `agent_reports/project_code_provenance.json` to record the source and target mapping
 - Later phases (science) will ONLY use code from `project/` - never from `repos/`
 
 ## Skills Usage

@@ -164,6 +164,8 @@ def normalize_phase_report(
             "terminal_blocker": False,
             "self_contained_project": None,
             "self_contained_violations": [],
+            "provenance_manifest_present": None,
+            "provenance_manifest_path": "",
         }
 
     blocking_issues = phase_blocking_issues(payload)
@@ -175,6 +177,10 @@ def normalize_phase_report(
         else None
     )
     self_contained_violations = _normalize_text_list(payload.get("self_contained_violations"))
+    provenance_manifest_present = payload.get("provenance_manifest_present")
+    if not isinstance(provenance_manifest_present, bool):
+        provenance_manifest_present = None
+    provenance_manifest_path = str(payload.get("provenance_manifest_path") or "").strip()
     return {
         "status": phase_report_status(payload),
         "phase_completion_status": infer_phase_completion_status(payload),
@@ -192,6 +198,8 @@ def normalize_phase_report(
         "terminal_blocker": bool(payload.get("terminal_blocker")),
         "self_contained_project": self_contained_project,
         "self_contained_violations": self_contained_violations,
+        "provenance_manifest_present": provenance_manifest_present,
+        "provenance_manifest_path": provenance_manifest_path,
     }
 
 

@@ -36,8 +36,9 @@ Core rules:
 Validation standards:
 - Science passes only if the assigned benchmark path actually ran on declared prepared targets and produced promised outputs.
 - Summary JSON/markdown are supporting artifacts, not primary proof.
-- `project/` must remain self-contained. `repos/` may be consulted as reference, but science must run only against code already implemented inside `project/`.
+- `project/` must remain runtime self-contained. `repos/` may be consulted as reference, and science may run against code copied into `project/`, but the run must not depend on `repos/` directly.
 - Any repo-local import, `sys.path` injection, local-path dependency, or repo-local install path still required by the run → FAIL.
+- If repo code was copied into `project/`, require the shared provenance manifest under `agent_reports/` to record the source and target mapping.
 - Any code edits required for the science run that land outside `project_dir` → FAIL.
 - **Runs not using `dataset_candidate/` data → FAIL**.
 - **Runs using synthetic/random data instead of real data → FAIL**.
@@ -51,6 +52,8 @@ Output requirements:
 - `run_level`: `smoke|full|mixed`
 - `self_contained_project`: `true|false`
 - `self_contained_violations`: list of exact repo-dependency violations, empty when compliant
+- `provenance_manifest_present`: `true|false`
+- `provenance_manifest_path`: exact path to the shared project-code provenance manifest
 - Shared verdict fields:
 {verdict_fields}
 - Optional `terminal_blocker: true` when no further iteration can fix without external intervention.
@@ -80,8 +83,9 @@ Validation standards:
 - Ablation passes only if the assigned canonical component was seriously tested and conclusion is supported by evidence.
 - Component identity must match `idea.json.components` name exactly.
 - `method_context` must describe the exact ablated/degraded variant.
-- `project/` must remain self-contained. `repos/` may be consulted as reference, but ablation runs must execute only against code already implemented inside `project/`.
+- `project/` must remain runtime self-contained. `repos/` may be consulted as reference, and ablation may run against code copied into `project/`, but the run must not depend on `repos/` directly.
 - Any repo-local import, `sys.path` injection, local-path dependency, or repo-local install path still required by the run → FAIL.
+- If repo code was copied into `project/`, require the shared provenance manifest under `agent_reports/` to record the source and target mapping.
 - Any code edits required for the ablation run that land outside `project_dir` → FAIL.
 - **Runs not using `dataset_candidate/` data → FAIL**.
 - **Runs using synthetic/random data → FAIL**.
@@ -95,6 +99,8 @@ Output requirements:
 - `run_level`: `smoke|full|mixed`
 - `self_contained_project`: `true|false`
 - `self_contained_violations`: list of exact repo-dependency violations, empty when compliant
+- `provenance_manifest_present`: `true|false`
+- `provenance_manifest_path`: exact path to the shared project-code provenance manifest
 - Shared verdict fields:
 {verdict_fields}
 - Each ablation step must also include:

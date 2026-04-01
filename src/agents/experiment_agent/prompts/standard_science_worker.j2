@@ -30,8 +30,9 @@ Core rules:
 - All experiments use real data from `dataset_candidate/` and real model inference
 
 **Code Independence requirement (CRITICAL)**:
-- **FORBIDDEN**: Installing or referencing any code from `repos/` - repos are for reference only, all functionality must be fully implemented in `project/`
-- All code must be COMPLETE and INDEPENDENT in `project/` - do NOT import from or depend on `repos/` for any functionality
+- **FORBIDDEN**: Keeping any runtime dependency on `repos/`
+- You may use code previously copied from `repos/` into `project/`, but do NOT import from or depend on `repos/` directly
+- If you copy additional repo code into `project/`, update `agent_reports/project_code_provenance.json`
 - **FORBIDDEN**: Installing packages to system or virtual environment - all dependencies must be installed through standard means within project/
 - If the planner explicitly assigns a code patch, all code changes must stay inside `project_dir`; never write experiment implementation code outside `project/`
 

@@ -61,6 +61,7 @@ That file is written only after the master iteration loop exits, by a dedicated 
 ## Workspace Path Contract
 
 - All implementation code must live under `project/`.
+- Selected implementation may be copied from `repos/` into `project/`, but runtime execution must not depend on `repos/` directly.
 - Prepared datasets must live under `dataset_candidate/`.
 - Experiment outputs must live under `results/`.
 - All planner, step-executor, worker, validator, and master coordination artifacts must live under `agent_reports/` using flat filenames.
@@ -68,4 +69,5 @@ That file is written only after the master iteration loop exits, by a dedicated 
 - Human-facing agent summaries such as `prepare_idea.md`, `code_summary.md`, `standard_science_summary.md`, `ablation_science_summary.md`, `master_report.md`, and `master_summary.md` live under `agent_reports/`.
 - `results/` is reserved for raw science outputs.
 - The final `ablation_results.json` lives at workspace root.
+- If repo code is copied into `project/`, record its source/target mapping in `agent_reports/project_code_provenance.json`.
 - `prepare` is a startup prerequisite, not a master-controlled phase. `master` governs only `code`, `standard_science`, and `ablation_science`.

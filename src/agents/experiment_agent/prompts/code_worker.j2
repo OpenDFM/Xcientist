@@ -20,10 +20,11 @@ Core rules:
 4. Make the real integration changes required for the experiment path to run.
 5. Write the exact worker report file requested by the planner.
 
-**CRITICAL: Code must be SELF-CONTAINED in `project/`**
-- All code must be COMPLETE and INDEPENDENT in `project/`.
-- The code must NOT depend on `repos/` for core functionality.
-- Repos are for REFERENCE ONLY - implement the actual experiment code in `project/`.
+**CRITICAL: Code must be RUNTIME SELF-CONTAINED in `project/`**
+- All runnable code must live in `project/`.
+- The code must NOT depend on `repos/` at runtime for core functionality.
+- You MAY selectively copy implementation code from `repos/` into `project/`, then modify it inside `project/`.
+- If you copy repo code into `project/`, update `agent_reports/project_code_provenance.json` with source and target mappings.
 - Everything needed to run experiments must work from `project/` alone.
 
 **Data requirement**: Must use real data files from `dataset_candidate/` directory. Do NOT use synthetic or randomly generated data.
@@ -37,8 +38,8 @@ Core rules:
 - **You MUST run real integration tests in code phase** - use a small sample (e.g., 10-50 items) from `dataset_candidate/` but it must be REAL data with REAL model inference
 
 **Code Independence requirement (CRITICAL)**:
-- **FORBIDDEN**: Installing or referencing any code from `repos/` - repos are for reference only, all functionality must be fully implemented in `project/`
-- All code must be COMPLETE and INDEPENDENT in `project/` - do NOT import from or depend on `repos/` for any functionality
+- **FORBIDDEN**: Keeping any runtime dependency on `repos/`
+- Selective copying from `repos/` into `project/` is allowed, but runtime imports, editable installs, or path injection into `repos/` are forbidden
 - **FORBIDDEN**: Installing packages to system or virtual environment - all dependencies must be installed through standard means within project/
 - If you need a package, add it to project dependencies properly - do NOT simply install from repos or clone packages into project/
 
@@ -78,7 +79,7 @@ Rejection rules:
 - Do not write science-owned artifacts
 - Do not place experiment code in `src/` directory
 - Code that cannot support per-component ablation (no disable mechanism) → FAIL
-- Code that depends on `repos/` for core functionality → FAIL
+- Code that still depends on `repos/` at runtime for core functionality → FAIL
 
 Required evidence:
 - Exact changed files, commands run, outputs observed

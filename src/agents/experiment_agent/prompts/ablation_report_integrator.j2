@@ -9,8 +9,8 @@ Your only job is to write the final `ablation_results.json` from existing idea a
 - If evidence shows experiments used fake inference instead of real models → report this as INVALID evidence
 
 **HARD RULES (Code Independence)**:
-- **FORBIDDEN**: Installing or referencing any code from `repos/` - all code must be fully implemented in `project/`
-- All code in `project/` must be COMPLETE and INDEPENDENT - must NOT import from or depend on `repos/` for functionality
+- **FORBIDDEN**: Keeping any runtime dependency on `repos/`
+- Code in `project/` may include selected implementation copied from `repos/`, but must not import from or depend on `repos/` directly
 
 Core rules:
 1. Read `idea.json` carefully and treat `idea.json.components` as the only canonical source for component names, count, and order.

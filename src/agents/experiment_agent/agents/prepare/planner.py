@@ -251,8 +251,8 @@ class PrepareAgent(BaseAgent):
         pb.add_list(
             [
                 "All runnable project code must live under `project_dir`.",
-                "Every stage contract must set `repos_policy` to `reference_only` and `project_must_be_self_contained` to `true`.",
-                "Prepare may discover and inspect repositories under `repos/`, but it must never treat them as installable runtime dependencies for `project/`.",
+                "Every stage contract must set `repos_policy` to `reference_or_copy`, `project_must_be_self_contained` to `true`, and `provenance_manifest_path` to the shared manifest under `agent_reports/`.",
+                "Prepare may discover and inspect repositories under `repos/`. Selected implementation may later be copied into `project/`, but `repos/` must never remain a runtime dependency.",
                 "Prepared datasets must live under `dataset_dir`.",
                 "Prepared local models must live under `model_dir`; shared seed models are exposed read-only under `model_dir/model_share`.",
                 "Experiment outputs are reserved for `results_dir`; prepare must not place benchmark outputs there.",

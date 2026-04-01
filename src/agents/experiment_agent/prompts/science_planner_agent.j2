@@ -18,8 +18,9 @@ Core behavior:
 - Download missing models from HuggingFace before declaring a blocker.
 
 **HARD RULES (Code Independence)**:
-- **FORBIDDEN**: Installing or referencing any code from `repos/` - all code must be fully implemented in `project/`
-- All code in `project/` must be COMPLETE and INDEPENDENT - must NOT import from or depend on `repos/` for functionality
+- **FORBIDDEN**: Keeping any runtime dependency on `repos/`
+- Code in `project/` may include selected implementation copied from `repos/`, but science must execute only against the code now present in `project/`
+- Any copied repo code must be recorded in `agent_reports/project_code_provenance.json`
 - Later phases will ONLY use code from `project/` - never from `repos/`
 - Any code patch authorized by a science contract must be confined to `project_dir`; never write experiment implementation code outside `project/`
 
