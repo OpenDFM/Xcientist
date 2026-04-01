@@ -1,6 +1,5 @@
 """Pipeline runner: Survey -> Idea -> Experiment loop with unified workspace and resume"""
 
-import hashlib
 import json
 import os
 import re
@@ -157,12 +156,20 @@ def run_survey(topic: str, output_dir: str) -> bool:
 
     project_root = os.getcwd()
     config_path = os.path.join(project_root, "src", "config")
+    survey_script = os.path.join(
+        project_root,
+        "src",
+        "agents",
+        "survey_agent",
+        "scripts",
+        "run_deep_survey.py",
+    )
     save_path = os.path.join(output_dir, "survey.md")
     save_json_path = os.path.join(output_dir, "survey.json")
     evaluation_save_path = os.path.join(output_dir, "evaluation.txt")
 
     cmd = [
-        sys.executable, "-m", "src.agents.survey_agent.scripts.run_deep_survey",
+        sys.executable, survey_script,
         f"survey.BasicInfo.topic={topic}",
         f"survey.BasicInfo.base_dir={output_dir}",
         f"survey.BasicInfo.save_path={save_path}",
@@ -174,7 +181,13 @@ def run_survey(topic: str, output_dir: str) -> bool:
 
     print(f"Running survey: {topic}")
     print(f"Output will be saved to: {output_dir}")
-    returncode = run_command(cmd)
+    env = _get_subprocess_env()
+    for key in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
+        env.pop(key, None)
+    env["no_proxy"] = "58.210.177.113,localhost,127.0.0.1"
+    env.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+    env.setdefault("MINERU_MODEL_SOURCE", "modelscope")
+    returncode = run_command(cmd, env=env)
     return returncode == 0
 
 
@@ -187,6 +200,42 @@ def _stage_ablation_results_dir(experiment_dir: Path, ablation_path: Path) -> st
     staged_path = staged_dir / ablation_path.name
     shutil.copy(ablation_path, staged_path)
     return str(staged_dir)
+
+
+def _write_idea_runtime_config(
+    config: Any,
+    runtime_dir: str,
+    topic: str,
+    mature_idea: str,
+    survey_output_dir: str,
+) -> str:
+    """Materialize an idea-agent config that mirrors the active pipeline runtime."""
+    runtime_config = OmegaConf.create(OmegaConf.to_container(config, resolve=True))
+    OmegaConf.update(runtime_config, "idea.run.topic", topic, merge=False)
+    OmegaConf.update(runtime_config, "idea.run.mature_idea", mature_idea or "", merge=False)
+    if survey_output_dir:
+        OmegaConf.update(runtime_config, "survey.BasicInfo.base_dir", survey_output_dir, merge=False)
+        OmegaConf.update(
+            runtime_config,
+            "survey.BasicInfo.save_path",
+            os.path.join(survey_output_dir, "survey.md"),
+            merge=False,
+        )
+        OmegaConf.update(
+            runtime_config,
+            "survey.BasicInfo.save_json_path",
+            os.path.join(survey_output_dir, "survey.json"),
+            merge=False,
+        )
+        OmegaConf.update(
+            runtime_config,
+            "survey.BasicInfo.evaluation_save_path",
+            os.path.join(survey_output_dir, "evaluation.txt"),
+            merge=False,
+        )
+    runtime_config_path = os.path.join(runtime_dir, "idea_runtime_config.yaml")
+    OmegaConf.save(runtime_config, runtime_config_path)
+    return runtime_config_path
 
 
 def _find_previous_ablation_results_dir(pipeline_workspace: str, iteration_index: int) -> str:
@@ -259,13 +308,11 @@ def _run_experiment_branch(
     if candidate_source_path:
         shutil.copy(candidate_source_path, final_candidate_file)
 
-    should_skip_prepare = resume_enabled and _should_skip_phase(phase_name, state)
     success = run_experiment(
         experiment_id=experiment_id,
         workspace_root=exp_workspace,
         max_agent_iterations=experiment_agent_iterations,
         resume=resume_enabled,
-        skip_prepare=should_skip_prepare,
     )
     if not success:
         raise RuntimeError(f"Experiment agent failed for {experiment_id}")
@@ -302,6 +349,9 @@ def run_idea(
     topic: str,
     mature_idea: str,
     output_file: str,
+    config: Any,
+    runtime_dir: str,
+    survey_output_dir: str,
     ablation_results_path: str = "",
     previous_candidate_path: str = "",
 ) -> Dict[str, Any]:
@@ -311,15 +361,17 @@ def run_idea(
     print("=" * 50)
 
     idea_agent_path = Path.cwd() / "src/agents/idea_agent/run.py"
- 
-    cmd = [sys.executable, str(idea_agent_path), "--topic", topic]
-
-    # Add mature_idea if provided
-    if mature_idea:
-        cmd.extend(["--mature-idea", mature_idea])
+    cmd = [sys.executable, str(idea_agent_path)]
 
     # Get environment with all required API keys
     env = _get_subprocess_env()
+    env["IDEA_AGENT_CONFIG"] = _write_idea_runtime_config(
+        config,
+        runtime_dir,
+        topic,
+        mature_idea,
+        survey_output_dir,
+    )
     if ablation_results_path and os.path.isdir(ablation_results_path):
         env["IDEA_AGENT_ABLATION_RESULTS_PATH"] = ablation_results_path
         print(f"Using prior ablation results dir: {ablation_results_path}")
@@ -348,13 +400,13 @@ def run_idea(
         stdout_lines.append(line)
 
     process.wait()
-    stdout_output = "".join(stdout_lines)
-
     if process.returncode != 0:
         raise RuntimeError(f"Idea agent failed: {process.returncode}")
+    if any("❌ failed:" in line for line in stdout_lines):
+        raise RuntimeError("Idea agent reported failure in stdout.")
 
     # Find and copy idea_result.json to output location
-    idea_path = "src/agents/idea_agent/idea_result.json"
+    idea_path = ""
     result_dir = ""
     for line in stdout_lines:
         if "✅ completed ->" in line:
@@ -365,8 +417,18 @@ def run_idea(
                     idea_path = part
                     break
 
+    if result_dir and not idea_path:
+        candidate = Path(result_dir) / "idea_result.json"
+        if candidate.exists():
+            idea_path = str(candidate)
+
+    if not idea_path:
+        raise RuntimeError("Idea agent completed but did not report idea_result.json")
+
     if not os.path.isabs(idea_path):
         idea_path = os.path.join(os.getcwd(), idea_path)
+    if not os.path.exists(idea_path):
+        raise RuntimeError(f"Idea result not found: {idea_path}")
 
     # Copy to output location
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -409,7 +471,7 @@ def run_experiment(
     print(f"Experiment workspace: {workspace_root}")
 
     # Set environment variable for workspace
-    env = os.environ.copy()
+    env = _get_subprocess_env()
     env["EXPERIMENT_AGENT_WORKSPACE_DIR"] = workspace_root
 
     print("Running Experiment Agent (unified main)...")
@@ -421,8 +483,6 @@ def run_experiment(
     ]
     if resume:
         cmd.append("--resume")
-    if skip_prepare:
-        cmd.append("--skip-prepare")
     return run_command(cmd, env=env) == 0
 
 
@@ -490,11 +550,12 @@ def main(config_path: str = "src/config/default.yaml"):
     else:
         state = _init_pipeline_state(pipeline_workspace, topic, mature_idea, max_iterations)
 
+    survey_output_dir = survey_output_base
+
     # Phase 1: Survey
     if skip_survey or _should_skip_phase("survey", state):
         print("Skipping Survey phase")
     else:
-        survey_output_dir = survey_output_base
         _ensure_dirs(survey_output_dir)
         if run_survey(topic, survey_output_dir):
             _mark_phase_complete("survey", state)
@@ -533,6 +594,9 @@ def main(config_path: str = "src/config/default.yaml"):
             topic,
             mature_idea,
             idea_output_file,
+            config=config,
+            runtime_dir=temp_exp_workspace,
+            survey_output_dir=survey_output_dir,
             ablation_results_path=prior_ablation_results_path,
             previous_candidate_path=previous_candidate_path,
         )

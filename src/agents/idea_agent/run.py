@@ -122,7 +122,7 @@ def _apply_env_config(config: Optional[object]) -> None:
             if value is not None:
                 os.environ[env_var] = str(value)
 
-def main() -> None:
+def main() -> int:
     config = load_idea_agent_config()
     project_config = load_project_config()
     _apply_env_config(config)
@@ -151,9 +151,11 @@ def main() -> None:
             survey_config,
         )
         print(f"[{topic}] ✅ completed -> {result_dir}")
+        return 0
     except Exception as exc:
         print(f"[{topic}] ❌ failed: {exc}")
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
