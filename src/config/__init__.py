@@ -55,10 +55,9 @@ def _preprocess_yaml_content(content: str) -> str:
     This handles:
     - ${env:VAR_NAME} -> actual env var values
     - ${oc.env:VAR_NAME[,default]} -> actual env var values
-    - ${workspace} -> current working directory (will be resolved later)
+    - ${repo_root} -> current working directory (will be resolved later)
+    - ${workspace} -> workspace.root (will be resolved later)
     """
-    workspace = os.getcwd()
-
     # First handle ${env:VAR_NAME} patterns
     env_pattern = re.compile(r'\$\{env:([^}]+)\}')
     content = env_pattern.sub(lambda m: os.environ.get(m.group(1), ""), content)
@@ -70,24 +69,26 @@ def _preprocess_yaml_content(content: str) -> str:
         content,
     )
 
-    # Escape ${workspace} for now (will be resolved later)
-    # Use a placeholder that won't conflict
+    # Escape custom path placeholders for later resolution.
+    content = content.replace("${repo_root}", "__REPO_ROOT__")
     content = content.replace("${workspace}", "__WORKSPACE__")
 
     return content
 
 
 def _resolve_workspace(config: DictConfig) -> DictConfig:
-    """Resolve __WORKSPACE__ placeholder to workspace.root from config or current working directory"""
-    # Use workspace.root from config if available, otherwise fallback to cwd
+    """Resolve custom path placeholders against repo root and workspace root."""
+    repo_root = os.getcwd()
+
+    # Use workspace.root from config if available, otherwise fallback to cwd/workspace
     if "workspace" in config and "root" in config.workspace:
-        workspace = config.workspace.root
+        workspace = str(config.workspace.root).replace("__REPO_ROOT__", repo_root)
     else:
-        workspace = os.getcwd()
+        workspace = os.path.join(repo_root, "workspace")
 
     def _replace_workspace(value):
         if isinstance(value, str):
-            return value.replace("__WORKSPACE__", workspace)
+            return value.replace("__REPO_ROOT__", repo_root).replace("__WORKSPACE__", workspace)
         return value
 
     return _recursive_apply(config, _replace_workspace)

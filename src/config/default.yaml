@@ -11,7 +11,7 @@ project:
 # Workspace Configuration
 # ============================================
 workspace:
-  root: "/hpc_stor03/sjtu_home/hanqi.li/ResearchAgent/workspace"
+  root: "${repo_root}/workspace"
 
 # ============================================
 # Survey Agent Configuration
@@ -19,11 +19,11 @@ workspace:
 survey:
   BasicInfo:
     topic: "Machine-learned interatomic potential"
-    base_dir: "/hpc_stor03/sjtu_home/hanqi.li/ResearchAgent/src/agents/survey_agent/outputs/memory"
+    base_dir: "${repo_root}/src/agents/survey_agent/outputs/memory"
     cache_path: "./database"
-    save_path: "/hpc_stor03/sjtu_home/hanqi.li/ResearchAgent/src/agents/survey_agent/outputs/memory/survey.md"
-    save_json_path: "/hpc_stor03/sjtu_home/hanqi.li/ResearchAgent/src/agents/survey_agent/outputs/memory/survey.json"
-    evaluation_save_path: "/hpc_stor03/sjtu_home/hanqi.li/ResearchAgent/src/agents/survey_agent/outputs/memory/evaluation.txt"
+    save_path: "${repo_root}/src/agents/survey_agent/outputs/memory/survey.md"
+    save_json_path: "${repo_root}/src/agents/survey_agent/outputs/memory/survey.json"
+    evaluation_save_path: "${repo_root}/src/agents/survey_agent/outputs/memory/evaluation.txt"
     debug: true
     error_conservatism_mode: false
   APIInfo:
@@ -330,7 +330,7 @@ experiment:
   memory:
     enabled: true
     shared_dir: "~/.researchagent/shared_memory"
-    embedding_model_path: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/models/all-MiniLM-L6-v2"
+    embedding_model_path: "${repo_root}/models/all-MiniLM-L6-v2"
     llm_name: "gpt-5-mini"
     query_method: "embedding"
     writeback_enabled: true
@@ -340,9 +340,9 @@ experiment:
 
   # Workspace configuration
   workspace:
-    root: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent"
+    root: "${workspace.root}"
     prepare_clone_depth: 1
-    model_candidate_seed: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/models"
+    model_candidate_seed: "${repo_root}/models"
     tavily_enabled: true
     tavily_api_key: "${env:TAVILY_API_KEY}"
     tavily_remote_url_template: "https://mcp.tavily.com/mcp/?tavilyApiKey={api_key}"
@@ -373,10 +373,10 @@ paper:
     vlm: "gpt-4o"
 
   workspace:
-    root: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/paper_agent/workspaces"
-    experiment_root: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent"
+    root: "${repo_root}/src/agents/paper_agent/workspaces"
+    experiment_root: "${repo_root}"
 
-  template_dir: "/hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/src/agents/paper_agent/latex/ICML2025_Template"
+  template_dir: "${repo_root}/src/agents/paper_agent/latex/ICML2025_Template"
 
 # ============================================
 # Pipeline Configuration
