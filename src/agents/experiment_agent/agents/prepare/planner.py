@@ -42,7 +42,11 @@ from src.agents.experiment_agent.runtime.idea_components import (
     format_canonical_components_markdown,
     load_canonical_components,
 )
-from src.agents.experiment_agent.runtime.manifests import artifact_paths, workspace_contract_paths
+from src.agents.experiment_agent.runtime.manifests import (
+    artifact_paths,
+    resolve_prepare_idea_path,
+    workspace_contract_paths,
+)
 from src.agents.experiment_agent.skills import get_prepare_agent_context
 from src.agents.experiment_agent.tools.openhands import SecurityContext
 
@@ -433,7 +437,7 @@ class PrepareAgent(BaseAgent):
         idea_json_path = next((candidate for candidate in idea_json_candidates if os.path.exists(candidate)), None)
         if idea_json_path is None:
             raise FileNotFoundError(f"idea.json not found in {workspace_dir}. Tried: {idea_json_candidates}")
-        idea_md_path = artifact_paths(workspace_dir, project_dir)["idea"]
+        idea_md_path = resolve_prepare_idea_path(workspace_dir, project_dir)
 
         SecurityContext.set_roots(
             project_root=os.path.realpath(project_dir),

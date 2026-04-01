@@ -44,7 +44,12 @@ from src.agents.experiment_agent.runtime.idea_components import (
     format_canonical_components_markdown,
     load_canonical_components,
 )
-from src.agents.experiment_agent.runtime.manifests import artifact_paths, workspace_contract_paths
+from src.agents.experiment_agent.runtime.manifests import (
+    artifact_paths,
+    extract_plan_steps,
+    workspace_contract_paths,
+)
+from src.agents.experiment_agent.runtime.phase_contracts import normalize_phase_report
 from src.agents.experiment_agent.skills import get_exp_agent_context
 
 
@@ -261,7 +266,7 @@ class _BaseSciencePlanner(OpenHandsBaseAgent):
                 payload = json.load(f)
         except Exception:
             return False
-        return str(payload.get("status") or "").strip().upper() == "PASS"
+        return normalize_phase_report(payload).get("status") == "PASS"
 
     def _required_artifacts_exist(self) -> bool:
         raise NotImplementedError
@@ -294,11 +299,14 @@ class _BaseSciencePlanner(OpenHandsBaseAgent):
                 plan_payload = json.load(f)
         except Exception as exc:
             raise RuntimeError(f"Science plan is not valid JSON: {self.plan_path}") from exc
-        if not isinstance(plan_payload, list) or not plan_payload:
-            raise RuntimeError("Science plan must be a non-empty JSON list of step contracts.")
+        steps = extract_plan_steps(plan_payload)
+        if not isinstance(steps, list) or not steps:
+            raise RuntimeError(
+                "Science plan must be a non-empty JSON list of step contracts or a JSON object containing non-empty `stages`/`steps`."
+            )
 
         errors: list[str] = []
-        for index, step in enumerate(plan_payload, start=1):
+        for index, step in enumerate(steps, start=1):
             if not isinstance(step, dict):
                 errors.append(f"step {index}: expected object, got {type(step).__name__}")
                 continue
@@ -359,7 +367,7 @@ class StandardScienceAgent(_BaseSciencePlanner):
 
 ### Required Flow
 1. Read the validated prepare artifacts and code handoff before planning.
-2. Write `{self.plan_path}` as an ordered list of concrete standard experiment steps.
+2. Write `{self.plan_path}` as a JSON object whose `stages` field is an ordered list of concrete standard experiment steps.
 3. Every step must include:
 {step_fields}
 4. Derive target names and paths from the workspace artifacts above instead of hardcoding them.
@@ -449,7 +457,7 @@ class AblationScienceAgent(_BaseSciencePlanner):
 
 ### Required Flow
 1. Read the validated prepare artifacts, the code handoff, the standard science evidence, and `idea.json.components` before planning.
-2. Write `{self.plan_path}` as a complete ordered list of component-level ablation steps covering the full canonical component set, not just the currently missing gap.
+2. Write `{self.plan_path}` as a JSON object whose `stages` field is a complete ordered list of component-level ablation steps covering the full canonical component set, not just the currently missing gap.
 3. Each step must include:
 {step_fields}
 4. The number of ablation steps must equal the number of canonical idea components.

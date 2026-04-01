@@ -331,9 +331,11 @@ def get_project_dir(experiment_id: str) -> str:
 
 
 def get_idea_input_path(experiment_id: str) -> str:
+    from .runtime.manifests import resolve_prepare_idea_path
+
     workspace = get_workspace_dir(experiment_id)
-    agent_md_path = os.path.join(workspace, "agent_reports", "prepare_idea.md")
-    md_path = os.path.join(workspace, "idea.md")
+    agent_md_path = resolve_prepare_idea_path(workspace)
+    md_path = os.path.join(workspace, "prepare_idea.md")
     json_path = os.path.join(workspace, "idea.json")
     result_json_path = os.path.join(workspace, "idea_result.json")
     if os.path.exists(agent_md_path):

@@ -36,7 +36,12 @@ from src.agents.experiment_agent.runtime.contracts import (
     format_named_paths,
     validate_repo_contract_fields,
 )
-from src.agents.experiment_agent.runtime.manifests import artifact_paths, workspace_contract_paths
+from src.agents.experiment_agent.runtime.manifests import (
+    artifact_paths,
+    extract_plan_steps,
+    workspace_contract_paths,
+)
+from src.agents.experiment_agent.runtime.phase_contracts import normalize_phase_report
 from src.agents.experiment_agent.skills import get_code_agent_context
 
 
@@ -217,7 +222,7 @@ class CodeAgent(OpenHandsBaseAgent):
 
 ### Required Flow
 1. Read the idea and validated prepare artifacts first.
-2. Write `{self.plan_path}` as an ordered step list. Each step must include:
+2. Write `{self.plan_path}` as a JSON object whose `stages` field is an ordered step list. Each step must include:
 {step_fields}
 3. The plan must end with a mandatory step whose `step_id` is exactly `final_integration_smoke`.
 4. Every step must tie to a real prepared target or benchmark path discovered from the prepare artifacts above.
@@ -284,7 +289,7 @@ Finish by printing exactly: CODE ENABLEMENT COMPLETE"""
                 payload = json.load(f)
         except Exception:
             return False
-        return str(payload.get("status") or "").strip().upper() == "PASS"
+        return normalize_phase_report(payload).get("status") == "PASS"
 
     def _validate_plan_artifact(self) -> None:
         if not os.path.exists(self.plan_path):
@@ -294,11 +299,14 @@ Finish by printing exactly: CODE ENABLEMENT COMPLETE"""
                 plan_payload = json.load(f)
         except Exception as exc:
             raise RuntimeError(f"Code plan is not valid JSON: {self.plan_path}") from exc
-        if not isinstance(plan_payload, list) or not plan_payload:
-            raise RuntimeError("Code plan must be a non-empty JSON list of step contracts.")
+        steps = extract_plan_steps(plan_payload)
+        if not isinstance(steps, list) or not steps:
+            raise RuntimeError(
+                "Code plan must be a non-empty JSON list of step contracts or a JSON object containing non-empty `stages`/`steps`."
+            )
 
         errors: list[str] = []
-        for index, step in enumerate(plan_payload, start=1):
+        for index, step in enumerate(steps, start=1):
             if not isinstance(step, dict):
                 errors.append(f"step {index}: expected object, got {type(step).__name__}")
                 continue

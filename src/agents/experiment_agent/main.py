@@ -24,7 +24,11 @@ from src.agents.experiment_agent.config import (
     write_workspace_env_file,
 )
 from src.agents.experiment_agent.runtime.cache import Cache
-from src.agents.experiment_agent.runtime.manifests import artifact_paths, load_json_file
+from src.agents.experiment_agent.runtime.manifests import (
+    artifact_paths,
+    ensure_canonical_workspace_artifacts,
+    load_json_file,
+)
 from src.agents.experiment_agent.runtime.phase_contracts import normalize_phase_report
 from src.agents.experiment_agent.telemetry import print_phase
 
@@ -98,6 +102,7 @@ async def main_async(args) -> int:
     Cache.initialize(paths["cache_dir"], enabled=True)
     workspace_root = paths["workspace_dir"]
     project_root = paths["project_dir"]
+    ensure_canonical_workspace_artifacts(workspace_root, project_root)
 
     print(f"\nExperiment: {experiment_id}")
     print(f"Workspace: {workspace_root}")
@@ -128,6 +133,7 @@ async def main_async(args) -> int:
         print(f"  Model dir: {prepare_report.model_dir}")
         print(f"  Results dir: {prepare_report.results_dir}")
         print(f"  Agent reports dir: {prepare_report.reports_dir}")
+        ensure_canonical_workspace_artifacts(workspace_root, project_root)
         if args.prepare_only:
             return 0
     else:

@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, Optional
+import shutil
+from typing import Any, Dict, List, Optional
 
 
 def workspace_contract_paths(workspace_root: str, project_root: Optional[str] = None) -> Dict[str, str]:
@@ -94,14 +95,84 @@ def artifact_paths(workspace_root: str, project_root: Optional[str] = None) -> D
         "iteration_status": os.path.join(reports_dir, "iteration_status.json"),
     }
 
-def load_json_file(path: str) -> Optional[Dict[str, Any]]:
+
+def resolve_prepare_idea_path(workspace_root: str, project_root: Optional[str] = None) -> str:
+    paths = artifact_paths(workspace_root, project_root)
+    candidates = [
+        paths["idea"],
+        os.path.join(paths["workspace_dir"], "prepare_idea.md"),
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return paths["idea"]
+
+
+def resolve_provenance_manifest_path(
+    workspace_root: str,
+    project_root: Optional[str] = None,
+) -> str:
+    paths = artifact_paths(workspace_root, project_root)
+    canonical = paths["project_code_provenance"]
+    legacy = os.path.join(paths["agent_reports_dir"], "provenance_manifest.json")
+    if os.path.exists(canonical):
+        return canonical
+    if os.path.exists(legacy):
+        return legacy
+    return canonical
+
+
+def provenance_manifest_exists(
+    workspace_root: str,
+    project_root: Optional[str] = None,
+) -> bool:
+    return os.path.exists(resolve_provenance_manifest_path(workspace_root, project_root))
+
+
+def ensure_canonical_workspace_artifacts(
+    workspace_root: str,
+    project_root: Optional[str] = None,
+) -> Dict[str, str]:
+    paths = artifact_paths(workspace_root, project_root)
+    updates: Dict[str, str] = {}
+
+    legacy_prepare = os.path.join(paths["workspace_dir"], "prepare_idea.md")
+    if os.path.exists(legacy_prepare) and not os.path.exists(paths["idea"]):
+        os.makedirs(os.path.dirname(paths["idea"]), exist_ok=True)
+        shutil.copy2(legacy_prepare, paths["idea"])
+        updates["idea"] = paths["idea"]
+
+    legacy_provenance = os.path.join(paths["agent_reports_dir"], "provenance_manifest.json")
+    if os.path.exists(legacy_provenance) and not os.path.exists(paths["project_code_provenance"]):
+        os.makedirs(os.path.dirname(paths["project_code_provenance"]), exist_ok=True)
+        shutil.copy2(legacy_provenance, paths["project_code_provenance"])
+        updates["project_code_provenance"] = paths["project_code_provenance"]
+
+    return updates
+
+
+def load_json_payload(path: str) -> Optional[Any]:
     if not path or not os.path.exists(path):
         return None
     try:
         with open(path, "r", encoding="utf-8") as f:
-            payload = json.load(f)
+            return json.load(f)
     except Exception:
         return None
+
+
+def extract_plan_steps(payload: Any) -> Optional[List[Dict[str, Any]]]:
+    if isinstance(payload, list):
+        return payload if all(isinstance(item, dict) for item in payload) else None
+    if isinstance(payload, dict):
+        for key in ("stages", "steps"):
+            candidate = payload.get(key)
+            if isinstance(candidate, list):
+                return candidate if all(isinstance(item, dict) for item in candidate) else None
+    return None
+
+def load_json_file(path: str) -> Optional[Dict[str, Any]]:
+    payload = load_json_payload(path)
     return payload if isinstance(payload, dict) else None
 
 
@@ -128,8 +199,14 @@ def load_workspace_state(workspace_root: str) -> Dict[str, Optional[Dict[str, An
 
 __all__ = [
     "artifact_paths",
+    "ensure_canonical_workspace_artifacts",
+    "extract_plan_steps",
     "load_json_file",
+    "load_json_payload",
     "load_workspace_state",
+    "provenance_manifest_exists",
+    "resolve_prepare_idea_path",
+    "resolve_provenance_manifest_path",
     "workspace_contract_paths",
     "write_json_file",
 ]

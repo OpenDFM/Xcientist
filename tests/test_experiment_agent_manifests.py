@@ -58,7 +58,14 @@ if HAS_EXPERIMENT_DEPS:
     from src.agents.experiment_agent.agents.reporting.integrator import (
         create_ablation_report_integrator_agent,
     )
-    from src.agents.experiment_agent.runtime.manifests import artifact_paths, load_workspace_state
+    from src.agents.experiment_agent.runtime.manifests import (
+        artifact_paths,
+        ensure_canonical_workspace_artifacts,
+        extract_plan_steps,
+        load_workspace_state,
+        resolve_prepare_idea_path,
+        resolve_provenance_manifest_path,
+    )
     from src.agents.experiment_agent.skills import (
         get_code_agent_context,
         get_prepare_agent_context,
@@ -118,6 +125,34 @@ def test_runtime_artifact_paths_focus_on_validator_backed_outputs(tmp_path):
     paths = artifact_paths(str(tmp_path))
 
     assert "ablation_results" in paths
+
+
+def test_extract_plan_steps_accepts_legacy_and_canonical_shapes():
+    assert extract_plan_steps([{"step_id": "a"}]) == [{"step_id": "a"}]
+    assert extract_plan_steps({"stages": [{"step_id": "a"}]}) == [{"step_id": "a"}]
+    assert extract_plan_steps({"steps": [{"step_id": "a"}]}) == [{"step_id": "a"}]
+    assert extract_plan_steps({"stages": ["bad"]}) is None
+
+
+def test_prepare_idea_and_provenance_resolvers_support_legacy_artifacts(tmp_path):
+    paths = artifact_paths(str(tmp_path))
+    legacy_prepare = tmp_path / "prepare_idea.md"
+    legacy_prepare.write_text("# legacy prepare", encoding="utf-8")
+    legacy_provenance = tmp_path / "agent_reports" / "provenance_manifest.json"
+    legacy_provenance.parent.mkdir(parents=True, exist_ok=True)
+    legacy_provenance.write_text('{"entries": []}', encoding="utf-8")
+
+    assert resolve_prepare_idea_path(str(tmp_path)) == str(legacy_prepare)
+    assert resolve_provenance_manifest_path(str(tmp_path)) == str(legacy_provenance)
+
+    updates = ensure_canonical_workspace_artifacts(str(tmp_path))
+
+    assert updates["idea"] == paths["idea"]
+    assert updates["project_code_provenance"] == paths["project_code_provenance"]
+    assert os.path.exists(paths["idea"])
+    assert os.path.exists(paths["project_code_provenance"])
+    assert resolve_prepare_idea_path(str(tmp_path)) == paths["idea"]
+    assert resolve_provenance_manifest_path(str(tmp_path)) == paths["project_code_provenance"]
     assert "idea_json" in paths
     assert paths["results_dir"].endswith("results")
     assert paths["agent_reports_dir"].endswith("agent_reports")

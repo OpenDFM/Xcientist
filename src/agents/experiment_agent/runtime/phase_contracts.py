@@ -62,6 +62,8 @@ def phase_report_status(payload: Dict[str, Any]) -> str:
     if raw in (None, ""):
         raw = payload.get("validation_status")
     if raw in (None, ""):
+        raw = payload.get("validation_result")
+    if raw in (None, ""):
         validation_summary = payload.get("validation_summary")
         if isinstance(validation_summary, dict):
             raw = validation_summary.get("stage_status")

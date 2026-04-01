@@ -14,6 +14,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List
 
+from src.agents.experiment_agent.runtime.manifests import resolve_provenance_manifest_path
+
 
 TEXT_FILE_EXTENSIONS = {
     ".py",
@@ -162,9 +164,9 @@ def scan_project_self_contained(project_root: str, workspace_root: str) -> Dict[
         "checked_files": checked_files,
         "project_root": str(project_dir),
         "repos_root": repos_root,
-        "provenance_manifest_path": os.path.join(workspace_dir, "agent_reports", "project_code_provenance.json"),
+        "provenance_manifest_path": resolve_provenance_manifest_path(workspace_dir, str(project_dir)),
         "provenance_manifest_present": os.path.exists(
-            os.path.join(workspace_dir, "agent_reports", "project_code_provenance.json")
+            resolve_provenance_manifest_path(workspace_dir, str(project_dir))
         ),
         "policy": {
             "repos_policy": "reference_or_copy",

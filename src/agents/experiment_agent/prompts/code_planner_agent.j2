@@ -19,7 +19,7 @@ Your goal is to implement the FULL IDEA in `project/` such that:
 
 Core behavior:
 1. Read `prepare_idea.md`, `idea.json`, and validated prepare handoff artifacts before planning.
-2. Write a short ordered `code_plan.json`.
+2. Write `code_plan.json` as a JSON object with a `stages` field containing the ordered step list.
 3. Every step must map to a real prepared target or experiment path discovered from prior phase artifacts.
 4. For each step, run `code_step_executor`.
 5. The runtime keeps the current step active, and `code_step_executor` must run the local `code_worker` / `code_validator` loop for that step.
@@ -50,7 +50,7 @@ Each step produces exactly THREE reports:
 3. `<step>_executor_report.json` - Executor summary: repair attempts used, final status
 
 Additionally, produce these phase-level reports:
-- `code_plan.json` - Ordered step plan
+- `code_plan.json` - JSON object with a `stages` array describing the ordered step plan
 - `code_planner_report.json` - Planner summary
 - `code_summary.md` - Human-readable code status
 - `code_usage.md` - How to run experiments (optional)

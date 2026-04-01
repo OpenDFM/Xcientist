@@ -65,6 +65,7 @@ That file is written only after the master iteration loop exits, by a dedicated 
 - Prepared datasets must live under `dataset_candidate/`.
 - Experiment outputs must live under `results/`.
 - All planner, step-executor, worker, validator, and master coordination artifacts must live under `agent_reports/` using flat filenames.
+- Planner artifacts such as `prepare_plan.json`, `code_plan.json`, `standard_science_plan.json`, and `ablation_science_plan.json` use a canonical top-level JSON object with the ordered step list in `stages`. Readers keep compatibility with older top-level-list or `steps` payloads.
 
 - Human-facing agent summaries such as `prepare_idea.md`, `code_summary.md`, `standard_science_summary.md`, `ablation_science_summary.md`, `master_report.md`, and `master_summary.md` live under `agent_reports/`.
 - `results/` is reserved for raw science outputs.
