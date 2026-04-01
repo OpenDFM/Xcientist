@@ -156,10 +156,14 @@ async def main_async(args) -> int:
             verbose=bool(args.verbose),
             resume=bool(args.resume),
         )
-        if reporting_result.get("valid"):
-            result["final_path"] = reporting_result["ablation_results_path"]
-            result["ablation_results_path"] = reporting_result["ablation_results_path"]
-            result["integrator_report_path"] = reporting_result["integrator_report_path"]
+        if not reporting_result.get("valid"):
+            raise RuntimeError(
+                "Final ablation report agent did not produce a valid ablation_results.json. "
+                f"See {reporting_result.get('integrator_report_path')} for details."
+            )
+        result["final_path"] = reporting_result["ablation_results_path"]
+        result["ablation_results_path"] = reporting_result["ablation_results_path"]
+        result["integrator_report_path"] = reporting_result["integrator_report_path"]
 
     if result.get("stopped_due_to_iteration_limit"):
         print_phase("ITERATION LIMIT HIT", width=65)

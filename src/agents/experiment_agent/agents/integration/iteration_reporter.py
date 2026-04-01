@@ -107,6 +107,8 @@ CRITICAL:
 3. Write iteration_status.json with machine-readable status
 4. The master agent will read iteration_status.json for the next iteration decision
 5. Explicitly remind master to read iteration_status.json in your output
+6. Do not suggest manual file moves/copies for `ablation_results.json`; the final ablation report agent owns that artifact after the master loop converges.
+7. Do not invent extra workflow phases such as `FINAL_SYNTHESIS`; use only the current workflow phases and, when appropriate, recommend final ablation reporting after all code/science phases complete.
 
 iteration_status.json MUST have this EXACT schema:
 {{

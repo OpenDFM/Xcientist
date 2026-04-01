@@ -346,37 +346,14 @@ class MasterAgent(OpenHandsBaseAgent):
                 "self_contained_violations": list(self_contained_report.get("self_contained_violations") or []),
             }
 
-        materialization_preview = build_ablation_results_artifacts(
-            self.workspace_root,
-            self.project_root,
-            generated_by="master_runtime_preview",
-        )
-        if not materialization_preview.get("valid"):
-            return {
-                "decision": Decision.ABLATION_NEEDED,
-                "phase": DECISION_TO_PHASE[Decision.ABLATION_NEEDED],
-                "phase_completion_status": "partial",
-                "ready_for_next_phase": False,
-                "blocking_issues": [materialization_preview.get("blocker") or ""],
-                "reasons": [
-                    materialization_preview.get("blocker")
-                    or "Ablation results cannot be materialized from current validator evidence."
-                ],
-                "evidence_files": materialization_preview.get("source_evidence_files")
-                or [self.paths["ablation_science_validator"], self.paths["self_contained_report"]],
-                "self_contained_project": self_contained_report.get("self_contained_project"),
-                "self_contained_violations": list(self_contained_report.get("self_contained_violations") or []),
-            }
-
         return {
             "decision": Decision.CONVERGED,
             "phase": DECISION_TO_PHASE[Decision.CONVERGED],
             "phase_completion_status": "complete",
             "ready_for_next_phase": True,
             "blocking_issues": [],
-            "reasons": ["All validator-backed gates passed."],
-            "evidence_files": materialization_preview.get("source_evidence_files")
-            or [
+            "reasons": ["All validator-backed code and science gates passed."],
+            "evidence_files": [
                 self.paths["prepare_validator"],
                 self.paths["code_validator"],
                 self.paths["standard_science_validator"],

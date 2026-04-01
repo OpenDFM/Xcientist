@@ -1,6 +1,7 @@
 import os, torch
 from sentence_transformers import SentenceTransformer, util
 from utils.rich_logger import get_logger
+from utils.gpu_utils import load_sentence_transformer_auto
 
 class Database:
     def __init__(self, config, work_collector):
@@ -8,13 +9,11 @@ class Database:
         self.logger = get_logger("Database")
         self.work_collector = work_collector
         self.valid_paper_ids = set()
-        self.model = SentenceTransformer(config.ModuleInfo.WorkCollector.sentence_transformer_model)
+        self.model, self.device = load_sentence_transformer_auto(
+            config.ModuleInfo.WorkCollector.sentence_transformer_model,
+            logger=self.logger,
+        )
         self.use_title_in_draft = True
-        try:
-            self.model = self.model.cuda()
-            self.device = "cuda"
-        except Exception:
-            self.device = "cpu"
         # self.index_path = os.path.join(config.BasicInfo.cache_path, "paper_embedding_index.pt")
         # self.title_index_path = os.path.join(config.BasicInfo.cache_path, "paper_title_embedding_index.pt")
         self.emb_dict = None

@@ -14,6 +14,7 @@ if _ROOT not in sys.path:
 
 from utils.rich_logger import get_logger
 from utils.config_utils import merge_with_default_survey_config
+from utils.gpu_utils import load_sentence_transformer_auto
 from modules.work_collector import WorkCollector
 class OutcomeRAG:
     """Subsection retriever for DeepSurvey markdown output."""
@@ -22,14 +23,12 @@ class OutcomeRAG:
         self.config = config
         self.json_path = config.BasicInfo.save_json_path
         self.md_path = config.BasicInfo.save_path
-        self.model = SentenceTransformer(config.ModuleInfo.WorkCollector.sentence_transformer_model)
+        self.model, self.device = load_sentence_transformer_auto(
+            config.ModuleInfo.WorkCollector.sentence_transformer_model,
+            logger=get_logger("OutcomeRAG"),
+        )
         self.work_collector = work_collector
         self.logger = get_logger("OutcomeRAG")
-        try:
-            self.model = self.model.cuda()
-            self.device = "cuda"
-        except Exception:
-            self.device = "cpu"
 
         self.subsections: List[str] = []
         self.subsection_titles: List[str] = []

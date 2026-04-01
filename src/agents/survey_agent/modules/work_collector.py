@@ -15,6 +15,7 @@ import gc
 from modules.pe import PAPER_RELATEDNESS_BASED_ON_TITLE_AND_ABSTRACT, SEED_PAPER_SELECTION
 import diskcache as dc
 from utils.utils import get_hash, extract_json
+from utils.gpu_utils import load_sentence_transformer_auto
 import hydra
 
 class WorkCollector:
@@ -65,8 +66,10 @@ class WorkCollector:
         
         model_name = self.config.ModuleInfo.WorkCollector.sentence_transformer_model
         try:
-            self._embedding_model = SentenceTransformer(model_name).cuda()
-            self._model_device = "cuda"
+            self._embedding_model, self._model_device = load_sentence_transformer_auto(
+                model_name,
+                logger=self.logger,
+            )
         except Exception as e:
             if "out of memory" in str(e).lower():
                 self.logger.error("Out of memory error detected. Using CPU instead.")
@@ -76,12 +79,16 @@ class WorkCollector:
                 except Exception:
                     self.logger.warning("Failed to clear GPU cache.")
                     pass
-                self._embedding_model = SentenceTransformer(model_name).cpu()
-                self._model_device = "cpu"
+                self._embedding_model, self._model_device = load_sentence_transformer_auto(
+                    model_name,
+                    logger=self.logger,
+                )
             else:
                 try:
-                    self._embedding_model = SentenceTransformer(model_name).cpu()
-                    self._model_device = "cpu"
+                    self._embedding_model, self._model_device = load_sentence_transformer_auto(
+                        model_name,
+                        logger=self.logger,
+                    )
                 except Exception as e2:
                     self.logger.error(f"Failed to load SentenceTransformer model: {e2}")
                     raise e2

@@ -19,6 +19,7 @@ import time
 from sentence_transformers import SentenceTransformer, util
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+from utils.gpu_utils import load_sentence_transformer_auto
 
 
 class DataManager:
@@ -54,8 +55,10 @@ class DataManager:
         
         model_name = self.config.ModuleInfo.WorkCollector.sentence_transformer_model
         try:
-            self.embedding_model = SentenceTransformer(model_name).cuda()
-            self._model_device = "cuda"
+            self.embedding_model, self._model_device = load_sentence_transformer_auto(
+                model_name,
+                logger=self.logger,
+            )
         except Exception as e:
             if "out of memory" in str(e).lower():
                 self.logger.error("Out of memory error detected. Using CPU instead.")
@@ -65,12 +68,16 @@ class DataManager:
                 except Exception:
                     self.logger.warning("Failed to clear GPU cache.")
                     pass
-                self.embedding_model = SentenceTransformer(model_name).cpu()
-                self._model_device = "cpu"
+                self.embedding_model, self._model_device = load_sentence_transformer_auto(
+                    model_name,
+                    logger=self.logger,
+                )
             else:
                 try:
-                    self.embedding_model = SentenceTransformer(model_name).cpu()
-                    self._model_device = "cpu"
+                    self.embedding_model, self._model_device = load_sentence_transformer_auto(
+                        model_name,
+                        logger=self.logger,
+                    )
                 except Exception as e2:
                     self.logger.error(f"Failed to load SentenceTransformer model: {e2}")
                     raise e2

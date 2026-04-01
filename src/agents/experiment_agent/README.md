@@ -56,7 +56,7 @@ The runtime keeps validator reports and step-level evidence as the authority for
 
 - `ablation_results.json`
 
-That file is written only after the master iteration loop exits, by a dedicated final ablation report agent. The master loop itself uses the iteration integrator's `iteration_status.json` for next-step decisions. The final ablation artifact is written at workspace root from `idea.json` plus the ablation experiment records under `agent_reports/` and `results/ablation/`.
+That file is written only after the master iteration loop exits, by a dedicated final ablation report agent. The master loop itself uses the iteration integrator's `iteration_status.json` for next-step decisions. The final ablation artifact is written at workspace root from `idea.json` plus the ablation experiment records under `agent_reports/` and `results/ablation/`. A run is not considered complete until that final reporting step succeeds.
 
 ## Workspace Path Contract
 

@@ -5,25 +5,63 @@ import os
 from pathlib import Path
 
 from loguru import logger
+from utils.gpu_utils import get_preferred_device, get_cuda_visible_device_value
 
-from mineru.cli.common import (
-    convert_pdf_bytes_to_bytes_by_pypdfium2,
-    prepare_env,
-    read_fn,
-)
-from mineru.data.data_reader_writer import FileBasedDataWriter
-from mineru.utils.draw_bbox import draw_layout_bbox, draw_span_bbox
-from mineru.utils.enum_class import MakeMode
-from mineru.backend.vlm.vlm_analyze import doc_analyze as vlm_doc_analyze
-from mineru.backend.pipeline.pipeline_analyze import doc_analyze as pipeline_doc_analyze
-from mineru.backend.pipeline.pipeline_middle_json_mkcontent import (
-    union_make as pipeline_union_make,
-)
-from mineru.backend.pipeline.model_json_to_middle_json import (
-    result_to_middle_json as pipeline_result_to_middle_json,
-)
-from mineru.backend.vlm.vlm_middle_json_mkcontent import union_make as vlm_union_make
-from mineru.utils.guess_suffix_or_lang import guess_suffix_by_path
+
+_MINERU_BACKEND = None
+
+
+def _load_mineru_backend():
+    global _MINERU_BACKEND
+    if _MINERU_BACKEND is not None:
+        return _MINERU_BACKEND
+
+    preferred_device = get_preferred_device()
+    visible_value = get_cuda_visible_device_value(preferred_device)
+    if visible_value is not None:
+        os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+        os.environ["CUDA_VISIBLE_DEVICES"] = visible_value
+        logger.info(
+            f"Configured MinerU to prefer {preferred_device} via CUDA_VISIBLE_DEVICES={visible_value}"
+        )
+    else:
+        logger.info("Configured MinerU without CUDA pinning; CPU fallback will be used if needed.")
+
+    from mineru.backend.pipeline.model_json_to_middle_json import (
+        result_to_middle_json as pipeline_result_to_middle_json,
+    )
+    from mineru.backend.pipeline.pipeline_analyze import doc_analyze as pipeline_doc_analyze
+    from mineru.backend.pipeline.pipeline_middle_json_mkcontent import (
+        union_make as pipeline_union_make,
+    )
+    from mineru.backend.vlm.vlm_analyze import doc_analyze as vlm_doc_analyze
+    from mineru.backend.vlm.vlm_middle_json_mkcontent import union_make as vlm_union_make
+    from mineru.cli.common import (
+        convert_pdf_bytes_to_bytes_by_pypdfium2,
+        prepare_env,
+        read_fn,
+    )
+    from mineru.data.data_reader_writer import FileBasedDataWriter
+    from mineru.utils.draw_bbox import draw_layout_bbox, draw_span_bbox
+    from mineru.utils.enum_class import MakeMode
+    from mineru.utils.guess_suffix_or_lang import guess_suffix_by_path
+
+    _MINERU_BACKEND = {
+        "FileBasedDataWriter": FileBasedDataWriter,
+        "MakeMode": MakeMode,
+        "convert_pdf_bytes_to_bytes_by_pypdfium2": convert_pdf_bytes_to_bytes_by_pypdfium2,
+        "draw_layout_bbox": draw_layout_bbox,
+        "draw_span_bbox": draw_span_bbox,
+        "guess_suffix_by_path": guess_suffix_by_path,
+        "pipeline_doc_analyze": pipeline_doc_analyze,
+        "pipeline_result_to_middle_json": pipeline_result_to_middle_json,
+        "pipeline_union_make": pipeline_union_make,
+        "prepare_env": prepare_env,
+        "read_fn": read_fn,
+        "vlm_doc_analyze": vlm_doc_analyze,
+        "vlm_union_make": vlm_union_make,
+    }
+    return _MINERU_BACKEND
 
 
 def do_parse(
@@ -43,10 +81,20 @@ def do_parse(
     f_dump_model_output=True,  # Whether to dump model output files
     f_dump_orig_pdf=True,  # Whether to dump original PDF files
     f_dump_content_list=True,  # Whether to dump content list files
-    f_make_md_mode=MakeMode.MM_MD,  # The mode for making markdown content, default is MM_MD
+    f_make_md_mode=None,  # The mode for making markdown content, default is MM_MD
     start_page_id=0,  # Start page ID for parsing, default is 0
     end_page_id=None,  # End page ID for parsing, default is None (parse all pages until the end of the document)
 ):
+    mineru = _load_mineru_backend()
+    convert_pdf_bytes_to_bytes_by_pypdfium2 = mineru["convert_pdf_bytes_to_bytes_by_pypdfium2"]
+    FileBasedDataWriter = mineru["FileBasedDataWriter"]
+    MakeMode = mineru["MakeMode"]
+    pipeline_doc_analyze = mineru["pipeline_doc_analyze"]
+    pipeline_result_to_middle_json = mineru["pipeline_result_to_middle_json"]
+    prepare_env = mineru["prepare_env"]
+    vlm_doc_analyze = mineru["vlm_doc_analyze"]
+    if f_make_md_mode is None:
+        f_make_md_mode = MakeMode.MM_MD
 
     if backend == "pipeline":
         for idx, pdf_bytes in enumerate(pdf_bytes_list):
@@ -178,6 +226,13 @@ def _process_output(
     is_pipeline=True,
 ):
     """处理输出文件"""
+    mineru = _load_mineru_backend()
+    draw_layout_bbox = mineru["draw_layout_bbox"]
+    draw_span_bbox = mineru["draw_span_bbox"]
+    MakeMode = mineru["MakeMode"]
+    pipeline_union_make = mineru["pipeline_union_make"]
+    vlm_union_make = mineru["vlm_union_make"]
+
     if f_draw_layout_bbox:
         draw_layout_bbox(
             pdf_info, pdf_bytes, local_md_dir, f"{pdf_file_name}_layout.pdf"
@@ -259,6 +314,8 @@ def parse_doc(
     end_page_id: End page ID for parsing, default is None (parse all pages until the end of the document)
     """
     try:
+        mineru = _load_mineru_backend()
+        read_fn = mineru["read_fn"]
         file_name_list = []
         pdf_bytes_list = []
         lang_list = []
