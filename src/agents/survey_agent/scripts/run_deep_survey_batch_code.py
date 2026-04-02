@@ -55,7 +55,7 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
     collected_papers = survey_dict.get("references")
     paper_mainfests = code_analyzer.execute(collected_papers)
 
-    env_report = code_report_generator.generate_framework_env_report(paper_mainfests = paper_mainfests, topic = config.BasicInfo.topic)
+    env_report = code_report_generator.generate_framework_env_report(paper_mainfests = paper_mainfests, topic = "LLMs-based_Agents")
     code_report = code_report_generator.generate_report(papers = paper_mainfests, topic = config.BasicInfo.topic)
 
     logger.info("[ENV REPORT:]")

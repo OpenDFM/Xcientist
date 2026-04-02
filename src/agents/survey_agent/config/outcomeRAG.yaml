@@ -14,6 +14,8 @@ APIInfo:
   llm_max_context_length: 160000
   use_stream_mode: False
   batch_chat_agent_worker: 4
+  chat_timeout: 300
+  batch_chat_timeout: 1800
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
   low_flow_mode: False
   low_flow_latency: 0
@@ -115,6 +117,7 @@ ModuleInfo:
     max_review_revise_iterations: 30
     draft_refinement_in_parts: True
     refine_in_parts_mode: 2
+    draft_refinement_max_retry: 7
     review_and_revise_whole_survey_in_refinement: True
     valid_title_min_similarity: 0.5
   Judge:

@@ -8,11 +8,11 @@ BasicInfo:
   debug: True
   error_conservatism_mode: False
 APIInfo:
-  llm_api_key: sk-8b3f9c6d7a1e4f2c9d5b6a7e3c1f8d2a
-  llm_api_base_url: http://58.210.177.113:8888/v1/chat/completions
-  llm_model_name: mimo-v2-flash
+  llm_api_key: sk-6tT86nzygIVWl0naxnWo8SjI4ClTSzYl05nppF9sYuY
+  llm_api_base_url: http://127.0.0.1:8889/v1/chat/completions
+  llm_model_name: Qwen-235B-Instruct
   llm_max_context_length: 180000
-  use_stream_mode: false
+  use_stream_mode: False
   batch_chat_agent_worker: 8
   chat_timeout: 300
   batch_chat_timeout: 1800
@@ -36,7 +36,7 @@ ModuleInfo:
     sentence_transformer_batch_size: 64
     expand_in_local_paper_graph: True
     use_ds_when_graph_fail: True
-    advanced_filter_in_local_paper_graph_expansion: False
+    advanced_filter_in_local_paper_graph_expansion: True
     related_work_top_k: 30  # for debug
     log_related_work_num: -1 # set to -1 to log all
     related_work_threshold: 0.5
@@ -48,7 +48,7 @@ ModuleInfo:
   Database:
     default_top_k: 20
   PaperGraphRetriever:
-    db_path: ./database/paper_graph/graph.db
+    db_path: /hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/data/processed/graph.db
   WorkAnalyzer:
     abstract_only_mode: False
     abstract_when_full_text_fail: True
@@ -130,7 +130,7 @@ ModuleInfo:
     valid_title_min_similarity: 0.5
   Judge:
     use_different_api_for_judge: False
-    model: mimo-v2-flash
+    model: gpt-4o-mini
     judge_llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f
     judge_llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
     nli_temperature: 0.1

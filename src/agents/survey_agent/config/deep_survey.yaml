@@ -14,6 +14,8 @@ APIInfo:
   llm_max_context_length: 160000
   use_stream_mode: False
   batch_chat_agent_worker: 32
+  chat_timeout: 300
+  batch_chat_timeout: 1800
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
   low_flow_mode: False
   low_flow_latency: 0
@@ -33,12 +35,8 @@ ModuleInfo:
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
     sentence_transformer_batch_size: 32
     expand_in_local_paper_graph: True
-<<<<<<< HEAD
-    advanced_filter_in_local_paper_graph_expansion: True
-=======
     use_ds_when_graph_fail: True
-    advanced_filter_in_local_paper_graph_expansion: False
->>>>>>> origin/fix-main
+    advanced_filter_in_local_paper_graph_expansion: True
     related_work_top_k: 30  # for debug
     log_related_work_num: -1 # set to -1 to log all
     related_work_threshold: 0.5
@@ -62,6 +60,8 @@ ModuleInfo:
     paper_reading_temperature: 0.5
 =======
     use_ds_keynotes_when_graph_fail: True
+    graph_keynote_extraction_batch_retry: 7
+    graph_graph_keynote_extraction_temperature: 0.1
     paper_reading_temperature: 1.0
 >>>>>>> origin/fix-main
     paper_reading_max_retry: 5
@@ -130,6 +130,7 @@ ModuleInfo:
     max_review_revise_iterations: 3
     draft_refinement_in_parts: True
     refine_in_parts_mode: 2
+    draft_refinement_max_retry: 7
     review_and_revise_whole_survey_in_refinement: True
     review_and_revise_whole_survey_max_iteration: 5
     valid_title_min_similarity: 0.5

@@ -665,12 +665,13 @@ The survey may contain inline paper citations in angle brackets (e.g., "<Attenti
 ### Requirements:
 1. You should only provide suggestions on content. DO NOT give any suggestions that involve changing the outline(title of the section and any subsections).
 2. All citations in the survey must be in correct format: <paper_title> (like <Attention is All You Need>).
-3. The survey content should be clear and coherent. Avoid over verbose phrase or any repetitive content.
-4. The survey content should have deep insights, novelty and analysis under the field of the survey.
-5. The survey content should be elegantly formatted and have good readability, avoid extremely long sentences or paragraphs.
-6. The survey should have good clarity, acadamic rigor and coherence in description and all the conceptions.
-7. The content of the survey should be strictly consistent with the outline provided below.
-8. The survey content should be logically coherent and academically styled with acdamic rigor and precise description.
+3. The survey should avoid over verbose phrase or any repetitive content.
+4. The survey content should be clear and coherent. 
+5. The survey content should have deep insights, novelty and analysis under the field of the survey.
+6. The survey content should be elegantly formatted and have good readability, avoid extremely long sentences or paragraphs.
+7. The survey should have good clarity, acadamic rigor and coherence in description and all the conceptions.
+8. The content of the survey should be strictly consistent with the outline provided below.
+9. The survey content should be logically coherent and academically styled with acdamic rigor and precise description.
 
 ### Input:
 Survey:
@@ -762,12 +763,46 @@ Provide a **JSON object** with the following structure:
 - Do not generate a bibliography or reference list here.
 """
 
-DRAFT_REFINEMENT_IN_PARTS = """You are refining an part of academic survey paper draft with title: {title}. The draft currently contains paper titles as citations (e.g., "<Attention is All You Need>").
+DRAFT_REFINEMENT_IN_PARTS = """You are refining an section of academic survey paper draft with title: {title}. The draft currently contains paper titles as citations (e.g., "<Attention is All You Need>").
 
 ### Key Task:
-1. Refine the draft to improve clarity, coherence, and academic style.
-2. Imporve the readability of the draft. 
-3. Avoid meaningless repetitions, over verbose phrases, or extremely long sentences or paragraphs.
+1. Improve the overall quality of the subsection according to the standards of a well formatted and in-depth academic survey
+2. Refine the draft to improve clarity, coherence, and academic style.
+3. Improve obscure expressions and overly lengthy sentences in subsections to enhance readability.
+4. Avoid meaningless repetitions, over verbose phrases, or extremely long sentences or paragraphs.
+
+### Requirements:
+1. Fix all the citations in other format. The correct citation must be paper title in <> (like <Attention is All You Need>).
+2. Make sure each <> contains only one paper title. Split titles in to seperate <> if one <> contains multiple paper titles.
+3. Keep all original content and ideas. Do not delete any citations.
+4. You are provided with the previous and next section/subsection of the draft. Use them to ensure logical flow and coherence across sections.
+5. Directly output the refined draft text. Do not generate any other explanations.
+6. Only refine the draft in Draft Text. Do not modify the previous or next sections.
+7. Enhance the readability, coherence and academic style of the draft. 
+8. You can make any modification that does not change the original content and ideas, such as rephrasing sentences, improving transitions, fixing grammar or formatting issues, etc.
+
+### Input:
+Previous Section:
+{previous_text}
+
+Next Section:
+{next_text}
+
+Draft Text:
+{draft_text}
+
+Generate refined draft content directly. 
+- Do not generate any section/subsection title or header here.
+- Do not generate a bibliography or reference list here. 
+"""
+
+DRAFT_REFINEMENT_SUBSECTION_IN_PARTS = """You are an expert in acdamic survey/literature review writing. Now you are refining an survey with topic {topic}'s subsection titled {subsection_title}. The subsection is under a section titled {section_title}. The draft currently contains paper titles as citations (e.g., "<Attention is All You Need>").
+
+### Key Task:
+1. Improve the overall quality of the subsection according to the standards of a well formatted and in-depth academic survey
+2. Refine the draft to improve clarity, coherence, and academic style.
+3. Improve obscure expressions and overly lengthy sentences in subsections to enhance readability.
+4. Avoid meaningless repetitions, over verbose phrases, or extremely long sentences or paragraphs.
 
 ### Requirements:
 1. Fix all the citations in other format. The correct citation must be paper title in <> (like <Attention is All You Need>).

@@ -451,17 +451,41 @@ class CodeCollector:
 
                 # Set stdin to DEVNULL to prevent interactive prompts (e.g., username/password)
                 # This ensures the process doesn't hang waiting for user input
+                
+                # Create environment with GIT_TERMINAL_PROMPT=0 to disable Git's terminal prompts
+                # Also disable credential helpers to prevent any authentication prompts
+                env = os.environ.copy()
+                env["GIT_TERMINAL_PROMPT"] = "0"
+                
                 result = subprocess.run(
                     cmd,
                     check=True,
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                    timeout=300  # 5 minutes timeout to prevent indefinite hanging
+                    timeout=300,  # 5 minutes timeout to prevent indefinite hanging
+                    env=env,
+                    # Use -c to set git config for this command only
+                    # This disables credential helpers and any askpass programs
+                    cwd=self.repo_cache_path
                 )
 
-                self.logger.info(f"Cloned repo to {target_path}")
-                return target_path
+                # Verify clone success: check if .git directory exists
+                git_dir = os.path.join(target_path, ".git")
+                if os.path.exists(git_dir) and os.path.isdir(git_dir):
+                    self.logger.info(f"Cloned repo to {target_path}")
+                    return target_path
+                else:
+                    # Clone command succeeded but .git not found - clone may have failed silently
+                    self.logger.warning(f"Clone command completed but .git not found in {target_path}, treating as failure")
+                    # Clean up and retry
+                    if os.path.exists(target_path) and os.path.isdir(target_path):
+                        import shutil
+                        try:
+                            shutil.rmtree(target_path)
+                        except Exception:
+                            pass
+                    raise ValueError(f"Clone verification failed for {repo_url}")
 
             except subprocess.TimeoutExpired as e:
                 retry += 1
@@ -505,6 +529,7 @@ class CodeAnalyzer():
             code_collector: CodeCollector, 
             work_collector: WorkCollector
         ):
+        self.config = config
         self.chat_agent = ChatAgent(config)
         self.logger = get_logger("CodeAnalyzer")
         self.filter_code_only = True
@@ -666,12 +691,21 @@ class CodeAnalyzer():
         repo_name = self.code_collector._extract_repo_name(repo_url)
         self.logger.info(f"Generating mainfest for {repo_name}:{repo_url}")
 
+        repo_path = os.path.join(self.repo_cache_path, repo_name)
+        if not os.path.isdir(repo_path):
+            self.logger.warning(f"repo not found: {repo_path}, cloneing...")
+            target_path = self.code_collector._clone_repo(repo_url, 1, 3)
+            if not target_path:
+                raise ValueError(f"fail to clone target repository: {repo_name}")
+
         if not self.force_regenerate:
             mainfest = self.load_cached_mainfest(repo_name)
-            if self.validate_mainfest(mainfest):
+            if not mainfest:
+                self.logger.warning("no mainfest in cache. Generating...")
+            elif self.validate_mainfest(mainfest):
                 return mainfest
             else:
-                self.logger.warning("mainfest invalid. Regenerate.")
+                self.logger.warning("Cached mainfest invalid. Regenerate.")
         try:
             mainfest = self.identify_and_collect_core_code(paper_id, repo_url, repo_name, min_core_score, per_file_score_method)
         except Exception as e:
@@ -833,12 +867,6 @@ class CodeAnalyzer():
                                        max_retry: int = 8,
                                        ):
         
-        repo_path = os.path.join(self.repo_cache_path, repo_name)
-        if not os.path.isdir(repo_path):
-            self.logger.warning(f"repo not found: {repo_path}, cloneing...")
-            target_path = self.code_collector._clone_repo(repo_url, 1, 3)
-            if not target_path:
-                raise ValueError(f"fail to clone target repository: {repo_name}")
         all_files = self._list_repo_files(repo_name)
         paper_title, paper_abstract = self.work_collector.get_paper_title_abstract(paper_id)
 
@@ -1602,7 +1630,7 @@ class CodeAnalyzer():
 
         # Create PseudoWriter instance
         writer = PseudoWriter(
-            config=None,
+            config=self.config,
             chat_agent=self.chat_agent,
             repo_cache_path=self.repo_cache_path
         )
@@ -1652,6 +1680,7 @@ class CodeAnalyzer():
                 self.logger.info(f"processing {paper}: {site}")
                 repo_name = self.code_collector._extract_repo_name(site)
                 pseudocode, initial_pseudocode = self.read_repo_pseudocode_cache(repo_name, True)
+                main_fest = None
 
                 if not pseudocode or not initial_pseudocode:
                     try:
@@ -1685,14 +1714,16 @@ class CodeAnalyzer():
                         )
                     pseudocode = f"[REPOSITORY NAME]:{repo_name}: \n" + pseudocode
                     initial_pseudocode = f"[REPOSITORY NAME]:{repo_name}: \n" + initial_pseudocode
+                if main_fest:
+                    paper_pseudocode.append(pseudocode)
+                    paper_concise_pseudocode.append(initial_pseudocode)
+                    paper_repo_names.append(repo_name)
+                    paper_repo_mainfests.append(main_fest)
 
-                paper_pseudocode.append(pseudocode)
-                paper_concise_pseudocode.append(initial_pseudocode)
-                paper_repo_names.append(repo_name)
-                paper_repo_mainfests.append(main_fest)
-
-                self.cache_repo_pseudocode(repo_name, pseudocode)
-                self.cache_repo_pseudocode(repo_name, initial_pseudocode, concise=True)
+                    self.cache_repo_pseudocode(repo_name, pseudocode)
+                    self.cache_repo_pseudocode(repo_name, initial_pseudocode, concise=True)
+                else:
+                    self.logger.error(f"no available github repo for {paper}, sites: {sites} all fail")
                 
             if len(paper_pseudocode) > 0:
                 paper_mainfests.append({
@@ -1710,8 +1741,8 @@ class CodeAnalyzer():
 
         self.logger.info(f"PAPER PSEUDOCODE SUCCESS NUM: {len(paper_mainfests)}")
         repo_num = 0
-        for repo in paper_mainfests["repo_names"]:
-            repo_num += len(repo)
+        for repo in paper_mainfests:
+            repo_num += len(repo["repo_names"])
         self.logger.info(f"REPO PSEUDOCODE SUCCESS NUM: {repo_num}")
 
         return paper_mainfests

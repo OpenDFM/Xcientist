@@ -253,7 +253,8 @@ class ChatAgent:
             request_timeout = getattr(self.config.APIInfo, "chat_timeout", 120)
         
         # Enable stream=True in requests if streaming mode is on
-        response = requests.post(url, headers=header, json=payload, timeout=request_timeout, stream=use_stream)
+        chat_timeout = getattr(self.config.APIInfo, "chat_timeout", 120)
+        response = requests.post(url, headers=header, json=payload, timeout=chat_timeout, stream=use_stream)
 
         if self.config.APIInfo.low_flow_mode:
             time.sleep(self.config.APIInfo.low_flow_latency)
@@ -429,14 +430,12 @@ class ChatAgent:
         desc: str = "batch_chating...",
         workers: int = None,
         temperature: float = 0.5,
-        future_timeout: float = 600.0,
+        future_timeout: float = None,
     ) -> list[str]:
         if workers is None:
             workers = self.batch_workers
-        request_timeout = min(
-            future_timeout,
-            getattr(self.config.APIInfo, "chat_timeout", future_timeout),
-        )
+        if future_timeout is None:
+            future_timeout = getattr(self.config.APIInfo, "batch_chat_timeout", 600.0)
         with ThreadPoolExecutor(max_workers=workers) as executor:
             future_l = [
                 executor.submit(
@@ -481,10 +480,12 @@ class ChatAgent:
         desc: str = "batch_chating with retry...",
         workers: int = None,
         temperature: float = 0.5,
-        future_timeout: float = 600.0,
+        future_timeout: float = None,
         model: str = None,
         info_dict: dict = {},
     ) -> list[str]:
+        if future_timeout is None:
+            future_timeout = getattr(self.config.APIInfo, "batch_chat_timeout", 600.0)
         """
         Batch remote chat with retry logic for failed validations.
         

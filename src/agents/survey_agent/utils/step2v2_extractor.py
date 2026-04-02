@@ -126,6 +126,7 @@ Markers like [HINT_METHOD:MethodName] are SUGGESTIONS only. Use them to guide at
 Output JSON Schema:
 {
   "metadata": {
+    "title": "str (paper title, use EXACT title provided in the task)",
     "domain": "str (from allowed domains)",
     "paper_type": "str (from allowed types)",
     "structured_summary": {"background": "str", "method": "str", "result": "str"},
@@ -209,11 +210,11 @@ def validate_and_parse_main(response: str, info_dict: dict = None) -> Tuple[bool
     
     Args:
         response: LLM response string
-        info_dict: Optional dict with 'paper_id' and 'regex_candidates'
+        info_dict: Optional dict with 'node_id' and 'title' (original title from markdown)
         
     Returns:
         Tuple of (is_valid, parsed_result_or_response)
-        - If valid: (True, parsed dict with paper_id and result)
+        - If valid: (True, parsed dict with node_id and result)
         - If invalid: raises ValueError
     """
     if not response:
@@ -232,10 +233,16 @@ def validate_and_parse_main(response: str, info_dict: dict = None) -> Tuple[bool
     core_contributions = parsed.get("core_contributions", [])
     core_names = [c.get("name") for c in core_contributions if c.get("name")]
     
+    # Extract original title from info_dict for fallback (info_dict contains the extracted title from markdown)
+    original_title = None
+    if info_dict:
+        original_title = info_dict.get('title')
+    
     result = {
         'node_id': info_dict.get('node_id') if info_dict else None,
         'result': parsed,
-        'core_names': core_names
+        'core_names': core_names,
+        'original_title': original_title
     }
     
     return True, result
@@ -300,7 +307,13 @@ def aggregate_results(
         core_names = main_res.get('core_names', [])
         
         meta_info = result.get("metadata", {})
+        # Use LLM's title if available, otherwise use original_title from extraction
         official_title = meta_info.get('title', 'Unknown')
+        if official_title == 'Unknown' or not official_title:
+            # Fallback to original title extracted from markdown
+            original_title = main_res.get('original_title')
+            if original_title and original_title != 'Unknown Title':
+                official_title = original_title
         
         # Build self-reference set
         self_names = {official_title.lower(), "ours", "proposed", "method", "model", "framework", "this work"}

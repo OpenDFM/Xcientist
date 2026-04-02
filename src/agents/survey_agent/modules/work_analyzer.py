@@ -269,7 +269,7 @@ class WorkAnalyzer:
         elif not self.config.ModuleInfo.WorkAnalyzer.abstract_only_mode or ds_keynote_fallback:
             err = []
             if hash_id not in self.paper_keynote_cache or not self.config.ModuleInfo.WorkAnalyzer.cache_enabled:
-                err = self.read_papers_and_write_keynotes([paper_id])
+                err = self.read_papers_and_write_keynotes([paper_id], ds_keynote_fallback)
 
             if hash_id not in self.paper_keynote_cache or len(err) > 0:
                 if self.config.ModuleInfo.WorkAnalyzer.abstract_when_full_text_fail:

@@ -474,7 +474,7 @@ class PaperGraphRetriever:
             # Try to get from cache first
             cache_key = f"keynote_{node_id}"
             if cache_key in self.graph_keynotes_cache and self._validate_keynotes(self.graph_keynotes_cache[cache_key], "cache"):
-                self.logger.info(f"Found keynote in cache for {node_id}: {self.graph_keynotes_cache[cache_key]}")
+                self.logger.info(f"Found keynote in cache for {node_id}")  #: {self.graph_keynotes_cache[cache_key]}
                 results[idx] = self.graph_keynotes_cache[cache_key]
                 continue
 
@@ -517,6 +517,7 @@ class PaperGraphRetriever:
                 # Cache the extracted keynote
                 node_id = nodes_to_be_constructed[i]
                 if keynote:
+                    self.logger.info(f"generated keynote: {keynote}")
                     cache_key = f"keynote_{node_id}"
                     self.graph_keynotes_cache[cache_key] = keynote
                     self._write_keynote_to_db(node_id, keynote)
@@ -661,9 +662,9 @@ class PaperGraphRetriever:
         main_results = self.chat_agent.batch_remote_chat_with_retry(
             prompts=main_prompts,
             validate_fn=self._make_main_validate_fn(main_metadata),
-            max_retry=3,
+            max_retry=self.config.ModuleInfo.WorkAnalyzer.graph_keynote_extraction_batch_retry,
             desc="Main extraction for information missing nodes in graph",
-            temperature=0.05,
+            temperature=self.config.ModuleInfo.WorkAnalyzer.graph_graph_keynote_extraction_temperature,
             info_dict=main_info_dict
         )
         
@@ -682,8 +683,17 @@ class PaperGraphRetriever:
     def _make_main_validate_fn(self, metadata_list: List[dict]):
         """Create a validate function with closure for main extraction."""
         def validate_fn(response: str, info_dict: dict = None) -> Tuple[bool, dict]:
-            idx = info_dict.get('idx', 0) if info_dict else 0
-            paper_meta = metadata_list[idx] if idx < len(metadata_list) else {}
+            # info_dict should contain {'idx': current_index, 'metadata': [...]} or just the metadata dict directly
+            if info_dict:
+                # If info_dict has 'idx', use it to get the correct metadata
+                if 'idx' in info_dict and 'metadata' in info_dict:
+                    idx = info_dict.get('idx', 0)
+                    paper_meta = info_dict['metadata'][idx] if idx < len(info_dict['metadata']) else {}
+                else:
+                    # info_dict itself contains the paper metadata (node_id, title, regex_candidates)
+                    paper_meta = info_dict
+            else:
+                paper_meta = {}
             return validate_and_parse_main(response, paper_meta)
         return validate_fn
     

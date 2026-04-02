@@ -112,6 +112,8 @@ class DataManager:
             return False
         if not abstract or abstract.strip() == "" or abstract == "abstract not found" or len(abstract) < 50:
             return False
+        if len(abstract) < 300 and len(abstract) > 50:
+            self.logger.warning(f"abstract too short, deug for safety: {abstract}")
         return True
 
     def add_papers_abstracts_in_cache(self, papers: List[str], retry: int = 1):
@@ -139,6 +141,9 @@ class DataManager:
                     paper = self.semantic_scholar_api.get_paper_details(
                         query_id, fields="abstract,title,externalIds"
                     )
+                    abstract = paper.get("abstract", "") or ""
+                    if not abstract:
+                        raise ValueError(f"Failed to get abstract for {query_id} in semantic scholar, turn to arxiv")
                 except Exception as e:
                     self.logger.warning(f"Error fetching paper {pid} details from Semantic Scholar: {e}. Retrying {attempt + 1}/{retry}...")
                     paper = None
@@ -202,7 +207,7 @@ class DataManager:
         # already cached
         if hash_id in self.paper_abstract_cache:
             if self.config.BasicInfo.debug:
-                self.logger.info(f"Cache hit for paper {paper_id} title, len: {len(self.paper_abstract_cache[hash_id]['title'])}")
+                self.logger.info(f"Cache hit for paper {paper_id} title, title: {self.paper_abstract_cache[hash_id]['title']}")
             return self.paper_abstract_cache[hash_id]['title']
 
         self.add_papers_abstracts_in_cache([paper_id], retry=retry)

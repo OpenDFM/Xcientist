@@ -14,6 +14,7 @@ from modules.pe import (
     SECTION_REVIEW,
     SURVEY_REVIEW,
     SURVEY_REVISE,
+    DRAFT_REFINEMENT_SUBSECTION_IN_PARTS
 )
 from typing import Dict, List, Union
 from utils.err_info import CumulativeErrorInfo
@@ -185,7 +186,7 @@ class SurveyGenerator:
                     if not valid:
                         raise ValueError(f"{new_err}")
                 except Exception as e:
-                    self.logger.warning(f"Outline validation failed for batch {batch_idx + 1}: {e} in OUTLINE GENERATION-DRAFT. Retrying this batch for {retry_time + 1}...")
+                    self.logger.warning(f"Outline validation failed for paper batch {batch_idx + 1}: {e} in OUTLINE GENERATION-DRAFT. Retrying this batch for {retry_time + 1}...")
                     valid = False
                 
                 if valid:
@@ -266,7 +267,7 @@ class SurveyGenerator:
         self, outline, intra_analysis_results, inter_analysis_results, papers, retry=1
     ):
         max_retry_in_loop = self.config.ModuleInfo.SurveyGenerator.outline_generation_assign_max_retry
-
+        self.logger.info(f"OUTLINE GENERATION ASSIGNMENT need to assign {len(papers)} papers")
         papers_analysis = self.format_papers_analysis(
             intra_analysis_results, inter_analysis_results
         )
@@ -1044,7 +1045,7 @@ class SurveyGenerator:
                     valid =False
                 else:
                     section_drafts[section_indices[i]] = cleaned_draft + sections_subsection_drafts[section_indices[i]]
-                    self.logger.info(f"OUTLINEDEBUG: Section draft for index {section_indices[i]} updated with subsection drafts: \n\n {section_drafts[section_indices[i]]}")
+                    self.logger.info(f"OUTLINEDEBUG: Section draft for index {section_indices[i]} valid, and updated with subsection drafts.")
 
             if not err_prompts:
                 valid = True
@@ -1637,15 +1638,19 @@ class SurveyGenerator:
                 all_section_preambles: list[str] = []
                 all_section_chunks: list[list[tuple[str, str]]] = []  # per section: [(heading, body), ...]
                 for sec_idx, section_text in enumerate(sections):
+                    self.logger.info(f"[REFINE SPLIT DEBUG]: orginal text: \n{section_text}\n")
                     parts = subsection_pattern.split(section_text)
                     # parts layout from re.split with 2 groups:
                     # [pre_text, full_match_0, title_0, body_0, full_match_1, title_1, body_1, ...]
                     preamble = parts[0]  # text before first #### — not refined
+                    self.logger.info(f"[REFINE SPLIT DEBUG]: preamble: \n{preamble}")
                     chunks: list[tuple[str, str]] = []
                     i = 1
                     while i + 2 <= len(parts):
                         heading = parts[i].rstrip("\n")   # e.g. "#### 2.1 Background"
                         body    = parts[i + 2] if i + 2 < len(parts) else ""
+                        self.logger.info(f"[REFINE SPLIT DEBUG]: heading: \n{heading}")
+                        self.logger.info(f"[REFINE SPLIT DEBUG]: body: \n{body}\n\n")
                         
                         # Additional check: if body is only whitespace or very short, log it
                         body_stripped = body.strip()
@@ -1683,8 +1688,10 @@ class SurveyGenerator:
                             
                             prev_body = chunks[chunk_idx - 1][1] if chunk_idx > 0 else prev_section_text
                             next_body = chunks[chunk_idx + 1][1] if chunk_idx + 1 < len(chunks) else next_section_text
-                            prompt = DRAFT_REFINEMENT_IN_PARTS.format(
-                                title=section_title,
+                            prompt = DRAFT_REFINEMENT_SUBSECTION_IN_PARTS.format(
+                                topic=self.config.BasicInfo.topic,
+                                subsection_title=heading,
+                                section_title=section_title,
                                 previous_text=prev_body,
                                 next_text=next_body,
                                 draft_text=body,
@@ -1724,7 +1731,7 @@ class SurveyGenerator:
                         if not chunks:
                             self.logger.info(f"[mode=2 fast] Section {sec_idx} has no subsections, keeping as-is.")
                             # for debug
-                            raise ValueError(f"[mode=2 fast] Section {sec_idx} has empty body, skipping refinement.")
+                            self.logger.info(f"[mode=2 fast] Section {sec_idx} has no subsections: {sections[sec_idx]}")
                             refined_sections.append(sections[sec_idx])
                             continue
                         
@@ -1781,8 +1788,10 @@ class SurveyGenerator:
                             
                             prev_body = chunks[chunk_idx - 1][1] if chunk_idx > 0 else prev_section_text
                             next_body = chunks[chunk_idx + 1][1] if chunk_idx + 1 < len(chunks) else next_section_text
-                            prompt = DRAFT_REFINEMENT_IN_PARTS.format(
-                                title=section_title,
+                            prompt = DRAFT_REFINEMENT_SUBSECTION_IN_PARTS.format(
+                                topic=self.config.BasicInfo.topic,
+                                subsection_title=heading,
+                                section_title=section_title,
                                 previous_text=prev_body,
                                 next_text=next_body,
                                 draft_text=body,

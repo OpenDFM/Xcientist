@@ -15,18 +15,14 @@ BasicInfo:
   debug: True
   error_conservatism_mode: False
 APIInfo:
-<<<<<<< HEAD
   llm_api_key: 
   llm_api_base_url: https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions
-=======
-  llm_api_key: sk-cp-R6adkh_rPxXPH0S-t_gb4ughwyrDs2pc2m9laV4p6-sRlpjSrs5F5aXZRxqFiUVD88iaxJPr_E_Jf2DfC-eZZ7oc1ZlR50Bnjfe6Na6MNLh_c4eMGVjnuAc
-  llm_api_base_url: https://api.minimax.chat/v1/text/chatcompletion_v2
->>>>>>> origin/fix-main
   llm_model_name: minimax-m2.5
   llm_max_context_length: 180000
   use_stream_mode: False
-  chat_timeout: 300
   batch_chat_agent_worker: 4
+  chat_timeout: 300
+  batch_chat_timeout: 1800
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
   low_flow_mode: False
   low_flow_latency: 2
@@ -65,10 +61,9 @@ ModuleInfo:
     abstract_when_full_text_fail: True
     cache_enabled: True
     use_local_paper_graph_keynotes: True
-<<<<<<< HEAD
-=======
     use_ds_keynotes_when_graph_fail: True
->>>>>>> origin/fix-main
+    graph_keynote_extraction_batch_retry: 7
+    graph_graph_keynote_extraction_temperature: 0.1
     paper_reading_temperature: 1.0
     paper_reading_max_retry: 6
     llm_max_context_overhead_length_in_paper_reading: 20000
@@ -136,6 +131,7 @@ ModuleInfo:
     max_review_revise_iterations: 13
     draft_refinement_in_parts: True
     refine_in_parts_mode: 2
+    draft_refinement_max_retry: 7
     review_and_revise_whole_survey_in_refinement: True
     review_and_revise_whole_survey_max_iteration: 5
     valid_title_min_similarity: 0.5

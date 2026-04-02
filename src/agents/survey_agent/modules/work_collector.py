@@ -540,6 +540,7 @@ class WorkCollector:
                 fallback_expansion = self.expand_seed_papers_by_reference_and_citation(failed_seed_papers, True)
                 self.logger.info(f"graph expansion fallback enabled. get {len(fallback_expansion)} expanded paper")
                 expaneded_paper_ids = list(set(expaneded_paper_ids).union(set(fallback_expansion)))
+            self.logger.info(f"valid RAG paper ids sources num: {len(self.graph_paper_ids)}")
             return expaneded_paper_ids
         
         self.update_reference_graph(seed_paper_ids)

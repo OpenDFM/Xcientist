@@ -21,6 +21,8 @@ APIInfo:
   llm_max_context_length: 256000
   use_stream_mode: False
   batch_chat_agent_worker: 16
+  chat_timeout: 300
+  batch_chat_timeout: 1800
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
   low_flow_mode: True
   low_flow_latency: 2
@@ -60,6 +62,8 @@ ModuleInfo:
     cache_enabled: True
     use_local_paper_graph_keynotes: True
     use_ds_keynotes_when_graph_fail: True
+    graph_keynote_extraction_batch_retry: 7
+    graph_graph_keynote_extraction_temperature: 0.1
     paper_reading_temperature: 1.0
     paper_reading_max_retry: 6
     llm_max_context_overhead_length_in_paper_reading: 20000
@@ -127,6 +131,7 @@ ModuleInfo:
     max_review_revise_iterations: 10
     draft_refinement_in_parts: True
     refine_in_parts_mode: 2
+    draft_refinement_max_retry: 7
     review_and_revise_whole_survey_in_refinement: True
     review_and_revise_whole_survey_max_iteration: 5
     valid_title_min_similarity: 0.5
