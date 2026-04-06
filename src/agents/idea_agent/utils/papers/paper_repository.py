@@ -7,12 +7,14 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
+import diskcache as dc
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
 from src.agents.survey_agent.modules.outcome_RAG import OutcomeRAG
 from src.agents.survey_agent.modules.paper_graph_retriever import PaperGraphRetriever
 from src.agents.survey_agent.modules.work_collector import WorkCollector
+from src.agents.survey_agent.utils.utils import get_hash
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -62,6 +64,7 @@ class PaperRepository:
         self._outcome_rag: Optional[OutcomeRAG] = None
         self._graph_server: Optional[Any] = None
         self._paper_graph_retriever: Optional[PaperGraphRetriever] = None
+        self._paper_keynote_cache: Optional[dc.Cache] = None
 
     def _resolve_config_path(self, provided_path, config):
         if config is not None:
@@ -164,6 +167,78 @@ class PaperRepository:
             )
         return self._paper_graph_retriever
 
+    def _resolve_cache_path(self) -> Path:
+        cache_path = Path(str(OmegaConf.select(self.config, "BasicInfo.cache_path") or "./database")).expanduser()
+        if cache_path.is_absolute():
+            return cache_path.resolve()
+        return (_REPO_ROOT / cache_path).resolve()
+
+    def _get_paper_keynote_cache(self) -> dc.Cache:
+        if self._paper_keynote_cache is None:
+            cache_root = self._resolve_cache_path()
+            cache_root.mkdir(parents=True, exist_ok=True)
+            self._paper_keynote_cache = dc.Cache(str(cache_root / "paper_keynotes"))
+        return self._paper_keynote_cache
+
+    def _normalize_keynote_text(self, keynote: Any) -> str:
+        if isinstance(keynote, list):
+            keynote = keynote[0] if keynote else ""
+        return _as_text(keynote)
+
+    def _graph_node_id_for_paper_id(self, paper_id: str) -> str:
+        keynote_retriever = self._get_paper_graph_retriever()
+        try:
+            if keynote_retriever.search_by_node_id(paper_id, limit=1):
+                return paper_id
+        except Exception:
+            pass
+
+        try:
+            title = keynote_retriever.data_manager.get_paper_title(paper_id)
+        except Exception:
+            return ""
+
+        try:
+            return keynote_retriever.title_to_id(title)
+        except Exception:
+            return ""
+
+    def _load_graph_stored_keynote(self, paper_id: str) -> str:
+        keynote_retriever = self._get_paper_graph_retriever()
+        node_id = self._graph_node_id_for_paper_id(paper_id)
+        if not node_id:
+            return ""
+
+        cache_key = f"keynote_{node_id}"
+        cached_keynote = keynote_retriever.graph_keynotes_cache.get(cache_key)
+        if cached_keynote and keynote_retriever._validate_keynotes(cached_keynote, "cache"):
+            return self._normalize_keynote_text(cached_keynote)
+
+        db_keynote = keynote_retriever._read_keynote_from_db(node_id)
+        if db_keynote and keynote_retriever._validate_keynotes(db_keynote, "SQL keynotes"):
+            keynote_retriever.graph_keynotes_cache[cache_key] = db_keynote
+            return self._normalize_keynote_text(db_keynote)
+
+        return ""
+
+    def _load_ds_stored_keynote(self, paper_id: str) -> str:
+        cache = self._get_paper_keynote_cache()
+        cache_key = get_hash(paper_id)
+        if cache_key not in cache:
+            return ""
+
+        payload = cache[cache_key]
+        if isinstance(payload, dict):
+            return self._normalize_keynote_text(payload.get("keynote"))
+        return self._normalize_keynote_text(payload)
+
+    def _load_stored_keynote(self, paper_id: str) -> str:
+        keynote = self._load_graph_stored_keynote(paper_id)
+        if keynote:
+            return keynote
+
+        return self._load_ds_stored_keynote(paper_id)
+
     def retrieve_outcome_rag(
         self,
         query: str,
@@ -196,7 +271,6 @@ class PaperRepository:
         self,
         references: Iterable[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        keynote_retriever = self._get_paper_graph_retriever()
         keynote_references: List[Dict[str, Any]] = []
         seen_paper_ids: set[str] = set()
         for reference in tqdm(list(references or []), desc="Reading keynotes", dynamic_ncols=True):
@@ -205,9 +279,13 @@ class PaperRepository:
             if not paper_id or paper_id in seen_paper_ids:
                 continue
             seen_paper_ids.add(paper_id)
-            keynotes, _ = keynote_retriever.get_paper_keynote([paper_id])
-            keynote = keynotes[0]
+            keynote = self._load_stored_keynote(paper_id)
             if not keynote:
+                if self.logger is not None:
+                    self.logger.info(
+                        "Skipping paper_id=%s because no stored survey keynote was found.",
+                        paper_id,
+                    )
                 continue
             keynote_references.append(
                 self._normalize_keynote_reference(

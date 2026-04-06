@@ -232,7 +232,7 @@ idea:
     evaluation_temperature: 0.001
     generation_max_tokens: 65536
     evaluation_max_tokens: 65536
-    component_novelty_model_path: "models/bge-m3" 
+    component_novelty_model_path: "${repo_root}/models/bge-m3"
     component_novelty_index_dir: null
     component_novelty_retrieval_top_k: 50
     component_novelty_evidence_top_k: 5
@@ -263,7 +263,7 @@ idea:
 
   memory:
     vector_store:
-      model_path: "models/all-MiniLM-L6-v2" 
+      model_path: "${repo_root}/models/all-MiniLM-L6-v2"
       llm_name: "gpt-4.1-mini"
       llm_backend: "openai"
 
