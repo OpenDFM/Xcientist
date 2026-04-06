@@ -188,6 +188,10 @@ class ChatAgent:
         self.batch_workers = config.APIInfo.batch_chat_agent_worker
         self.model_name = config.APIInfo.llm_model_name
         self.logger = get_logger("ChatAgent")
+        # self.logger.info("Initializing...")
+        # self.logger.info(f"{self.remote_url}")
+        # self.logger.info(f"{self.token}")
+        # self.logger.info(f"{self.model_name}")
 
         if use_different_api_for_judge:
             self.logger.info("Using different LLM API key and URL for Judge module.")
@@ -347,7 +351,7 @@ class ChatAgent:
         """Default validation function that checks if the result is a non-empty string."""
         if not result or len(result) == 0:
             raise ValueError("Validation failed: Result is empty or not a string.")
-        return True
+        return True, result
 
     def remote_chat_with_retry(
         self,
@@ -385,6 +389,7 @@ class ChatAgent:
         info_dict["max_retry"] = max_retry
         for retry in range(max_retry):
             info_dict["retry_time"] = retry
+            result = None
             try:
                 result = self.remote_chat(
                     text_content=prompt,
@@ -408,7 +413,7 @@ class ChatAgent:
                     self.logger.warning(
                         f"remote_chat_with_retry attempt {retry + 1}/{max_retry} failed: {e}. Retrying..."
                     )
-                    if self.config.BasicInfo.debug:
+                    if self.config.BasicInfo.debug and result:
                         self.logger.warning(f"return text: {result}...")
                     time.sleep(min(5, 1 + retry))  # Exponential backoff
                 else:

@@ -1,10 +1,12 @@
 import re
 import requests
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 import os
 import subprocess
 import sys
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 
 from typing import Optional
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -302,7 +304,11 @@ class CodeCollector:
     def __init__(self, config):
         self.logger = get_logger("CodeCollector")
         self.pwc_api_base = "https://paperswithcode.com/api/v1"
-        self.repo_cache_path = "./database/code_repo_cache"
+        # Use absolute path to avoid issues with relative paths when script runs from different directories
+        script_dir = os.path.dirname(os.path.abspath(__file__))  # modules/
+        project_root = os.path.dirname(script_dir)  # deep-survey/
+        self.repo_cache_path = os.path.join(project_root, "database", "code_repo_cache")
+        self.config = config
         os.makedirs(self.repo_cache_path, exist_ok=True)
 
     def extract_code_links(self, paper_id: str, paper_markdown: str, valid_num: int = 2) -> List[str]:
@@ -457,6 +463,29 @@ class CodeCollector:
                 env = os.environ.copy()
                 env["GIT_TERMINAL_PROMPT"] = "0"
                 
+                # Ensure proxy environment variables are inherited
+                # These are commonly set by VPN or system proxy configuration
+                proxy_vars = [
+                    "http_proxy", "HTTP_PROXY",
+                    "https_proxy", "HTTPS_PROXY", 
+                    "no_proxy", "NO_PROXY",
+                    "all_proxy", "ALL_PROXY",
+                    "git_proxy", "GIT_PROXY",
+                ]
+                for var in proxy_vars:
+                    if var in os.environ:
+                        env[var] = os.environ[var]
+                
+                # Also check for VPN-specific proxy settings (e.g., from Clash, V2Ray, etc.)
+                vpn_proxy_vars = [
+                    "VPN_HTTP_PROXY", "VPN_HTTPS_PROXY",
+                    "CLASH_HTTP_PROXY", "CLASH_HTTPS_PROXY",
+                    "V2RAY_HTTP_PROXY", "V2RAY_HTTPS_PROXY",
+                ]
+                for var in vpn_proxy_vars:
+                    if var in os.environ:
+                        env[var] = os.environ[var]
+                
                 result = subprocess.run(
                     cmd,
                     check=True,
@@ -504,6 +533,10 @@ class CodeCollector:
             except subprocess.CalledProcessError as e:
                 # Check for authentication-related errors
                 stderr_output = e.stderr.decode() if e.stderr else ""
+                
+                # Log the actual error message for debugging
+                self.logger.error(f"Clone failed with stderr: {stderr_output}")
+                
                 if "authentication" in stderr_output.lower() or "username" in stderr_output.lower() or "password" in stderr_output.lower():
                     self.logger.error(f"Repo {repo_url} requires authentication (private repo or rate limit). Skipping.")
                     return None
@@ -549,6 +582,11 @@ class CodeAnalyzer():
         self.force_regenerate = False
         self.filter_in_steps = True
         self.agentic_repo_anlysis = True
+        self.max_sites_per_paper = 2
+        self.max_papers = 50
+        self.github_clone_in_parallel = 4
+        self.min_code_files_threshold = 3  # Minimum number of code files required for analysis
+        self.min_total_files_threshold = 5  # Minimum number of total files required for analysis
         
 
     def _list_repo_files(self, repo_name):
@@ -691,12 +729,12 @@ class CodeAnalyzer():
         repo_name = self.code_collector._extract_repo_name(repo_url)
         self.logger.info(f"Generating mainfest for {repo_name}:{repo_url}")
 
-        repo_path = os.path.join(self.repo_cache_path, repo_name)
-        if not os.path.isdir(repo_path):
-            self.logger.warning(f"repo not found: {repo_path}, cloneing...")
-            target_path = self.code_collector._clone_repo(repo_url, 1, 3)
-            if not target_path:
-                raise ValueError(f"fail to clone target repository: {repo_name}")
+        # repo_path = os.path.join(self.repo_cache_path, repo_name)
+        # if not os.path.isdir(repo_path):
+        #     self.logger.info(f"repo not found in cache: {repo_path}, cloneing...")
+        #     target_path = self.code_collector._clone_repo(repo_url, 1, 3)
+        #     if not target_path:
+        #         raise ValueError(f"fail to clone target repository: {repo_name}")
 
         if not self.force_regenerate:
             mainfest = self.load_cached_mainfest(repo_name)
@@ -710,6 +748,9 @@ class CodeAnalyzer():
             mainfest = self.identify_and_collect_core_code(paper_id, repo_url, repo_name, min_core_score, per_file_score_method)
         except Exception as e:
             raise ValueError(f"Fail to build mainfest for {repo_name}: {e}")
+        
+        # Validate that the repo contains actual code files before proceeding
+        self._validate_repo_has_code(mainfest, repo_name)
 
         if self.agentic_generate_project_pseudocode:
             self.logger.info("Agentic mode, skip core file pseudocode generation")
@@ -1154,6 +1195,90 @@ class CodeAnalyzer():
                 self.logger.warning(f"Core file {idx} pseudocode too short")
                 return False
         return True
+
+    def _validate_repo_has_code(self, mainfest: dict, repo_name: str) -> None:
+        repo_structure = mainfest.get("repo_info", {}).get("repo_structure")
+        
+        if not repo_structure:
+            raise ValueError(
+                f"Repository {repo_name} has no valid repo structure. "
+                "This may be a non-code repository or the code has not been uploaded yet. "
+                "Skipping analysis for this repository."
+            )
+        
+        # Count code files and total files in the repo structure
+        code_file_count, total_file_count = self._count_code_and_total_files_in_structure(repo_structure)
+        
+        # Minimum thresholds (configurable via instance variables)
+        min_code_files = self.min_code_files_threshold
+        min_total_files = self.min_total_files_threshold
+        
+        if total_file_count == 0:
+            raise ValueError(
+                f"Repository {repo_name} contains no files. "
+                "This may be an empty repository or the code has not been uploaded yet. "
+                "Skipping analysis for this repository."
+            )
+        
+        if total_file_count < min_total_files:
+            raise ValueError(
+                f"Repository {repo_name} contains only {total_file_count} total file(s), "
+                f"which is below the minimum threshold of {min_total_files}. "
+                "This repository does not have sufficient files for analysis. "
+                "Skipping analysis for this repository."
+            )
+        
+        if code_file_count == 0:
+            raise ValueError(
+                f"Repository {repo_name} contains no code files (only {total_file_count} total files). "
+                "This may be a documentation-only repository or code has not been uploaded yet. "
+                "Skipping analysis for this repository."
+            )
+        
+        if code_file_count < min_code_files:
+            raise ValueError(
+                f"Repository {repo_name} contains only {code_file_count} code file(s) "
+                f"(out of {total_file_count} total files), "
+                f"which is below the minimum threshold of {min_code_files}. "
+                "This repository does not have sufficient code for analysis. "
+                "Skipping analysis for this repository."
+            )
+        
+        self.logger.info(
+            f"Repository {repo_name} contains {code_file_count} code files "
+            f"(out of {total_file_count} total files), validation passed."
+        )
+
+    def _count_code_and_total_files_in_structure(self, repo_structure: dict) -> Tuple[int, int]:
+        """
+        Recursively count code files and total files in a repo structure tree.
+        
+        Args:
+            repo_structure: the repo_structure dict from mainfest
+            
+        Returns:
+            Tuple of (code_file_count, total_file_count)
+            - code_file_count: count of files with valid code extensions
+            - total_file_count: count of all files
+        """
+        code_count = 0
+        total_count = 0
+        
+        for key, value in repo_structure.items():
+            if isinstance(value, dict):
+                if value.get("_is_file"):
+                    total_count += 1
+                    # Count files with valid code extensions as code files
+                    file_type = value.get("type", "").lower()
+                    if file_type in self.code_extensions:
+                        code_count += 1
+                else:
+                    # It's a directory, recurse into it
+                    sub_code_count, sub_total_count = self._count_code_and_total_files_in_structure(value)
+                    code_count += sub_code_count
+                    total_count += sub_total_count
+        
+        return code_count, total_count
 
     def load_cached_mainfest(self, repo_name: str) -> Optional[dict]:
         model_name = getattr(self.chat_agent, "model_name", "default")
@@ -1650,11 +1775,74 @@ class CodeAnalyzer():
         self.logger.info(f"Agentic pseudocode generation completed for {repo_name}")
         return final_pseudocode, initial_pseudocode
 
+    def _batch_clone(self, paper_sites: List[str], download_parallel: int = 4) -> Tuple[List[str], List[str]]:
+        """
+        Clone multiple GitHub repositories in parallel.
+        
+        Args:
+            paper_sites: List of GitHub repository URLs to clone
+            download_parallel: Number of parallel cloning workers (default: 4)
+            
+        Returns:
+            Tuple of (success_list, failed_list) containing repo names
+        """
+        self.logger.info(f"Starting batch clone for {len(paper_sites)} sites with {download_parallel} workers")
+        
+        # Separate sites into cached and to-be-cloned
+        sites_to_clone = []
+        cached_sites = []
+        
+        for site in paper_sites:
+            repo_name = self.code_collector._extract_repo_name(site)
+            repo_path = os.path.join(self.code_collector.repo_cache_path, repo_name)
+            if os.path.isdir(repo_path):
+                self.logger.info(f"Repo already cached: {repo_name}")
+                cached_sites.append(repo_name)
+            else:
+                sites_to_clone.append((site, repo_name))
+        
+        self.logger.info(f"Cached repos: {len(cached_sites)}, to clone: {len(sites_to_clone)}")
+        
+        if not sites_to_clone:
+            return cached_sites, []
+        
+        # Parallel cloning with tqdm progress
+        success_list = list(cached_sites)
+        failed_list = []
+        
+        def clone_single(site_repo_tuple):
+            site, repo_name = site_repo_tuple
+            try:
+                target_path = self.code_collector._clone_repo(site, depth=1, max_retry=3)
+                if target_path:
+                    return (repo_name, True, None)
+                else:
+                    return (repo_name, False, "Clone returned None")
+            except Exception as e:
+                return (repo_name, False, str(e))
+        
+        with ThreadPoolExecutor(max_workers=download_parallel) as executor:
+            futures = {executor.submit(clone_single, site_repo): site_repo for site_repo in sites_to_clone}
+            
+            with tqdm(total=len(sites_to_clone), desc="Cloning repos", unit="repo") as pbar:
+                for future in as_completed(futures):
+                    repo_name, success, error_msg = future.result()
+                    if success:
+                        success_list.append(repo_name)
+                        self.logger.info(f"Successfully cloned: {repo_name}")
+                    else:
+                        failed_list.append(repo_name)
+                        self.logger.error(f"Failed to clone {repo_name}: {error_msg}")
+                    pbar.update(1)
+        
+        self.logger.info(f"Batch clone completed: {len(success_list)} success, {len(failed_list)} failed")
+        return success_list, failed_list
+
     def execute(self, papers: List[str], batch_refine: bool = True, agent_refine: bool = True, batch_size: int = 3):
         papers_sites = []
         site_num = 0
-        max_sites_per_paper = 1
-        max_papers = 50
+        max_sites_per_paper = self.max_sites_per_paper
+        max_papers = self.max_papers
         for paper in papers:
             try:
                 paper_markdown = self.work_collector.get_paper_raw_markdown(paper)
@@ -1665,12 +1853,17 @@ class CodeAnalyzer():
             papers_sites.append(sites)
             site_num += len(sites)
         self.logger.info(f"[GENERAL] site number: {site_num}")
+
+        all_sites = []
         papers_sites = papers_sites[:max_papers]
+        for paper_sites in papers_sites:
+            all_sites.extend(paper_sites)
+        self._batch_clone(all_sites, self.github_clone_in_parallel)
         
-
-
         paper_mainfests = []
         for paper, sites in zip(papers, papers_sites):
+            if not sites:
+                self.logger.warning(f"Get no sites from {paper}, skip")
             self.logger.info(f"processing sites for {paper}")
             paper_pseudocode = []
             paper_repo_names = []

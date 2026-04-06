@@ -269,6 +269,47 @@ class PseudoWriter:
         except Exception:
             self.logger.warning("Failed to load tiktoken encoding, using character-based estimation")
             self.encodings = None
+        
+        self.read_readme_first = True  # Flag to read README before first agent planning round
+    
+    def _find_readme_path(self, repo_structure: dict) -> Optional[str]:
+        """
+        Find README file path from repo_structure. Prioritize root directory, then search others.
+        
+        Args:
+            repo_structure: Repository structure as a nested dict
+            
+        Returns:
+            Relative path to README file, or None if not found
+        """
+        readme_patterns = {"readme.md", "readme.rst", "readme.txt", "readme"}
+        
+        def search(node: dict, current_path: str = "") -> Optional[str]:
+            for key in node:
+                lower_key = key.lower()
+                if lower_key in readme_patterns:
+                    value = node[key]
+                    if isinstance(value, dict) and value.get("_is_file"):
+                        return os.path.join(current_path, key) if current_path else key
+                value = node[key]
+                if isinstance(value, dict) and not value.get("_is_file"):
+                    new_path = os.path.join(current_path, key) if current_path else key
+                    result = search(value, new_path)
+                    if result:
+                        return result
+            return None
+        
+        # First check root directory
+        for key in repo_structure:
+            lower_key = key.lower()
+            if lower_key in readme_patterns:
+                value = repo_structure[key]
+                if isinstance(value, dict) and value.get("_is_file"):
+                    self.logger.info(f"Found README in root: {key}")
+                    return key
+        
+        # Search in subdirectories
+        return search(repo_structure)
     
     def _get_source_code(self, repo_name: str, rel_path: str) -> Optional[str]:
         """Read source code from the repository."""
@@ -360,7 +401,7 @@ class PseudoWriter:
                 if suggestions:
                     suggestions_text = "; ".join(suggestions[:5])
                     if self.use_memory_result_uplimit:
-                        suggestions_text = self._truncate_text(suggestions_text, self.memory_result // 2)
+                        suggestions_text = self._truncate_text(suggestions_text, self.memory_result_max_length // 2)
                     lines.append(f"   Final Suggestions: {suggestions_text}")
                 if reason:
                     lines.append(f"   Reason: {reason}")
@@ -370,7 +411,7 @@ class PseudoWriter:
                 result = op.get('result', '')
                 if result:
                     if self.use_memory_result_uplimit:
-                        result = self._truncate_text(result, self.memory_result)
+                        result = self._truncate_text(result, self.memory_result_max_length)
                     lines.append(f"   Result: {result}")
                     
         return "\n".join(lines)
@@ -464,12 +505,19 @@ class PseudoWriter:
             self.logger.warning(f"Review response is not a dict: {result}")
             return {"suggestions": [str(result)] if result else [], "scores": {"conciseness": 0, "logic": 0, "specificity": 0}}
     
-    def _execute_operation(self, op: dict, agent_ctx: AgentContext) -> dict:
-        """Execute a single operation."""
+    def _execute_operation(self, op: dict, agent_ctx: AgentContext) -> tuple:
+        """
+        Execute a single operation and return the complete memory_entry.
+        
+        Returns:
+            Tuple of (op_type, memory_entry) where memory_entry is ready to append to agent_ctx.memory
+        """
         operation = op.get("operation", "")
         file_path = op.get("file_path", "")
         reason = op.get("reason", "")
-        memory_result = {}
+        
+        # Initialize memory_entry with operation and reason
+        memory_entry = {"operation": operation, "reason": reason}
         
         if operation == "create":
             # Create initial pseudocode from scratch
@@ -484,7 +532,7 @@ class PseudoWriter:
             agent_ctx.current_pseudocode = result
             agent_ctx.has_created_initial = True
             self.logger.info(f"Created initial pseudocode, reason: {reason}")
-            memory_result["pseudocode"] = result
+            memory_entry["pseudocode"] = result
 
             agent_ctx.context = ""
             agent_ctx.suggestions = []
@@ -494,13 +542,15 @@ class PseudoWriter:
                 source_code = self._get_source_code(agent_ctx.repo_name, file_path)
                 agent_ctx.context += f"=== Source code of {file_path} ===\n{source_code if source_code else 'Not available'}\n"
                 self.logger.info(f"Retrieved source code for: {file_path}, reason: {reason}")
-                memory_result["file_path"] = file_path
-                memory_result["source_code_result"] = source_code if source_code else "Not available: file not exist or read failed"
+                memory_entry["file_path"] = file_path
+                memory_entry["source_code_result"] = source_code if source_code else "Not available: file not exist or read failed"
+                memory_entry["result"] = f"Retrieved source code for {file_path}: {memory_entry['source_code_result']}"
             else:
                 self.logger.error("get_source_code: file_path not provided, skipped")
                 agent_ctx.error_log.append(f"Unknown filepath in retrieve: {file_path}")
-                memory_result["file_path"] = "file_path not provided corrctly"
-                memory_result["source_code_result"] = "file_path not provided"
+                memory_entry["file_path"] = "file_path not provided corrctly"
+                memory_entry["source_code_result"] = "file_path not provided"
+                memory_entry["result"] = f"Retrieved source code for {file_path}: {memory_entry['source_code_result']}"
                     
         elif operation == "revise":
             # Check if create has been called
@@ -520,7 +570,8 @@ class PseudoWriter:
             )
             result = self.chat_agent.remote_chat_with_retry(modify_prompt, temperature=0)
             agent_ctx.current_pseudocode = result
-            memory_result["pseudocode"] = result
+            memory_entry["pseudocode"] = result
+            memory_entry["result"] = f"Revised pseudocode: {memory_entry['pseudocode']}"
             self.logger.info(f"Revised pseudocode, reason: {reason}")
 
             agent_ctx.context = ""
@@ -528,6 +579,11 @@ class PseudoWriter:
                 
         elif operation == "finish":
             self.logger.info(f"Operation: finish, reason: {reason}")
+            self.logger.info("Agent decided to finish")
+            # Store final context and suggestions for finish
+            if agent_ctx.context or agent_ctx.suggestions:
+                memory_entry["context"] = agent_ctx.context
+                memory_entry["suggestions"] = agent_ctx.suggestions.copy()
                 
         elif operation == "review":
             review_result = self._call_review(agent_ctx)
@@ -538,16 +594,16 @@ class PseudoWriter:
             self.logger.info(f"Review scores: conciseness={agent_ctx.review_scores['conciseness']}, logic={agent_ctx.review_scores['logic']}, specificity={agent_ctx.review_scores['specificity']}")
             self.logger.info(f"reason: {reason}")
 
-            memory_result["scores"] = scores
-            memory_result["suggestions"] = suggestions
+            memory_entry["scores"] = scores
+            memory_entry["suggestions"] = suggestions.copy()
+            memory_entry["result"] = f"Scores: {memory_entry['scores']}, Suggestions: {memory_entry['suggestions']}"
                 
         else:
             self.logger.error(f"Unknown operation: {operation}, skipped")
             agent_ctx.error_log.append(f"Unknown operation: {operation}, skipped")
+            memory_entry["result"] = f"Unknown operation: {operation}, skipped"
 
-            memory_result["result"] = f"Unknown operation: {operation}, skipped"
-
-        return memory_result
+        return operation, memory_entry
 
     def create_pseudocode_with_agent(
         self,
@@ -578,6 +634,7 @@ class PseudoWriter:
         Returns:
             Tuple of (final_pseudocode, initial_pseudocode) where initial_pseudocode is the first created pseudocode before any revision
         """
+        
         # Build AgentContext
         agent_ctx = AgentContext(
             repo_name=repo_name,
@@ -602,6 +659,19 @@ class PseudoWriter:
         first_created_pseudocode = ""
         
         self.logger.info(f"Starting agent-based pseudocode creation (max {max_steps} steps)")
+        
+        # Initialize: Read README before first planning round if enabled
+        if self.read_readme_first:
+            readme_path = self._find_readme_path(repo_structure)
+            if readme_path:
+                self.logger.info(f"Reading README file: {readme_path}")
+                # Use _execute_operation to handle context and memory automatically
+                readme_op = {"operation": "get_source_code", "file_path": readme_path, "reason": "Initial README read"}
+                _, readme_memory_entry = self._execute_operation(readme_op, agent_ctx)
+                agent_ctx.memory.append(readme_memory_entry)
+                self.logger.info(f"README content added to context and memory")
+            else:
+                self.logger.info(f"No README file found in repository structure")
         
         for step in range(max_steps):
             self.logger.info(f"Agent step {step + 1}/{max_steps}")
@@ -636,72 +706,31 @@ class PseudoWriter:
             
             # Execute each operation in the plan
             for op in plan:
-                op_type = op.get("operation", "")
-                reason = op.get("reason", "")
+                # Execute operation and get complete memory_entry directly
+                op_type, memory_entry = self._execute_operation(op, agent_ctx)
+                agent_ctx.memory.append(memory_entry)
                 
-                # Record operation to memory
-                memory_entry = {"operation": op_type, "reason": reason}
-                
-                # Check for finish
+                # Check for finish - handled in _execute_operation, just log and break here
                 if op_type == "finish":
                     self.logger.info("Agent decided to finish")
-                    # Store final context and suggestions for finish
-                    if agent_ctx.context or agent_ctx.suggestions:
-                        memory_entry["context"] = agent_ctx.context
-                        memory_entry["suggestions"] = agent_ctx.suggestions.copy()
-                        memory_entry["reason"] = reason
-                    agent_ctx.memory.append(memory_entry)
                     break
-                
-                # Execute operation
-                result_info = self._execute_operation(op, agent_ctx)
-                
-                # Add complete operation results to memory entry
-                if op_type == "create":
-                    # Store complete pseudocode result
-                    memory_entry["pseudocode"] = result_info.get("pseudocode", "pseudocode creation failed")
-                    # Save first created pseudocode for return value
-                    if not first_created_pseudocode and "pseudocode" in result_info:
-                        first_created_pseudocode = result_info.get("pseudocode", "pseudocode creation failed")
-                        
-                elif op_type == "get_source_code":
-                    # Store complete file path and retrieved content
-                    file_path = result_info.get("file_path", "unknown file path")
-                    source_result = result_info.get("source_code_result", "source code retrieval failed")
-                    memory_entry["file_path"] = file_path
-                    memory_entry["source_code_result"] = source_result
-                    memory_entry["result"] = f"Retrieved source code for {file_path}: {source_result}"
-                    
-                elif op_type == "revise":
-                    # Store complete revised pseudocode
-                    memory_entry["pseudocode"] = result_info.get("pseudocode", "pseudocode revision failed")
-                    memory_entry["result"] = f"Revised pseudocode: {memory_entry['pseudocode']}"
-                    
-                elif op_type == "review":
-                    # Store complete review suggestions and scores
-                    memory_entry["suggestions"] = result_info.get("suggestions", []).copy()
-                    memory_entry["review_scores"] = result_info.get("scores", {}).copy()
-                    memory_entry["result"] = f"Scores: {memory_entry["review_scores"]}, Suggestions: {memory_entry["suggestions"]}"
-                
-                agent_ctx.memory.append(memory_entry)
                 
                 # Track revise operations
                 if op_type == "revise":
                     rounds_since_last_revise = 0
                 else:
                     rounds_since_last_revise += 1
+                
+                # Track first created pseudocode for return value
+                if op_type == "create" and not first_created_pseudocode:
+                    first_created_pseudocode = memory_entry.get("pseudocode", "")
 
             # Check if we need to force revise
             if hard_code_revise and rounds_since_last_revise >= max_rounds_without_revise:
                 self.logger.info(f"Force calling revise after {rounds_since_last_revise} rounds without revise")
                 force_revise_op = {"operation": "revise", "reason": "Forced revise after max rounds without revise"}
-                result_info = self._execute_operation(force_revise_op, agent_ctx)
-                force_memory_entry = {
-                    "operation": "revise", 
-                    "reason": "Forced revise (hard_code)",
-                    "pseudocode": result_info.get("pseudocode", "pseudocode revision failed"),
-                    "result": f"Revised pseudocode: {result_info.get('pseudocode', 'pseudocode revision failed')}"
-                }
+                _, force_memory_entry = self._execute_operation(force_revise_op, agent_ctx)
+                force_memory_entry["reason"] = "Forced revise (hard_code)"
                 agent_ctx.memory.append(force_memory_entry)
                 rounds_since_last_revise = 0
                 continue
@@ -710,13 +739,8 @@ class PseudoWriter:
                 if last_round_revise and rounds_since_last_revise > 0:
                     self.logger.info("Last round does not include revise, force calling revise")
                     force_revise_op = {"operation": "revise", "reason": "Forced revise in last round"}
-                    result_info = self._execute_operation(force_revise_op, agent_ctx)
-                    force_memory_entry = {
-                        "operation": "revise", 
-                        "reason": "Forced revise (last round)",
-                        "pseudocode": result_info.get("pseudocode", "pseudocode revision failed"),
-                        "result": f"Revised pseudocode: {result_info.get('pseudocode', 'pseudocode revision failed')}"
-                    }
+                    _, force_memory_entry = self._execute_operation(force_revise_op, agent_ctx)
+                    force_memory_entry["reason"] = "Forced revise (last round)"
                     agent_ctx.memory.append(force_memory_entry)
                     rounds_since_last_revise = 0
             
