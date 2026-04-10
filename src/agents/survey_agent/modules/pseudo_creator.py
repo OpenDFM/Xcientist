@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from utils.rich_logger import get_logger
 from utils.api_call import ChatAgent
 from utils.utils import extract_json
+from utils.repo_utils import format_repo_structure
 
 
 # Agent prompt for deciding operations
@@ -36,19 +37,29 @@ You are an intelligent agent that creates project pseudocode by interacting with
 [Context - Retrieved Content from Repository]
 {context}
 
-[Operation Requirement]
-- The recommended operation sequence is: review, create, get_source_code, revise
-- IMPORTANT: You MUST call "create" operation at least once before calling "revise" to establish the initial pseudocode
-- You MUST call "revise" operation at least once every 3 rounds to improve the pseudocode
+[OPERATION REQUIREMENTS - CRITICAL]
+1. You MUST call "get_source_code" at least 3-5 times before calling "create" to understand the actual code implementation
+2. You MUST prioritize reading actual source code files over relying on abstract - the abstract is just context, NOT the source of truth
+3. For each paper, identify the 3-5 most important source files (main entry point, core algorithms, key utilities) and read them
+4. "create" should ONLY be called AFTER you have retrieved and understood the actual source code
+5. You MUST call "revise" operation at least once every 3 rounds to improve the pseudocode based on source code findings
+
+[Priority File Selection]
+When selecting files to read, prioritize in this order:
+1. Main entry points (e.g., main.py, app.py, __main__.py, cli.py)
+2. Core algorithm files (e.g., agent.py, solver.py, model.py, engine.py)
+3. Key utility files that implement important logic
+4. Configuration files that reveal the architecture
+5. README and docs for architectural context
 
 ---
 
 Your task is to plan a sequence of operations to create and refine the pseudocode.
 
 Available operations:
-1. "create": Create a new pseudocode based on repo_structure, title, abstract, and any retrieved context - MUST be called before "revise"
-2. "get_source_code": Query source code of a specific file by providing its path
-3. "revise": Modify the current pseudocode based on the context (retrieved content) and suggestion - IMPORTANT: you must call this at least once every 3 rounds!
+1. "get_source_code": Query source code of a specific file by providing its path - USE THIS EXTENSIVELY to understand actual implementation
+2. "create": Create a new pseudocode based on ACTUAL SOURCE CODE you retrieved - NOT from abstract alone
+3. "revise": Modify the current pseudocode based on the retrieved source code context and suggestion
 4. "review": Call the review skill to provide suggestions on what to do next
 5. "finish": Complete the creation process when the pseudocode is satisfactory
 
@@ -61,11 +72,12 @@ Output format (JSON):
 }}
 
 - Each item in "plan" is one operation to execute in order
-- For "get_source_code", include "file_path"
+- For "get_source_code", include "file_path" with the actual path from repo_structure
 - For "create", "revise", or "finish", no file_path needed
 - Include at least 1 operation, up to 3 operations per plan
-- "create" should be called early to establish initial pseudocode
+- You MUST call "get_source_code" multiple times to retrieve key source files before "create"
 - "review" operation does not require file_path
+- Prioritize reading source code files over creating pseudocode from abstract
 
 Generate JSON directly without any other things.
 """
@@ -427,29 +439,6 @@ class PseudoWriter:
             return True
         return False
     
-    def _format_repo_structure(self, structure: dict) -> str:
-        """Format repo structure as string (tree format)."""
-        lines = []
-        
-        def _build_tree_string(node: dict, prefix: str = ""):
-            keys = sorted(node.keys())
-            total_items = len(keys)
-            
-            for i, key in enumerate(keys):
-                value = node[key]
-                is_last = (i == total_items - 1)
-                connector = "└── " if is_last else "├── "
-                lines.append(f"{prefix}{connector}{key}")
-                
-                if isinstance(value, dict) and value.get("_is_file"):
-                    pass
-                else:
-                    extension = "    " if is_last else "│   "
-                    _build_tree_string(value, prefix + extension)
-        
-        _build_tree_string(structure)
-        return "\n".join(lines)
-    
     def _validate_review_response(self, response: str, info_dict: dict) -> None:
         """Validate review response format."""
         result = extract_json(response)
@@ -481,7 +470,7 @@ class PseudoWriter:
         prompt = REVIEW_PROMPT.format(
             paper_title=agent_ctx.paper_title,
             paper_abstract=agent_ctx.paper_abstract,
-            repo_structure=self._format_repo_structure(agent_ctx.repo_structure),
+            repo_structure=format_repo_structure(agent_ctx.repo_structure),
             final_pseudocode=agent_ctx.current_pseudocode
         )
         
@@ -524,7 +513,7 @@ class PseudoWriter:
             create_prompt = CREATE_PROMPT.format(
                 paper_title=agent_ctx.paper_title,
                 paper_abstract=agent_ctx.paper_abstract,
-                repo_structure=self._format_repo_structure(agent_ctx.repo_structure),
+                repo_structure=format_repo_structure(agent_ctx.repo_structure),
                 context=agent_ctx.context if agent_ctx.context else "No additional context retrieved yet. Create based on paper info and repo structure."
             )
             
@@ -562,7 +551,7 @@ class PseudoWriter:
             modify_prompt = MODIFY_PROMPT.format(
                 paper_title=agent_ctx.paper_title,
                 paper_abstract=agent_ctx.paper_abstract,
-                repo_structure=self._format_repo_structure(agent_ctx.repo_structure),
+                repo_structure=format_repo_structure(agent_ctx.repo_structure),
                 final_pseudocode=agent_ctx.current_pseudocode,
                 context=agent_ctx.context,
                 suggestions="\n".join(agent_ctx.suggestions) if agent_ctx.suggestions else "No suggestion yet.",
@@ -684,7 +673,7 @@ class PseudoWriter:
                 repo_name=agent_ctx.repo_name,
                 paper_title=agent_ctx.paper_title,
                 paper_abstract=agent_ctx.paper_abstract,
-                repo_structure=self._format_repo_structure(agent_ctx.repo_structure),
+                repo_structure=format_repo_structure(agent_ctx.repo_structure),
                 current_pseudocode=agent_ctx.current_pseudocode if agent_ctx.current_pseudocode else "(No pseudocode yet - use create operation)",
                 memory=self._format_memory(agent_ctx.memory),
                 suggestions="\n".join(agent_ctx.suggestions) if agent_ctx.suggestions else "No suggestion yet.",
@@ -700,7 +689,9 @@ class PseudoWriter:
                     temperature=self.config.ModuleInfo.CodeAnalysis.PseudoCreator.planner_temperature
                 )
             except Exception as e:
-                self.logger.error(f"Failed to parse agent response: {e}..., skipped this round")
+                # Escape any markup-like content in the exception to avoid Rich markup errors
+                error_str = str(e).replace('[', r'\[').replace(']', r'\]')
+                self.logger.error(f"Failed to parse agent response: {error_str}..., skipped this round")
                 agent_ctx.error_log.append(f"error in parsing planning json: {e}")
                 continue
             
@@ -751,6 +742,10 @@ class PseudoWriter:
         
         self.logger.info(f"[Memory Debug] Final memory after agent execution:\n{self._format_memory(agent_ctx.memory)}")
         self.logger.info(f"Agent-based creation completed after {step + 1} steps")
+
+        if not agent_ctx.current_pseudocode or not first_created_pseudocode:
+            self.logger.error(f"Agents fail to generate pseudocode for {agent_ctx.repo_name}")
+            raise ValueError(f"Agents fail to generate pseudocode for {agent_ctx.repo_name}")
         
         # Return both final pseudocode and the first created pseudocode (initial)
         return agent_ctx.current_pseudocode, first_created_pseudocode

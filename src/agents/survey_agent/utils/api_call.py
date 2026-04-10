@@ -188,6 +188,12 @@ class ChatAgent:
         self.batch_workers = config.APIInfo.batch_chat_agent_worker
         self.model_name = config.APIInfo.llm_model_name
         self.logger = get_logger("ChatAgent")
+        
+        # Exponential backoff settings
+        self.exponential_backoff = getattr(config.APIInfo, 'exponential_backoff', False)
+        self.exponential_backoff_time = getattr(config.APIInfo, 'exponential_backoff_time', 1)
+        self.exponential_backoff_max_time = getattr(config.APIInfo, 'exponential_backoff_max_time', 60)
+        
         # self.logger.info("Initializing...")
         # self.logger.info(f"{self.remote_url}")
         # self.logger.info(f"{self.token}")
@@ -253,13 +259,11 @@ class ChatAgent:
         use_stream = self.config.APIInfo.use_stream_mode
         
         payload = {"model": model, "messages": messages, "temperature": temperature, "stream": use_stream}
-        if request_timeout is None:
-            request_timeout = getattr(self.config.APIInfo, "chat_timeout", 120)
         
         # Enable stream=True in requests if streaming mode is on
         chat_timeout = getattr(self.config.APIInfo, "chat_timeout", 120)
         response = requests.post(url, headers=header, json=payload, timeout=chat_timeout, stream=use_stream)
-
+        res = None
         if self.config.APIInfo.low_flow_mode:
             time.sleep(self.config.APIInfo.low_flow_latency)
 
@@ -290,24 +294,15 @@ class ChatAgent:
             return res_text
 
         # Handle Normal (Non-Streaming) Response - Original Logic
-        try:
-            resp_json = response.json()
-        except Exception:
-            resp_json = None
-
-        msg = ""
-        if isinstance(resp_json, dict):
-            msg = str(resp_json.get("error", {}).get("message", ""))
-        
-        # Check for moderation blocks
-        if "moderation block" in msg.lower() or "moderation" in msg.lower() or "Moderation Block" in response.text:
+        # Check for moderation blocks first using response.text
+        response_text = response.text
+        if "moderation block" in response_text.lower() or "moderation" in response_text.lower() or "Moderation Block" in response_text:
             self.logger.warning(f"Moderation blocked the prompt: {text_content}")
             raise ValueError("prompt blocked by moderation")
 
-        retryable_status = {408, 429, 500, 502, 503, 504}
+        retryable_status = {408, 429, 500, 502, 503, 504, 529}
         if response.status_code in retryable_status:
             self.logger.error(f"chat response code: {response.status_code}, retrying...")
-            # Note: You might need to import TransientHTTPError or use standard Exception if not defined
             raise requests.RequestException(f"Retryable status: {response.status_code}")
         
         if response.status_code != 200:
@@ -319,9 +314,13 @@ class ChatAgent:
             res_text = res["choices"][0]["message"]["content"]
             if not res_text:
                 res_text = res["choices"][0]["message"].get("reasoning_content", None)
+        except json.JSONDecodeError as e:
+            self.logger.error(f"JSON decode error: {e}")
+            self.logger.error(f"Raw response text (first 500 chars): {response_text[:500]}")
+            raise e
         except Exception as e:
-            res_text = f"Error: {e}"
             self.logger.error(f"There is an error in remote_chat: {e}")
+            self.logger.error(f"Raw response text (first 500 chars): {response_text[:500] if 'response_text' in dir() else 'N/A'}")
             raise e
 
         if debug:
@@ -415,7 +414,16 @@ class ChatAgent:
                     )
                     if self.config.BasicInfo.debug and result:
                         self.logger.warning(f"return text: {result}...")
-                    time.sleep(min(5, 1 + retry))  # Exponential backoff
+                    # Exponential backoff wait time
+                    if self.exponential_backoff:
+                        wait_time = min(
+                            self.exponential_backoff_max_time,
+                            self.exponential_backoff_time * (2 ** retry)
+                        )
+                        self.logger.info(f"Exponential backoff: waiting {wait_time:.2f}s before retry...")
+                        time.sleep(wait_time)
+                    else:
+                        time.sleep(min(5, 1 + retry))
                 else:
                     self.logger.error(
                         f"remote_chat_with_retry failed after {max_retry} attempts: {e}"
@@ -572,6 +580,15 @@ class ChatAgent:
                 # Update for next retry - only process failed prompts
                 input_prompts = error_prompts
                 input_indices = error_indices
+                
+                # Exponential backoff wait time before next retry
+                if self.exponential_backoff and retry < max_retry - 1:
+                    wait_time = min(
+                        self.exponential_backoff_max_time,
+                        self.exponential_backoff_time * (2 ** retry)
+                    )
+                    self.logger.info(f"Exponential backoff: waiting {wait_time:.2f}s before retry...")
+                    time.sleep(wait_time)
         
         if not finished:
             self.logger.error(

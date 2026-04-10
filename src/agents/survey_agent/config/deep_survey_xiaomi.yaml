@@ -19,6 +19,9 @@ APIInfo:
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
   low_flow_mode: False
   low_flow_latency: 0
+  exponential_backoff: True
+  exponential_backoff_time: 1
+  exponential_backoff_max_time: 60
   arxiv_api_max_retry: 3
   semantic_scholar_api_max_retry: 5
 ModuleInfo:
@@ -72,8 +75,9 @@ ModuleInfo:
     intra_clustering_probelm_proposing_max_retry: 4
   SurveyGenerator:
     include_initial_analysis: False
-    include_relation_graph: False
-    include_relation_table: False
+    include_relation_graph: True
+    include_relation_table: True
+    include_code_report: False
     omit_error_preserve_retry_time: 2
     outline_generation_in_steps: True
     outline_generation_draft_max_retry: 10
@@ -124,6 +128,7 @@ ModuleInfo:
     review_and_revise_whole_survey_in_refinement: True
     valid_title_min_similarity: 0.5
   Judge:
+    skip_evaluation: False
     use_different_api_for_judge: True
     model: gpt-4o-mini
     judge_llm_api_key: 

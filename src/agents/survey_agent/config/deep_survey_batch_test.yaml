@@ -26,6 +26,9 @@ APIInfo:
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
   low_flow_mode: False
   low_flow_latency: 2
+  exponential_backoff: True
+  exponential_backoff_time: 1
+  exponential_backoff_max_time: 60
   arxiv_api_max_retry: 3
   semantic_scholar_api_max_retry: 5
 ModuleInfo:
@@ -85,6 +88,7 @@ ModuleInfo:
     include_initial_analysis: False
     include_relation_graph: True
     include_relation_table: True
+    include_code_report: True
     omit_error_preserve_retry_time: 2
     outline_generation_in_steps: True
     outline_generation_draft_max_retry: 10
@@ -140,6 +144,7 @@ ModuleInfo:
       planner_temperature: 0.5
       planner_max_retry: 3
   Judge:
+    skip_evaluation: True
     use_different_api_for_judge: False
     model: mimo-v2-flash
     judge_llm_api_key: 

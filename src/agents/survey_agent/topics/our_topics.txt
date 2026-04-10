@@ -10,3 +10,6 @@ Hallucination in LLMs
 Acceleration for LLMs
 LLMs-based Agents
 Instruction Tuning for LLMs
+3D Gaussian Splatting
+LLMs in Medicine
+Challenges of LLMs in Education

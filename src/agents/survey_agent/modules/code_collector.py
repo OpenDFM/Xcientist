@@ -19,6 +19,7 @@ from modules.pseudo_reviser import PseudoReviser
 from modules.pseudo_creator import PseudoWriter
 from modules.code_report_generator import CodeReportGenerator
 from utils.utils import extract_json
+from utils.repo_utils import format_repo_structure
 import hydra
 
 
@@ -569,7 +570,7 @@ class CodeAnalyzer():
         self.code_extensions = {".py", ".ipynb", ".yaml", ".yml", ".json", ".cfg", ".toml", ".sh"}
         self.ignore_dirs = {".git", "__pycache__", "node_modules", "build", "dist", ".idea", ".vscode"}
         self.ignore_filenames = {"__init__.py"}
-        self.heur_keywords = {"train", "model", "main", "run", "inference", "predict", "forward"}
+        self.heur_keywords = {"train", "model", "main", "run", "inference", "predict", "forward", "pipeline"}
         self.code_collector = code_collector
         self.work_collector = work_collector
         self.MAX_FILE_SIZE = 10 * 1024 * 1024
@@ -579,7 +580,7 @@ class CodeAnalyzer():
         self.CORE_SCORE_THRESHOLD = 8
         self.chunk_file = False
         self.cache_result_json = True
-        self.force_regenerate = False
+        self.force_regenerate = True
         self.filter_in_steps = True
         self.agentic_repo_anlysis = True
         self.max_sites_per_paper = 2
@@ -587,6 +588,7 @@ class CodeAnalyzer():
         self.github_clone_in_parallel = 4
         self.min_code_files_threshold = 3  # Minimum number of code files required for analysis
         self.min_total_files_threshold = 5  # Minimum number of total files required for analysis
+        self.other_model_pseudocode_cache_enabled = True
         
 
     def _list_repo_files(self, repo_name):
@@ -685,40 +687,30 @@ class CodeAnalyzer():
 
         return tree
 
-    def format_repo_structure(self, structure: dict) -> str:
+    def format_repo_structure(self, structure: dict, max_lines: int = 300) -> str:
         """
         Returns a string representing the repository structure like the 'tree' command.
-        Files show only names.
-        """
-        lines = []
-
-        def _build_tree_string(node: dict, prefix: str = ""):
-            keys = sorted(node.keys())
-            total_items = len(keys)
-            
-            for i, key in enumerate(keys):
-                value = node[key]
-                
-                # The last element in the list needs different sign
-                is_last = (i == total_items - 1)
-                connector = "└── " if is_last else "├── "   
-                lines.append(f"{prefix}{connector}{key}")
-                
-                if isinstance(value, dict) and value.get("_is_file"):
-                    # file, stop recursion
-                    if value.get("is_core_code"):
-                        lines[-1] += " (core code)"
-                    if value.get("is_main_code"):  # 缺少这个
-                        lines[-1] += " (main code)"
-                    pass
-                else:
-                    # dirctory, recurse
-                    extension = "    " if is_last else "│   "
-                    _build_tree_string(value, prefix + extension)
-
-        _build_tree_string(structure)
+        Uses the shared format_repo_structure function with fallback logic.
         
-        return "\n".join(lines)
+        Fallback mechanism:
+        1. If lines exceed max_lines, filter to show only code files
+        2. If still exceeds, filter to show only files with heuristic keywords
+        3. If still exceeds, truncate and show warning
+        
+        Args:
+            structure: The repository structure dict
+            max_lines: Maximum lines before fallback (default: 300)
+            
+        Returns:
+            Formatted tree string with fallback handling for large repositories
+        """
+        return format_repo_structure(
+            structure, 
+            max_lines=max_lines,
+            code_extensions=self.code_extensions,
+            heur_keywords=self.heur_keywords,
+            include_annotations=True
+        )
 
     def build_mainfest(self, 
                        paper_id: str,
@@ -729,12 +721,12 @@ class CodeAnalyzer():
         repo_name = self.code_collector._extract_repo_name(repo_url)
         self.logger.info(f"Generating mainfest for {repo_name}:{repo_url}")
 
-        # repo_path = os.path.join(self.repo_cache_path, repo_name)
-        # if not os.path.isdir(repo_path):
-        #     self.logger.info(f"repo not found in cache: {repo_path}, cloneing...")
-        #     target_path = self.code_collector._clone_repo(repo_url, 1, 3)
-        #     if not target_path:
-        #         raise ValueError(f"fail to clone target repository: {repo_name}")
+        repo_path = os.path.join(self.repo_cache_path, repo_name)
+        if not os.path.isdir(repo_path):
+            self.logger.info(f"repo not found in cache: {repo_path}, cloning...")
+            target_path = self.code_collector._clone_repo(repo_url, 1, 3)
+            if not target_path:
+                raise ValueError(f"fail to clone target repository: {repo_name}")
 
         if not self.force_regenerate:
             mainfest = self.load_cached_mainfest(repo_name)
@@ -752,7 +744,7 @@ class CodeAnalyzer():
         # Validate that the repo contains actual code files before proceeding
         self._validate_repo_has_code(mainfest, repo_name)
 
-        if self.agentic_generate_project_pseudocode:
+        if self.agentic_repo_anlysis:
             self.logger.info("Agentic mode, skip core file pseudocode generation")
             return mainfest
         mainfest = self.generate_pseudocode(mainfest)
@@ -1401,6 +1393,7 @@ class CodeAnalyzer():
 
     def _get_pseudocode_from_repo_structure(self, repo_structure: dict, rel_path: str) -> Optional[str]:
         """
+        Used only in non-agent mode: Agent mode do not include pseudocode in structure
         Helper method to retrieve pseudocode from repo_structure by file path.
         
         Args:
@@ -1656,7 +1649,7 @@ class CodeAnalyzer():
     def read_repo_pseudocode_cache(self, repo_name, include_concise = True):
         model_name = self.chat_agent.model_name
         cache_path = os.path.join(self.repo_cache_path, repo_name, f"pseudocode_{model_name}.json") 
-        concise_cache_path = os.path.join(self.repo_cache_path, repo_name, f"concise_pseudocode_{model_name}.json") 
+        concise_cache_path = os.path.join(self.repo_cache_path, repo_name, f"concise_pseudocode_{model_name}.json")
 
         concise_pseudocode = None
         pseudocode = None
@@ -1670,6 +1663,70 @@ class CodeAnalyzer():
                 concise_pseudocode = f.read()
 
         return pseudocode, concise_pseudocode
+
+    def _load_other_model_pseudocode_cache(self, repo_name: str, include_concise: bool = True) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Load pseudocode cache from other models as fallback when current model's cache is not available.
+        
+        Args:
+            repo_name: the repository name
+            include_concise: whether to also load concise pseudocode
+            
+        Returns:
+            Tuple of (pseudocode, concise_pseudocode) from other models, or (None, None) if not found
+        """
+        repo_path = os.path.join(self.repo_cache_path, repo_name)
+        
+        if not os.path.exists(repo_path):
+            self.logger.debug(f"Repo path does not exist: {repo_path}")
+            return None, None
+        
+        # List all pseudocode files in the repo directory
+        try:
+            files = os.listdir(repo_path)
+        except Exception as e:
+            self.logger.warning(f"Failed to list files in {repo_path}: {e}")
+            return None, None
+        
+        # Find pseudocode files from other models
+        other_pseudocode = None
+        other_concise_pseudocode = None
+        current_model = self.chat_agent.model_name
+        
+        for f in files:
+            # Check if it's a pseudocode file (not from current model)
+            if f.startswith("pseudocode_") and f.endswith(".json"):
+                # Extract model name from filename
+                model_name = f[len("pseudocode_"):-len(".json")]
+                if model_name != current_model:
+                    cache_path = os.path.join(repo_path, f)
+                    try:
+                        with open(cache_path, "r") as pf:
+                            content = pf.read()
+                            if content and len(content) > 30:  # Validate content
+                                other_pseudocode = content
+                                self.logger.info(f"Found fallback pseudocode from model: {model_name}")
+                                break
+                    except Exception as e:
+                        self.logger.debug(f"Failed to read fallback pseudocode from {cache_path}: {e}")
+        
+        if include_concise:
+            for f in files:
+                if f.startswith("concise_pseudocode_") and f.endswith(".json"):
+                    model_name = f[len("concise_pseudocode_"):-len(".json")]
+                    if model_name != current_model:
+                        cache_path = os.path.join(repo_path, f)
+                        try:
+                            with open(cache_path, "r") as pf:
+                                content = pf.read()
+                                if content and len(content) > 30:  # Validate content
+                                    other_concise_pseudocode = content
+                                    self.logger.info(f"Found fallback concise pseudocode from model: {model_name}")
+                                    break
+                        except Exception as e:
+                            self.logger.debug(f"Failed to read fallback concise pseudocode from {cache_path}: {e}")
+        
+        return other_pseudocode, other_concise_pseudocode
 
     def refine_project_pseudocode_with_agent(
         self,
@@ -1872,15 +1929,29 @@ class CodeAnalyzer():
             for site in sites:
                 self.logger.info(f"processing {paper}: {site}")
                 repo_name = self.code_collector._extract_repo_name(site)
-                pseudocode, initial_pseudocode = self.read_repo_pseudocode_cache(repo_name, True)
-                main_fest = None
+                pseudocode = None
+                initial_pseudocode = None
+                if not self.force_regenerate:
+                    pseudocode, initial_pseudocode = self.read_repo_pseudocode_cache(repo_name, True)
+
+                try:
+                    main_fest = self.build_mainfest(paper, site, 8)
+                except Exception as e:
+                    self.logger.error(f"Fail to process {site} in analyzer execution: {e}. Skip this repo.")
+                    continue
+
+                # Fallback: try to load pseudocode from other models if current model's cache is not available
+                if (not pseudocode or not initial_pseudocode) and self.other_model_pseudocode_cache_enabled:
+                    self.logger.info(f"Current model cache not found for {repo_name}, trying to load from other models...")
+                    other_pseudocode, other_initial_pseudocode = self._load_other_model_pseudocode_cache(repo_name, True)
+                    if other_pseudocode:
+                        pseudocode = other_pseudocode
+                        self.logger.info(f"Loaded fallback pseudocode from other model for {repo_name}")
+                    if other_initial_pseudocode:
+                        initial_pseudocode = other_initial_pseudocode
+                        self.logger.info(f"Loaded fallback concise pseudocode from other model for {repo_name}")
 
                 if not pseudocode or not initial_pseudocode:
-                    try:
-                        main_fest = self.build_mainfest(paper, site, 8)
-                    except Exception as e:
-                        self.logger.error(f"Fail to process {site} in analyzer execution: {e}. Skip this repo.")
-                        continue
                     if not self.agentic_repo_anlysis:
                         initial_pseudocode = self.generate_project_pseudocode_from_main_files(main_fest)
 
@@ -1898,16 +1969,20 @@ class CodeAnalyzer():
                                                                                             max_rounds_without_revise = 3,
                                                                                             last_round_revise = True)
                     else:
-                        pseudocode, initial_pseudocode = self.agentic_generate_project_pseudocode(
-                            mainfest=main_fest,
-                            max_steps=10,
-                            hard_code_revise=True,
-                            max_rounds_without_revise=5,
-                            last_round_revise=True
-                        )
+                        try:
+                            pseudocode, initial_pseudocode = self.agentic_generate_project_pseudocode(
+                                mainfest=main_fest,
+                                max_steps=10,
+                                hard_code_revise=True,
+                                max_rounds_without_revise=5,
+                                last_round_revise=True
+                            )
+                        except Exception as e:
+                            self.logger.error(f"Fail to generate {site} pseudocode in agentic pseudocreater: {e}. Skip this repo.")
+                            continue
                     pseudocode = f"[REPOSITORY NAME]:{repo_name}: \n" + pseudocode
                     initial_pseudocode = f"[REPOSITORY NAME]:{repo_name}: \n" + initial_pseudocode
-                if main_fest:
+                if main_fest and pseudocode and initial_pseudocode:
                     paper_pseudocode.append(pseudocode)
                     paper_concise_pseudocode.append(initial_pseudocode)
                     paper_repo_names.append(repo_name)
@@ -1916,7 +1991,7 @@ class CodeAnalyzer():
                     self.cache_repo_pseudocode(repo_name, pseudocode)
                     self.cache_repo_pseudocode(repo_name, initial_pseudocode, concise=True)
                 else:
-                    self.logger.error(f"no available github repo for {paper}, sites: {sites} all fail")
+                    self.logger.error(f"no available github repo for {paper}, sites: {sites} all fail, mainfest None: {main_fest is None}, initial_pseudocode None: {initial_pseudocode is None}, pseudocode None: {pseudocode is None}")
                 
             if len(paper_pseudocode) > 0:
                 paper_mainfests.append({

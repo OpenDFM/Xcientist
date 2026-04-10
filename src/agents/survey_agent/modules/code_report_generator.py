@@ -25,7 +25,7 @@ from utils.api_call import ChatAgent
 # Prompt template for batch code report generation
 # All prompts are in English as requested
 BATCH_CODE_REPORT_PROMPT = """
-You are an expert at analyzing research paper code implementations and generating comprehensive reports.
+You are an expert at analyzing research paper code implementations and generating comprehensive reports with forward-looking guidance.
 
 Your task is to analyze a batch of papers on the topic: "{topic}"
 
@@ -35,44 +35,63 @@ For each paper, you have basic paper information and code pseudocode reports:
 
 ---
 
-TASK: Generate a comprehensive code analysis report for this batch of papers
+TASK: Generate a comprehensive code analysis report for this batch of papers, with emphasis on identifying gaps and future research directions.
 
-Requirements:
-1. The report should include the following mandatory dimensions:
-   - **Problem Modeling and Data Structure Classification**:
-     Analyze how different papers model the problem, what data structures they use,
-     and categorize them into meaningful groups.
-   
-   - **Core Algorithm Classification**:
-     Analyze the core algorithms implemented in the code, identify patterns,
-     and categorize them by approach (e.g., attention mechanisms, neural network architectures, etc.)
-   
-   - **Optimization and Acceleration Strategy Classification**:
-     Analyze code-level optimization strategies probably including:
-     * Computational optimizations (vectorization, batching, caching)
-     * Memory optimizations (gradient checkpointing, mixed precision)
-     * Training tricks and convergence improvements
+IMPORTANT: Go beyond surface-level descriptions. Analyze the ACTUAL IMPLEMENTATION DETAILS from the pseudocode.
 
-2. Additionally, you should identify and add **custom dimensions** relevant to this specific topic, for example:
-   - For LLM-related topics: consider workflow management, context window handling, prompt engineering patterns, agent architectures
-   - For RL-related topics: consider reward shaping strategies, exploration mechanisms, credit assignment methods, reward hacking mitigation
-   - For CV-related topics: consider data augmentation pipelines, model architecture patterns, transfer learning approaches
-   - For any topic: identify other meaningful dimensions based on the code patterns you observe
+## Report Structure Requirements:
 
-3. For each dimension:
-   - Provide specific code-level details that cannot be obtained from paper abstracts alone
-   - Give concrete examples from the pseudocode
-   - Compare different approaches across papers
+### 1. Executive Summary
+- What are the dominant implementation patterns?
+- What are the major gaps and underexplored opportunities?
+- What are the most promising future research directions?
 
-4. The report should be:
-   - Deep: Go beyond surface-level descriptions, analyze the actual implementation logic
-   - Specific: Referring to specific code details
-   - Well-organized: Use clear headings and structured sections
-   - Comparative: Compare approaches across different papers when relevant
+### 2. Data Structure Classification and Problem Modeling
+- Analyze how different papers model the problem and what data structures they use
+- Categorize them into meaningful groups
+- For each data structure: WHY it was chosen, WHAT trade-offs it involves
+
+### 3. Core Algorithm Classification
+- Identify patterns in core algorithms across papers
+- For each algorithm provide:
+  * Specific function/class names from the pseudocode
+  * Step-by-step logic flow (input → processing → output)
+  * Key hyperparameters and their purposes
+  * Concrete implementation details (e.g., HOW attention is computed, not just "uses attention")
+
+### 4. Optimization and Acceleration Strategy Classification
+- Computational optimizations (vectorization, batching, caching)
+- Memory optimizations (gradient checkpointing, mixed precision)
+- Training tricks and convergence improvements
+- For each optimization: explain the MECHANISM and EXPECTED IMPACT
+
+### 5. Custom Dimensions (Topic-Specific)
+- For LLM topics: workflow management, context window handling, agent architectures
+- For RL topics: reward shaping, exploration mechanisms, credit assignment
+- For CV topics: data augmentation pipelines, architecture patterns
+- Add other meaningful dimensions based on code patterns observed
+
+### 6. Critical Gap Analysis
+For each gap identified:
+- Specific description of what's missing or underexplored
+- Evidence from the code implementations supporting this gap
+- Why this gap matters for the field
+
+### 7. Future Research Directions
+Based on gap analysis, provide concrete future directions:
+- Specific research problems to tackle
+- Potential approaches to address each gap
+- Expected challenges and how to overcome them
+- Connections to implementation patterns observed in the code
+
+## General Requirements:
+- Each claim should be traceable to specific parts of the pseudocode(Most important)
+- Compare approaches with SPECIFIC technical differences
+- Include actual code details: variable names, function names, class names
 
 Output format:
 Provide a structured report with clear sections for each dimension.
-Use bullet points and concrete examples to illustrate your points.
+Emphasize the Future Research Directions section.
 """
 INTEGRATED_REPORT_PROMPT = """
 You are an expert at synthesizing multiple batch reports into a comprehensive integrated report.
@@ -86,85 +105,67 @@ Here are the batch reports:
 
 TASK: Integrate all batch reports into a single comprehensive report
 
-Requirements:
-1. Synthesize the information from all batches into a unified report
-2. Remove duplicates and consolidate similar findings
-3. Ensure all key insights from each batch are preserved
-4. Maintain the same dimensional structure:
-   - Problem Modeling and Data Structure Classification
-   - Core Algorithm Classification
-   - Optimization and Acceleration Strategy Classification
-   - Custom Dimensions (topic-specific)
-5. Add a summary section at the beginning that gives an overview of the topic
-6. Add a conclusion section that synthesizes the key findings
+IMPORTANT: Maintain the depth and specificity from individual batch reports. Do NOT simplify or generalize the implementation details.
+
+## Required Report Structure:
+
+### 1. Executive Summary
+- Dominant implementation patterns across all papers
+- Major gaps and underexplored opportunities
+- Most promising future research directions
+
+### 2. Problem Modeling and Data Structure Classification
+- Unified view of problem modeling approaches
+- Data structure categories with specific examples
+- Trade-offs analysis preserved from original reports
+
+### 3. Core Algorithm Classification
+- Algorithm patterns across all papers
+- Specific function/class names, logic flows, hyperparameters
+- Implementation details with code-level examples
+
+### 4. Optimization and Acceleration Strategy Classification
+- Optimization techniques identified
+- Specific mechanisms and expected impacts
+- Computational and memory optimizations
+
+### 5. Custom Dimensions (Topic-Specific)
+- Workflow patterns (for LLM topics)
+- Agent architectures and context handling
+- Other topic-relevant dimensions
+
+### 6. Critical Gap Analysis (IMPORTANT)
+For each gap identified:
+- Specific description of what's missing
+- Evidence from implementation patterns
+- Why this gap matters
+
+### 7. Future Research Directions (MOST IMPORTANT)
+Based on gap analysis, provide:
+- Specific research problems to tackle
+- Potential approaches to address gaps
+- Expected challenges and solutions
+- Connections to observed implementation patterns
+
+### 8. Conclusion
+- Key takeaways from the synthesis
+- Forward-looking insights
 
 The final report should be:
 - Comprehensive: Cover all important aspects from all batches
 - Coherent: Flow logically from section to section
-- Non-redundant: Avoid repeating the same points multiple times
-- Deep: Provide meaningful synthesis and insights
+- Non-redundant: Avoid repeating same points when merging batches
+- Specific: Provide meaningful synthesis with actual implementation details when necessary
+- Actionable: Emphasize future research directions
+- Concise: Avoid keeping trivial parts when intergrating batches
+- Deep: Integrate with analysis rather than simple enumeration
 
 Output format:
 Provide a well-structured comprehensive report with clear sections.
+The report should be at most 6000 words and 700 lines
+Emphasize the Future Research Directions section.
 """
 
-# Prompt template for framework and environment selection guidance
-# All prompts are in English as requested
-FRAMEWORK_ENV_GUIDANCE_PROMPT = """
-You are an expert at analyzing research paper code implementations and providing guidance on framework selection and environment configuration.
-
-Your task is to analyze the requirements and README files from multiple repositories to generate comprehensive guidance on framework selection and environment setup.
-
-For each repository, you have:
-1. Repository Name: {repo_names}
-2. Requirements Content: {requirements_content}
-3. README Content: {readme_content}
-
----
-
-TASK: Generate a comprehensive framework selection and environment configuration guidance report
-
-Requirements:
-
-1. **Framework Selection Analysis**:
-   - Analyze which frameworks (PyTorch, TensorFlow, JAX, etc.) are used across different repositories
-   - Identify the main framework choices and their versions
-   - Analyze what each framework/environment is suitable for:
-     * Which scenarios or sub-directions are best suited for each framework
-     * What are the strengths and weaknesses of each framework choice
-     * Performance considerations and community support
-
-2. **Environment Configuration Guidance**:
-   - Analyze common dependency patterns across repositories
-   - Identify key packages and their version requirements
-   - Provide guidance on environment setup best practices
-   - Note any special requirements (GPU support, CUDA versions, etc.)
-
-3. **Base Framework Recommendations**:
-   - For each repository, assess its suitability as a base framework for further research
-   - Consider factors like: code quality, documentation, extensibility, community activity
-   - Identify which repositories are good starting points for different sub-directions
-   - Categorize repositories by their suitability for:
-     * Starting new projects from scratch
-     * Extending existing implementations
-     * Benchmarking and comparison
-     * Learning and understanding the domain
-
-4. **Sub-direction Analysis**:
-   - Analyze which repositories are best suited for different sub-directions of research
-   - Identify patterns in framework choices across different research directions
-   - Provide recommendations based on specific research needs
-
-5. The report should be:
-   - Practical: Provide actionable recommendations
-   - Well-organized: Use clear headings and structured sections
-   - Comparative: Compare frameworks and repositories when relevant
-   - Comprehensive: Cover all important aspects
-
-Output format:
-Provide a structured report with clear sections for each dimension.
-Use bullet points and concrete examples to illustrate your points.
-"""
 
 BATCH_FRAMEWORK_ENV_PROMPT = """
 You are an expert at analyzing research paper code implementations and providing guidance on framework selection and environment configuration.
@@ -179,7 +180,7 @@ For each repository, you have:
 
 TASK: Generate framework selection and environment configuration guidance for this batch
 
-Requirements:
+Required Content:
 
 1. **Framework Analysis**:
    - Identify frameworks used (PyTorch, TensorFlow, JAX, etc.)
@@ -196,7 +197,11 @@ Requirements:
    - Extensibility and maintainability
    - Suitability for different research directions
 
-4. Be specific and provide concrete examples from the repositories
+Requirements:
+- Comprehensive: Cover all important aspects mentioned above
+- Coherent: Flow logically from section to section
+- Specific: Provide concrete examples from the repositories
+- Concise: Avoid keeping trivial parts when intergrating batches
 
 Output format:
 Provide a structured report with clear sections.
@@ -231,9 +236,14 @@ The final report should be:
 - Comprehensive: Cover all important aspects
 - Well-organized: Clear headings and structured sections
 - Non-redundant: Avoid repeating the same points
+- Coherent: Flow logically from section to section
+- Actionable: Emphasize future research directions
+- Concise: Avoid keeping trivial parts when intergrating batches
+- Deep: Integrate with analysis rather than simple enumeration
 
 Output format:
 Provide a well-structured comprehensive report with clear sections.
+The report should be at most 5000 words and 700 lines
 """
 
 class CodeReportGenerator:
@@ -264,6 +274,7 @@ class CodeReportGenerator:
         self.logger = get_logger("CodeReportGenerator")
         self.chat_agent = ChatAgent(config)
         self.work_collector = work_collector
+        self.max_context_chars_for_integrate = int(self.config.APIInfo.llm_max_context_length * 2.5)
         
         # Code collector and analyzer (optional, for backwards compatibility)
         self.code_collector = code_collector
@@ -390,25 +401,35 @@ class CodeReportGenerator:
                                              repo_data_batches: List[List[Dict]],
                                              max_readme: int = 1,
                                              max_requirements: int = 2,
-                                             max_batches: int = 20) -> str:
+                                             max_batches: int = 20) -> List[str]:
         """
-        Generate a framework and environment guidance report for a batch of repositories.
+        Generate framework and environment guidance reports for multiple batches of repositories.
         
         Args:
             topic: The research topic
-            repo_data: List of repo data dictionaries with repo_name, requirements, and readme
+            repo_data_batches: List of batches, where each batch is a list of repo data dictionaries
             
         Returns:
-            The generated report string
+            List of generated batch report strings
         """
         if not repo_data_batches:
-            return "No repository data available for this batch."
+            self.logger.warning("No repository data batches provided")
+            return []
         
-        # Build the prompt with all repos in the batch
-        repos_content = []
+        self.logger.info(f"Processing {len(repo_data_batches)} batches of repositories")
+        
+        # Build prompts for each batch
         prompts = []
-
-        for repo_data in repo_data_batches:
+        batch_info = []  # Track info for logging
+        
+        for batch_idx, repo_data in enumerate(repo_data_batches):
+            if not repo_data:
+                self.logger.warning(f"Empty batch at index {batch_idx}, skipping")
+                continue
+            
+            # Build the content for this batch
+            repos_content = []
+            
             for i, repo in enumerate(repo_data):
                 repo_name = repo.get('repo_name', f'Repo_{i+1}')
                 requirements = repo.get('requirements', {})
@@ -442,42 +463,33 @@ class CodeReportGenerator:
                     readme_content = readme.get('NOT_FOUND', 'No README found')
                 
                 content = f"=== Repository {i+1}: {repo_name} ===\n"
-                content += f"[Repository Information]:(for reference and understanding the repo)"
+                content += f"[Repository Information]:(for reference and understanding the repo)\n"
                 content += f"Paper_title: {paper_title}\nPaper abstract: {paper_abstract}\n"
                 content += f"Paper_Pseudocode: {pseudocode}\n"
-                content += f"[Readme and Requiremnets]:(report core contents source)"
+                content += f"[Readme and Requiremnets]:(report core contents source)\n"
                 content += f"Requirements:\n{req_content}\n\n"
                 content += f"README:\n{readme_content}"
                 repos_content.append(content)
             
             combined_content = "\n\n".join(repos_content)
             
-            # # Format requirements content for prompt
-            # requirements_content = ""
-            # for repo in repo_data:
-            #     repo_name = repo.get('repo_name', 'Unknown')
-            #     requirements = repo.get('requirements', {})
-            #     requirements_content += f"\n--- {repo_name} ---\n"
-            #     for fname, content in requirements.items():
-            #         if fname != 'NOT_FOUND':
-            #             requirements_content += f"[{fname}]:\n{content}\n"
-            
-            # # Format README content for prompt
-            # readme_content = ""
-            # for repo in repo_data:
-            #     repo_name = repo.get('repo_name', 'Unknown')
-            #     readme = repo.get('readme', {})
-            #     readme_content += f"\n--- {repo_name} ---\n"
-            #     for fname, content in readme.items():
-            #         if fname != 'NOT_FOUND':
-            #             readme_content += f"[{fname}]:\n{content}\n"
-            
             prompt = BATCH_FRAMEWORK_ENV_PROMPT.format(
                 combined_content = combined_content
             )
             prompts.append(prompt)
+            batch_info.append({
+                'batch_idx': batch_idx,
+                'num_repos': len(repo_data),
+                'repo_names': [r.get('repo_name', f'Repo_{i}') for i, r in enumerate(repo_data)]
+            })
+            
+            self.logger.info(f"Prepared batch {batch_idx + 1}/{len(repo_data_batches)} with {len(repo_data)} repositories")
         
-        self.logger.info(f"Generating framework/env report for {len(prompts)} repositories batch...")
+        if not prompts:
+            self.logger.error("No valid prompts generated from batches")
+            return []
+        
+        self.logger.info(f"Generating {len(prompts)} framework/env batch reports via API...")
         
         def _env_report_validate_fn(result, info_dict = None):
             if not isinstance(result, str):
@@ -485,30 +497,49 @@ class CodeReportGenerator:
             if len(result) < 100:
                 raise ValueError("batch env_report result too short")
             return True, result
+        
         try:
             results = self.chat_agent.batch_remote_chat_with_retry(
                 prompts=prompts,
-                validate_fn= _env_report_validate_fn,
-                max_retry = 3,
-                desc = "Generating batch env report...",
+                validate_fn=_env_report_validate_fn,
+                max_retry=3,
+                desc="Generating batch env reports",
                 temperature=0.3,
             )
-            return results
+            
+            # Log success info
+            if isinstance(results, list):
+                self.logger.info(f"Successfully generated {len(results)} framework/env batch reports")
+                for i, result in enumerate(results):
+                    if result:
+                        self.logger.info(f"Framework batch {i+1} report length: {len(result)} chars")
+                    else:
+                        self.logger.warning(f"Framework batch {i+1} returned empty result")
+            else:
+                self.logger.warning(f"Unexpected result type from batch_remote_chat_with_retry: {type(results)}")
+            
+            return results if isinstance(results, list) else []
+            
         except Exception as e:
-            self.logger.error(f"Failed to generate framework/env report: {e}")
-            return f"Error generating report: {str(e)}"
+            self.logger.error(f"Failed to generate framework/env reports: {e}")
+            return []
     
-    def _integrate_framework_env_reports(self, topic: str, batch_reports: List[str]) -> str:
+    def _integrate_framework_env_reports(self, topic: str, batch_reports: List[str], max_context_chars: int = None) -> str:
         """
         Integrate multiple batch reports into a final comprehensive framework/env report.
+        Uses multi-round fallback when combined reports exceed context window.
         
         Args:
             topic: The research topic
             batch_reports: List of batch report strings
+            max_context_chars: Maximum characters per integration call (default: 150000)
             
         Returns:
             The integrated report
         """
+        if max_context_chars is None:
+            max_context_chars = self.max_context_chars_for_integrate
+
         if not batch_reports:
             return "No reports to integrate."
         
@@ -516,24 +547,117 @@ class CodeReportGenerator:
             # Only one batch, no integration needed
             return batch_reports[0]
         
-        # Combine all batch reports
+        # First attempt: try integrating all reports at once
         combined_reports = "\n\n==== BATCH SEPARATOR ====\n\n".join(
             f"=== Batch {i+1} ===\n{report}" 
             for i, report in enumerate(batch_reports)
         )
         
-        self.logger.info("Integrating framework/env batch reports into final report...")
+        # Check if combined content fits in context
+        prompt_length = len(INTEGRATED_FRAMEWORK_ENV_PROMPT.format(topic=topic, combined_reports=combined_reports))
         
-        try:
-            result = self.chat_agent.remote_chat(
-                text_content=INTEGRATED_FRAMEWORK_ENV_PROMPT.format(topic=topic, combined_reports=combined_reports),
-                temperature=0.3
+        if prompt_length <= max_context_chars:
+            self.logger.info("Integrating framework/env batch reports into final report...")
+            try:
+                result = self.chat_agent.remote_chat(
+                    text_content=INTEGRATED_FRAMEWORK_ENV_PROMPT.format(topic=topic, combined_reports=combined_reports),
+                    temperature=0.3
+                )
+                return result
+            except Exception as e:
+                self.logger.warning(f"Failed to integrate all reports at once: {e}")
+                # Fall through to multi-round fallback
+        else:
+            self.logger.info(f"Combined reports exceed context ({prompt_length} chars), using multi-round fallback...")
+        
+        # Multi-round fallback: integrate in smaller groups
+        return self._multi_round_integrate_framework_env(topic, batch_reports, max_context_chars)
+    
+    def _multi_round_integrate_framework_env(self, topic: str, batch_reports: List[str], max_context_chars: int = None) -> str:
+        """
+        Multi-round integration when all batch reports don't fit in context.
+        Integrates reports in pairs/groups, then recursively integrates results.
+        
+        Args:
+            topic: The research topic
+            batch_reports: List of batch report strings
+            max_context_chars: Maximum characters per integration call
+            
+        Returns:
+            The integrated report
+        """
+        self.logger.info(f"Starting multi-round integration for {len(batch_reports)} batch reports...")
+        
+        # Base case: if only one or two reports, integrate directly
+        if len(batch_reports) <= 2:
+            combined = "\n\n==== BATCH SEPARATOR ====\n\n".join(
+                f"=== Batch {i+1} ===\n{report}" 
+                for i, report in enumerate(batch_reports)
             )
-            return result
-        except Exception as e:
-            self.logger.error(f"Failed to integrate framework/env reports: {e}")
-            # If integration fails, just concatenate the reports
-            return "\n\n".join(batch_reports)
+            try:
+                result = self.chat_agent.remote_chat(
+                    text_content=INTEGRATED_FRAMEWORK_ENV_PROMPT.format(topic=topic, combined_reports=combined),
+                    temperature=0.3
+                )
+                return result
+            except Exception as e:
+                self.logger.error(f"Failed to integrate: {e}")
+                return "\n\n".join(batch_reports)
+        
+        # Group reports into pairs that fit within context
+        groups = []
+        current_group = []
+        current_group_size = 0
+        
+        for i, report in enumerate(batch_reports):
+            report_size = len(report)
+            separator_size = len(f"\n\n==== BATCH SEPARATOR ====\n\n=== Batch {len(current_group) + 1} ===\n")
+            
+            # Check if adding this report would exceed context
+            # Reserve space for prompt template (~500 chars)
+            if current_group_size + report_size + separator_size > int(max_context_chars*0.9):
+                if current_group:
+                    groups.append(current_group)
+                current_group = [report]
+                current_group_size = report_size
+            else:
+                current_group.append(report)
+                current_group_size += report_size + separator_size
+        
+        if current_group:
+            groups.append(current_group)
+        
+        self.logger.info(f"Grouped {len(batch_reports)} reports into {len(groups)} integration groups")
+        
+        # Integrate each group
+        integrated_groups = []
+        for i, group in enumerate(groups):
+            if len(group) == 1:
+                integrated_groups.append(group[0])
+                self.logger.info(f"Group {i+1}: single report, no integration needed")
+            else:
+                combined = "\n\n==== BATCH SEPARATOR ====\n\n".join(
+                    f"=== Batch {j+1} ===\n{report}" 
+                    for j, report in enumerate(group)
+                )
+                try:
+                    result = self.chat_agent.remote_chat(
+                        text_content=INTEGRATED_FRAMEWORK_ENV_PROMPT.format(topic=topic, combined_reports=combined),
+                        temperature=0.3
+                    )
+                    integrated_groups.append(result)
+                    self.logger.info(f"Group {i+1}: integrated {len(group)} reports into {len(result)} chars")
+                except Exception as e:
+                    self.logger.error(f"Failed to integrate group {i+1}: {e}")
+                    integrated_groups.append("\n\n".join(group))
+        
+        # If only one group, return it
+        if len(integrated_groups) == 1:
+            return integrated_groups[0]
+        
+        # Recursively integrate the integrated groups
+        self.logger.info(f"Recursively integrating {len(integrated_groups)} integrated groups...")
+        return self._multi_round_integrate_framework_env(topic, integrated_groups, max_context_chars)
     
     def generate_framework_env_report(
         self, 
@@ -622,21 +746,31 @@ class CodeReportGenerator:
         
         return final_report
     
-    def _generate_batch_report(self, topic: str, paper_batchs: List[List[Dict]]) -> str:
+    def _generate_batch_report(self, topic: str, paper_batches: List[List[Dict]]) -> List[str]:
         """
-        Generate a code report for a batch of papers directly from pseudocode reports.
+        Generate code reports for multiple batches of papers directly from pseudocode reports.
         
         Args:
             topic: The research topic
-            papers_data: List of paper data dictionaries with paper_id and pseudocode_report
+            paper_batches: List of batches, where each batch is a list of paper data dictionaries
             
         Returns:
-            The generated report string
+            List of generated batch report strings
         """
+        if not paper_batches:
+            self.logger.warning("No paper batches provided to _generate_batch_report")
+            return []
+        
+        self.logger.info(f"Processing {len(paper_batches)} batches of papers")
+        
+        # Validate and build prompts for each batch
         prompts = []
-        for papers_data in paper_batchs:
+        batch_info = []  # Track info for logging
+        
+        for batch_idx, papers_data in enumerate(paper_batches):
             if not papers_data:
-                return "No papers data available for this batch."
+                self.logger.warning(f"Empty batch at index {batch_idx}, skipping")
+                continue
             
             # Build the prompt with all papers in the batch
             papers_content = []
@@ -657,68 +791,191 @@ class CodeReportGenerator:
                 pseudocode_reports=combined_content
             )
             prompts.append(prompt)
+            batch_info.append({
+                'batch_idx': batch_idx,
+                'num_papers': len(papers_data),
+                'paper_ids': [p.get('paper_id', f'Paper_{i}') for i, p in enumerate(papers_data)]
+            })
+            
+            self.logger.info(f"Prepared batch {batch_idx + 1}/{len(paper_batches)} with {len(papers_data)} papers")
+        
+        if not prompts:
+            self.logger.error("No valid prompts generated from batches")
+            return []
+        
+        # Validate function for batch report
+        def _validate_batch_report(result, info_dict = None):
+            if not isinstance(result, str):
+                raise ValueError(f"Generated batch code report is not a string type: {type(result)}.")
+            if not result or len(result) < 100:
+                raise ValueError(f"Generated batch code report is too short: {len(result)}, likely an error occurred, raw: {result}")
+            return True, result
 
-            def _validate_batch_report(result, info_dict = None):
-                if not result or len(result) < 100:
-                    raise ValueError("Generated batch code report is too short, likely an error occurred.")
-                if not isinstance(result, str):
-                    raise ValueError("Generated batch code report is not a string.")
-                return True, result
-
-        self.logger.info(f"Generating batch report for {len(papers_data)} papers...")
+        self.logger.info(f"Generating {len(prompts)} batch reports via API...")
         
         try:
             results = self.chat_agent.batch_remote_chat_with_retry(
-                prompts = prompts,
+                prompts=prompts,
                 validate_fn=_validate_batch_report,
                 max_retry=3,
-                desc = "Generating batch code reports",
-                temperature= 0.3,
+                desc="Generating batch code reports",
+                temperature=0.3,
             )
-            return results
+            
+            # Log success info
+            if isinstance(results, list):
+                self.logger.info(f"Successfully generated {len(results)} batch reports")
+                for i, result in enumerate(results):
+                    if result:
+                        self.logger.info(f"Batch {i+1} report length: {len(result)} chars")
+                    else:
+                        self.logger.warning(f"Batch {i+1} returned empty result")
+            else:
+                self.logger.warning(f"Unexpected result type: {type(results)}")
+            
+            return results if isinstance(results, list) else []
+            
         except Exception as e:
-            self.logger.error(f"Failed to generate batch report: {e}")
-            return f"Error generating report: {str(e)}"
+            self.logger.error(f"Failed to generate batch reports: {e}")
+            return []
     
-    def _integrate_reports(self, topic: str, batch_reports: List[str]) -> str:
+    def _integrate_reports(self, topic: str, batch_reports: List[str], max_context_chars: int = None) -> str:
         """
         Integrate multiple batch reports into a final comprehensive report.
+        Uses multi-round fallback when combined reports exceed context window.
         
         Args:
             topic: The research topic
             batch_reports: List of batch report strings
+            max_context_chars: Maximum characters per integration call 
             
         Returns:
             The integrated report
         """
         if not batch_reports:
             return "No reports to integrate."
+    
+        if max_context_chars is None:
+            max_context_chars = self.max_context_chars_for_integrate
         
         if len(batch_reports) == 1:
             # Only one batch, no integration needed
             return batch_reports[0]
         
-        # Combine all batch reports
+        # First attempt: try integrating all reports at once
         combined_reports = "\n\n==== BATCH SEPARATOR ====\n\n".join(
             f"=== Batch {i+1} ===\n{report}" 
             for i, report in enumerate(batch_reports)
         )
         
-        # Integration prompt in English
+        # Check if combined content fits in context
+        prompt_length = len(INTEGRATED_REPORT_PROMPT.format(topic=topic, combined_reports=combined_reports))
         
-        self.logger.info("Integrating batch reports into final report...")
+        if prompt_length <= max_context_chars:
+            self.logger.info("Integrating batch reports into final report...")
+            try:
+                result = self.chat_agent.remote_chat_with_retry(
+                    prompt=INTEGRATED_REPORT_PROMPT.format(topic=topic, combined_reports=combined_reports),
+                    temperature=0.3,
+                    max_retry=3,
+                )
+                return result
+            except Exception as e:
+                self.logger.warning(f"Failed to integrate all reports at once: {e}")
+                # Fall through to multi-round fallback
+        else:
+            self.logger.info(f"Combined reports exceed context ({prompt_length} chars), using multi-round fallback...")
         
-        try:
-            result = self.chat_agent.remote_chat_with_retry(
-                prompt=INTEGRATED_REPORT_PROMPT.format(topic=topic, combined_reports=combined_reports),
-                temperature=0.3,
-                max_retry = 3,
+        # Multi-round fallback: integrate in smaller groups
+        return self._multi_round_integrate_reports(topic, batch_reports, max_context_chars)
+    
+    def _multi_round_integrate_reports(self, topic: str, batch_reports: List[str], max_context_chars: int = None) -> str:
+        """
+        Multi-round integration when all batch reports don't fit in context.
+        Integrates reports in pairs/groups, then recursively integrates results.
+        
+        Args:
+            topic: The research topic
+            batch_reports: List of batch report strings
+            max_context_chars: Maximum characters per integration call
+            
+        Returns:
+            The integrated report
+        """
+        self.logger.info(f"Starting multi-round integration for {len(batch_reports)} batch reports...")
+        
+        # Base case: if only one or two reports, integrate directly
+        if len(batch_reports) <= 2:
+            combined = "\n\n==== BATCH SEPARATOR ====\n\n".join(
+                f"=== Batch {i+1} ===\n{report}" 
+                for i, report in enumerate(batch_reports)
             )
-            return result
-        except Exception as e:
-            self.logger.error(f"Failed to integrate reports: {e}")
-            # If integration fails, just concatenate the reports
-            return "\n\n".join(batch_reports)
+            try:
+                result = self.chat_agent.remote_chat_with_retry(
+                    prompt=INTEGRATED_REPORT_PROMPT.format(topic=topic, combined_reports=combined),
+                    temperature=0.3,
+                    max_retry=3,
+                )
+                return result
+            except Exception as e:
+                self.logger.error(f"Failed to integrate: {e}")
+                return "\n\n".join(batch_reports)
+        
+        # Group reports into pairs that fit within context
+        groups = []
+        current_group = []
+        current_group_size = 0
+        
+        for i, report in enumerate(batch_reports):
+            report_size = len(report)
+            separator_size = len(f"\n\n==== BATCH SEPARATOR ====\n\n=== Batch {len(current_group) + 1} ===\n")
+            
+            # Check if adding this report would exceed context
+            # Reserve space for prompt template (~1500 chars)
+            if current_group_size + report_size + separator_size > int(max_context_chars*0.9):
+                if current_group:
+                    groups.append(current_group)
+                current_group = [report]
+                current_group_size = report_size
+            else:
+                current_group.append(report)
+                current_group_size += report_size + separator_size
+        
+        if current_group:
+            groups.append(current_group)
+        
+        self.logger.info(f"Grouped {len(batch_reports)} reports into {len(groups)} integration groups")
+        
+        # Integrate each group
+        integrated_groups = []
+        for i, group in enumerate(groups):
+            if len(group) == 1:
+                integrated_groups.append(group[0])
+                self.logger.info(f"Group {i+1}: single report, no integration needed")
+            else:
+                combined = "\n\n==== BATCH SEPARATOR ====\n\n".join(
+                    f"=== Batch {j+1} ===\n{report}" 
+                    for j, report in enumerate(group)
+                )
+                try:
+                    result = self.chat_agent.remote_chat_with_retry(
+                        prompt=INTEGRATED_REPORT_PROMPT.format(topic=topic, combined_reports=combined),
+                        temperature=0.3,
+                        max_retry=3,
+                    )
+                    integrated_groups.append(result)
+                    self.logger.info(f"Group {i+1}: integrated {len(group)} reports into {len(result)} chars")
+                except Exception as e:
+                    self.logger.error(f"Failed to integrate group {i+1}: {e}")
+                    integrated_groups.append("\n\n".join(group))
+        
+        # If only one group, return it
+        if len(integrated_groups) == 1:
+            return integrated_groups[0]
+        
+        # Recursively integrate the integrated groups
+        self.logger.info(f"Recursively integrating {len(integrated_groups)} integrated groups...")
+        return self._multi_round_integrate_reports(topic, integrated_groups, max_context_chars)
     
     def generate_report(
         self, 
@@ -783,6 +1040,48 @@ class CodeReportGenerator:
         
         # Integrate all batch reports
         final_report = self._integrate_reports(topic, batch_reports)
+        
+        # Build repository name index from input papers (code-generated, not LLM-generated)
+        # This avoids LLM hallucination by using the actual input data
+        repo_names_set = set()
+        repo_paper_mapping = {}  # repo_name -> paper_id
+        
+        for paper in papers:
+            paper_id = paper.get('paper_id', '')
+            # Try to get repo_names from various possible keys
+            repo_names = paper.get('repo_names', [])
+            if not repo_names:
+                # Try alternative keys that might contain repo info
+                repo_names = paper.get('repos', [])
+            if not repo_names and 'pseudocodes' in paper:
+                # If no explicit repo_names, try to infer from paper structure
+                # Some papers may store repo info differently
+                pass
+            for repo_name in repo_names:
+                if repo_name and repo_name not in ['NOT_FOUND', None, '']:
+                    repo_names_set.add(repo_name)
+                    if repo_name not in repo_paper_mapping:
+                        repo_paper_mapping[repo_name] = []
+                    if paper_id not in repo_paper_mapping[repo_name]:
+                        repo_paper_mapping[repo_name].append(paper_id)
+        
+        # Append repository index to the report if we found any repos
+        if repo_names_set:
+            repo_index_header = "\n\n---\n\n## Repository Index\n\n"
+            repo_index_content = "The following repositories were analyzed in this report:\n\n"
+            
+            # Sort repo names for consistent output
+            sorted_repo_names = sorted(repo_names_set)
+            for idx, repo_name in enumerate(sorted_repo_names, 1):
+                paper_ids = repo_paper_mapping.get(repo_name, [])
+                if paper_ids:
+                    repo_index_content += f"{idx}. **{repo_name}** (Paper: {', '.join(paper_ids)})\n"
+                else:
+                    repo_index_content += f"{idx}. **{repo_name}**\n"
+            
+            final_report += repo_index_header + repo_index_content
+            if verbose:
+                self.logger.info(f"Appended repository index with {len(repo_names_set)} repos")
         
         if verbose:
             self.logger.info(f"Final report generated ({len(final_report)} chars)")

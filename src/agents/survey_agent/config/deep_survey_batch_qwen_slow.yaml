@@ -1,41 +1,45 @@
 BasicInfo:
   topic: ""
-  evaluation_save_path: "./outputs/xiaomi-batch-no-full-text-abstract-refinsquare/evaluation.txt"
+  evaluation_save_path: "./outputs/qwen-0407-deepsurvey_without_code_test/evaluation_10.txt"
   save_path: ""
   save_json_path: ""
   user_defiend_benchmarks: True
-  topic_path: ./topics/topics.txt
+  topic_path: ./topics/our_topics.txt
   AutoSurvey_benchmark: False
   SurveyGen_benchmark: False
   sub_benchmark_test: False
-  output_base_dir: ./outputs/xiaomi-batch-no-full-text-abstract-refinsquare
+  output_base_dir: ./outputs/qwen-0407-deepsurvey_without_code_test
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
-  topic_max_retry: 7
+  topic_max_retry: 3
   debug: True
   error_conservatism_mode: False
 APIInfo:
-  llm_api_key: 
-  llm_api_base_url: https://api.xiaomimimo.com/v1/chat/completions
-  llm_model_name: mimo-v2-flash
-  llm_max_context_length: 128000
+  llm_api_key: sk-6tT86nzygIVWl0naxnWo8SjI4ClTSzYl05nppF9sYuY 
+  llm_api_base_url: http://58.210.177.113:8889/v1/chat/completions
+  llm_model_name: Qwen3.5-397B-A17B
+  llm_max_context_length: 256000
   use_stream_mode: False
   batch_chat_agent_worker: 1
-  chat_timeout: 300
-  batch_chat_timeout: 1800
+  chat_timeout: 900
+  batch_chat_timeout: 2700
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
   low_flow_mode: True
-  low_flow_latency: 1.5
+  low_flow_latency: 3
+  exponential_backoff: True
+  exponential_backoff_time: 3
+  exponential_backoff_max_time: 60
   arxiv_api_max_retry: 3
-  semantic_scholar_api_max_retry: 3
+  semantic_scholar_api_max_retry: 5
 ModuleInfo:
   WorkCollector:
     download_safe_mode: False
-    download_timeout: 60
+    download_timeout: 180
     download_in_parallel: True
     download_parallel_workers: 8
-    max_seed_paper_num: 5
-    use_seed_filter_LLM: True
+    cache_enabled: True
+    max_seed_paper_num: 15
+    use_seed_filter_LLM: False
     LLM_seed_threshold: 4
     reference_graph_depth: 1
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
@@ -43,9 +47,9 @@ ModuleInfo:
     expand_in_local_paper_graph: False
     use_ds_when_graph_fail: True
     advanced_filter_in_local_paper_graph_expansion: True
-    related_work_top_k: 20  # for debug
+    related_work_top_k: 30  # for debug
     log_related_work_num: -1 # set to -1 to log all
-    related_work_threshold: 0.6
+    related_work_threshold: 0.5
     related_work_threshold_for_llm: 4 # 1-5 scale
     relatedness_temperature: 1.0
     RAG_source_use_embedding_filter: True
@@ -56,15 +60,15 @@ ModuleInfo:
   PaperGraphRetriever:
     db_path: data/processed/graph.db
   WorkAnalyzer:
-    abstract_only_mode: True
-    abstract_when_full_text_fail: False
+    abstract_only_mode: False
+    abstract_when_full_text_fail: True
     cache_enabled: True
     use_local_paper_graph_keynotes: True
     use_ds_keynotes_when_graph_fail: True
     graph_keynote_extraction_batch_retry: 7
     graph_graph_keynote_extraction_temperature: 0.1
     paper_reading_temperature: 1.0
-    paper_reading_max_retry: 5
+    paper_reading_max_retry: 6
     llm_max_context_overhead_length_in_paper_reading: 20000
     clustering_batch_size: 16
     clustering_temperature: 1.0
@@ -73,20 +77,21 @@ ModuleInfo:
     clustering_batch_size_in_assignment: 8
     cluster_assign_fast_mode: True
     paper_clustering_max_retry: 10
-    paper_clustering_creation_max_retry: 10
+    paper_clustering_creation_max_retry: 5
     paper_clustering_assignment_max_retry: 10
-    propose_question_temperature: 1.0
-    anwer_question_temperature: 1.0
-    intra_cluster_analysis_max_retry: 15
-    intra_cluster_analysis_temperature: 1.0
-    intra_clustering_probelm_proposing_max_retry: 20
+    propose_question_temperature: 0.5
+    anwer_question_temperature: 0.2
+    intra_cluster_analysis_max_retry: 10
+    intra_cluster_analysis_temperature: 0.5
+    intra_clustering_probelm_proposing_max_retry: 10
   SurveyGenerator:
-    include_initial_analysis: True
-    include_relation_graph: False
-    include_relation_table: False
+    include_initial_analysis: False
+    include_relation_graph: True
+    include_relation_table: True
+    include_code_report: False
     omit_error_preserve_retry_time: 2
     outline_generation_in_steps: True
-    outline_generation_draft_max_retry: 4
+    outline_generation_draft_max_retry: 10
     outline_generation_draft_batch_size: 20
     outline_draft_RAG_topk: 60
     outline_generation_assign_max_retry: 10
@@ -96,28 +101,28 @@ ModuleInfo:
     outline_generation_temperature: 0.5
     outline_generation_batch_size: 16
     outline_generation_max_retry: 3
-    outline_generation_max_retry_in_generation_loop: 15
-    subsection_draft_temperature: 1.0
-    subsection_draft_max_retry: 25
-    section_draft_max_retry: 25
-    section_draft_temperature: 1.0
-    draft_refinement_temperature: 1.0
+    outline_generation_max_retry_in_generation_loop: 6
+    subsection_draft_temperature: 0.7
+    subsection_draft_max_retry: 10
+    section_draft_max_retry: 10
+    section_draft_temperature: 0.3
+    draft_refinement_temperature: 0.1
     section_draft_max_error_info_length: 500
     subsection_draft_max_error_info_length: 500
     outline_max_error_info_length: 500
     llm_max_context_overhead_length_generation: 20000
     llm_max_context_overhead_length_outline_generation: 10000
-    subsection_least_words: 700
+    subsection_least_words: 3000
     subsection_least_citations: 15
-    section_least_words: 2000
-    section_least_citations: 25
-    draft_length_relax_ratio: 0.6
+    section_least_words: 100
+    section_least_citations: 3
+    draft_length_relax_ratio: 0.1
     use_full_text_in_survey_generation: False
-    include_other_relevant_papers_RAG_in_outline: False
-    outline_RAG_topk: 20
-    include_other_relevant_papers_RAG: False
-    section_RAG_topk: 20
-    subsection_RAG_topk: 20
+    include_other_relevant_papers_RAG_in_outline: True
+    outline_RAG_topk: 200
+    include_other_relevant_papers_RAG: True
+    section_RAG_topk: 60
+    subsection_RAG_topk: 60
     use_title_in_draft: True
     enable_review_and_revise: True
     section_review_temperature: 1.0
@@ -126,8 +131,8 @@ ModuleInfo:
     section_revision_RAG_topk: 30
     section_revise_temperature: 0.5
     section_revise_retry: 5
-    no_suggestion_run_each_iteration: 1
-    max_review_revise_iterations: 30
+    no_suggestion_run_each_iteration: 2
+    max_review_revise_iterations: 10
     draft_refinement_in_parts: True
     refine_in_parts_mode: 2
     draft_refinement_max_retry: 7
@@ -135,9 +140,16 @@ ModuleInfo:
     review_and_revise_whole_survey_max_iteration: 5
     valid_title_min_similarity: 0.5
   Judge:
+<<<<<<< HEAD:config/deep_survey_batch_xiaomi_abstract.yaml
     use_different_api_for_judge: True
     model: gpt-4o-mini
     judge_llm_api_key: 
+=======
+    skip_evaluation: True
+    use_different_api_for_judge: False
+    model: mimo-v2-flash
+    judge_llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f
+>>>>>>> origin/fix-main:config/deep_survey_batch_qwen_slow.yaml
     judge_llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
     nli_temperature: 0.1
     citation_quality_threshold: 0.5

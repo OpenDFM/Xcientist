@@ -1,16 +1,22 @@
 BasicInfo:
-  topic: Training-free Memory System for LLM Agents
+  topic: Transformer
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
+<<<<<<< HEAD
   save_path: ./outputs/test/0331-test-graph-test-fallback/Training-free_Memory_System_for_LLM_Agents.md
   save_json_path: ./outputs/test/0331-test-graph/Training-free_Memory_System_for_LLM_Agents.json
   evaluation_save_path: ./outputs/test/0331-test-graph/eval.txt
+=======
+  save_path: ./outputs/test/0407-test-cache/Transformer.md
+  save_json_path: ./outputs/test/0407-test-cache/Transformer.json
+  evaluation_save_path: ./outputs/test/0407-test-cache/eval.txt
+>>>>>>> origin/fix-main
   debug: True
   error_conservatism_mode: False
 APIInfo:
-  llm_api_key: sk-8b3f9c6d7a1e4f2c9d5b6a7e3c1f8d2a
-  llm_api_base_url: http://58.210.177.113:8888/v1/chat/completions
-  llm_model_name: mimo-v2-flash
+  llm_api_key: sk-cp-R6adkh_rPxXPH0S-t_gb4ughwyrDs2pc2m9laV4p6-sRlpjSrs5F5aXZRxqFiUVD88iaxJPr_E_Jf2DfC-eZZ7oc1ZlR50Bnjfe6Na6MNLh_c4eMGVjnuAc
+  llm_api_base_url: https://api.minimax.chat/v1/text/chatcompletion_v2
+  llm_model_name: minimax-m2.5
   llm_max_context_length: 180000
   use_stream_mode: false
   batch_chat_agent_worker: 8
@@ -19,6 +25,9 @@ APIInfo:
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
   low_flow_mode: False
   low_flow_latency: 0
+  exponential_backoff: True
+  exponential_backoff_time: 1
+  exponential_backoff_max_time: 60
   arxiv_api_max_retry: 3
   semantic_scholar_api_max_retry: 3
 ModuleInfo:
@@ -30,13 +39,13 @@ ModuleInfo:
     cache_enabled: True
     max_seed_paper_num: 10
     use_seed_filter_LLM: True
-    LLM_seed_threshold: 3
+    LLM_seed_threshold: 4
     reference_graph_depth: 1
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
     sentence_transformer_batch_size: 64
     expand_in_local_paper_graph: True
     use_ds_when_graph_fail: True
-    advanced_filter_in_local_paper_graph_expansion: False
+    advanced_filter_in_local_paper_graph_expansion: True
     related_work_top_k: 30  # for debug
     log_related_work_num: -1 # set to -1 to log all
     related_work_threshold: 0.5
@@ -78,6 +87,7 @@ ModuleInfo:
     include_initial_analysis: False
     include_relation_graph: True
     include_relation_table: True
+    include_code_report: False
     omit_error_preserve_retry_time: 2
     outline_generation_in_steps: True
     outline_generation_draft_max_retry: 3
@@ -129,6 +139,7 @@ ModuleInfo:
     review_and_revise_whole_survey_max_iteration: 5
     valid_title_min_similarity: 0.5
   Judge:
+    skip_evaluation: False
     use_different_api_for_judge: False
     model: mimo-v2-flash
     judge_llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f

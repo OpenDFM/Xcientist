@@ -106,50 +106,202 @@ def build_main_extraction_prompt(markdown_text: str, title: str, regex_candidate
     
     marked_text = mark_entities_in_text(markdown_text, regex_candidates['methods'], "HINT_METHOD")
     
-    system = """You are a Senior Research Analyst extracting structured metadata from academic papers.
+    core_type_reference = """
+Core Contribution Type Reference (Choose ONE single word):
+1. Methodological: Algorithm, Architecture, Framework, TrainingMethod, InferenceMethod, LossFunction, OptimizationTechnique
+2. System/Tool: System, Infrastructure, Tool, Library, Platform
+3. Data/Evaluation: Dataset, Benchmark, DataAugmentation, AnnotationScheme, EvaluationMetric, EvaluationProtocol
+4. Theoretical: TheoreticalFramework, TheoreticalProof, MathematicalFormulation, ComplexityAnalysis
+5. Analytical: EmpiricalAnalysis, ComparativeAnalysis, AblationAnalysis, ErrorAnalysis, Survey, Taxonomy
+6. Application: Application, CaseStudy, DomainAdaptation
+7. Others: Hybrid, Others
+
+OUTPUT FORMAT: Single word only (e.g., Algorithm, NOT Type: Algorithm)
+"""
+    
+    system = f"""You are a Senior Research Analyst extracting structured metadata from academic papers.
 
 CRITICAL GROUNDING RULES:
 1. Insight: Must provide INDEPENDENT ANALYSIS beyond summary. Describe prerequisites, trade-offs, design choices, or potential defects. DO NOT copy summary or quote.
 2. Quote: Must be VERBATIM text from the original paper. Use ... for exact excerpts. DO NOT paraphrase or fabricate.
 3. Summary: Concise factual description in natural sentence form.
-4. Keywords: Concept words used for COARSE-GRAINED RETRIEVAL and filtering.
+4. Keywords: Concept words used for COARSE-GRAINED RETRIEVAL and filtering. Choose representative terms that capture the essence for search/matching.
 
-PRIORITY: RECALL - Extract ALL relevant entities (cores, components, problems, innovations, limitations, future work).
+PRIORITY: RECALL - Extract ALL relevant entities (cores, components, problems, innovations, limitations, future work). Do not omit items due to uncertainty.
 
 Core vs Component Granularity Rules:
-- Core Contribution: The LARGEST, TOP-LEVEL contribution that is NOT contained by any other entity.
-- Component: ALL sub-elements that are PART OF a Core Contribution.
+- Core Contribution: The LARGEST, TOP-LEVEL contribution that is NOT contained by any other entity. This is the root method/system/dataset proposed.
+  Example: Swin Transformer (the overall architecture)
+  Characteristics: Has unique name, explicitly claimed as main contribution, can stand alone
+  
+- Component: ALL sub-elements, modules, techniques, or building blocks that are PART OF a Core Contribution.
+  Example: Shifted Window Mechanism, Patch Merging Layer (parts of Swin Transformer)
+  Characteristics: Cannot exist independently without the Core, implements specific functionality
+
+If unsure: Ask Can this exist independently, or is it always part of something bigger?
+- Independent -> Core
+- Part of bigger system -> Component
 
 Text Marking System:
-Markers like [HINT_METHOD:MethodName] are SUGGESTIONS only. Use them to guide attention but read the FULL paper independently.
+You will see markers like [HINT_METHOD:MethodName] in the text. These are SUGGESTIONS from pattern matching.
+- They may contain false positives or miss important entities
+- Use them to guide attention but read the FULL paper independently
+- Extract ALL relevant entities regardless of whether they have markers
 
-Output JSON Schema:
-{
-  "metadata": {
-    "title": "str (paper title, use EXACT title provided in the task)",
-    "domain": "str (from allowed domains)",
-    "paper_type": "str (from allowed types)",
-    "structured_summary": {"background": "str", "method": "str", "result": "str"},
-    "code_url": "str or null"
-  },
-  "problems": [{"keywords": ["str"], "summary": "str", "insight": "str", "quote": "str", "related_to_core": "str"}],
-  "core_contributions": [{"name": "str", "acronym": "str or null", "type": "str", "keywords": ["str"], "summary": "str", "insight": "str", "quote": "str"}],
-  "core_relations": [{"source": "str", "target": "str", "keywords": ["str"], "summary": "str", "insight": "str", "quote": "str"}],
-  "components": [{"name": "str", "acronym": "str or null", "related_to_core": "str", "keywords": ["str"], "summary": "str", "insight": "str", "quote": "str"}],
-  "innovations": [{"keywords": ["str"], "summary": "str", "insight": "str", "quote": "str", "related_to_core": "str"}],
-  "limitations": [{"keywords": ["str"], "summary": "str", "insight": "str", "quote": "str", "related_to_core": "str"}],
-  "future_work": [{"keywords": ["str"], "summary": "str", "insight": "str", "quote": "str", "related_to_core": "str"}]
-}
+Few-Shot Examples:
 
-CRITICAL: Follow exact attribute order. Ignore [HINT_METHOD:...] markers in output."""
+Example 1: Clear Core-Component Hierarchy
+Paper: Swin Transformer: Hierarchical Vision Transformer using Shifted Windows
 
-    user = f"""Domain options: {domain_str}
-Type options: {type_str}
+Core Contribution:
+  name: Swin Transformer
+  acronym: SwinT
+  type: Architecture
+  keywords: [hierarchical transformer, shifted windows, vision backbone]
+  summary: Hierarchical vision transformer using shifted windows for efficient attention
+  insight: Trade-off: Achieves O(n) complexity via window-based computation but sacrifices some long-range modeling capability compared to full self-attention
+  quote: We propose Swin Transformer, a hierarchical Transformer whose representation is computed with shifted windows
 
-FULL PAPER TEXT (marked suggestions):
+Components (ALL parts of Swin Transformer):
+  1. name: Shifted Window Mechanism
+     acronym: null
+     related_to_core: Swin Transformer
+     keywords: [window attention, cross-window connection]
+     summary: Window-based self-attention with shifting for cross-window connections
+     insight: Design choice: 7x7 window balances efficiency and receptive field. Potential defect: Window boundaries may cause artifacts for objects spanning multiple windows
+     quote: The shifted windowing scheme bridges the windows of the preceding layer
+  
+  2. name: Patch Merging Layer
+     acronym: null
+     related_to_core: Swin Transformer
+     keywords: [downsampling, hierarchical features]
+     summary: Downsampling layer that concatenates neighboring patch features
+     insight: Design choice: 2x2 merging reduces resolution while doubling channels. Potential defect: Loses fine-grained spatial information needed for dense prediction
+     quote: The patch merging layer concatenates the features of each group of 2x2 neighboring patches
+
+Example 2: Multiple Cores
+Paper proposes BOTH a new method AND a new dataset:
+
+Core 1:
+  name: RainNet
+  acronym: null
+  type: Algorithm
+  keywords: [rain removal, weather robustness]
+  
+Core 2:
+  name: RainCityscapes
+  acronym: null
+  type: Dataset
+  keywords: [rainy driving, synthetic weather]
+
+Component of Core 1:
+  name: Weather Augmentation Module
+  acronym: WAM
+  related_to_core: RainNet
+  keywords: [data augmentation, rain synthesis]
+"""
+
+    user = f"""
+{core_type_reference}
+
+FULL PAPER TEXT (Some entities marked with [HINT_METHOD:...] as suggestions only):
 {marked_text}
 
 Task: Extract structured information for paper titled "{title}"
+
+Output JSON Schema (FOLLOW THIS EXACT ATTRIBUTE ORDER):
+{{
+  "metadata": {{
+    "title": "str (paper title, use EXACT title provided in the task)",
+    "domain": "str (from: {domain_str})",
+    "paper_type": "str (from: {type_str})",
+    "structured_summary": {{
+      "background": "str",
+      "method": "str",
+      "result": "str"
+    }},
+    "code_url": "str or null"
+  }},
+  "problems": [
+    {{
+      "keywords": ["str"],
+      "summary": "str",
+      "insight": "str (MUST be independent analysis)",
+      "quote": "str (MUST be verbatim)",
+      "related_to_core": "str"
+    }}
+  ],
+  "core_contributions": [
+    {{
+      "name": "str (TOP-LEVEL entity)",
+      "acronym": "str or null",
+      "type": "str (SINGLE WORD)",
+      "keywords": ["str"],
+      "summary": "str",
+      "insight": "str (prerequisites, trade-offs, design rationale)",
+      "quote": "str"
+    }}
+  ],
+  "core_relations": [
+    {{
+      "source": "str (core name)",
+      "target": "str (core name)",
+      "keywords": ["str"],
+      "summary": "str (natural sentence)",
+      "insight": "str (why relationship exists)",
+      "quote": "str"
+    }}
+  ],
+  "components": [
+    {{
+      "name": "str (MUST NOT be same as core name)",
+      "acronym": "str or null",
+      "related_to_core": "str (MUST link to parent Core)",
+      "keywords": ["str"],
+      "summary": "str",
+      "insight": "str (MUST include design choices AND potential defects)",
+      "quote": "str"
+    }}
+  ],
+  "innovations": [
+    {{
+      "keywords": ["str"],
+      "summary": "str",
+      "insight": "str",
+      "quote": "str",
+      "related_to_core": "str"
+    }}
+  ],
+  "limitations": [
+    {{
+      "keywords": ["str"],
+      "summary": "str",
+      "insight": "str",
+      "quote": "str",
+      "related_to_core": "str"
+    }}
+  ],
+  "future_work": [
+    {{
+      "keywords": ["str"],
+      "summary": "str",
+      "insight": "str",
+      "quote": "str",
+      "related_to_core": "str"
+    }}
+  ]
+}}
+
+CRITICAL REMINDERS:
+1. PRIORITY: RECALL - Extract ALL entities, even if uncertain
+2. Core vs Component: Use hierarchy rules above
+3. Type field: Single word only
+4. Insight: Independent analysis, not copy of summary/quote
+5. Quote: Verbatim text with ... markers
+6. Components: MUST discuss potential defects
+7. Keywords: Choose terms for RETRIEVAL and FILTERING purposes
+8. Attribute order: MUST follow schema order exactly (keywords first, then summary, insight, quote)
+9. Ignore [HINT_METHOD:...] markers in your output
 
 Return JSON only:"""
     
@@ -167,32 +319,120 @@ def build_baseline_extraction_prompt(markdown_text: str, core_names: List[str], 
     
     system = """You are a Research Graph Builder focusing on relationship extraction.
 
-CRITICAL: summary/insight/quote describe THE RELATIONSHIP/COMPARISON, NOT the entity itself.
+CRITICAL: For Baselines and Datasets, the summary/insight/quote fields describe THE RELATIONSHIP/COMPARISON, NOT the entity itself.
 
-PRIORITY: RECALL > PRECISION. Extract ALL baselines and datasets from:
-- Experimental results, Related Work, Appendix, Theoretical comparisons
+PRIORITY: RECALL > PRECISION
+Your PRIMARY GOAL is to extract ALL baselines and datasets mentioned, especially from:
+- Experimental results (tables, figures)
+- Related Work section
+- Appendix (supplementary experiments)
+- Theoretical comparisons (complexity analysis)
 
-What is a Baseline:
-1. Competitors in result tables
-2. Predecessors this work builds upon
-3. Related work discussed as alternatives
-4. Ablation variants (e.g., Ours w/o attention)
-5. For Dataset papers: Previous datasets compared
+It is BETTER to include a questionable baseline than to miss a real one.
 
-Output JSON Schema:
+Text Marking System:
+You will see markers like [HINT_BASELINE:MethodName] - these are SUGGESTIONS only.
+Read Experiments, Related Work, and Appendix thoroughly to find ALL baselines.
+
+Keywords Usage:
+Keywords should capture key concepts for COARSE-GRAINED RETRIEVAL. Choose representative terms for filtering and search.
+
+Example Baseline Entry:
 {
-  "baselines": [{"name": "str", "acronym": "str or null", "related_to_core": "str", "keywords": ["str"], "summary": "str", "metrics": ["str"] or null, "insight": "str", "quote": "str"}],
-  "datasets": [{"name": "str", "acronym": "str or null", "related_to_core": "str", "keywords": ["str"], "summary": "str", "metrics": ["str"] or null, "insight": "str", "quote": "str"}]
+  "name": "ResNet-50",
+  "acronym": null,
+  "related_to_core": "Swin Transformer",
+  "keywords": ["residual network", "image classification"],
+  "summary": "Our SwinT outperforms this baseline by 3.2 percent on ImageNet top-1 accuracy",
+  "metrics": ["Top-1 Accuracy", "Top-5 Accuracy"],
+  "insight": "Performance gap stems from ResNet lack of long-range modeling vs attention mechanisms",
+  "quote": "Our method achieves 82.1 percent top-1 accuracy, surpassing ResNet-50 78.9 percent"
 }
 
-Never include Core Contributions from THIS paper as baselines."""
+Example Dataset Entry:
+{
+  "name": "ImageNet-1K",
+  "acronym": "IN-1K",
+  "related_to_core": "Swin Transformer",
+  "keywords": ["image classification", "large-scale benchmark"],
+  "summary": "Primary benchmark used to evaluate classification performance",
+  "metrics": ["Top-1 Accuracy", "Top-5 Accuracy"],
+  "insight": "ImageNet diversity makes it the de facto standard, though class distribution may not reflect real-world scenarios",
+  "quote": "We evaluate on ImageNet-1K ILSVRC2012 validation set"
+}"""
 
-    user = f"""Core Methods in THIS Paper (DO NOT include as baselines): {json.dumps(core_names)}
+    user = f"""
+Core Methods Proposed in THIS Paper (DO NOT include as baselines): {json.dumps(core_names)}
 
-FULL PAPER TEXT (focus especially on Experiments, Related Work, Appendix):
+FULL PAPER TEXT (Some baselines marked with [HINT_BASELINE:...] as suggestions):
+Focus especially on:
+- Experimental Results sections
+- Related Work section
+- Appendix / Supplementary Material
+- Theoretical Comparisons
+
 {marked_text}
 
-Task: Extract ALL baselines and datasets.
+Task: Extract ALL baselines and datasets with MAXIMUM RECALL.
+
+PRIORITY: RECALL - When in doubt, INCLUDE the baseline. Missing a baseline is worse than false positive.
+
+What is a Baseline (Expanded):
+1. Competitors: Methods explicitly compared in result tables
+2. Predecessors: Methods this work builds upon, improves, or fixes
+3. Related Work: Methods discussed as alternatives or inspiration
+4. Theoretical Comparisons: Methods compared in complexity analysis
+5. Appendix Comparisons: Additional baselines in supplementary experiments
+6. For Dataset Papers: Previous datasets compared OR models evaluated on new benchmark
+7. For Analysis Papers: Systems/methods being analyzed
+8. Ablation Variants: Simplified versions of proposed method (e.g., Ours w/o attention)
+
+Naming Convention:
+- Prioritize Method Name (e.g., SimCLR, Faster R-CNN, ImageNet-1K)
+- Only use Author Name (e.g., He et al.) IF method has no specific name
+- For ablations: Use descriptive name (e.g., SwinT w/o shifted windows)
+
+CONSTRAINT: 
+Baselines must ONLY contain PREVIOUS EXISTING ENTITIES or ABLATION VARIANTS.
+NEVER include full Core Contributions from THIS paper ({core_names}).
+
+Output JSON Schema (FOLLOW THIS EXACT ATTRIBUTE ORDER):
+{{
+  "baselines": [
+    {{
+      "name": "str",
+      "acronym": "str or null",
+      "related_to_core": "str (which core compared to)",
+      "keywords": ["str"],
+      "summary": "str (natural sentence about relationship)",
+      "metrics": ["str"] or null,
+      "insight": "str (WHY performance gap or relationship exists)",
+      "quote": "str (evidence)"
+    }}
+  ],
+  "datasets": [
+    {{
+      "name": "str",
+      "acronym": "str or null",
+      "related_to_core": "str",
+      "keywords": ["str"],
+      "summary": "str (how dataset is used)",
+      "metrics": ["str"] or null,
+      "insight": "str (why chosen, what reveals)",
+      "quote": "str"
+    }}
+  ]
+}}
+
+CRITICAL REMINDERS:
+1. PRIORITY: RECALL - Extract ALL from experiments, related work, appendix, theory
+2. summary/insight/quote: Describe THE EDGE (relationship), not node (entity)
+3. metrics: List of metric NAMES only (e.g., [Accuracy, F1]), OR null if not applicable
+4. Attribute order: MUST follow schema (name, acronym, related_to_core, keywords, summary, metrics, insight, quote)
+5. Keywords: Choose terms for RETRIEVAL purposes
+6. Verify entities appear in paper (no hallucination)
+7. When uncertain, INCLUDE IT
+8. Ignore [HINT_BASELINE:...] markers in output
 
 Return JSON only:"""
     
@@ -517,11 +757,23 @@ def format_extraction_result(result: dict) -> str:
             formatted += f"  - {core.get('name', 'N/A')}: {core.get('summary', 'N/A')}\n"
             formatted += f"    Insight: {core.get('insight', 'N/A')}\n"
     
+    # Add Components section
+    components = ideation.get('components', [])
+    if components:
+        formatted += f"\nComponents:\n"
+        for comp in components:
+            related_to_core = comp.get('related_to_core', 'N/A')
+            formatted += f"  - {comp.get('name', 'N/A')} (Part of: {related_to_core})\n"
+            formatted += f"    Summary: {comp.get('summary', 'N/A')}\n"
+            formatted += f"    Insight: {comp.get('insight', 'N/A')}\n"
+    
     all_keywords = []
     for core in cores:
         all_keywords.extend(core.get('keywords', []))
+    for comp in components:
+        all_keywords.extend(comp.get('keywords', []))
     if all_keywords:
-        formatted += f"Keywords: {', '.join(all_keywords[:10])}\n"
+        formatted += f"\nKeywords: {', '.join(all_keywords[:15])}\n"
     
     return formatted
 

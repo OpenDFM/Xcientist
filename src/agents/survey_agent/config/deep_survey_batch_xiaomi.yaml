@@ -1,14 +1,14 @@
 BasicInfo:
   topic: ""
-  evaluation_save_path: "./outputs/xiaomi-0309-test-refinement2-no-whole-revise-graph-and-initial/evaluation_10.txt"
+  evaluation_save_path: "./outputs/xiaomi-0407-deepsurvey_without_code_test/evaluation_10.txt"
   save_path: ""
   save_json_path: ""
   user_defiend_benchmarks: True
-  topic_path: ./topics/debug_topics.txt
+  topic_path: ./topics/our_topics.txt
   AutoSurvey_benchmark: False
   SurveyGen_benchmark: False
   sub_benchmark_test: False
-  output_base_dir: ./outputs/xiaomi-0309-test-refinement2-no-whole-revise-graph-and-initial
+  output_base_dir: ./outputs/xiaomi-0407-deepsurvey_without_code_test
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
   topic_max_retry: 3
@@ -20,12 +20,15 @@ APIInfo:
   llm_model_name: mimo-v2-flash
   llm_max_context_length: 256000
   use_stream_mode: False
-  batch_chat_agent_worker: 1
-  chat_timeout: 300
+  batch_chat_agent_worker: 8
+  chat_timeout: 600
   batch_chat_timeout: 1800
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
-  low_flow_mode: True
+  low_flow_mode: False
   low_flow_latency: 2
+  exponential_backoff: True
+  exponential_backoff_time: 1
+  exponential_backoff_max_time: 60
   arxiv_api_max_retry: 3
   semantic_scholar_api_max_retry: 5
 ModuleInfo:
@@ -74,17 +77,18 @@ ModuleInfo:
     clustering_batch_size_in_assignment: 8
     cluster_assign_fast_mode: True
     paper_clustering_max_retry: 10
-    paper_clustering_creation_max_retry: 3
+    paper_clustering_creation_max_retry: 5
     paper_clustering_assignment_max_retry: 10
-    propose_question_temperature: 1.0
-    anwer_question_temperature: 1.0
+    propose_question_temperature: 0.5
+    anwer_question_temperature: 0.2
     intra_cluster_analysis_max_retry: 10
-    intra_cluster_analysis_temperature: 1.0
+    intra_cluster_analysis_temperature: 0.5
     intra_clustering_probelm_proposing_max_retry: 10
   SurveyGenerator:
-    include_initial_analysis: True
+    include_initial_analysis: False
     include_relation_graph: True
-    include_relation_table: False
+    include_relation_table: True
+    include_code_report: False
     omit_error_preserve_retry_time: 2
     outline_generation_in_steps: True
     outline_generation_draft_max_retry: 10
@@ -98,11 +102,11 @@ ModuleInfo:
     outline_generation_batch_size: 16
     outline_generation_max_retry: 3
     outline_generation_max_retry_in_generation_loop: 6
-    subsection_draft_temperature: 1.0
+    subsection_draft_temperature: 0.7
     subsection_draft_max_retry: 10
     section_draft_max_retry: 10
-    section_draft_temperature: 1.0
-    draft_refinement_temperature: 1.0
+    section_draft_temperature: 0.3
+    draft_refinement_temperature: 0.1
     section_draft_max_error_info_length: 500
     subsection_draft_max_error_info_length: 500
     outline_max_error_info_length: 500
@@ -136,6 +140,7 @@ ModuleInfo:
     review_and_revise_whole_survey_max_iteration: 5
     valid_title_min_similarity: 0.5
   Judge:
+    skip_evaluation: True
     use_different_api_for_judge: False
     model: mimo-v2-flash
     judge_llm_api_key: 

@@ -37,7 +37,7 @@ class RichLogger:
                 show_time=True,
                 show_level=True,
                 show_path=False,
-                markup=True,
+                markup=False,
                 omit_repeated_times=False,
             )
             rich_handler.setLevel(level)

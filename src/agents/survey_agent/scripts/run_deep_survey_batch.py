@@ -39,6 +39,7 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
         logger.info("Building paper embedding database...")
         database.build_with_graph()
         logger.info("Paper embedding database built.")
+        logger.info(f"valid_paper_ids: {database.valid_paper_ids}")
             
         # step 2: comprehend papers
         logger.info("Comprehending papers...")

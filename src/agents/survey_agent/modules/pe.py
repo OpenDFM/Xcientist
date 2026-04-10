@@ -445,6 +445,74 @@ You are provided with the outline of the whole survey. Make sure the subsection 
 - Generate the content directly. DO NOT generate any subsection title or section header here.
 """
 
+SUBSECTION_DRAFT_WITH_CODE = """You are an expert in writing surveys. Our ultimate goal is to complete a acadamic survey with depth, insights and can boost further development, rather than simply listing methods.
+
+Now you are responsible for writing a subsection of the survey paper. 
+
+### Subsection Title:
+{title}
+
+### Guidance:
+Write a coherent subsection that explains, analyzes, or discusses the topic indicated in the title and description.  
+You should synthesize relevant information from the papers, analysis results.  
+The content should be academically structured and readable, with emphasis on insights, trends, and comparisons where appropriate.
+You may include examples from papers to support the discussion, but do not simply list papers.
+You are encouraged to cite more papers from the relevant papers to strengthen your points.
+You are provided with the outline of the whole survey. Make sure the subsection content coherent to the survey logic.
+
+{code_report_prompt}
+
+### Information to use:
+- Subsection description:
+{description}
+
+- Closely Relevant papers:
+{papers}
+
+- Other Relevant papers:
+{other_relevant_papers}
+
+- Survey Outline:
+{survey_outline}
+
+- Insights from analysis:
+{relevant_analysis}
+
+### Output:
+- A well-written subsection in several coherent paragraphs.
+- Academic style; focused on synthesis and analysis, not just reporting.
+- **Only** cite papers that appear in the provided input.
+- Strictly use format: <paper_title> (like <Attention is All You Need>) to cite wherever appropriate.
+- Cite at least **{subsection_least_citations} different papers** for a subsection. You are encouraged to cite more papers to give in-depth analysis..
+- Do not generate a bibliography or reference list here.
+- The content of each subsection should be at least {subsection_least_words} words long!!
+- Generate the content directly. DO NOT generate any subsection title or section header here.
+"""
+
+CODE_REPORT_PROMPT = """### Code Report Context:
+In addition to the paper analysis, you are provided with a **Code Report** that contains comprehensive framework selection and environment configuration guidance for the papers in this survey topic. This report provides:
+
+1. **Framework Selection Analysis**: Which frameworks (PyTorch, TensorFlow, JAX, etc.) are used across repositories; their versions and suitability for different scenarios; strengths and weaknesses of each framework choice
+2. **Environment Configuration Guidance**: Common dependency patterns, key packages and version requirements, special requirements (GPU support, CUDA versions), environment setup best practices
+3. **Base Framework Recommendations**: Assessment of repository suitability as base frameworks for further research; code quality, documentation, extensibility, and community activity considerations
+4. **Sub-direction Analysis**: Which repositories are best suited for different research sub-directions; patterns in framework choices across research directions
+
+**How to use the Code Report:**
+- **Reference framework choices**: When discussing methods, consider which frameworks are commonly used and why certain frameworks might be preferred for specific approaches
+- **Discuss practical considerations**: Include computational requirements, library preferences, and training complexities when explaining methods
+- **Use implementation insights**: Leverage framework and environment guidance to provide deeper technical analysis beyond what is described in papers
+- **Balance theory and practice**: Combine theoretical descriptions with practical implementation considerations where relevant
+
+**IMPORTANT Usage Guidelines:**
+- **Stay within subsection scope**: Only use code report content that is relevant to the current subsection topic. Do not introduce framework details that fall outside the subsection's theme or scope
+- **Balance depth and readability**: Use implementation considerations to enrich analysis, but avoid over-emphasizing technical setup details at the expense of methodological analysis
+- **Focus on synthesis**: Integrate framework insights with paper analysis to provide comprehensive understanding of both theoretical and practical aspects
+- **Academic tone**: Present framework and environment insights in an academic style, explaining significance rather than technical setup instructions
+
+**Code Report:**
+{code_report}
+"""
+
 PAPER_RELATIONSHIP_ANALYSIS = """You are an expert researcher analyzing the citation relationship between two scientific papers to understand the evolution of ideas.
 
 Paper A (The Citer) cites Paper B (The Cited).

@@ -4,6 +4,8 @@ import math
 from modules.pe import (
     SURVEY_OUTLINE_GENERATION,
     SUBSECTION_DRAFT,
+    SUBSECTION_DRAFT_WITH_CODE,
+    CODE_REPORT_PROMPT,
     SECTION_DRAFT,
     DRAFT_REFINEMENT,
     ERROR_FEEDBACK_PROMPT,
@@ -831,10 +833,19 @@ class SurveyGenerator:
 
         return prompt, valid_paper_ids
 
-    def draft_survey(self, intra_analysis_results, inter_analysis_results, outline):
+    def draft_survey(self, intra_analysis_results, inter_analysis_results, outline, code_report=None):
         relevant_analysis = self.format_papers_analysis(
             intra_analysis_results, inter_analysis_results
         )
+
+        # Determine which template to use based on whether code_report is provided
+        use_code_template = code_report is not None
+        if use_code_template:
+            self.logger.info("Code report provided. Using code-aware prompt template for subsection drafting.")
+            code_report_prompt = CODE_REPORT_PROMPT.format(code_report=code_report)
+        else:
+            code_report_prompt = ""
+            self.logger.info("No code report provided. Using standard prompt template for subsection drafting.")
 
         # Minimal word count for any draft validation (0 means disabled).
 
@@ -859,12 +870,16 @@ class SurveyGenerator:
                     "subsection_least_words": subsection_least_words,
                     "subsection_least_citations": subsection_least_citations,
                     "survey_outline": json.dumps(outline, ensure_ascii=False),
+                    "code_report_prompt": code_report_prompt,
                     # "section_index": section_index + 1,
                     # "subsection_index": subsection_index + 1
                 }
 
+                # Use code-aware template if code_report is provided, otherwise use standard template
+                template = SUBSECTION_DRAFT_WITH_CODE if use_code_template else SUBSECTION_DRAFT
+                
                 prompt, valid_paper_ids = self.build_prompt_with_truncation(
-                                                                    template = SUBSECTION_DRAFT, 
+                                                                    template = template, 
                                                                     papers_list = subsection.get("papers_to_use", []), 
                                                                     params = params_dict
                                                                 )

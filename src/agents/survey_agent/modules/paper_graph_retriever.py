@@ -41,6 +41,10 @@ class PaperGraphRetriever:
         self.graph_keynotes_cache = dc.Cache(
             os.path.join(cache_path, "graph_keynotes")
         )
+        
+        # Initialize constructed_nodes directory for saving extraction results
+        self.constructed_nodes_path = os.path.join(cache_path, "constructed_nodes")
+        os.makedirs(self.constructed_nodes_path, exist_ok=True)
 
     def search_by_paper_title(self, title_query: str, limit: int = 20):
         """
@@ -521,6 +525,10 @@ class PaperGraphRetriever:
                     cache_key = f"keynote_{node_id}"
                     self.graph_keynotes_cache[cache_key] = keynote
                     self._write_keynote_to_db(node_id, keynote)
+                
+                # Save the full extraction result dict as JSON file
+                if extraction:
+                    self._save_extraction_result_to_json(node_id, extraction)
 
         # Step 3: Collect error IDs
         for idx, result in enumerate(results):
@@ -579,6 +587,21 @@ class PaperGraphRetriever:
         except Exception as e:
             self.logger.warning(f"Failed to read keynote from database for {node_id}: {e}")
             return None
+    
+    def _save_extraction_result_to_json(self, node_id: str, extraction_result: dict):
+        """Save the full extraction result dict as JSON file to constructed_nodes directory."""
+        import json
+        try:
+            # Sanitize node_id for filename (remove invalid characters)
+            safe_node_id = re.sub(r'[<>:"/\\|?*]', '_', str(node_id))
+            json_path = os.path.join(self.constructed_nodes_path, f"{safe_node_id}.json")
+            
+            with open(json_path, 'w', encoding='utf-8') as f:
+                json.dump(extraction_result, f, indent=2, ensure_ascii=False)
+            
+            self.logger.info(f"Saved extraction result to {json_path}")
+        except Exception as e:
+            self.logger.warning(f"Failed to save extraction result to JSON for {node_id}: {e}")
     
     def get_paper_markdown(self, node_id: str) -> Optional[str]:
         """Get the raw markdown text for a paper via data_manager."""

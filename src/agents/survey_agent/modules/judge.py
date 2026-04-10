@@ -263,6 +263,8 @@ class Judge():
         eval_log = ""
         return_dict = {}
         reason_dict = {}
+        if self.config.ModuleInfo.Judge.skip_evaluation:
+            return return_dict, reason_dict
         
         if self.config.ModuleInfo.Judge.rubrics_eval_4_dimensions:
             criterion = ['Coverage', 'Structure','Relevance','Depth', 'Rigor&Authenticity']
