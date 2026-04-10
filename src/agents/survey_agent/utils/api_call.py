@@ -223,7 +223,6 @@ class ChatAgent:
         debug: bool = False,
         model=None,
         max_output_tokens: int = 16000,
-        request_timeout: float = None,
     ) -> str:
         """Chat with remote LLM, return result. Minimal logging; no file writes."""
         if model is None:
@@ -333,7 +332,6 @@ class ChatAgent:
         content,
         temperature: float = 0.5,
         debug: bool = False,
-        request_timeout: float = None,
     ):
         model = self.model_name
         return index, self.remote_chat(
@@ -343,7 +341,6 @@ class ChatAgent:
             temperature=temperature,
             debug=debug,
             model=model,
-            request_timeout=request_timeout,
         )
 
     def _default_validate_fn(self, result: str, info_dict: dict = None) -> bool:
@@ -457,7 +454,6 @@ class ChatAgent:
                     prompt_l[i],
                     temperature,
                     False,
-                    request_timeout,
                 )
                 for i in range(len(prompt_l))
             ]
