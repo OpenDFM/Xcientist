@@ -10,8 +10,8 @@ import numpy as np
 from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
-from memory.memory_system.models import EpisodicRecord, ProceduralRecord, SemanticRecord
-from memory.memory_system.utils import _jsonable_meta, _nomralize_embedding
+from src.memory.memory_system.models import EpisodicRecord, ProceduralRecord, SemanticRecord
+from src.memory.memory_system.utils import _jsonable_meta, _nomralize_embedding
 
 
 class VectorStore(ABC):

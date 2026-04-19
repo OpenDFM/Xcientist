@@ -58,6 +58,11 @@ memory_test_1/
 memory_validation/
 .codex
 skills/
+AGENTS.md
+.python-version
+uv.lock/
+.pip-cache/
+.uv-cache/
 
 # Pipeline workspace
 workspace/
@@ -76,4 +81,4 @@ data/
 
 # Embedding Models
 models/
-AGENTS.md
+

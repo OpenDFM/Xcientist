@@ -1,4 +1,4 @@
-"""Pipeline runner: Survey -> Idea -> Experiment loop with unified workspace and resume"""
+"""Pipeline runner: Survey -> Idea -> Experiment loop with unified workspace and resume."""
 
 import json
 import os
@@ -13,10 +13,8 @@ from typing import Any, Dict, Optional
 
 from omegaconf import OmegaConf
 
-from .experiment_to_symbolic import convert_ablation_to_symbolic_memory
-
-# Import unified config
 from src.config import load_config
+from .experiment_to_symbolic import convert_ablation_to_symbolic_memory
 
 
 def _generate_pipeline_name(topic: str) -> str:
@@ -87,31 +85,32 @@ def _mark_phase_complete(phase_name: str, state: Dict) -> None:
 
 def _get_subprocess_env() -> dict:
     """Get environment variables for subprocess, including .env values."""
-    # Start with parent environment
     env = os.environ.copy()
 
-    # Ensure .env variables are available in subprocess
     from dotenv import load_dotenv
-    from pathlib import Path
-    env_file = Path(__file__).parent.parent / "config" / ".env"
-    if env_file.exists():
-        load_dotenv(env_file, override=True)
-        # Update env with .env values (they may not be in parent env)
-        all_keys = [
-            "OPENAI_API_KEY",
-            "OPENAI_API_BASE",
-            "OPENAI_BASE_URL",
-            "S2_API_KEY",
-            "S2_API_TIMEOUT",
-            "SEMANTIC_SCHOLAR_API_KEY",
-            "SERPER_API_KEY",
-            "MINIMAX_API_KEY",
-            "JINA_API_KEY",
-            "HF_TOKEN",
-            "http_proxy",
-            "https_proxy",
-            "OPENHANDS_MCP_TIMEOUT",
-        ]
+    env_files = [
+        Path(__file__).resolve().parents[2] / ".env",
+        Path(__file__).resolve().parents[1] / "config" / ".env",
+    ]
+    all_keys = [
+        "OPENAI_API_KEY",
+        "OPENAI_API_BASE",
+        "OPENAI_BASE_URL",
+        "S2_API_KEY",
+        "S2_API_TIMEOUT",
+        "SEMANTIC_SCHOLAR_API_KEY",
+        "SERPER_API_KEY",
+        "MINIMAX_API_KEY",
+        "JINA_API_KEY",
+        "HF_TOKEN",
+        "http_proxy",
+        "https_proxy",
+        "OPENHANDS_MCP_TIMEOUT",
+    ]
+    for env_file in env_files:
+        if not env_file.exists():
+            continue
+        load_dotenv(env_file, override=False)
         for key in all_keys:
             if key not in env or not env.get(key):
                 val = os.environ.get(key)

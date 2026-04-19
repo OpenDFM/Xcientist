@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from pydantic import BaseModel, Field, field_validator, validate_call
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union
 
-from memory.memory_system import (
+from src.memory.memory_system import (
     FaissVectorStore,
     SemanticRecord,
     EpisodicRecord,

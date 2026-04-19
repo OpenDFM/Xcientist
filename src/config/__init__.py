@@ -1,4 +1,4 @@
-"""Unified configuration loader for X-Scientist"""
+"""Unified configuration loader for Xcientist."""
 
 import os
 import re
@@ -6,12 +6,19 @@ from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
 
-# Try to load .env file
-_env_path = Path(__file__).parent / ".env"
-if _env_path.exists():
-    load_dotenv(_env_path, override=True)
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_CONFIG_PATH = Path(__file__).parent / "default.yaml"
+_ENV_CANDIDATES = (
+    REPO_ROOT / ".env",
+    Path(__file__).parent / ".env",
+)
+
+for _env_path in _ENV_CANDIDATES:
+    if _env_path.exists():
+        load_dotenv(_env_path, override=False)
 
 # Global config cache
 _config: Optional[DictConfig] = None
@@ -31,7 +38,8 @@ def load_config(config_path: Optional[str] = None) -> DictConfig:
     if _config is not None and config_path is None:
         return _config
 
-    config_file = Path(config_path) if config_path else Path(__file__).parent / "default.yaml"
+    config_source = config_path or os.environ.get("XCIENTIST_CONFIG_PATH")
+    config_file = Path(config_source) if config_source else DEFAULT_CONFIG_PATH
 
     if not config_file.exists():
         raise FileNotFoundError(f"Config file not found: {config_file}")
@@ -78,7 +86,7 @@ def _preprocess_yaml_content(content: str) -> str:
 
 def _resolve_workspace(config: DictConfig) -> DictConfig:
     """Resolve custom path placeholders against repo root and workspace root."""
-    repo_root = os.getcwd()
+    repo_root = str(REPO_ROOT.resolve())
 
     # Use workspace.root from config if available, otherwise fallback to cwd/workspace
     if "workspace" in config and "root" in config.workspace:

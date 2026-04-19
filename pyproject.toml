@@ -1,0 +1,211 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xcientist"
+version = "0.1.0"
+description = "Xcientist multi-agent research workflow"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "absl-py==2.3.1",
+  "aiofiles==25.1.0",
+  "aiohappyeyeballs==2.6.1",
+  "aiohttp==3.13.4",
+  "aiosignal==1.4.0",
+  "annotated-types==0.7.0",
+  "anthropic==0.86.0",
+  "antlr4-python3-runtime==4.9.3",
+  "anyio==4.12.0",
+  "attrs==25.4.0",
+  "beautifulsoup4==4.14.3",
+  "boto3==1.42.19",
+  "botocore==1.42.19",
+  "certifi==2025.11.12",
+  "cffi==2.0.0",
+  "charset-normalizer==3.4.4",
+  "click==8.3.1",
+  "colorama==0.4.6",
+  "colorlog==6.10.1",
+  "cryptography==46.0.3",
+  "dill==0.4.0",
+  "diskcache==5.6.3",
+  "distro==1.9.0",
+  "fastmcp==3.2.0",
+  "filelock==3.20.1",
+  "frozenlist==1.8.0",
+  "google-genai==1.69.0",
+  "griffe==1.15.0",
+  "grpcio==1.76.0",
+  "h11==0.16.0",
+  "html2text",
+  "httpcore==1.0.9",
+  "httpx==0.28.1",
+  "httpx-retries==0.4.5",
+  "httpx-sse==0.4.3",
+  "hydra-core==1.3.2",
+  "idna==3.11",
+  "ijson==3.4.0.post0",
+  "importlib-resources==6.5.2",
+  "inscriptis==2.7.0",
+  "Jinja2==3.1.6",
+  "jiter==0.12.0",
+  "jmespath==1.0.1",
+  "json-repair==0.54.3",
+  "jsonschema==4.25.1",
+  "jsonschema-specifications==2025.9.1",
+  "loguru==0.7.3",
+  "lxml==5.4.0",
+  "Markdown==3.10",
+  "markdown-it-py==4.0.0",
+  "MarkupSafe==3.0.3",
+  "mcp==1.25.0",
+  "mdurl==0.1.2",
+  "multidict==6.7.0",
+  "networkx==3.4.2",
+  "numpy==1.26.4",
+  "omegaconf==2.3.0",
+  "openai==2.14.0",
+  "openai-agents==0.6.8",
+  "openhands-agent-server==1.16.0",
+  "openhands-sdk==1.13.1",
+  "openhands-tools==1.13.1",
+  "openhands-workspace==1.11.1",
+  "packaging==25.0",
+  "protobuf==6.33.2",
+  "psutil==7.2.1",
+  "pydantic==2.12.5",
+  "pydantic-settings==2.12.0",
+  "Pygments==2.19.2",
+  "python-dateutil==2.9.0.post0",
+  "python-dotenv==1.2.1",
+  "python-multipart==0.0.21",
+  "PyYAML==6.0.3",
+  "readability-lxml",
+  "referencing==0.37.0",
+  "regex==2025.11.3",
+  "requests==2.32.5",
+  "rich==14.3.1",
+  "rpds-py==0.30.0",
+  "ruamel.yaml==0.19.1",
+  "s3transfer==0.16.0",
+  "six==1.17.0",
+  "sniffio==1.3.1",
+  "soupsieve==2.8.1",
+  "sse-starlette==3.1.2",
+  "starlette==0.51.0",
+  "tenacity==9.1.2",
+  "tiktoken==0.12.0",
+  "tqdm==4.67.1",
+  "trafilatura",
+  "typing-extensions==4.15.0",
+  "urllib3==2.6.2",
+  "uvicorn==0.40.0",
+  "xxhash==3.6.0",
+  "yarl==1.22.0",
+]
+
+[project.scripts]
+xcientist = "src.cli:main"
+xcientist-survey = "src.cli:survey_main"
+xcientist-idea = "src.cli:idea_main"
+xcientist-experiment = "src.cli:experiment_main"
+xcientist-pipeline = "src.cli:pipeline_main"
+xcientist-doctor = "src.cli:doctor_main"
+xcientist-install-mcp-wrappers = "src.cli:install_mcp_wrappers_main"
+
+[dependency-groups]
+dev = [
+  "pytest==9.0.2",
+]
+memory = [
+  "faiss-cpu==1.12.0",
+  "hdbscan==0.8.42",
+  "rank-bm25==0.2.2",
+]
+ml = [
+  "accelerate==1.12.0",
+  "contourpy==1.3.2",
+  "cycler==0.12.1",
+  "datasets==4.4.2",
+  "einops==0.8.1",
+  "fonttools==4.61.1",
+  "fsspec==2025.10.0",
+  "hf-xet==1.2.0",
+  "huggingface-hub==0.36.0",
+  "imageio==2.37.2",
+  "joblib==1.5.3",
+  "kiwisolver==1.4.9",
+  "matplotlib==3.10.8",
+  "multiprocess==0.70.18",
+  "pandas==2.3.3",
+  "peft==0.18.0",
+  "pillow==12.0.0",
+  "polars==1.36.1",
+  "pyarrow==22.0.0",
+  "pyparsing==3.3.1",
+  "pytz==2025.2",
+  "safetensors==0.7.0",
+  "scikit-image==0.25.2",
+  "scikit-learn==1.7.2",
+  "scipy==1.15.3",
+  "seaborn==0.13.2",
+  "sentence-transformers==5.2.0",
+  "sentencepiece==0.2.1",
+  "shapely==2.1.2",
+  "sympy==1.14.0",
+  "tensorboard==2.20.0",
+  "tokenizers==0.22.1",
+  "torch==2.9.1",
+  "torchvision==0.24.1",
+  "transformers==4.57.3",
+]
+paper = [
+  "albucore==0.0.24",
+  "albumentations==2.0.8",
+  "av==16.0.1",
+  "doclayout-yolo==0.0.4",
+  "fast-langdetect==0.2.5",
+  "magika==1.0.1",
+  "mineru==2.7.0",
+  "mineru-vl-utils==0.1.19.1",
+  "modelscope==1.33.0",
+  "onnxruntime==1.23.2",
+  "opencv-python-headless==4.11.0.86",
+  "pdfminer.six==20250506",
+  "pdftext==0.6.3",
+  "pypdf==6.5.0",
+  "pypdfium2==4.30.0",
+  "pyclipper==1.4.0",
+  "qwen-vl-utils==0.0.14",
+  "reportlab==4.4.7",
+  "ultralytics==8.3.243",
+]
+
+[tool.uv]
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+package = true
+cache-dir = ".uv-cache"
+
+[[tool.uv.index]]
+name = "aliyun"
+url = "https://mirrors.aliyun.com/pypi/simple/"
+
+[[tool.uv.index]]
+name = "bfsu"
+url = "https://mirrors.bfsu.edu.cn/pypi/web/simple/"
+default = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/README.md",
+  "/README_CN.md",
+  "/scripts",
+  "/src",
+  "/run_*.sh",
+  "/environment.yml",
+]

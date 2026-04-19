@@ -1,17 +1,17 @@
 import asyncio
 
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union, Protocol
-from memory.memory_system.utils import new_id, dump_slot_json
+from src.memory.memory_system.utils import new_id, dump_slot_json
 from pydantic import BaseModel, Field, field_validator, validate_call
 from openai import OpenAI
 from textwrap import dedent
-from memory.memory_system.user_prompt import (
+from src.memory.memory_system.user_prompt import (
     EXPERIMENT_WORKING_SLOT_FILTER_USER_PROMPT,
     EXPERIMENT_WORKING_SLOT_ROUTE_USER_PROMPT,
     IDEA_WORKING_SLOT_FILTER_USER_PROMPT,
     IDEA_WORKING_SLOT_ROUTE_USER_PROMPT,
 )
-from memory.memory_system.llm import OpenAIClient, LLMClient
+from src.memory.memory_system.llm import OpenAIClient, LLMClient
 
 class SlotPayload(BaseModel):
     id: str = Field(default_factory=lambda: new_id("work"))

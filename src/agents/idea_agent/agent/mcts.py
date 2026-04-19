@@ -14,12 +14,12 @@ except Exception:  # pragma: no cover - optional runtime fallback
     OmegaConf = None
 from tqdm import tqdm
 
-from memory.api.faiss_memory_system_api import FAISSMemorySystem
-from memory.api.slot_process_api import SlotProcess
-from memory.api.symbolic_memory_system_api import SymbolicMemorySystem
-from memory.memory_system import FaissVectorStore
-from memory.memory_system.models import EpisodicRecord, ProceduralRecord, SemanticRecord
-from memory.memory_system.utils import _multi_thread_run, _safe_dump_str
+from src.memory.api.faiss_memory_system_api import FAISSMemorySystem
+from src.memory.api.slot_process_api import SlotProcess
+from src.memory.api.symbolic_memory_system_api import SymbolicMemorySystem
+from src.memory.memory_system import FaissVectorStore
+from src.memory.memory_system.models import EpisodicRecord, ProceduralRecord, SemanticRecord
+from src.memory.memory_system.utils import _multi_thread_run, _safe_dump_str
 from src.agents.idea_agent.utils.core.json_utils import pretty_json
 from src.agents.idea_agent.utils.core.response_parsing import parse_json_response
 from src.agents.idea_agent.utils.core.logger import get_logger

@@ -1,23 +1,19 @@
-import os
-import sys
 from typing import Dict, List, Optional, Tuple, Union
 
-from memory.api.base_vector_memory_system_api import (
+from src.memory.api.base_vector_memory_system_api import (
     BaseVectorMemorySystem,
     EpisodicRecordPayload,
     ProceduralRecordPayload,
     SemanticRecordPayload,
     VectorMemorySystemConfig,
 )
-from memory.memory_system import (
+from src.memory.memory_system import (
     EpisodicRecord,
     FaissVectorStore,
     ProceduralRecord,
     SemanticRecord,
 )
-from memory.memory_system.utils import _transfer_dict_to_semantic_text, new_id, now_iso
-
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+from src.memory.memory_system.utils import _transfer_dict_to_semantic_text, new_id, now_iso
 
 
 class FAISSMemorySystem(BaseVectorMemorySystem):

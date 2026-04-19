@@ -1,3 +1,6 @@
+<p align="center">
+ <img src="assets/logo.png" alt="Xcientist logo" width="70%">
+</p>
 
 <h2 align="center">Externalizing Research Synthesis and Decision-Making in AI Scientist through a Research Harness</h2>
 
@@ -66,26 +69,46 @@ Xcientist/
 
 ## ✅ 环境要求
 
+- `uv`
 - Python `3.12`
-- 推荐使用 Conda 配环境
+- `Experiment Agent` 需要 `node` 和 `npx` 来启动 MCP server
 - 运行不同 Agent 所需的 API key
-- 如果要编译 PDF，需要本地 TeX 工具链，例如 `tectonic`、`latexmk` 或 `pdflatex`
-- 某些图检索和 memory 能力还依赖仓库外的本地数据或模型
+- 如果要手工使用 `Paper Agent`，还需要本地 TeX 工具链，例如 `tectonic`、`latexmk` 或 `pdflatex`
+- 图检索和 memory 能力依赖仓库外的本地数据或模型
 
 ## ⚙️ 安装
 
-直接通过 `environment.yml` 创建环境：
+现在默认推荐使用 `uv`：
 
 ```bash
-conda env create -f environment.yml
-conda activate xcientist
+uv sync
+cp .env.example .env
+uv run xcientist-doctor
 ```
 
-如果环境已经存在，想按 YAML 重新同步：
+常见分组安装方式：
 
 ```bash
-conda env update -n xcientist -f environment.yml --prune
+# 仅安装基础 CLI / 配置 / API 工作流
+uv sync
+
+# 安装 memory 与本地模型相关能力
+uv sync --group memory --group ml
+
+# 安装 Paper / PDF 解析相关依赖
+uv sync --group paper
+
+# 安装完整本地环境
+uv sync --all-groups
 ```
+
+如果你希望给 `Experiment Agent` 预先安装本地 MCP wrapper：
+
+```bash
+uv run xcientist-install-mcp-wrappers
+```
+
+`environment.yml` 仍然保留，作为兼容旧环境或全量环境的备选方案；但 `Survey + Idea + Experiment + Pipeline` 的主路径现在是 `uv sync`。依赖现在已经拆组，默认安装保持轻量，本地模型与 PDF 解析这类重依赖按需安装。
 
 ## 🔐 环境变量
 
@@ -105,6 +128,7 @@ export JINA_API_KEY=...
 说明：
 
 - 如果你使用自定义 OpenAI-compatible 接口，最好同时设置 `OPENAI_API_BASE` 和 `OPENAI_BASE_URL`。
+- CLI 会优先读取仓库根目录 `.env`，同时兼容旧的 `src/config/.env`。
 - 当前主配置文件是 `src/config/default.yaml`。
 - Survey、Idea、Experiment、Paper 在统一配置之外，仍有各自的运行约定。
 
@@ -131,21 +155,28 @@ curl http://127.0.0.1:8000/health
 
 ## 🚀 快速开始
 
-### 1. 运行 Survey Agent
-
-封装脚本入口：
+第一次建议先这样做：
 
 ```bash
-./run_survey.sh
+uv sync --group memory --group ml
+cp .env.example .env
+uv run xcientist-doctor
 ```
 
-直接运行并覆盖参数：
+当 doctor 通过、graph/db 和模型到位后，再按下面的命令运行。
+
+### 1. 运行 Survey Agent
+
+推荐入口：
 
 ```bash
-python src/agents/survey_agent/scripts/run_deep_survey.py \
-  --config-path src/config \
-  --config-name default \
-  survey.BasicInfo.topic="LLM Agent Memory System"
+uv run xcientist-survey
+```
+
+直接覆盖 topic：
+
+```bash
+uv run xcientist-survey --topic "LLM Agent Memory System"
 ```
 
 典型输出：
@@ -156,32 +187,32 @@ python src/agents/survey_agent/scripts/run_deep_survey.py \
 
 ### 2. 运行 Idea Agent
 
-封装脚本入口：
+推荐入口：
 
 ```bash
-./run_idea.sh
+uv run xcientist-idea
 ```
 
-直接入口：
+直接覆盖 topic：
 
 ```bash
-python src/agents/idea_agent/run.py
+uv run xcientist-idea --topic "LLM Agent Memory System"
 ```
 
 默认会使用 `src/config/default.yaml`，并在 `src/agents/idea_agent/runs/` 下创建运行目录，写出 `idea_result.json` 和日志。
 
 ### 3. 运行 Experiment Agent
 
-封装脚本入口：
+推荐入口：
 
 ```bash
-./run_experiment.sh --experiment my_exp --idea-json /abs/path/to/idea_result.json
+uv run xcientist-experiment --experiment my_exp --idea-json /abs/path/to/idea_result.json
 ```
 
 仅准备工作空间：
 
 ```bash
-./run_experiment.sh --experiment my_exp --idea-json /abs/path/to/idea_result.json --prepare_only
+uv run xcientist-experiment --experiment my_exp --idea-json /abs/path/to/idea_result.json --prepare-only
 ```
 
 直接入口：
@@ -200,6 +231,8 @@ python -m src.agents.experiment_agent.main --experiment my_exp --resume --verbos
 - `ablation_results.json`
 
 ### 4. 运行 Paper Agent
+
+`Paper Agent` 目前没有纳入默认的 `uv` 主路径，仍按手工入口使用。
 
 推荐入口：
 
@@ -223,7 +256,7 @@ python -m src.agents.paper_agent.main \
 ### 5. 运行原型 Pipeline
 
 ```bash
-./run_pipeline.sh
+uv run xcientist-pipeline
 ```
 
 它会以 `src/config/default.yaml` 启动 `src.pipeline.run_loop`。如果你想一条命令跑通集成链路，这个入口可用；如果你要排查问题，还是建议逐个 Agent 运行。

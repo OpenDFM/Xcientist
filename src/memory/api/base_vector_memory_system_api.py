@@ -3,7 +3,7 @@ from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from memory.memory_system import (
+from src.memory.memory_system import (
     EpisodicRecord,
     ProceduralRecord,
     SemanticRecord,

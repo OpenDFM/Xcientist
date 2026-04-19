@@ -1,3 +1,7 @@
+<p align="center">
+ <img src="assets/logo.png" alt="Xcientist logo" width="70%">
+</p>
+
 <h2 align="center">Externalizing Research Synthesis and Decision-Making in AI Scientist through a Research Harness</h2>
 
 <p align="center">
@@ -65,26 +69,46 @@ The pipeline runner in `src/pipeline/run_loop.py` automates the first three stag
 
 ## ✅ Prerequisites
 
+- `uv`
 - Python `3.12`
-- Conda recommended for environment setup
+- `node` and `npx` for Experiment Agent MCP servers
 - API keys depending on which agent you run
-- Local TeX tooling (`tectonic`, `latexmk`, or `pdflatex`) if you want PDF compilation
-- Optional local assets for graph-backed retrieval and memory-enabled workflows
+- Local TeX tooling (`tectonic`, `latexmk`, or `pdflatex`) only if you want to use Paper Agent manually
+- Local assets for graph-backed retrieval and memory-enabled workflows
 
 ## ⚙️ Installation
 
-Create the environment directly from `environment.yml`:
+The default setup path is now `uv`.
 
 ```bash
-conda env create -f environment.yml
-conda activate xcientist
+uv sync
+cp .env.example .env
+uv run xcientist-doctor
 ```
 
-If the environment already exists and you want to refresh it from the YAML:
+Common group combinations:
 
 ```bash
-conda env update -n xcientist -f environment.yml --prune
+# Base CLI / config / API-only workflows
+uv sync
+
+# Memory-enabled and local-model workflows
+uv sync --group memory --group ml
+
+# Paper / PDF parsing stack
+uv sync --group paper
+
+# Full local environment
+uv sync --all-groups
 ```
+
+If you want local MCP wrapper scripts for Experiment Agent:
+
+```bash
+uv run xcientist-install-mcp-wrappers
+```
+
+`environment.yml` is still available as a legacy/full-environment fallback, but `uv sync` is the primary path for `Survey + Idea + Experiment + Pipeline`. The dependency layout is now split so the default install stays lightweight and heavy local-model / PDF stacks are opt-in.
 
 ## 🔐 Environment Variables
 
@@ -104,6 +128,7 @@ export JINA_API_KEY=...
 Notes:
 
 - Set both `OPENAI_API_BASE` and `OPENAI_BASE_URL` if you use a custom OpenAI-compatible endpoint.
+- The CLI loads repo-root `.env` first and still falls back to `src/config/.env` for older setups.
 - `src/config/default.yaml` is the main configuration file for the current unified workflow.
 - Survey, Idea, Experiment, and Paper still have some agent-specific conventions on top of the unified config.
 
@@ -130,21 +155,28 @@ curl http://127.0.0.1:8000/health
 
 ## 🚀 Quick Start
 
-### 1. Run Survey Agent
-
-Wrapper entrypoint:
+Recommended first-time flow:
 
 ```bash
-./run_survey.sh
+uv sync --group memory --group ml
+cp .env.example .env
+uv run xcientist-doctor
 ```
 
-Direct entrypoint with overrides:
+If doctor passes and your local assets are in place, use the commands below.
+
+### 1. Run Survey Agent
+
+Primary entrypoint:
 
 ```bash
-python src/agents/survey_agent/scripts/run_deep_survey.py \
-  --config-path src/config \
-  --config-name default \
-  survey.BasicInfo.topic="LLM Agent Memory System"
+uv run xcientist-survey
+```
+
+Override the topic directly:
+
+```bash
+uv run xcientist-survey --topic "LLM Agent Memory System"
 ```
 
 Typical outputs:
@@ -155,32 +187,32 @@ Typical outputs:
 
 ### 2. Run Idea Agent
 
-Wrapper entrypoint:
+Primary entrypoint:
 
 ```bash
-./run_idea.sh
+uv run xcientist-idea
 ```
 
-Direct entrypoint:
+Override the topic directly:
 
 ```bash
-python src/agents/idea_agent/run.py
+uv run xcientist-idea --topic "LLM Agent Memory System"
 ```
 
 The default run uses `src/config/default.yaml`, materializes a run directory under `src/agents/idea_agent/runs/`, and writes `idea_result.json` plus logs.
 
 ### 3. Run Experiment Agent
 
-Wrapper entrypoint:
+Primary entrypoint:
 
 ```bash
-./run_experiment.sh --experiment my_exp --idea-json /abs/path/to/idea_result.json
+uv run xcientist-experiment --experiment my_exp --idea-json /abs/path/to/idea_result.json
 ```
 
 Prepare only:
 
 ```bash
-./run_experiment.sh --experiment my_exp --idea-json /abs/path/to/idea_result.json --prepare_only
+uv run xcientist-experiment --experiment my_exp --idea-json /abs/path/to/idea_result.json --prepare-only
 ```
 
 Direct entrypoint:
@@ -199,6 +231,8 @@ Key workspace outputs live under `workspace/<experiment_id>/` by default and usu
 - `ablation_results.json`
 
 ### 4. Run Paper Agent
+
+Paper Agent is intentionally not part of the default `uv` workflow yet. Keep using the direct/manual entrypoint if you need it.
 
 Recommended entrypoint:
 
@@ -222,7 +256,7 @@ python -m src.agents.paper_agent.main \
 ### 5. Run The Prototype Pipeline
 
 ```bash
-./run_pipeline.sh
+uv run xcientist-pipeline
 ```
 
 This launches `src.pipeline.run_loop` with `src/config/default.yaml`. It is useful when you want a single command for the integrated loop, but it is still easier to inspect failures agent-by-agent.

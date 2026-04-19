@@ -25,14 +25,14 @@ import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from memory.api.base_symbolic_memory_system_api import (
+from src.memory.api.base_symbolic_memory_system_api import (
     SymbolicMemorySystem as BaseSymbolicMemorySystem,
     SymbolicMemorySystemConfig,
     SymbolicRecord,
     SymbolicRecordPayload,
 )
-from memory.memory_system.component_taxonomy import parse_component_family
-from memory.memory_system.utils import (
+from src.memory.memory_system.component_taxonomy import parse_component_family
+from src.memory.memory_system.utils import (
     _evidence_strength,
     _normalize_component_key,
     _reliability_score,

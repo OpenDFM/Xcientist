@@ -5,7 +5,7 @@ import threading
 
 from typing import Dict, Iterable, List, Literal, Optional, Tuple, Union, Any, Callable
 from collections import deque
-from memory.memory_system.utils import (
+from src.memory.memory_system.utils import (
     dump_slot_json, 
     _parse_json_response,
     _extract_json_between, 
@@ -19,7 +19,7 @@ from memory.memory_system.utils import (
     new_id,
     now_iso,
 )
-from memory.memory_system.user_prompt import (
+from src.memory.memory_system.user_prompt import (
     WORKING_SLOT_COMPRESS_USER_PROMPT,
     TRANSFER_EXPERIMENT_AGENT_CONTEXT_TO_WORKING_SLOTS_PROMPT,
     TRANSFER_IDEA_AGENT_CONTEXT_TO_WORKING_SLOTS_PROMPT,
@@ -32,8 +32,8 @@ from memory.memory_system.user_prompt import (
     TRANSFER_SLOT_TO_PROCEDURAL_RECORD_PROMPT_IDEA,
 )
 from textwrap import dedent
-from memory.memory_system import WorkingSlot, OpenAIClient, LLMClient
-from memory.memory_system.models import (
+from src.memory.memory_system import WorkingSlot, OpenAIClient, LLMClient
+from src.memory.memory_system.models import (
     EpisodicRecord,
     SemanticRecord,
     ProceduralRecord,

@@ -25,7 +25,7 @@ from src.agents.idea_agent.utils.mcts.skill_parsing import (
     parse_markdown_sections,
     split_frontmatter,
 )
-from memory.memory_system.component_taxonomy import extract_component_families
+from src.memory.memory_system.component_taxonomy import extract_component_families
 from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _format_root_domains_for_prompt,
     _clean_component_explanation,

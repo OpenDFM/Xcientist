@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Optional, Iterable
-from .utils import now_iso
+from src.memory.memory_system.utils import now_iso
 
 
 class EpisodicRecord(object):

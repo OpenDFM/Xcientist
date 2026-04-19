@@ -4,9 +4,9 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
-from memory.memory_system.component_taxonomy import extract_component_families
-from memory.api.symbolic_memory_system_api import SymbolicMemorySystem
-from memory.api.base_symbolic_memory_system_api import SymbolicRecordPayload
+from src.memory.memory_system.component_taxonomy import extract_component_families
+from src.memory.api.symbolic_memory_system_api import SymbolicMemorySystem
+from src.memory.api.base_symbolic_memory_system_api import SymbolicRecordPayload
 
 from src.config import load_config
 
