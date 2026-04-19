@@ -1,404 +1,206 @@
-# X-Scientist
+<h2 align="center">Externalizing Research Synthesis and Decision-Making in AI Scientist through a Research Harness</h2>
 
-[English](README.md) | [中文](README_CN.md)
+<p align="center">
+<img src="https://img.shields.io/badge/python-3.12-blue" alt="python">
+<a href="https://arxiv.org/"><img src="https://img.shields.io/badge/arXiv-tmp-red" alt="arXiv"></a>
+<img src="https://img.shields.io/badge/website-page-blue" alt="website">
+</p>
 
-## Overview
+<div align="center">
 
-X-Scientist is the current research-agent system in this repository, the codebase now centers around four core agents :
+**[English](README.md) | [简体中文](README_CN.md)**
 
-1. **Survey Agent**: collects papers, builds literature clusters, writes survey drafts, and produces `survey.md` / `survey.json` artifacts for downstream retrieval.
-2. **Idea Agent (LigAgent)**: turns a topic or a mature seed idea into a structured research proposal through survey-grounded retrieval, graph-backed Core references, analysis, and Memory-Guided MCTS.
-3. **Experiment Agent (SuperAgent)**: converts an idea into runnable code, executes experiments, and iterates on failures.
-4. **Paper Agent**: reads an experiment workspace and writes a paper workspace with LaTeX drafts and compilation artifacts.
+</div>
 
-Shared subsystems that matter in the current repo:
+Xcientist is a multi-agent research workflow for turning a topic into survey artifacts, structured ideas, executable experiments, and paper drafts. The repository currently centers on four agent stacks:
 
-- `src/config/default.yaml`: the current unified config file used directly by Idea Agent and referenced by the pipeline code.
-- `src/memory/`: shared memory subsystem used by parts of Idea Agent / Experiment Agent.
-- `src/pipeline/`: prototype loop code for Survey -> Idea -> Experiment, but not the primary documented entrypoint right now.
+- `Survey Agent`: collects papers, builds topic clusters, and writes survey outputs.
+- `Idea Agent (LigAgent)`: turns a topic or seed idea into a research proposal with survey-grounded retrieval, graph-backed references, and Memory-Guided MCTS.
+- `Experiment Agent (SuperAgent)`: prepares a workspace, generates code, runs experiments, and integrates iteration reports.
+- `Paper Agent`: reads an experiment workspace and writes a paper workspace with LaTeX drafts and compilation artifacts.
 
-## Environment Rebuild
+The repo also contains a prototype loop runner for `Survey -> Idea -> Experiment`, shared configuration, and a reusable memory subsystem.
 
-It is still recommended to use **conda + environment.yml** first, because that best matches the current repository state.
+## 🗂️ Repository Map
 
-### Method 1: conda + environment.yml (Recommended)
+```text
+Xcientist/
+├── README.md
+├── README_CN.md
+├── environment.yml
+├── run_survey.sh
+├── run_idea.sh
+├── run_experiment.sh
+├── run_paper.sh
+├── run_pipeline.sh
+├── graph/                         # graph retrieval service and indexing scripts
+├── scripts/                       # utility scripts such as MCP wrapper setup
+├── skills/                        # local Codex skills used in this repo
+└── src/
+    ├── config/default.yaml        # unified project config
+    ├── agents/
+    │   ├── survey_agent/
+    │   ├── idea_agent/
+    │   ├── experiment_agent/
+    │   └── paper_agent/
+    ├── memory/                    # shared memory package
+    └── pipeline/                  # end-to-end loop runner
+```
+
+## 🔄 How The Pieces Fit Together
+
+```text
+Topic
+  -> Survey Agent
+     output: survey.md + survey.json
+  -> Idea Agent
+     output: idea_result.json
+  -> Experiment Agent
+     output: workspace, results, ablation_results.json
+  -> Paper Agent
+     output: paper workspace, LaTeX draft, optional PDF
+```
+
+The pipeline runner in `src/pipeline/run_loop.py` automates the first three stages, but the individual agents remain the clearest way to operate and debug the system.
+
+## ✅ Prerequisites
+
+- Python `3.12`
+- Conda recommended for environment setup
+- API keys depending on which agent you run
+- Local TeX tooling (`tectonic`, `latexmk`, or `pdflatex`) if you want PDF compilation
+- Optional local assets for graph-backed retrieval and memory-enabled workflows
+
+## ⚙️ Installation
+
+Create the environment directly from `environment.yml`:
 
 ```bash
 conda env create -f environment.yml
-conda activate research-agent
+conda activate xcientist
 ```
 
-### Method 2: pip + requirements.txt
+If the environment already exists and you want to refresh it from the YAML:
 
 ```bash
-conda create -n research-agent python=3.10 -y
-conda activate research-agent
-pip install -r requirements.txt
+conda env update -n xcientist -f environment.yml --prune
+```
+
+## 🔐 Environment Variables
+
+Different agents read slightly different variables. In practice, these are the most useful ones to define:
+
+```bash
+export OPENAI_API_KEY=...
+export OPENAI_API_BASE=...
+export OPENAI_BASE_URL=...
+export SEMANTIC_SCHOLAR_API_KEY=...
+export MINIMAX_API_KEY=...
+export TAVILY_API_KEY=...
+export GITHUB_AI_TOKEN=...
+export JINA_API_KEY=...
 ```
 
 Notes:
 
-- `requirements.txt` includes editable installs for `src/memory` and `src/agents`.
-- Paper compilation currently expects a local TeX toolchain such as `tectonic`, `latexmk`, or `pdflatex`.
-- If you use a custom OpenAI-compatible endpoint, set both `OPENAI_BASE_URL` and `OPENAI_API_BASE`, because different agents currently read different variable names.
+- Set both `OPENAI_API_BASE` and `OPENAI_BASE_URL` if you use a custom OpenAI-compatible endpoint.
+- `src/config/default.yaml` is the main configuration file for the current unified workflow.
+- Survey, Idea, Experiment, and Paper still have some agent-specific conventions on top of the unified config.
 
-## Local Asset Setup
+## 📦 Optional Local Assets
 
-Current LigAgent usage depends on several local assets in addition to the Python environment.
-
-Prepare the local environment in this order:
-
-1. Download the processed graph package from the shared Google Drive folder and copy it into `<repo_root>/data/processed/`.
-
-Google Drive:
-`https://drive.google.com/drive/folders/1lH1MI6gk7eh0HfvfOajcqAZg3n95v5BK?usp=drive_link`
-
-Keep the directory structure intact. The current graph-backed retrieval path expects at least:
+Some retrieval-heavy paths expect local assets that are not stored in the repository:
 
 - `data/processed/graph.db`
-- `data/processed/core_component_summary_vector_store/faiss.index`
-- `data/processed/core_component_summary_vector_store/meta.json`
+- `data/processed/core_component_summary_vector_store/`
+- `models/bge-m3/`
+- `models/all-MiniLM-L6-v2/`
 
-2. Download the embedding model `BAAI/bge-m3` into `<repo_root>/models/bge-m3/`.
-
-```bash
-huggingface-cli download BAAI/bge-m3 --local-dir models/bge-m3
-```
-
-This matches the current defaults in `graph/index_core_component_summaries.py` and the graph-vector-store loader used by LigAgent.
-
-3. Start the local graph engine with FastAPI + Uvicorn from the `<repo_root>/graph/`.
+If you use graph-backed retrieval, start the graph service from the repository root:
 
 ```bash
 uvicorn graph.server:app --host 127.0.0.1 --port 8000
 ```
 
-The server entrypoint is `graph/server.py`. A quick health check is:
+Health check:
 
 ```bash
 curl http://127.0.0.1:8000/health
 ```
 
-Important implementation detail:
+## 🚀 Quick Start
 
-- `graph/server.py` reads the graph database from `<repo_root>/data/processed/graph.db`.
-- The prebuilt Core-component vector store is expected under `<repo_root>/data/processed/core_component_summary_vector_store/`.
-- The default local embedding-model path used by the graph indexing code is `<repo_root>/models/bge-m3/`.
+### 1. Run Survey Agent
 
-## Configuration Layout
-
-The repository uses a mixed configuration layout.
-
-| Area | Current source of truth | Notes |
-|------|-------------------------|-------|
-| Idea Agent | `src/config/default.yaml` -> `idea:` | This is the default config loaded by `src/agents/idea_agent/utils/core/config_loader.py`. You can override the file via `IDEA_AGENT_CONFIG=/path/to/config.yaml`. |
-| Survey Agent | `src/agents/survey_agent/config/*.yaml` | Standalone Survey runs still use Hydra configs with `BasicInfo`, `APIInfo`, and `ModuleInfo`. |
-| Experiment Agent | environment variables + `src/agents/experiment_agent/shared/utils/config.py` | Runtime behavior is mostly controlled by env vars and code constants. |
-| Paper Agent | CLI args + environment variables + `src/agents/paper_agent/utils/config.py` | `--template-dir` and workspace env vars are the main knobs. |
-| Pipeline prototype | `src/config/default.yaml` -> `pipeline:` | The code exists, but there is no `run_pipeline.sh` in the repository root. |
-
-Important practical detail:
-
-- Several shipped Survey / Paper / unified config files still contain machine-specific absolute example paths. Treat them as examples and override them before running on a new machine.
-
-## Four Agents
-
-### 1. Survey Agent
-
-**Purpose**: build a literature survey around a topic and persist structured survey outputs that can later feed OutcomeRAG and Idea Agent.
-
-**Actual runtime workflow**:
-
-```
-Seed paper collection
--> reference / citation expansion
--> paper reading and keynotes
--> clustering
--> intra-cluster analysis
--> inter-cluster analysis
--> outline generation
--> survey drafting
--> review / revise
--> survey + references export
--> evaluation
-```
-
-**Standalone config locations**:
-
-- `src/agents/survey_agent/config/deep_survey.yaml`
-- `src/agents/survey_agent/config/deep_survey_xiaomi.yaml`
-- `src/agents/survey_agent/config/outcomeRAG.yaml`
-
-**Key inputs**:
-
-- `BasicInfo.topic`
-- `BasicInfo.save_path`
-- `BasicInfo.save_json_path`
-- `BasicInfo.evaluation_save_path`
-- `APIInfo.llm_api_key`
-- `APIInfo.llm_api_base_url`
-- `ModuleInfo.WorkCollector.*`
-- `ModuleInfo.WorkAnalyzer.*`
-- `ModuleInfo.SurveyGenerator.*`
-
-**Outputs**:
-
-- `BasicInfo.save_path`: generated survey markdown
-- `BasicInfo.save_json_path`: structured survey JSON
-- `BasicInfo.evaluation_save_path`: evaluation text output
-- cache/database artifacts under `BasicInfo.cache_path`
-
-**Recommended usage**:
-
-The bundled YAMLs contain example absolute output paths, so the safest pattern is to override the output paths on the command line:
+Wrapper entrypoint:
 
 ```bash
-python -m src.agents.survey_agent.scripts.run_deep_survey \
-  --config-path src/agents/survey_agent/config \
-  --config-name deep_survey \
-  BasicInfo.topic="LLM Agent Memory System" \
-  BasicInfo.save_path="src/agents/survey_agent/outputs/llm_agent_memory_system.md" \
-  BasicInfo.save_json_path="src/agents/survey_agent/outputs/llm_agent_memory_system.json" \
-  BasicInfo.evaluation_save_path="src/agents/survey_agent/outputs/llm_agent_memory_system_eval.txt"
+./run_survey.sh
 ```
 
-**How it connects to Idea Agent**:
+Direct entrypoint with overrides:
 
-- Idea Agent's `idea.run.rag_config` usually points to `src/agents/survey_agent/config/outcomeRAG.yaml`.
-- That OutcomeRAG config must in turn point to survey outputs that actually exist on your machine.
-
----
-
-### 2. Idea Agent (LigAgent)
-
-**Purpose**: turn a topic or mature idea into a structured research proposal through survey-grounded retrieval, graph-backed Core references, structured analysis, and a Memory-Guided MCTS search.
-
-**Actual runtime workflow**:
-
-The main workflow is a conditional stage graph:
-
-| Stage | Role |
-|------|------|
-| `knowledge_aquisition` | Cold-start retrieval: query generation -> OutcomeRAG over survey sections -> graph.db Core retrieval -> reference selection |
-| `advanced_analysis` | Summarize survey excerpts and selected Core references into mechanisms, gaps, and search seeds |
-| `re_analysis_replan` | Revise topic focus, mature idea, and retrieval direction when RAG context already exists |
-| `idea_generation` | Run Memory-Guided MCTS; if `LigAgent-Pro` is enabled, search all presets from one shared root and fuse them before persisting `idea_result.json` |
-
-Current control flow:
-
-- Cold start: `knowledge_aquisition -> advanced_analysis -> idea_generation`
-- If `artifact["rag_hits"]` already exists: `advanced_analysis -> re_analysis_replan -> idea_generation`
-
-**What is distinctive about the current Idea Agent**:
-
-- **Survey-grounded retrieval with graph-backed references**: OutcomeRAG supplies survey sections and citation titles, while downstream references come from `graph.db` Core nodes rather than parsed papers.
-- **Contract mode**: `idea.run.mature_idea` turns the provided idea into the MCTS root.
-- **Root-domain locking**: the MCTS root is classified into one or two fixed research domains and descendants must stay there.
-- **Preset-driven search**: `idea.mcts.idea_taste_mode` affects evaluation weights, skill selection bias, and component-generation guidance.
-- **LigAgent-Pro**: when `idea.run.LigAgent-Pro` is enabled, LigAgent runs all five idea taste presets from one prepared root and fuses them.
-- **Cross-domain theory transfer with domain lock**: external mechanisms can be borrowed, but the final instantiated idea must stay in the home domain.
-- **Dual memory guidance**: vector memory provides text snippets, while symbolic memory provides operator priors and evaluation hints.
-
-**Config source**:
-
-- `src/config/default.yaml` under the `idea:` section
-- optional override: `IDEA_AGENT_CONFIG=/path/to/another_config.yaml`
-
-Idea Agent loads its default settings from the unified config rather than from a separate `src/agents/idea_agent/config/...` directory.
-
-**Key inputs**:
-
-- `idea.run.topic`
-- `idea.run.LigAgent-Pro`
-- `idea.run.mature_idea` (optional)
-- `idea.run.rag_config`
-- `idea.agent.model`
-- `idea.mcts.*`
-- `idea.fusion.*`
-
-**Outputs**:
-
-- by default, `src/agents/idea_agent/runs/<topic-slug>-<timestamp>-<uuid>/idea_result.json`
-- by default, `src/agents/idea_agent/runs/<topic-slug>-<timestamp>-<uuid>/logs/ligagent.log`
-
-**Minimal config example**:
-
-```yaml
-idea:
-  run:
-    topic: "LLM Agent Memory System"
-    LigAgent-Pro: true
-    output_root: "runs"
-    rag_config: "src/agents/survey_agent/config/outcomeRAG.yaml"
-    # mature_idea: "Optional contract root"
-
-  agent:
-    model: "gpt-5-mini"
-
-  mcts:
-    max_iterations: 64
-    max_depth: 3
-    branching_factor: 3
-    idea_taste_mode: "moonshot_inventor"
-    generation_model: "gpt-5-mini"
-    evaluation_model: "gpt-5.2"
-    symbolic_memory_path: "output/symbolic_memory.json"
-
-  fusion:
-    enabled: true
-    model: "gpt-5.2"
-    min_candidates: 2
+```bash
+python src/agents/survey_agent/scripts/run_deep_survey.py \
+  --config-path src/config \
+  --config-name default \
+  survey.BasicInfo.topic="LLM Agent Memory System"
 ```
 
-**Usage**:
+Typical outputs:
+
+- `src/agents/survey_agent/outputs/.../survey.md`
+- `src/agents/survey_agent/outputs/.../survey.json`
+- `src/agents/survey_agent/outputs/.../evaluation.txt`
+
+### 2. Run Idea Agent
+
+Wrapper entrypoint:
 
 ```bash
 ./run_idea.sh
-# or
+```
+
+Direct entrypoint:
+
+```bash
 python src/agents/idea_agent/run.py
 ```
 
-This runner is config-driven and does not take `--topic` directly in the standalone entrypoint.
+The default run uses `src/config/default.yaml`, materializes a run directory under `src/agents/idea_agent/runs/`, and writes `idea_result.json` plus logs.
 
-> For current LigAgent internals, including artifact fields, MCTS expansion, preset handling, root-domain control, theory-transfer retrieval, and persistence, see `src/agents/idea_agent/README.md`.
+### 3. Run Experiment Agent
 
----
-
-### 3. Experiment Agent (SuperAgent)
-
-**Purpose**: materialize an idea into a runnable project, execute experiments, and iterate between code generation and scientific validation.
-
-**Actual runtime phases**:
-
-1. **Prepare phase**: creates the workspace, writes `idea.md`, clones reference repos, and downloads candidate datasets.
-2. **Engineering layer**: builds the code project.
-3. **Science layer**: executes experiments and records results / feedback.
-
-**Primary entrypoints**:
-
-- `python -m src.agents.experiment_agent.prepare`
-- `python -m src.agents.experiment_agent.main`
-- convenience wrapper: `./run_experiment.sh`
-
-**Inputs**:
-
-- `--experiment`: experiment ID / workspace name
-- `--idea-json`: required by `run_experiment.sh`
-- `--prepare`: optional wrapper flag to run prepare first
-- `--resume`: supported by the main module
-- `--fresh`: force a fresh main run
-
-**Workspace outputs**:
-
-Under `src/agents/experiment_agent/workspaces/<experiment_id>/` the runtime may create:
-
-- `idea.json`: copied source idea
-- `idea.md`: markdown proposal materialized by PrepareAgent
-- `project/`: generated project code
-- `repos/`: cloned reference repositories
-- `dataset_candidate/`: downloaded candidate datasets
-- `specs/`: generated specs / plans / reports mirrored for compatibility
-- `cached/`: checkpoint and state data
-- `logs/`: workspace-level logs
-
-Important downstream result locations typically live under:
-
-- `project/result/code/iter_v*/`
-- `project/result/science/iter_v*/`
-
-**Environment variables**:
-
-| Env Var | Description | Default |
-|---------|-------------|---------|
-| `OPENAI_API_KEY` | OpenAI API Key | - |
-| `OPENAI_API_BASE` | OpenAI API Base URL | - |
-| `SHOW_LLM_REASONING` | Show LLM reasoning | 1 |
-| `EXPERIMENT_AGENT_MEMORY_ENABLED` | Enable memory | 1 |
-| `EXPERIMENT_AGENT_MEMORY_WRITEBACK` | Memory writeback | 1 |
-| `EXPERIMENT_AGENT_MEMORY_TOOL_LOGS` | Tool logging | 0 |
-| `AGENT_BASH_TIMEOUT_SECONDS` | Bash timeout (ms) | 600000 |
-| `EXPERIMENT_AGENT_WORKSPACE_DIR` | Experiment workspace dir | `workspace/<experiment>` |
-
-**Model configuration** (in `src/config/default.yaml` under `experiment.models`):
-
-```python
-prepare = "MiniMax-M2.7"
-code = "MiniMax-M2.7"
-master = "MiniMax-M2.7"
-science = "MiniMax-M2.7"
-default = "MiniMax-M2.7"
-
-# Prepare Layer
-PREPARE_AGENT_MODEL = "MiniMax-M2.1"
-```
-
-**Usage**:
-```bash
-./run_experiment.sh --experiment my_exp --idea-json /path/to/idea_result.json --prepare
-```
-
-Using the underlying modules directly:
+Wrapper entrypoint:
 
 ```bash
-mkdir -p src/agents/experiment_agent/workspaces/my_exp
-cp /path/to/idea_result.json src/agents/experiment_agent/workspaces/my_exp/idea.json
+./run_experiment.sh --experiment my_exp --idea-json /abs/path/to/idea_result.json
+```
 
-python -m src.agents.experiment_agent.prepare --experiment my_exp --force --clone-depth 1 --verbose
+Prepare only:
+
+```bash
+./run_experiment.sh --experiment my_exp --idea-json /abs/path/to/idea_result.json --prepare_only
+```
+
+Direct entrypoint:
+
+```bash
 python -m src.agents.experiment_agent.main --experiment my_exp --resume --verbose
 ```
 
-Current wrapper behavior to be aware of:
+Key workspace outputs live under `workspace/<experiment_id>/` by default and usually include:
 
-- `run_experiment.sh` disables Experiment Agent memory by default via environment variables.
-- the wrapper copies `idea.json` only when `--prepare` is used.
-- the wrapper always invokes the main phase with `--resume`.
-
----
-
-### 4. Paper Agent
-
-**Purpose**: read an Experiment Agent workspace and generate a separate paper workspace containing specs, LaTeX files, compilation logs, and paper-writing artifacts.
-
-**Current inputs**:
-
-- `--experiment`: experiment workspace name from Experiment Agent
-- `--template-dir`: LaTeX template directory
-- `--resume`: resume an existing paper workspace
-
-**Current workspace outputs**:
-
-Under `src/agents/paper_agent/workspaces/<experiment_id>/` the runtime creates:
-
-- `paper/`: copied or initialized LaTeX project
-- `artifacts/`: compile logs, PDF pages, extracted assets, sub-agent artifacts
-- `specs/`: paper-side spec / plan / constitution files
-- `state/paper_state.json`: resumable run state
-
-**How Paper Agent reads experiment results**:
-
-It resolves input from `src/agents/experiment_agent/workspaces/<experiment_id>/` and looks for:
-
-- `idea.md`
-- `specs/`
+- `idea.json`
 - `project/`
-- result files such as `project/result/science/iter_v*/result_summary.json`
+- `dataset_candidate/`
+- `results/`
+- `agent_reports/`
+- `ablation_results.json`
 
-**Environment variables commonly used**:
+### 4. Run Paper Agent
 
-- `OPENAI_API_KEY`
-- `OPENAI_API_BASE`
-- `MINIMAX_API_KEY`
-- `PAPER_AGENT_WORKSPACES_DIR`
-- `EXPERIMENT_AGENT_WORKSPACES_DIR`
-- `PAPER_AGENT_BASH_TIMEOUT_SECONDS`
-- `PAPER_AGENT_ENABLE_TRACING`
-
-**Compilation detail**:
-
-- PDF compilation currently looks for local `tectonic`, `latexmk`, or `pdflatex`.
-- If none of them are available, LaTeX compilation will fail even though the paper workspace is created.
-
-**Recommended usage**:
+Recommended entrypoint:
 
 ```bash
 python -m src.agents.paper_agent.main \
@@ -415,132 +217,69 @@ python -m src.agents.paper_agent.main \
   --resume
 ```
 
-Important note:
+`run_paper.sh` exists, but it is a local example wrapper with hard-coded values and is not the generic entrypoint.
 
-- `run_paper.sh` is currently a local example wrapper with a hard-coded experiment name and template path. It is not the recommended generic entrypoint.
-
-## Pipeline Status
-
-The repository still contains a Survey -> Idea -> Experiment loop under `src/pipeline/run_loop.py`, and `src/config/default.yaml` still has a `pipeline:` block.
-
-The repository root does not include:
+### 5. Run The Prototype Pipeline
 
 ```bash
 ./run_pipeline.sh
 ```
 
-This command is not available in the current repository because:
+This launches `src.pipeline.run_loop` with `src/config/default.yaml`. It is useful when you want a single command for the integrated loop, but it is still easier to inspect failures agent-by-agent.
 
-- `run_pipeline.sh` does not exist in the current repo root
-- `src/pipeline/run_loop.py` imports `load_config` from `src.config`, but `src/config/__init__.py` does not currently export that function
+## 🧭 Configuration Guide
 
-So the reliable workflow today is to run the four agents individually:
+The current configuration layout is mixed by design:
 
-```
-Survey -> Idea -> Experiment -> Paper
-```
+| Area | Primary source |
+|------|----------------|
+| Global project config | `src/config/default.yaml` |
+| Survey Agent | `survey:` block in `src/config/default.yaml` plus `src/agents/survey_agent/config/*.yaml` |
+| Idea Agent | `idea:` block in `src/config/default.yaml` |
+| Experiment Agent | `experiment:` block in `src/config/default.yaml` and environment variables |
+| Paper Agent | `paper:` block in `src/config/default.yaml` plus CLI flags |
+| Pipeline | `pipeline:` block in `src/config/default.yaml` |
 
-## Directory Structure
+If you are starting fresh, edit `src/config/default.yaml` first. It is the most reliable single file to understand current defaults.
 
-```text
-ResearchAgent/
-├── README.md
-├── README_CN.md
-├── environment.yml
-├── requirements.txt
-├── run_idea.sh
-├── run_experiment.sh
-├── run_paper.sh                  # local example wrapper, not the recommended generic launcher
-├── src/
-│   ├── config/
-│   │   └── default.yaml          # current unified config used by Idea Agent / pipeline prototype
-│   ├── agents/
-│   │   ├── survey_agent/
-│   │   │   ├── config/           # Hydra configs for standalone survey runs
-│   │   │   ├── scripts/
-│   │   │   ├── modules/
-│   │   │   └── outputs/          # example survey outputs
-│   │   ├── idea_agent/
-│   │   │   ├── run.py
-│   │   │   ├── agent/
-│   │   │   ├── utils/
-│   │   │   └── runs/             # runtime output root
-│   │   ├── experiment_agent/
-│   │   │   ├── prepare.py
-│   │   │   ├── main.py
-│   │   │   ├── layers/
-│   │   │   ├── shared/
-│   │   │   └── workspaces/       # runtime-generated; may not exist before the first run
-│   │   └── paper_agent/
-│   │       ├── main.py
-│   │       ├── entry.py
-│   │       ├── latex/ICML2025_Template/
-│   │       └── workspaces/       # runtime-generated; may not exist before the first run
-│   ├── memory/
-│   └── pipeline/
-└── tests/
-```
+## 🤖 Agent Summaries
 
-## End-to-End Workflow
+### Survey Agent
 
-```text
-1. Survey Agent
-   Input: research topic
-   Output: survey.md + survey.json
+- Main entry: `src/agents/survey_agent/scripts/run_deep_survey.py`
+- Purpose: paper collection, clustering, survey drafting, evaluation
+- Outputs: survey markdown, survey JSON, evaluation artifacts
 
-   ↓ (Survey output is referenced by OutcomeRAG config)
+### Idea Agent (LigAgent)
 
-2. Idea Agent
-   Input: idea.run.topic / idea.run.mature_idea
-   Output: src/agents/idea_agent/runs/<slug-timestamp-uuid>/idea_result.json
+- Main entry: `src/agents/idea_agent/run.py`
+- Purpose: proposal generation from a topic or mature idea
+- Distinctive behavior: survey-grounded retrieval, graph-backed references, domain-locked Memory-Guided MCTS
+- Outputs: `idea_result.json`, logs, workflow artifacts
 
-   ↓ (idea_result.json -> experiment workspace idea.json)
+### Experiment Agent (SuperAgent)
 
-3. Experiment Agent
-   Input: experiment workspace + idea.json
-   Output: generated project + experiment results + specs / reports
+- Main entry: `python -m src.agents.experiment_agent.main`
+- Purpose: prepare workspace, generate implementation, run code/science iterations, integrate ablation results
+- Outputs: experiment workspace and final `ablation_results.json`
 
-   ↺ Experiment feedback / result summary can be fed back into Idea Agent
-     for the next proposal iteration
+### Paper Agent
 
-   Loop: Idea Agent <-> Experiment Agent
-   Repeat until the idea / implementation is ready for paper writing
+- Main entry: `python -m src.agents.paper_agent.main`
+- Purpose: transform an experiment workspace into a paper-writing workspace
+- Outputs: LaTeX project, artifacts, run state, optional compiled PDF
 
-   ↓ (experiment workspace becomes Paper Agent input)
+## 📌 Current Project Status
 
-4. Paper Agent
-   Input: experiment workspace + LaTeX template
-   Output: paper workspace with LaTeX, artifacts, and optional compiled PDF
-```
+What is stable enough to rely on:
 
-## Full Example
+- The four core agent stacks are present and wired together.
+- The unified config loader in `src/config/__init__.py` is usable today.
+- The root helper scripts exist and reflect the current code layout.
 
-```bash
-# Step 1: generate survey artifacts
-python -m src.agents.survey_agent.scripts.run_deep_survey \
-  --config-path src/agents/survey_agent/config \
-  --config-name deep_survey \
-  BasicInfo.topic="LLM Agent Memory System" \
-  BasicInfo.save_path="src/agents/survey_agent/outputs/llm_agent_memory_system.md" \
-  BasicInfo.save_json_path="src/agents/survey_agent/outputs/llm_agent_memory_system.json" \
-  BasicInfo.evaluation_save_path="src/agents/survey_agent/outputs/llm_agent_memory_system_eval.txt"
+What to keep in mind:
 
-# Step 2: generate research ideas from unified config
-./run_idea.sh
-
-# Step 3: run experiment
-./run_experiment.sh --experiment my_exp --idea-json src/agents/idea_agent/runs/<topic-run>/idea_result.json --prepare
-
-# Step 4: write paper
-python -m src.agents.paper_agent.main \
-  --experiment my_exp \
-  --template-dir src/agents/paper_agent/latex/ICML2025_Template
-```
-
-## Notes
-
-1. **Update machine-specific paths first**: the repository still contains example absolute paths in several YAML / Python config files.
-2. **Prefer environment variables for secrets**: API keys and base URLs are safer in env vars than in committed config files.
-3. **Survey output paths matter**: OutcomeRAG and Idea Agent only work if the survey files referenced by the RAG config actually exist.
-4. **Runtime workspaces are created on demand**: missing `workspaces/` directories in `experiment_agent` or `paper_agent` before the first run are normal.
-5. **Use direct module commands when in doubt**: they reflect the current code paths most directly.
+- Some config examples still contain machine-specific absolute paths and should be overridden on a new machine.
+- Several advanced workflows depend on local data or models that are not committed to the repository.
+- There is no top-level `LICENSE` file in the current repository snapshot.
+- There is no obvious root-level automated `tests/` suite in the current repository snapshot.

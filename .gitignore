@@ -57,6 +57,7 @@ tests
 memory_test_1/
 memory_validation/
 .codex
+skills/
 
 # Pipeline workspace
 workspace/
