@@ -55,6 +55,8 @@ database/pdf_papers/
 database/
 tests
 memory_test_1/
+memory_validation/
+.codex
 
 # Pipeline workspace
 workspace/
