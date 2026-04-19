@@ -46,11 +46,6 @@ src/agents/survey_agent/config/database/paper_keynotes
 .venv/
 venv/
 memory_test.sh
-epi_test/faiss.index
-epi_test/meta.json
-.gitignore
-sem_test/faiss.index
-sem_test/meta.json
 .gitignore
 outputs
 database/workcollector_relatedness_cache/cache.db
