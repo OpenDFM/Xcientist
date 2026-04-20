@@ -740,7 +740,7 @@ class PseudoWriter:
                 self.logger.info(f"Planning agent decided to finish at step {step}")
                 break
         
-        self.logger.info(f"[Memory Debug] Final memory after agent execution:\n{self._format_memory(agent_ctx.memory)}")
+        # self.logger.info(f"[Memory Debug] Final memory after agent execution:\n{self._format_memory(agent_ctx.memory)}")
         self.logger.info(f"Agent-based creation completed after {step + 1} steps")
 
         if not agent_ctx.current_pseudocode or not first_created_pseudocode:

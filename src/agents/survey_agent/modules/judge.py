@@ -7,6 +7,7 @@ from tqdm import trange,tqdm
 import time
 import threading
 import sys
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from utils.api_call import ChatAgent
 from utils.utils import get_hash, extract_json
@@ -103,12 +104,26 @@ class Judge():
         thread_l = []
         scores = [0] * len(criteria)
         reasons = [""] * len(criteria)
+        results = [None] * len(criteria)
+        
+        def worker_wrapper(idx, criterion):
+            try:
+                result = self.__criteria_based_judging(self.topic, survey, criterion, scores, reasons, idx)
+                results[idx] = result
+            except Exception as e:
+                self.logger.error(f"Thread {idx} failed for criterion {criterion}: {e}")
+                results[idx] = None
+        
         for i in range(len(criteria)):
-            thread = threading.Thread(target=self.__criteria_based_judging, args=(self.topic, survey, criteria[i], scores, reasons, i))
+            thread = threading.Thread(target=worker_wrapper, args=(i, criteria[i]))
             thread_l.append(thread)
             thread.start()
+        
         for thread in thread_l:
-            thread.join()
+            thread.join(timeout=600)
+            if thread.is_alive():
+                self.logger.warning(f"Thread {thread_l.index(thread)} timed out after 600s")
+        
         return scores, reasons
     
     def __nli(self, sources, claim, res_l, idx):
@@ -322,6 +337,44 @@ class Judge():
             Core_Quality = (dimension_score['Synthesis Quality'] + dimension_score['Organization'])/2
             Writing_Quality = (dimension_score['Readability'] + dimension_score['Academic Rigor'] + dimension_score['Clarity'] + dimension_score['Coherence'])/4
             Content_Depth = (dimension_score['Comprehensiveness'] + dimension_score['Critical Analysis'] + dimension_score['Novelty and Insights'] + dimension_score['Future Directions'])/4
+            Total_score = (Core_Quality*0.33+Writing_Quality*0.33+Content_Depth*0.34)
+
+            return_dict.update({
+                'Core_Quality': Core_Quality,
+                'Writing_Quality': Writing_Quality,
+                'Content_Depth': Content_Depth,
+                "Total_Score": Total_score
+            })
+            self.logger.info(f"Score_dict: {dimension_score}\n")
+
+            eval_log += f"Core_Quality: {Core_Quality}\n"
+            eval_log += f"Writing_Quality: {Writing_Quality}\n"
+            eval_log += f"Content_Quality: {Content_Depth}\n"   
+            eval_log += f'Score: {Core_Quality*0.33+Writing_Quality*0.33+Content_Depth*0.34}\n'
+
+        elif self.config.ModuleInfo.Judge.rubrics_deep_survey_eval:
+            #criterion = ['Synthesis Quality', 'Organization', 'Readability','Academic Rigor', 'Clarity & Coherence', 'Comprehensiveness', 'Critical Analysis', 'Specificity', 'Specified Future Directions']
+            # criterion = ['Synthesis Quality', 'Organization', 'Readability','Academic Rigor','Clarity & Coherence', 'Comprehensiveness', 'Critical Analysis', 'Novelty and Insights', 'Future Directions']
+            criterion = ['Synthesis Quality', 'Organization', 'Comprehensiveness', 'Relevance-10-score', 'Readability','Academic Rigor','Coherence', 'Critical Analysis', 'Novelty and Insights', 'Specificity', 'Specified Future Directions']
+            Core_Quality = 0
+            Writing_Quality = 0
+            Content_Depth = 0
+
+            scores, reasons = self.batch_criteria_based_judging(survey, criterion)
+
+            dimension_score = {}
+            for c, s, r in zip(criterion, scores, reasons):
+                print(f'{c} = {s}\n')
+                eval_log += f'{c} = {s}\n'
+                eval_log += f'Reason: {r}\n'
+                dimension_score[c] = s
+                reason_dict[c] = r
+            
+            return_dict.update(dimension_score)
+
+            Core_Quality = (dimension_score['Synthesis Quality'] + dimension_score['Organization'] + dimension_score['Comprehensiveness'] + dimension_score['Relevance-10-score'])/4
+            Writing_Quality = (dimension_score['Readability'] + dimension_score['Academic Rigor'] + dimension_score['Coherence'])/3
+            Content_Depth = (dimension_score['Critical Analysis'] + dimension_score['Novelty and Insights'] + dimension_score['Specified Future Directions'] + dimension_score['Specificity'])/3
             Total_score = (Core_Quality*0.6+Writing_Quality*0.2+Content_Depth*0.2)
 
             return_dict.update({
@@ -335,7 +388,7 @@ class Judge():
             eval_log += f"Core_Quality: {Core_Quality}\n"
             eval_log += f"Writing_Quality: {Writing_Quality}\n"
             eval_log += f"Content_Quality: {Content_Depth}\n"   
-            eval_log += f'Score: {Core_Quality*0.6+Writing_Quality*0.2+Content_Depth*0.2}\n'
+            eval_log += f'Score: {Core_Quality*0.5+Writing_Quality*0.2+Content_Depth*0.3}\n'
 
         if self.config.ModuleInfo.Judge.citation_eval:
             recall, precision = self.citation_quality(survey, references)

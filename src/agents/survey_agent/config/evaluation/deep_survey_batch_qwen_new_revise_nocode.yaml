@@ -1,52 +1,52 @@
 BasicInfo:
   topic: ""
-  evaluation_save_path: "./outputs/minimax-0326-test-graph/evaluation_10.txt"
+  evaluation_save_path: "./outputs/qwen-0416-qwen-deepsurvey_without_code_new_revise_new/evaluation_10.txt"
   save_path: ""
   save_json_path: ""
   user_defiend_benchmarks: True
-  topic_path: ./topics/debug_topics.txt
+  topic_path: ./topics/our_topics.txt
   AutoSurvey_benchmark: False
   SurveyGen_benchmark: False
   sub_benchmark_test: False
-  output_base_dir: ./outputs/minimax-0326-test-graph
+  output_base_dir: ./outputs/qwen-0416-qwen-deepsurvey_without_code_new_revise_new
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
-  topic_max_retry: 3
+  topic_max_retry: 5
   debug: True
   error_conservatism_mode: False
   skip_exist: True
   adapter_mode: False
 APIInfo:
-  llm_api_key: 
-  llm_api_base_url: https://api.minimax.chat/v1/text/chatcompletion_v2
-  llm_model_name: minimax-m2.5
-  llm_max_context_length: 180000
+  llm_api_key: sk-6tT86nzygIVWl0naxnWo8SjI4ClTSzYl05nppF9sYuY 
+  llm_api_base_url: http://58.210.177.113:8889/v1/chat/completions
+  llm_model_name: Qwen3.5-397B-A17B
+  llm_max_context_length: 256000
   use_stream_mode: False
   batch_chat_agent_worker: 4
-  chat_timeout: 300
-  batch_chat_timeout: 1800
+  chat_timeout: 900
+  batch_chat_timeout: 2700
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
-  low_flow_mode: False
-  low_flow_latency: 2
+  low_flow_mode: True
+  low_flow_latency: 1
   exponential_backoff: True
-  exponential_backoff_time: 1
+  exponential_backoff_time: 3
   exponential_backoff_max_time: 60
   arxiv_api_max_retry: 3
   semantic_scholar_api_max_retry: 5
 ModuleInfo:
   WorkCollector:
     download_safe_mode: False
-    download_timeout: 60
+    download_timeout: 180
     download_in_parallel: True
     download_parallel_workers: 8
     cache_enabled: True
     max_seed_paper_num: 15
-    use_seed_filter_LLM: True
-    LLM_seed_threshold: 3
+    use_seed_filter_LLM: False
+    LLM_seed_threshold: 4
     reference_graph_depth: 1
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
     sentence_transformer_batch_size: 32
-    expand_in_local_paper_graph: True
+    expand_in_local_paper_graph: False
     use_ds_when_graph_fail: True
     advanced_filter_in_local_paper_graph_expansion: True
     related_work_top_k: 30  # for debug
@@ -60,12 +60,12 @@ ModuleInfo:
   Database:
     default_top_k: 20
   PaperGraphRetriever:
-    db_path: data/processed/graph.db
+    db_path: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/database/paper_graph/graph.db
   WorkAnalyzer:
     abstract_only_mode: False
     abstract_when_full_text_fail: True
     cache_enabled: True
-    use_local_paper_graph_keynotes: True
+    use_local_paper_graph_keynotes: False
     use_ds_keynotes_when_graph_fail: True
     graph_keynote_extraction_batch_retry: 7
     graph_graph_keynote_extraction_temperature: 0.1
@@ -79,15 +79,15 @@ ModuleInfo:
     clustering_batch_size_in_assignment: 8
     cluster_assign_fast_mode: True
     paper_clustering_max_retry: 10
-    paper_clustering_creation_max_retry: 3
+    paper_clustering_creation_max_retry: 10
     paper_clustering_assignment_max_retry: 10
-    propose_question_temperature: 1.0
-    anwer_question_temperature: 1.0
+    propose_question_temperature: 0.5
+    anwer_question_temperature: 0.2
     intra_cluster_analysis_max_retry: 10
-    intra_cluster_analysis_temperature: 1.0
+    intra_cluster_analysis_temperature: 0.5
     intra_clustering_probelm_proposing_max_retry: 10
   SurveyGenerator:
-    include_initial_analysis: False
+    include_initial_analysis: True
     include_relation_graph: True
     include_relation_table: True
     include_code_report: False
@@ -95,9 +95,9 @@ ModuleInfo:
     omit_error_preserve_retry_time: 2
     outline_generation_in_steps: True
     outline_generation_draft_max_retry: 10
-    outline_generation_draft_batch_size: 20
+    outline_generation_draft_batch_size: 60
     outline_generation_draft_max_iterations: 5
-    outline_generation_draft_empty_keynotes_iteration: 1
+    outline_generation_draft_empty_keynotes_iteration: 2
     outline_draft_RAG_topk: 60
     outline_generation_assign_max_retry: 10
     outline_generation_assign_batch_size: 10
@@ -107,11 +107,11 @@ ModuleInfo:
     outline_generation_batch_size: 16
     outline_generation_max_retry: 3
     outline_generation_max_retry_in_generation_loop: 6
-    subsection_draft_temperature: 1.0
+    subsection_draft_temperature: 0.7
     subsection_draft_max_retry: 10
     section_draft_max_retry: 10
-    section_draft_temperature: 1.0
-    draft_refinement_temperature: 1.0
+    section_draft_temperature: 0.3
+    draft_refinement_temperature: 0.1
     section_draft_max_error_info_length: 500
     subsection_draft_max_error_info_length: 500
     outline_max_error_info_length: 500
@@ -139,23 +139,23 @@ ModuleInfo:
     section_revise_temperature: 0.5
     section_revise_retry: 5
     no_suggestion_run_each_iteration: 2
-    max_review_revise_iterations: 13
+    max_review_revise_iterations: 20
     draft_refinement_in_parts: True
     refine_in_parts_mode: 2
     draft_refinement_max_retry: 7
     review_and_revise_whole_survey_in_refinement: True
     agentic_refine_survey: True
-    review_and_revise_whole_survey_max_iteration: 5
+    review_and_revise_whole_survey_max_iteration: 10
     valid_title_min_similarity: 0.5
   CodeAnalysis:
       PseudoCreator:
         planner_temperature: 0.5
-        planner_max_retry: 3
+        planner_max_retry: 3  
   Judge:
     skip_evaluation: True
     use_different_api_for_judge: False
     model: mimo-v2-flash
-    judge_llm_api_key: 
+    judge_llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f
     judge_llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
     nli_temperature: 0.1
     citation_quality_threshold: 0.5

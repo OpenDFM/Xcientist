@@ -1088,7 +1088,7 @@ class CodeReportGenerator:
         
         return final_report
     
-    def save_report(self, report: str, output_path: str):
+    def save_report(self, code_report: str, env_report: str, output_path: str = None):
         """
         Save the report to a file.
         
@@ -1096,10 +1096,31 @@ class CodeReportGenerator:
             report: The report string
             output_path: Path to save the report
         """
-        os.makedirs(os.path.dirname(output_path) if os.path.dirname(output_path) else ".", exist_ok=True)
+        if output_path is None:
+            output_path = self.config.BasicInfo.save_path
         
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(report)
+        
+        # Get topic from config, fallback to "survey" if not available
+        topic = getattr(self.config.BasicInfo, 'topic', 'survey')
+        
+        # Get the directory from save_path and create full paths with topic name
+        save_dir = os.path.dirname(output_path)
+        save_dir = os.path.join(save_dir, "analysis")
+
+        os.makedirs(save_dir, exist_ok=True)
+        
+        # Create md and json paths with topic name
+        if self.config.BasicInfo.adapter_mode:
+            save_env_path = os.path.join(save_dir, "survey_env_report.md")
+            save_report_path = os.path.join(save_dir, "survey_code_report.md")
+        else:
+            save_env_path = os.path.join(save_dir, f"{topic}_env_report.md")
+            save_report_path = os.path.join(save_dir, f"{topic}_code_report.md")
+
+        with open(save_env_path, "w", encoding="utf-8") as f:
+            f.write(env_report)
+        with open(save_report_path, "w", encoding="utf-8") as f:
+            f.write(code_report)
         
         self.logger.info(f"Report saved to {output_path}")
 

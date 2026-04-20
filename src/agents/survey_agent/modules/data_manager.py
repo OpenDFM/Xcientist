@@ -189,8 +189,8 @@ class DataManager:
         hash_id = get_hash(paper_id)
         # already cached
         if hash_id in self.paper_abstract_cache and self.is_valid_abstract(self.paper_abstract_cache[hash_id]['abstract']):
-            if self.config.BasicInfo.debug:
-                self.logger.info(f"Cache hit for paper {paper_id} abstract, len: {len(self.paper_abstract_cache[hash_id]['abstract'])}")
+            # if self.config.BasicInfo.debug:
+            #     self.logger.info(f"Cache hit for paper {paper_id} abstract, len: {len(self.paper_abstract_cache[hash_id]['abstract'])}")
             return self.paper_abstract_cache[hash_id]['title'], self.paper_abstract_cache[hash_id]['abstract']
 
         self.add_papers_abstracts_in_cache([paper_id], retry=retry)
@@ -206,8 +206,8 @@ class DataManager:
         hash_id = get_hash(paper_id)
         # already cached
         if hash_id in self.paper_abstract_cache:
-            if self.config.BasicInfo.debug:
-                self.logger.info(f"Cache hit for paper {paper_id} title, title: {self.paper_abstract_cache[hash_id]['title']}")
+            # if self.config.BasicInfo.debug:
+            #     self.logger.info(f"Cache hit for paper {paper_id} title, title: {self.paper_abstract_cache[hash_id]['title']}")
             return self.paper_abstract_cache[hash_id]['title']
 
         self.add_papers_abstracts_in_cache([paper_id], retry=retry)
@@ -610,7 +610,7 @@ class DataManager:
             self.logger.info("Fail to retrieve out with semantic scholar, use arxiv instead")
             result = self.get_paper_with_title_arxiv(title)
             if result:
-                result["api_platform"] = "semarxivantic"
+                result["api_platform"] = "arxiv"
 
         if result:
             self.title_lookup_cache[normalized] = {"found": True, "paper_info": result}

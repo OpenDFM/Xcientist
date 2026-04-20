@@ -1,6 +1,6 @@
 import hashlib
 import re, json
-from typing import Dict
+from typing import Dict, Any
 import os
 import pypdfium2 as pdfium
 
@@ -8,18 +8,60 @@ def get_hash(text):
     return hashlib.md5(text.encode("utf-8")).hexdigest()
 
 
-def extract_json(text):
-    # remove ```json fences
+def extract_json(text: str) -> Any:
+    """Extract JSON from LLM response, handling various edge cases."""
     if not text:
         raise ValueError("Empty text in json extraction function")
+    
+    # Remove ```json fences
     text = re.sub(r"```[\w]*", "", text).replace("```", "")
     text = text.strip()
 
-    # match list or dict
+    # Match list or dict
     m = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])$", text)
     if not m:
         raise ValueError("No JSON found")
-    return json.loads(m.group())
+    json_str = m.group()
+    
+    try:
+        return json.loads(json_str)
+    except json.JSONDecodeError as e:
+        # Try to fix common escape sequence issues
+        # Fix invalid escape sequences like \c, \x, etc.
+        fixed_str = _fix_invalid_escapes(json_str)
+        try:
+            return json.loads(fixed_str)
+        except json.JSONDecodeError:
+            # If still failing, re-raise original error
+            raise e
+
+
+def _fix_invalid_escapes(json_str: str) -> str:
+    """Fix common invalid escape sequences in JSON strings."""
+    # Pattern to match invalid escape sequences (backslash followed by non-standard chars)
+    # Valid escapes: \", \\, \/, \b, \f, \n, \r, \t, \uXXXX
+    # Invalid: \c, \x, \ followed by anything else that's not a valid escape
+    
+    result = []
+    i = 0
+    while i < len(json_str):
+        if json_str[i] == '\\' and i + 1 < len(json_str):
+            next_char = json_str[i + 1]
+            # Keep valid escapes as-is
+            if next_char in '"\\/\b\f\n\r\t' or next_char == 'u':
+                result.append(json_str[i:i+2])
+                i += 2
+            else:
+                # Fix invalid escape: remove the backslash
+                # e.g., \c -> c, \x -> x
+                result.append(next_char)
+                i += 2
+        else:
+            result.append(json_str[i])
+            i += 1
+    
+    return ''.join(result)
+
 
 
 def is_valid_pdf(path: str) -> bool:

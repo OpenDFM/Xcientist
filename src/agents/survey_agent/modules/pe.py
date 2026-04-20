@@ -319,20 +319,21 @@ SURVEY_OUTLINE_GENERATION_OUTLINE_DRAFT = """You are an expert research survey g
 
 **Requirements:**
 1. The outline should contain multiple sections, subsections and their descriptions.
-2. Use the current outline as the base structure. Keep existing sections/subsections unless updated or merged. If the current outline is empty, create a new outline from scratch.
-3. The outline should contain at least 7 sections with at least 4 subsections in each section. More is preferred.
-4. Update the outline by:
-   - Adding new sections/subsections for emerging topics or trends.
-   - Merging similar topics/subsections to avoid redundancy.
-   - Revising descriptions to reflect key insights, comparisons, trends, and challenges from the analysis results.
-   - Supplementing descriptions with relevant points from paper keynotes.
-5. Make sure most of the corresponding new paper in **new paper keynotes** can be included in at least one subsection or section of the outline.
-6. You are provided with other relevant papers which is retrieved from database, you can use them to better understand and generate.
-7. Maintain clarity, logical structure, and a survey-style narrative.
-8. Ensure logical coherence between the sections, avoiding excessive independence and fragmentation. For instance, do not add a "Conclusion" subsection to every section, which lead to logical fragmentation between different sections.
-9. Output strictly in JSON format, as shown below.
-10. If the current outline does not have enough sections/subsections, add more to meet the requirement.
-11. It's advisable to add a conclusion section.
+2. The output outline should have excellent organization and meet academic standards.
+3. The outline should exhibit excellent rigor: ensuring that the content of each subsection falls within the scope of the current section.
+4. The outline should ensure that it covers a wide range of content under the topic while staying within the scope of the topic.
+5. Use the current outline as the base structure. Keep existing sections/subsections unless updated or merged. If the current outline is empty, create a new outline from scratch.
+6. The outline should contain at least 7 sections with at least 4 subsections in each section. More is preferred but a section should have no more than 15 subsections.
+7. The outline should contain a **Conclusion** section and a **Future Work** section/subsection.
+8. The outline should exhibit good logic to ensure the entire survey flows smoothly
+9. Ensure a balanced number of subsections in the main sections (excluding the conclusion and introduction).
+10. Make sure most of the corresponding new paper in **new paper keynotes** can be included in at least one subsection or section of the outline.
+11. You are provided with other relevant papers which is retrieved from database, you can use them to better understand and generate.
+12. Maintain clarity, logical structure, and a survey-style narrative.
+13. Ensure logical coherence between the sections, avoiding excessive independence and fragmentation. For instance, do not add a "Conclusion" subsection to every section, which lead to logical fragmentation between different sections.
+14. If the current outline does not have enough sections/subsections, add more to meet the requirement.
+15. The outline description of the "Future work" section should emphasize specific guidance for future work rather than a general directional description.
+16. Output strictly in JSON format, as shown below.
 
 **Input:**
 - current outline: {current_outline}
@@ -364,6 +365,7 @@ SURVEY_OUTLINE_GENERATION_OUTLINE_DRAFT = """You are an expert research survey g
 - Use the insights, trends, and comparisons from relevant paper analysis together with points from new paper keynotes to update the outline. Both sources should inform the content of each section/subsection.
 - Add, merge, or revise sections/subsections as appropriate, keeping the outline structured and coherent.
 - Ensure that each section/subsection reflects the combined contributions of the analysis results and the keynotes, capturing important insights, trends, and examples.
+- Check the whether the input outline satisfies the requirements and update to meet the requiremnets if not.
 - Only generate the outline in the required JSON format. Do not include specific paper IDs in the outline.
 """
 
@@ -499,7 +501,6 @@ In addition to the paper analysis, you are provided with a **Code Report** that 
 
 **How to use the Code Report:**
 - **Reference framework choices**: When discussing methods, consider which frameworks are commonly used and why certain frameworks might be preferred for specific approaches
-- **Discuss practical considerations**: Include computational requirements, library preferences, and training complexities when explaining methods
 - **Use implementation insights**: Leverage framework and environment guidance to provide deeper technical analysis beyond what is described in papers
 - **Balance theory and practice**: Combine theoretical descriptions with practical implementation considerations where relevant
 
@@ -508,6 +509,93 @@ In addition to the paper analysis, you are provided with a **Code Report** that 
 - **Balance depth and readability**: Use implementation considerations to enrich analysis, but avoid over-emphasizing technical setup details at the expense of methodological analysis
 - **Focus on synthesis**: Integrate framework insights with paper analysis to provide comprehensive understanding of both theoretical and practical aspects
 - **Academic tone**: Present framework and environment insights in an academic style, explaining significance rather than technical setup instructions
+
+**Code Report:**
+{code_report}
+"""
+
+CODE_REPORT_PROMPT_FOR_SECTION_REVISER = """### Code Report Context:
+In addition to the paper analysis, you are provided with a **Code Report** that contains comprehensive framework selection and environment configuration guidance for the papers in this survey topic. This report provides:
+
+1. **Framework Selection Analysis**: Which frameworks (PyTorch, TensorFlow, JAX, etc.) are used across repositories; their versions and suitability for different scenarios; strengths and weaknesses of each framework choice
+2. **Environment Configuration Guidance**: Common dependency patterns, key packages and version requirements, special requirements (GPU support, CUDA versions), environment setup best practices
+3. **Base Framework Recommendations**: Assessment of repository suitability as base frameworks for further research; code quality, documentation, extensibility, and community activity considerations
+4. **Sub-direction Analysis**: Which repositories are best suited for different research sub-directions; patterns in framework choices across research directions
+
+**How to use the Code Report:**
+You can enhance the depth and specificity of the survey with implementation detail and specific ideas for future work:
+- **Reference framework choices**: When discussing methods, consider which frameworks are commonly used and why certain frameworks might be preferred for specific approaches
+- **Use implementation insights**: Leverage framework and environment guidance to provide deeper technical analysis beyond what is described in papers
+- **Discuss practical considerations**: Include computational requirements, library preferences, and training complexities when explaining methods
+- **Balance theory and practice**: Combine theoretical descriptions with practical implementation considerations where relevant
+
+**IMPORTANT Usage Guidelines:**
+- **Stay within subsection scope**: Only use code report content that is relevant to the current section topic. Do not introduce framework details that fall outside the section's theme or scope
+- **Balance depth and readability**: Use implementation considerations to enrich analysis, but avoid over-emphasizing technical setup details at the expense of methodological analysis
+- **Focus on synthesis**: Integrate framework insights with paper analysis to provide comprehensive understanding of both theoretical and practical aspects
+- **Academic tone**: Present framework and environment insights in an academic style, explaining significance rather than technical setup instructions
+
+**Code Report:**
+{code_report}
+"""
+
+CODE_REPORT_PROMPT_FOR_SECTION_REVIEWER = """### Code Report Context:
+In addition to the paper analysis, you are provided with a **Code Report** that contains comprehensive framework selection and environment configuration guidance for the papers in this survey topic. This report provides:
+
+1. **Framework Selection Analysis**: Which frameworks (PyTorch, TensorFlow, JAX, etc.) are used across repositories; their versions and suitability for different scenarios; strengths and weaknesses of each framework choice
+2. **Environment Configuration Guidance**: Common dependency patterns, key packages and version requirements, special requirements (GPU support, CUDA versions), environment setup best practices
+3. **Base Framework Recommendations**: Assessment of repository suitability as base frameworks for further research; code quality, documentation, extensibility, and community activity considerations
+4. **Sub-direction Analysis**: Which repositories are best suited for different research sub-directions; patterns in framework choices across research directions
+
+**How to use the Code Report:**
+You give advice with the code report content to enhance the depth and specifycity of the survey:
+- **Reference framework choices**: When discussing methods, consider which frameworks are commonly used and why certain frameworks might be preferred for specific approaches
+- **Use implementation insights**: Leverage framework and environment guidance to provide deeper technical analysis beyond what is described in papers
+- **Discuss practical considerations**: Include computational requirements, library preferences, and training complexities when explaining methods
+- **Balance theory and practice**: Combine theoretical descriptions with practical implementation considerations where relevant
+
+**Code Report:**
+{code_report}
+"""
+
+CODE_REPORT_PROMPT_FOR_SURVEY_REVISER = """### Code Report Context:
+In addition to the paper analysis, you are provided with a **Code Report** that contains comprehensive framework selection and environment configuration guidance for the papers in this survey topic. This report provides:
+
+1. **Framework Selection Analysis**: Which frameworks (PyTorch, TensorFlow, JAX, etc.) are used across repositories; their versions and suitability for different scenarios; strengths and weaknesses of each framework choice
+2. **Environment Configuration Guidance**: Common dependency patterns, key packages and version requirements, special requirements (GPU support, CUDA versions), environment setup best practices
+3. **Base Framework Recommendations**: Assessment of repository suitability as base frameworks for further research; code quality, documentation, extensibility, and community activity considerations
+4. **Sub-direction Analysis**: Which repositories are best suited for different research sub-directions; patterns in framework choices across research directions
+
+**How to use the Code Report:**
+You can enhance the depth and specificity of the survey with implementation detail and specific ideas or implementation for future work:
+- **Reference framework choices**: When discussing methods, consider which frameworks are commonly used and why certain frameworks might be preferred for specific approaches
+- **Use implementation insights**: Leverage framework and environment guidance to provide deeper technical analysis beyond what is described in papers
+- **Discuss practical considerations**: Include computational requirements, library preferences, and training complexities when explaining methods
+- **Balance theory and practice**: Combine theoretical descriptions with practical implementation considerations where relevant
+
+**IMPORTANT Usage Guidelines:**
+- **Balance depth and readability**: Use implementation considerations to enrich analysis, but avoid over-emphasizing technical setup details at the expense of methodological analysis
+- **Focus on synthesis**: Integrate framework insights with paper analysis to provide comprehensive understanding of both theoretical and practical aspects
+- **Academic tone**: Present framework and environment insights in an academic style, explaining significance rather than technical setup instructions
+
+**Code Report:**
+{code_report}
+"""
+
+CODE_REPORT_PROMPT_FOR_SURVEY_REVIEWER = """### Code Report Context:
+In addition to the paper analysis, you are provided with a **Code Report** that contains comprehensive framework selection and environment configuration guidance for the papers in this survey topic. This report provides:
+
+1. **Framework Selection Analysis**: Which frameworks (PyTorch, TensorFlow, JAX, etc.) are used across repositories; their versions and suitability for different scenarios; strengths and weaknesses of each framework choice
+2. **Environment Configuration Guidance**: Common dependency patterns, key packages and version requirements, special requirements (GPU support, CUDA versions), environment setup best practices
+3. **Base Framework Recommendations**: Assessment of repository suitability as base frameworks for further research; code quality, documentation, extensibility, and community activity considerations
+4. **Sub-direction Analysis**: Which repositories are best suited for different research sub-directions; patterns in framework choices across research directions
+
+**How to use the Code Report:**
+You give advice with the code report content to enhance the depth and specifycity of the survey:
+- **Reference framework choices**: When discussing methods, consider which frameworks are commonly used and why certain frameworks might be preferred for specific approaches
+- **Use implementation insights**: Leverage framework and environment guidance to provide deeper technical analysis beyond what is described in papers
+- **Discuss practical considerations**: Include computational requirements, library preferences, and training complexities when explaining methods
+- **Balance theory and practice**: Combine theoretical descriptions with practical implementation considerations where relevant
 
 **Code Report:**
 {code_report}
@@ -642,11 +730,12 @@ The draft section may contain inline paper citations in angle brackets (e.g., "<
 4. The goal is to ultimately complete a survey section with depth, insights and can boost further development, rather than simply listing methods.
 5. The section content should have deep insights, novelty and analysis under the field of the section. 
 6. The section content should be clear and coherent. Avoid over verbose phrase or any repetitions.
-7. The section content should be elegantly formatted and have good readability, avoid extremely long sentences or paragraphs.
+7. The section content should be elegantly formatted and have good readability, avoid extremely long sentences ,paragraphs or subsections.
 8. The content of the section should be strictly consistent with the outline of the section provided below.
 9. The section content should be logically coherent and academically styled with acdamic rigor and precise description.
 10. The paragraph should contain sufficient citations to support the viewpoints and provide specific and in-depth analysis
 11. You should only change the content of the current section.
+12. You can use content in Additional Context if it's not None and you consider it necessary.
 
 ### Input:
 Previous Section:
@@ -660,6 +749,9 @@ Current Section:
 
 Section Outline:
 {section_outline}
+
+Additional Context:
+{additional_context}
 
 ### Output format (exact):
 [
@@ -693,6 +785,9 @@ Original Section Text:
 Citation Text:
 {citations}
 
+Additional Context:
+{additional_context}
+
 Guidance:
 - Give one minimal but precise modification.
 - Revise the paragraph to enhance its readability, logicality and depth.
@@ -703,9 +798,11 @@ Revision instructions:
 - The section and subsection headers (lines starting with #) remain IMMUTABLE anchors. Do not change them.
 - The modification has multiple iterations, so make minimal changes: prefer a single precise substitution rather than rewriting whole paragraphs.
 - You will be provided with Reivewer Suggestion which guides you what and how to modify.
+- You can add analysis, specific details or insights to increase the depth of survey.
 - If the Review Suggestion is empty, you can give modification that enhance depth, readability, or acdamic rigor of the paper.
 - You can cite new literature from Citation Text(if provided) if it helps improve the content's depth, novelty or completeness.
 - You can only cite papers from the Citation Text. Make sure the title matches EXACTLY. 
+- You can use content in Additional Context if its's not None and you consider it necessary.
 
 Reviewer Suggestion:
 {reviewer_suggestion}
@@ -734,12 +831,14 @@ The survey may contain inline paper citations in angle brackets (e.g., "<Attenti
 1. You should only provide suggestions on content. DO NOT give any suggestions that involve changing the outline(title of the section and any subsections).
 2. All citations in the survey must be in correct format: <paper_title> (like <Attention is All You Need>).
 3. The survey should avoid over verbose phrase or any repetitive content.
-4. The survey content should be clear and coherent. 
+4. The survey content should be logically coherent and academically styled with acdamic rigor and precise description.
 5. The survey content should have deep insights, novelty and analysis under the field of the survey.
 6. The survey content should be elegantly formatted and have good readability, avoid extremely long sentences or paragraphs.
-7. The survey should have good clarity, acadamic rigor and coherence in description and all the conceptions.
-8. The content of the survey should be strictly consistent with the outline provided below.
-9. The survey content should be logically coherent and academically styled with acdamic rigor and precise description.
+7. Avoid Extremely long section or subsection.
+8. The survey should have good clarity, acadamic rigor and coherence in description and all the conceptions.
+9. The content of the survey should be strictly consistent with the outline provided below.
+10. The survey should provide specific guidance on possible furture direction.
+11. You can use content in Additional Context if its's not None and you consider it necessary.
 
 ### Input:
 Survey:
@@ -747,6 +846,9 @@ Survey:
 
 SURVEY Outline:
 {survey_outline}
+
+Additional Context:
+{additional_context}
 
 ### Output format (exact):
 [
@@ -777,6 +879,9 @@ Survey Outline(You should not change):
 Original Survey Text:
 {survey}
 
+Additional Context:
+{additional_context}
+
 Guidance:
 - Give one minimal but precise modification.
 - Revise the paragraph to enhance its readability, logicality and depth.
@@ -788,6 +893,7 @@ Revision instructions:
 - The modification has multiple iterations, so make minimal changes: prefer a single precise substitution rather than rewriting whole paragraphs.
 - You will be provided with Reivewer Suggestion which guides you what and how to modify.
 - If the Review Suggestion is empty, you can give modification that enhance coherence, readability, depth, or acdamic rigor.
+- You can use content in Additional Context if its's not None and you consider it necessary.
 
 Reviewer Suggestion:
 {reviewer_suggestion}
@@ -932,6 +1038,21 @@ EVAL_CRITERIA = {
         'score 5':'The survey is exceptionally focused and entirely on topic; the article is tightly centered on the subject, with every piece of information contributing to a comprehensive understanding of the topic.',
     },
 
+    "Relevance-10-score": {
+        "aspect": "Core Quality",
+        "description": "Relevance (10-point scale): measures how well the content of the survey aligns with the research topic and maintains a clear, unwavering focus throughout. It evaluates whether every section, paragraph, and sentence contributes to advancing the reader's understanding of the stated topic, and whether tangential content is either absent or minimal.",
+        "score 1":  "Completely irrelevant — the survey addresses a fundamentally different topic; content has no meaningful connection to the stated research area.",
+        "score 2":  "Mostly irrelevant — the survey only tangentially touches the topic, with the majority of content being off-topic, peripheral, or unrelated.",
+        "score 3":  "Weakly relevant — several sections or subsections discuss the topic, but significant portions (more than 30%) are digressive or off-topic.",
+        "score 4":  "Somewhat relevant — the survey covers the topic but often digresses into unrelated areas; focus is inconsistent throughout.",
+        "score 5":  "Moderately relevant — the survey is generally on topic, with most content aligning with the research focus, though notable unrelated details appear in places.",
+        "score 6":  "Reasonably relevant — the survey maintains focus on the topic with occasional minor digressions; most sections contribute meaningfully to the core subject.",
+        "score 7":  "Strongly relevant — the survey is largely focused, with consistent alignment to the research topic; only rare and minor unrelated content present.",
+        "score 8":  "Very strongly relevant — the survey is tightly focused with near-perfect topical alignment; every section contributes to the core subject with only negligible peripheral content.",
+        "score 9":  "Exceptionally relevant — the survey demonstrates exemplary topical coherence; content is exclusively focused on the research topic with no discernible digressions.",
+        "score 10": "Perfectly relevant — the survey is a model of topical unity; every single element, from introduction to conclusion, is laser-focused on advancing the reader's understanding of the research topic, with no off-topic content whatsoever."
+    },
+
     'Depth':{
         'description':'Depth: Depth evaluates the level of *technical and analytical rigor* in explaining underlying principles, assumptions, failure modes, trade-offs, and engineering implementations of different methods. It emphasizes *mechanism-level reasoning*, *comparative analysis with clear criteria*, and *actionable synthesis* (not just literature aggregation).',
         'score 1':'The survey is largely a bibliography or a list of methods/tasks with near-zero technical content. It does not explain how methods work, what assumptions they rely on, or why they differ; comparisons are absent or purely descriptive.',
@@ -1041,6 +1162,21 @@ EVAL_CRITERIA = {
         "score 10": "Exceptionally coherent — flawless internal consistency; every section supports the central narrative."
     },
 
+    "Clarity & Coherence": {
+        "aspect": "Writing Quality",
+        "description": "Clarity and Coherence: the extent to which the survey presents technical ideas with precision, unambiguous definitions, and internally consistent terminology, claims, and conclusions across sections.",
+        "score 1":  "Very poor — highly vague, undefined terms, and multiple contradictions or inconsistent claims throughout.",
+        "score 2":  "Poor — frequent ambiguity and major inconsistencies that seriously hinder understanding.",
+        "score 3":  "Weak — many passages are unclear, with noticeable drifting terminology or conflicting statements.",
+        "score 4":  "Below average — some key ideas are understandable, but clarity is limited and inconsistencies remain in several places.",
+        "score 5":  "Moderate — the survey is mostly understandable, but important technical details are under-specified and coherence is uneven.",
+        "score 6":  "Fairly good — generally clear and mostly consistent, with a few imprecise explanations or minor inconsistencies.",
+        "score 7":  "Good — technical terms are usually defined well, and the narrative is coherent with only small lapses.",
+        "score 8":  "Very good — clear, precise, and internally consistent; readers can follow the logic with little effort.",
+        "score 9":  "Excellent — highly precise exposition with strong definitional consistency and near-zero contradictions.",
+        "score 10": "Outstanding — crystal-clear, fully consistent, and immediately understandable; every section reinforces a unified narrative."
+    },
+
     # ---------- Content Depth ----------
     "Comprehensiveness": {
         "aspect": "Content Depth",
@@ -1100,6 +1236,36 @@ EVAL_CRITERIA = {
         "score 8":  "Very strong — well-motivated, specific proposals and near-term experiments or benchmarks suggested.",
         "score 9":  "Excellent — insightful and prioritized research agenda with clear milestones and evaluation ideas.",
         "score 10": "Outstanding — visionary yet practical roadmap for the field, with detailed, high-impact research programs and measurable goals."
+    },
+
+    "Specified Future Directions": {
+        "aspect": "Content Depth",
+        "description": "Future directions: the extent to which the survey provides concrete, well-justified, and actionable guidance for future research, including clearly defined problems, feasible methodologies, experimental setups, and evaluation strategies.",
+        "score 1":  "Absent — no meaningful future directions or only trivial/obvious statements.",
+        "score 2":  "Very weak — vague suggestions with no actionable detail or justification.",
+        "score 3":  "Weak — general directions mentioned but disconnected from identified gaps and lacking feasibility discussion.",
+        "score 4":  "Limited — some relevant directions, but still broad, under-specified, and difficult to operationalize.",
+        "score 5":  "Moderate — plausible directions linked to gaps, but limited detail on how to implement or evaluate them.",
+        "score 6":  "Good — directions are relevant and partially actionable, with some discussion of methods or evaluation.",
+        "score 7":  "Strong — clearly defined problems with actionable research paths, including hints of methodology or experimental design.",
+        "score 8":  "Very strong — specific and well-motivated directions, with concrete proposals (e.g., datasets, benchmarks, model designs) and feasibility considerations.",
+        "score 9":  "Excellent — detailed and insightful research agenda, including prioritized problems, methodological guidance.",
+        "score 10": "Outstanding — highly actionable and deeply analyzed roadmap, offering concrete research programs with justified feasibility, step-by-step strategies, and measurable success criteria."
+    },
+
+    "Specificity": {
+        "aspect": "Content Depth",
+        "description": "Specificity: the granularity and concreteness of the survey's analysis, including whether it goes beyond high-level summaries to discuss concrete implementation details, code-level mechanisms, module interactions, design choices, operational steps, and fine-grained distinctions between methods.",
+        "score 1":  "Extremely vague — entirely generic statements with no concrete mechanisms, examples, or fine-grained analysis.",
+        "score 2":  "Very low specificity — mostly broad labels or superficial lists; almost no detail beyond high-level descriptions.",
+        "score 3":  "Low specificity — a few concrete terms appear, but the survey remains mostly abstract and non-operational.",
+        "score 4":  "Below-average specificity — some partial detail is given, but analysis is still dominated by general summaries.",
+        "score 5":  "Moderate specificity — the survey includes some concrete mechanisms or examples, but many sections remain at a high level.",
+        "score 6":  "Fair specificity — several parts discuss implementation or structural details, though the analysis is not consistently fine-grained.",
+        "score 7":  "Good specificity — the survey regularly addresses concrete methods, internal mechanisms, or module-level distinctions.",
+        "score 8":  "Very good specificity — detailed analysis of implementation choices, workflow steps, architectural components, or code-level behavior in multiple places.",
+        "score 9":  "Excellent specificity — highly fine-grained discussion with precise breakdowns of mechanisms, modules, design trade-offs, and operational details.",
+        "score 10": "Outstanding specificity — exceptionally granular analysis that closely examines implementation logic, code mechanisms, and detailed system behavior throughout the survey."
     }
 }
 

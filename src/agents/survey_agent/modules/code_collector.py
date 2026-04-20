@@ -583,14 +583,16 @@ class CodeAnalyzer():
         self.force_regenerate = True
         self.filter_in_steps = True
         self.agentic_repo_anlysis = True
-        self.max_sites_per_paper = 2
-        self.max_papers = 50
+        self.max_sites_per_paper = 3
+        self.max_papers = 150
+        self.max_sites = 60
         self.github_clone_in_parallel = 4
         self.min_code_files_threshold = 3  # Minimum number of code files required for analysis
         self.min_total_files_threshold = 5  # Minimum number of total files required for analysis
         self.other_model_pseudocode_cache_enabled = True
+        self.parallel_generating_pseudocode = True  # Enable parallel pseudocode generation
+        self.pseudocode_co_writer_num = 2  # Number of parallel workers for pseudocode generation
         
-
     def _list_repo_files(self, repo_name):
         repo_path = os.path.join(self.repo_cache_path, repo_name)
         if not os.path.isdir(repo_path):
@@ -1895,6 +1897,77 @@ class CodeAnalyzer():
         self.logger.info(f"Batch clone completed: {len(success_list)} success, {len(failed_list)} failed")
         return success_list, failed_list
 
+    def _process_site_pseudocode(self, paper: str, site: str, main_fest: dict, 
+                                 batch_refine: bool, agent_refine: bool, batch_size: int) -> Optional[dict]:
+        """
+        Process pseudocode generation for a single site. Used by both sequential and parallel execution.
+        
+        Returns:
+            Dict with keys: pseudocode, initial_pseudocode, repo_name, main_fest, or None if failed
+        """
+        repo_name = self.code_collector._extract_repo_name(site)
+        pseudocode = None
+        initial_pseudocode = None
+        
+        if not self.force_regenerate:
+            pseudocode, initial_pseudocode = self.read_repo_pseudocode_cache(repo_name, True)
+
+        # Fallback: try to load pseudocode from other models if current model's cache is not available
+        if (not pseudocode or not initial_pseudocode) and self.other_model_pseudocode_cache_enabled:
+            self.logger.info(f"Current model cache not found for {repo_name}, trying to load from other models...")
+            other_pseudocode, other_initial_pseudocode = self._load_other_model_pseudocode_cache(repo_name, True)
+            if other_pseudocode:
+                pseudocode = other_pseudocode
+                self.logger.info(f"Loaded fallback pseudocode from other model for {repo_name}")
+            if other_initial_pseudocode:
+                initial_pseudocode = other_initial_pseudocode
+                self.logger.info(f"Loaded fallback concise pseudocode from other model for {repo_name}")
+
+        if not pseudocode or not initial_pseudocode:
+            if not self.agentic_repo_anlysis:
+                initial_pseudocode = self.generate_project_pseudocode_from_main_files(main_fest)
+
+                pseudocode = initial_pseudocode
+                # Refine
+                if batch_refine:
+                    pseudocode = self.refine_project_pseudocode_with_core_files(mainfest = main_fest,
+                                                                                current_pseudocode=pseudocode,
+                                                                                batch_size = batch_size)
+                if agent_refine:
+                    pseudocode = self.refine_project_pseudocode_with_agent(mainfest = main_fest,
+                                                                            current_pseudocode=pseudocode,
+                                                                            max_steps = 20,
+                                                                            hard_code_revise = True,
+                                                                            max_rounds_without_revise = 3,
+                                                                            last_round_revise = True)
+            else:
+                try:
+                    pseudocode, initial_pseudocode = self.agentic_generate_project_pseudocode(
+                        mainfest=main_fest,
+                        max_steps=10,
+                        hard_code_revise=True,
+                        max_rounds_without_revise=5,
+                        last_round_revise=True
+                    )
+                except Exception as e:
+                    self.logger.error(f"Fail to generate {site} pseudocode in agentic pseudocreater: {e}. Skip this repo.")
+                    return None
+            pseudocode = f"[REPOSITORY NAME]:{repo_name}: \n" + pseudocode
+            initial_pseudocode = f"[REPOSITORY NAME]:{repo_name}: \n" + initial_pseudocode
+        
+        if main_fest and pseudocode and initial_pseudocode:
+            self.cache_repo_pseudocode(repo_name, pseudocode)
+            self.cache_repo_pseudocode(repo_name, initial_pseudocode, concise=True)
+            return {
+                "pseudocode": pseudocode,
+                "initial_pseudocode": initial_pseudocode,
+                "repo_name": repo_name,
+                "main_fest": main_fest,
+            }
+        else:
+            self.logger.error(f"Failed to generate valid pseudocode for {paper}/{repo_name}")
+            return None
+
     def execute(self, papers: List[str], batch_refine: bool = True, agent_refine: bool = True, batch_size: int = 3):
         papers_sites = []
         site_num = 0
@@ -1909,7 +1982,7 @@ class CodeAnalyzer():
             sites =  self.code_collector.extract_code_links(paper_id = paper, paper_markdown=paper_markdown, valid_num=max_sites_per_paper)
             papers_sites.append(sites)
             site_num += len(sites)
-        self.logger.info(f"[GENERAL] site number: {site_num}")
+        self.logger.info(f"[GENERAL] extracted site number: {site_num}")
 
         all_sites = []
         papers_sites = papers_sites[:max_papers]
@@ -1917,88 +1990,118 @@ class CodeAnalyzer():
             all_sites.extend(paper_sites)
         self._batch_clone(all_sites, self.github_clone_in_parallel)
         
+        # First pass: build mainfests for all sites
+        site_tasks = []  # List of (paper, site, main_fest, repo_name)
+        for paper, sites in zip(papers, papers_sites):
+            if not sites:
+                continue
+            for site in sites:
+                self.logger.info(f"processing {paper}: {site}")
+                repo_name = self.code_collector._extract_repo_name(site)
+                try:
+                    main_fest = self.build_mainfest(paper, site, 8)
+                    site_tasks.append((paper, site, main_fest, repo_name))
+                except Exception as e:
+                    self.logger.error(f"Fail to process {site} in analyzer execution: {e}. Skip this repo.")
+                    continue
+        
+        # Check cache for all tasks
+        cached_results = {}
+        tasks_need_generation = []
+        site_tasks = site_tasks[:self.max_sites]
+        
+        for paper, site, main_fest, repo_name in site_tasks:
+            pseudocode = None
+            initial_pseudocode = None
+            if not self.force_regenerate:
+                pseudocode, initial_pseudocode = self.read_repo_pseudocode_cache(repo_name, True)
+            
+            # Try fallback from other models
+            if (not pseudocode or not initial_pseudocode) and self.other_model_pseudocode_cache_enabled:
+                other_pseudocode, other_initial_pseudocode = self._load_other_model_pseudocode_cache(repo_name, True)
+                if other_pseudocode:
+                    pseudocode = other_pseudocode
+                if other_initial_pseudocode:
+                    initial_pseudocode = other_initial_pseudocode
+            
+            if pseudocode and initial_pseudocode:
+                pseudocode = f"[REPOSITORY NAME]:{repo_name}: \n" + pseudocode
+                initial_pseudocode = f"[REPOSITORY NAME]:{repo_name}: \n" + initial_pseudocode
+                cached_results[(paper, site)] = {
+                    "pseudocode": pseudocode,
+                    "initial_pseudocode": initial_pseudocode,
+                    "repo_name": repo_name,
+                    "main_fest": main_fest,
+                }
+            else:
+                tasks_need_generation.append((paper, site, main_fest, repo_name))
+        
+        # Process remaining tasks - either sequentially or in parallel
+        generated_results = {}
+        
+        if self.parallel_generating_pseudocode and len(tasks_need_generation) > 1:
+            self.logger.info(f"Parallel pseudocode generation enabled with {self.pseudocode_co_writer_num} workers")
+            self.logger.info(f"Processing {len(tasks_need_generation)} tasks in parallel...")
+            
+            def generate_single(task_tuple):
+                paper, site, main_fest, repo_name = task_tuple
+                return (paper, site), self._process_site_pseudocode(
+                    paper, site, main_fest, batch_refine, agent_refine, batch_size
+                )
+            
+            with ThreadPoolExecutor(max_workers=self.pseudocode_co_writer_num) as executor:
+                futures = {executor.submit(generate_single, task): task for task in tasks_need_generation}
+                
+                with tqdm(total=len(tasks_need_generation), desc="Generating pseudocode", unit="repo") as pbar:
+                    for future in as_completed(futures):
+                        key, result = future.result()
+                        if result is not None:
+                            generated_results[key] = result
+                            self.logger.info(f"Successfully generated pseudocode for {key[0]}/{key[1]}")
+                        else:
+                            self.logger.error(f"Failed to generate pseudocode for {key[0]}/{key[1]}")
+                        pbar.update(1)
+        else:
+            # Sequential processing
+            self.logger.info(f"Processing {len(tasks_need_generation)} tasks sequentially...")
+            for task in tqdm(tasks_need_generation, desc="Generating pseudocode", unit="repo"):
+                paper, site, main_fest, repo_name = task
+                result = self._process_site_pseudocode(
+                    paper, site, main_fest, batch_refine, agent_refine, batch_size
+                )
+                if result is not None:
+                    generated_results[(paper, site)] = result
+        
+        # Combine cached and generated results
+        all_results = {**cached_results, **generated_results}
+        
+        # Organize results by paper
         paper_mainfests = []
         for paper, sites in zip(papers, papers_sites):
             if not sites:
-                self.logger.warning(f"Get no sites from {paper}, skip")
-            self.logger.info(f"processing sites for {paper}")
+                continue
+            
             paper_pseudocode = []
             paper_repo_names = []
             paper_repo_mainfests = []
             paper_concise_pseudocode = []
+            
             for site in sites:
-                self.logger.info(f"processing {paper}: {site}")
-                repo_name = self.code_collector._extract_repo_name(site)
-                pseudocode = None
-                initial_pseudocode = None
-                if not self.force_regenerate:
-                    pseudocode, initial_pseudocode = self.read_repo_pseudocode_cache(repo_name, True)
-
-                try:
-                    main_fest = self.build_mainfest(paper, site, 8)
-                except Exception as e:
-                    self.logger.error(f"Fail to process {site} in analyzer execution: {e}. Skip this repo.")
-                    continue
-
-                # Fallback: try to load pseudocode from other models if current model's cache is not available
-                if (not pseudocode or not initial_pseudocode) and self.other_model_pseudocode_cache_enabled:
-                    self.logger.info(f"Current model cache not found for {repo_name}, trying to load from other models...")
-                    other_pseudocode, other_initial_pseudocode = self._load_other_model_pseudocode_cache(repo_name, True)
-                    if other_pseudocode:
-                        pseudocode = other_pseudocode
-                        self.logger.info(f"Loaded fallback pseudocode from other model for {repo_name}")
-                    if other_initial_pseudocode:
-                        initial_pseudocode = other_initial_pseudocode
-                        self.logger.info(f"Loaded fallback concise pseudocode from other model for {repo_name}")
-
-                if not pseudocode or not initial_pseudocode:
-                    if not self.agentic_repo_anlysis:
-                        initial_pseudocode = self.generate_project_pseudocode_from_main_files(main_fest)
-
-                        pseudocode = initial_pseudocode
-                        # Refine
-                        if batch_refine:
-                            pseudocode = self.refine_project_pseudocode_with_core_files(mainfest = main_fest,
-                                                                                            current_pseudocode=pseudocode,
-                                                                                            batch_size = batch_size)
-                        if agent_refine:
-                            pseudocode = self.refine_project_pseudocode_with_agent(mainfest = main_fest,
-                                                                                            current_pseudocode=pseudocode,
-                                                                                            max_steps = 20,
-                                                                                            hard_code_revise = True,
-                                                                                            max_rounds_without_revise = 3,
-                                                                                            last_round_revise = True)
-                    else:
-                        try:
-                            pseudocode, initial_pseudocode = self.agentic_generate_project_pseudocode(
-                                mainfest=main_fest,
-                                max_steps=10,
-                                hard_code_revise=True,
-                                max_rounds_without_revise=5,
-                                last_round_revise=True
-                            )
-                        except Exception as e:
-                            self.logger.error(f"Fail to generate {site} pseudocode in agentic pseudocreater: {e}. Skip this repo.")
-                            continue
-                    pseudocode = f"[REPOSITORY NAME]:{repo_name}: \n" + pseudocode
-                    initial_pseudocode = f"[REPOSITORY NAME]:{repo_name}: \n" + initial_pseudocode
-                if main_fest and pseudocode and initial_pseudocode:
-                    paper_pseudocode.append(pseudocode)
-                    paper_concise_pseudocode.append(initial_pseudocode)
-                    paper_repo_names.append(repo_name)
-                    paper_repo_mainfests.append(main_fest)
-
-                    self.cache_repo_pseudocode(repo_name, pseudocode)
-                    self.cache_repo_pseudocode(repo_name, initial_pseudocode, concise=True)
+                result = all_results.get((paper, site))
+                if result is not None:
+                    paper_pseudocode.append(result["pseudocode"])
+                    paper_concise_pseudocode.append(result["initial_pseudocode"])
+                    paper_repo_names.append(result["repo_name"])
+                    paper_repo_mainfests.append(result["main_fest"])
                 else:
-                    self.logger.error(f"no available github repo for {paper}, sites: {sites} all fail, mainfest None: {main_fest is None}, initial_pseudocode None: {initial_pseudocode is None}, pseudocode None: {pseudocode is None}")
-                
+                    self.logger.error(f"No pseudocode result for {paper}/{site}")
+            
             if len(paper_pseudocode) > 0:
                 paper_mainfests.append({
                     "paper_id": paper,
                     "paper_title": paper_repo_mainfests[0]["repo_info"].get("paper_title", "title loss"),
                     "paper_abstract": paper_repo_mainfests[0]["repo_info"].get("paper_abstract", "abstract loss"),
-                    "pseudocodes":paper_pseudocode,
+                    "pseudocodes": paper_pseudocode,
                     "concise_pseudocodes": paper_concise_pseudocode,
                     "repo_urls": sites,
                     "repo_names": paper_repo_names,

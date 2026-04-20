@@ -85,6 +85,7 @@ class WorkAnalyzer:
             self.logger.error(f"Papers failed to read: {papers}")
             return papers
 
+        # 这里retry进来会有问题
         if self.config.ModuleInfo.WorkAnalyzer.use_local_paper_graph_keynotes and not ds_keynotes_fallback:
             # extract information for baselines and empty node and write back to graph
             self.logger.info(f"getting keynotes in graph...")
@@ -142,6 +143,9 @@ class WorkAnalyzer:
         prompts = [task[2] for task in tasks]
         if not prompts and not err_papers:
             return []  # all papers are already processed
+        elif not prompts:
+            self.logger.error("Fail to get raw markdown .No prompt generated. Exit")
+            return err_papers
 
         try:
             responses = self.chat_agent.batch_remote_chat(
@@ -154,7 +158,7 @@ class WorkAnalyzer:
                 raise ValueError("No responses received from LLM during paper reading.")
         except Exception as e:
             self.logger.error(f'Error: {e} , during comprehending papers in getting response from LLM, retrying all...')
-            return self.read_papers_and_write_keynotes(papers, retry=retry + 1)
+            return self.read_papers_and_write_keynotes(papers, retry=retry + 1, ds_keynotes_fallback = ds_keynotes_fallback)
 
         for i, response in enumerate(responses):
             try:
@@ -180,7 +184,7 @@ class WorkAnalyzer:
 
         if err_papers:
             self.logger.info(f"Retrying {len(err_papers)} papers due to previous errors in keynotes generation...")
-            return self.read_papers_and_write_keynotes(err_papers, retry=retry + 1)
+            return self.read_papers_and_write_keynotes(err_papers, retry=retry + 1, ds_keynotes_fallback = ds_keynotes_fallback)
         
         return []
 
@@ -1047,6 +1051,22 @@ class WorkAnalyzer:
         return "\n".join(parts)
 
     # ---------------------------- Cluster table generation ----------------------------
+    def _validate_cluster_table(self, result: str, info_dict: dict) -> tuple[bool, dict]:
+        """
+        Validation function for cluster table generation.
+        Extracts and validates JSON from the LLM response.
+        
+        Returns:
+            (True, parsed_json) if successful
+        Raises:
+            ValueError if parsing fails
+        """
+        try:
+            parsed = extract_json(result)
+            return True, parsed
+        except Exception as e:
+            raise ValueError(f"Failed to extract JSON from cluster table response: {e}")
+
     def generate_cluster_tables(self, clusters: List[Dict]):
         """
         Build comparison tables for all clusters using CLUSTER_TABLE_GENERATION in batch.
@@ -1058,7 +1078,6 @@ class WorkAnalyzer:
         Raises if any cluster still fails after retries.
         """
         pending_tasks = []
-        results = {}
 
         for cluster in clusters:
             cluster_name = cluster.get("cluster_name", "unknown_cluster")
@@ -1092,45 +1111,23 @@ class WorkAnalyzer:
         max_retry = getattr(self.config.ModuleInfo.WorkAnalyzer, "cluster_table_max_retry", 3)
         temperature = getattr(self.config.ModuleInfo.WorkAnalyzer, "cluster_table_temperature", 0.3)
 
-        tasks = pending_tasks
-        last_err = None
-        for attempt in range(1, max_retry + 1):
-            if not tasks:
-                break
-            prompts = [t["prompt"] for t in tasks]
-            try:
-                responses = self.chat_agent.batch_remote_chat(
-                    prompts,
-                    temperature=temperature,
-                    desc=f"Cluster table generation attempt {attempt}/{max_retry}",
-                )
-            except Exception as e:
-                last_err = e
-                self.logger.warning(f"batch_remote_chat failed on attempt {attempt}: {e}")
-                continue
+        prompts = [t["prompt"] for t in pending_tasks]
+        cluster_names = [t["cluster_name"] for t in pending_tasks]
 
-            next_tasks = []
-            for task, resp in zip(tasks, responses or []):
-                if resp is None:
-                    next_tasks.append(task)
-                    continue
-                try:
-                    parsed = extract_json(resp)
-                    results[task["cluster_name"]] = parsed
-                except Exception as e:
-                    last_err = e
-                    self.logger.warning(
-                        f"Cluster table generation failed for {task['cluster_name']} on attempt {attempt}/{max_retry}: {e}"
-                    )
-                    next_tasks.append(task)
+        # Use batch_remote_chat_with_retry for cleaner retry logic
+        parsed_results = self.chat_agent.batch_remote_chat_with_retry(
+            prompts=prompts,
+            validate_fn=self._validate_cluster_table,
+            max_retry=max_retry,
+            desc="Cluster table generation",
+            temperature=temperature,
+        )
 
-            tasks = next_tasks
-
-        if tasks:
-            failed = ", ".join([t["cluster_name"] for t in tasks])
-            raise ValueError(
-                f"Failed to generate cluster tables for: {failed} after {max_retry} retries: {last_err}"
-            )
+        # Map results back to cluster names
+        results = {
+            cluster_name: parsed_result
+            for cluster_name, parsed_result in zip(cluster_names, parsed_results)
+        }
 
         self.relation_analysis_table = results
         return results

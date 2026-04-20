@@ -166,13 +166,23 @@ def main(config):
             for topic in topics:
                 logger.info(f"=== Running pipeline for topic: {topic} ===")
 
+                # Check if we should skip existing experiments in non-adapter mode
+                if getattr(config.BasicInfo, 'skip_exist', False) and not config.BasicInfo.adapter_mode:
+                    save_path = f"{output_dir}/{domain}"
+                    save_md_path = os.path.join(save_path, f"{topic}.md")
+                    save_json_path = os.path.join(save_path, f"{topic}.json")
+                    
+                    if os.path.exists(save_md_path) and os.path.exists(save_json_path):
+                        logger.info(f"Skipping topic '{topic}' as both {topic}.md and {topic}.json already exist.")
+                        write_result(evaluation_save_path, topic, {}, "Skipped: files already exist")
+                        continue
+
                 for attempt in range(config.BasicInfo.topic_max_retry):
                     logger.info(f"Attempt {attempt+1} for topic: {topic}")
                     cfg_for_topic = OmegaConf.merge(config, {
                                                             "BasicInfo": {
                                                                     "topic": topic, 
-                                                                    "save_path": f"{output_dir}/{domain}/{topic.replace(' ', '_')}.md",
-                                                                    "save_json_path": f"{output_dir}/{domain}/{topic.replace(' ', '_')}.json"
+                                                                    "save_path": f"{output_dir}/{domain}",
                                                                 },
                                                             "APIInfo": {
                                                                     "llm_model_name": model

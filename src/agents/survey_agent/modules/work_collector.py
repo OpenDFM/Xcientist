@@ -163,6 +163,7 @@ class WorkCollector:
         
         if not papers:
             self.logger.warning("No seed papers remained after LLM filtering! Please increase the seed paper number")
+            raise ValueError("No seed papers remained after LLM filtering")
             return []
 
         valid_graph_seed_paper_ids = []

@@ -6,38 +6,38 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from utils.rich_logger import get_logger
 from omegaconf import OmegaConf
 from modules.work_collector import WorkCollector
-from modules.paper_graph_retriever import PaperGraphRetriever
 from modules.database import Database
 from modules.work_analyzer import WorkAnalyzer
+from modules.code_report_generator import CodeReportGenerator
 from modules.survey_generator import SurveyGenerator
 from topics.Benchmark_topics import SURVEYGEN_TOPICS, AUTOSURVEY_TOPICS, SUBTEST_TOPICS
-from utils.config_utils import merge_with_default_survey_config
 from utils.file_utils import write_domain_header, write_topic_header, write_result, write_domain_result, write_header
 
 from modules.judge import Judge
+from modules.code_collector import CodeCollector, CodeAnalyzer
 
 logger = get_logger("Deep Survey Batch")
 
-omit_papers = ["2509.08827", "2509.02547", "09d8841eeb362a2c04f055f70f16d634093c83bc", "35fe6726fdc496c39eb2a9913cde082f75773573", "2507.01925", "2508.18725"]
-
-def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_generator, judge):
+def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_generator, judge, code_collector, code_analyzer, code_report_generator):
     try:
-        # step 1: related work collection
-        logger.info("Collecting related work...")
+        results = []
+        reasons = []
+        # # step 1: related work collection
+        # logger.info("Collecting related work...")
 
-        # collect seed papers
-        seed_paper_ids = work_collector.collect_seed_papers(config.BasicInfo.topic)
-        # seed_paper_ids = work_collector.collect_seed_papers_debug()
-        logger.info(f"Collected seed paper IDs: {seed_paper_ids}")
+        # # collect seed papers
+        # seed_paper_ids = work_collector.collect_seed_papers(config.BasicInfo.topic)
+        # # seed_paper_ids = work_collector.collect_seed_papers_debug()
+        # logger.info(f"Collected seed paper IDs: {seed_paper_ids}")
 
-        # expand seed papers by reference and citation
-        logger.info("Expanding seed papers by reference and citation...")
-        expanded_paper_ids = work_collector.expand_seed_papers_by_reference_and_citation(
-            seed_paper_ids
-        )
+        # # expand seed papers by reference and citation
+        # logger.info("Expanding seed papers by reference and citation...")
+        # expanded_paper_ids = work_collector.expand_seed_papers_by_reference_and_citation(
+        #     seed_paper_ids
+        # )
 
-        if config.BasicInfo.debug:
-            logger.info(f"Expanded paper IDs: {expanded_paper_ids}")
+        # if config.BasicInfo.debug:
+        #     logger.info(f"Expanded paper IDs: {expanded_paper_ids}")
 
         # logger.info("Building paper embedding database...")
         # database.build_with_graph()
@@ -47,7 +47,12 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
         # logger.info("Comprehending papers...")
 
         # # deep reading for papers
-        # collected_papers = seed_paper_ids + expanded_paper_ids
+        # collected_papers = list(set.union(set(seed_paper_ids),set(expanded_paper_ids)))
+        import json
+        with open("/hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/xiaomi-batch-0307-test-refinement2-whole-review-revise/user_defined/LLMs-based_Agents.json", "r") as f:
+            survey_dict = json.load(f)
+        collected_papers = survey_dict.get("references")
+
         # logger.info(f"Total papers to read: {len(collected_papers)}")
         # err_papers = work_analyzer.read_papers_and_write_keynotes(collected_papers)
         # logger.info("Deep reading completed.")
@@ -55,8 +60,23 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
         #     logger.warning(f"Some papers failed to read {len(err_papers)} papers after retries")
         #     collected_papers = [pid for pid in collected_papers if pid not in err_papers]
         #     logger.info(f"Proceeding with {len(collected_papers)} successfully read papers.")
-        
 
+        if config.ModuleInfo.SurveyGenerator.include_code_report:
+            paper_mainfests = code_analyzer.execute(collected_papers)
+
+            env_report = code_report_generator.generate_framework_env_report(paper_mainfests = paper_mainfests, topic = "LLMs-based Agents")
+            code_report = code_report_generator.generate_report(papers = paper_mainfests, topic = config.BasicInfo.topic)
+
+            logger.info("[ENV REPORT:]")
+            logger.info(f"{env_report}")
+            logger.info("[CODE REPORT:]")
+            logger.info(f"{code_report}")
+
+            with open("./env_report.md", "w") as f:
+                f.write(env_report)
+            with open("./code_report.md", "w") as f:
+                f.write(code_report)
+        
         # # clustering
         # logger.info("Clustering papers...")
         # clustering_result = work_analyzer.cluster_papers(collected_papers)
@@ -103,8 +123,10 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
         # logger.info("Survey generation completed.")
         # logger.info("Drafting survey content...")
         # # generate draft
+        # # Pass code_report to draft_survey if available
         # draft = survey_generator.draft_survey(
-        #     intra_analysis_results, inter_analysis_results, outline
+        #     intra_analysis_results, inter_analysis_results, outline,
+        #     code_report=code_report if config.ModuleInfo.SurveyGenerator.include_code_report else None
         # )
 
         # # if config.BasicInfo.debug:
@@ -131,7 +153,6 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
 
 @hydra.main(config_path="../config", config_name="deep_survey_batch_test", version_base=None)
 def main(config):
-    config = merge_with_default_survey_config(config)
     logger.info("Starting Deep Survey Pipeline")
     logger.yaml(OmegaConf.to_container(config, resolve=True))
 
@@ -167,19 +188,21 @@ def main(config):
                 logger.info(f"Attempt {attempt+1} for topic: {topic}")
                 cfg_for_topic = OmegaConf.merge(config, {
                                                         "BasicInfo": {
-                                                                "topic": topic, 
+                                                                "topic": "LLMs-based_Agents", 
                                                                 "save_path": f"{config.BasicInfo.output_base_dir}/{domain}",
                                                             }
                                                         })
 
-                paper_graph_retriever = PaperGraphRetriever(cfg_for_topic)
-                work_collector = WorkCollector(cfg_for_topic, ignore_paper = None, paper_graph_retriever = paper_graph_retriever)
+                work_collector = WorkCollector(cfg_for_topic)
                 database = Database(cfg_for_topic, work_collector)
                 work_analyzer  = WorkAnalyzer(cfg_for_topic, work_collector)
                 survey_generator = SurveyGenerator(cfg_for_topic, work_analyzer, database)
                 survey_judge = Judge(cfg_for_topic, work_analyzer)
+                code_collector = CodeCollector(config)
+                code_analyzer = CodeAnalyzer(config, code_collector=code_collector, work_collector=work_collector)
+                code_report_generator = CodeReportGenerator(config, work_collector=work_collector ,code_collector=code_collector, code_analyzer=code_analyzer)
 
-                finished, eval_results, eval_reasons = run_pipeline_batch(cfg_for_topic, work_collector, database, work_analyzer, survey_generator, survey_judge)
+                finished, eval_results, eval_reasons = run_pipeline_batch(cfg_for_topic, work_collector, database, work_analyzer, survey_generator, survey_judge, code_collector, code_analyzer, code_report_generator)
                 if finished:
                     logger.info(f"Pipeline completed successfully for topic: {topic}")
                     write_result(config.BasicInfo.evaluation_save_path, topic, eval_results, eval_reasons)

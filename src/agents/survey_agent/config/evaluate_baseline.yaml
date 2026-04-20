@@ -6,10 +6,12 @@ BasicInfo:
   debug: True
   error_conservatism_mode: False
   user_defiend_benchmarks: True
-  topic_path: ./topics/debug_topics.txt
+  topic_path: ./topics/our_topics.txt
   AutoSurvey_benchmark: False
   SurveyGen_benchmark: False
   sub_benchmark_test: False
+  skip_exist: True
+  adapter_mode: False
 
 APIInfo:
   llm_api_key: 
@@ -30,14 +32,23 @@ APIInfo:
   semantic_scholar_api_max_retry: 3
 EvalInfo:
   baselines:
-    - deepsurvey
+    - deepsurvey-code
+    - deepsurvey-no-code
+    - autosurvey
+    - surveyforge
+    - surveyx
   save_paths:
-    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/test/0329-test-graph/4o-mini-evaluation_10_exp.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0416-xiaomi-deepsurvey_with_code_test_new/mimo-evaluation_10_exp.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0416-xiaomi-deepsurvey_without_code_test_new/mimo-evaluation_10_exp.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/AutoSurvey/output/survey_bench_xiaomi_new_topics/mimo-evaluation_10_exp.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/SurveyForge/code/output/res-xiaomi/mimo-evaluation_10_exp.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/SurveyX/outputs/0410_xiaomi_test/mimo-evaluation_10_exp.txt
   paper_paths:
-    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/test/0329-test-graph
-
-
-
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0416-xiaomi-deepsurvey_with_code_test_new
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0416-xiaomi-deepsurvey_without_code_test_new
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/AutoSurvey/output/survey_bench_xiaomi_new_topics
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/SurveyForge/code/output/res-xiaomi
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/SurveyX/outputs/0410_xiaomi_test
 ModuleInfo:
   WorkCollector:
     download_safe_mode: False
@@ -47,7 +58,7 @@ ModuleInfo:
     reference_graph_depth: 1
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
     sentence_transformer_batch_size: 32
-    expand_in_local_paper_graph: True
+    expand_in_local_paper_graph: False
     use_ds_when_graph_fail: True
     advanced_filter_in_local_paper_graph_expansion: True
     related_work_top_k: 20  # for debug
@@ -61,22 +72,15 @@ ModuleInfo:
   Database:
     default_top_k: 20
   PaperGraphRetriever:
-<<<<<<< HEAD
     db_path: data/processed/graph.db
-=======
-    db_path: /hpc_stor03/sjtu_home/zijian.wang/ResearchAgent/data/processed/graph.db
->>>>>>> origin/fix-main
   WorkAnalyzer:
     abstract_only_mode: True
     abstract_when_full_text_fail: True
     cache_enabled: True
     use_local_paper_graph_keynotes: True
-<<<<<<< HEAD
-=======
     use_ds_keynotes_when_graph_fail: True
     graph_keynote_extraction_batch_retry: 7
     graph_graph_keynote_extraction_temperature: 0.1
->>>>>>> origin/fix-main
     paper_reading_temperature: 1.0
     paper_reading_max_retry: 5
     llm_max_context_overhead_length_in_paper_reading: 20000
@@ -99,10 +103,13 @@ ModuleInfo:
     include_relation_graph: True
     include_relation_table: True
     include_code_report: False
+    include_env_report: False
     omit_error_preserve_retry_time: 2
     outline_generation_in_steps: True
     outline_generation_draft_max_retry: 4
     outline_generation_draft_batch_size: 20
+    outline_generation_draft_max_iterations: 5
+    outline_generation_draft_empty_keynotes_iteration: 1
     outline_draft_RAG_topk: 60
     outline_generation_assign_max_retry: 10
     outline_generation_assign_batch_size: 10
@@ -124,8 +131,9 @@ ModuleInfo:
     llm_max_context_overhead_length_outline_generation: 10000
     subsection_least_words: 700
     subsection_least_citations: 15
-    section_least_words: 2000
-    section_least_citations: 25
+    section_least_words: 20000
+    section_preamble_least_words: 2000
+    section_preamble_least_citations: 25
     draft_length_relax_ratio: 0.6
     use_full_text_in_survey_generation: True
     include_other_relevant_papers_RAG_in_outline: False
@@ -135,6 +143,7 @@ ModuleInfo:
     subsection_RAG_topk: 20
     use_title_in_draft: True
     enable_review_and_revise: True
+    agentic_refine_section: True
     section_review_temperature: 1.0
     section_review_retry: 3
     reviewer_max_suggestions: 5
@@ -147,23 +156,24 @@ ModuleInfo:
     refine_in_parts_mode: 2
     draft_refinement_max_retry: 7
     review_and_revise_whole_survey_in_refinement: True
+    agentic_refine_survey: True
     review_and_revise_whole_survey_max_iteration: 5
     valid_title_min_similarity: 0.5
+  CodeAnalysis:
+    PseudoCreator:
+      planner_temperature: 0.5
+      planner_max_retry: 3
   Judge:
     skip_evaluation: False
     use_different_api_for_judge: False
-<<<<<<< HEAD
-    model: mimo-v2-flash
-    judge_llm_api_key: 
-=======
     model: gpt-5-mini
-    judge_llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f
->>>>>>> origin/fix-main
+    judge_llm_api_key:
     judge_llm_api_base_url: https://api.xiaomimimo.com/v1/chat/completions
     nli_temperature: 0.1
     citation_quality_threshold: 0.5
     remove_failed_citation_in_eval: True
-    rubrics_eval_10_dimensions: True
+    rubrics_eval_10_dimensions: False
     rubrics_eval_4_dimensions: False
-    explanation_in_rubric: True
+    rubrics_deep_survey_eval: True
+    explanation_in_rubric: False
     citation_eval: False

@@ -2,29 +2,24 @@ BasicInfo:
   topic: Transformer
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
-<<<<<<< HEAD
-  save_path: ./outputs/test/0331-test-graph-test-fallback/Training-free_Memory_System_for_LLM_Agents.md
-  save_json_path: ./outputs/test/0331-test-graph/Training-free_Memory_System_for_LLM_Agents.json
-  evaluation_save_path: ./outputs/test/0331-test-graph/eval.txt
-=======
-  save_path: ./outputs/test/0407-test-cache/Transformer.md
-  save_json_path: ./outputs/test/0407-test-cache/Transformer.json
-  evaluation_save_path: ./outputs/test/0407-test-cache/eval.txt
->>>>>>> origin/fix-main
+  save_path: ./outputs/test/0413-new-save-test-code
+  evaluation_save_path: ./outputs/test/0413-new-save-test-code/eval.txt
   debug: True
   error_conservatism_mode: False
+  skip_exist: True
+  adapter_mode: True
 APIInfo:
   llm_api_key: sk-cp-R6adkh_rPxXPH0S-t_gb4ughwyrDs2pc2m9laV4p6-sRlpjSrs5F5aXZRxqFiUVD88iaxJPr_E_Jf2DfC-eZZ7oc1ZlR50Bnjfe6Na6MNLh_c4eMGVjnuAc
   llm_api_base_url: https://api.minimax.chat/v1/text/chatcompletion_v2
-  llm_model_name: minimax-m2.5
+  llm_model_name: minimax-m2.7
   llm_max_context_length: 180000
   use_stream_mode: false
   batch_chat_agent_worker: 8
   chat_timeout: 300
   batch_chat_timeout: 1800
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
-  low_flow_mode: False
-  low_flow_latency: 0
+  low_flow_mode: True
+  low_flow_latency: 1
   exponential_backoff: True
   exponential_backoff_time: 1
   exponential_backoff_max_time: 60
@@ -87,11 +82,14 @@ ModuleInfo:
     include_initial_analysis: False
     include_relation_graph: True
     include_relation_table: True
-    include_code_report: False
+    include_code_report: True
+    include_env_report: False
     omit_error_preserve_retry_time: 2
     outline_generation_in_steps: True
     outline_generation_draft_max_retry: 3
     outline_generation_draft_batch_size: 20
+    outline_generation_draft_max_iterations: 5
+    outline_generation_draft_empty_keynotes_iteration: 1
     outline_draft_RAG_topk: 60
     outline_generation_assign_max_retry: 10
     outline_generation_assign_batch_size: 20
@@ -113,8 +111,10 @@ ModuleInfo:
     llm_max_context_overhead_length_outline_generation: 10000
     subsection_least_words: 3000
     subsection_least_citations: 15
-    section_least_words: 100
-    section_least_citations: 3
+    section_least_words: 20000
+    section_preamable_least_words: 20000
+    section_preamble_least_words: 100
+    section_preamble_least_citations: 3
     draft_length_relax_ratio: 0.1
     use_full_text_in_survey_generation: False
     include_other_relevant_papers_RAG_in_outline: True
@@ -124,6 +124,7 @@ ModuleInfo:
     subsection_RAG_topk: 60
     use_title_in_draft: True
     enable_review_and_revise: True
+    agentic_refine_section: True
     section_review_temperature: 1.0
     section_review_retry: 3
     reviewer_max_suggestions: 5
@@ -131,13 +132,18 @@ ModuleInfo:
     section_revise_temperature: 0.5
     section_revise_retry: 3
     no_suggestion_run_each_iteration: 2
-    max_review_revise_iterations: 3
+    max_review_revise_iterations: 15
     draft_refinement_in_parts: True
     refine_in_parts_mode: 2
     draft_refinement_max_retry: 7
     review_and_revise_whole_survey_in_refinement: True
-    review_and_revise_whole_survey_max_iteration: 5
+    agentic_refine_survey: True
+    review_and_revise_whole_survey_max_iteration: 15
     valid_title_min_similarity: 0.5
+  CodeAnalysis:
+    PseudoCreator:
+      planner_temperature: 0.5
+      planner_max_retry: 3
   Judge:
     skip_evaluation: False
     use_different_api_for_judge: False
@@ -149,5 +155,6 @@ ModuleInfo:
     remove_failed_citation_in_eval: True
     rubrics_eval_10_dimensions: True
     rubrics_eval_4_dimensions: False
+    rubrics_deep_survey_eval: False
     explanation_in_rubric: False
     citation_eval: True

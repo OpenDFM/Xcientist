@@ -11,12 +11,15 @@ from modules.work_analyzer import WorkAnalyzer
 from modules.survey_generator import SurveyGenerator
 from modules.judge import Judge
 from utils.config_utils import merge_with_default_survey_config
+from modules.code_collector import CodeCollector, CodeAnalyzer
+from modules.code_report_generator import CodeReportGenerator
+
 from utils.file_utils import write_domain_header, write_topic_header, write_result, write_domain_result
 
 logger = get_logger("Deep Survey")
 
 
-def run_pipeline(config, work_collector, database, work_analyzer, survey_generator, judge):
+def run_pipeline(config, work_collector, database, work_analyzer, survey_generator, judge, code_collector, code_analyzer, code_report_generator):
     # step 1: related work collection
     logger.info("Collecting related work...")
 
@@ -59,6 +62,16 @@ def run_pipeline(config, work_collector, database, work_analyzer, survey_generat
     clustering_result = work_analyzer.cluster_papers(collected_papers)
     logger.info(f"Clustering completed. {len(clustering_result)} clusters formed.")
     work_analyzer.log_clusters(clustering_result)
+
+    code_report = None
+    env_report = None
+    if config.ModuleInfo.SurveyGenerator.include_code_report:
+        logger.info("Building code report among papers...")
+        paper_mainfests = code_analyzer.execute(collected_papers)
+
+        env_report = code_report_generator.generate_framework_env_report(paper_mainfests = paper_mainfests, topic = config.BasicInfo.topic)
+        code_report = code_report_generator.generate_report(papers = paper_mainfests, topic = config.BasicInfo.topic)
+        code_report_generator.save_report(code_report, env_report)
 
     relation_graph = None
     relation_table = None
@@ -113,13 +126,13 @@ def run_pipeline(config, work_collector, database, work_analyzer, survey_generat
     #     logger.info(f'DRAFT: {draft}')
 
     logger.info("Reviewing and revising survey draft...")
-    draft = survey_generator.review_and_revise_survey_in_parts(draft, outline)
+    draft = survey_generator.review_and_revise_survey_in_parts(draft, outline, code_report, env_report)
     logger.info("Reviewing and revising survey completed.")
 
     # print(draft)
     logger.info("Survey drafting completed.")
     logger.info("Refining survey draft...")
-    survey, references = survey_generator.refine_draft(draft)
+    survey, references = survey_generator.refine_draft(draft, code_report, env_report)
     survey_generator.save_survey(survey, references)
     logger.info("Survey refinement completed.")
 
@@ -156,7 +169,12 @@ def main(config):
     logger.info("Initializing Survey Judge...")
     survey_judge = Judge(config, work_analyzer)
 
-    result, reason = run_pipeline(config, work_collector, database, work_analyzer, survey_generator, survey_judge)
+    logger.info("Initializing Code Modules...")
+    code_collector = CodeCollector(config)
+    code_analyzer = CodeAnalyzer(config, code_collector=code_collector, work_collector=work_collector)
+    code_report_generator = CodeReportGenerator(config, work_collector=work_collector ,code_collector=code_collector, code_analyzer=code_analyzer)
+
+    result, reason = run_pipeline(config, work_collector, database, work_analyzer, survey_generator, survey_judge, code_collector, code_analyzer, code_report_generator)
     write_result(config.BasicInfo.evaluation_save_path, config.BasicInfo.topic, result, reason)
     
 

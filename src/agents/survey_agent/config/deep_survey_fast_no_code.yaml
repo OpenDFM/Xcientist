@@ -1,38 +1,30 @@
 BasicInfo:
-  topic: ""
-  evaluation_save_path: "./outputs/minimax-0326-test-graph/evaluation_10.txt"
-  save_path: ""
-  save_json_path: ""
-  user_defiend_benchmarks: True
-  topic_path: ./topics/debug_topics.txt
-  AutoSurvey_benchmark: False
-  SurveyGen_benchmark: False
-  sub_benchmark_test: False
-  output_base_dir: ./outputs/minimax-0326-test-graph
+  topic: LLMs-based Agents
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
-  topic_max_retry: 3
+  save_path: ./outputs/test/0413-new-save-test-code
+  evaluation_save_path: ./outputs/test/0413-new-save-test-code/eval.txt
   debug: True
   error_conservatism_mode: False
   skip_exist: True
-  adapter_mode: False
+  adapter_mode: True
 APIInfo:
-  llm_api_key: 
-  llm_api_base_url: https://api.minimax.chat/v1/text/chatcompletion_v2
-  llm_model_name: minimax-m2.5
+  llm_api_key: sk-8b3f9c6d7a1e4f2c9d5b6a7e3c1f8d2a
+  llm_api_base_url: http://58.210.177.113:8888/v1/chat/completions
+  llm_model_name: mimo-v2-flash
   llm_max_context_length: 180000
-  use_stream_mode: False
-  batch_chat_agent_worker: 4
+  use_stream_mode: false
+  batch_chat_agent_worker: 8
   chat_timeout: 300
   batch_chat_timeout: 1800
   semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
-  low_flow_mode: False
-  low_flow_latency: 2
+  low_flow_mode: True
+  low_flow_latency: 1
   exponential_backoff: True
   exponential_backoff_time: 1
   exponential_backoff_max_time: 60
   arxiv_api_max_retry: 3
-  semantic_scholar_api_max_retry: 5
+  semantic_scholar_api_max_retry: 3
 ModuleInfo:
   WorkCollector:
     download_safe_mode: False
@@ -40,50 +32,50 @@ ModuleInfo:
     download_in_parallel: True
     download_parallel_workers: 8
     cache_enabled: True
-    max_seed_paper_num: 15
+    max_seed_paper_num: 10
     use_seed_filter_LLM: True
-    LLM_seed_threshold: 3
+    LLM_seed_threshold: 4
     reference_graph_depth: 1
     sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
-    sentence_transformer_batch_size: 32
-    expand_in_local_paper_graph: True
+    sentence_transformer_batch_size: 64
+    expand_in_local_paper_graph: False
     use_ds_when_graph_fail: True
     advanced_filter_in_local_paper_graph_expansion: True
-    related_work_top_k: 30  # for debug
+    related_work_top_k: 40  # for debug
     log_related_work_num: -1 # set to -1 to log all
     related_work_threshold: 0.5
     related_work_threshold_for_llm: 4 # 1-5 scale
-    relatedness_temperature: 1.0
+    relatedness_temperature: 0.1
     RAG_source_use_embedding_filter: True
     RAG_source_use_LLM_filter: False
     RAG_source_downloadable_only: False
   Database:
-    default_top_k: 20
+    default_top_k: 30
   PaperGraphRetriever:
-    db_path: data/processed/graph.db
+    db_path: ./database/paper_graph/graph.db
   WorkAnalyzer:
     abstract_only_mode: False
     abstract_when_full_text_fail: True
     cache_enabled: True
-    use_local_paper_graph_keynotes: True
+    use_local_paper_graph_keynotes: False
     use_ds_keynotes_when_graph_fail: True
     graph_keynote_extraction_batch_retry: 7
     graph_graph_keynote_extraction_temperature: 0.1
-    paper_reading_temperature: 1.0
-    paper_reading_max_retry: 6
+    paper_reading_temperature: 0.3
+    paper_reading_max_retry: 5
     llm_max_context_overhead_length_in_paper_reading: 20000
     clustering_batch_size: 16
     clustering_temperature: 1.0
     clustering_in_steps: True
     clustering_batch_size_in_creation: 32
-    clustering_batch_size_in_assignment: 8
+    clustering_batch_size_in_assignment: 10
     cluster_assign_fast_mode: True
     paper_clustering_max_retry: 10
     paper_clustering_creation_max_retry: 3
-    paper_clustering_assignment_max_retry: 10
-    propose_question_temperature: 1.0
-    anwer_question_temperature: 1.0
-    intra_cluster_analysis_max_retry: 10
+    paper_clustering_assignment_max_retry: 4
+    propose_question_temperature: 0.5
+    anwer_question_temperature: 0.2
+    intra_cluster_analysis_max_retry: 5
     intra_cluster_analysis_temperature: 1.0
     intra_clustering_probelm_proposing_max_retry: 10
   SurveyGenerator:
@@ -94,23 +86,23 @@ ModuleInfo:
     include_env_report: False
     omit_error_preserve_retry_time: 2
     outline_generation_in_steps: True
-    outline_generation_draft_max_retry: 10
+    outline_generation_draft_max_retry: 3
     outline_generation_draft_batch_size: 20
     outline_generation_draft_max_iterations: 5
     outline_generation_draft_empty_keynotes_iteration: 1
     outline_draft_RAG_topk: 60
     outline_generation_assign_max_retry: 10
-    outline_generation_assign_batch_size: 10
+    outline_generation_assign_batch_size: 20
     outline_assign_RAG_topk: 20
     outline_assign_fast_mode: True
     outline_generation_temperature: 0.5
     outline_generation_batch_size: 16
     outline_generation_max_retry: 3
     outline_generation_max_retry_in_generation_loop: 6
-    subsection_draft_temperature: 1.0
-    subsection_draft_max_retry: 10
-    section_draft_max_retry: 10
-    section_draft_temperature: 1.0
+    subsection_draft_temperature: 0.5
+    subsection_draft_max_retry: 5
+    section_draft_max_retry: 3
+    section_draft_temperature: 0.1
     draft_refinement_temperature: 1.0
     section_draft_max_error_info_length: 500
     subsection_draft_max_error_info_length: 500
@@ -133,35 +125,35 @@ ModuleInfo:
     enable_review_and_revise: True
     agentic_refine_section: True
     section_review_temperature: 1.0
-    section_review_retry: 3
+    section_review_retry: 5
     reviewer_max_suggestions: 5
     section_revision_RAG_topk: 30
     section_revise_temperature: 0.5
     section_revise_retry: 5
     no_suggestion_run_each_iteration: 2
-    max_review_revise_iterations: 13
+    max_review_revise_iterations: 15
     draft_refinement_in_parts: True
     refine_in_parts_mode: 2
     draft_refinement_max_retry: 7
     review_and_revise_whole_survey_in_refinement: True
     agentic_refine_survey: True
-    review_and_revise_whole_survey_max_iteration: 5
+    review_and_revise_whole_survey_max_iteration: 10
     valid_title_min_similarity: 0.5
   CodeAnalysis:
-      PseudoCreator:
-        planner_temperature: 0.5
-        planner_max_retry: 3
+    PseudoCreator:
+      planner_temperature: 0.5
+      planner_max_retry: 3
   Judge:
-    skip_evaluation: True
+    skip_evaluation: False
     use_different_api_for_judge: False
     model: mimo-v2-flash
-    judge_llm_api_key: 
+    judge_llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f
     judge_llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
     nli_temperature: 0.1
     citation_quality_threshold: 0.5
     remove_failed_citation_in_eval: True
-    rubrics_eval_10_dimensions: False
+    rubrics_eval_10_dimensions: True
     rubrics_eval_4_dimensions: False
     rubrics_deep_survey_eval: False
     explanation_in_rubric: False
-    citation_eval: False
+    citation_eval: True

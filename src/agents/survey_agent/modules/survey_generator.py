@@ -16,8 +16,13 @@ from modules.pe import (
     SECTION_REVIEW,
     SURVEY_REVIEW,
     SURVEY_REVISE,
-    DRAFT_REFINEMENT_SUBSECTION_IN_PARTS
+    DRAFT_REFINEMENT_SUBSECTION_IN_PARTS,
+    CODE_REPORT_PROMPT_FOR_SECTION_REVIEWER,
+    CODE_REPORT_PROMPT_FOR_SECTION_REVISER,
+    CODE_REPORT_PROMPT_FOR_SURVEY_REVIEWER,
+    CODE_REPORT_PROMPT_FOR_SURVEY_REVISER
 )
+from modules.refine_agent import agentic_revise_survey_whole, agentic_revise_survey_in_parts
 from typing import Dict, List, Union
 from utils.err_info import CumulativeErrorInfo
 from utils.utils import extract_json
@@ -44,8 +49,10 @@ class SurveyGenerator:
         self.include_relation_table = config.ModuleInfo.SurveyGenerator.include_relation_table
         self.refine_in_parts_mode = self.config.ModuleInfo.SurveyGenerator.refine_in_parts_mode
         self.outline_fast_mode = self.config.ModuleInfo.SurveyGenerator.outline_assign_fast_mode
+        self.agentic_refine_section = self.config.ModuleInfo.SurveyGenerator.agentic_refine_section
+        self.agentic_refine_survey = self.config.ModuleInfo.SurveyGenerator.agentic_refine_survey
 
-    def format_papers_analysis(self, intra_analysis_results, inter_analysis_results):
+    def format_papers_analysis(self, intra_analysis_results, inter_analysis_results, concise_mode = False):
         papers_analysis = ""
 
         # debug
@@ -60,7 +67,7 @@ class SurveyGenerator:
             #     self.logger.info(f"Relation Table: {table}")
             self.logger.info("add relation table in analysis")
 
-        if self.include_initial_analysis:
+        if self.include_initial_analysis and not concise_mode:
             for i, group in enumerate(intra_analysis_results):
                 papers_analysis += f"Group {i+1} Analysis:\n"
                 for j, q in enumerate(group):
@@ -110,6 +117,8 @@ class SurveyGenerator:
         self, intra_analysis_results, inter_analysis_results, papers, retry=1
     ):
         max_retry_in_loop = self.config.ModuleInfo.SurveyGenerator.outline_generation_draft_max_retry
+        max_iterations = getattr(self.config.ModuleInfo.SurveyGenerator, 'outline_generation_draft_max_iterations', 10)
+        empty_iteration = getattr(self.config.ModuleInfo.SurveyGenerator, 'outline_generation_draft_empty_keynotes_iteration', 1)
 
         papers_analysis = self.format_papers_analysis(
             intra_analysis_results, inter_analysis_results
@@ -121,32 +130,51 @@ class SurveyGenerator:
             len(papers)
             / self.config.ModuleInfo.SurveyGenerator.outline_generation_draft_batch_size
         )
-        for batch_idx in range(num_batches):
-            err_info = CumulativeErrorInfo()
+        
+        # Set max_iterations to num_batches + 1 (for final empty iteration)
+        max_iterations = min(num_batches + empty_iteration, max_iterations)
+        if max_iterations < num_batches + empty_iteration:
+            self.logger.warning(f"max_iterations ({max_iterations}) < num_batches ({num_batches}) + empty_iteration ({empty_iteration}), truncating {num_batches + empty_iteration - max_iterations} batch(es)...")
 
-
-            self.logger.info(
-                f"Generating outline: processing batch {batch_idx + 1} of {num_batches}"
-            )
-            batch_papers = papers[
-                batch_idx
-                * self.config.ModuleInfo.SurveyGenerator.outline_generation_draft_batch_size : (
-                    batch_idx + 1
+        # stop debugging prompt
+        debug = False
+        for iteration_idx in range(max_iterations):
+            # Determine if this is the final empty iteration
+            is_empty_iteration = (iteration_idx + empty_iteration >= max_iterations)
+            
+            if is_empty_iteration:
+                # Final iteration with empty paper_keynotes
+                err_info = CumulativeErrorInfo()
+                self.logger.info(
+                    f"Generating outline: final refinement iteration (no new papers)"
                 )
-                * self.config.ModuleInfo.SurveyGenerator.outline_generation_draft_batch_size
-            ]
-            paper_keynotes = ""
-            for paper_id in batch_papers:
-                try:
-                    keynote = self.work_analyzer.get_paper_keynote(paper_id)
-                    paper_keynotes += f"Paper ID: {paper_id}\nKeynote: {keynote}\n\n"
-                except Exception as e:
-                    self.logger.error(f"Failed to get keynote for paper ID: {paper_id} in OUTLINE GENERATION DRAFT STEP with error {e}. Skipping this paper in OUTLINE GENERATION.")
-                    continue
+                paper_keynotes = ""
+            else:
+                # Normal batch processing
+                batch_idx = iteration_idx
+                err_info = CumulativeErrorInfo()
+
+                self.logger.info(
+                    f"Generating outline: processing batch {batch_idx + 1} of {num_batches} (iteration {iteration_idx + 1}/{max_iterations})"
+                )
+                batch_papers = papers[
+                    batch_idx
+                    * self.config.ModuleInfo.SurveyGenerator.outline_generation_draft_batch_size : (
+                        batch_idx + 1
+                    )
+                    * self.config.ModuleInfo.SurveyGenerator.outline_generation_draft_batch_size
+                ]
+                paper_keynotes = ""
+                for paper_id in batch_papers:
+                    try:
+                        keynote = self.work_analyzer.get_paper_keynote(paper_id)
+                        paper_keynotes += f"Paper ID: {paper_id}\nKeynote: {keynote}\n\n"
+                    except Exception as e:
+                        self.logger.error(f"Failed to get keynote for paper ID: {paper_id} in OUTLINE GENERATION DRAFT STEP with error {e}. Skipping this paper in OUTLINE GENERATION.")
+                        continue
 
             less_RAG_ratio = 1.0
 
-            debug = True
             while True:
                 query = f"Current Outline Title: {outline.get('title', '')}\n Current Outline Sections: {json.dumps(outline.get('sections', []))}"
                 other_relevant_papers = self.database.query_and_text(query_text = query, 
@@ -188,7 +216,7 @@ class SurveyGenerator:
                     if not valid:
                         raise ValueError(f"{new_err}")
                 except Exception as e:
-                    self.logger.warning(f"Outline validation failed for paper batch {batch_idx + 1}: {e} in OUTLINE GENERATION-DRAFT. Retrying this batch for {retry_time + 1}...")
+                    self.logger.warning(f"Outline validation failed for iteration {iteration_idx + 1}: {e} in OUTLINE GENERATION-DRAFT. Retrying this iteration for {retry_time + 1}...")
                     valid = False
                 
                 if valid:
@@ -962,8 +990,8 @@ class SurveyGenerator:
             self.logger.info(f"Total citation num in subsection drafts: {total_cites}")
 
         # step 2: section draft
-        section_least_words = self.config.ModuleInfo.SurveyGenerator.section_least_words or "no limit"
-        section_least_citations = self.config.ModuleInfo.SurveyGenerator.section_least_citations or "no limit"
+        section_preamble_least_words = self.config.ModuleInfo.SurveyGenerator.section_preamble_least_words or "no limit"
+        section_preamble_least_citations = self.config.ModuleInfo.SurveyGenerator.section_preamble_least_citations or "no limit"
         
         section_prompts = []
         sections_valid_ids = []
@@ -998,8 +1026,8 @@ class SurveyGenerator:
                 "subsection_drafts": current_subsection_drafts,
                 "papers": "",
                 "other_relevant_papers": other_paper_RAG_text,
-                "section_least_words": section_least_words,
-                "section_least_citations": section_least_citations,
+                "section_least_words": section_preamble_least_words,
+                "section_least_citations": section_preamble_least_citations,
                 # "section_index": section_index + 1,
                 "survey_outline": json.dumps(outline, ensure_ascii=False),
             }
@@ -1008,7 +1036,7 @@ class SurveyGenerator:
                 papers_list = section_paper_ids,
                 params = params_dict,
             )
-            self.logger.info(f"OUTLINEDEBUG: Section draft prompt for section index {section_index} before error feedback: \n\n {prompt}")
+            # self.logger.info(f"OUTLINEDEBUG: Section draft prompt for section index {section_index} before error feedback: \n\n {prompt}")
 
             section_prompts.append(prompt)
 
@@ -1042,11 +1070,11 @@ class SurveyGenerator:
                 allow_omit = (not self.config.BasicInfo.error_conservatism_mode) and (try_time + self.omit_error_preserve_retry_time >= self.config.ModuleInfo.SurveyGenerator.section_draft_max_retry)
                 if self.use_title_in_draft:
                     is_valid_section, info, cleaned_draft = self.validate_title_citation_draft(
-                        drafts, sections_valid_ids, self.config.ModuleInfo.SurveyGenerator.section_least_words, omit_error=allow_omit
+                        drafts, sections_valid_ids, self.config.ModuleInfo.SurveyGenerator.section_preamble_least_words, omit_error=allow_omit
                     )
                 else:
                     is_valid_section, info,  cleaned_draft = self.validate_id_citation_draft(
-                        drafts, sections_valid_ids, self.config.ModuleInfo.SurveyGenerator.section_least_words, omit_error=allow_omit
+                        drafts, sections_valid_ids, self.config.ModuleInfo.SurveyGenerator.section_preamble_least_words, omit_error=allow_omit
                     )
 
                 if not is_valid_section:
@@ -1184,8 +1212,20 @@ class SurveyGenerator:
                 subsection["papers_to_use"] = [p for p in subsection.get("papers_to_use", []) if p not in err_set]
         return outline
 
-    def review_section(self, section_text, previous_section_text=None, next_section_text=None, section_title = None, section_outline = None):
+    def review_section(self, section_text, previous_section_text=None, next_section_text=None, section_title = None, section_outline = None, code_report = None, env_report = None):
         self.logger.info("\n--- [Reviewer] analyzing text... ---")
+        
+        if self.config.ModuleInfo.SurveyGenerator.include_env_report and env_report:
+            final_report = f"CODE REPORT: {code_report}\n\nENV REPORT: {env_report}\n\n"
+        else:
+            final_report = code_report
+
+        if self.config.ModuleInfo.SurveyGenerator.include_code_report and final_report:
+            additional_context = CODE_REPORT_PROMPT_FOR_SECTION_REVIEWER.format(code_report = final_report)
+            self.logger.info(f"injecting code report to section reviewer: {additional_context[:1500]}")
+        else:
+            additional_context = "None"
+
         review_prompt = SECTION_REVIEW.format(
             topic = self.config.BasicInfo.topic,
             section_text=section_text,
@@ -1195,6 +1235,7 @@ class SurveyGenerator:
             current_section_length = len(section_text.split()),
             section_title = section_title or "",
             section_outline = section_outline or "",
+            additional_context = additional_context,
         )
         valid = False
         for _ in range(self.config.ModuleInfo.SurveyGenerator.section_review_retry):
@@ -1245,18 +1286,29 @@ class SurveyGenerator:
             self.logger.info(f"   >>> Applied revision: Replaced {len(old_str)} chars with {len(new_str)} chars.")
         return new_text
 
-    def revise_section(self, section_text, suggestion, section_title = None, section_outline = None):
+    def revise_section(self, section_text, suggestion, section_title = None, section_outline = None, code_report = None, env_report = None):
         self.logger.info(f"\n--- [Reviser] processing suggestion: {suggestion}... ---")
         # TODO: refine the query text
         valid = False
         for _ in range(self.config.ModuleInfo.SurveyGenerator.section_revise_retry):
             try:
+                if self.config.ModuleInfo.SurveyGenerator.include_env_report and env_report:
+                    final_report = f"CODE REPORT: {code_report}\n\nENV REPORT: {env_report}\n\n"
+                else:
+                    final_report = code_report
+
+                if self.config.ModuleInfo.SurveyGenerator.include_code_report and final_report:
+                    additional_context = CODE_REPORT_PROMPT_FOR_SECTION_REVISER.format(code_report = final_report)
+                    self.logger.info(f"injecting code report to section revieser: {additional_context[:1500]}")
+                else:
+                    additional_context = "None"
                 prompt = SECTION_REVISE.format(
                     section_title=section_title,
                     section_outline = section_outline or "",
                     topic=self.config.BasicInfo.topic, 
                     text=section_text,
                     citations=self.database.query_and_text(section_title or self.config.BasicInfo.topic, self.config.ModuleInfo.SurveyGenerator.section_revision_RAG_topk),
+                    additional_context = additional_context,
                     reviewer_suggestion=suggestion
                 )
 
@@ -1305,13 +1357,13 @@ class SurveyGenerator:
                 text += f"    Subsection description: {subsection.get('description', '')}\n"
         return text
 
-    def review_and_revise_section(self, current_text, previous_section_text=None, next_section_text=None, section_outline=None):
+    def review_and_revise_section(self, current_text, previous_section_text=None, next_section_text=None, section_outline=None, code_report = None, env_report = None):
         MAX_OUTER_ITERATIONS = self.config.ModuleInfo.SurveyGenerator.max_review_revise_iterations
         for i in range(MAX_OUTER_ITERATIONS):
             self.logger.info(f"\n\n====== step 1.1 revise in parts: OUTER LOOP {i+1}/{MAX_OUTER_ITERATIONS} ======")
             
             try:
-                suggestions = self.review_section(current_text, previous_section_text, next_section_text, section_outline.get("title", ""), self._format_section_outline(section_outline))
+                suggestions = self.review_section(current_text, previous_section_text, next_section_text, section_outline.get("title", ""), self._format_section_outline(section_outline), code_report = code_report, env_report = env_report)
             except Exception as e:
                 self.logger.error(f"Section review failed in OUTER LOOP {i+1} with error {e}. Exiting review and revise loop.")
                 continue
@@ -1331,7 +1383,7 @@ class SurveyGenerator:
             self.logger.info(f"Starting to apply {len(suggestions)} suggestions...")
             for idx, sug in enumerate(suggestions):
                 try:
-                    new_text = self.revise_section(current_text, sug, section_title=section_outline.get("title", ""), section_outline = self._format_section_outline(section_outline, False))
+                    new_text = self.revise_section(current_text, sug, section_title=section_outline.get("title", ""), section_outline = self._format_section_outline(section_outline, False), code_report = code_report, env_report = env_report)
                 except Exception as e:
                     self.logger.error(f"Section revision failed for suggestion {idx+1} in OUTER LOOP {i+1} with error {e}. Skipping this suggestion.")
                     continue
@@ -1344,7 +1396,7 @@ class SurveyGenerator:
             for _ in range(self.config.ModuleInfo.SurveyGenerator.no_suggestion_run_each_iteration):
                 self.logger.info(f"\n--- step 1.2 NO SUGGESTION LOOP ---")
                 try:
-                    new_text = self.revise_section(current_text, "", section_title=section_outline.get("title", ""))
+                    new_text = self.revise_section(current_text, "", section_title=section_outline.get("title", ""), code_report = code_report, env_report = env_report)
                 except Exception as e:
                     self.logger.error(f"Section revision failed for suggestion {idx+1} in OUTER LOOP empty-suggest-modify with error {e}. Skipping this suggestion.")
                     continue
@@ -1358,10 +1410,12 @@ class SurveyGenerator:
             self.logger.info(current_text[:30])
         return current_text
 
-    def review_and_revise_survey_in_parts(self, draft, outline):
+    def review_and_revise_survey_in_parts(self, draft, outline, code_report = None, env_report = None):
         if not self.config.ModuleInfo.SurveyGenerator.enable_review_and_revise:
             self.logger.info("Review and revise module is disabled. Skipping...")
             return draft
+        if self.agentic_refine_section:
+            return agentic_revise_survey_in_parts(self, draft, outline, self.config.ModuleInfo.SurveyGenerator.max_review_revise_iterations, code_report)
         sections = draft.get("section_drafts", []) or []
         if len(sections) == 0:
             self.logger.error("No sections found in draft for review and revise.")
@@ -1375,7 +1429,9 @@ class SurveyGenerator:
                 section_text,
                 previous_section_text=previous_section_text,
                 next_section_text=next_section_text,
-                section_outline=outline.get('sections', [])[idx]
+                section_outline=outline.get('sections', [])[idx],
+                code_report = code_report,
+                env_report = env_report
             )
             revised_sections.append(revised_text)
 
@@ -1391,17 +1447,29 @@ class SurveyGenerator:
 
         return draft
 
-    def revise_survey(self, survey, outline, suggestion):
+    def revise_survey(self, survey, outline, suggestion, code_report=None, env_report = None):
         self.logger.info(f"\n--- [Reviser] processing suggestion: {suggestion}... ---")
         # TODO: refine the query text
         valid = False
         for _ in range(self.config.ModuleInfo.SurveyGenerator.section_revise_retry):
             try:
+                if self.config.ModuleInfo.SurveyGenerator.include_env_report and env_report:
+                    final_report = f"CODE REPORT: {code_report}\n\nENV REPORT: {env_report}\n\n"
+                else:
+                    final_report = code_report
+
+                if self.config.ModuleInfo.SurveyGenerator.include_code_report and final_report:
+                    additional_context = CODE_REPORT_PROMPT_FOR_SURVEY_REVISER.format(code_report = final_report)
+                    self.logger.info(f"injecting code report to survey reviser: {additional_context[:500]}")
+                else:
+                    additional_context = "None"
+                    
                 prompt = SURVEY_REVISE.format(
                     topic=self.config.BasicInfo.topic,
                     survey_outline = self._format_survey_outline(outline, False) or "",
                     survey=survey,
-                    reviewer_suggestion=suggestion
+                    reviewer_suggestion=suggestion,
+                    additional_context = additional_context,
                 )
 
                 parsed_json = extract_json(
@@ -1451,12 +1519,23 @@ class SurveyGenerator:
                     text += f"    Subsection description: {subsection.get('description', '')}\n"
         return text
 
-    def review_survey(self, survey, survey_outline = None):
+    def review_survey(self, survey, survey_outline = None, code_report=None, env_report = None):
         self.logger.info("\n--- [Reviewer] analyzing text... ---")
+        if self.config.ModuleInfo.SurveyGenerator.include_env_report and env_report:
+            final_report = f"CODE REPORT: {code_report}\n\nENV REPORT: {env_report}\n\n"
+        else:
+            final_report = code_report
+        if self.config.ModuleInfo.SurveyGenerator.include_code_report and final_report:
+            additional_context = CODE_REPORT_PROMPT_FOR_SURVEY_REVIEWER.format(code_report = final_report)
+            self.logger.info(f"injecting code report to survey reviewer: {additional_context[:1500]}")
+        else:
+            additional_context = "None"
+
         review_prompt = SURVEY_REVIEW.format(
             topic = self.config.BasicInfo.topic,
             survey=survey,
-            survey_outline = self._format_survey_outline(survey_outline, False)
+            survey_outline = self._format_survey_outline(survey_outline, False),
+            additional_context = additional_context,
         )
         valid = False
         for _ in range(self.config.ModuleInfo.SurveyGenerator.section_review_retry):
@@ -1480,13 +1559,15 @@ class SurveyGenerator:
             print("   [Reviewer] Failed to generate valid list.")
             raise ValueError("Invalid section review output.")
 
-    def review_and_revise_survey(self, survey, outline):
+    def review_and_revise_survey(self, survey, outline, code_report=None, env_report = None):
         MAX_WHOLE_SURVEY_ITERATION = self.config.ModuleInfo.SurveyGenerator.review_and_revise_whole_survey_max_iteration
+        if self.agentic_refine_survey:
+            return agentic_revise_survey_whole(self, survey, outline, MAX_WHOLE_SURVEY_ITERATION, code_report)
         for i in range(MAX_WHOLE_SURVEY_ITERATION):
             self.logger.info(f"\n\n====== step 2 revise whole survey: OUTER LOOP {i+1}/{MAX_WHOLE_SURVEY_ITERATION} ======")
             
             try:
-                suggestions = self.review_survey(survey, outline)
+                suggestions = self.review_survey(survey, outline, code_report=code_report, env_report = env_report)
             except Exception as e:
                 self.logger.error(f"Survey review failed in OUTER LOOP {i+1} with error {e}. Exiting review and revise loop.")
                 continue
@@ -1507,7 +1588,7 @@ class SurveyGenerator:
             self.logger.info(f"Starting to apply {len(suggestions)} suggestions...")
             for idx, sug in enumerate(suggestions):
                 try:
-                    new_survey = self.revise_survey(survey, outline, sug)
+                    new_survey = self.revise_survey(survey, outline, sug, code_report=code_report, env_report = env_report)
                 except Exception as e:
                     self.logger.error(f"Section revision failed for suggestion {idx+1} in OUTER LOOP {i+1} with error {e}. Skipping this suggestion.")
                     continue
@@ -1547,32 +1628,63 @@ class SurveyGenerator:
         for sec_idx, raw_section in enumerate(sections, start=1):
             if self.config.BasicInfo.debug:
                 self.logger.info(f"------RAW SECTION {sec_idx}------")
-                raw_section = "###" + draft["outline"].get("sections", [])[sec_idx - 1].get("title", "") + "\n" + raw_section
+                ## assign section titles
+                raw_section = "##" + draft["outline"].get("sections", [])[sec_idx - 1].get("title", "") + "\n" + raw_section
                 self.logger.info(raw_section)
                 self.logger.info("----------------------------------")
             lines = (raw_section or "").splitlines()
             new_lines: list[str] = []
             saw_section_heading = False
             sub_idx = 0
+            last_added_heading = None  # Track the last added heading to detect duplicates
 
             for line in lines:
-                if self.config.BasicInfo.debug:
-                    self.logger.info(f"ORIGINAL LINE: {line}")
+                # if self.config.BasicInfo.debug:
+                #     self.logger.info(f"ORIGINAL LINE: {line}")
                 title = _parse_heading(line)
                 if title:
                     if not saw_section_heading:
                         saw_section_heading = True
-                        new_lines.append(f"### {sec_idx}. {title}")
+                        new_lines.append(f"## {sec_idx}. {title}")
+                        last_added_heading = ("section", sec_idx, title)
                         if self.config.BasicInfo.debug:
-                            self.logger.info(f"Extract Section Title: ### {sec_idx}. {title}")
+                            self.logger.info(f"Extract Section Title: ## {sec_idx}. {title}")
                     else:
-                        sub_idx += 1
-                        new_lines.append(f"#### {sec_idx}.{sub_idx}. {title}")
-                        if self.config.BasicInfo.debug:
-                            self.logger.info(f"Extract Subsection {sub_idx} Title: #### {sec_idx}.{sub_idx}. {title}")
+                        # Check for duplicate subsection title (exact match)
+                        is_duplicate = False
+                        
+                        if last_added_heading and last_added_heading[0] == "subsection":
+                            if title == last_added_heading[2]:
+                                is_duplicate = True
+                                if self.config.BasicInfo.debug:
+                                    self.logger.info(f"Skipping duplicate subsection title: {title}")
+                        
+                        if not is_duplicate:
+                            sub_idx += 1
+                            new_lines.append(f"### {sec_idx}.{sub_idx}. {title}")
+                            last_added_heading = ("subsection", sec_idx, title)
+                            if self.config.BasicInfo.debug:
+                                self.logger.info(f"Extract Subsection {sub_idx} Title: ### {sec_idx}.{sub_idx}. {title}")
+                        # If duplicate, skip adding this heading but still track it
+                        else:
+                            # Still increment sub_idx to maintain correct numbering
+                            sub_idx += 1
                     continue
 
                 new_lines.append(line)
+                # Reset last_added_heading when we add content (not a heading)
+                last_added_heading = None
+
+            # Post-process to add blank lines before subsection headings for better readability
+            final_lines: list[str] = []
+            for i, line in enumerate(new_lines):
+                # Check if this line is a subsection heading (starts with ###)
+                if re.match(r'^\s*###\s+\d+\.\d+', line):
+                    # Add a blank line before subsection heading if not already present
+                    if final_lines and final_lines[-1].strip() != '':
+                        final_lines.append('')
+                final_lines.append(line)
+            new_lines = final_lines
 
             if not saw_section_heading:
                 # Fallback: treat the first non-empty line as the section title; everything else stays as content.
@@ -1583,7 +1695,7 @@ class SurveyGenerator:
                         fallback_title = re.sub(r"#+$", "", line).strip("# ") or fallback_title
                         new_lines.pop(idx)
                         break
-                new_lines.insert(0, f"### {sec_idx}. {fallback_title}\n")
+                new_lines.insert(0, f"## {sec_idx}. {fallback_title}\n")
 
             formatted_sections.append("\n".join(new_lines).strip())
 
@@ -1603,7 +1715,7 @@ class SurveyGenerator:
             raise ValueError(f"Result appears to be an explanation rather than refined content: {result[:100]}...")
         return True, result
 
-    def refine_draft(self, draft):
+    def refine_draft(self, draft, code_report = None, env_report = None):
         # Optional: first refine each section independently with local context, keeping <title> citations.
         draft_text = draft["full_draft"]
         for section in draft.get("section_drafts", []) or []:
@@ -1864,7 +1976,7 @@ class SurveyGenerator:
             survey = self._format_full_survey_text_from_drafts(draft)
 
             if self.config.ModuleInfo.SurveyGenerator.review_and_revise_whole_survey_in_refinement:
-                survey = self.review_and_revise_survey(survey, draft["outline"])
+                survey = self.review_and_revise_survey(survey, draft["outline"], code_report=code_report, env_report = env_report)
 
             self._test_valid_citation_threshold(survey)
 
@@ -1901,7 +2013,7 @@ class SurveyGenerator:
             survey = output.get("refined_survey", draft_text)
 
             if self.config.ModuleInfo.SurveyGenerator.review_and_revise_whole_survey_in_refinement:
-                survey = self.review_and_revise_survey(survey, draft["outline"])
+                survey = self.review_and_revise_survey(survey, draft["outline"], code_report=code_report, env_report = env_report)
 
             references = output.get("references", [])
 
@@ -1929,11 +2041,23 @@ class SurveyGenerator:
 
     def save_survey(self, final_survey, references):
         save_path = self.config.BasicInfo.save_path
-        save_json_path = self.config.BasicInfo.save_json_path
+        
+        # Get topic from config, fallback to "survey" if not available
+        topic = getattr(self.config.BasicInfo, 'topic', 'survey')
+        
+        # Get the directory from save_path and create full paths with topic name
+        save_dir = os.path.dirname(save_path)
+        
+        # Create md and json paths with topic name
+        if self.config.BasicInfo.adapter_mode:
+            save_md_path = os.path.join(save_dir, "survey.md")
+            save_json_path = os.path.join(save_dir, "survey.json")
+        else:
+            save_md_path = os.path.join(save_dir, f"{topic.replace(' ', '_')}.md")
+            save_json_path = os.path.join(save_dir, f"{topic.replace(' ', '_')}.json")
 
         # ensure parent dirs exist
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
-        os.makedirs(os.path.dirname(save_json_path), exist_ok=True)
+        os.makedirs(save_dir, exist_ok=True)
 
         if self.config.BasicInfo.debug:
             self.logger.info(f"\n--------------------------")
@@ -1941,8 +2065,8 @@ class SurveyGenerator:
             self.logger.info(f"--------------------------\n")
         # write md
         if self.config.BasicInfo.debug:
-            self.logger.info(f"Saving final survey to {save_path}...")
-        with open(save_path, "w", encoding="utf-8") as f:
+            self.logger.info(f"Saving final survey to {save_md_path}...")
+        with open(save_md_path, "w", encoding="utf-8") as f:
             f.write(final_survey)
 
         # write json

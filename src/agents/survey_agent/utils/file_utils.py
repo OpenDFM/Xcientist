@@ -42,6 +42,8 @@ def write_domain_result(eval_path, domain, results):
             f.write(f"{key}: {value}\n")
 
         f.write('Domain End\n\n\n')
+        
+    return final_result
 
 def write_result(eval_path, description, results, reasons):
     with open(eval_path, 'a') as f:

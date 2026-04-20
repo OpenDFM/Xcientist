@@ -29,8 +29,8 @@ sys.path.insert(0, PROJECT_ROOT)
 
 # Clean proxy environment variables to ensure direct connection to internal API
 # This is critical when the adapter is called via SSH or subprocess with inherited env
-for key in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
-    os.environ.pop(key, None)
+# for key in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
+#     os.environ.pop(key, None)
 os.environ["no_proxy"] = "58.210.177.113,localhost,127.0.0.1"
 os.environ["NO_PROXY"] = "58.210.177.113,localhost,127.0.0.1"
 
@@ -43,7 +43,8 @@ from modules.work_analyzer import WorkAnalyzer
 from modules.survey_generator import SurveyGenerator
 from modules.judge import Judge
 from utils.file_utils import write_result
-
+from modules.code_collector import CodeCollector, CodeAnalyzer
+from modules.code_report_generator import CodeReportGenerator
 
 def setup_file_logging(log_dir: str, log_filename: str = "deep_survey.log"):
     """
@@ -173,7 +174,7 @@ def save_draft(draft, output_dir: str, logger_instance=None):
     return filepath
 
 
-def run_pipeline_with_saving(config, work_collector, database, work_analyzer, survey_generator, judge, artifacts_dir, logger_instance):
+def run_pipeline_with_saving(config, work_collector, database, work_analyzer, survey_generator, judge, code_collector, code_analyzer, code_report_generator, artifacts_dir, logger_instance):
     """
     Run the deep survey pipeline with immediate artifact saving.
     This is a modified version of run_pipeline that saves intermediate results immediately.
@@ -223,6 +224,16 @@ def run_pipeline_with_saving(config, work_collector, database, work_analyzer, su
     # Save clustering result immediately after generation
     if artifacts_dir:
         save_json(clustering_result, "clustering_result.json", artifacts_dir, logger_instance)
+
+    code_report = None
+    env_report = None
+    if config.ModuleInfo.SurveyGenerator.include_code_report:
+        logger_instance.info("Building code report among papers...")
+        paper_mainfests = code_analyzer.execute(collected_papers)
+
+        env_report = code_report_generator.generate_framework_env_report(paper_mainfests = paper_mainfests, topic = config.BasicInfo.topic)
+        code_report = code_report_generator.generate_report(papers = paper_mainfests, topic = config.BasicInfo.topic)
+        code_report_generator.save_report(code_report, env_report)
 
     relation_graph = None
     relation_table = None
@@ -288,12 +299,12 @@ def run_pipeline_with_saving(config, work_collector, database, work_analyzer, su
         save_draft(draft, artifacts_dir, logger_instance)
 
     logger_instance.info("Reviewing and revising survey draft...")
-    draft = survey_generator.review_and_revise_survey_in_parts(draft, outline)
+    draft = survey_generator.review_and_revise_survey_in_parts(draft, outline, code_report, env_report)
     logger_instance.info("Reviewing and revising survey completed.")
 
     logger_instance.info("Survey drafting completed.")
     logger_instance.info("Refining survey draft...")
-    survey, references = survey_generator.refine_draft(draft)
+    survey, references = survey_generator.refine_draft(draft, code_report, env_report)
     survey_generator.save_survey(survey, references)
     logger_instance.info("Survey refinement completed.")
 
@@ -334,8 +345,7 @@ def main():
     
     # Override output paths
     config_dict.setdefault('BasicInfo', {})
-    config_dict['BasicInfo']['save_path'] = f'{output_dir}/survey.md'
-    config_dict['BasicInfo']['save_json_path'] = f'{output_dir}/survey.json'
+    config_dict['BasicInfo']['save_path'] = f'{output_dir}'
     config_dict['BasicInfo']['evaluation_save_path'] = f'{output_dir}/evaluation.txt'
     config_dict['BasicInfo']['base_dir'] = PROJECT_ROOT
     
@@ -364,16 +374,18 @@ def main():
         
         logger.info("Initializing Survey Judge...")
         survey_judge = Judge(config, work_analyzer)
+
+        logger.info("Initializing Code Modules...")
+        code_collector = CodeCollector(config)
+        code_analyzer = CodeAnalyzer(config, code_collector=code_collector, work_collector=work_collector)
+        code_report_generator = CodeReportGenerator(config, work_collector=work_collector ,code_collector=code_collector, code_analyzer=code_analyzer)
         
         # Run pipeline with immediate artifact saving
         result, reason = run_pipeline_with_saving(
-            config, work_collector, database, work_analyzer, survey_generator, survey_judge,
+            config, work_collector, database, work_analyzer, survey_generator, survey_judge, code_collector, code_analyzer, code_report_generator,
             artifacts_dir=logs_dir,
             logger_instance=logger
         )
-        
-        # Write result
-        write_result(config.BasicInfo.evaluation_save_path, config.BasicInfo.topic, result, reason)
         
         logger.info("Pipeline completed successfully.")
         logger.info(f"All logs saved to: {log_filepath}")

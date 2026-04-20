@@ -14,6 +14,8 @@ BasicInfo:
   topic_max_retry: 3
   debug: True
   error_conservatism_mode: False
+  skip_exist: True
+  adapter_mode: False
 APIInfo:
   llm_api_key: 
   llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
@@ -89,10 +91,13 @@ ModuleInfo:
     include_relation_graph: True
     include_relation_table: True
     include_code_report: False
+    include_env_report: False
     omit_error_preserve_retry_time: 2
     outline_generation_in_steps: True
     outline_generation_draft_max_retry: 10
     outline_generation_draft_batch_size: 20
+    outline_generation_draft_max_iterations: 5
+    outline_generation_draft_empty_keynotes_iteration: 1
     outline_draft_RAG_topk: 60
     outline_generation_assign_max_retry: 10
     outline_generation_assign_batch_size: 10
@@ -114,8 +119,9 @@ ModuleInfo:
     llm_max_context_overhead_length_outline_generation: 10000
     subsection_least_words: 600
     subsection_least_citations: 10
-    section_least_words: 100
-    section_least_citations: 3
+    section_least_words: 20000
+    section_preamble_least_words: 100
+    section_preamble_least_citations: 3
     draft_length_relax_ratio: 0.1
     use_full_text_in_survey_generation: False
     include_other_relevant_papers_RAG_in_outline: True
@@ -125,6 +131,7 @@ ModuleInfo:
     subsection_RAG_topk: 60
     use_title_in_draft: True
     enable_review_and_revise: True
+    agentic_refine_section: True
     section_review_temperature: 1.0
     section_review_retry: 3
     reviewer_max_suggestions: 5
@@ -137,8 +144,13 @@ ModuleInfo:
     refine_in_parts_mode: 2
     draft_refinement_max_retry: 7
     review_and_revise_whole_survey_in_refinement: True
+    agentic_refine_survey: True
     review_and_revise_whole_survey_max_iteration: 5
     valid_title_min_similarity: 0.5
+  CodeAnalysis:
+    PseudoCreator:
+      planner_temperature: 0.5
+      planner_max_retry: 3
   Judge:
     skip_evaluation: True
     use_different_api_for_judge: False
@@ -150,5 +162,6 @@ ModuleInfo:
     remove_failed_citation_in_eval: True
     rubrics_eval_10_dimensions: False
     rubrics_eval_4_dimensions: False
+    rubrics_deep_survey_eval: False
     explanation_in_rubric: False
     citation_eval: False

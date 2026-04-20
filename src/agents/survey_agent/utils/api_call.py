@@ -310,6 +310,16 @@ class ChatAgent:
 
         try:
             res = response.json()
+            # Check for API-level errors where choices is null
+            if res.get("choices") is None:
+                base_resp = res.get("base_resp", {})
+                status_msg = base_resp.get("status_msg", "unknown error")
+                status_code = base_resp.get("status_code", "unknown")
+                self.logger.error(
+                    f"API returned error: status_code={status_code}, status_msg={status_msg}"
+                )
+                # Treat this as a retryable error so the @retry decorator can handle it
+                raise requests.RequestException(f"API error: {status_msg} (code: {status_code})")
             res_text = res["choices"][0]["message"]["content"]
             if not res_text:
                 res_text = res["choices"][0]["message"].get("reasoning_content", None)
@@ -317,6 +327,9 @@ class ChatAgent:
             self.logger.error(f"JSON decode error: {e}")
             self.logger.error(f"Raw response text (first 500 chars): {response_text[:500]}")
             raise e
+        except requests.RequestException:
+            # Re-raise RequestException to let @retry handle it
+            raise
         except Exception as e:
             self.logger.error(f"There is an error in remote_chat: {e}")
             self.logger.error(f"Raw response text (first 500 chars): {response_text[:500] if 'response_text' in dir() else 'N/A'}")

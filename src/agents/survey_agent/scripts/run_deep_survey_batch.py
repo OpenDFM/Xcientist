@@ -12,12 +12,14 @@ from modules.survey_generator import SurveyGenerator
 from topics.Benchmark_topics import SURVEYGEN_TOPICS, AUTOSURVEY_TOPICS, SUBTEST_TOPICS
 from utils.config_utils import merge_with_default_survey_config
 from utils.file_utils import write_domain_header, write_topic_header, write_result, write_domain_result, write_header
+from modules.code_collector import CodeCollector, CodeAnalyzer
+from modules.code_report_generator import CodeReportGenerator
 
 from modules.judge import Judge
 
 logger = get_logger("Deep Survey Batch")
 
-def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_generator, judge):
+def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_generator, judge, code_collector, code_analyzer, code_report_generator):
     try:
         # step 1: related work collection
         logger.info("Collecting related work...")
@@ -66,6 +68,16 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
         intra_analysis_results = []
         inter_analysis_results = ""
 
+        code_report = None
+        env_report = None
+        if config.ModuleInfo.SurveyGenerator.include_code_report:
+            logger.info("Building code report among papers...")
+            paper_mainfests = code_analyzer.execute(collected_papers)
+
+            env_report = code_report_generator.generate_framework_env_report(paper_mainfests = paper_mainfests, topic = config.BasicInfo.topic)
+            code_report = code_report_generator.generate_report(papers = paper_mainfests, topic = config.BasicInfo.topic)
+            code_report_generator.save_report(code_report, env_report)
+
         if config.ModuleInfo.SurveyGenerator.include_relation_graph:
             logger.info("Generating relation graph among papers...")
             relation_graph = work_analyzer.build_relationship_graphs(clustering_result)
@@ -109,13 +121,13 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
         #     logger.info(f'DRAFT: {draft}')
 
         logger.info("Reviewing and revising survey draft...")
-        draft = survey_generator.review_and_revise_survey_in_parts(draft, outline)
+        draft = survey_generator.review_and_revise_survey_in_parts(draft, outline, code_report, env_report)
         logger.info("Reviewing and revising survey completed.")
 
         # print(draft)
         logger.info("Survey drafting completed.")
         logger.info("Refining survey draft...")
-        survey, references = survey_generator.refine_draft(draft)
+        survey, references = survey_generator.refine_draft(draft, code_report, env_report)
         survey_generator.save_survey(survey, references)
         logger.info("Survey refinement completed.")
 
@@ -127,7 +139,7 @@ def run_pipeline_batch(config, work_collector, database, work_analyzer, survey_g
         return False, None, None
     return True, results, reasons
 
-@hydra.main(config_path="../config", config_name="deep_survey_batch_others_huoshan", version_base=None)
+@hydra.main(config_path="../config/evaluation", config_name="deep_survey_batch_xiaomi_new_revise_code", version_base=None)
 def main(config):
     config = merge_with_default_survey_config(config)
     logger.info("Starting Deep Survey Pipeline")
@@ -161,13 +173,24 @@ def main(config):
         for topic in topics:
             logger.info(f"=== Running pipeline for topic: {topic} ===")
 
+            # Check if we should skip existing experiments in non-adapter mode
+            if getattr(config.BasicInfo, 'skip_exist', False) and not config.BasicInfo.adapter_mode:
+                save_path = f"{config.BasicInfo.output_base_dir}/{domain}"
+                save_md_path = os.path.join(save_path, f"{topic.replace(' ', '_')}.md")
+                save_json_path = os.path.join(save_path, f"{topic.replace(' ', '_')}.json")
+                
+                if os.path.exists(save_md_path) and os.path.exists(save_json_path):
+                    logger.info(f"Skipping topic '{topic}' as both {topic}.md and {topic}.json already exist.")
+                    if not config.ModuleInfo.Judge.skip_evaluation:
+                        write_result(config.BasicInfo.evaluation_save_path, topic, {}, "Skipped: files already exist")
+                    continue
+
             for attempt in range(config.BasicInfo.topic_max_retry):
                 logger.info(f"Attempt {attempt+1} for topic: {topic}")
                 cfg_for_topic = OmegaConf.merge(config, {
                                                         "BasicInfo": {
                                                                 "topic": topic, 
-                                                                "save_path": f"{config.BasicInfo.output_base_dir}/{domain}/{topic.replace(' ', '_')}.md",
-                                                                "save_json_path": f"{config.BasicInfo.output_base_dir}/{domain}/{topic.replace(' ', '_')}.json"
+                                                                "save_path": f"{config.BasicInfo.output_base_dir}/{domain}",
                                                             }
                                                         })
 
@@ -176,18 +199,22 @@ def main(config):
                 work_analyzer  = WorkAnalyzer(cfg_for_topic, work_collector)
                 survey_generator = SurveyGenerator(cfg_for_topic, work_analyzer, database)
                 survey_judge = Judge(cfg_for_topic, work_analyzer)
+                code_collector = CodeCollector(config)
+                code_analyzer = CodeAnalyzer(config, code_collector=code_collector, work_collector=work_collector)
+                code_report_generator = CodeReportGenerator(config, work_collector=work_collector ,code_collector=code_collector, code_analyzer=code_analyzer)
 
-                finished, eval_results, eval_reasons = run_pipeline_batch(cfg_for_topic, work_collector, database, work_analyzer, survey_generator, survey_judge)
+                finished, eval_results, eval_reasons = run_pipeline_batch(cfg_for_topic, work_collector, database, work_analyzer, survey_generator, survey_judge, code_collector, code_analyzer, code_report_generator)
                 if finished:
                     logger.info(f"Pipeline completed successfully for topic: {topic}")
-                    write_result(config.BasicInfo.evaluation_save_path, topic, eval_results, eval_reasons)
-                    results.append(eval_results)
+                    if not config.ModuleInfo.Judge.skip_evaluation:
+                        write_result(config.BasicInfo.evaluation_save_path, topic, eval_results, eval_reasons)
+                        results.append(eval_results)
                     break
                 else:
                     logger.warning(f"Pipeline did not finish successfully for topic: {topic} on attempt {attempt+1}")
                     logger.info("Retrying...")
-        
-        write_domain_result(config.BasicInfo.evaluation_save_path, domain, results)
+        if not config.ModuleInfo.Judge.skip_evaluation:
+            write_domain_result(config.BasicInfo.evaluation_save_path, domain, results)
         logger.info(f"=== Completed domain: {domain} ===")
 
 
