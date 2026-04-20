@@ -75,15 +75,24 @@ Xcientist/
 - 运行不同 Agent 所需的 API key
 - 如果要手工使用 `Paper Agent`，还需要本地 TeX 工具链，例如 `tectonic`、`latexmk` 或 `pdflatex`
 - 图检索和 memory 能力依赖仓库外的本地数据或模型
+   - 论文图相关资源的[下载链接](https://drive.google.com/drive/folders/1lH1MI6gk7eh0HfvfOajcqAZg3n95v5BK?usp=drive_link)，将它们放入 `<repo_root>/data/processed`
+   - 向量模型下载：
+   ```
+   mkdir -p models/bge-m3
+   mkdir -p models/all-MiniLM-L6-v2
+   modelscope download -- model baai/bge-m3 --local_dir <repo_root>/models/bge-m3
+   modelscope download --model sentence-transformers/all-MiniLM-L6-v2 --local_dir <repo_root>/models/all-MiniLM-L6-v2
+   ```
 
 ## ⚙️ 安装
 
-现在默认推荐使用 `uv`：
+推荐使用 `uv`：
 
 ```bash
 uv sync
+source .venv/bin/activate
 cp .env.example .env
-uv run xcientist-doctor
+xcientist doctor
 ```
 
 常见分组安装方式：
@@ -105,10 +114,11 @@ uv sync --all-groups
 如果你希望给 `Experiment Agent` 预先安装本地 MCP wrapper：
 
 ```bash
-uv run xcientist-install-mcp-wrappers
+xcientist install-mcp-wrappers
 ```
 
 `environment.yml` 仍然保留，作为兼容旧环境或全量环境的备选方案；但 `Survey + Idea + Experiment + Pipeline` 的主路径现在是 `uv sync`。依赖现在已经拆组，默认安装保持轻量，本地模型与 PDF 解析这类重依赖按需安装。
+激活环境后，`xcientist`、`xcientist-survey`、`xcientist-idea` 这类 CLI 命令会直接出现在当前 shell 中。
 
 ## 🔐 环境变量
 
@@ -159,8 +169,9 @@ curl http://127.0.0.1:8000/health
 
 ```bash
 uv sync --group memory --group ml
+source .venv/bin/activate
 cp .env.example .env
-uv run xcientist-doctor
+xcientist doctor
 ```
 
 当 doctor 通过、graph/db 和模型到位后，再按下面的命令运行。
@@ -170,13 +181,13 @@ uv run xcientist-doctor
 推荐入口：
 
 ```bash
-uv run xcientist-survey
+xcientist survey
 ```
 
 直接覆盖 topic：
 
 ```bash
-uv run xcientist-survey --topic "LLM Agent Memory System"
+xcientist survey --topic "LLM Agent Memory System"
 ```
 
 典型输出：
@@ -190,13 +201,13 @@ uv run xcientist-survey --topic "LLM Agent Memory System"
 推荐入口：
 
 ```bash
-uv run xcientist-idea
+xcientist idea
 ```
 
 直接覆盖 topic：
 
 ```bash
-uv run xcientist-idea --topic "LLM Agent Memory System"
+xcientist idea --topic "LLM Agent Memory System"
 ```
 
 默认会使用 `src/config/default.yaml`，并在 `src/agents/idea_agent/runs/` 下创建运行目录，写出 `idea_result.json` 和日志。
@@ -206,13 +217,13 @@ uv run xcientist-idea --topic "LLM Agent Memory System"
 推荐入口：
 
 ```bash
-uv run xcientist-experiment --experiment my_exp --idea-json /abs/path/to/idea_result.json
+xcientist experiment --experiment my_exp --idea-json /abs/path/to/idea_result.json
 ```
 
 仅准备工作空间：
 
 ```bash
-uv run xcientist-experiment --experiment my_exp --idea-json /abs/path/to/idea_result.json --prepare-only
+xcientist experiment --experiment my_exp --idea-json /abs/path/to/idea_result.json --prepare-only
 ```
 
 直接入口：
@@ -256,7 +267,7 @@ python -m src.agents.paper_agent.main \
 ### 5. 运行原型 Pipeline
 
 ```bash
-uv run xcientist-pipeline
+xcientist pipeline
 ```
 
 它会以 `src/config/default.yaml` 启动 `src.pipeline.run_loop`。如果你想一条命令跑通集成链路，这个入口可用；如果你要排查问题，还是建议逐个 Agent 运行。

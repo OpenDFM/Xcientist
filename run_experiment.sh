@@ -13,8 +13,12 @@ for arg in "$@"; do
     fi
 done
 
-if command -v uv >/dev/null 2>&1; then
-    exec uv run xcientist-experiment "${ARGS[@]}"
+if command -v xcientist >/dev/null 2>&1; then
+    exec xcientist experiment "${ARGS[@]}"
+fi
+
+if [[ -x "$SCRIPT_DIR/.venv/bin/xcientist" ]]; then
+    exec "$SCRIPT_DIR/.venv/bin/xcientist" experiment "${ARGS[@]}"
 fi
 
 exec python -m src experiment "${ARGS[@]}"

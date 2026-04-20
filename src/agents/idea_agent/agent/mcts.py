@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import itertools
-import logging
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,7 +11,6 @@ try:
     from omegaconf import OmegaConf
 except Exception:  # pragma: no cover - optional runtime fallback
     OmegaConf = None
-from tqdm import tqdm
 
 from src.memory.api.faiss_memory_system_api import FAISSMemorySystem
 from src.memory.api.slot_process_api import SlotProcess
@@ -21,8 +19,9 @@ from src.memory.memory_system import FaissVectorStore
 from src.memory.memory_system.models import EpisodicRecord, ProceduralRecord, SemanticRecord
 from src.memory.memory_system.utils import _multi_thread_run, _safe_dump_str
 from src.agents.idea_agent.utils.core.json_utils import pretty_json
+from src.agents.idea_agent.utils.core.progress import iter_with_progress
 from src.agents.idea_agent.utils.core.response_parsing import parse_json_response
-from src.agents.idea_agent.utils.core.logger import get_logger
+from src.agents.idea_agent.utils.core.logger import LoguruCompatLogger, get_logger
 from src.agents.idea_agent.utils.mcts.component_novelty import ComponentNoveltyScorer
 from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     _dedupe_keep_order_strings,
@@ -547,7 +546,7 @@ class VectorMemoryAccessor:
         procedural_cfg: Optional[Dict[str, Any]] = None,
         llm_name: str = "gpt-5-mini",
         llm_backend: str = "openai",
-        logger: Optional[logging.Logger] = None,
+        logger: Optional[LoguruCompatLogger] = None,
     ) -> None:
         self.semantic_cfg = semantic_cfg or {}
         self.episodic_cfg = episodic_cfg or {}
@@ -756,7 +755,7 @@ class MemoryGuidedMCTS:
         config: Optional[MCTSConfig] = None,
         memory_accessor: Optional[VectorMemoryAccessor] = None,
         paper_graph_vector_store: Optional[PaperGraphComponentVectorStore] = None,
-        logger: Optional[logging.Logger] = None,
+        logger: Optional[LoguruCompatLogger] = None,
         log_sink: Optional[Callable[[str, str], None]] = None,
     ) -> None:
         self.chat_fn = chat_fn
@@ -1465,7 +1464,11 @@ class MemoryGuidedMCTS:
                 }
             )
 
-        for iteration in tqdm(range(self.config.max_iterations)):
+        for iteration in iter_with_progress(
+            range(self.config.max_iterations),
+            description="MCTS search",
+            total=self.config.max_iterations,
+        ):
             leaf, path = self._select(root)
             depth = len(path) - 1
             rollout_targets: List[Tuple[IdeaNode, List[IdeaNode]]] = []

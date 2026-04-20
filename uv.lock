@@ -967,6 +967,18 @@ http = [
 ]
 
 [[package]]
+name = "ftfy"
+version = "6.3.1"
+source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
+dependencies = [
+    { name = "wcwidth", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+]
+sdist = { url = "https://mirrors.aliyun.com/pypi/packages/a5/d3/8650919bc3c7c6e90ee3fa7fd618bf373cbbe55dff043bd67353dbb20cd8/ftfy-6.3.1.tar.gz", hash = "sha256:9b3c3d90f84fb267fe64d375a07b7f8912d817cf86009ae134aa03e1819506ec" }
+wheels = [
+    { url = "https://mirrors.aliyun.com/pypi/packages/ab/6e/81d47999aebc1b155f81eca4477a616a70f238a2549848c38983f3c22a82/ftfy-6.3.1-py3-none-any.whl", hash = "sha256:7c70eb532015cd2f9adb53f101fb6c7945988d023a085d127d1573dc49dd0083" },
+]
+
+[[package]]
 name = "func-timeout"
 version = "4.3.5"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
@@ -5880,6 +5892,7 @@ dependencies = [
     { name = "fastmcp", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "filelock", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "frozenlist", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "ftfy", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "google-genai", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "griffe", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "grpcio", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -6047,6 +6060,7 @@ requires-dist = [
     { name = "fastmcp", specifier = "==3.2.0" },
     { name = "filelock", specifier = "==3.20.1" },
     { name = "frozenlist", specifier = "==1.8.0" },
+    { name = "ftfy", specifier = "==6.3.1" },
     { name = "google-genai", specifier = "==1.69.0" },
     { name = "griffe", specifier = "==1.15.0" },
     { name = "grpcio", specifier = "==1.76.0" },

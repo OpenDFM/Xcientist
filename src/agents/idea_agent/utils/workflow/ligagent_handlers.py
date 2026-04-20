@@ -4,8 +4,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from typing import Any, Dict, List
 
-from tqdm import tqdm
-
 from src.agents.idea_agent.agent.artifacts import artifact_get
 from src.agents.idea_agent.agent.prompts import PROMPTS
 from src.agents.idea_agent.utils.core.config_loader import get_config_value
@@ -14,6 +12,7 @@ from src.agents.idea_agent.utils.core.logger import (
     get_or_create_mode_logger,
     suspend_console_handlers,
 )
+from src.agents.idea_agent.utils.core.progress import iter_with_progress
 from src.agents.idea_agent.utils.mcts.idea_taste_presets import IDEA_TASTE_PRESETS
 from src.agents.idea_agent.utils.prompting.prompt_views import format_paper_capsules_prompt_view
 from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
@@ -843,10 +842,15 @@ def ka_keynote_ranking_stage(agent: Any, ctx: StageContext) -> StageResult:
     rag_query = ctx.state["rag_query"]
     citation_references = ctx.state.get("citation_references", [])
     keynote_references = agent.paper_repository.retrieve_keynotes_by_paper_ids(citation_references)
-    scored_keynotes = [
-        _score_keynote_reference(agent, ctx, topic, rag_query, {**reference, "source_keywords": rag_query})
-        for reference in tqdm(keynote_references, desc="Scoring keynotes", dynamic_ncols=True)
-    ]
+    scored_keynotes = []
+    for reference in iter_with_progress(
+        keynote_references,
+        description="Scoring keynotes",
+        total=len(keynote_references),
+    ):
+        scored_keynotes.append(
+            _score_keynote_reference(agent, ctx, topic, rag_query, {**reference, "source_keywords": rag_query})
+        )
     scored_keynotes.sort(key=lambda item: int(item["score"]), reverse=True)
     retrieval_source = "survey_keynotes"
     if logger is not None:

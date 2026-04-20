@@ -9,11 +9,11 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import diskcache as dc
 from omegaconf import OmegaConf
-from tqdm import tqdm
 
 from src.agents.survey_agent.modules.outcome_RAG import OutcomeRAG
 from src.agents.survey_agent.modules.paper_graph_retriever import PaperGraphRetriever
 from src.agents.survey_agent.modules.work_collector import WorkCollector
+from src.agents.idea_agent.utils.core.progress import iter_with_progress
 from src.agents.survey_agent.utils.utils import get_hash
 
 
@@ -273,7 +273,12 @@ class PaperRepository:
     ) -> List[Dict[str, Any]]:
         keynote_references: List[Dict[str, Any]] = []
         seen_paper_ids: set[str] = set()
-        for reference in tqdm(list(references or []), desc="Reading keynotes", dynamic_ncols=True):
+        reference_list = list(references or [])
+        for reference in iter_with_progress(
+            reference_list,
+            description="Reading keynotes",
+            total=len(reference_list),
+        ):
             paper_id = _as_text(reference.get("paper_id"))
             title = _as_text(reference.get("title"))
             if not paper_id or paper_id in seen_paper_ids:

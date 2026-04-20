@@ -1,10 +1,9 @@
 from src.agents.idea_agent.agent.base import AgentBase
 from src.agents.idea_agent.agent import get_logger
-from src.agents.idea_agent.utils.core.logger import get_or_create_mode_logger
+from src.agents.idea_agent.utils.core.logger import LoguruCompatLogger, get_or_create_mode_logger
 from src.agents.idea_agent.utils.core.chat_router import prepare_ligagent_chat_request
 from src.agents.idea_agent.utils.core.chat_errors import format_chat_retry_error
 
-import logging
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 import time
@@ -78,7 +77,7 @@ class LigAgent(AgentBase):
         self.run_dir.mkdir(parents=True, exist_ok=True)
         self.idea_result_path = self.run_dir / "idea_result.json"
         self.idea_result_path.parent.mkdir(parents=True, exist_ok=True)
-        self._mode_loggers: Dict[str, logging.Logger] = {}
+        self._mode_loggers: Dict[str, LoguruCompatLogger] = {}
 
         self.chat_max_retries = chat_max_retries
         self.chat_retry_backoff = chat_retry_backoff

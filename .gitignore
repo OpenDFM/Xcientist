@@ -29,7 +29,7 @@ src/agents/survey_agent/logs
 
 # Memory
 src/memory/memory_system/.cache
-src/memory/memory_system/__pycache__
+src/memory/memory_system/__pycache__/
 src/agents/survey_agent/config/database/paper_keynotes
 
 # IDE
@@ -81,4 +81,5 @@ data/
 
 # Embedding Models
 models/
+
 

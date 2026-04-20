@@ -73,8 +73,16 @@ The pipeline runner in `src/pipeline/run_loop.py` automates the first three stag
 - Python `3.12`
 - `node` and `npx` for Experiment Agent MCP servers
 - API keys depending on which agent you run
-- Local TeX tooling (`tectonic`, `latexmk`, or `pdflatex`) only if you want to use Paper Agent manually
 - Local assets for graph-backed retrieval and memory-enabled workflows
+  - Paper-Graph related resource [donwload link](https://drive.google.com/drive/folders/1lH1MI6gk7eh0HfvfOajcqAZg3n95v5BK?usp=drive_link), put them into `<repo_root>/data/processed`.
+  - Embedding model download:
+   ```
+   mkdir -p models/bge-m3
+   mkdir -p models/all-MiniLM-L6-v2
+   modelscope download -- model baai/bge-m3 --local_dir <repo_root>/models/bge-m3
+   modelscope download --model sentence-transformers/all-MiniLM-L6-v2 --local_dir <repo_root>/models/all-MiniLM-L6-v2
+   ```
+
 
 ## ⚙️ Installation
 
@@ -82,8 +90,9 @@ The default setup path is now `uv`.
 
 ```bash
 uv sync
+source .venv/bin/activate
 cp .env.example .env
-uv run xcientist-doctor
+xcientist doctor
 ```
 
 Common group combinations:
@@ -105,10 +114,11 @@ uv sync --all-groups
 If you want local MCP wrapper scripts for Experiment Agent:
 
 ```bash
-uv run xcientist-install-mcp-wrappers
+xcientist install-mcp-wrappers
 ```
 
 `environment.yml` is still available as a legacy/full-environment fallback, but `uv sync` is the primary path for `Survey + Idea + Experiment + Pipeline`. The dependency layout is now split so the default install stays lightweight and heavy local-model / PDF stacks are opt-in.
+After activation, the project exposes CLI entrypoints such as `xcientist`, `xcientist-survey`, and `xcientist-idea` directly in the shell.
 
 ## 🔐 Environment Variables
 
@@ -159,8 +169,9 @@ Recommended first-time flow:
 
 ```bash
 uv sync --group memory --group ml
+source .venv/bin/activate
 cp .env.example .env
-uv run xcientist-doctor
+xcientist doctor
 ```
 
 If doctor passes and your local assets are in place, use the commands below.
@@ -170,13 +181,13 @@ If doctor passes and your local assets are in place, use the commands below.
 Primary entrypoint:
 
 ```bash
-uv run xcientist-survey
+xcientist survey
 ```
 
 Override the topic directly:
 
 ```bash
-uv run xcientist-survey --topic "LLM Agent Memory System"
+xcientist survey --topic "LLM Agent Memory System"
 ```
 
 Typical outputs:
@@ -190,13 +201,13 @@ Typical outputs:
 Primary entrypoint:
 
 ```bash
-uv run xcientist-idea
+xcientist idea
 ```
 
 Override the topic directly:
 
 ```bash
-uv run xcientist-idea --topic "LLM Agent Memory System"
+xcientist idea --topic "LLM Agent Memory System"
 ```
 
 The default run uses `src/config/default.yaml`, materializes a run directory under `src/agents/idea_agent/runs/`, and writes `idea_result.json` plus logs.
@@ -206,13 +217,13 @@ The default run uses `src/config/default.yaml`, materializes a run directory und
 Primary entrypoint:
 
 ```bash
-uv run xcientist-experiment --experiment my_exp --idea-json /abs/path/to/idea_result.json
+xcientist experiment --experiment my_exp --idea-json /abs/path/to/idea_result.json
 ```
 
 Prepare only:
 
 ```bash
-uv run xcientist-experiment --experiment my_exp --idea-json /abs/path/to/idea_result.json --prepare-only
+xcientist experiment --experiment my_exp --idea-json /abs/path/to/idea_result.json --prepare-only
 ```
 
 Direct entrypoint:
@@ -256,7 +267,7 @@ python -m src.agents.paper_agent.main \
 ### 5. Run The Prototype Pipeline
 
 ```bash
-uv run xcientist-pipeline
+xcientist pipeline
 ```
 
 This launches `src.pipeline.run_loop` with `src/config/default.yaml`. It is useful when you want a single command for the integrated loop, but it is still easier to inspect failures agent-by-agent.

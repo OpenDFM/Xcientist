@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 
-from tqdm import tqdm
-
 from src.agents.idea_agent.agent.mcts import (
     MIN_COMPONENTS,
     IdeaNode,
@@ -16,6 +14,7 @@ from src.agents.idea_agent.agent.prompts.idea_fusion import (
 )
 from src.agents.idea_agent.utils.core.config_loader import get_config_value
 from src.agents.idea_agent.utils.core.json_utils import compact_json, pretty_json
+from src.agents.idea_agent.utils.core.progress import create_progress
 from src.agents.idea_agent.utils.mcts.mcts_helpers import (
     clip_text,
     component_inventory_payload,
@@ -458,10 +457,10 @@ def repair_fused_entry(
         patience,
     )
 
-    progress = tqdm(total=max_steps, desc="Idea fusion repair", dynamic_ncols=True)
-    try:
+    with create_progress() as progress:
+        task_id = progress.add_task("Idea fusion repair", total=max_steps)
         for step_idx in range(1, max_steps + 1):
-            progress.set_description(f"Idea fusion repair {step_idx}/{max_steps}")
+            progress.update(task_id, description=f"Idea fusion repair {step_idx}/{max_steps}")
             if no_improve_steps >= patience:
                 logger.info(
                     "🧬 Fusion repair stop: no improvement for %d consecutive steps",
@@ -503,7 +502,7 @@ def repair_fused_entry(
                     break
                 no_improve_steps += 1
                 logger.info("🧬 Fusion repair step %d skipped: invalid local repair plan", step_idx)
-                progress.update(1)
+                progress.advance(task_id)
                 continue
 
             logger.info(
@@ -528,7 +527,7 @@ def repair_fused_entry(
                     step_idx,
                     instantiated.get("_skip_reason", "child creation skipped"),
                 )
-                progress.update(1)
+                progress.advance(task_id)
                 continue
 
             apply_instantiated_mapping_to_plan(plan, instantiated, rewrite_components=False)
@@ -552,7 +551,7 @@ def repair_fused_entry(
             if evaluated_candidate is None:
                 no_improve_steps += 1
                 logger.info("🧬 Fusion repair step %d skipped: evaluation failed", step_idx)
-                progress.update(1)
+                progress.advance(task_id)
                 continue
 
             next_score = float(evaluated_candidate.get("search_score") or 0.0)
@@ -563,7 +562,7 @@ def repair_fused_entry(
                 next_score,
                 improved,
             )
-            progress.update(1)
+            progress.advance(task_id)
             if not improved:
                 no_improve_steps += 1
                 continue
@@ -579,8 +578,6 @@ def repair_fused_entry(
             best_score = next_score
             best_entry = _preserve_fusion_fields(evaluated_candidate, best_entry, repair_trace)
             no_improve_steps = 0
-    finally:
-        progress.close()
 
     return best_entry, repair_trace, repair_experiences
 
