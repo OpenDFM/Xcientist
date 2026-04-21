@@ -30,11 +30,19 @@ def merge_with_default_survey_config(config: DictConfig) -> DictConfig:
     if default_survey is None:
         raise ValueError(f"Missing 'survey' section in default config: {_DEFAULT_CONFIG_PATH}")
 
-    current_survey = OmegaConf.select(config, "survey")
-    survey_config = current_survey if current_survey is not None else config
+    config_container = OmegaConf.to_container(config, resolve=False)
+    if not isinstance(config_container, dict):
+        raise TypeError("Survey config must be a mapping")
+
+    top_level_config = OmegaConf.create(
+        {key: value for key, value in config_container.items() if key != "survey"}
+    )
+    survey_overrides = OmegaConf.select(config, "survey")
+
     return OmegaConf.merge(
         _resolve_project_placeholders(default_survey),
-        _resolve_project_placeholders(survey_config),
+        _resolve_project_placeholders(top_level_config),
+        _resolve_project_placeholders(survey_overrides) if survey_overrides is not None else OmegaConf.create(),
     )
 
 

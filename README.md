@@ -89,6 +89,7 @@ The pipeline runner in `src/pipeline/run_loop.py` automates the first three stag
 The default setup path is now `uv`.
 
 ```bash
+git clone --depth 1 https://github.com/OpenDFM/Xcientist.git
 uv sync
 source .venv/bin/activate
 cp .env.example .env

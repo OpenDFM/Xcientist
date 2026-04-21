@@ -18,24 +18,31 @@ workspace:
 # ============================================
 survey:
   BasicInfo:
-    topic: "Machine-learned interatomic potential"
+    topic: "Training-Free Memory System for LLM Agents"
     base_dir: "${repo_root}/src/agents/survey_agent/outputs/memory"
     cache_path: "./database"
     save_path: "${repo_root}/src/agents/survey_agent/outputs/memory/survey.md"
     save_json_path: "${repo_root}/src/agents/survey_agent/outputs/memory/survey.json"
     evaluation_save_path: "${repo_root}/src/agents/survey_agent/outputs/memory/evaluation.txt"
-    debug: true
+    debug: false
     error_conservatism_mode: false
+    skip_exist: false
+    adapter_mode: false
   APIInfo:
     llm_api_key: "${oc.env:OPENAI_API_KEY,}"
-    llm_api_base_url: "https://api.xi-ai.cn/v1/chat/completions"
+    llm_api_base_url: "${oc.env:OPENAI_API_BASE,}"
     llm_model_name: "gpt-5-mini"
     llm_max_context_length: 160000
     use_stream_mode: false
     batch_chat_agent_worker: 32
+    chat_timeout: 300
+    batch_chat_timeout: 1800
     semantic_scholar_api_key: "${oc.env:SEMANTIC_SCHOLAR_API_KEY,}"
     low_flow_mode: false
     low_flow_latency: 0
+    exponential_backoff: true
+    exponential_backoff_time: 1
+    exponential_backoff_max_time: 60
     arxiv_api_max_retry: 3
     semantic_scholar_api_max_retry: 3
   ModuleInfo:
@@ -88,15 +95,21 @@ survey:
       intra_cluster_analysis_max_retry: 5
       intra_cluster_analysis_temperature: 1.0
       intra_clustering_probelm_proposing_max_retry: 10
+      graph_keynote_extraction_batch_retry: 7
+      graph_graph_keynote_extraction_temperature: 0.1
       use_ds_keynotes_when_graph_fail: true
     SurveyGenerator:
       include_initial_analysis: false
       include_relation_graph: true
       include_relation_table: true
+      include_code_report: false
+      include_env_report: false
       omit_error_preserve_retry_time: 2
       outline_generation_in_steps: true
       outline_generation_draft_max_retry: 3
       outline_generation_draft_batch_size: 20
+      outline_generation_draft_max_iterations: 5
+      outline_generation_draft_empty_keynotes_iteration: 1
       outline_draft_RAG_topk: 60
       outline_generation_assign_max_retry: 10
       outline_generation_assign_batch_size: 20
@@ -120,6 +133,9 @@ survey:
       subsection_least_citations: 15
       section_least_words: 100
       section_least_citations: 3
+      section_preamable_least_words: 100
+      section_preamble_least_words: 100
+      section_preamble_least_citations: 3
       draft_length_relax_ratio: 0.1
       use_full_text_in_survey_generation: false
       include_other_relevant_papers_RAG_in_outline: true
@@ -129,8 +145,10 @@ survey:
       subsection_RAG_topk: 60
       use_title_in_draft: true
       enable_review_and_revise: true
+      agentic_refine_section: true
       section_review_temperature: 1.0
       section_review_retry: 3
+      reviewer_max_suggestions: 5
       section_revision_RAG_topk: 30
       section_revise_temperature: 0.5
       section_revise_retry: 3
@@ -138,21 +156,29 @@ survey:
       max_review_revise_iterations: 3
       draft_refinement_in_parts: true
       refine_in_parts_mode: 2
+      draft_refinement_max_retry: 7
       review_and_revise_whole_survey_in_refinement: true
+      agentic_refine_survey: true
       review_and_revise_whole_survey_max_iteration: 5
       valid_title_min_similarity: 0.5
     Judge:
+      skip_evaluation: false
       use_different_api_for_judge: false
       model: "gpt-5-mini"
       judge_llm_api_key: "${oc.env:OPENAI_API_KEY,}"
-      judge_llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
+      judge_llm_api_base_url: "${oc.env:OPENAI_API_BASE,}"
       nli_temperature: 0.1
       citation_quality_threshold: 0.5
       remove_failed_citation_in_eval: true
       rubrics_eval_10_dimensions: true
       rubrics_eval_4_dimensions: false
+      rubrics_deep_survey_eval: false
       explanation_in_rubric: false
       citation_eval: true
+    CodeAnalysis:
+      PseudoCreator:
+        planner_temperature: 0.5
+        planner_max_retry: 3
 
 
 # ============================================
@@ -161,7 +187,7 @@ survey:
 idea:
   enabled: true
   input: ""
-  topic: "Machine-learned interatomic potential"
+  topic: "Training-Free Memory System for LLM Agents"
   mature_idea: ""
   refinement_scope: ""
 
@@ -178,19 +204,12 @@ idea:
     console_logs: true
     rag_config: "src/config/default.yaml"
     openai_api_key: "${oc.env:OPENAI_API_KEY,}"
-    openai_base_url: "https://api.xi-ai.cn/v1"
+    openai_base_url: "${oc.env:OPENAI_BASE_URL}"
 
   agent:
     model: "gpt-5.4"
-    # Workflow-stage model routing for LigAgent's explicit stage graph.
-    # If a stage is not set here, it falls back to `idea.agent.model`.
-    # This only affects workflow-stage LLM calls; MCTS generation/evaluation
-    # and fusion still use their original dedicated configs below.
     workflow_models:
       default: "${idea.agent.model}"
-
-      # Main LigAgent workflow: knowledge_aquisition -> advanced_analysis
-      # -> re_analysis_replan -> idea_generation
       main:
         knowledge_aquisition: "${idea.agent.model}"
         advanced_analysis: "${idea.agent.model}"
@@ -273,14 +292,14 @@ idea:
 experiment:
   enabled: true
   api:
-    openai_api_key: "${env:OPENAI_API_KEY}"
-    openai_api_base: "https://api.xi-ai.cn/v1"
-    minimax_api_key: "${env:MINIMAX_API_KEY}"
+    openai_api_key: "${oc.env:OPENAI_API_KEY,}"
+    openai_api_base: "${oc.env:OPENAI_BASE_URL,}"
+    minimax_api_key: "${oc.env:MINIMAX_API_KEY,}"
     minimax_api_base: "https://api.minimaxi.com/v1"
     huggingface_endpoint: "https://hf-mirror.com"
-    github_ai_token: "${env:GITHUB_AI_TOKEN}"
-    serper_api_key: "${env:SERPER_API_KEY}"
-    jina_api_key: "${env:JINA_API_KEY}"
+    github_ai_token: "${oc.env:GITHUB_AI_TOKEN,}"
+    serper_api_key: "${oc.env:SERPER_API_KEY,}"
+    jina_api_key: "${oc.env:JINA_API_KEY,}"
 
   # Model configuration
   models:
@@ -344,7 +363,7 @@ experiment:
     prepare_clone_depth: 1
     model_candidate_seed: "${repo_root}/models"
     tavily_enabled: true
-    tavily_api_key: "${env:TAVILY_API_KEY}"
+    tavily_api_key: "${oc.env:TAVILY_API_KEY,}"
     tavily_remote_url_template: "https://mcp.tavily.com/mcp/?tavilyApiKey={api_key}"
 
 # ============================================
@@ -356,7 +375,7 @@ paper:
 
   api:
     openai_api_key: "${oc.env:OPENAI_API_KEY,}"
-    openai_api_base: "https://api.xi-ai.cn/v1"
+    openai_api_base: "${oc.env:OPENAI_BASE_URL,}"
     minimax_api_key: "${oc.env:MINIMAX_API_KEY,}"
     minimax_api_base: "https://api.minimaxi.com/v1"
     semantic_scholar_api_key: "${oc.env:SEMANTIC_SCHOLAR_API_KEY,}"

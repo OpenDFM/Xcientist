@@ -89,6 +89,7 @@ Xcientist/
 推荐使用 `uv`：
 
 ```bash
+git clone --depth 1 https://github.com/OpenDFM/Xcientist.git
 uv sync
 source .venv/bin/activate
 cp .env.example .env

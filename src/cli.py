@@ -61,6 +61,12 @@ def _ensure_config_exists(config_path: Path) -> None:
         raise FileNotFoundError(f"Config file not found: {config_path}")
 
 
+def _survey_override_key(config_path: Path, key: str) -> str:
+    config = OmegaConf.to_container(OmegaConf.load(config_path), resolve=False)
+    prefix = "survey." if isinstance(config, dict) and "survey" in config else ""
+    return f"{prefix}{key}"
+
+
 def _temporary_config(base_config: Path, updates: Iterable[tuple[str, object]]) -> str | None:
     update_pairs = [(key, value) for key, value in updates if value is not None and value != ""]
     if not update_pairs:
@@ -79,10 +85,10 @@ def _build_root_parser() -> argparse.ArgumentParser:
 
     survey = subparsers.add_parser("survey", help="Run Survey Agent")
     survey.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to config YAML")
-    survey.add_argument("--topic", help="Override survey.BasicInfo.topic")
-    survey.add_argument("--base-dir", help="Override survey.BasicInfo.base_dir")
-    survey.add_argument("--save-path", help="Override survey.BasicInfo.save_path")
-    survey.add_argument("--save-json-path", help="Override survey.BasicInfo.save_json_path")
+    survey.add_argument("--topic", help="Override survey BasicInfo.topic")
+    survey.add_argument("--base-dir", help="Override survey BasicInfo.base_dir")
+    survey.add_argument("--save-path", help="Override survey BasicInfo.save_path")
+    survey.add_argument("--save-json-path", help="Override survey BasicInfo.save_json_path")
     survey.add_argument(
         "--evaluation-save-path",
         help="Override survey.BasicInfo.evaluation_save_path",
@@ -142,6 +148,7 @@ def _build_root_parser() -> argparse.ArgumentParser:
 def _survey_command(args: argparse.Namespace) -> int:
     config_path = _resolve_config_path(args.config)
     _ensure_config_exists(config_path)
+    override_key = lambda key: _survey_override_key(config_path, key)
     env = _base_env(config_path=config_path)
     for key in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
         env.pop(key, None)
@@ -158,15 +165,15 @@ def _survey_command(args: argparse.Namespace) -> int:
         config_path.stem,
     ]
     if args.topic:
-        cmd.append(f"survey.BasicInfo.topic={args.topic}")
+        cmd.append(f"{override_key('BasicInfo.topic')}={args.topic}")
     if args.base_dir:
-        cmd.append(f"survey.BasicInfo.base_dir={args.base_dir}")
+        cmd.append(f"{override_key('BasicInfo.base_dir')}={args.base_dir}")
     if args.save_path:
-        cmd.append(f"survey.BasicInfo.save_path={args.save_path}")
+        cmd.append(f"{override_key('BasicInfo.save_path')}={args.save_path}")
     if args.save_json_path:
-        cmd.append(f"survey.BasicInfo.save_json_path={args.save_json_path}")
+        cmd.append(f"{override_key('BasicInfo.save_json_path')}={args.save_json_path}")
     if args.evaluation_save_path:
-        cmd.append(f"survey.BasicInfo.evaluation_save_path={args.evaluation_save_path}")
+        cmd.append(f"{override_key('BasicInfo.evaluation_save_path')}={args.evaluation_save_path}")
     cmd.extend(args.overrides)
     return _run_command(cmd, env=env)
 

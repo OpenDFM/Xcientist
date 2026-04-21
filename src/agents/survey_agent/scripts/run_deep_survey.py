@@ -1,6 +1,24 @@
 import sys
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+_SCRIPT_PATH = Path(__file__).resolve()
+_REPO_ROOT = _SCRIPT_PATH.parents[4]
+for _env_path in (_REPO_ROOT / ".env", _REPO_ROOT / "src" / "config" / ".env"):
+    if _env_path.exists():
+        load_dotenv(_env_path, override=False)
+
+if not os.environ.get("OPENAI_API_BASE"):
+    base_url = str(os.environ.get("OPENAI_BASE_URL") or "").strip().rstrip("/")
+    if base_url:
+        if base_url.endswith("/chat/completions"):
+            os.environ["OPENAI_API_BASE"] = base_url
+        else:
+            os.environ["OPENAI_API_BASE"] = f"{base_url}/chat/completions"
 
 import hydra
 from utils.rich_logger import get_logger

@@ -209,6 +209,15 @@ class ChatAgent:
                 "Authorization": f"Bearer {self.token}",
             }
 
+    @staticmethod
+    def _mask_token(token: str) -> str:
+        token = str(token or "").strip()
+        if not token:
+            return "<empty>"
+        if len(token) <= 8:
+            return "*" * len(token)
+        return f"{token[:4]}...{token[-4:]}"
+
     @retry(
         stop=stop_after_attempt(10),
         wait=wait_exponential(min=1, max=300),
@@ -305,7 +314,15 @@ class ChatAgent:
             raise requests.RequestException(f"Retryable status: {response.status_code}")
         
         if response.status_code != 200:
-            self.logger.error(f"chat response code: {response.status_code}")
+            response_excerpt = response_text[:500].replace("\n", " ").strip()
+            self.logger.error(
+                "chat response code: %s, model=%s, url=%s, token=%s, body=%s",
+                response.status_code,
+                model,
+                url,
+                self._mask_token(self.token),
+                response_excerpt or "<empty>",
+            )
             response.raise_for_status()
 
         try:
