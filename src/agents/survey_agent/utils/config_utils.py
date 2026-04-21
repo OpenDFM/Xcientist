@@ -39,11 +39,17 @@ def merge_with_default_survey_config(config: DictConfig) -> DictConfig:
     )
     survey_overrides = OmegaConf.select(config, "survey")
 
-    return OmegaConf.merge(
+    merged = OmegaConf.merge(
         _resolve_project_placeholders(default_survey),
         _resolve_project_placeholders(top_level_config),
         _resolve_project_placeholders(survey_overrides) if survey_overrides is not None else OmegaConf.create(),
     )
+    topic = str(OmegaConf.select(merged, "BasicInfo.topic") or "").strip()
+    if topic:
+        from src.agents.survey_agent.utils.topic_survey_storage import apply_topic_survey_paths
+
+        apply_topic_survey_paths(merged, topic)
+    return merged
 
 
 def resolve_repo_relative_path(path_str: str) -> str:

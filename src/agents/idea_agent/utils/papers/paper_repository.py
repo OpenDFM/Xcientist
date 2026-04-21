@@ -13,6 +13,7 @@ from omegaconf import OmegaConf
 from src.agents.survey_agent.modules.outcome_RAG import OutcomeRAG
 from src.agents.survey_agent.modules.paper_graph_retriever import PaperGraphRetriever
 from src.agents.survey_agent.modules.work_collector import WorkCollector
+from src.agents.survey_agent.utils.topic_survey_storage import build_survey_artifact_paths
 from src.agents.idea_agent.utils.core.progress import iter_with_progress
 from src.agents.survey_agent.utils.utils import get_hash
 
@@ -116,14 +117,6 @@ class PaperRepository:
         return merged
 
     def _repair_runtime_survey_paths(self, config: Any) -> None:
-        memory_dir = (_REPO_ROOT / "src" / "agents" / "survey_agent" / "outputs" / "memory").resolve()
-        fallback_paths = {
-            "BasicInfo.base_dir": str(memory_dir),
-            "BasicInfo.save_path": str(memory_dir / "survey.md"),
-            "BasicInfo.save_json_path": str(memory_dir / "survey.json"),
-            "BasicInfo.evaluation_save_path": str(memory_dir / "evaluation.txt"),
-        }
-
         current_md = OmegaConf.select(config, "BasicInfo.save_path")
         current_json = OmegaConf.select(config, "BasicInfo.save_json_path")
         if current_md and current_json:
@@ -132,13 +125,15 @@ class PaperRepository:
             if md_exists and json_exists:
                 return
 
-        fallback_md = Path(fallback_paths["BasicInfo.save_path"])
-        fallback_json = Path(fallback_paths["BasicInfo.save_json_path"])
-        if not (fallback_md.exists() and fallback_json.exists()):
+        topic = _as_text(OmegaConf.select(config, "BasicInfo.topic"))
+        fallback = build_survey_artifact_paths(topic, config=config)
+        if not fallback.exists():
             return
 
-        for key, value in fallback_paths.items():
-            OmegaConf.update(config, key, value, merge=False)
+        OmegaConf.update(config, "BasicInfo.base_dir", str(fallback.base_dir), merge=False)
+        OmegaConf.update(config, "BasicInfo.save_path", str(fallback.markdown_path), merge=False)
+        OmegaConf.update(config, "BasicInfo.save_json_path", str(fallback.json_path), merge=False)
+        OmegaConf.update(config, "BasicInfo.evaluation_save_path", str(fallback.evaluation_path), merge=False)
 
     def _get_outcome_rag(self) -> OutcomeRAG:
         if self._outcome_rag is None:

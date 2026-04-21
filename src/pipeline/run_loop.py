@@ -13,6 +13,10 @@ from typing import Any, Dict, Optional
 
 from omegaconf import OmegaConf
 
+from src.agents.survey_agent.utils.topic_survey_storage import (
+    apply_topic_survey_paths,
+    build_survey_artifact_paths,
+)
 from src.config import load_config
 from .experiment_to_symbolic import convert_ablation_to_symbolic_memory
 
@@ -147,7 +151,7 @@ def run_command(cmd: list, env: dict = None) -> int:
     return process.returncode
 
 
-def run_survey(topic: str, output_dir: str) -> bool:
+def run_survey(topic: str, output_root: str) -> bool:
     """Run Survey agent."""
     print("\n" + "=" * 50)
     print("Phase 1: Survey")
@@ -163,23 +167,21 @@ def run_survey(topic: str, output_dir: str) -> bool:
         "scripts",
         "run_deep_survey.py",
     )
-    save_path = os.path.join(output_dir, "survey.md")
-    save_json_path = os.path.join(output_dir, "survey.json")
-    evaluation_save_path = os.path.join(output_dir, "evaluation.txt")
+    artifacts = build_survey_artifact_paths(topic, output_root=output_root)
 
     cmd = [
         sys.executable, survey_script,
         f"survey.BasicInfo.topic={topic}",
-        f"survey.BasicInfo.base_dir={output_dir}",
-        f"survey.BasicInfo.save_path={save_path}",
-        f"survey.BasicInfo.save_json_path={save_json_path}",
-        f"survey.BasicInfo.evaluation_save_path={evaluation_save_path}",
+        f"++survey.BasicInfo.base_dir={artifacts.base_dir}",
+        f"++survey.BasicInfo.save_path={artifacts.markdown_path}",
+        f"++survey.BasicInfo.save_json_path={artifacts.json_path}",
+        f"++survey.BasicInfo.evaluation_save_path={artifacts.evaluation_path}",
         "--config-path", config_path,
         "--config-name", "default",
     ]
 
     print(f"Running survey: {topic}")
-    print(f"Output will be saved to: {output_dir}")
+    print(f"Output will be saved to: {artifacts.base_dir}")
     env = _get_subprocess_env()
     for key in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
         env.pop(key, None)
@@ -206,32 +208,14 @@ def _write_idea_runtime_config(
     runtime_dir: str,
     topic: str,
     mature_idea: str,
-    survey_output_dir: str,
+    survey_output_root: str,
 ) -> str:
     """Materialize an idea-agent config that mirrors the active pipeline runtime."""
     runtime_config = OmegaConf.create(OmegaConf.to_container(config, resolve=True))
     OmegaConf.update(runtime_config, "idea.run.topic", topic, merge=False)
     OmegaConf.update(runtime_config, "idea.run.mature_idea", mature_idea or "", merge=False)
-    if survey_output_dir:
-        OmegaConf.update(runtime_config, "survey.BasicInfo.base_dir", survey_output_dir, merge=False)
-        OmegaConf.update(
-            runtime_config,
-            "survey.BasicInfo.save_path",
-            os.path.join(survey_output_dir, "survey.md"),
-            merge=False,
-        )
-        OmegaConf.update(
-            runtime_config,
-            "survey.BasicInfo.save_json_path",
-            os.path.join(survey_output_dir, "survey.json"),
-            merge=False,
-        )
-        OmegaConf.update(
-            runtime_config,
-            "survey.BasicInfo.evaluation_save_path",
-            os.path.join(survey_output_dir, "evaluation.txt"),
-            merge=False,
-        )
+    if survey_output_root:
+        apply_topic_survey_paths(runtime_config.survey, topic, output_root=survey_output_root)
     runtime_config_path = os.path.join(runtime_dir, "idea_runtime_config.yaml")
     OmegaConf.save(runtime_config, runtime_config_path)
     return runtime_config_path
@@ -350,7 +334,7 @@ def run_idea(
     output_file: str,
     config: Any,
     runtime_dir: str,
-    survey_output_dir: str,
+    survey_output_root: str,
     ablation_results_path: str = "",
     previous_candidate_path: str = "",
 ) -> Dict[str, Any]:
@@ -369,7 +353,7 @@ def run_idea(
         runtime_dir,
         topic,
         mature_idea,
-        survey_output_dir,
+        survey_output_root,
     )
     if ablation_results_path and os.path.isdir(ablation_results_path):
         env["IDEA_AGENT_ABLATION_RESULTS_PATH"] = ablation_results_path
@@ -504,9 +488,7 @@ def main(config_path: str = "src/config/default.yaml"):
 
     # Get output roots from config
     pipeline_output_root = config.pipeline.output.root  # e.g., "pipeline_runs"
-    survey_output_base = str(
-        config.survey.get("output", {}).get("base_dir", config.survey.BasicInfo.base_dir)
-    )
+    survey_output_root = str(config.survey.get("output", {}).get("root_dir", "src/agents/survey_agent/outputs"))
 
     # Pipeline name
     pipeline_name_config = config.pipeline.get("name", "")
@@ -549,14 +531,12 @@ def main(config_path: str = "src/config/default.yaml"):
     else:
         state = _init_pipeline_state(pipeline_workspace, topic, mature_idea, max_iterations)
 
-    survey_output_dir = survey_output_base
-
     # Phase 1: Survey
     if skip_survey or _should_skip_phase("survey", state):
         print("Skipping Survey phase")
     else:
-        _ensure_dirs(survey_output_dir)
-        if run_survey(topic, survey_output_dir):
+        _ensure_dirs(survey_output_root)
+        if run_survey(topic, survey_output_root):
             _mark_phase_complete("survey", state)
             _save_pipeline_state(pipeline_workspace, state, state_filename)
         else:
@@ -595,7 +575,7 @@ def main(config_path: str = "src/config/default.yaml"):
             idea_output_file,
             config=config,
             runtime_dir=temp_exp_workspace,
-            survey_output_dir=survey_output_dir,
+            survey_output_root=survey_output_root,
             ablation_results_path=prior_ablation_results_path,
             previous_candidate_path=previous_candidate_path,
         )

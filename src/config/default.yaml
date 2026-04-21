@@ -17,13 +17,11 @@ workspace:
 # Survey Agent Configuration
 # ============================================
 survey:
+  output:
+    root_dir: "${repo_root}/src/agents/survey_agent/outputs"
   BasicInfo:
     topic: "Training-Free Memory System for LLM Agents"
-    base_dir: "${repo_root}/src/agents/survey_agent/outputs/memory"
     cache_path: "./database"
-    save_path: "${repo_root}/src/agents/survey_agent/outputs/memory/survey.md"
-    save_json_path: "${repo_root}/src/agents/survey_agent/outputs/memory/survey.json"
-    evaluation_save_path: "${repo_root}/src/agents/survey_agent/outputs/memory/evaluation.txt"
     debug: false
     error_conservatism_mode: false
     skip_exist: false

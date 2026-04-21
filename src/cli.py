@@ -12,6 +12,10 @@ from typing import Iterable, Sequence
 from dotenv import load_dotenv
 from omegaconf import OmegaConf
 
+from src.agents.survey_agent.utils.topic_survey_storage import (
+    apply_topic_survey_paths,
+    get_survey_output_root,
+)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = REPO_ROOT / "src" / "config" / "default.yaml"
@@ -149,6 +153,7 @@ def _survey_command(args: argparse.Namespace) -> int:
     config_path = _resolve_config_path(args.config)
     _ensure_config_exists(config_path)
     override_key = lambda key: _survey_override_key(config_path, key)
+    config = OmegaConf.load(config_path)
     env = _base_env(config_path=config_path)
     for key in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
         env.pop(key, None)
@@ -164,16 +169,27 @@ def _survey_command(args: argparse.Namespace) -> int:
         "--config-name",
         config_path.stem,
     ]
+    derived_paths = None
+    if args.topic and not any((args.base_dir, args.save_path, args.save_json_path, args.evaluation_save_path)):
+        survey_config = config.get("survey") if hasattr(config, "get") and config.get("survey") is not None else config
+        derived_paths = apply_topic_survey_paths(
+            OmegaConf.create(OmegaConf.to_container(survey_config, resolve=False)),
+            args.topic,
+            output_root=get_survey_output_root(survey_config),
+        )
     if args.topic:
         cmd.append(f"{override_key('BasicInfo.topic')}={args.topic}")
-    if args.base_dir:
-        cmd.append(f"{override_key('BasicInfo.base_dir')}={args.base_dir}")
-    if args.save_path:
-        cmd.append(f"{override_key('BasicInfo.save_path')}={args.save_path}")
-    if args.save_json_path:
-        cmd.append(f"{override_key('BasicInfo.save_json_path')}={args.save_json_path}")
-    if args.evaluation_save_path:
-        cmd.append(f"{override_key('BasicInfo.evaluation_save_path')}={args.evaluation_save_path}")
+    if args.base_dir or derived_paths:
+        cmd.append(f"++{override_key('BasicInfo.base_dir')}={args.base_dir or derived_paths.base_dir}")
+    if args.save_path or derived_paths:
+        cmd.append(f"++{override_key('BasicInfo.save_path')}={args.save_path or derived_paths.markdown_path}")
+    if args.save_json_path or derived_paths:
+        cmd.append(f"++{override_key('BasicInfo.save_json_path')}={args.save_json_path or derived_paths.json_path}")
+    if args.evaluation_save_path or derived_paths:
+        cmd.append(
+            f"++{override_key('BasicInfo.evaluation_save_path')}="
+            f"{args.evaluation_save_path or derived_paths.evaluation_path}"
+        )
     cmd.extend(args.overrides)
     return _run_command(cmd, env=env)
 

@@ -1,10 +1,11 @@
 import os
-import re
 import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Any
 from uuid import uuid4
+
+from omegaconf import OmegaConf
 
 from src.agents.idea_agent.agent.artifacts import artifact_set
 from src.agents.idea_agent.agent.ligagent import LigAgent
@@ -21,16 +22,16 @@ from src.agents.idea_agent.utils.core.json_utils import read_json_file
 from src.agents.idea_agent.utils.core.run_inputs import clean_optional_text, load_topic, resolve_run_inputs
 from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
 from src.agents.idea_agent.utils.workflow.ligagent_flow import run_agent_loop
+from src.agents.survey_agent.utils.topic_survey_storage import (
+    apply_existing_survey_artifact_paths,
+    apply_topic_survey_paths,
+    find_reusable_survey,
+    get_survey_output_root,
+    normalize_topic_slug,
+)
 
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"
 IDEA_AGENT_ROOT = Path(__file__).resolve().parent
-
-
-def _slugify(value: str) -> str:
-    slug = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower())
-    slug = slug.strip("-")
-    return slug or "topic"
-
 
 def _load_previous_idea_candidate() -> Optional[Dict[str, Any]]:
     previous_candidate_path = clean_optional_text(os.getenv("IDEA_AGENT_PREVIOUS_CANDIDATE_PATH"))
@@ -38,6 +39,31 @@ def _load_previous_idea_candidate() -> Optional[Dict[str, Any]]:
         return None
     payload = read_json_file(Path(previous_candidate_path))
     return normalize_idea_contract(payload, allow_legacy=True, keep_extra=True)
+
+
+def _resolve_runtime_survey_config(
+    survey_config: Optional[object],
+    topic: str,
+    *,
+    judge_model: str,
+) -> tuple[Optional[object], Optional[str]]:
+    if survey_config is None:
+        return None, None
+
+    runtime_config = OmegaConf.create(OmegaConf.to_container(survey_config, resolve=False))
+    output_root = get_survey_output_root(runtime_config)
+    reusable = find_reusable_survey(
+        topic,
+        config=runtime_config,
+        output_root=output_root,
+        judge_model=judge_model,
+    )
+    if reusable is not None:
+        apply_existing_survey_artifact_paths(runtime_config, reusable)
+        return runtime_config, reusable.topic
+
+    apply_topic_survey_paths(runtime_config, topic, output_root=output_root)
+    return runtime_config, topic
 
 
 def _run_topic(
@@ -127,8 +153,17 @@ def main() -> int:
     project_config = load_project_config()
     _apply_env_config(config)
     resolved_inputs = resolve_run_inputs(config, default_output_root=str(DEFAULT_OUTPUT_ROOT))
-    survey_config = get_config_value(project_config, "survey", None)
     topic = load_topic(str(resolved_inputs["topic"]))
+    survey_config, survey_topic = _resolve_runtime_survey_config(
+        get_config_value(project_config, "survey", None),
+        topic,
+        judge_model=str(get_config_value(config, "agent.model", "gpt-5-mini") or "gpt-5-mini"),
+    )
+    if survey_topic:
+        if survey_topic == topic:
+            print(f"[{topic}] using survey topic -> {survey_topic}")
+        else:
+            print(f"[{topic}] reusing survey topic -> {survey_topic}")
     output_root = Path(str(resolved_inputs["output_root"])).expanduser()
     if not output_root.is_absolute():
         output_root = IDEA_AGENT_ROOT / output_root
@@ -139,7 +174,7 @@ def main() -> int:
 
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     unique = uuid4().hex[:8]
-    run_id = f"{_slugify(topic)}-{timestamp}-{unique}"
+    run_id = f"{normalize_topic_slug(topic)}-{timestamp}-{unique}"
     try:
         result_dir = _run_topic(
             topic,

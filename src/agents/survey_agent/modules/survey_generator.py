@@ -2041,23 +2041,12 @@ class SurveyGenerator:
 
     def save_survey(self, final_survey, references):
         save_path = self.config.BasicInfo.save_path
-        
-        # Get topic from config, fallback to "survey" if not available
-        topic = getattr(self.config.BasicInfo, 'topic', 'survey')
-        
-        # Get the directory from save_path and create full paths with topic name
-        save_dir = os.path.dirname(save_path)
-        
-        # Create md and json paths with topic name
-        if self.config.BasicInfo.adapter_mode:
-            save_md_path = os.path.join(save_dir, "survey.md")
-            save_json_path = os.path.join(save_dir, "survey.json")
-        else:
-            save_md_path = os.path.join(save_dir, f"{topic.replace(' ', '_')}.md")
-            save_json_path = os.path.join(save_dir, f"{topic.replace(' ', '_')}.json")
+        save_json_path = self.config.BasicInfo.save_json_path
+        topic = getattr(self.config.BasicInfo, "topic", "survey")
 
         # ensure parent dirs exist
-        os.makedirs(save_dir, exist_ok=True)
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        os.makedirs(os.path.dirname(save_json_path), exist_ok=True)
 
         if self.config.BasicInfo.debug:
             self.logger.info(f"\n--------------------------")
@@ -2065,15 +2054,24 @@ class SurveyGenerator:
             self.logger.info(f"--------------------------\n")
         # write md
         if self.config.BasicInfo.debug:
-            self.logger.info(f"Saving final survey to {save_md_path}...")
-        with open(save_md_path, "w", encoding="utf-8") as f:
+            self.logger.info(f"Saving final survey to {save_path}...")
+        with open(save_path, "w", encoding="utf-8") as f:
             f.write(final_survey)
 
         # write json
         if self.config.BasicInfo.debug:
             self.logger.info(f"Saving final survey JSON to {save_json_path}...")
         with open(save_json_path, "w", encoding="utf-8") as f:
-            json.dump({"paper": final_survey, "references": references}, f, indent=2)
+            json.dump(
+                {
+                    "topic": topic,
+                    "topic_slug": os.path.basename(os.path.dirname(save_json_path)),
+                    "paper": final_survey,
+                    "references": references,
+                },
+                f,
+                indent=2,
+            )
                 
     def count_unique_paper_ids(self, text: str) -> int:
         return len(self.get_unique_paper_ids_from_raw(text))
