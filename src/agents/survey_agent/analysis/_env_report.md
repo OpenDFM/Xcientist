@@ -1,1 +1,0 @@
-Error: No reports could be generated for the given repositories.

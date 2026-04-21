@@ -34,8 +34,8 @@ survey:
     llm_model_name: "gpt-5-mini"
     llm_max_context_length: 160000
     use_stream_mode: false
-    batch_chat_agent_worker: 32
-    chat_timeout: 300
+    batch_chat_agent_worker: 16
+    chat_timeout: 900
     batch_chat_timeout: 1800
     semantic_scholar_api_key: "${oc.env:SEMANTIC_SCHOLAR_API_KEY,}"
     low_flow_mode: false
@@ -77,7 +77,7 @@ survey:
       abstract_only_mode: false
       abstract_when_full_text_fail: true
       cache_enabled: true
-      use_local_paper_graph_keynotes: true
+      use_local_paper_graph_keynotes: false
       paper_reading_temperature: 0.3
       paper_reading_max_retry: 5
       llm_max_context_overhead_length_in_paper_reading: 20000
