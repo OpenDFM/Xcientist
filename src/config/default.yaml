@@ -54,7 +54,7 @@ survey:
       use_seed_filter_LLM: true
       LLM_seed_threshold: 4
       reference_graph_depth: 1
-      sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
+      sentence_transformer_model: models/bge-m3
       sentence_transformer_batch_size: 4
       expand_in_local_paper_graph: false
       advanced_filter_in_local_paper_graph_expansion: true
@@ -206,6 +206,7 @@ idea:
 
   agent:
     model: "gpt-5.4"
+    paper_keynote_keep_top_k: 10
     workflow_models:
       default: "${idea.agent.model}"
       main:

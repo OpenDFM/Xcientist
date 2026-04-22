@@ -3,10 +3,32 @@ from __future__ import annotations
 import os
 import subprocess
 from contextlib import contextmanager
+from pathlib import Path
 from typing import List, Tuple
 
 import torch
 from sentence_transformers import SentenceTransformer
+
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
+
+
+def _resolve_model_name_or_path(model_name: str) -> str:
+    value = str(model_name or "").strip()
+    if not value:
+        return value
+
+    value = value.replace("${repo_root}", str(_PROJECT_ROOT.resolve()))
+    value = value.replace("${workspace}", str((_PROJECT_ROOT / "workspace").resolve()))
+
+    candidate = Path(value).expanduser()
+    if candidate.is_absolute():
+        return str(candidate)
+
+    repo_candidate = (_PROJECT_ROOT / candidate).resolve()
+    if repo_candidate.exists():
+        return str(repo_candidate)
+    return value
 
 
 def _gpu_candidates_from_torch() -> List[Tuple[str, int]]:
@@ -89,6 +111,7 @@ def temporary_cuda_visible_device(device: str):
 
 
 def load_sentence_transformer_auto(model_name: str, logger=None) -> tuple[SentenceTransformer, str]:
+    model_name_or_path = _resolve_model_name_or_path(model_name)
     candidates = get_gpu_candidates()
     attempted: List[str] = []
     last_error: Exception | None = None
@@ -97,9 +120,9 @@ def load_sentence_transformer_auto(model_name: str, logger=None) -> tuple[Senten
         attempted.append(device)
         try:
             try:
-                model = SentenceTransformer(model_name, device=device)
+                model = SentenceTransformer(model_name_or_path, device=device)
             except TypeError:
-                model = SentenceTransformer(model_name)
+                model = SentenceTransformer(model_name_or_path)
                 model = model.to(device)
             if logger is not None:
                 logger.info(f"Loaded SentenceTransformer on {device}")

@@ -177,6 +177,30 @@ xcientist doctor
 
 If doctor passes and your local assets are in place, use the commands below.
 
+### Fastest Path
+
+Using the provided `Training-Free Memory System for LLM Agents` example:
+
+Generate survey only:
+
+```bash
+xcientist survey --topic "Training-Free Memory System for LLM Agents"
+```
+
+Run ideation from the provided sample survey:
+
+```bash
+xcientist idea --topic "Training-Free Memory System for LLM Agents"
+```
+
+Run experiment from the provided sample idea:
+
+```bash
+xcientist experiment --experiment agent_memory --idea-json <repo_root>/src/agents/idea_agent/example/idea_result.json
+```
+
+For further configuration changes, edit `src/config/default.yaml`.
+
 ### 1. Run Survey Agent
 
 Primary entrypoint:
@@ -188,7 +212,7 @@ xcientist survey
 Override the topic directly:
 
 ```bash
-xcientist survey --topic "LLM Agent Memory System"
+xcientist survey --topic <your_topic_name>
 ```
 
 Typical outputs:
@@ -208,7 +232,7 @@ xcientist idea
 Override the topic directly:
 
 ```bash
-xcientist idea --topic "LLM Agent Memory System"
+xcientist idea --topic <your_topic_name>
 ```
 
 The default run uses `src/config/default.yaml`, materializes a run directory under `src/agents/idea_agent/runs/`, and writes `idea_result.json` plus logs.

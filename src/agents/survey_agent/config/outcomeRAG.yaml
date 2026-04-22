@@ -34,7 +34,7 @@ ModuleInfo:
     use_seed_filter_LLM: True
     LLM_seed_threshold: 4
     reference_graph_depth: 1
-    sentence_transformer_model: sentence-transformers/all-mpnet-base-v2
+    sentence_transformer_model: models/bge-m3
     sentence_transformer_batch_size: 32
     expand_in_local_paper_graph: False
     advanced_filter_in_local_paper_graph_expansion: True

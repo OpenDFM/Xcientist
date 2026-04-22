@@ -1,0 +1,900 @@
+{
+  "title": "Family-Calibrated Deterministic Packing for Training-Free Atomic-Note Memory in LLM Agents",
+  "abstract": "We present a lightweight, training-free refinement of atomic-note memory for LLM agents that shifts the main read-time innovation from richer control logic to a more conservative and better-grounded evidence selection rule. The system keeps the mature design choices that appear most robust for scalable QA-oriented memory: immutable span-grounded notes, small write-time semantic enrichment, cached embeddings, provenance-family IDs, and an efficiency-first bounded retrieval stage. Our contribution is a family-calibrated deterministic packing step that uses only candidate-pool statistics to decide when provenance-family agreement should help and when it should be ignored. After bounded ANN and lexical screening, the method analytically estimates whether a provenance family is receiving more support than expected from its size under a label-uninformative null, shrinks that signal for small or noisy families, and injects it only as a bounded regularizer into a single deterministic rank-and-pack equation. The same packer also handles small role quotas, family caps, soft duplicate decay, and an explicit degraded mode that reverts to relevance-only packing when pool statistics are unreliable. Relative to heavier trust loops, learned rerankers, or persistent mutable family scores, this design stays closer to the survey-supported pattern of compact structured memories plus efficient multi-stage retrieval, while directly targeting QA accuracy, latency stability, and safe degradation under noisy metadata.",
+  "method": "The memory store follows the lightweight atomic-note design: each stored unit is an immutable span-grounded note enriched only with QA-critical metadata, including a cached embedding, confidence-aware entity and time tags, compact question-oriented keywords, a short context descriptor, a provenance-family ID, sparse deterministic local links, and optional note-attached micro-handles kept as metadata rather than as a separate index.\n\nAt read time, retrieval remains efficiency-first and bounded. Stage 1 forms a candidate pool using approximate nearest-neighbor search over cached embeddings plus lexical screening, with optional small boosts from entity, time, keyword, or micro-handle matches. This returns a bounded candidate set C with base scores b_i that summarize dense relevance, lexical fit, and small facet hints.\n\nStage 2 replaces ad hoc provenance bonuses with analytic within-query family calibration. Candidates are grouped by provenance family f. For each family, the method computes raw corroboration R_f = sum of base scores over candidates in that family. It then estimates the amount of support that family would be expected to receive under a label-uninformative null using only current-pool statistics: mu_f = m_f * mean(b), where m_f is the number of candidates from family f. A finite-population variance estimate is used, sigma_f^2 = m_f * Var(b) * (1 - m_f / N) + var_floor, so small pools or low-variance pools do not create unstable z-scores. The excess support statistic is z_f = (R_f - mu_f) / sqrt(sigma_f^2 + eps).\n\nTo avoid overreacting to small or noisy families, the method shrinks this statistic by family size: z'_f = z_f * m_f / (m_f + lambda). The shrunk value is mapped into a bounded corroboration signal c_f = tanh(z'_f / tau), ensuring that family influence cannot explode. This corroboration is combined with a conservative family prior p_f derived from the mean write-time confidence of notes from that family in the current pool. The result is an ephemeral reliability score r_f in [0,1], for example r_f = clamp(alpha_prior * p_f + (1 - alpha_prior) * (c_f + 1) / 2, 0, 1). The method also computes an uncertainty term u_f in [0,1] from the family variance estimate and effective sample size, so high-variance or weakly supported families contribute less.\n\nThe final evidence selection is handled by one deterministic rank-and-pack step. First, base scores are normalized within the candidate pool: b_norm_i = (b_i - mean(b)) / sqrt(Var(b) + eps). Next, family reliability is converted to signed support s_f = 2 * r_f - 1. Each family contributes a bounded regularizer family_reg_f = gamma * s_f * (1 - u_f). Each candidate receives final_score_i = b_norm_i + family_reg_{family(i)}.\n\nThe packer includes an explicit degraded mode rather than a separate controller. If pool statistics indicate that family calibration is unreliable—for example, the candidate pool is too small, score variance is too low, or family-label entropy is too low—then all family regularizers are set to zero and the same packer proceeds with plain relevance-first scoring. This keeps failure behavior simple and observable.\n\nPacking is then performed greedily after sorting by final_score. A candidate is accepted if its small role quota is not full, its family has not exceeded a small cap, and its overlap with already selected evidence is acceptable. High-overlap candidates are softly decayed rather than always hard-rejected, preserving useful redundancy when needed for QA. The process stops when the fixed evidence budget is filled.\n\nThis design is intentionally narrow: it does not add a learned reranker, a router, a separate trust-evaluation loop, or persistent mutable family statistics across queries. In contrast to systems such as TAME that improve trustworthiness through an evaluator memory and extra refinement overhead, or procedural-memory approaches such as MACLA that rely on expected-utility scoring over reusable skills, this method focuses on a simpler setting supported by the broader memory literature: compact structured memory units plus efficient retrieval and lightweight evidence packing. Its main claim is that provenance information is useful for QA only after being normalized against family size and pool statistics, and only when injected conservatively into a deterministic packer.",
+  "introduction": "Large language model (LLM) agents increasingly rely on external memory to compensate for limited context windows, avoid repeated reasoning, and preserve decision-relevant information across interactions. Recent training-free memory systems suggest a consistent design lesson: gains come less from storing more raw history than from converting experience into compact, reusable memory units and retrieving only the small amount of evidence most relevant to the current query. Building on the insights of Dynamic Cheatsheet: Test-Time Learning with Adaptive Memory, which emphasizes curated compact memory rather than full-history reuse, and AnalogAgent: Self-Improving Analog Circuit Design Automation with LLM Agents, which shows the value of distilling execution evidence into atomic reusable rules, this line of work motivates memory architectures that are structured, selective, and lightweight at inference time. At the same time, the broader survey literature highlights a recurring tension: richer retrieval and filtering logic may improve selectivity, but it also increases latency, complexity, and susceptibility to hidden failure modes when metadata is noisy or memory quality drifts.\n\nThis paper takes as its starting point a mature training-free span-grounded memory design for LLM agents that stores immutable atomic notes enriched only with QA-critical metadata and reads them through an efficiency-first two-stage retrieval pipeline. That design already embodies several robust choices for scalable question answering: memory is written as immutable span-grounded notes rather than mutable summaries, enrichment is intentionally narrow, cached embeddings support bounded approximate retrieval, and small lexical or facet cues complement dense similarity. However, a remaining weakness lies in how provenance-family information is used at read time. Naive provenance bonuses can overreward large or duplicated families, while heavier trust or utility loops risk turning a lightweight memory reader into a more complex controller whose behavior is harder to audit and whose latency is less stable. The specific limitation repaired in this work is therefore not the write path, but the read-time treatment of corroboration: existing family signals are insufficiently calibrated against family size and pool composition, and can fail silently when provenance metadata is sparse, noisy, or spuriously concentrated.\n\nOur proposal is a refinement of that mature atomic-note memory system, centered on a family-calibrated deterministic packing mechanism for evidence selection. The central idea is that provenance families should influence question-answering retrieval only when their apparent corroboration exceeds what would be expected from their representation in the retrieved candidate pool. Concretely, after bounded ANN retrieval and lexical screening produce a candidate set with base relevance scores, candidates are grouped by provenance family and evaluated under a label-uninformative null model defined entirely within the current pool. Family support is measured as the summed base relevance within a family, normalized by the support expected from that family’s candidate count and by a finite-population variance estimate, then shrunk for small families and mapped into a bounded corroboration signal. This family signal is not allowed to control selection on its own; instead, it acts only as a conservative regularizer inside a single deterministic rank-and-pack equation that also enforces fixed evidence budgets, small role quotas, family caps, and soft duplicate decay.\n\nThis design intentionally stays close to the training-free, efficiency-first memory pattern supported by prior work while drawing a clear contrast with heavier alternatives. Building on the insights of MACLA, which uses closed-form expected-utility selection over compact procedural memories, our proposal similarly favors analytic, training-free scoring over learned reranking. Yet unlike MACLA, our target setting is not reusable procedural skill selection but QA-oriented evidence packing over immutable atomic notes, where persistent family-level beliefs may drift and where bounded, within-query calibration is preferable to carrying mutable trust estimates across tasks. Likewise, in contrast to TAME: A Trustworthy Test-Time Evolution of Agent Memory with Systematic Benchmarking, which addresses memory misevolution through a dual-memory Executor/Evaluator loop and added trust refinement overhead, the present proposal asks whether a narrower intervention can offer safer behavior in a simpler setting: keep the memory representation unchanged, retain efficient candidate generation, and make provenance matter only through a bounded, uncertainty-aware adjustment that can be explicitly disabled.\n\nA key methodological objective is safe degradation. Because provenance IDs, write-time confidences, and enrichment tags may be incomplete or unreliable, the proposed packer includes an explicit degraded mode defined by observable pool statistics rather than by an additional controller. When the candidate pool is too small, score variance is too low, or family-label entropy is too weak to support meaningful calibration, the family regularizer is set to zero and the same deterministic packer reverts to plain relevance-first behavior. This addresses an important failure mode in memory systems identified across the literature: memory quality and retrieval policy interact, and poorly grounded metadata can silently reduce downstream quality if auxiliary signals are always trusted. By constraining provenance influence to a bounded regularizer, using only current-pool statistics, and preserving a relevance-only fallback, the proposal aims to make failure behavior simpler, more observable, and easier to ablate.\n\nThe paper therefore advances the following hypothesis: in training-free atomic-note memory for LLM agents, provenance-family information is useful for question answering only after it is normalized against family size and current-pool score statistics, and only when injected conservatively into a deterministic fixed-budget evidence packer. A second hypothesis is that this calibrated use of provenance can offer a better latency-safety trade-off than either raw family bonuses or heavier trust-evaluation loops, precisely because it leaves the write path unchanged and limits additional read-time computation to a lightweight analytic step. To evaluate these claims, the study is designed around matched-budget comparisons that keep the note store, first-stage candidate pool, metadata, and evidence budget fixed while varying only the read-time packer. The planned analysis includes ablations against plain deterministic packing and uncalibrated provenance bonuses, as well as stress tests for noisy family IDs, synthetic null-family conditions, provenance poisoning, sparse candidate pools, and memory growth. In this sense, the contribution is not a broader memory architecture, but a more precise proposal for how corroborative structure should be admitted into retrieval: analytically normalized, uncertainty-aware, bounded in effect, and dispensable when the evidence for using it is weak.",
+  "components": [
+    {
+      "component": "two_stage_retrieval",
+      "explanation": "Efficiency-first candidate generation: bounded ANN retrieval plus lexical screening, with optional soft facet hints, to keep recall high while capping latency before calibration."
+    },
+    {
+      "component": "modular_atomic_note_enricher",
+      "explanation": "Write-path module that produces immutable atomic notes with only QA-critical enrichment, including provenance-family IDs and confidence-aware entity/time metadata needed for calibration and packing."
+    },
+    {
+      "component": "deterministic_rank_and_pack",
+      "explanation": "One‑pass deterministic scoring and greedy packing stage that consumes b_i from two_stage_retrieval and bounded family signals (r_f,u_f) from ShrinkageAnalyticNullEstimator. It normalizes base scores per pool, adds the bounded family_regularizer, enforces lightweight per‑role quotas and small per‑family caps (folded duplicate control), applies soft overlap decay, and implements an internal deterministic fallback to relevance‑only packing when pool statistics indicate unreliable family evidence."
+    },
+    {
+      "component": "note_attached_micro_handles",
+      "explanation": "Exact handles remain attached to notes as metadata only and can seed lexical or facet boosts, avoiding a separate handle index while preserving precise lookup when useful."
+    },
+    {
+      "component": "ShrinkageAnalyticNullEstimator",
+      "explanation": "Closed-form family calibrator. It computes expected corroboration and variance under a label-uninformative null, applies variance floors and family-size shrinkage, and outputs bounded support or failure mass for each family."
+    }
+  ],
+  "algorithm": [
+    {
+      "name": "Atomic Note Ingestion",
+      "input": [
+        "source_spans with document_id, byte offsets, raw span text, local context, source timestamp, and provenance-family ID",
+        "write-time configuration for modular_atomic_note_enricher including embedding model, entity/time extractors, keyword budget, link rules, role rules, and confidence aggregation weights",
+        "handle extraction rules for note_attached_micro_handles",
+        "persistent note store and ANN/lexical search structures consumed by two_stage_retrieval"
+      ],
+      "output": [
+        "immutable atomic notes with note_id, span grounding, cached embedding, confidence-aware entity/time tags, question-oriented keywords, short context descriptor, provenance-family ID, write-time confidence, sparse local links, role label, and note_attached_micro_handles metadata",
+        "updated ANN and lexical search structures for two_stage_retrieval without a separate micro-handle index"
+      ],
+      "pipeline": [
+        "Step 1: modular_atomic_note_enricher processes each source span to create an immutable note record with cached embedding, confidence-aware entity tags, confidence-aware time tags, compact question-oriented keywords, a short context descriptor, sparse deterministic local links, a role label, write-time confidence, and a provenance-family ID.",
+        "Step 2: note_attached_micro_handles derives exact handle strings from each immutable note and stores them only inside the note metadata as note_attached_micro_handles fields without creating any external handle index.",
+        "Step 3: Persist each immutable note in the note store and update the ANN vectors, lexical term tables, and facet fields consumed by two_stage_retrieval using the cached embedding and enriched metadata."
+      ]
+    },
+    {
+      "name": "Calibrated Evidence Packing",
+      "input": [
+        "query text with optional entity hints, time hints, keyword hints, target roles, fixed evidence budget, per-role quotas, and per-family cap",
+        "persistent note store and ANN/lexical search structures consumed by two_stage_retrieval",
+        "candidate-pool calibration parameters for ShrinkageAnalyticNullEstimator: N_min, var_min, H_min, var_floor, eps, lambda, tau, alpha_prior, gamma",
+        "packing parameters for deterministic_rank_and_pack: overlap_decay, overlap_hard_threshold, minimum_effective_score"
+      ],
+      "output": [
+        "selected evidence pack containing ordered note_ids, final scores, decayed scores, provenance-family IDs, role labels, and span citations",
+        "pool-local calibration diagnostics containing degraded_mode, mean_base_score, base_score_variance, family_entropy, per-family counts, reliability values, uncertainty values, and family regularizers"
+      ],
+      "pipeline": [
+        "Step 1: two_stage_retrieval embeds the query, runs bounded ANN search over cached note embeddings, runs lexical screening over stored terms, applies small additive boosts for matching entity tags, time tags, keywords, and note_attached_micro_handles, and returns a bounded candidate pool C with base score b_i, note_id, role label, provenance-family ID, write-time confidence, span citation, and overlap signature for each candidate.",
+        "Step 2: Group the candidates in C by provenance-family ID, compute N = |C|, mean_base_score = mean(b_i), base_score_variance = Var(b_i), family_entropy from the family count distribution, and for each family f compute m_f and raw corroboration R_f = sum of b_i over candidates in f.",
+        "Step 3: ShrinkageAnalyticNullEstimator computes for each family f the expected support mu_f = m_f * mean_base_score, variance sigma_f^2 = m_f * base_score_variance * (1 - m_f / N) + var_floor, z_f = (R_f - mu_f) / sqrt(sigma_f^2 + eps), shrunk statistic z'_f = z_f * m_f / (m_f + lambda), bounded corroboration c_f = tanh(z'_f / tau), pool-local prior p_f = mean(write-time confidence of candidates in f), reliability r_f = clamp(alpha_prior * p_f + (1 - alpha_prior) * (c_f + 1) / 2, 0, 1), variance term v_f = max(0, sigma_f^2 - var_floor) / (sigma_f^2 + eps), effective-size term e_f = m_f / (m_f + lambda), and uncertainty u_f = clamp(0.5 * v_f + 0.5 * (1 - e_f), 0, 1).",
+        "Step 4: deterministic_rank_and_pack evaluates degraded_mode = (N < N_min) or (base_score_variance < var_min) or (family_entropy < H_min); if degraded_mode is true it sets family_regularizer_f = 0 for every family, otherwise it computes signed support s_f = 2 * r_f - 1 and family_regularizer_f = gamma * s_f * (1 - u_f).",
+        "Step 5: deterministic_rank_and_pack normalizes each candidate base score as b_norm_i = (b_i - mean_base_score) / sqrt(base_score_variance + eps), computes final_score_i = b_norm_i + family_regularizer_{family(i)}, sorts candidates by final_score descending with note_id as the deterministic tie-breaker, and initializes the remaining evidence budget plus per-role and per-family counters.",
+        "Step 6: deterministic_rank_and_pack scans the sorted candidates in order; for each candidate it computes max_overlap_i against already selected spans, rejects the candidate if max_overlap_i > overlap_hard_threshold, otherwise computes decayed_score_i = final_score_i - overlap_decay * max_overlap_i and accepts the candidate only if decayed_score_i >= minimum_effective_score and both its role quota and family cap still allow selection.",
+        "Step 7: deterministic_rank_and_pack stops when the fixed evidence budget is filled or the candidate list is exhausted, then outputs the ordered evidence pack together with the pool-local calibration diagnostics."
+      ]
+    }
+  ],
+  "reference_papers": [
+    "Deliberation in Latent Space via Differentiable Cache Augmentation",
+    "MemGen: Weaving Generative Latent Memory for Self-Evolving Agents",
+    "A-MemGuard: A Proactive Defense Framework for LLM-Based Agent Memory",
+    "A Survey on the Memory Mechanism of Large Language Model-based Agents",
+    "TAME: A Trustworthy Test-Time Evolution of Agent Memory with Systematic Benchmarking",
+    "KVCOMM: Online Cross-context KV-cache Communication for Efficient LLM-based Multi-agent Systems",
+    "Learning Hierarchical Procedural Memory for LLM Agents through Bayesian Selection and Contrastive Refinement",
+    "Agent Primitives: Reusable Latent Building Blocks for Multi-Agent Systems",
+    "Dynamic Cheatsheet: Test-Time Learning with Adaptive Memory",
+    "Generative Agents: Interactive Simulacra of Human Behavior",
+    "Latent Collaboration in Multi-Agent Systems",
+    "Thought Communication in Multiagent Collaboration",
+    "Reflexion: language agents with verbal reinforcement learning",
+    "MemAgent: Reshaping Long-Context LLM with Multi-Conv RL-based Memory Agent",
+    "Dual Latent Memory for Visual Multi-agent System",
+    "AnalogAgent: Self-Improving Analog Circuit Design Automation with LLM Agents",
+    "AutoManual: Constructing Instruction Manuals by LLM Agents via Interactive Environmental Learning",
+    "AgentAuditor: Human-Level Safety and Security Evaluation for LLM Agents",
+    "TrinityGuard: A Unified Framework for Safeguarding Multi-Agent Systems",
+    "PEAR: Planner-Executor Agent Robustness Benchmark",
+    "Optima: Optimizing Effectiveness and Efficiency for LLM-Based Multi-Agent System",
+    "Who Tests the Testers? Systematic Enumeration and Coverage Audit of LLM Agent Tool Call Safety",
+    "Remaining survey-cited papers (15)",
+    "SuperLocalMemory V3: Information-Geometric Foundations for Zero-LLM Enterprise Agent Memory",
+    "Dynamic Affective Memory Management for Personalized LLM Agents",
+    "ProcrustesGPT: Compressing LLMs with Structured Matrices and Orthogonal Transformations",
+    "Learning Long-Context Diffusion Policies via Past-Token Prediction",
+    "ARCMEMO: ABSTRACT REASONING COMPOSITION WITH LIFE LONG LLM MEMORY",
+    "Killing Two Birds with One Stone: Unifying Retrieval and Ranking with a Single Generative Recommendation Model",
+    "Don't Hallucinate, Abstain: Identifying LLM Knowledge Gaps via Multi-LLM Collaboration",
+    "Reasoning RAG via System 1 or System 2: A Survey on Reasoning Agentic Retrieval-Augmented Generation for Industry Challenges",
+    "Training-Free Agentic AI: Probabilistic Control and Coordination in Multi-Agent LLM Systems",
+    "KernelSkill: A Multi-Agent Framework for GPU Kernel Optimization",
+    "Leanabell-Prover-V2: Verifier-integrated Reasoning for Formal Theorem Proving via Reinforcement Learning",
+    "Memory-Augmented Log Analysis with Phi-4-mini: Enhancing Threat Detection in Structured Security Logs",
+    "Multi-Scale Vision Longformer: A New Vision Transformer for High-Resolution Image Encoding",
+    "Exchange-of-Thought: Enhancing Large Language Model Capabilities through Cross-Model Communication",
+    "LitSearch: A Retrieval Benchmark for Scientific Literature Search",
+    "A Gated Self-attention Memory Network for Answer Selection",
+    "AQR-HNSW: Accelerating Approximate Nearest Neighbor Search via Density-aware Quantization and Multi-stage Re-ranking",
+    "MixKVQ: Query-Aware Mixed-Precision KV Cache Quantization for Long-Context Reasoning",
+    "Dynamic Quality-Latency Aware Routing for LLM Inference in Wireless Edge-Device Networks",
+    "Stochastic RAG: End-to-End Retrieval-Augmented Generation through Expected Utility Maximization",
+    "STBLLM: BREAKING THE 1-BIT BARRIER WITH STRUCTURED BINARY LLMS",
+    "A Survey on Data Selection for LLM Instruction Tuning",
+    "Cortex: Achieving Low-Latency, Cost-Efficient Remote Data Access For LLM via Semantic-Aware Knowledge Caching",
+    "Knowing You Don’t Know: Learning When to Continue Search in Multi-round RAG through Self-Practicing",
+    "C-FEDRAG: A CONFIDENTIAL FERERATED RETRIEVAL-AUGMENTED GENERATION SYSTEM",
+    "CarMem: Enhancing Long-Term Memory in LLM Voice Assistants through Category-Bounding",
+    "CAM: A Constructivist View of Agentic Memory for LLM-Based Reading Comprehension",
+    "Searching for Best Practices in Retrieval-Augmented Generation",
+    "SEDM: Scalable Self-Evolving Distributed Memory for Agents",
+    "Proxima: Near-storage Acceleration for Graph-based Approximate Nearest Neighbor Search in 3D NAND",
+    "Data-efficient Fine-tuning for LLM-based Recommendation",
+    "Improving language models by retrieving from trillions of tokens",
+    "PM-KVQ: Progressive Mixed-precision KV Cache Quantization for Long-CoT LLMs"
+  ],
+  "mcts_evolution": {
+    "best_path": "Family-Scoped Expected-Utility Retrieval for Atomic Note Memory [seed] -> defects ['unexplored_gap'] | Analytic Family‑Calibrated Deterministic Rank‑and‑Pack for Training‑Free Atomic‑Note Memory [fusion_repair] -> defects ['unclear_mechanism', 'weak_fallback_behavior', 'validation_gap', 'silent_failure']",
+    "best_operator": "fusion_repair",
+    "target_defects": [
+      "unclear_mechanism",
+      "weak_fallback_behavior",
+      "validation_gap",
+      "silent_failure"
+    ],
+    "iterations": [
+      {
+        "iteration": 0,
+        "node_id": 1,
+        "depth": 1,
+        "title": "Analytic Family‑Calibrated Deterministic Rank‑and‑Pack for Training‑Free Atomic‑Note Memory",
+        "operator": "fusion_repair",
+        "defects": [
+          "unclear_mechanism",
+          "weak_fallback_behavior",
+          "validation_gap",
+          "silent_failure"
+        ],
+        "score": 4.04,
+        "visits": 1,
+        "path": "Family-Scoped Expected-Utility Retrieval for Atomic Note Memory [seed] -> defects ['unexplored_gap'] | Analytic Family‑Calibrated Deterministic Rank‑and‑Pack for Training‑Free Atomic‑Note Memory [fusion_repair] -> defects ['unclear_mechanism', 'weak_fallback_behavior', 'validation_gap', 'silent_failure']",
+        "action_summary": "fusion_repair -> unclear_mechanism, weak_fallback_behavior, validation_gap, silent_failure",
+        "evaluation": {
+          "novelty": 4,
+          "surprise": 4,
+          "feasibility": 4,
+          "clarity": 4,
+          "impact": 4,
+          "risk": 3,
+          "conciseness": 4,
+          "alignment_score": 5,
+          "complexity_penalty": 2,
+          "protocol_score": 4,
+          "confidence": 0.82,
+          "failure_modes": [
+            "Family-level corroboration can amplify correlated retrieval errors when multiple wrong notes share a provenance family and have moderately strong base scores.",
+            "Per-pool normalization may become unstable on narrow or highly skewed candidate pools, causing the family regularizer to dominate or vanish unpredictably.",
+            "Incorrect or noisy provenance-family IDs from the write path can distort the analytic null estimate and silently mis-rank evidence.",
+            "Folding quota and duplicate-decay logic into the packer may reduce diversity in multi-hop QA if one family occupies too much of the fixed evidence budget."
+          ],
+          "fairness_protocol": "Use the same stage-1 candidate pool, same evidence budget, same note store, and same metadata for all compared read-time packers. Compare against plain relevance-first deterministic packing, the prior provenance-bonus/slotted variant, and an ablation with the family regularizer zeroed while keeping all other code paths identical. Report QA accuracy, calibration of selected evidence, latency, and behavior under synthetic null-family, family-poisoning, sparse-pool, and noisy-family-ID conditions. What is still missing is a clearly specified cross-dataset transfer check to support robustness beyond one benchmark regime.",
+          "feedback": "This is a strong fusion_repair move: it meaningfully simplifies the read path by replacing a loosely justified provenance bonus with a single analytic family signal injected into deterministic_rank_and_pack, and it directly targets the listed defects unclear_mechanism, weak_fallback_behavior, validation_gap, and silent_failure. The explicit fallback inside the packer is especially helpful because it turns family evidence into a bounded optional regularizer rather than a mandatory control path. The main remaining concern is that responsibilities are now more coupled inside deterministic_rank_and_pack: scoring, duplicate control, family regularization, and fallback all live in one component, which improves runtime simplicity but makes attribution and some ablations harder. The core mechanism is mostly clear, but the exact interaction between role quotas, family caps, soft overlap decay, and the family regularizer should be specified more formally to avoid hidden decision conflicts. Validation is better than average, yet it should explicitly test whether gains come from the analytic null principle itself versus merely from score normalization or conservative caps. Symbolic memory evidence is only inconclusive for nearby enrichment/canonicalization families, so it does not strongly argue against this direction; still, keep the family metadata dependency conservative because noisy write-time structure remains a likely source of silent degradation.",
+          "defect_fix_summary": "The edit addresses unclear_mechanism by collapsing family scoring and packing into a single deterministic equation with explicit inputs from ShrinkageAnalyticNullEstimator. It addresses weak_fallback_behavior by specifying a relevance-only degraded mode when family statistics are unreliable. It partially addresses validation_gap by proposing null-family, poisoning, ablation, and latency tests tied to the mechanism. It reduces silent_failure by bounding the family effect and exposing a concrete condition under which the regularizer is disabled. The selected fusion_repair skill fits because the main improvement comes from tightening the interface between calibration and packing rather than adding new training or control machinery.",
+          "detected_defects": [
+            "harder_to_ablate",
+            "rare_regime_failure"
+          ],
+          "composite": 4.04
+        },
+        "rationale": "Replacing a separate Bayesian packing component with deterministic_rank_and_pack simplifies the read pipeline and makes the family signal's effect explicit and auditable while preserving the original closed‑form calibration idea. Folding duplicate control into the packer and making the fallback deterministic removes a silent failure mode and narrows the validation surface: family influence is a bounded regularizer that can be cleanly turned off when pool statistics indicate it would be unreliable.",
+        "signature": "1cff48961f955b79aa4877f0635a7b4ca0b8d94d01dca85009384c5062136d60"
+      }
+    ]
+  },
+  "idea_source": "fused",
+  "source_modes": [
+    "moonshot_inventor",
+    "bridge_builder",
+    "steady_engineer",
+    "ambitious_realist",
+    "evidence_first"
+  ],
+  "fusion_metadata": {
+    "host_idea_mode": "moonshot_inventor",
+    "selected_components": [
+      {
+        "source_mode": "moonshot_inventor",
+        "component": "CalibratedBayesianFamilyRankAndPack",
+        "role": "core_mechanism",
+        "why_selected": "It is the clearest single novelty: a deterministic family-aware calibration that directly changes read-time evidence selection instead of adding a separate verifier or controller."
+      },
+      {
+        "source_mode": "moonshot_inventor",
+        "component": "ShrinkageAnalyticNullEstimator",
+        "role": "support_module",
+        "why_selected": "It provides the closed-form, family-size-aware null model that makes the core mechanism precise, fast, and ablatable."
+      },
+      {
+        "source_mode": "steady_engineer",
+        "component": "two_stage_retrieval",
+        "role": "support_module",
+        "why_selected": "It preserves the mature efficiency-first character and keeps the new contribution focused on bounded-pool calibration rather than on changing the retriever."
+      },
+      {
+        "source_mode": "bridge_builder",
+        "component": "modular_atomic_note_enricher",
+        "role": "support_module",
+        "why_selected": "It keeps memory writing minimal and QA-focused while supplying the confidence, entity/time, and provenance metadata the calibrator needs."
+      },
+      {
+        "source_mode": "steady_engineer",
+        "component": "per_slot_quota_and_decay",
+        "role": "guardrail",
+        "why_selected": "It gives lightweight duplicate suppression and small contradiction capacity without requiring a second reranking or adjudication layer."
+      },
+      {
+        "source_mode": "moonshot_inventor",
+        "component": "note_attached_micro_handles",
+        "role": "guardrail",
+        "why_selected": "It preserves exact lookup as a small optional boost while avoiding the complexity of a separate handle index."
+      }
+    ],
+    "rejected_components": [
+      {
+        "source_mode": "ambitious_realist",
+        "component": "HierarchicalMemoryRouter",
+        "why_rejected": "It adds an extra controller layer and coordination burden, while the fused thesis works better as a direct calibration-plus-packing mechanism."
+      },
+      {
+        "source_mode": "steady_engineer",
+        "component": "deterministic_rank_and_pack",
+        "why_rejected": "It is too generic as the main read-time novelty and is subsumed by the more specific calibrated packing mechanism."
+      },
+      {
+        "source_mode": "evidence_first",
+        "component": "deterministic_rank_and_pack",
+        "why_rejected": "Keeping a plain packer would weaken the causal claim; the fused method needs the family-calibrated packer rather than a flat score-and-pack baseline."
+      }
+    ],
+    "conflicts_and_resolutions": [
+      {
+        "conflict": "Persistent feedback-updated family reliability from some candidates versus ephemeral within-query calibration from the moonshot idea.",
+        "resolution": "Use only a small prior seeded by write-time confidence and compute the main reliability update from the current bounded candidate pool, avoiding drift-heavy mutable family state."
+      },
+      {
+        "conflict": "Router-based family quota proposal versus preserving the mature architecture's simple deterministic read path.",
+        "resolution": "Reject the router and inject family calibration directly into the packer so the method remains one-stage after candidate retrieval."
+      },
+      {
+        "conflict": "Raw provenance counts or average-confidence bonuses can overreward large or duplicated families.",
+        "resolution": "Normalize family corroboration with a family-size-aware analytic null and add shrinkage so only excess support beyond expectation influences selection."
+      },
+      {
+        "conflict": "More aggressive family-aware scoring increases risk of brittle behavior when the candidate pool is tiny or homogeneous.",
+        "resolution": "Add explicit degeneracy checks based on candidate-pool size, score variance, and family-label entropy, and revert to relevance-first packing when those checks fail."
+      }
+    ],
+    "fused_core_thesis": "In training-free atomic-note memory, provenance families should influence QA retrieval only after their support is analytically normalized against what would be expected from their size and the retrieved score distribution; that calibrated reliability should then directly regularize fixed-budget evidence packing.",
+    "why_stronger_than_each_input": "Compared with the moonshot input, the fusion makes fallback behavior and deployment-safe degradation explicit. Compared with bridge_builder and evidence_first, it avoids a heavier persistent reliability layer that could drift, depend on noisy feedback, or become a second hidden memory system. Compared with steady_engineer, it replaces a broad expected-utility framing with a sharper, testable mechanism. Compared with ambitious_realist, it captures the decision-theoretic benefit without adding a router/controller that would complicate attribution and latency. The result is one coherent method with a clearer causal chain: bounded retrieval, analytic family calibration, calibrated packing.",
+    "minimal_validation_plan": "Run matched-budget ablations on fact QA, contextual QA, and multi-hop QA with identical note stores, candidate-pool sizes, and prompt budgets: (1) mature baseline without family calibration, (2) raw family-count bonus, (3) persistent Beta-style family reliability baseline, and (4) the fused method. Report answer EM/F1, evidence precision/recall against gold supporting notes, unsupported-answer rate, latency p50/p95, and growth curves as memory scales. Add stress tests for family merge/split noise, provenance spoofing, poisoning, temporal drift, and degenerate candidate pools. Include fallback diagnostics such as variance-floor activation rate, family-label entropy, and calibration-disable frequency.",
+    "repair_trace": [
+      {
+        "step": 1,
+        "score_before": 3.99,
+        "score_after": 4.04,
+        "component_edits": [
+          {
+            "op": "REPLACE_COMPONENT",
+            "component": "deterministic_rank_and_pack",
+            "target": "CalibratedBayesianFamilyRankAndPack",
+            "condition": "",
+            "details": "Replace CalibratedBayesianFamilyRankAndPack with deterministic_rank_and_pack so the rank-and-pack stage is the mature one-pass packer. Its single deterministic score should consume base relevance plus bounded family reliability/uncertainty from ShrinkageAnalyticNullEstimator, and its fallback should be explicit: when pool size, score variance, or family-label entropy are below fixed thresholds, set the family regularizer to zero and run plain relevance-first packing with existing duplicate control.",
+            "reason": "Reason 1: Centralizing scoring and quota logic into deterministic_rank_and_pack reduces architectural surface area and prevents ambiguous interactions between an external quota component and the packer, improving determinism and reducing silent failure modes."
+          },
+          {
+            "op": "REMOVE_COMPONENT",
+            "component": "per_slot_quota_and_decay",
+            "target": "",
+            "condition": "",
+            "details": "Remove per_slot_quota_and_decay as a separate structural component and fold any small quota/duplicate-decay behavior into deterministic_rank_and_pack.",
+            "reason": "Reason 2: Rewiring ShrinkageAnalyticNullEstimator to feed only a bounded regularizer into a single deterministic scoring equation makes the mechanism explicit and easier to validate; the explicit per‑pool fallback removes unclear failure behavior when the family signal is unreliable."
+          },
+          {
+            "op": "REWIRE",
+            "component": "ShrinkageAnalyticNullEstimator",
+            "target": "deterministic_rank_and_pack",
+            "condition": "",
+            "details": "Rewire ShrinkageAnalyticNullEstimator to feed its bounded family reliability and uncertainty outputs directly into deterministic_rank_and_pack for candidate scoring and explicit fallback triggering.",
+            "reason": "Reason 3: Folding duplicate control into the packer preserves lightweight runtime behavior (one pass, bounded latency) while keeping family corroboration as a conservative, well‑bounded influence — aligning with the training‑free, efficiency‑first refinement goals."
+          }
+        ]
+      }
+    ]
+  },
+  "fusion_evolution": {
+    "source_modes": [
+      "moonshot_inventor",
+      "bridge_builder",
+      "steady_engineer",
+      "ambitious_realist",
+      "evidence_first"
+    ],
+    "host_idea_mode": "moonshot_inventor",
+    "selected_components": [
+      {
+        "source_mode": "moonshot_inventor",
+        "component": "CalibratedBayesianFamilyRankAndPack",
+        "role": "core_mechanism",
+        "why_selected": "It is the clearest single novelty: a deterministic family-aware calibration that directly changes read-time evidence selection instead of adding a separate verifier or controller."
+      },
+      {
+        "source_mode": "moonshot_inventor",
+        "component": "ShrinkageAnalyticNullEstimator",
+        "role": "support_module",
+        "why_selected": "It provides the closed-form, family-size-aware null model that makes the core mechanism precise, fast, and ablatable."
+      },
+      {
+        "source_mode": "steady_engineer",
+        "component": "two_stage_retrieval",
+        "role": "support_module",
+        "why_selected": "It preserves the mature efficiency-first character and keeps the new contribution focused on bounded-pool calibration rather than on changing the retriever."
+      },
+      {
+        "source_mode": "bridge_builder",
+        "component": "modular_atomic_note_enricher",
+        "role": "support_module",
+        "why_selected": "It keeps memory writing minimal and QA-focused while supplying the confidence, entity/time, and provenance metadata the calibrator needs."
+      },
+      {
+        "source_mode": "steady_engineer",
+        "component": "per_slot_quota_and_decay",
+        "role": "guardrail",
+        "why_selected": "It gives lightweight duplicate suppression and small contradiction capacity without requiring a second reranking or adjudication layer."
+      },
+      {
+        "source_mode": "moonshot_inventor",
+        "component": "note_attached_micro_handles",
+        "role": "guardrail",
+        "why_selected": "It preserves exact lookup as a small optional boost while avoiding the complexity of a separate handle index."
+      }
+    ],
+    "rejected_components": [
+      {
+        "source_mode": "ambitious_realist",
+        "component": "HierarchicalMemoryRouter",
+        "why_rejected": "It adds an extra controller layer and coordination burden, while the fused thesis works better as a direct calibration-plus-packing mechanism."
+      },
+      {
+        "source_mode": "steady_engineer",
+        "component": "deterministic_rank_and_pack",
+        "why_rejected": "It is too generic as the main read-time novelty and is subsumed by the more specific calibrated packing mechanism."
+      },
+      {
+        "source_mode": "evidence_first",
+        "component": "deterministic_rank_and_pack",
+        "why_rejected": "Keeping a plain packer would weaken the causal claim; the fused method needs the family-calibrated packer rather than a flat score-and-pack baseline."
+      }
+    ],
+    "conflicts_and_resolutions": [
+      {
+        "conflict": "Persistent feedback-updated family reliability from some candidates versus ephemeral within-query calibration from the moonshot idea.",
+        "resolution": "Use only a small prior seeded by write-time confidence and compute the main reliability update from the current bounded candidate pool, avoiding drift-heavy mutable family state."
+      },
+      {
+        "conflict": "Router-based family quota proposal versus preserving the mature architecture's simple deterministic read path.",
+        "resolution": "Reject the router and inject family calibration directly into the packer so the method remains one-stage after candidate retrieval."
+      },
+      {
+        "conflict": "Raw provenance counts or average-confidence bonuses can overreward large or duplicated families.",
+        "resolution": "Normalize family corroboration with a family-size-aware analytic null and add shrinkage so only excess support beyond expectation influences selection."
+      },
+      {
+        "conflict": "More aggressive family-aware scoring increases risk of brittle behavior when the candidate pool is tiny or homogeneous.",
+        "resolution": "Add explicit degeneracy checks based on candidate-pool size, score variance, and family-label entropy, and revert to relevance-first packing when those checks fail."
+      }
+    ],
+    "fused_core_thesis": "In training-free atomic-note memory, provenance families should influence QA retrieval only after their support is analytically normalized against what would be expected from their size and the retrieved score distribution; that calibrated reliability should then directly regularize fixed-budget evidence packing.",
+    "why_stronger_than_each_input": "Compared with the moonshot input, the fusion makes fallback behavior and deployment-safe degradation explicit. Compared with bridge_builder and evidence_first, it avoids a heavier persistent reliability layer that could drift, depend on noisy feedback, or become a second hidden memory system. Compared with steady_engineer, it replaces a broad expected-utility framing with a sharper, testable mechanism. Compared with ambitious_realist, it captures the decision-theoretic benefit without adding a router/controller that would complicate attribution and latency. The result is one coherent method with a clearer causal chain: bounded retrieval, analytic family calibration, calibrated packing.",
+    "minimal_validation_plan": "Run matched-budget ablations on fact QA, contextual QA, and multi-hop QA with identical note stores, candidate-pool sizes, and prompt budgets: (1) mature baseline without family calibration, (2) raw family-count bonus, (3) persistent Beta-style family reliability baseline, and (4) the fused method. Report answer EM/F1, evidence precision/recall against gold supporting notes, unsupported-answer rate, latency p50/p95, and growth curves as memory scales. Add stress tests for family merge/split noise, provenance spoofing, poisoning, temporal drift, and degenerate candidate pools. Include fallback diagnostics such as variance-floor activation rate, family-label entropy, and calibration-disable frequency.",
+    "post_fusion_evaluation": {
+      "best_path": "Family-Scoped Expected-Utility Retrieval for Atomic Note Memory [seed] -> defects ['unexplored_gap'] | Analytic Family‑Calibrated Deterministic Rank‑and‑Pack for Training‑Free Atomic‑Note Memory [fusion_repair] -> defects ['unclear_mechanism', 'weak_fallback_behavior', 'validation_gap', 'silent_failure']",
+      "best_operator": "fusion_repair",
+      "target_defects": [
+        "unclear_mechanism",
+        "weak_fallback_behavior",
+        "validation_gap",
+        "silent_failure"
+      ],
+      "iterations": [
+        {
+          "iteration": 0,
+          "node_id": 1,
+          "depth": 1,
+          "title": "Analytic Family‑Calibrated Deterministic Rank‑and‑Pack for Training‑Free Atomic‑Note Memory",
+          "operator": "fusion_repair",
+          "defects": [
+            "unclear_mechanism",
+            "weak_fallback_behavior",
+            "validation_gap",
+            "silent_failure"
+          ],
+          "score": 4.04,
+          "visits": 1,
+          "path": "Family-Scoped Expected-Utility Retrieval for Atomic Note Memory [seed] -> defects ['unexplored_gap'] | Analytic Family‑Calibrated Deterministic Rank‑and‑Pack for Training‑Free Atomic‑Note Memory [fusion_repair] -> defects ['unclear_mechanism', 'weak_fallback_behavior', 'validation_gap', 'silent_failure']",
+          "action_summary": "fusion_repair -> unclear_mechanism, weak_fallback_behavior, validation_gap, silent_failure",
+          "evaluation": {
+            "novelty": 4,
+            "surprise": 4,
+            "feasibility": 4,
+            "clarity": 4,
+            "impact": 4,
+            "risk": 3,
+            "conciseness": 4,
+            "alignment_score": 5,
+            "complexity_penalty": 2,
+            "protocol_score": 4,
+            "confidence": 0.82,
+            "failure_modes": [
+              "Family-level corroboration can amplify correlated retrieval errors when multiple wrong notes share a provenance family and have moderately strong base scores.",
+              "Per-pool normalization may become unstable on narrow or highly skewed candidate pools, causing the family regularizer to dominate or vanish unpredictably.",
+              "Incorrect or noisy provenance-family IDs from the write path can distort the analytic null estimate and silently mis-rank evidence.",
+              "Folding quota and duplicate-decay logic into the packer may reduce diversity in multi-hop QA if one family occupies too much of the fixed evidence budget."
+            ],
+            "fairness_protocol": "Use the same stage-1 candidate pool, same evidence budget, same note store, and same metadata for all compared read-time packers. Compare against plain relevance-first deterministic packing, the prior provenance-bonus/slotted variant, and an ablation with the family regularizer zeroed while keeping all other code paths identical. Report QA accuracy, calibration of selected evidence, latency, and behavior under synthetic null-family, family-poisoning, sparse-pool, and noisy-family-ID conditions. What is still missing is a clearly specified cross-dataset transfer check to support robustness beyond one benchmark regime.",
+            "feedback": "This is a strong fusion_repair move: it meaningfully simplifies the read path by replacing a loosely justified provenance bonus with a single analytic family signal injected into deterministic_rank_and_pack, and it directly targets the listed defects unclear_mechanism, weak_fallback_behavior, validation_gap, and silent_failure. The explicit fallback inside the packer is especially helpful because it turns family evidence into a bounded optional regularizer rather than a mandatory control path. The main remaining concern is that responsibilities are now more coupled inside deterministic_rank_and_pack: scoring, duplicate control, family regularization, and fallback all live in one component, which improves runtime simplicity but makes attribution and some ablations harder. The core mechanism is mostly clear, but the exact interaction between role quotas, family caps, soft overlap decay, and the family regularizer should be specified more formally to avoid hidden decision conflicts. Validation is better than average, yet it should explicitly test whether gains come from the analytic null principle itself versus merely from score normalization or conservative caps. Symbolic memory evidence is only inconclusive for nearby enrichment/canonicalization families, so it does not strongly argue against this direction; still, keep the family metadata dependency conservative because noisy write-time structure remains a likely source of silent degradation.",
+            "defect_fix_summary": "The edit addresses unclear_mechanism by collapsing family scoring and packing into a single deterministic equation with explicit inputs from ShrinkageAnalyticNullEstimator. It addresses weak_fallback_behavior by specifying a relevance-only degraded mode when family statistics are unreliable. It partially addresses validation_gap by proposing null-family, poisoning, ablation, and latency tests tied to the mechanism. It reduces silent_failure by bounding the family effect and exposing a concrete condition under which the regularizer is disabled. The selected fusion_repair skill fits because the main improvement comes from tightening the interface between calibration and packing rather than adding new training or control machinery.",
+            "detected_defects": [
+              "harder_to_ablate",
+              "rare_regime_failure"
+            ],
+            "composite": 4.04
+          },
+          "rationale": "Replacing a separate Bayesian packing component with deterministic_rank_and_pack simplifies the read pipeline and makes the family signal's effect explicit and auditable while preserving the original closed‑form calibration idea. Folding duplicate control into the packer and making the fallback deterministic removes a silent failure mode and narrows the validation surface: family influence is a bounded regularizer that can be cleanly turned off when pool statistics indicate it would be unreliable.",
+          "signature": "1cff48961f955b79aa4877f0635a7b4ca0b8d94d01dca85009384c5062136d60"
+        }
+      ]
+    }
+  },
+  "idea_contract": {
+    "title": "Family-Calibrated Deterministic Packing for Training-Free Atomic-Note Memory in LLM Agents",
+    "abstract": "We present a lightweight, training-free refinement of atomic-note memory for LLM agents that shifts the main read-time innovation from richer control logic to a more conservative and better-grounded evidence selection rule. The system keeps the mature design choices that appear most robust for scalable QA-oriented memory: immutable span-grounded notes, small write-time semantic enrichment, cached embeddings, provenance-family IDs, and an efficiency-first bounded retrieval stage. Our contribution is a family-calibrated deterministic packing step that uses only candidate-pool statistics to decide when provenance-family agreement should help and when it should be ignored. After bounded ANN and lexical screening, the method analytically estimates whether a provenance family is receiving more support than expected from its size under a label-uninformative null, shrinks that signal for small or noisy families, and injects it only as a bounded regularizer into a single deterministic rank-and-pack equation. The same packer also handles small role quotas, family caps, soft duplicate decay, and an explicit degraded mode that reverts to relevance-only packing when pool statistics are unreliable. Relative to heavier trust loops, learned rerankers, or persistent mutable family scores, this design stays closer to the survey-supported pattern of compact structured memories plus efficient multi-stage retrieval, while directly targeting QA accuracy, latency stability, and safe degradation under noisy metadata.",
+    "core_contribution": "A training-free read-time mechanism that analytically calibrates provenance-family corroboration within each retrieved candidate pool and uses it only as a bounded uncertainty-aware regularizer inside a single deterministic rank-and-pack stage, with explicit fallback to plain relevance-first packing when the family signal is unreliable.",
+    "method": "The memory store follows the lightweight atomic-note design: each stored unit is an immutable span-grounded note enriched only with QA-critical metadata, including a cached embedding, confidence-aware entity and time tags, compact question-oriented keywords, a short context descriptor, a provenance-family ID, sparse deterministic local links, and optional note-attached micro-handles kept as metadata rather than as a separate index.\n\nAt read time, retrieval remains efficiency-first and bounded. Stage 1 forms a candidate pool using approximate nearest-neighbor search over cached embeddings plus lexical screening, with optional small boosts from entity, time, keyword, or micro-handle matches. This returns a bounded candidate set C with base scores b_i that summarize dense relevance, lexical fit, and small facet hints.\n\nStage 2 replaces ad hoc provenance bonuses with analytic within-query family calibration. Candidates are grouped by provenance family f. For each family, the method computes raw corroboration R_f = sum of base scores over candidates in that family. It then estimates the amount of support that family would be expected to receive under a label-uninformative null using only current-pool statistics: mu_f = m_f * mean(b), where m_f is the number of candidates from family f. A finite-population variance estimate is used, sigma_f^2 = m_f * Var(b) * (1 - m_f / N) + var_floor, so small pools or low-variance pools do not create unstable z-scores. The excess support statistic is z_f = (R_f - mu_f) / sqrt(sigma_f^2 + eps).\n\nTo avoid overreacting to small or noisy families, the method shrinks this statistic by family size: z'_f = z_f * m_f / (m_f + lambda). The shrunk value is mapped into a bounded corroboration signal c_f = tanh(z'_f / tau), ensuring that family influence cannot explode. This corroboration is combined with a conservative family prior p_f derived from the mean write-time confidence of notes from that family in the current pool. The result is an ephemeral reliability score r_f in [0,1], for example r_f = clamp(alpha_prior * p_f + (1 - alpha_prior) * (c_f + 1) / 2, 0, 1). The method also computes an uncertainty term u_f in [0,1] from the family variance estimate and effective sample size, so high-variance or weakly supported families contribute less.\n\nThe final evidence selection is handled by one deterministic rank-and-pack step. First, base scores are normalized within the candidate pool: b_norm_i = (b_i - mean(b)) / sqrt(Var(b) + eps). Next, family reliability is converted to signed support s_f = 2 * r_f - 1. Each family contributes a bounded regularizer family_reg_f = gamma * s_f * (1 - u_f). Each candidate receives final_score_i = b_norm_i + family_reg_{family(i)}.\n\nThe packer includes an explicit degraded mode rather than a separate controller. If pool statistics indicate that family calibration is unreliable—for example, the candidate pool is too small, score variance is too low, or family-label entropy is too low—then all family regularizers are set to zero and the same packer proceeds with plain relevance-first scoring. This keeps failure behavior simple and observable.\n\nPacking is then performed greedily after sorting by final_score. A candidate is accepted if its small role quota is not full, its family has not exceeded a small cap, and its overlap with already selected evidence is acceptable. High-overlap candidates are softly decayed rather than always hard-rejected, preserving useful redundancy when needed for QA. The process stops when the fixed evidence budget is filled.\n\nThis design is intentionally narrow: it does not add a learned reranker, a router, a separate trust-evaluation loop, or persistent mutable family statistics across queries. In contrast to systems such as TAME that improve trustworthiness through an evaluator memory and extra refinement overhead, or procedural-memory approaches such as MACLA that rely on expected-utility scoring over reusable skills, this method focuses on a simpler setting supported by the broader memory literature: compact structured memory units plus efficient retrieval and lightweight evidence packing. Its main claim is that provenance information is useful for QA only after being normalized against family size and pool statistics, and only when injected conservatively into a deterministic packer.",
+    "risks": "The main risk is correlated family error: if several incorrect notes share the same provenance family and all receive moderately good base scores, the family regularizer can still amplify a bad cluster. Conservative shrinkage, bounded tanh mapping, small family caps, and relevance-only fallback reduce but do not eliminate this failure mode. A second risk is dependence on metadata quality: noisy or inconsistent provenance-family IDs, write-time confidences, or enrichment tags can distort family calibration and silently reduce retrieval quality. A third risk is instability in rare regimes such as tiny candidate pools, highly homogeneous score distributions, or multi-hop questions that genuinely require several similar notes from one family; the degraded mode and soft duplicate decay help, but some edge cases may still be under-served. Finally, because scoring, duplicate control, and fallback are unified in one packer, evaluation must carefully ablate whether gains come from the analytic family calibration itself rather than from score normalization or packing heuristics. Robust validation should therefore include matched-budget comparisons to plain deterministic packing, synthetic null-family tests, provenance-noise stress tests, poisoning scenarios, cross-dataset transfer, and latency measurements as memory scale grows.",
+    "tags": [
+      "training-free memory",
+      "LLM agents",
+      "atomic notes",
+      "question answering",
+      "retrieval calibration",
+      "provenance families",
+      "deterministic packing",
+      "fusion_repair",
+      "unclear_mechanism",
+      "weak_fallback_behavior",
+      "validation_gap",
+      "silent_failure"
+    ],
+    "operator": "fusion_repair",
+    "target_defects": [
+      "unclear_mechanism",
+      "weak_fallback_behavior",
+      "validation_gap",
+      "silent_failure"
+    ],
+    "rationale": "Replacing a separate Bayesian packing component with deterministic_rank_and_pack simplifies the read pipeline and makes the family signal's effect explicit and auditable while preserving the original closed‑form calibration idea. Folding duplicate control into the packer and making the fallback deterministic removes a silent failure mode and narrows the validation surface: family influence is a bounded regularizer that can be cleanly turned off when pool statistics indicate it would be unreliable.",
+    "memory_refs": [],
+    "components": [
+      "two_stage_retrieval",
+      "modular_atomic_note_enricher",
+      "deterministic_rank_and_pack",
+      "note_attached_micro_handles",
+      "ShrinkageAnalyticNullEstimator"
+    ],
+    "component_explanations": {
+      "two_stage_retrieval": "Efficiency-first candidate generation: bounded ANN retrieval plus lexical screening, with optional soft facet hints, to keep recall high while capping latency before calibration.",
+      "modular_atomic_note_enricher": "Write-path module that produces immutable atomic notes with only QA-critical enrichment, including provenance-family IDs and confidence-aware entity/time metadata needed for calibration and packing.",
+      "deterministic_rank_and_pack": "One‑pass deterministic scoring and greedy packing stage that consumes b_i from two_stage_retrieval and bounded family signals (r_f,u_f) from ShrinkageAnalyticNullEstimator. It normalizes base scores per pool, adds the bounded family_regularizer, enforces lightweight per‑role quotas and small per‑family caps (folded duplicate control), applies soft overlap decay, and implements an internal deterministic fallback to relevance‑only packing when pool statistics indicate unreliable family evidence.",
+      "note_attached_micro_handles": "Exact handles remain attached to notes as metadata only and can seed lexical or facet boosts, avoiding a separate handle index while preserving precise lookup when useful.",
+      "ShrinkageAnalyticNullEstimator": "Closed-form family calibrator. It computes expected corroboration and variance under a label-uninformative null, applies variance floors and family-size shrinkage, and outputs bounded support or failure mass for each family."
+    },
+    "root_domains": [
+      "cs.AI"
+    ],
+    "paper_graph_context": "This idea sits in training-free external memory for LLM agents, especially span-grounded note memory and lightweight QA retrieval. It responds to literature trends showing that compact structured notes and multi-stage retrieval are preferable to raw transcript storage and heavy learned rerankers, while also addressing recent critiques that memory selection should reflect reliability and failure-awareness rather than nearest-neighbor similarity alone.",
+    "edit_plan": {
+      "skill_name": "fusion_repair",
+      "objective": "Locally repair the fused idea",
+      "target_defects": [
+        "unclear_mechanism",
+        "weak_fallback_behavior",
+        "validation_gap",
+        "silent_failure"
+      ],
+      "component_edits": [
+        {
+          "op": "REPLACE_COMPONENT",
+          "component": "deterministic_rank_and_pack",
+          "target": "CalibratedBayesianFamilyRankAndPack",
+          "condition": "",
+          "details": "Replace CalibratedBayesianFamilyRankAndPack with deterministic_rank_and_pack so the rank-and-pack stage is the mature one-pass packer. Its single deterministic score should consume base relevance plus bounded family reliability/uncertainty from ShrinkageAnalyticNullEstimator, and its fallback should be explicit: when pool size, score variance, or family-label entropy are below fixed thresholds, set the family regularizer to zero and run plain relevance-first packing with existing duplicate control.",
+          "reason": "Reason 1: Centralizing scoring and quota logic into deterministic_rank_and_pack reduces architectural surface area and prevents ambiguous interactions between an external quota component and the packer, improving determinism and reducing silent failure modes."
+        },
+        {
+          "op": "REMOVE_COMPONENT",
+          "component": "per_slot_quota_and_decay",
+          "target": "",
+          "condition": "",
+          "details": "Remove per_slot_quota_and_decay as a separate structural component and fold any small quota/duplicate-decay behavior into deterministic_rank_and_pack.",
+          "reason": "Reason 2: Rewiring ShrinkageAnalyticNullEstimator to feed only a bounded regularizer into a single deterministic scoring equation makes the mechanism explicit and easier to validate; the explicit per‑pool fallback removes unclear failure behavior when the family signal is unreliable."
+        },
+        {
+          "op": "REWIRE",
+          "component": "ShrinkageAnalyticNullEstimator",
+          "target": "deterministic_rank_and_pack",
+          "condition": "",
+          "details": "Rewire ShrinkageAnalyticNullEstimator to feed its bounded family reliability and uncertainty outputs directly into deterministic_rank_and_pack for candidate scoring and explicit fallback triggering.",
+          "reason": "Reason 3: Folding duplicate control into the packer preserves lightweight runtime behavior (one pass, bounded latency) while keeping family corroboration as a conservative, well‑bounded influence — aligning with the training‑free, efficiency‑first refinement goals."
+        }
+      ],
+      "validation": {
+        "regression_tests": [],
+        "ablation_tests": [],
+        "stress_tests": []
+      },
+      "guardrails": [
+        "Keep the write path unchanged and training-free.",
+        "Do not introduce any new controller, router, or learned reranker.",
+        "Use one deterministic candidate scoring equation inside the packer, with the family signal entering only as a bounded regularizer from ShrinkageAnalyticNullEstimator.",
+        "Define degraded mode inside the packer from identifiable pool statistics only, rather than via a separate fallback module.",
+        "Keep the same first-stage candidate pool, metadata, and evidence budget as the baseline so ablations isolate the read-time substitution."
+      ],
+      "memory_refs": [],
+      "compile_notes": "Compiled from fusion repair planner using existing atomic edit operations."
+    },
+    "skill_metrics": {
+      "idea_taste_mode": "fusion_agent",
+      "skill_prior_before": {
+        "attempts": 0,
+        "successes": 0,
+        "reward_ema": 0.5,
+        "prior": 0.5,
+        "rule_constraints": []
+      },
+      "guardrails": [
+        "Keep the write path unchanged and training-free.",
+        "Do not introduce any new controller, router, or learned reranker.",
+        "Use one deterministic candidate scoring equation inside the packer, with the family signal entering only as a bounded regularizer from ShrinkageAnalyticNullEstimator.",
+        "Define degraded mode inside the packer from identifiable pool statistics only, rather than via a separate fallback module.",
+        "Keep the same first-stage candidate pool, metadata, and evidence budget as the baseline so ablations isolate the read-time substitution."
+      ],
+      "constraints": [
+        "No feature dumping: every component edit must map to a measured defect.",
+        "Use the lightest validation suite that can falsify the core mechanism; do not let protocol bulk replace mechanism work.",
+        "Prefer mechanism clarity over loosely coupled add-ons."
+      ],
+      "llm_instantiated": true
+    },
+    "components_with_explanations": [
+      {
+        "component": "two_stage_retrieval",
+        "explanation": "Efficiency-first candidate generation: bounded ANN retrieval plus lexical screening, with optional soft facet hints, to keep recall high while capping latency before calibration."
+      },
+      {
+        "component": "modular_atomic_note_enricher",
+        "explanation": "Write-path module that produces immutable atomic notes with only QA-critical enrichment, including provenance-family IDs and confidence-aware entity/time metadata needed for calibration and packing."
+      },
+      {
+        "component": "deterministic_rank_and_pack",
+        "explanation": "One‑pass deterministic scoring and greedy packing stage that consumes b_i from two_stage_retrieval and bounded family signals (r_f,u_f) from ShrinkageAnalyticNullEstimator. It normalizes base scores per pool, adds the bounded family_regularizer, enforces lightweight per‑role quotas and small per‑family caps (folded duplicate control), applies soft overlap decay, and implements an internal deterministic fallback to relevance‑only packing when pool statistics indicate unreliable family evidence."
+      },
+      {
+        "component": "note_attached_micro_handles",
+        "explanation": "Exact handles remain attached to notes as metadata only and can seed lexical or facet boosts, avoiding a separate handle index while preserving precise lookup when useful."
+      },
+      {
+        "component": "ShrinkageAnalyticNullEstimator",
+        "explanation": "Closed-form family calibrator. It computes expected corroboration and variance under a label-uninformative null, applies variance floors and family-size shrinkage, and outputs bounded support or failure mass for each family."
+      }
+    ],
+    "idea_taste_mode": "fusion_agent",
+    "idea_source": "fused",
+    "source_modes": [
+      "moonshot_inventor",
+      "bridge_builder",
+      "steady_engineer",
+      "ambitious_realist",
+      "evidence_first"
+    ],
+    "fusion_metadata": {
+      "host_idea_mode": "moonshot_inventor",
+      "selected_components": [
+        {
+          "source_mode": "moonshot_inventor",
+          "component": "CalibratedBayesianFamilyRankAndPack",
+          "role": "core_mechanism",
+          "why_selected": "It is the clearest single novelty: a deterministic family-aware calibration that directly changes read-time evidence selection instead of adding a separate verifier or controller."
+        },
+        {
+          "source_mode": "moonshot_inventor",
+          "component": "ShrinkageAnalyticNullEstimator",
+          "role": "support_module",
+          "why_selected": "It provides the closed-form, family-size-aware null model that makes the core mechanism precise, fast, and ablatable."
+        },
+        {
+          "source_mode": "steady_engineer",
+          "component": "two_stage_retrieval",
+          "role": "support_module",
+          "why_selected": "It preserves the mature efficiency-first character and keeps the new contribution focused on bounded-pool calibration rather than on changing the retriever."
+        },
+        {
+          "source_mode": "bridge_builder",
+          "component": "modular_atomic_note_enricher",
+          "role": "support_module",
+          "why_selected": "It keeps memory writing minimal and QA-focused while supplying the confidence, entity/time, and provenance metadata the calibrator needs."
+        },
+        {
+          "source_mode": "steady_engineer",
+          "component": "per_slot_quota_and_decay",
+          "role": "guardrail",
+          "why_selected": "It gives lightweight duplicate suppression and small contradiction capacity without requiring a second reranking or adjudication layer."
+        },
+        {
+          "source_mode": "moonshot_inventor",
+          "component": "note_attached_micro_handles",
+          "role": "guardrail",
+          "why_selected": "It preserves exact lookup as a small optional boost while avoiding the complexity of a separate handle index."
+        }
+      ],
+      "rejected_components": [
+        {
+          "source_mode": "ambitious_realist",
+          "component": "HierarchicalMemoryRouter",
+          "why_rejected": "It adds an extra controller layer and coordination burden, while the fused thesis works better as a direct calibration-plus-packing mechanism."
+        },
+        {
+          "source_mode": "steady_engineer",
+          "component": "deterministic_rank_and_pack",
+          "why_rejected": "It is too generic as the main read-time novelty and is subsumed by the more specific calibrated packing mechanism."
+        },
+        {
+          "source_mode": "evidence_first",
+          "component": "deterministic_rank_and_pack",
+          "why_rejected": "Keeping a plain packer would weaken the causal claim; the fused method needs the family-calibrated packer rather than a flat score-and-pack baseline."
+        }
+      ],
+      "conflicts_and_resolutions": [
+        {
+          "conflict": "Persistent feedback-updated family reliability from some candidates versus ephemeral within-query calibration from the moonshot idea.",
+          "resolution": "Use only a small prior seeded by write-time confidence and compute the main reliability update from the current bounded candidate pool, avoiding drift-heavy mutable family state."
+        },
+        {
+          "conflict": "Router-based family quota proposal versus preserving the mature architecture's simple deterministic read path.",
+          "resolution": "Reject the router and inject family calibration directly into the packer so the method remains one-stage after candidate retrieval."
+        },
+        {
+          "conflict": "Raw provenance counts or average-confidence bonuses can overreward large or duplicated families.",
+          "resolution": "Normalize family corroboration with a family-size-aware analytic null and add shrinkage so only excess support beyond expectation influences selection."
+        },
+        {
+          "conflict": "More aggressive family-aware scoring increases risk of brittle behavior when the candidate pool is tiny or homogeneous.",
+          "resolution": "Add explicit degeneracy checks based on candidate-pool size, score variance, and family-label entropy, and revert to relevance-first packing when those checks fail."
+        }
+      ],
+      "fused_core_thesis": "In training-free atomic-note memory, provenance families should influence QA retrieval only after their support is analytically normalized against what would be expected from their size and the retrieved score distribution; that calibrated reliability should then directly regularize fixed-budget evidence packing.",
+      "why_stronger_than_each_input": "Compared with the moonshot input, the fusion makes fallback behavior and deployment-safe degradation explicit. Compared with bridge_builder and evidence_first, it avoids a heavier persistent reliability layer that could drift, depend on noisy feedback, or become a second hidden memory system. Compared with steady_engineer, it replaces a broad expected-utility framing with a sharper, testable mechanism. Compared with ambitious_realist, it captures the decision-theoretic benefit without adding a router/controller that would complicate attribution and latency. The result is one coherent method with a clearer causal chain: bounded retrieval, analytic family calibration, calibrated packing.",
+      "minimal_validation_plan": "Run matched-budget ablations on fact QA, contextual QA, and multi-hop QA with identical note stores, candidate-pool sizes, and prompt budgets: (1) mature baseline without family calibration, (2) raw family-count bonus, (3) persistent Beta-style family reliability baseline, and (4) the fused method. Report answer EM/F1, evidence precision/recall against gold supporting notes, unsupported-answer rate, latency p50/p95, and growth curves as memory scales. Add stress tests for family merge/split noise, provenance spoofing, poisoning, temporal drift, and degenerate candidate pools. Include fallback diagnostics such as variance-floor activation rate, family-label entropy, and calibration-disable frequency.",
+      "repair_trace": [
+        {
+          "step": 1,
+          "score_before": 3.99,
+          "score_after": 4.04,
+          "component_edits": [
+            {
+              "op": "REPLACE_COMPONENT",
+              "component": "deterministic_rank_and_pack",
+              "target": "CalibratedBayesianFamilyRankAndPack",
+              "condition": "",
+              "details": "Replace CalibratedBayesianFamilyRankAndPack with deterministic_rank_and_pack so the rank-and-pack stage is the mature one-pass packer. Its single deterministic score should consume base relevance plus bounded family reliability/uncertainty from ShrinkageAnalyticNullEstimator, and its fallback should be explicit: when pool size, score variance, or family-label entropy are below fixed thresholds, set the family regularizer to zero and run plain relevance-first packing with existing duplicate control.",
+              "reason": "Reason 1: Centralizing scoring and quota logic into deterministic_rank_and_pack reduces architectural surface area and prevents ambiguous interactions between an external quota component and the packer, improving determinism and reducing silent failure modes."
+            },
+            {
+              "op": "REMOVE_COMPONENT",
+              "component": "per_slot_quota_and_decay",
+              "target": "",
+              "condition": "",
+              "details": "Remove per_slot_quota_and_decay as a separate structural component and fold any small quota/duplicate-decay behavior into deterministic_rank_and_pack.",
+              "reason": "Reason 2: Rewiring ShrinkageAnalyticNullEstimator to feed only a bounded regularizer into a single deterministic scoring equation makes the mechanism explicit and easier to validate; the explicit per‑pool fallback removes unclear failure behavior when the family signal is unreliable."
+            },
+            {
+              "op": "REWIRE",
+              "component": "ShrinkageAnalyticNullEstimator",
+              "target": "deterministic_rank_and_pack",
+              "condition": "",
+              "details": "Rewire ShrinkageAnalyticNullEstimator to feed its bounded family reliability and uncertainty outputs directly into deterministic_rank_and_pack for candidate scoring and explicit fallback triggering.",
+              "reason": "Reason 3: Folding duplicate control into the packer preserves lightweight runtime behavior (one pass, bounded latency) while keeping family corroboration as a conservative, well‑bounded influence — aligning with the training‑free, efficiency‑first refinement goals."
+            }
+          ]
+        }
+      ]
+    },
+    "evaluation": {
+      "novelty": 4,
+      "surprise": 4,
+      "feasibility": 4,
+      "clarity": 4,
+      "impact": 4,
+      "risk": 3,
+      "conciseness": 4,
+      "alignment_score": 5,
+      "complexity_penalty": 2,
+      "protocol_score": 4,
+      "confidence": 0.82,
+      "failure_modes": [
+        "Family-level corroboration can amplify correlated retrieval errors when multiple wrong notes share a provenance family and have moderately strong base scores.",
+        "Per-pool normalization may become unstable on narrow or highly skewed candidate pools, causing the family regularizer to dominate or vanish unpredictably.",
+        "Incorrect or noisy provenance-family IDs from the write path can distort the analytic null estimate and silently mis-rank evidence.",
+        "Folding quota and duplicate-decay logic into the packer may reduce diversity in multi-hop QA if one family occupies too much of the fixed evidence budget."
+      ],
+      "fairness_protocol": "Use the same stage-1 candidate pool, same evidence budget, same note store, and same metadata for all compared read-time packers. Compare against plain relevance-first deterministic packing, the prior provenance-bonus/slotted variant, and an ablation with the family regularizer zeroed while keeping all other code paths identical. Report QA accuracy, calibration of selected evidence, latency, and behavior under synthetic null-family, family-poisoning, sparse-pool, and noisy-family-ID conditions. What is still missing is a clearly specified cross-dataset transfer check to support robustness beyond one benchmark regime.",
+      "feedback": "This is a strong fusion_repair move: it meaningfully simplifies the read path by replacing a loosely justified provenance bonus with a single analytic family signal injected into deterministic_rank_and_pack, and it directly targets the listed defects unclear_mechanism, weak_fallback_behavior, validation_gap, and silent_failure. The explicit fallback inside the packer is especially helpful because it turns family evidence into a bounded optional regularizer rather than a mandatory control path. The main remaining concern is that responsibilities are now more coupled inside deterministic_rank_and_pack: scoring, duplicate control, family regularization, and fallback all live in one component, which improves runtime simplicity but makes attribution and some ablations harder. The core mechanism is mostly clear, but the exact interaction between role quotas, family caps, soft overlap decay, and the family regularizer should be specified more formally to avoid hidden decision conflicts. Validation is better than average, yet it should explicitly test whether gains come from the analytic null principle itself versus merely from score normalization or conservative caps. Symbolic memory evidence is only inconclusive for nearby enrichment/canonicalization families, so it does not strongly argue against this direction; still, keep the family metadata dependency conservative because noisy write-time structure remains a likely source of silent degradation.",
+      "defect_fix_summary": "The edit addresses unclear_mechanism by collapsing family scoring and packing into a single deterministic equation with explicit inputs from ShrinkageAnalyticNullEstimator. It addresses weak_fallback_behavior by specifying a relevance-only degraded mode when family statistics are unreliable. It partially addresses validation_gap by proposing null-family, poisoning, ablation, and latency tests tied to the mechanism. It reduces silent_failure by bounding the family effect and exposing a concrete condition under which the regularizer is disabled. The selected fusion_repair skill fits because the main improvement comes from tightening the interface between calibration and packing rather than adding new training or control machinery.",
+      "detected_defects": [
+        "harder_to_ablate",
+        "rare_regime_failure"
+      ]
+    },
+    "search_score": 4.04,
+    "search_path": "Family-Scoped Expected-Utility Retrieval for Atomic Note Memory [seed] -> defects ['unexplored_gap'] | Analytic Family‑Calibrated Deterministic Rank‑and‑Pack for Training‑Free Atomic‑Note Memory [fusion_repair] -> defects ['unclear_mechanism', 'weak_fallback_behavior', 'validation_gap', 'silent_failure']",
+    "retrieved_core_titles": [
+      "SuperLocalMemory V3: Information-Geometric Foundations for Zero-LLM Enterprise Agent Memory",
+      "Dynamic Affective Memory Management for Personalized LLM Agents",
+      "ProcrustesGPT: Compressing LLMs with Structured Matrices and Orthogonal Transformations",
+      "Learning Long-Context Diffusion Policies via Past-Token Prediction",
+      "ARCMEMO: ABSTRACT REASONING COMPOSITION WITH LIFE LONG LLM MEMORY",
+      "Killing Two Birds with One Stone: Unifying Retrieval and Ranking with a Single Generative Recommendation Model",
+      "Don't Hallucinate, Abstain: Identifying LLM Knowledge Gaps via Multi-LLM Collaboration",
+      "Reasoning RAG via System 1 or System 2: A Survey on Reasoning Agentic Retrieval-Augmented Generation for Industry Challenges",
+      "Training-Free Agentic AI: Probabilistic Control and Coordination in Multi-Agent LLM Systems",
+      "KernelSkill: A Multi-Agent Framework for GPU Kernel Optimization",
+      "Leanabell-Prover-V2: Verifier-integrated Reasoning for Formal Theorem Proving via Reinforcement Learning",
+      "Memory-Augmented Log Analysis with Phi-4-mini: Enhancing Threat Detection in Structured Security Logs",
+      "Multi-Scale Vision Longformer: A New Vision Transformer for High-Resolution Image Encoding",
+      "Exchange-of-Thought: Enhancing Large Language Model Capabilities through Cross-Model Communication",
+      "LitSearch: A Retrieval Benchmark for Scientific Literature Search",
+      "A Gated Self-attention Memory Network for Answer Selection",
+      "AQR-HNSW: Accelerating Approximate Nearest Neighbor Search via Density-aware Quantization and Multi-stage Re-ranking",
+      "MixKVQ: Query-Aware Mixed-Precision KV Cache Quantization for Long-Context Reasoning",
+      "Dynamic Quality-Latency Aware Routing for LLM Inference in Wireless Edge-Device Networks",
+      "Stochastic RAG: End-to-End Retrieval-Augmented Generation through Expected Utility Maximization",
+      "STBLLM: BREAKING THE 1-BIT BARRIER WITH STRUCTURED BINARY LLMS",
+      "A Survey on Data Selection for LLM Instruction Tuning",
+      "Cortex: Achieving Low-Latency, Cost-Efficient Remote Data Access For LLM via Semantic-Aware Knowledge Caching",
+      "Knowing You Don’t Know: Learning When to Continue Search in Multi-round RAG through Self-Practicing",
+      "C-FEDRAG: A CONFIDENTIAL FERERATED RETRIEVAL-AUGMENTED GENERATION SYSTEM",
+      "CarMem: Enhancing Long-Term Memory in LLM Voice Assistants through Category-Bounding",
+      "CAM: A Constructivist View of Agentic Memory for LLM-Based Reading Comprehension",
+      "Searching for Best Practices in Retrieval-Augmented Generation",
+      "SEDM: Scalable Self-Evolving Distributed Memory for Agents",
+      "Proxima: Near-storage Acceleration for Graph-based Approximate Nearest Neighbor Search in 3D NAND",
+      "Data-efficient Fine-tuning for LLM-based Recommendation",
+      "Improving language models by retrieving from trillions of tokens",
+      "PM-KVQ: Progressive Mixed-precision KV Cache Quantization for Long-CoT LLMs"
+    ],
+    "search_trace": [
+      {
+        "iteration": 0,
+        "node_id": 1,
+        "depth": 1,
+        "title": "Analytic Family‑Calibrated Deterministic Rank‑and‑Pack for Training‑Free Atomic‑Note Memory",
+        "operator": "fusion_repair",
+        "defects": [
+          "unclear_mechanism",
+          "weak_fallback_behavior",
+          "validation_gap",
+          "silent_failure"
+        ],
+        "memory_refs": [],
+        "rationale": "Replacing a separate Bayesian packing component with deterministic_rank_and_pack simplifies the read pipeline and makes the family signal's effect explicit and auditable while preserving the original closed‑form calibration idea. Folding duplicate control into the packer and making the fallback deterministic removes a silent failure mode and narrows the validation surface: family influence is a bounded regularizer that can be cleanly turned off when pool statistics indicate it would be unreliable.",
+        "score": 4.04,
+        "visits": 1,
+        "path": "Family-Scoped Expected-Utility Retrieval for Atomic Note Memory [seed] -> defects ['unexplored_gap'] | Analytic Family‑Calibrated Deterministic Rank‑and‑Pack for Training‑Free Atomic‑Note Memory [fusion_repair] -> defects ['unclear_mechanism', 'weak_fallback_behavior', 'validation_gap', 'silent_failure']",
+        "action_summary": "fusion_repair -> unclear_mechanism, weak_fallback_behavior, validation_gap, silent_failure",
+        "evaluation": {
+          "novelty": 4,
+          "surprise": 4,
+          "feasibility": 4,
+          "clarity": 4,
+          "impact": 4,
+          "risk": 3,
+          "conciseness": 4,
+          "alignment_score": 5,
+          "complexity_penalty": 2,
+          "protocol_score": 4,
+          "confidence": 0.82,
+          "failure_modes": [
+            "Family-level corroboration can amplify correlated retrieval errors when multiple wrong notes share a provenance family and have moderately strong base scores.",
+            "Per-pool normalization may become unstable on narrow or highly skewed candidate pools, causing the family regularizer to dominate or vanish unpredictably.",
+            "Incorrect or noisy provenance-family IDs from the write path can distort the analytic null estimate and silently mis-rank evidence.",
+            "Folding quota and duplicate-decay logic into the packer may reduce diversity in multi-hop QA if one family occupies too much of the fixed evidence budget."
+          ],
+          "fairness_protocol": "Use the same stage-1 candidate pool, same evidence budget, same note store, and same metadata for all compared read-time packers. Compare against plain relevance-first deterministic packing, the prior provenance-bonus/slotted variant, and an ablation with the family regularizer zeroed while keeping all other code paths identical. Report QA accuracy, calibration of selected evidence, latency, and behavior under synthetic null-family, family-poisoning, sparse-pool, and noisy-family-ID conditions. What is still missing is a clearly specified cross-dataset transfer check to support robustness beyond one benchmark regime.",
+          "feedback": "This is a strong fusion_repair move: it meaningfully simplifies the read path by replacing a loosely justified provenance bonus with a single analytic family signal injected into deterministic_rank_and_pack, and it directly targets the listed defects unclear_mechanism, weak_fallback_behavior, validation_gap, and silent_failure. The explicit fallback inside the packer is especially helpful because it turns family evidence into a bounded optional regularizer rather than a mandatory control path. The main remaining concern is that responsibilities are now more coupled inside deterministic_rank_and_pack: scoring, duplicate control, family regularization, and fallback all live in one component, which improves runtime simplicity but makes attribution and some ablations harder. The core mechanism is mostly clear, but the exact interaction between role quotas, family caps, soft overlap decay, and the family regularizer should be specified more formally to avoid hidden decision conflicts. Validation is better than average, yet it should explicitly test whether gains come from the analytic null principle itself versus merely from score normalization or conservative caps. Symbolic memory evidence is only inconclusive for nearby enrichment/canonicalization families, so it does not strongly argue against this direction; still, keep the family metadata dependency conservative because noisy write-time structure remains a likely source of silent degradation.",
+          "defect_fix_summary": "The edit addresses unclear_mechanism by collapsing family scoring and packing into a single deterministic equation with explicit inputs from ShrinkageAnalyticNullEstimator. It addresses weak_fallback_behavior by specifying a relevance-only degraded mode when family statistics are unreliable. It partially addresses validation_gap by proposing null-family, poisoning, ablation, and latency tests tied to the mechanism. It reduces silent_failure by bounding the family effect and exposing a concrete condition under which the regularizer is disabled. The selected fusion_repair skill fits because the main improvement comes from tightening the interface between calibration and packing rather than adding new training or control machinery.",
+          "detected_defects": [
+            "harder_to_ablate",
+            "rare_regime_failure"
+          ],
+          "composite": 4.04
+        },
+        "signature": "1cff48961f955b79aa4877f0635a7b4ca0b8d94d01dca85009384c5062136d60",
+        "edit_plan": {
+          "skill_name": "fusion_repair",
+          "objective": "Locally repair the fused idea",
+          "target_defects": [
+            "unclear_mechanism",
+            "weak_fallback_behavior",
+            "validation_gap",
+            "silent_failure"
+          ],
+          "component_edits": [
+            {
+              "op": "REPLACE_COMPONENT",
+              "component": "deterministic_rank_and_pack",
+              "target": "CalibratedBayesianFamilyRankAndPack",
+              "condition": "",
+              "details": "Replace CalibratedBayesianFamilyRankAndPack with deterministic_rank_and_pack so the rank-and-pack stage is the mature one-pass packer. Its single deterministic score should consume base relevance plus bounded family reliability/uncertainty from ShrinkageAnalyticNullEstimator, and its fallback should be explicit: when pool size, score variance, or family-label entropy are below fixed thresholds, set the family regularizer to zero and run plain relevance-first packing with existing duplicate control.",
+              "reason": "Reason 1: Centralizing scoring and quota logic into deterministic_rank_and_pack reduces architectural surface area and prevents ambiguous interactions between an external quota component and the packer, improving determinism and reducing silent failure modes."
+            },
+            {
+              "op": "REMOVE_COMPONENT",
+              "component": "per_slot_quota_and_decay",
+              "target": "",
+              "condition": "",
+              "details": "Remove per_slot_quota_and_decay as a separate structural component and fold any small quota/duplicate-decay behavior into deterministic_rank_and_pack.",
+              "reason": "Reason 2: Rewiring ShrinkageAnalyticNullEstimator to feed only a bounded regularizer into a single deterministic scoring equation makes the mechanism explicit and easier to validate; the explicit per‑pool fallback removes unclear failure behavior when the family signal is unreliable."
+            },
+            {
+              "op": "REWIRE",
+              "component": "ShrinkageAnalyticNullEstimator",
+              "target": "deterministic_rank_and_pack",
+              "condition": "",
+              "details": "Rewire ShrinkageAnalyticNullEstimator to feed its bounded family reliability and uncertainty outputs directly into deterministic_rank_and_pack for candidate scoring and explicit fallback triggering.",
+              "reason": "Reason 3: Folding duplicate control into the packer preserves lightweight runtime behavior (one pass, bounded latency) while keeping family corroboration as a conservative, well‑bounded influence — aligning with the training‑free, efficiency‑first refinement goals."
+            }
+          ],
+          "validation": {
+            "regression_tests": [],
+            "ablation_tests": [],
+            "stress_tests": []
+          },
+          "guardrails": [
+            "Keep the write path unchanged and training-free.",
+            "Do not introduce any new controller, router, or learned reranker.",
+            "Use one deterministic candidate scoring equation inside the packer, with the family signal entering only as a bounded regularizer from ShrinkageAnalyticNullEstimator.",
+            "Define degraded mode inside the packer from identifiable pool statistics only, rather than via a separate fallback module.",
+            "Keep the same first-stage candidate pool, metadata, and evidence budget as the baseline so ablations isolate the read-time substitution."
+          ],
+          "memory_refs": [],
+          "compile_notes": "Compiled from fusion repair planner using existing atomic edit operations."
+        },
+        "skill_metrics": {
+          "idea_taste_mode": "fusion_agent",
+          "skill_prior_before": {
+            "attempts": 0,
+            "successes": 0,
+            "reward_ema": 0.5,
+            "prior": 0.5,
+            "rule_constraints": []
+          },
+          "guardrails": [
+            "Keep the write path unchanged and training-free.",
+            "Do not introduce any new controller, router, or learned reranker.",
+            "Use one deterministic candidate scoring equation inside the packer, with the family signal entering only as a bounded regularizer from ShrinkageAnalyticNullEstimator.",
+            "Define degraded mode inside the packer from identifiable pool statistics only, rather than via a separate fallback module.",
+            "Keep the same first-stage candidate pool, metadata, and evidence budget as the baseline so ablations isolate the read-time substitution."
+          ],
+          "constraints": [
+            "No feature dumping: every component edit must map to a measured defect.",
+            "Use the lightest validation suite that can falsify the core mechanism; do not let protocol bulk replace mechanism work.",
+            "Prefer mechanism clarity over loosely coupled add-ons."
+          ],
+          "llm_instantiated": true
+        }
+      }
+    ],
+    "pareto_candidates": {}
+  }
+}

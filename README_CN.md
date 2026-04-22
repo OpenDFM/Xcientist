@@ -177,6 +177,30 @@ xcientist doctor
 
 当 doctor 通过、graph/db 和模型到位后，再按下面的命令运行。
 
+### 最快上手
+
+使用我们提供的 `Training-Free Memory System for LLM Agents` 样例：
+
+仅生成 survey：
+
+```bash
+xcientist survey --topic "Training-Free Memory System for LLM Agents"
+```
+
+基于我们提供的样例 survey 做 ideation：
+
+```bash
+xcientist idea --topic "Training-Free Memory System for LLM Agents"
+```
+
+基于我们提供的样例 idea 做 experiment：
+
+```bash
+xcientist experiment --experiment agent_memory --idea-json <repo_root>/src/agents/idea_agent/example/idea_result.json
+```
+
+如果还需要进一步调整配置，请修改 `src/config/default.yaml`。
+
 ### 1. 运行 Survey Agent
 
 推荐入口：
@@ -188,7 +212,7 @@ xcientist survey
 直接覆盖 topic：
 
 ```bash
-xcientist survey --topic "LLM Agent Memory System"
+xcientist survey --topic <your_topic_name>
 ```
 
 典型输出：
@@ -208,7 +232,7 @@ xcientist idea
 直接覆盖 topic：
 
 ```bash
-xcientist idea --topic "LLM Agent Memory System"
+xcientist idea --topic <your_topic_name>
 ```
 
 默认会使用 `src/config/default.yaml`，并在 `src/agents/idea_agent/runs/` 下创建运行目录，写出 `idea_result.json` 和日志。
