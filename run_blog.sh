@@ -1,6 +1,8 @@
 #!/bin/bash
 # Run blog agent workflow for a specific experiment/project
 
+set -euo pipefail
+
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Default values
@@ -9,7 +11,14 @@ RESUME=false
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --experiment) EXPERIMENT="$2"; shift ;;
+        --experiment)
+            if [[ $# -lt 2 ]]; then
+                echo "Error: --experiment requires a value"
+                exit 1
+            fi
+            EXPERIMENT="$2"
+            shift
+            ;;
         --resume) RESUME=true ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
@@ -29,10 +38,9 @@ fi
 
 cd "$SCRIPT_DIR"
 
-# Build command
-CMD="python -m src.agents.blog_agent.scripts.run --experiment $EXPERIMENT"
+CMD=(python -m src.agents.blog_agent.scripts.run --experiment "$EXPERIMENT")
 if [ "$RESUME" = true ]; then
-    CMD="$CMD --resume"
+    CMD+=(--resume)
 fi
 
-eval $CMD
+"${CMD[@]}"

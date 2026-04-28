@@ -469,6 +469,56 @@ def run_experiment(
     return run_command(cmd, env=env) == 0
 
 
+def _find_latest_experiment_for_blog(
+    pipeline_workspace: str,
+    experiment_result_filename: str,
+) -> tuple[str, str]:
+    """Find the most recent completed experiment recorded by the pipeline."""
+    experiments_dir = Path(pipeline_workspace) / "experiments"
+    if not experiments_dir.exists():
+        return "", ""
+
+    result_paths = sorted(
+        experiments_dir.glob(f"*/{experiment_result_filename}"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for result_path in result_paths:
+        if result_path.parent.name.startswith("temp_iter_"):
+            continue
+        try:
+            with open(result_path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+        except Exception:
+            continue
+        experiment_id = str(payload.get("experiment_id") or result_path.parent.name)
+        workspace = str(payload.get("workspace") or result_path.parent)
+        if experiment_id and os.path.exists(workspace):
+            return experiment_id, workspace
+    return "", ""
+
+
+def run_blog(experiment_id: str, source_workspace: str, resume: bool = False) -> bool:
+    """Run Blog agent after the Idea/Experiment loop completes."""
+    print("\n" + "=" * 50)
+    print("Phase 4: Blog")
+    print("=" * 50)
+    print(f"Blog experiment: {experiment_id}")
+    print(f"Source workspace: {source_workspace}")
+
+    blog_script = Path.cwd() / "run_blog.sh"
+    if not blog_script.exists():
+        raise FileNotFoundError(f"Blog runner not found: {blog_script}")
+
+    env = _get_subprocess_env()
+    env["BLOG_AGENT_SOURCE_WORKSPACE"] = source_workspace
+
+    cmd = [str(blog_script), "--experiment", experiment_id]
+    if resume:
+        cmd.append("--resume")
+    return run_command(cmd, env=env) == 0
+
+
 def main(config_path: str = "src/config/default.yaml"):
     """Main entry point."""
     # Load config
@@ -620,8 +670,9 @@ def main(config_path: str = "src/config/default.yaml"):
             shutil.rmtree(temp_exp_workspace)
 
         exp_workspace = main_experiment["workspace"]
-        final_idea_file = main_experiment["idea_result_path"]
         state["last_candidate_path"] = main_experiment["candidate_path"]
+        state["last_experiment_id"] = main_experiment["experiment_id"]
+        state["last_experiment_workspace"] = exp_workspace
         mature_idea = _idea_result_to_mature_idea_text(idea_result)
         state["mature_idea"] = mature_idea
         state["current_iteration"] = i + 1
@@ -653,6 +704,31 @@ def main(config_path: str = "src/config/default.yaml"):
 
     state["current_iteration"] = max_iterations
     _save_pipeline_state(pipeline_workspace, state, state_filename)
+
+    experiment_result_filename = str(
+        config.pipeline.output.get("experiment_result_filename", "experiment_result.json")
+    )
+    blog_experiment_id = str(state.get("last_experiment_id") or "")
+    blog_source_workspace = str(state.get("last_experiment_workspace") or "")
+    if not blog_experiment_id or not os.path.exists(blog_source_workspace):
+        blog_experiment_id, blog_source_workspace = _find_latest_experiment_for_blog(
+            pipeline_workspace,
+            experiment_result_filename,
+        )
+
+    if _should_skip_phase("blog", state):
+        print("Skipping Blog phase")
+    elif not blog_experiment_id or not blog_source_workspace:
+        raise RuntimeError("Blog agent cannot run because no completed experiment workspace was found.")
+    elif run_blog(
+        experiment_id=blog_experiment_id,
+        source_workspace=blog_source_workspace,
+        resume=resume_enabled,
+    ):
+        _mark_phase_complete("blog", state)
+        _save_pipeline_state(pipeline_workspace, state, state_filename)
+    else:
+        raise RuntimeError(f"Blog agent failed for {blog_experiment_id}")
 
     print("\n" + "=" * 50)
     print("Pipeline Completed!")

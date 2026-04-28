@@ -16,14 +16,14 @@
 
 </div>
 
-Xcientist is a multi-agent research workflow for turning a topic into survey artifacts, structured ideas, executable experiments, and paper drafts. The repository currently centers on four agent stacks:
+Xcientist is a multi-agent research workflow for turning a topic into survey artifacts, structured ideas, executable experiments, and technical blog articles. The repository currently centers on four agent stacks:
 
 - `Survey Agent`: collects papers, builds topic clusters, and writes survey outputs.
 - `Idea Agent (LigAgent)`: turns a topic or seed idea into a research proposal with survey-grounded retrieval, graph-backed references, and Memory-Guided MCTS.
 - `Experiment Agent (SuperAgent)`: prepares a workspace, generates code, runs experiments, and integrates iteration reports.
-- `Paper Agent`: reads an experiment workspace and writes a paper workspace with LaTeX drafts and compilation artifacts.
+- `Blog Agent`: reads an experiment workspace and writes a technical blog article with generated figures and quality checks.
 
-The repo also contains a prototype loop runner for `Survey -> Idea -> Experiment`, shared configuration, and a reusable memory subsystem.
+The repo also contains a prototype loop runner for `Survey -> Idea -> Experiment -> Blog`, shared configuration, and a reusable memory subsystem.
 
 ## 🗂️ Repository Map
 
@@ -35,7 +35,7 @@ Xcientist/
 ├── run_survey.sh
 ├── run_idea.sh
 ├── run_experiment.sh
-├── run_paper.sh
+├── run_blog.sh
 ├── run_pipeline.sh
 ├── graph/                         # graph retrieval service and indexing scripts
 ├── scripts/                       # utility scripts such as MCP wrapper setup
@@ -46,7 +46,7 @@ Xcientist/
     │   ├── survey_agent/
     │   ├── idea_agent/
     │   ├── experiment_agent/
-    │   └── paper_agent/
+    │   └── blog_agent/
     ├── memory/                    # shared memory package
     └── pipeline/                  # end-to-end loop runner
 ```
@@ -61,11 +61,11 @@ Topic
      output: idea_result.json
   -> Experiment Agent
      output: workspace, results, ablation_results.json
-  -> Paper Agent
-     output: paper workspace, LaTeX draft, optional PDF
+  -> Blog Agent
+     output: blog workspace, article draft, generated figures
 ```
 
-The pipeline runner in `src/pipeline/run_loop.py` automates the first three stages, but the individual agents remain the clearest way to operate and debug the system.
+The pipeline runner in `src/pipeline/run_loop.py` automates the full `Survey -> Idea -> Experiment -> Blog` flow, but the individual agents remain the clearest way to operate and debug the system.
 
 ## ✅ Prerequisites
 
@@ -105,8 +105,11 @@ uv sync
 # Memory-enabled and local-model workflows
 uv sync --group memory --group ml
 
-# Paper / PDF parsing stack
-uv sync --group paper
+# PDF parsing stack
+uv sync --group pdf
+
+# Blog Agent full workflow: PDF parsing + image generation / OCR / text removal
+uv sync --group pdf --group blog
 
 # Full local environment
 uv sync --all-groups
@@ -118,7 +121,7 @@ If you want local MCP wrapper scripts for Experiment Agent:
 xcientist install-mcp-wrappers
 ```
 
-`environment.yml` is still available as a legacy/full-environment fallback, but `uv sync` is the primary path for `Survey + Idea + Experiment + Pipeline`. The dependency layout is now split so the default install stays lightweight and heavy local-model / PDF stacks are opt-in.
+`environment.yml` is still available as a legacy/full-environment fallback, but `uv sync` is the primary path for `Survey + Idea + Experiment + Blog + Pipeline`. The dependency layout is now split so the default install stays lightweight and heavy local-model / PDF stacks are opt-in.
 After activation, the project exposes CLI entrypoints such as `xcientist`, `xcientist-survey`, and `xcientist-idea` directly in the shell.
 
 ## 🔐 Environment Variables
@@ -141,7 +144,7 @@ Notes:
 - Set both `OPENAI_API_BASE` and `OPENAI_BASE_URL` if you use a custom OpenAI-compatible endpoint.
 - The CLI loads repo-root `.env` first and still falls back to `src/config/.env` for older setups.
 - `src/config/default.yaml` is the main configuration file for the current unified workflow.
-- Survey, Idea, Experiment, and Paper still have some agent-specific conventions on top of the unified config.
+- Survey, Idea, Experiment, and Blog still have some agent-specific conventions on top of the unified config.
 
 ## 📦 Optional Local Assets
 
@@ -266,28 +269,27 @@ Key workspace outputs live under `workspace/<experiment_id>/` by default and usu
 - `agent_reports/`
 - `ablation_results.json`
 
-### 4. Run Paper Agent
+### 4. Run Blog Agent
 
-Paper Agent is intentionally not part of the default `uv` workflow yet. Keep using the direct/manual entrypoint if you need it.
+Blog Agent generates a technical blog article from an existing experiment workspace.
 
 Recommended entrypoint:
 
 ```bash
-python -m src.agents.paper_agent.main \
-  --experiment my_exp \
-  --template-dir src/agents/paper_agent/latex/ICML2025_Template
+./run_blog.sh --experiment my_exp
 ```
 
-Resume an existing paper workspace:
+If the experiment workspace is not under the blog agent's default source path, pass it explicitly:
 
 ```bash
-python -m src.agents.paper_agent.main \
-  --experiment my_exp \
-  --template-dir src/agents/paper_agent/latex/ICML2025_Template \
-  --resume
+BLOG_AGENT_SOURCE_WORKSPACE=/abs/path/to/experiment_workspace ./run_blog.sh --experiment my_exp
 ```
 
-`run_paper.sh` exists, but it is a local example wrapper with hard-coded values and is not the generic entrypoint.
+Resume an existing blog workspace:
+
+```bash
+./run_blog.sh --experiment my_exp --resume
+```
 
 ### 5. Run The Prototype Pipeline
 
@@ -307,7 +309,7 @@ The current configuration layout is mixed by design:
 | Survey Agent | `survey:` block in `src/config/default.yaml` plus `src/agents/survey_agent/config/*.yaml` |
 | Idea Agent | `idea:` block in `src/config/default.yaml` |
 | Experiment Agent | `experiment:` block in `src/config/default.yaml` and environment variables |
-| Paper Agent | `paper:` block in `src/config/default.yaml` plus CLI flags |
+| Blog Agent | `src/agents/blog_agent/config/config.yaml` plus `BLOG_AGENT_SOURCE_WORKSPACE` when needed |
 | Pipeline | `pipeline:` block in `src/config/default.yaml` |
 
 If you are starting fresh, edit `src/config/default.yaml` first. It is the most reliable single file to understand current defaults.
@@ -333,11 +335,11 @@ If you are starting fresh, edit `src/config/default.yaml` first. It is the most 
 - Purpose: prepare workspace, generate implementation, run code/science iterations, integrate ablation results
 - Outputs: experiment workspace and final `ablation_results.json`
 
-### Paper Agent
+### Blog Agent
 
-- Main entry: `python -m src.agents.paper_agent.main`
-- Purpose: transform an experiment workspace into a paper-writing workspace
-- Outputs: LaTeX project, artifacts, run state, optional compiled PDF
+- Main entry: `./run_blog.sh --experiment <experiment_id>`
+- Purpose: transform an experiment workspace into a technical blog article
+- Outputs: blog article, generated figures, quality analysis, run state
 
 ## 📌 Current Project Status
 

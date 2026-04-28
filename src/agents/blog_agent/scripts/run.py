@@ -14,12 +14,12 @@ from datetime import datetime
 # Add src/agents to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 agents_root = os.path.abspath(os.path.join(current_dir, "..", ".."))
-src_root = os.path.join(agents_root, "src")
+repo_root = os.path.abspath(os.path.join(agents_root, "..", ".."))
 
 if agents_root not in sys.path:
     sys.path.insert(0, agents_root)
-if src_root not in sys.path:
-    sys.path.insert(0, src_root)
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
 
 from openhands.sdk import Tool
 from openhands.tools.terminal import TerminalTool
@@ -130,7 +130,7 @@ def parse_blog_score(file_path: str) -> tuple[int, str]:
 
 
 async def main(experiment: str, resume: bool = False):
-    workspace = agents_root
+    workspace = repo_root
     skills_dir = os.path.join(agents_root, "blog_agent", "skills")
     maxturn = 3
 
@@ -146,7 +146,11 @@ async def main(experiment: str, resume: bool = False):
 
     # Check and create workspace directories
     blog_workspace = os.path.join(agents_root, "blog_agent", "workspaces", experiment)
-    source_workspace = os.path.join(agents_root, "experiment_agent", "workspaces", experiment)
+    source_workspace = os.environ.get(
+        "BLOG_AGENT_SOURCE_WORKSPACE",
+        os.path.join(agents_root, "experiment_agent", "workspaces", experiment),
+    )
+    source_workspace = os.path.abspath(os.path.expanduser(source_workspace))
 
     if not os.path.exists(source_workspace):
         logger.error(f"Source workspace not found: {source_workspace}")
@@ -165,6 +169,8 @@ async def main(experiment: str, resume: bool = False):
 
     print(f"\n{'='*60}")
     print(f"Running blog workflow for experiment: {experiment}")
+    print(f"Source workspace: {source_workspace}")
+    print(f"Blog workspace: {blog_workspace}")
     print(f"{'='*60}\n")
 
     # Create agents
@@ -220,7 +226,7 @@ async def main(experiment: str, resume: bool = False):
     if start_step <= 0:
         logger.info("[Step 1/4] Running IDEAAgent (workspace-navigator)...")
         result = await ideaagent.run_async(
-            user_prompt=f"Explore {experiment} project, write blog_idea.md, then search papers, get details, download PDFs to workspace/{experiment}/, verify content, and add Papers for Citation table to blog_idea.md"
+            user_prompt=f"Explore {experiment} project from source workspace {source_workspace}. Write blog_idea.md in blog workspace {blog_workspace}, then search papers, get details, download PDFs to {blog_workspace}, verify content, and add Papers for Citation table to blog_idea.md."
         )
         logger.info(f"[RESULT] {result[:500]}..." if len(result) > 500 else f"[RESULT] {result}")
         status["current_step"] = 1
@@ -231,7 +237,7 @@ async def main(experiment: str, resume: bool = False):
     if start_step <= 1:
         logger.info("[Step 2/4] Running WRITEAgent (blog-writer)...")
         result = await writeagent.run_async(
-            user_prompt=f"Write blog article for {experiment}. Read blog_idea.md, check Papers for Citation, read relevant PDFs from workspace/{experiment}/, write section by section with citations<sup>[1]</sup>, create graph method files in test_output/, insert <graph1> placeholders."
+            user_prompt=f"Write blog article for {experiment}. Read blog_idea.md from {blog_workspace}, check Papers for Citation, read relevant PDFs from {blog_workspace}, compare against source workspace {source_workspace}, write section by section with citations<sup>[1]</sup>, create graph method files in {test_output_dir}, and insert <graph1> placeholders."
         )
         logger.info(f"[RESULT] {result[:500]}..." if len(result) > 500 else f"[RESULT] {result}")
         status["current_step"] = 2
@@ -242,7 +248,7 @@ async def main(experiment: str, resume: bool = False):
     if start_step <= 2:
         logger.info("[Step 3/4] Running ANALYZEAgent (blog-analyze)...")
         result = await analyzeagent.run_async(
-            user_prompt=f"Analyze blog article for {experiment}. Read blog_article.md, verify code accuracy vs source, verify citations vs PDFs in workspace/{experiment}/, check images in test_output/, generate quality report with research integrity check."
+            user_prompt=f"Analyze blog article for {experiment}. Read blog_article.md from {blog_workspace}, verify code accuracy against source workspace {source_workspace}, verify citations against PDFs in {blog_workspace}, check images in {test_output_dir}, and generate quality report with research integrity check."
         )
         logger.info(f"[RESULT] {result[:500]}..." if len(result) > 500 else f"[RESULT] {result}")
         status["current_step"] = 3
@@ -264,7 +270,7 @@ async def main(experiment: str, resume: bool = False):
         logger.info(f"[Refine Loop {currentloop}/{maxturn}] Running REFINEAgent...")
 
         result = await refineagent.run_async(
-            user_prompt=f"Refine blog article for {experiment}. Read blog_article.md and blog_analysis.md, improve based on recommendations, fix image issues, fix citation issues if any."
+            user_prompt=f"Refine blog article for {experiment}. Read blog_article.md and blog_analysis.md from {blog_workspace}, improve based on recommendations, fix image issues, and fix citation issues if any."
         )
         logger.info(f"[RESULT] {result[:500]}..." if len(result) > 500 else f"[RESULT] {result}")
 
@@ -274,7 +280,7 @@ async def main(experiment: str, resume: bool = False):
 
         logger.info(f"[Refine Loop {currentloop}/{maxturn}] Running ANALYZEAgent...")
         result = await analyzeagent.run_async(
-            user_prompt=f"Analyze blog article for {experiment}. Read blog_article.md, verify code accuracy vs source, verify citations vs PDFs in workspace/{experiment}/, check images in test_output/, generate quality report with research integrity check."
+            user_prompt=f"Analyze blog article for {experiment}. Read blog_article.md from {blog_workspace}, verify code accuracy against source workspace {source_workspace}, verify citations against PDFs in {blog_workspace}, check images in {test_output_dir}, and generate quality report with research integrity check."
         )
         logger.info(f"[RESULT] {result[:500]}..." if len(result) > 500 else f"[RESULT] {result}")
 

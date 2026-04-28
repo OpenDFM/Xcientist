@@ -16,14 +16,14 @@
 
 </div>
 
-Xcientist 是一个面向科研流程的多 Agent 系统，目标是把一个研究主题逐步推进为综述材料、结构化 idea、可执行实验，以及论文草稿。当前仓库主要由四个核心 Agent 组成：
+Xcientist 是一个面向科研流程的多 Agent 系统，目标是把一个研究主题逐步推进为综述材料、结构化 idea、可执行实验，以及技术博客文章。当前仓库主要由四个核心 Agent 组成：
 
 - `Survey Agent`：检索论文、构建主题聚类并生成 survey 结果。
 - `Idea Agent（LigAgent）`：基于 survey 检索、图谱 reference 和 Memory-Guided MCTS，把主题或成熟想法转成研究 proposal。
 - `Experiment Agent（SuperAgent）`：准备实验工作空间、生成代码、执行实验，并整合迭代结果。
-- `Paper Agent`：读取实验工作空间，生成论文工作空间、LaTeX 草稿和编译产物。
+- `Blog Agent`：读取实验工作空间，生成技术博客文章、配图和质量检查结果。
 
-仓库中还包含一个 `Survey -> Idea -> Experiment` 的原型 pipeline、统一配置，以及可复用的 memory 子系统。
+仓库中还包含一个 `Survey -> Idea -> Experiment -> Blog` 的原型 pipeline、统一配置，以及可复用的 memory 子系统。
 
 ## 🗂️ 仓库结构
 
@@ -35,7 +35,7 @@ Xcientist/
 ├── run_survey.sh
 ├── run_idea.sh
 ├── run_experiment.sh
-├── run_paper.sh
+├── run_blog.sh
 ├── run_pipeline.sh
 ├── graph/                         # 图检索服务与索引脚本
 ├── scripts/                       # 工具脚本，例如 MCP wrapper 安装
@@ -46,7 +46,7 @@ Xcientist/
     │   ├── survey_agent/
     │   ├── idea_agent/
     │   ├── experiment_agent/
-    │   └── paper_agent/
+    │   └── blog_agent/
     ├── memory/                    # 共享 memory 包
     └── pipeline/                  # 端到端 loop runner
 ```
@@ -61,11 +61,11 @@ Xcientist/
      输出：idea_result.json
   -> Experiment Agent
      输出：workspace、results、ablation_results.json
-  -> Paper Agent
-     输出：paper workspace、LaTeX 草稿、可选 PDF
+  -> Blog Agent
+     输出：blog workspace、文章草稿、生成配图
 ```
 
-`src/pipeline/run_loop.py` 可以自动串起前三步，但如果你需要定位问题，逐个 Agent 运行通常更直观。
+`src/pipeline/run_loop.py` 可以自动串起 `Survey -> Idea -> Experiment -> Blog` 全流程，但如果你需要定位问题，逐个 Agent 运行通常更直观。
 
 ## ✅ 环境要求
 
@@ -73,7 +73,6 @@ Xcientist/
 - Python `3.12`
 - `Experiment Agent` 需要 `node` 和 `npx` 来启动 MCP server
 - 运行不同 Agent 所需的 API key
-- 如果要手工使用 `Paper Agent`，还需要本地 TeX 工具链，例如 `tectonic`、`latexmk` 或 `pdflatex`
 - 图检索和 memory 能力依赖仓库外的本地数据或模型
    - 论文图相关资源的[下载链接](https://drive.google.com/drive/folders/1lH1MI6gk7eh0HfvfOajcqAZg3n95v5BK?usp=drive_link)，将它们放入 `<repo_root>/data/processed`
    - 向量模型下载：
@@ -105,8 +104,11 @@ uv sync
 # 安装 memory 与本地模型相关能力
 uv sync --group memory --group ml
 
-# 安装 Paper / PDF 解析相关依赖
-uv sync --group paper
+# 安装 PDF 解析相关依赖
+uv sync --group pdf
+
+# 安装 Blog Agent 完整工作流：PDF 解析 + 图像生成 / OCR / 去文字
+uv sync --group pdf --group blog
 
 # 安装完整本地环境
 uv sync --all-groups
@@ -118,7 +120,7 @@ uv sync --all-groups
 xcientist install-mcp-wrappers
 ```
 
-`environment.yml` 仍然保留，作为兼容旧环境或全量环境的备选方案；但 `Survey + Idea + Experiment + Pipeline` 的主路径现在是 `uv sync`。依赖现在已经拆组，默认安装保持轻量，本地模型与 PDF 解析这类重依赖按需安装。
+`environment.yml` 仍然保留，作为兼容旧环境或全量环境的备选方案；但 `Survey + Idea + Experiment + Blog + Pipeline` 的主路径现在是 `uv sync`。依赖现在已经拆组，默认安装保持轻量，本地模型与 PDF 解析这类重依赖按需安装。
 激活环境后，`xcientist`、`xcientist-survey`、`xcientist-idea` 这类 CLI 命令会直接出现在当前 shell 中。
 
 ## 🔐 环境变量
@@ -141,7 +143,7 @@ export JINA_API_KEY=...
 - 如果你使用自定义 OpenAI-compatible 接口，最好同时设置 `OPENAI_API_BASE` 和 `OPENAI_BASE_URL`。
 - CLI 会优先读取仓库根目录 `.env`，同时兼容旧的 `src/config/.env`。
 - 当前主配置文件是 `src/config/default.yaml`。
-- Survey、Idea、Experiment、Paper 在统一配置之外，仍有各自的运行约定。
+- Survey、Idea、Experiment、Blog 在统一配置之外，仍有各自的运行约定。
 
 ## 📦 可选本地资源
 
@@ -266,28 +268,27 @@ python -m src.agents.experiment_agent.main --experiment my_exp --resume --verbos
 - `agent_reports/`
 - `ablation_results.json`
 
-### 4. 运行 Paper Agent
+### 4. 运行 Blog Agent
 
-`Paper Agent` 目前没有纳入默认的 `uv` 主路径，仍按手工入口使用。
+`Blog Agent` 会基于已有实验工作空间生成技术博客文章。
 
 推荐入口：
 
 ```bash
-python -m src.agents.paper_agent.main \
-  --experiment my_exp \
-  --template-dir src/agents/paper_agent/latex/ICML2025_Template
+./run_blog.sh --experiment my_exp
 ```
 
-恢复已有 paper workspace：
+如果实验工作空间不在 blog agent 的默认源路径下，可以显式传入：
 
 ```bash
-python -m src.agents.paper_agent.main \
-  --experiment my_exp \
-  --template-dir src/agents/paper_agent/latex/ICML2025_Template \
-  --resume
+BLOG_AGENT_SOURCE_WORKSPACE=/abs/path/to/experiment_workspace ./run_blog.sh --experiment my_exp
 ```
 
-`run_paper.sh` 目前存在，但它只是一个带硬编码参数的本地示例脚本，不适合作为通用入口。
+恢复已有 blog workspace：
+
+```bash
+./run_blog.sh --experiment my_exp --resume
+```
 
 ### 5. 运行原型 Pipeline
 
@@ -307,7 +308,7 @@ xcientist pipeline
 | Survey Agent | `src/config/default.yaml` 的 `survey:` 段，以及 `src/agents/survey_agent/config/*.yaml` |
 | Idea Agent | `src/config/default.yaml` 的 `idea:` 段 |
 | Experiment Agent | `src/config/default.yaml` 的 `experiment:` 段和环境变量 |
-| Paper Agent | `src/config/default.yaml` 的 `paper:` 段和 CLI 参数 |
+| Blog Agent | `src/agents/blog_agent/config/config.yaml`，以及需要时设置 `BLOG_AGENT_SOURCE_WORKSPACE` |
 | Pipeline | `src/config/default.yaml` 的 `pipeline:` 段 |
 
 如果你是第一次配置这个项目，优先阅读和修改 `src/config/default.yaml`。
@@ -333,11 +334,11 @@ xcientist pipeline
 - 作用：准备工作空间、生成实现、执行 code/science 迭代、汇总 ablation 结果
 - 输出：实验工作空间与最终 `ablation_results.json`
 
-### Paper Agent
+### Blog Agent
 
-- 主入口：`python -m src.agents.paper_agent.main`
-- 作用：把实验工作空间转换成论文写作工作空间
-- 输出：LaTeX 项目、产物目录、运行状态、可选 PDF
+- 主入口：`./run_blog.sh --experiment <experiment_id>`
+- 作用：把实验工作空间转换成技术博客文章
+- 输出：博客文章、生成配图、质量分析、运行状态
 
 ## 📌 当前仓库状态
 
