@@ -135,6 +135,15 @@ def _build_root_parser() -> argparse.ArgumentParser:
     )
     experiment.set_defaults(func=_experiment_command)
 
+    blog = subparsers.add_parser("blog", help="Run Blog Agent")
+    blog.add_argument("--experiment", required=True, help="Experiment/project name")
+    blog.add_argument("--resume", action="store_true", help="Resume from the last completed step")
+    blog.add_argument(
+        "--source-workspace",
+        help="Set BLOG_AGENT_SOURCE_WORKSPACE for an experiment workspace outside the default source path",
+    )
+    blog.set_defaults(func=_blog_command)
+
     pipeline = subparsers.add_parser("pipeline", help="Run Survey -> Idea -> Experiment loop")
     pipeline.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to config YAML")
     pipeline.set_defaults(func=_pipeline_command)
@@ -285,6 +294,25 @@ def _experiment_command(args: argparse.Namespace) -> int:
     return _run_command(cmd, env=env)
 
 
+def _blog_command(args: argparse.Namespace) -> int:
+    env = _base_env()
+    agents_root = REPO_ROOT / "src" / "agents"
+    env["PYTHONPATH"] = str(agents_root) + os.pathsep + env["PYTHONPATH"]
+    if args.source_workspace:
+        env["BLOG_AGENT_SOURCE_WORKSPACE"] = str(Path(args.source_workspace).expanduser().resolve())
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "blog_agent.scripts.run",
+        "--experiment",
+        args.experiment,
+    ]
+    if args.resume:
+        cmd.append("--resume")
+    return _run_command(cmd, env=env)
+
+
 def _pipeline_command(args: argparse.Namespace) -> int:
     config_path = _resolve_config_path(args.config)
     _ensure_config_exists(config_path)
@@ -391,6 +419,10 @@ def idea_main() -> int:
 
 def experiment_main() -> int:
     return main(["experiment", *sys.argv[1:]])
+
+
+def blog_main() -> int:
+    return main(["blog", *sys.argv[1:]])
 
 
 def pipeline_main() -> int:

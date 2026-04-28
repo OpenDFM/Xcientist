@@ -65,10 +65,13 @@ blog_agent/
 cd <research-agent-root>
 
 # Run full pipeline
-./run_blog.sh --experiment <project_name>
+xcientist blog --experiment <project_name>
 
 # Resume from last checkpoint
-./run_blog.sh --experiment <project_name> --resume
+xcientist blog --experiment <project_name> --resume
+
+# Use an experiment workspace outside the default source path
+xcientist blog --experiment <project_name> --source-workspace /abs/path/to/experiment_workspace
 ```
 
 ## Resume / Checkpoint

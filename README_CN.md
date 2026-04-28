@@ -275,20 +275,22 @@ python -m src.agents.experiment_agent.main --experiment my_exp --resume --verbos
 推荐入口：
 
 ```bash
-./run_blog.sh --experiment my_exp
+xcientist blog --experiment my_exp
 ```
 
 如果实验工作空间不在 blog agent 的默认源路径下，可以显式传入：
 
 ```bash
-BLOG_AGENT_SOURCE_WORKSPACE=/abs/path/to/experiment_workspace ./run_blog.sh --experiment my_exp
+xcientist blog --experiment my_exp --source-workspace /abs/path/to/experiment_workspace
 ```
 
 恢复已有 blog workspace：
 
 ```bash
-./run_blog.sh --experiment my_exp --resume
+xcientist blog --experiment my_exp --resume
 ```
+
+`./run_blog.sh` 仍保留为兼容包装脚本，会转发到同一个 `xcientist blog` 命令。
 
 ### 5. 运行原型 Pipeline
 
@@ -336,7 +338,7 @@ xcientist pipeline
 
 ### Blog Agent
 
-- 主入口：`./run_blog.sh --experiment <experiment_id>`
+- 主入口：`xcientist blog --experiment <experiment_id>`
 - 作用：把实验工作空间转换成技术博客文章
 - 输出：博客文章、生成配图、质量分析、运行状态
 

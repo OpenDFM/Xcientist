@@ -276,20 +276,22 @@ Blog Agent generates a technical blog article from an existing experiment worksp
 Recommended entrypoint:
 
 ```bash
-./run_blog.sh --experiment my_exp
+xcientist blog --experiment my_exp
 ```
 
 If the experiment workspace is not under the blog agent's default source path, pass it explicitly:
 
 ```bash
-BLOG_AGENT_SOURCE_WORKSPACE=/abs/path/to/experiment_workspace ./run_blog.sh --experiment my_exp
+xcientist blog --experiment my_exp --source-workspace /abs/path/to/experiment_workspace
 ```
 
 Resume an existing blog workspace:
 
 ```bash
-./run_blog.sh --experiment my_exp --resume
+xcientist blog --experiment my_exp --resume
 ```
+
+`./run_blog.sh` remains available as a compatibility wrapper and delegates to the same `xcientist blog` command.
 
 ### 5. Run The Prototype Pipeline
 
@@ -337,7 +339,7 @@ If you are starting fresh, edit `src/config/default.yaml` first. It is the most 
 
 ### Blog Agent
 
-- Main entry: `./run_blog.sh --experiment <experiment_id>`
+- Main entry: `xcientist blog --experiment <experiment_id>`
 - Purpose: transform an experiment workspace into a technical blog article
 - Outputs: blog article, generated figures, quality analysis, run state
 
