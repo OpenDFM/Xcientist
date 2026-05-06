@@ -249,7 +249,9 @@ def _experiment_command(args: argparse.Namespace) -> int:
     from src.config import load_config
 
     config = load_config(str(config_path))
-    workspace_root = Path(str(config.experiment.workspace.root)).expanduser().resolve()
+    workspace_root = Path(str(config.experiment.workspace.root)).expanduser()
+    if not workspace_root.is_absolute():
+        workspace_root = (REPO_ROOT / workspace_root).absolute()
     experiment_dir = workspace_root / args.experiment
     experiment_dir.mkdir(parents=True, exist_ok=True)
 

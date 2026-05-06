@@ -61,10 +61,7 @@ def normalize_workspace_path(path: str) -> str:
     raw = os.path.abspath(os.path.expanduser(path))
     if raw.startswith("/aistor/"):
         return os.path.realpath(raw)
-    aistor_candidate = os.path.join("/aistor", raw.lstrip("/"))
-    if os.path.exists(aistor_candidate):
-        return os.path.realpath(aistor_candidate)
-    return os.path.realpath(raw)
+    return raw
 
 
 def get_api_config() -> Dict[str, str]:

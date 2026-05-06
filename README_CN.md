@@ -278,6 +278,18 @@ python -m src.agents.experiment_agent.main --experiment my_exp --resume --verbos
 xcientist blog --experiment my_exp
 ```
 
+默认 workspace root 是 `<repo_root>/workspace` 时，上面的命令会读取：
+
+```bash
+<repo_root>/workspace/my_exp
+```
+
+也可以显式传入这个实验工作空间：
+
+```bash
+xcientist blog --experiment my_exp --source-workspace <repo_root>/workspace/my_exp
+```
+
 如果实验工作空间不在 blog agent 的默认源路径下，可以显式传入：
 
 ```bash

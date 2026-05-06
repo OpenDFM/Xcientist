@@ -133,6 +133,7 @@ async def main(experiment: str, resume: bool = False):
     workspace = repo_root
     skills_dir = os.path.join(agents_root, "blog_agent", "skills")
     maxturn = 3
+    config = load_config()
 
     # Load or initialize status
     status = load_status(experiment)
@@ -146,10 +147,13 @@ async def main(experiment: str, resume: bool = False):
 
     # Check and create workspace directories
     blog_workspace = os.path.join(agents_root, "blog_agent", "workspaces", experiment)
-    source_workspace = os.environ.get(
-        "BLOG_AGENT_SOURCE_WORKSPACE",
-        os.path.join(agents_root, "experiment_agent", "workspaces", experiment),
+    default_source_workspace_root = config.get(
+        "source_workspace_root",
+        os.path.join(repo_root, "workspace"),
     )
+    source_workspace = os.environ.get("BLOG_AGENT_SOURCE_WORKSPACE")
+    if not source_workspace:
+        source_workspace = os.path.join(default_source_workspace_root, experiment)
     source_workspace = os.path.abspath(os.path.expanduser(source_workspace))
 
     if not os.path.exists(source_workspace):
@@ -304,8 +308,6 @@ async def main(experiment: str, resume: bool = False):
         output_dir = os.path.join(workspace, "test_output")
         blog_article_path = os.path.join(workspace, "blog_article.md")
 
-        # Load config for only_gen_img
-        config = load_config()
         only_gen_img = config.get("illustrate", {}).get("only_gen_img", True)
 
         # Find graph files

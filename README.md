@@ -279,6 +279,18 @@ Recommended entrypoint:
 xcientist blog --experiment my_exp
 ```
 
+With the default workspace root at `<repo_root>/workspace`, this reads the source experiment from:
+
+```bash
+<repo_root>/workspace/my_exp
+```
+
+You can also pass that experiment workspace explicitly:
+
+```bash
+xcientist blog --experiment my_exp --source-workspace <repo_root>/workspace/my_exp
+```
+
 If the experiment workspace is not under the blog agent's default source path, pass it explicitly:
 
 ```bash

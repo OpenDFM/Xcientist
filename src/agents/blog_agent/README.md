@@ -57,7 +57,7 @@ blog_agent/
 6. Place `graph.db` (knowledge graph for paper search) into `blog_agent/utils/` folder
 7. (Optional) Edit `scripts/run.py` to change the `MODEL` parameter - this controls which model is actually used
 
-> **Important**: The skills in `skills/` contain hardcoded absolute paths (e.g., `/home/zhang/projects/ResearchAgent-main/src/agents/experiment_agent/workspaces/{project_name}`). Make sure to update these paths to match your environment before running.
+> **Important**: Blog Agent reads experiment outputs from `blog.source_workspace_root` in `src/config/default.yaml`, using `<source_workspace_root>/<project_name>` by default.
 
 ### Run
 
@@ -66,6 +66,9 @@ cd <research-agent-root>
 
 # Run full pipeline
 xcientist blog --experiment <project_name>
+
+# Explicitly use the default experiment workspace root
+xcientist blog --experiment <project_name> --source-workspace /hpc_stor03/sjtu_home/zijian.wang/Xcientist-os/Xcientist/workspace/<project_name>
 
 # Resume from last checkpoint
 xcientist blog --experiment <project_name> --resume

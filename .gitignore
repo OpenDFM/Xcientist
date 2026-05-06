@@ -64,7 +64,6 @@ uv.lock/
 .uv-cache/
 
 # Pipeline workspace
-workspace/
 
 # Cache directories
 .cache/

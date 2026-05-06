@@ -1,0 +1,130 @@
+{
+  "metric_columns": [
+    "Single Hop",
+    "Multi Hop",
+    "Temporal",
+    "Open Domain",
+    "Adversarial",
+    "Overall",
+    "Token Length"
+  ],
+  "baseline": {
+    "single_hop": 0.241,
+    "multi_hop": 0.147,
+    "temporal": 0.242,
+    "open_domain": 0.117,
+    "adversarial": 0.617,
+    "overall": 0.306,
+    "overall_f1": 0.306,
+    "token_length": 2844.1
+  },
+  "full_method": {
+    "single_hop": 0.299,
+    "multi_hop": 0.188,
+    "temporal": 0.31,
+    "open_domain": 0.223,
+    "adversarial": 0.788,
+    "overall": 0.391,
+    "overall_f1": 0.391,
+    "token_length": 1017.2
+  },
+  "baseline_f1": 0.306,
+  "full_f1": 0.391,
+  "baseline_overall": 0.306,
+  "full_overall": 0.391,
+  "improvement_ratio": 1.277777777777778,
+  "absolute_improvement": 0.08500000000000002,
+  "relative_improvement_pct": 27.777777777777786,
+  "baseline_token_length": 2844.1,
+  "full_token_length": 1017.2,
+  "token_length_reduction": 1826.8999999999999,
+  "token_length_reduction_pct": 64.23473154952357,
+  "baseline_condition": {
+    "modular_atomic_note_enricher": false,
+    "ultra_sparse_facet_handle_index": false,
+    "sloted_evidence_reranker": false,
+    "dedup_minority_aware_provenance_adjudicator": false
+  },
+  "full_condition": {
+    "modular_atomic_note_enricher": true,
+    "ultra_sparse_facet_handle_index": true,
+    "sloted_evidence_reranker": true,
+    "dedup_minority_aware_provenance_adjudicator": true
+  },
+  "baseline_num_samples": 10,
+  "full_num_samples": 10,
+  "baseline_category_metrics": {
+    "1": {
+      "name": "single_hop",
+      "display_name": "Single Hop",
+      "count": 282,
+      "avg_score": 0.241,
+      "avg_f1": 0.241
+    },
+    "2": {
+      "name": "multi_hop",
+      "display_name": "Multi Hop",
+      "count": 321,
+      "avg_score": 0.147,
+      "avg_f1": 0.147
+    },
+    "3": {
+      "name": "temporal",
+      "display_name": "Temporal",
+      "count": 96,
+      "avg_score": 0.242,
+      "avg_f1": 0.242
+    },
+    "4": {
+      "name": "open_domain",
+      "display_name": "Open Domain",
+      "count": 841,
+      "avg_score": 0.117,
+      "avg_f1": 0.117
+    },
+    "5": {
+      "name": "adversarial",
+      "display_name": "Adversarial",
+      "count": 446,
+      "avg_score": 0.617,
+      "avg_f1": 0.617
+    }
+  },
+  "full_category_metrics": {
+    "1": {
+      "name": "single_hop",
+      "display_name": "Single Hop",
+      "count": 282,
+      "avg_score": 0.299,
+      "avg_f1": 0.299
+    },
+    "2": {
+      "name": "multi_hop",
+      "display_name": "Multi Hop",
+      "count": 321,
+      "avg_score": 0.188,
+      "avg_f1": 0.188
+    },
+    "3": {
+      "name": "temporal",
+      "display_name": "Temporal",
+      "count": 96,
+      "avg_score": 0.31,
+      "avg_f1": 0.31
+    },
+    "4": {
+      "name": "open_domain",
+      "display_name": "Open Domain",
+      "count": 841,
+      "avg_score": 0.223,
+      "avg_f1": 0.223
+    },
+    "5": {
+      "name": "adversarial",
+      "display_name": "Adversarial",
+      "count": 446,
+      "avg_score": 0.788,
+      "avg_f1": 0.788
+    }
+  }
+}

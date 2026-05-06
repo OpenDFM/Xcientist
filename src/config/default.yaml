@@ -5,13 +5,13 @@
 # Global settings
 project:
   name: "x-scientist"
-  root: "${workspace}/.."  # Auto-resolve to parent directory
+  root: "${repo_root}"
 
 # ============================================
 # Workspace Configuration
 # ============================================
 workspace:
-  root: "${repo_root}/workspace"
+  root: "workspace"
 
 # ============================================
 # Shared API Configuration
@@ -426,6 +426,8 @@ paper:
 # Blog Agent Configuration
 # ============================================
 blog:
+  source_workspace_root: "${workspace.root}"
+
   # MiniMax API (default)
   minimax:
     api_key: "${api.minimax.api_key}"

@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from omegaconf import DictConfig, OmegaConf
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).absolute().parents[2]
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "default.yaml"
 _ENV_CANDIDATES = (
     REPO_ROOT / ".env",
@@ -86,11 +86,14 @@ def _preprocess_yaml_content(content: str) -> str:
 
 def _resolve_workspace(config: DictConfig) -> DictConfig:
     """Resolve custom path placeholders against repo root and workspace root."""
-    repo_root = str(REPO_ROOT.resolve())
+    repo_root = str(REPO_ROOT)
 
     # Use workspace.root from config if available, otherwise fallback to cwd/workspace
     if "workspace" in config and "root" in config.workspace:
         workspace = str(config.workspace.root).replace("__REPO_ROOT__", repo_root)
+        if not Path(workspace).expanduser().is_absolute():
+            workspace = str((REPO_ROOT / workspace).absolute())
+        config.workspace.root = workspace
     else:
         workspace = os.path.join(repo_root, "workspace")
 

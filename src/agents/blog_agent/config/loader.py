@@ -9,6 +9,7 @@ import yaml
 
 
 _INTERPOLATION_PATTERN = re.compile(r"\$\{([^}]+)\}")
+_REPO_ROOT = Path(__file__).absolute().parents[4]
 
 
 def get_config_path() -> Path:
@@ -33,6 +34,7 @@ def load_config(config_path: Optional[str] = None) -> dict:
 
     with open(path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f) or {}
+    _resolve_workspace_root(config)
     blog_config = config.get("blog", config)
 
     return _resolve_value(blog_config, config)
@@ -72,3 +74,12 @@ def _get_dotted_value(root: dict, dotted_path: str) -> Any:
             return ""
         current = current[part]
     return current
+
+
+def _resolve_workspace_root(config: dict) -> None:
+    workspace = config.get("workspace")
+    if not isinstance(workspace, dict) or "root" not in workspace:
+        return
+    root = str(workspace["root"])
+    if not Path(root).expanduser().is_absolute():
+        workspace["root"] = str((_REPO_ROOT / root).absolute())
