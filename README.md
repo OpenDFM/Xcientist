@@ -311,7 +311,7 @@ The current configuration layout is mixed by design:
 | Survey Agent | `survey:` block in `src/config/default.yaml` plus `src/agents/survey_agent/config/*.yaml` |
 | Idea Agent | `idea:` block in `src/config/default.yaml` |
 | Experiment Agent | `experiment:` block in `src/config/default.yaml` and environment variables |
-| Blog Agent | `src/agents/blog_agent/config/config.yaml` plus `BLOG_AGENT_SOURCE_WORKSPACE` when needed |
+| Blog Agent | `blog:` block in `src/config/default.yaml` plus `BLOG_AGENT_SOURCE_WORKSPACE` when needed |
 | Pipeline | `pipeline:` block in `src/config/default.yaml` |
 
 If you are starting fresh, edit `src/config/default.yaml` first. It is the most reliable single file to understand current defaults.

@@ -310,7 +310,7 @@ xcientist pipeline
 | Survey Agent | `src/config/default.yaml` 的 `survey:` 段，以及 `src/agents/survey_agent/config/*.yaml` |
 | Idea Agent | `src/config/default.yaml` 的 `idea:` 段 |
 | Experiment Agent | `src/config/default.yaml` 的 `experiment:` 段和环境变量 |
-| Blog Agent | `src/agents/blog_agent/config/config.yaml`，以及需要时设置 `BLOG_AGENT_SOURCE_WORKSPACE` |
+| Blog Agent | `src/config/default.yaml` 的 `blog:` 段，以及需要时设置 `BLOG_AGENT_SOURCE_WORKSPACE` |
 | Pipeline | `src/config/default.yaml` 的 `pipeline:` 段 |
 
 如果你是第一次配置这个项目，优先阅读和修改 `src/config/default.yaml`。

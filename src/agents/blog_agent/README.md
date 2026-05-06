@@ -53,7 +53,7 @@ blog_agent/
 ```
 3. Put these files into that folder
 4. Move `run_blog.sh` to ResearchAgent root directory
-5. Copy `config/config.yaml.example` to `config/config.yaml` and fill in your API key
+5. Fill in the `blog:` block in `src/config/default.yaml`
 6. Place `graph.db` (knowledge graph for paper search) into `blog_agent/utils/` folder
 7. (Optional) Edit `scripts/run.py` to change the `MODEL` parameter - this controls which model is actually used
 
@@ -119,22 +119,23 @@ If the agent stops during Step 3 (ANALYZEAgent), the status file shows `current_
 
 ## Configuration
 
-All configuration is in `config/config.yaml`:
+All configuration is in the `blog:` block of `src/config/default.yaml`.
 
 ### API Keys
 
 ```yaml
-minimax:
-  api_key: "your-minimax-api-key"
-  base_url: "https://api.minimaxi.com/v1"
+blog:
+  minimax:
+    api_key: "your-minimax-api-key"
+    base_url: "https://api.minimaxi.com/v1"
 
-openai:
-  api_key: "your-open-ai-api-key"
-  base_url: "https://api-2.xi-ai.cn/v1"
+  openai:
+    api_key: "your-open-ai-api-key"
+    base_url: "https://api-2.xi-ai.cn/v1"
 
-gemini:
-  api_key: "your-gemini-api-key"
-  base_url: "https://api.xi-ai.cn/v1"
+  gemini:
+    api_key: "your-gemini-api-key"
+    base_url: "https://api.xi-ai.cn/v1"
 ```
 
 - **minimax**: Default LLM provider for agents
@@ -144,29 +145,31 @@ gemini:
 ### Model Settings
 
 ```yaml
-model: "MiniMax-M2.5"  # Default model for all agents
+blog:
+  model: "MiniMax-M2.5"  # Default model for all agents
 ```
 
 ### Image Generation (gengraph)
 
 ```yaml
-gengraph:
-  provider: "xiai"  # Image generation provider
-  api_key: "your-image-api-key"
+blog:
+  gengraph:
+    provider: "xiai"  # Image generation provider
+    api_key: "your-image-api-key"
 
-  providers:
-    xiai:
-      base_url: "https://api.xi-ai.cn/v1"
-      model: "gemini-3-pro-image-preview"
-    openrouter:
-      base_url: "https://openrouter.ai/api/v1"
-      model: "google/gemini-3-pro-image-preview"
-    bianxie:
-      base_url: "https://api.bianxie.ai/v1"
-      model: "gemini-3-pro-image-preview"
-    gemini:
-      base_url: "https://generativelanguage.googleapis.com/v1beta"
-      model: "gemini-3-pro-image-preview"
+    providers:
+      xiai:
+        base_url: "https://api.xi-ai.cn/v1"
+        model: "gemini-3-pro-image-preview"
+      openrouter:
+        base_url: "https://openrouter.ai/api/v1"
+        model: "google/gemini-3-pro-image-preview"
+      bianxie:
+        base_url: "https://api.bianxie.ai/v1"
+        model: "gemini-3-pro-image-preview"
+      gemini:
+        base_url: "https://generativelanguage.googleapis.com/v1beta"
+        model: "gemini-3-pro-image-preview"
 ```
 
 - **provider**: Which AI provider to use for generating academic figures
@@ -175,8 +178,9 @@ gengraph:
 ### OCR / Text Removal
 
 ```yaml
-deeperaser:
-  use_cuda: false  # Whether to use GPU for DeepEraser (text removal from images)
+blog:
+  deeperaser:
+    use_cuda: false  # Whether to use GPU for DeepEraser (text removal from images)
 ```
 
 - **use_cuda**: Set to `true` if you have NVIDIA GPU and want faster OCR processing
@@ -184,8 +188,9 @@ deeperaser:
 ### Semantic Scholar API
 
 ```yaml
-semantic_scholar:
-  api_key: ""  # Optional: your Semantic Scholar API key for paper abstract retrieval and PDF download
+blog:
+  semantic_scholar:
+    api_key: ""  # Optional: your Semantic Scholar API key for paper abstract retrieval and PDF download
 ```
 
 - **api_key**: Optional. Without it, you can still search papers but may have rate limits.
@@ -193,8 +198,9 @@ semantic_scholar:
 ### Blog Illustration
 
 ```yaml
-illustrate:
-  only_gen_img: true  # true: only generate images, false: generate + OCR cleanup
+blog:
+  illustrate:
+    only_gen_img: true  # true: only generate images, false: generate + OCR cleanup
 ```
 
 - **only_gen_img**:
@@ -236,7 +242,7 @@ def get_openhands_config(model: str) -> dict:
 ```
 
 You also need to:
-1. Add the new provider to `config.yaml`
+1. Add the new provider to the `blog:` block in `src/config/default.yaml`
 2. Add model detection function (e.g., `is_new_provider`)
 
 ## Workflow
