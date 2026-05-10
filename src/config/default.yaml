@@ -316,47 +316,34 @@ idea:
 # ============================================
 experiment:
   enabled: true
-  api:
-    openai_api_key: "${api.openai.api_key}"
-    openai_api_base: "${api.openai.base_url}"
-    minimax_api_key: "${api.minimax.api_key}"
-    minimax_api_base: "${api.minimax.base_url}"
-    huggingface_endpoint: "${api.huggingface.endpoint}"
-    github_ai_token: "${api.github_ai.token}"
-    serper_api_key: "${api.serper.api_key}"
-    jina_api_key: "${api.jina.api_key}"
+  backend: "claude_code"
 
-  # Model configuration
-  models:
-    prepare: "MiniMax-M2.7"
-    code: "MiniMax-M2.7"
-    master: "MiniMax-M2.7"
-    science: "MiniMax-M2.7"
-    default: "MiniMax-M2.7"
-    agents:
-      prepare_agent: "${experiment.models.prepare}"
-      prepare_step_executor: "${experiment.models.prepare}"
-      prepare_repo_worker: "${experiment.models.prepare}"
-      prepare_env_worker: "${experiment.models.prepare}"
-      prepare_dataset_worker: "${experiment.models.prepare}"
-      prepare_model_worker: "${experiment.models.prepare}"
-      prepare_synthesis_worker: "${experiment.models.prepare}"
-      prepare_validator: "${experiment.models.prepare}"
-      code_agent: "${experiment.models.code}"
-      code_step_executor: "${experiment.models.code}"
-      code_worker: "${experiment.models.code}"
-      code_validator: "${experiment.models.code}"
-      master_agent: "${experiment.models.master}"
-      standard_science_agent: "${experiment.models.science}"
-      ablation_science_agent: "${experiment.models.science}"
-      standard_science_step_executor: "${experiment.models.science}"
-      ablation_science_step_executor: "${experiment.models.science}"
-      standard_science_worker: "${experiment.models.science}"
-      ablation_science_worker: "${experiment.models.science}"
-      standard_science_validator: "${experiment.models.science}"
-      ablation_science_validator: "${experiment.models.science}"
-      iteration_reporter: "${experiment.models.master}"
-      ablation_report_integrator: "${experiment.models.master}"
+  claude_code:
+    binary: "claude"
+    default_model: "mimo-v2.5-pro"
+    role_models:
+      planner: "mimo-v2.5-pro"
+      worker: "mimo-v2.5-pro"
+      validator: "mimo-v2.5-pro"
+      master: "mimo-v2.5-pro"
+      integrator: "mimo-v2.5-pro"
+    permission_mode: "bypassPermissions"
+    dangerously_skip_permissions: true
+    use_bare: false
+    settings_sources: "project"
+    global_settings_path: "~/.claude/settings.json"
+    global_client_config_path: "~/.claude.json"
+    mcp_config_path: ""
+    strict_mcp_config: false
+    no_session_persistence: true
+    timeout_seconds: 7200
+    max_budget_usd: 0
+
+  external_tools:
+    huggingface_endpoint: "https://hf-mirror.com"
+    github_ai_token: "${env:GITHUB_AI_TOKEN}"
+    serper_api_key: "${env:SERPER_API_KEY}"
+    jina_api_key: "${env:JINA_API_KEY}"
 
   # Execution configuration
   execution:
@@ -369,6 +356,15 @@ experiment:
     science_validation_feedback_rounds: 2
     bash_timeout_seconds: 600000
     mcp_timeout_seconds: 120
+    slurm:
+      partition: "gpu_llm"
+      gpus: 8
+      gpu_type: "NVIDIA A800-80G"
+      cpu_cores: 60
+      memory: "128G"
+      time_limit: "24:00:00"
+      log_dir_template: "{workspace}/logs/slurm"
+      job_name_template: "{experiment_condition}_{pde_type}_{timestamp}"
 
   # Memory configuration
   memory:
@@ -386,41 +382,10 @@ experiment:
   workspace:
     root: "${workspace.root}"
     prepare_clone_depth: 1
-    model_candidate_seed: "${repo_root}/models"
+    model_candidate_seed: "~/.researchagent/model_seed/"
     tavily_enabled: true
-    tavily_api_key: "${api.tavily.api_key}"
-    tavily_remote_url_template: "${api.tavily.remote_url_template}"
-
-# ============================================
-# Paper Agent Configuration
-# ============================================
-paper:
-  enabled: true
-  model: "MiniMax-M2.5"
-
-  api:
-    openai_api_key: "${api.openai.api_key}"
-    openai_api_base: "${api.openai.base_url}"
-    minimax_api_key: "${api.minimax.api_key}"
-    minimax_api_base: "${api.minimax.base_url}"
-    semantic_scholar_api_key: "${api.semantic_scholar.api_key}"
-    semantic_scholar_api_base: "${api.semantic_scholar.base_url}"
-
-  models:
-    default: "MiniMax-M2.5"
-    architect: "MiniMax-M2.5"
-    writer: "MiniMax-M2.5"
-    review: "MiniMax-M2.5"
-    analysis: "MiniMax-M2.5"
-    literature: "MiniMax-M2.5"
-    viz: "MiniMax-M2.5"
-    vlm: "gpt-4o"
-
-  workspace:
-    root: "${repo_root}/src/agents/paper_agent/workspaces"
-    experiment_root: "${repo_root}"
-
-  template_dir: "${repo_root}/src/agents/paper_agent/latex/ICML2025_Template"
+    tavily_api_key: "${env:TAVILY_API_KEY}"
+    tavily_remote_url_template: "https://mcp.tavily.com/mcp/?tavilyApiKey={api_key}"
 
 # ============================================
 # Blog Agent Configuration
@@ -529,14 +494,3 @@ pipeline:
     - "constraint"
     - "retrieval"
     - "augmentation"
-
-# ============================================
-# Environment Variable Mapping
-# ============================================
-env:
-  OPENAI_API_KEY: ""
-  SEMANTIC_SCHOLAR_API_KEY: ""
-  SERPER_API_KEY: ""
-  MINIMAX_API_KEY: ""
-  GITHUB_AI_TOKEN: ""
-  JINA_API_KEY: ""

@@ -1,6 +1,8 @@
 ---
 name: code-enablement
 description: Enable all required experiment conditions with runnable commands
+argument-hint: ""
+allowed-tools: Bash(*), Read, Edit, Write, Glob, Grep, Agent
 license: MIT
 ---
 

@@ -13,7 +13,7 @@ import os
 from typing import Any, Dict, List, Optional
 
 
-IDEA_COMPONENTS_HEADING = "## Idea Components"
+IDEA_COMPONENTS_HEADING = "## Canonical Idea Components"
 IDEA_JSON_CANDIDATE_FILENAMES = ("idea.json", "idea_result.json")
 
 

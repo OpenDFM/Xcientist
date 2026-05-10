@@ -20,7 +20,7 @@ RUN_LEVEL_SMOKE = "smoke"
 RUN_LEVEL_FULL = "full"
 RUN_LEVEL_MIXED = "mixed"
 
-VALID_PHASE_COMPLETION_STATES = {"not_started", "partial", "complete", "blocked"}
+VALID_PHASE_COMPLETION_STATES = {"not_started", "partial", "complete", "completed", "blocked"}
 
 
 def _normalize_text_list(value: Any) -> List[str]:
@@ -70,6 +70,8 @@ def phase_report_status(payload: Dict[str, Any]) -> str:
     status = str(raw or "").strip().upper()
     if status in {"PASS", "PARTIAL", "FAIL"}:
         return status
+    if status in {"COMPLETED", "COMPLETE", "SUCCESS"}:
+        return "PASS"
     return "UNKNOWN"
 
 

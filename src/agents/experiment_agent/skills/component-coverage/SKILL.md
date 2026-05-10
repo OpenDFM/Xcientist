@@ -1,6 +1,8 @@
 ---
 name: component-coverage
 description: Normalize idea components into explicit ablation requirements
+argument-hint: ""
+allowed-tools: Bash(*), Read, Edit, Write, Glob, Grep, Agent
 license: MIT
 ---
 

@@ -1,6 +1,8 @@
 ---
 name: resource-acquisition
 description: Deterministic protocol for repository, dataset, and benchmark acquisition
+argument-hint: ""
+allowed-tools: Bash(*), Read, Edit, Write, Glob, Grep, Agent
 license: MIT
 ---
 

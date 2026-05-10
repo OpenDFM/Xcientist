@@ -1,6 +1,8 @@
 ---
 name: code-planning
 description: Build a DAG of code changes and parallelize only disjoint write sets
+argument-hint: ""
+allowed-tools: Bash(*), Read, Edit, Write, Glob, Grep, Agent
 license: MIT
 ---
 

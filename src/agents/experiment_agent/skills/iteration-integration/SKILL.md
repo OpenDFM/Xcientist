@@ -1,6 +1,8 @@
 ---
 name: iteration-integration
 description: Summarize experiment status after each master iteration
+argument-hint: ""
+allowed-tools: Bash(*), Read, Edit, Write, Glob, Grep, Agent
 license: MIT
 ---
 

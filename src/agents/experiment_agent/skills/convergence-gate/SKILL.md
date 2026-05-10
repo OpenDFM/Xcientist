@@ -1,6 +1,8 @@
 ---
 name: convergence-gate
 description: Hard convergence rules for master orchestration
+argument-hint: ""
+allowed-tools: Bash(*), Read, Edit, Write, Glob, Grep, Agent
 license: MIT
 ---
 
@@ -26,6 +28,7 @@ Help the master agent decide whether another iteration is needed by prioritizing
 - **MANDATORY PHASE ORDER**: Code implementation (experiment_code_planner) MUST be completed before running any experiments (standard_science or ablation_science).
   - If `agent_reports/code_validator_report.json` does not exist with status PASS, you MUST choose `experiment_code_planner`.
   - If code implementation is incomplete or missing, experiments cannot run meaningfully.
+- **PREPARE PHASE**: Per-stage validators (repos, env, dataset, model) should NOT reject for missing synthesis artifacts. Only the synthesis-stage validator should check `prepare_target_inventory.json` and `prepare_idea.md`.
 - The only control output the outer loop consumes is:
   - `{"continue_iteration": true}`
   - `{"continue_iteration": false}`

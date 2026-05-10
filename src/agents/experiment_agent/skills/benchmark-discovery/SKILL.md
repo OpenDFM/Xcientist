@@ -1,6 +1,8 @@
 ---
 name: benchmark-discovery
 description: Discover the concrete benchmark surfaces and entrypoints required for evaluation
+argument-hint: ""
+allowed-tools: Bash(*), Read, Edit, Write, Glob, Grep, Agent
 license: MIT
 ---
 

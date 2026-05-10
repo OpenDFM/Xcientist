@@ -1,6 +1,8 @@
 ---
 name: environment-setup
 description: Create and verify the experiment runtime environment
+argument-hint: ""
+allowed-tools: Bash(*), Read, Edit, Write, Glob, Grep, Agent
 license: MIT
 ---
 

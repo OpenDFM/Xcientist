@@ -1,6 +1,8 @@
 ---
 name: science-execution
 description: Coverage-driven experiment execution loop
+argument-hint: ""
+allowed-tools: Bash(*), Read, Edit, Write, Glob, Grep, Agent
 license: MIT
 ---
 

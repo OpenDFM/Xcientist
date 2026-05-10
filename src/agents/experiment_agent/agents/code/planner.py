@@ -1,5 +1,5 @@
 """
-Code planner for experiment enablement.
+Claude Code-backed code planner for experiment enablement.
 """
 
 from __future__ import annotations
@@ -8,27 +8,10 @@ import json
 import os
 from typing import Any, Dict, List
 
-from openhands.sdk import Agent
-from openhands.sdk.subagent import register_agent
-from openhands.sdk.tool import Tool
-from openhands.tools.file_editor import FileEditorTool
-from openhands.tools.task import TaskToolSet
-from openhands.tools.task_tracker import TaskTrackerTool
-from openhands.tools.terminal import TerminalTool
-
-from src.agents.experiment_agent.agents.base.agent import OpenHandsBaseAgent
-from src.agents.experiment_agent.agents.base.subagents import (
-    default_builtin_tool_names,
-)
-from src.agents.experiment_agent.agents.code.step_executor import (
-    CODE_STEP_EXECUTOR,
-    create_code_step_executor_agent,
-)
-from src.agents.experiment_agent.config import (
-    get_code_agent_model,
-    get_agent_model,
-    get_planner_max_turns,
-)
+from src.agents.experiment_agent.agents.base.agent import BaseAgent
+from src.agents.experiment_agent.agents.code.validator import CODE_VALIDATOR, code_validator_prompt
+from src.agents.experiment_agent.agents.code.worker import CODE_WORKER, code_worker_prompt
+from src.agents.experiment_agent.config import get_code_agent_model
 from src.agents.experiment_agent.runtime.contracts import (
     CODE_STEP_CONTRACT_FIELDS,
     PHASE_VERDICT_FIELDS,
@@ -39,88 +22,63 @@ from src.agents.experiment_agent.runtime.contracts import (
 from src.agents.experiment_agent.runtime.manifests import (
     artifact_paths,
     extract_plan_steps,
+    write_json_file,
     workspace_contract_paths,
 )
+from src.agents.experiment_agent.runtime.phase_runner import (
+    execute_step_loop,
+    planner_output_schema,
+    validator_output_schema,
+    worker_output_schema,
+    with_phase_defaults,
+)
 from src.agents.experiment_agent.runtime.phase_contracts import normalize_phase_report
-from src.agents.experiment_agent.skills import get_code_agent_context
+from src.agents.experiment_agent.runtime.self_contained import scan_project_self_contained
 
 
 EXPERIMENT_CODE_PLANNER = "experiment_code_planner"
-_CODE_SUBAGENTS_REGISTERED = False
-_CODE_PLANNER_REGISTERED = False
 
 
-def _planner_tools() -> List[Tool]:
-    return [
-        Tool(name=TerminalTool.name),
-        Tool(name=FileEditorTool.name),
-        Tool(name=TaskTrackerTool.name),
-        Tool(name=TaskToolSet.name),
-    ]
+def _code_step_schema() -> Dict[str, Any]:
+    properties = {
+        "step_id": {"type": "string"},
+        "goal": {"type": "string"},
+        "step_contract_path": {"type": "string"},
+        "executor_report_path": {"type": "string"},
+        "repo_source_paths": {"type": "array", "items": {"type": "string"}},
+        "repo_copy_intent": {"type": "string"},
+        "project_target_paths": {"type": "array", "items": {"type": "string"}},
+        "input_paths": {"type": "object"},
+        "allowed_write_roots": {"type": "array", "items": {"type": "string"}},
+        "required_output_roots": {"type": "array", "items": {"type": "string"}},
+        "worker_report_path": {"type": "string"},
+        "validator_report_path": {"type": "string"},
+        "repos_policy": {"type": "string"},
+        "project_must_be_self_contained": {"type": "boolean"},
+        "provenance_manifest_path": {"type": "string"},
+        "write_scope": {"type": "string"},
+        "verify_command": {"type": "string"},
+        "max_repair_rounds": {"type": "integer"},
+        "done_condition": {"type": "string"},
+    }
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": properties,
+        "required": list(properties.keys()),
+    }
 
 
-# Templates are now used via SYSTEM_PROMPT_TEMPLATE class attribute
-# CodePlanner uses "code_planner_agent.j2" template
-
-
-def create_experiment_code_planner_agent(llm) -> Agent:
-    _register_code_subagents()
-    from openhands.sdk.context import AgentContext
-    from src.agents.experiment_agent.agents.base.agent import create_oh_llm
-    code_context = get_code_agent_context()
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-    template_path = os.path.join(base_dir, "prompts", "code_planner_agent.j2")
-    return Agent(
-        llm=create_oh_llm(get_agent_model("code_agent", "code"), usage_id="code_agent", stream=False),
-        tools=_planner_tools(),
-        agent_context=AgentContext(
-            skills=code_context.skills,
-            load_public_skills=False,
-        ),
-        system_prompt_filename=template_path,
-        include_default_tools=default_builtin_tool_names(),
-    )
-
-
-def _register_code_subagents() -> None:
-    global _CODE_SUBAGENTS_REGISTERED
-    if _CODE_SUBAGENTS_REGISTERED:
-        return
-    registrations = (
-        (CODE_STEP_EXECUTOR, create_code_step_executor_agent, "Executes one code step through the worker/validator repair loop."),
-    )
-    for name, factory, description in registrations:
-        try:
-            register_agent(
-                name=name,
-                factory_func=factory,
-                description=description,
-            )
-        except ValueError:
-            pass
-    _CODE_SUBAGENTS_REGISTERED = True
+def create_experiment_code_planner_agent(llm):
+    _ = llm
+    return {"role": EXPERIMENT_CODE_PLANNER}
 
 
 def register_experiment_code_planner() -> None:
-    global _CODE_PLANNER_REGISTERED
-    _register_code_subagents()
-    if _CODE_PLANNER_REGISTERED:
-        return
-    try:
-        register_agent(
-            name=EXPERIMENT_CODE_PLANNER,
-            factory_func=create_experiment_code_planner_agent,
-            description="Plans code implementation steps and coordinates code step executors.",
-        )
-    except ValueError:
-        pass
-    _CODE_PLANNER_REGISTERED = True
+    return None
 
 
-class CodeAgent(OpenHandsBaseAgent):
-    CODE_DEFAULT_MCP_SERVERS: List[str] = []
-    SYSTEM_PROMPT_TEMPLATE = "code_planner_agent.j2"
-
+class CodeAgent(BaseAgent):
     def __init__(
         self,
         experiment_id: str,
@@ -135,12 +93,8 @@ class CodeAgent(OpenHandsBaseAgent):
         super().__init__(
             agent_type="Code",
             model=model or get_code_agent_model(),
-            max_turns=get_planner_max_turns(),
             verbose=verbose,
             workspace_root=workspace_root,
-            enable_condenser=True,
-            condenser_max_size=250,
-            condenser_keep_first=40,
             resume=resume,
         )
         self.experiment_id = experiment_id
@@ -154,40 +108,13 @@ class CodeAgent(OpenHandsBaseAgent):
         self.usage_path = self.paths["code_usage"]
         self.plan_path = self.paths["code_plan"]
         self.validator_report_path = self.paths["code_validator"]
-        register_experiment_code_planner()
-
-    def _build_system_prompt(self, **kwargs) -> str:
-        _ = kwargs
-        return ""
-
-    def _get_tools(self):
-        return _planner_tools()
-
-    def _get_agent_context(self):
-        return get_code_agent_context()
 
     def _get_relevant_env_var_names(self) -> List[str]:
         keywords = ("KEY", "TOKEN", "SECRET", "API", "BASE_URL", "ENDPOINT")
         names = [name for name in os.environ if any(k in name.upper() for k in keywords)]
         return sorted(names)[:50]
 
-    def _build_mcp_config(self) -> Dict[str, Any]:
-        base_config = super()._build_mcp_config()
-        servers = base_config.get("mcpServers") if isinstance(base_config, dict) else None
-        if not isinstance(servers, dict):
-            return {"mcpServers": {}}
-        allowed_raw = os.environ.get("EXPERIMENT_AGENT_CODE_MCP_SERVERS", "")
-        allowed = [item.strip() for item in allowed_raw.split(",") if item and item.strip()]
-        if not allowed:
-            allowed = list(self.CODE_DEFAULT_MCP_SERVERS)
-        filtered_servers = {name: servers[name] for name in allowed if name in servers}
-        if not filtered_servers:
-            fallback = list(self.CODE_DEFAULT_MCP_SERVERS)
-            filtered_servers = {name: servers[name] for name in fallback if name in servers}
-        return {"mcpServers": filtered_servers}
-
-    def _build_user_prompt(self, **kwargs) -> str:
-        _ = kwargs
+    def _build_user_prompt(self) -> str:
         input_paths = format_named_paths(
             {
                 "idea_path": self.idea_path,
@@ -209,7 +136,8 @@ class CodeAgent(OpenHandsBaseAgent):
         verdict_fields = format_field_bullets(PHASE_VERDICT_FIELDS)
         return f"""## Task: Enable Experiment Code Paths
 
-### Goal: Implement the FULL IDEA in `project/` to support standard science AND ablation science experiments.
+### Goal
+Implement the full idea in `project/` to support standard science and ablation science experiments.
 
 ### Master Plan
 {self.plan}
@@ -220,118 +148,253 @@ class CodeAgent(OpenHandsBaseAgent):
 ### Path Contract
 {path_contract}
 
-### Required Flow
-1. Read the idea and validated prepare artifacts first.
-2. Write `{self.plan_path}` as a JSON object whose `stages` field is an ordered step list. Each step must include:
+### Required Planner Output
+Write a JSON object with `stages`, `summary`, and `usage_notes`.
+Every step in `stages` must include:
 {step_fields}
-3. The plan must end with a mandatory step whose `step_id` is exactly `final_integration_smoke`.
-4. Every step must tie to a real prepared target or benchmark path discovered from the prepare artifacts above.
-5. Every step must use a unique flat `worker_report_path`, `validator_report_path`, `step_contract_path`, and `executor_report_path` under `agent_reports_dir`; do not reuse a phase-global path for multiple steps.
-6. Use filenames that stay flat under `agent_reports_dir`, for example `code_step_01_<slug>_contract.json`, `code_step_01_<slug>_executor_report.json`, and `code_step_01_<slug>_attempt_01_worker_report.json`.
-7. If a step needs upstream implementation context, it must declare the exact minimal `repo_source_paths`, a `repo_copy_intent` of `none|reference_only|copy_and_modify`, and the intended `project_target_paths`.
-8. The `final_integration_smoke` step must:
-   - use the real prepared dataset path from `dataset_dir`
-   - use the real API/model path if the method depends on one, preferring `model_dir` for local models
-   - run the actual integrated command path that science will later rely on
-   - save bounded raw smoke artifacts under flat filenames in `agent_reports_dir`
-9. For each step, use `task` with `subagent_type="{CODE_STEP_EXECUTOR}"`.
-10. The runtime uses that step executor to keep the current `code_worker` -> `code_validator` loop active for the step until a validator-backed outcome exists.
-11. Do not move to the next step until the step executor reports validator-backed PASS.
-12. Do not manually paraphrase validator fixes back to the worker at the planner level.
-13. After all steps pass, write:
-   - `{self.paths["code_planner_report"]}`
-   - `{self.summary_path}`
-   - optional `{self.usage_path}`
-   - `{self.paths["code_integration_readiness"]}`
-   - `{self.paths["code_worker"]}`
-   - `{self.paths["code_validator"]}`
-14. The top-level code worker/validator reports are phase summaries only; debugging details must remain in the per-step flat reports under `agent_reports_dir`.
-15. The final validator report must use `status: PASS|FAIL`, set a generic `phase_completion_status`, and include:
+
+Rules:
+- The plan must end with a mandatory step whose `step_id` is exactly `final_integration_smoke`.
+- Every step must tie to real prepared targets discovered from prepare artifacts.
+- Use unique flat report filenames under `agent_reports_dir`.
+- `repos_policy` must be `reference_or_copy`.
+- `project_must_be_self_contained` must be true.
+- Do not ask the runtime to keep a runtime dependency on `repos/`.
+- Do not materialize science-owned artifacts like `ablation_results.json`.
+- If any step copies code from `repos/` into `project/` (via `repo_copy_intent=copy_and_modify`), the step's `done_condition` MUST explicitly require creating the provenance manifest at `provenance_manifest_path`. The manifest is a JSON mapping from each copied repo source file to its destination under `project/`, with a brief note on what was copied and why. The validator will FAIL the step without it.
+- Every step's `done_condition` MUST explicitly forbid `sys.path` injection, editable installs of `repos/`, and local-path imports reaching outside `project/`. These are validator FAIL conditions.
+- After exploring the workspace, write a blueprint to `{self.paths.get("code_blueprint", "agent_reports/code_blueprint.md")}` capturing:
+  - What you discovered about the prepare artifacts (data schema, model interfaces, etc.)
+  - Why you chose each step's approach
+  - Key implementation decisions and trade-offs
+  - What the worker should pay attention to in each step
+
+The runtime will execute each step through `{CODE_WORKER}` and review it through `{CODE_VALIDATOR}`.
+The final phase-level validator report must include:
 {verdict_fields}
 
-### Standard Science Support
-The code must implement entrypoints for:
-- **Baseline condition**: run with standard/original components
-- **Full method condition**: run with ALL idea.json components enabled
-Both must use `dataset_candidate/` data and produce comparable metrics.
+Candidate env vars: {", ".join(self._get_relevant_env_var_names()) if self._get_relevant_env_var_names() else "(none detected)"}.
+"""
 
-### Ablation Science Support
-For each idea.json component, the code must provide:
-- A **disable/ablation mechanism** that can disable the component WITHOUT modifying other components
-- A **method_context** describing what the ablated variant does
-- The ablation mechanism must be invokable by ablation science experiments
+    async def _plan(self) -> Dict[str, Any]:
+        result = await self.run(
+            user_prompt=self._build_user_prompt(),
+            agent_name=EXPERIMENT_CODE_PLANNER,
+            output_schema=planner_output_schema(step_schema=_code_step_schema()),
+        )
+        payload = result["output"]
+        write_json_file(self.plan_path, {"stages": payload["stages"]})
+        # Blueprint: rich markdown capturing exploration findings, context, and decision rationale.
+        # Workers read this to understand intent, not just the contract JSON.
+        blueprint_path = self.paths.get("code_blueprint", os.path.join(self.contract["agent_reports_dir"], "code_blueprint.md"))
+        write_json_file(
+            self.paths["code_planner_report"],
+            {
+                "scope": "code",
+                "summary": payload["summary"],
+                "usage_notes": payload["usage_notes"],
+                "plan_path": self.plan_path,
+                "blueprint_path": blueprint_path,
+            },
+        )
+        with open(self.usage_path, "w", encoding="utf-8") as f:
+            f.write(payload["usage_notes"].strip() + "\n")
+        # Write a default blueprint if the planner didn't produce one via its own exploration.
+        # The blueprint should be produced by the planner's exploration; if missing, synthesize from plan + summary.
+        if not os.path.exists(blueprint_path):
+            self._synthesize_blueprint(blueprint_path, payload)
+        return payload
 
-### Hard Rules
-- The validator decides whether a step is complete.
-- Do not hardcode model, dataset, benchmark, or API names into the plan. Infer them from the workspace artifacts you read.
-- When a step concerns ablation support, use the exact component names from the validated idea handoff. Do not rename, merge, split, omit, or reorder them.
-- All code edits and runnable entrypoints must live under `project_dir`.
-- `repos_policy` must be `reference_or_copy` for every step, `project_must_be_self_contained` must be `true`, and `provenance_manifest_path` must point to the shared manifest under `agent_reports/`.
-- The plan may ask workers to selectively copy implementation code from `repos/` into `project/` and modify it there, but it must never ask workers to keep a runtime dependency on `repos/`.
-- Do not leave repo usage implicit. If a step needs repo context, list the exact minimal `repo_source_paths`.
-- If `repo_copy_intent` is not `none`, `project_target_paths` must be populated and point only inside `project_dir`.
-- Do not ask workers to import from, install from, or editable-install from `repos/`.
-- Do not place experiment outputs under `results_dir` during the code phase.
-- Do not write any formal science result artifact or lane summary under `results/`. In particular, the code phase must not materialize `ablation_results.json`.
-- Do not collapse all steps into a single shared `code_worker` or `code_validator` path.
-- Do not call a target enabled unless it is materially runnable from the prepared workspace.
-- The code phase cannot pass without validator-backed success for `final_integration_smoke`.
-- Every idea.json component must have a corresponding ablation mechanism.
-- Candidate env vars: {", ".join(self._get_relevant_env_var_names()) if self._get_relevant_env_var_names() else "(none detected)"}.
+    def _synthesize_blueprint(self, blueprint_path: str, payload: Dict[str, Any]) -> None:
+        """Generate a blueprint.md from the plan payload when the planner didn't produce one directly."""
+        lines = [
+            "# Code Phase Blueprint",
+            "",
+            f"## Planner Summary",
+            "",
+            payload.get("summary", "(none)"),
+            "",
+            f"## Planned Steps ({len(payload.get('stages', []))} steps)",
+            "",
+        ]
+        for step in payload.get("stages", []):
+            lines.append(f"### `{step.get('step_id', '?')}`")
+            lines.append("")
+            lines.append(f"**Goal:** {step.get('goal', '')}")
+            lines.append("")
+            if step.get('done_condition'):
+                lines.append(f"**Done when:** {step['done_condition']}")
+                lines.append("")
+            if step.get('repo_source_paths'):
+                lines.append(f"**Source repos:** {', '.join(step['repo_source_paths'])}")
+                lines.append("")
+            if step.get('project_target_paths'):
+                lines.append(f"**Target paths:** {', '.join(step['project_target_paths'])}")
+                lines.append("")
+        lines.append(f"## Usage Notes\n\n{payload.get('usage_notes', '')}\n")
+        os.makedirs(os.path.dirname(blueprint_path), exist_ok=True)
+        with open(blueprint_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
 
-Finish by printing exactly: CODE ENABLEMENT COMPLETE"""
-
-    def _validator_passed(self) -> bool:
-        if not os.path.exists(self.validator_report_path):
-            return False
-        try:
-            with open(self.validator_report_path, "r", encoding="utf-8") as f:
-                payload = json.load(f)
-        except Exception:
-            return False
-        return normalize_phase_report(payload).get("status") == "PASS"
-
-    def _validate_plan_artifact(self) -> None:
-        if not os.path.exists(self.plan_path):
-            raise RuntimeError(f"Code planner did not write required plan file: {self.plan_path}")
-        try:
-            with open(self.plan_path, "r", encoding="utf-8") as f:
-                plan_payload = json.load(f)
-        except Exception as exc:
-            raise RuntimeError(f"Code plan is not valid JSON: {self.plan_path}") from exc
-        steps = extract_plan_steps(plan_payload)
-        if not isinstance(steps, list) or not steps:
-            raise RuntimeError(
-                "Code plan must be a non-empty JSON list of step contracts or a JSON object containing non-empty `stages`/`steps`."
-            )
-
-        errors: list[str] = []
+    def _validate_plan_artifact(self, steps: List[Dict[str, Any]]) -> None:
+        if not steps:
+            raise RuntimeError("Code plan must contain at least one step.")
+        errors: List[str] = []
         for index, step in enumerate(steps, start=1):
-            if not isinstance(step, dict):
-                errors.append(f"step {index}: expected object, got {type(step).__name__}")
-                continue
             errors.extend(
                 f"step {index}: {message}"
                 for message in validate_repo_contract_fields(step, project_dir=self.project_root)
             )
+        if steps[-1].get("step_id") != "final_integration_smoke":
+            errors.append("final step_id must be `final_integration_smoke`")
         if errors:
             raise RuntimeError("Invalid code plan contract:\n- " + "\n- ".join(errors))
 
-    async def execute(self) -> Dict[str, Any]:
+    async def _call_worker(self, step: Dict[str, Any], previous_review: Dict[str, Any] | None) -> Dict[str, Any]:
+        retry_brief = ""
+        if previous_review:
+            retry_brief = str(previous_review.get("next_worker_input") or "").strip()
+        blueprint_path = self.paths.get("code_blueprint", "")
+        blueprint_hint = ""
+        if blueprint_path and os.path.exists(blueprint_path):
+            blueprint_hint = f"""
+Before executing, read the planner's blueprint to understand the full context:
+`{blueprint_path}`
+
+The blueprint contains the planner's exploration findings, design rationale, and key decisions.
+Use this context to make informed implementation choices rather than blindly following the contract.
+"""
+        prompt = f"""Implement this code step.
+{blueprint_hint}
+Step contract:
+```json
+{json.dumps(step, ensure_ascii=False, indent=2)}
+```
+
+Previous validator feedback:
+```json
+{json.dumps(previous_review or {}, ensure_ascii=False, indent=2)}
+```
+
+Return only structured JSON describing what you changed and what evidence now exists. The runtime will write the worker report file.
+"""
         result = await self.run(
-            user_prompt=self._build_user_prompt(),
-            system_prompt=self._build_system_prompt(),
+            user_prompt=prompt,
+            agent_name=CODE_WORKER,
+            system_prompt=code_worker_prompt(),
+            output_schema=worker_output_schema(),
         )
-        self._validate_plan_artifact()
-        output = self._extract_output(result)
-        summary_content = self._read_text_file(self.summary_path).strip() or output or ""
-        usage_content = self._read_text_file(self.usage_path).strip()
-        status = "completed" if self._validator_passed() else "insufficient"
+        payload = dict(result["output"])
+        if retry_brief and retry_brief not in payload["summary"]:
+            payload["summary"] = f"{payload['summary']}\nRetry brief addressed: {retry_brief}".strip()
+        return payload
+
+    async def _call_validator(self, step: Dict[str, Any], worker_payload: Dict[str, Any]) -> Dict[str, Any]:
+        prompt = f"""Review this completed code step.
+
+Step contract:
+```json
+{json.dumps(step, ensure_ascii=False, indent=2)}
+```
+
+Worker report:
+```json
+{json.dumps(worker_payload, ensure_ascii=False, indent=2)}
+```
+
+Return structured review JSON only. The runtime will write the validator report file.
+"""
+        result = await self.run(
+            user_prompt=prompt,
+            agent_name=CODE_VALIDATOR,
+            system_prompt=code_validator_prompt(),
+            output_schema=validator_output_schema(),
+        )
+        return result["output"]
+
+    def _write_phase_reports(
+        self,
+        *,
+        plan_payload: Dict[str, Any],
+        step_result: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        self_contained = scan_project_self_contained(self.project_root, self.workspace_root)
+        write_json_file(self.paths["self_contained_report"], self_contained)
+        ok = step_result["status"] == "PASS" and bool(self_contained.get("self_contained_project"))
+        failure = step_result.get("failed_validator_report") or {}
+        validator_payload = with_phase_defaults(
+            {
+                "status": "PASS" if ok else "FAIL",
+                "scope": "code",
+                "checked_artifacts": [self.plan_path, self.summary_path],
+                "findings": [] if ok else list(failure.get("findings") or []),
+                "required_fixes": [] if ok else list(failure.get("required_fixes") or []),
+                "evidence_summary": plan_payload["summary"] if ok else str(failure.get("evidence_summary") or "code phase incomplete"),
+                "phase_completion_status": "complete" if ok else "partial",
+                "ready_for_next_phase": bool(ok),
+                "blocking_issues": [] if ok else list(failure.get("blocking_issues") or [f"Failed step: {step_result.get('failed_step', {}).get('step_id', 'unknown')}"]),
+                "required_followup": [] if ok else list(failure.get("required_followup") or []),
+                "artifact_role": "phase_result",
+                "run_level": "mixed",
+                "self_contained_project": bool(self_contained.get("self_contained_project")),
+                "self_contained_violations": list(self_contained.get("self_contained_violations") or []),
+                "provenance_manifest_present": os.path.exists(self.paths["project_code_provenance"]),
+                "provenance_manifest_path": self.paths["project_code_provenance"],
+                "terminal_blocker": bool(failure.get("terminal_blocker")),
+                "next_worker_input": str(failure.get("next_worker_input") or ""),
+            },
+            scope="code",
+        )
+        write_json_file(self.paths["code_validator"], validator_payload)
+        write_json_file(
+            self.paths["code_integration_readiness"],
+            {
+                "status": validator_payload["status"],
+                "self_contained_project": validator_payload["self_contained_project"],
+                "self_contained_report_path": self.paths["self_contained_report"],
+                "validator_report_path": self.paths["code_validator"],
+            },
+        )
+        worker_phase_payload = {
+            "scope": "code",
+            "status": validator_payload["status"],
+            "summary": plan_payload["summary"],
+            "executed_steps": [report.get("scope", "code") for report in step_result.get("step_reports", [])],
+        }
+        write_json_file(self.paths["code_worker"], worker_phase_payload)
+        summary_lines = [
+            "# Code Summary",
+            "",
+            f"- status: {validator_payload['status']}",
+            f"- ready_for_next_phase: {validator_payload['ready_for_next_phase']}",
+            f"- planner_summary: {plan_payload['summary']}",
+        ]
+        for issue in validator_payload["blocking_issues"]:
+            summary_lines.append(f"- blocker: {issue}")
+        with open(self.summary_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(summary_lines) + "\n")
+        return validator_payload
+
+    async def execute(self) -> Dict[str, Any]:
+        plan_payload = await self._plan()
+        steps = plan_payload["stages"]
+        self._validate_plan_artifact(steps)
+        # Contract data is already in plan JSON; execute_step_loop passes it
+        # in prompts. Step contract files are not needed for execution.
+        step_result = await execute_step_loop(
+            steps=steps,
+            scope="code",
+            workspace_root=self.workspace_root,
+            call_worker=self._call_worker,
+            call_validator=self._call_validator,
+        )
+        validator_payload = self._write_phase_reports(plan_payload=plan_payload, step_result=step_result)
+        status = "completed" if normalize_phase_report(validator_payload).get("status") == "PASS" else "insufficient"
         return {
-            "summary": summary_content,
-            "usage": usage_content or summary_content,
+            "summary": self._read_text_file(self.summary_path).strip(),
+            "usage": self._read_text_file(self.usage_path).strip(),
             "summary_path": self.summary_path,
-            "usage_path": self.usage_path if os.path.exists(self.usage_path) else None,
+            "usage_path": self.usage_path,
             "status": status,
         }
 

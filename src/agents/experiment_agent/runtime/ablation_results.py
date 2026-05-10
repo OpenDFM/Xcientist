@@ -406,11 +406,69 @@ def write_ablation_results_artifacts(
     return result
 
 
+def write_ablation_results_from_payload(
+    workspace_root: str,
+    project_root: Optional[str] = None,
+    *,
+    payload: Dict[str, Any],
+    generated_by: str = "agent",
+    source_evidence_files: Optional[List[str]] = None,
+    blocker: Optional[str] = None,
+    ablation_results_path: Optional[str] = None,
+    integrator_report_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    paths = artifact_paths(workspace_root, project_root)
+    idea_json_path = find_idea_json_path(workspace_root) or paths["idea_json"]
+    canonical_records = _canonical_component_records(
+        workspace_root,
+        idea_json_path=idea_json_path,
+    )
+    canonical_names = [record["component"] for record in canonical_records]
+    valid, error = validate_ablation_results_payload(
+        payload,
+        canonical_component_names=canonical_names,
+    )
+    target_results_path = ablation_results_path or paths["ablation_results"]
+    target_report_path = integrator_report_path or paths["ablation_report_integrator_report"]
+    target_contract_path = paths["final_artifact_contract"]
+    final_contract = build_ablation_final_artifact_contract(
+        workspace_root,
+        idea_json_path=idea_json_path,
+    )
+    report = {
+        "valid": bool(valid),
+        "generated_by": generated_by,
+        "mode": "agent_write",
+        "artifact_role": ARTIFACT_ROLE_FINAL_RESULT,
+        "source_evidence_files": list(source_evidence_files or [idea_json_path]),
+        "canonical_components": canonical_names,
+        "blocker": blocker if blocker else (None if valid else error),
+        "final_artifact_contract_path": target_contract_path,
+    }
+    write_json_file(target_report_path, report)
+    write_json_file(target_contract_path, final_contract)
+    result = {
+        "valid": bool(valid),
+        "payload": payload if valid else None,
+        "report": report,
+        "blocker": report["blocker"],
+        "ablation_results_path": target_results_path,
+        "integrator_report_path": target_report_path,
+        "final_artifact_contract_path": target_contract_path,
+        "final_artifact_contract": final_contract,
+    }
+    if not valid:
+        return result
+    write_json_file(target_results_path, payload)
+    return result
+
+
 __all__ = [
     "REQUIRED_COMPONENT_FIELDS",
     "REQUIRED_SUMMARY_FIELDS",
     "build_ablation_final_artifact_contract",
     "build_ablation_results_artifacts",
     "validate_ablation_results_payload",
+    "write_ablation_results_from_payload",
     "write_ablation_results_artifacts",
 ]

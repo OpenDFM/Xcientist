@@ -1,6 +1,8 @@
 ---
 name: prepare-planning
 description: Plan ordered prepare subtasks and end with validator-backed handoff artifacts
+argument-hint: ""
+allowed-tools: Bash(*), Read, Edit, Write, Glob, Grep, Agent
 license: MIT
 ---
 

@@ -37,6 +37,12 @@ CODE_STEP_CONTRACT_FIELDS: Tuple[str, ...] = (
     "goal",
     "step_contract_path",
     "executor_report_path",
+    "component_scope",
+    "code_artifacts",
+    "interface_contract",
+    "implementation_requirements",
+    "ablation_hooks",
+    "experiment_bindings",
     "repo_source_paths",
     "repo_copy_intent",
     "project_target_paths",
@@ -59,6 +65,13 @@ SCIENCE_STANDARD_STEP_FIELDS: Tuple[str, ...] = (
     "goal",
     "step_contract_path",
     "executor_report_path",
+    "train_dataset_binding",
+    "evaluation_dataset_bindings",
+    "metric_bindings",
+    "baseline_binding",
+    "full_method_binding",
+    "comparison_table_schema",
+    "claim_axis_binding",
     "repo_source_paths",
     "repo_copy_intent",
     "project_target_paths",
@@ -83,6 +96,13 @@ SCIENCE_ABLATION_STEP_FIELDS: Tuple[str, ...] = (
     "goal",
     "step_contract_path",
     "executor_report_path",
+    "train_dataset_binding",
+    "evaluation_dataset_bindings",
+    "metric_bindings",
+    "baseline_reference",
+    "ablated_condition_binding",
+    "expected_effect_axis",
+    "result_interpretation_rule",
     "repo_source_paths",
     "repo_copy_intent",
     "project_target_paths",
@@ -107,21 +127,11 @@ SCIENCE_ABLATION_STEP_FIELDS: Tuple[str, ...] = (
 
 PHASE_VERDICT_FIELDS: Tuple[str, ...] = (
     "status",
-    "scope",
-    "checked_artifacts",
-    "findings",
-    "required_fixes",
     "evidence_summary",
-    "phase_completion_status",
-    "ready_for_next_phase",
-    "blocking_issues",
-    "required_followup",
-    "artifact_role",
-    "run_level",
-    "self_contained_project",
-    "self_contained_violations",
-    "provenance_manifest_present",
-    "provenance_manifest_path",
+    "required_fixes",
+    "terminal_blocker",
+    "next_worker_input",
+    "checked_artifacts",
 )
 
 ABLATION_COMPONENT_RESULT_FIELDS: Tuple[str, ...] = (
@@ -163,8 +173,17 @@ def validate_repo_contract_fields(
         repo_source_paths = [item.strip() for item in repo_source_paths if item.strip()]
 
     repo_copy_intent = str(payload.get("repo_copy_intent") or "").strip()
-    if repo_copy_intent not in {"none", "reference_only", "copy_and_modify"}:
-        errors.append("`repo_copy_intent` must be one of `none|reference_only|copy_and_modify`")
+    # LLMs often add explanatory text after the enum value; extract the prefix.
+    _VALID_INTENTS = {"none", "reference_only", "copy_and_modify"}
+    if repo_copy_intent not in _VALID_INTENTS:
+        # Try extracting just the first token/word in case LLM appended explanation
+        first_word = repo_copy_intent.split()[0] if repo_copy_intent else ""
+        if first_word in _VALID_INTENTS:
+            repo_copy_intent = first_word
+            payload = dict(payload)
+            payload["repo_copy_intent"] = repo_copy_intent
+        else:
+            errors.append("`repo_copy_intent` must be one of `none|reference_only|copy_and_modify`")
 
     project_target_paths = payload.get("project_target_paths")
     if not isinstance(project_target_paths, list) or not all(
@@ -189,5 +208,52 @@ def validate_repo_contract_fields(
             normalized_project_dir + os.sep
         ):
             errors.append(f"`project_target_paths` entry must stay inside project_dir: {target}")
+
+    return errors
+
+
+def validate_code_step_contract_fields(
+    payload: Mapping[str, Any],
+    *,
+    project_dir: str,
+) -> list[str]:
+    errors = validate_repo_contract_fields(payload, project_dir=project_dir)
+
+    if not isinstance(payload.get("component_scope"), list) or not all(
+        isinstance(item, str) and item.strip() for item in (payload.get("component_scope") or [])
+    ):
+        errors.append("`component_scope` must be a non-empty list of strings")
+
+    code_artifacts = payload.get("code_artifacts")
+    if not isinstance(code_artifacts, list) or not code_artifacts:
+        errors.append("`code_artifacts` must be a non-empty list")
+    else:
+        required_artifact_keys = {
+            "path",
+            "artifact_type",
+            "symbols",
+            "responsibility",
+            "dependencies",
+            "config_keys",
+            "entrypoint_role",
+        }
+        for index, item in enumerate(code_artifacts, start=1):
+            if not isinstance(item, Mapping):
+                errors.append(f"`code_artifacts[{index}]` must be an object")
+                continue
+            missing = required_artifact_keys - set(item.keys())
+            if missing:
+                errors.append(
+                    f"`code_artifacts[{index}]` missing required keys: {', '.join(sorted(missing))}"
+                )
+
+    for field in ("interface_contract", "implementation_requirements", "experiment_bindings"):
+        if not isinstance(payload.get(field), Mapping) or not payload.get(field):
+            errors.append(f"`{field}` must be a non-empty object")
+
+    ablation_hooks = payload.get("ablation_hooks")
+    component_scope = payload.get("component_scope") or []
+    if component_scope and (not isinstance(ablation_hooks, list) or not ablation_hooks):
+        errors.append("`ablation_hooks` must be a non-empty list when `component_scope` is defined")
 
     return errors

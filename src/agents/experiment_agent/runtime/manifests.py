@@ -41,6 +41,7 @@ def workspace_contract_paths(workspace_root: str, project_root: Optional[str] = 
 def artifact_paths(workspace_root: str, project_root: Optional[str] = None) -> Dict[str, str]:
     contract = workspace_contract_paths(workspace_root, project_root)
     reports_dir = contract["agent_reports_dir"]
+    claude_trace_dir = os.path.join(contract["workspace_dir"], "logs", "claude_code")
     return {
         **contract,
         "idea": os.path.join(reports_dir, "prepare_idea.md"),
@@ -48,15 +49,30 @@ def artifact_paths(workspace_root: str, project_root: Optional[str] = None) -> D
         "prepare_target_inventory": os.path.join(reports_dir, "prepare_target_inventory.json"),
         "project_code_provenance": os.path.join(reports_dir, "project_code_provenance.json"),
         "prepare_planner_report": os.path.join(reports_dir, "prepare_planner_report.json"),
+        "prepare_blueprint": os.path.join(reports_dir, "prepare_blueprint.md"),
+        "prepare_plan": os.path.join(reports_dir, "prepare_plan.json"),
+        "prepare_repo_worker": os.path.join(reports_dir, "prepare_repo_worker_report.json"),
+        "prepare_repo_validator": os.path.join(reports_dir, "prepare_repo_validator_report.json"),
+        "prepare_env_worker": os.path.join(reports_dir, "prepare_env_worker_report.json"),
+        "prepare_env_validator": os.path.join(reports_dir, "prepare_env_validator_report.json"),
+        "prepare_dataset_worker": os.path.join(reports_dir, "prepare_dataset_worker_report.json"),
+        "prepare_dataset_validator": os.path.join(reports_dir, "prepare_dataset_validator_report.json"),
+        "prepare_model_worker": os.path.join(reports_dir, "prepare_model_worker_report.json"),
+        "prepare_model_validator": os.path.join(reports_dir, "prepare_model_validator_report.json"),
+        "prepare_handoff_worker": os.path.join(reports_dir, "prepare_handoff_worker_report.json"),
+        "prepare_validator": os.path.join(reports_dir, "prepare_validator_report.json"),
         "code_plan": os.path.join(reports_dir, "code_plan.json"),
+        "code_blueprint": os.path.join(reports_dir, "code_blueprint.md"),
         "code_planner_report": os.path.join(reports_dir, "code_planner_report.json"),
         "code_summary": os.path.join(reports_dir, "code_summary.md"),
         "code_usage": os.path.join(reports_dir, "code_usage.md"),
         "code_integration_readiness": os.path.join(reports_dir, "code_integration_readiness.json"),
         "standard_science_plan": os.path.join(reports_dir, "standard_science_plan.json"),
+        "standard_science_blueprint": os.path.join(reports_dir, "standard_science_blueprint.md"),
         "standard_science_planner_report": os.path.join(reports_dir, "standard_science_planner_report.json"),
         "standard_summary": os.path.join(reports_dir, "standard_science_summary.md"),
         "ablation_science_plan": os.path.join(reports_dir, "ablation_science_plan.json"),
+        "ablation_science_blueprint": os.path.join(reports_dir, "ablation_science_blueprint.md"),
         "ablation_science_planner_report": os.path.join(reports_dir, "ablation_science_planner_report.json"),
         "ablation_summary": os.path.join(reports_dir, "ablation_science_summary.md"),
         "master_report": os.path.join(reports_dir, "master_report.md"),
@@ -93,6 +109,11 @@ def artifact_paths(workspace_root: str, project_root: Optional[str] = None) -> D
         "step_attempt_state": os.path.join(reports_dir, "step_attempt_state.json"),
         "iteration_summary": os.path.join(reports_dir, "iteration_summary.md"),
         "iteration_status": os.path.join(reports_dir, "iteration_status.json"),
+        "claude_trace_dir": claude_trace_dir,
+        "claude_trace_latest": os.path.join(claude_trace_dir, "latest.json"),
+        "claude_trace_index": os.path.join(claude_trace_dir, "index.jsonl"),
+        "claude_trace_errors": os.path.join(claude_trace_dir, "trace_errors.log"),
+        "claude_trace_index_report": os.path.join(reports_dir, "claude_trace_index.json"),
     }
 
 
@@ -183,6 +204,19 @@ def write_json_file(path: str, payload: Dict[str, Any]) -> str:
     return path
 
 
+def ensure_claude_trace_paths(workspace_root: str, project_root: Optional[str] = None) -> Dict[str, str]:
+    paths = artifact_paths(workspace_root, project_root)
+    os.makedirs(paths["claude_trace_dir"], exist_ok=True)
+    os.makedirs(os.path.dirname(paths["claude_trace_index_report"]), exist_ok=True)
+    return {
+        "trace_dir": paths["claude_trace_dir"],
+        "latest_path": paths["claude_trace_latest"],
+        "index_path": paths["claude_trace_index"],
+        "errors_path": paths["claude_trace_errors"],
+        "report_path": paths["claude_trace_index_report"],
+    }
+
+
 def write_env_file(path: str, env_vars: Dict[str, str]) -> str:
     """Write environment variables to a .env file."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -199,6 +233,7 @@ def load_workspace_state(workspace_root: str) -> Dict[str, Optional[Dict[str, An
 
 __all__ = [
     "artifact_paths",
+    "ensure_claude_trace_paths",
     "ensure_canonical_workspace_artifacts",
     "extract_plan_steps",
     "load_json_file",

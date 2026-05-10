@@ -1,6 +1,8 @@
 ---
 name: bounded-tool-use
 description: Context-efficient file and terminal usage for experiment agents
+argument-hint: ""
+allowed-tools: Bash(*), Read, Edit, Write, Glob, Grep, Agent
 license: MIT
 ---
 

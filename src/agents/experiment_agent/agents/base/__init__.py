@@ -1,10 +1,9 @@
 """
-Shared OpenHands base abstractions for experiment-agent runtime.
+Shared base abstractions for experiment-agent runtime.
 """
 
 from src.agents.experiment_agent.agents.base.agent import (
     BaseAgent,
-    OpenHandsBaseAgent,
     PromptBuilder,
     get_all_tools,
 )
@@ -23,7 +22,6 @@ from src.agents.experiment_agent.agents.base.schemas import (
 
 __all__ = [
     "BaseAgent",
-    "OpenHandsBaseAgent",
     "PromptBuilder",
     "get_all_tools",
     "AgentResult",

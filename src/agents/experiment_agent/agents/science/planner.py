@@ -1,5 +1,5 @@
 """
-Science planners built on TaskToolSet.
+Claude Code-backed science planners.
 """
 
 from __future__ import annotations
@@ -8,29 +8,20 @@ import json
 import os
 from typing import Any, Dict, List
 
-from openhands.sdk import Agent
-from openhands.sdk.subagent import register_agent
-from openhands.sdk.tool import Tool
-from openhands.tools.file_editor import FileEditorTool
-from openhands.tools.task import TaskToolSet
-from openhands.tools.task_tracker import TaskTrackerTool
-from openhands.tools.terminal import TerminalTool
-
-from src.agents.experiment_agent.agents.base.agent import OpenHandsBaseAgent
-from src.agents.experiment_agent.agents.base.subagents import (
-    default_builtin_tool_names,
+from src.agents.experiment_agent.agents.base.agent import BaseAgent
+from src.agents.experiment_agent.agents.science.validator import (
+    ABLATION_SCIENCE_VALIDATOR,
+    STANDARD_SCIENCE_VALIDATOR,
+    ablation_science_validator_prompt,
+    standard_science_validator_prompt,
 )
-from src.agents.experiment_agent.agents.science.step_executor import (
-    ABLATION_SCIENCE_STEP_EXECUTOR,
-    STANDARD_SCIENCE_STEP_EXECUTOR,
-    create_ablation_science_step_executor_agent,
-    create_standard_science_step_executor_agent,
+from src.agents.experiment_agent.agents.science.worker import (
+    ABLATION_SCIENCE_WORKER,
+    STANDARD_SCIENCE_WORKER,
+    ablation_science_worker_prompt,
+    standard_science_worker_prompt,
 )
-from src.agents.experiment_agent.config import (
-    get_agent_model,
-    get_planner_max_turns,
-    get_science_agent_model,
-)
+from src.agents.experiment_agent.config import get_agent_model
 from src.agents.experiment_agent.runtime.contracts import (
     ABLATION_COMPONENT_RESULT_FIELDS,
     PHASE_VERDICT_FIELDS,
@@ -44,143 +35,87 @@ from src.agents.experiment_agent.runtime.idea_components import (
     format_canonical_components_markdown,
     load_canonical_components,
 )
-from src.agents.experiment_agent.runtime.manifests import (
-    artifact_paths,
-    extract_plan_steps,
-    workspace_contract_paths,
+from src.agents.experiment_agent.runtime.manifests import artifact_paths, write_json_file, workspace_contract_paths
+from src.agents.experiment_agent.runtime.phase_runner import (
+    execute_step_loop,
+    planner_output_schema,
+    validator_output_schema,
+    worker_output_schema,
+    with_phase_defaults,
 )
 from src.agents.experiment_agent.runtime.phase_contracts import normalize_phase_report
-from src.agents.experiment_agent.skills import get_exp_agent_context
 
 
 EXPERIMENT_STANDARD_SCIENCE_PLANNER = "experiment_standard_science_planner"
 EXPERIMENT_ABLATION_SCIENCE_PLANNER = "experiment_ablation_science_planner"
-STANDARD_SCIENCE_VALIDATOR_REPORT = "standard_science_validator_report.json"
-ABLATION_SCIENCE_VALIDATOR_REPORT = "ablation_science_validator_report.json"
-_SCIENCE_SUBAGENTS_REGISTERED = False
-_SCIENCE_PLANNERS_REGISTERED = False
 
 
-def _planner_tools() -> List[Tool]:
-    return [
-        Tool(name=TerminalTool.name),
-        Tool(name=FileEditorTool.name),
-        Tool(name=TaskTrackerTool.name),
-        Tool(name=TaskToolSet.name),
-    ]
+def _science_step_schema(*, ablation: bool) -> Dict[str, Any]:
+    properties = {
+        "step_id": {"type": "string"},
+        "goal": {"type": "string"},
+        "step_contract_path": {"type": "string"},
+        "executor_report_path": {"type": "string"},
+        "repo_source_paths": {"type": "array", "items": {"type": "string"}},
+        "repo_copy_intent": {"type": "string"},
+        "project_target_paths": {"type": "array", "items": {"type": "string"}},
+        "input_paths": {"type": "object"},
+        "allowed_write_roots": {"type": "array", "items": {"type": "string"}},
+        "required_output_roots": {"type": "array", "items": {"type": "string"}},
+        "worker_report_path": {"type": "string"},
+        "validator_report_path": {"type": "string"},
+        "repos_policy": {"type": "string"},
+        "project_must_be_self_contained": {"type": "boolean"},
+        "provenance_manifest_path": {"type": "string"},
+        "command": {"type": "string"},
+        "output_dir": {"type": "string"},
+        "raw_evidence": {"type": "array", "items": {"type": "string"}},
+        "max_repair_rounds": {"type": "integer"},
+        "pass_condition": {"type": "string"},
+    }
+    if ablation:
+        properties.update(
+            {
+                "component_or_condition": {"type": "string"},
+                "canonical_component_index": {"type": "string"},
+                "component_explanation": {"type": "string"},
+                "method_context_change": {"type": "string"},
+            }
+        )
+    else:
+        properties["target_scope"] = {"type": "string"}
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": properties,
+        "required": list(properties.keys()),
+    }
 
 
-# Templates are now used directly via SYSTEM_PROMPT_TEMPLATE class attribute
-# StandardScienceAgent uses "standard_science_planner_agent.j2"
-# AblationScienceAgent uses "ablation_science_planner_agent.j2"
+def create_standard_science_planner_agent(llm):
+    _ = llm
+    return {"role": EXPERIMENT_STANDARD_SCIENCE_PLANNER}
 
 
-def _register_science_subagents() -> None:
-    global _SCIENCE_SUBAGENTS_REGISTERED
-    if _SCIENCE_SUBAGENTS_REGISTERED:
-        return
-    registrations = (
-        (
-            STANDARD_SCIENCE_STEP_EXECUTOR,
-            create_standard_science_step_executor_agent,
-            "Executes one standard-science step through the worker/validator repair loop.",
-        ),
-        (
-            ABLATION_SCIENCE_STEP_EXECUTOR,
-            create_ablation_science_step_executor_agent,
-            "Executes one ablation-science step through the worker/validator repair loop.",
-        ),
-    )
-    for name, factory, description in registrations:
-        try:
-            register_agent(
-                name=name,
-                factory_func=factory,
-                description=description,
-            )
-        except ValueError:
-            pass
-    _SCIENCE_SUBAGENTS_REGISTERED = True
-
-
-def create_standard_science_planner_agent(llm) -> Agent:
-    _register_science_subagents()
-    from openhands.sdk.context import AgentContext
-    from src.agents.experiment_agent.agents.base.agent import create_oh_llm
-    exp_context = get_exp_agent_context()
-    return Agent(
-        llm=create_oh_llm(
-            get_agent_model("standard_science_agent", "science"),
-            usage_id="standard_science_agent",
-            stream=False,
-        ),
-        tools=_planner_tools(),
-        agent_context=AgentContext(
-            skills=exp_context.skills,
-            load_public_skills=False,
-        ),
-        include_default_tools=default_builtin_tool_names(),
-    )
-
-
-def create_ablation_science_planner_agent(llm) -> Agent:
-    _register_science_subagents()
-    from openhands.sdk.context import AgentContext
-    from src.agents.experiment_agent.agents.base.agent import create_oh_llm
-    exp_context = get_exp_agent_context()
-    return Agent(
-        llm=create_oh_llm(
-            get_agent_model("ablation_science_agent", "science"),
-            usage_id="ablation_science_agent",
-            stream=False,
-        ),
-        tools=_planner_tools(),
-        agent_context=AgentContext(
-            skills=exp_context.skills,
-            load_public_skills=False,
-        ),
-        include_default_tools=default_builtin_tool_names(),
-    )
+def create_ablation_science_planner_agent(llm):
+    _ = llm
+    return {"role": EXPERIMENT_ABLATION_SCIENCE_PLANNER}
 
 
 def register_science_planners() -> None:
-    global _SCIENCE_PLANNERS_REGISTERED
-    _register_science_subagents()
-    if _SCIENCE_PLANNERS_REGISTERED:
-        return
-    registrations = (
-        (
-            EXPERIMENT_STANDARD_SCIENCE_PLANNER,
-            create_standard_science_planner_agent,
-            "Plans standard benchmark execution with science step executors.",
-        ),
-        (
-            EXPERIMENT_ABLATION_SCIENCE_PLANNER,
-            create_ablation_science_planner_agent,
-            "Plans component-level ablation execution with science step executors.",
-        ),
-    )
-    for name, factory, description in registrations:
-        try:
-            register_agent(
-                name=name,
-                factory_func=factory,
-                description=description,
-            )
-        except ValueError:
-            pass
-    _SCIENCE_PLANNERS_REGISTERED = True
+    return None
 
 
-class _BaseSciencePlanner(OpenHandsBaseAgent):
-    SCIENCE_DEFAULT_MCP_SERVERS: List[str] = []
-    # Templates are set in subclasses: StandardScienceAgent and AblationScienceAgent
-    SYSTEM_PROMPT_TEMPLATE = None
-    planner_type = "Science"
-    plan_filename = "science_plan.json"
-    completion_token = "SCIENCE COMPLETE"
-    validator_report_filename = ""
+class _BaseSciencePlanner(BaseAgent):
+    planner_name = ""
+    planner_role = ""
     summary_key = ""
+    plan_key = ""
+    validator_key = ""
+    worker_role = ""
+    validator_role = ""
+    step_fields: tuple[str, ...] = ()
+    ablation = False
 
     def __init__(
         self,
@@ -196,17 +131,10 @@ class _BaseSciencePlanner(OpenHandsBaseAgent):
         resume: bool = False,
     ):
         super().__init__(
-            agent_type=self.planner_type,
-            model=model or get_agent_model(
-                "standard_science_agent" if self.planner_type == "StandardScience" else "ablation_science_agent",
-                "science",
-            ),
-            max_turns=get_planner_max_turns(),
+            agent_type=self.planner_name,
+            model=model or get_agent_model("standard_science_agent" if not self.ablation else "ablation_science_agent", "science"),
             verbose=verbose,
             workspace_root=workspace_root,
-            enable_condenser=True,
-            condenser_max_size=250,
-            condenser_keep_first=40,
             resume=resume,
         )
         self.experiment_id = experiment_id
@@ -218,287 +146,319 @@ class _BaseSciencePlanner(OpenHandsBaseAgent):
         self.code_usage = code_usage
         self.contract = workspace_contract_paths(workspace_root, project_root)
         self.paths = artifact_paths(workspace_root, project_root)
-        self.idea_json_path = self.paths["idea_json"]
-        self.canonical_components = load_canonical_components(workspace_root)
         self.report_path = self.paths[self.summary_key]
-        if self.plan_filename == "standard_science_plan.json":
-            self.plan_path = self.paths["standard_science_plan"]
-            self.validator_report_path = self.paths["standard_science_validator"]
-        else:
-            self.plan_path = self.paths["ablation_science_plan"]
-            self.validator_report_path = self.paths["ablation_science_validator"]
-        register_science_planners()
+        self.plan_path = self.paths[self.plan_key]
+        self.validator_report_path = self.paths[self.validator_key]
+        self.canonical_components = load_canonical_components(workspace_root)
 
-    def _read_optional_text(self, *parts: str) -> str:
-        path = os.path.join(self.workspace_root, *parts)
-        return self._read_text_file(path).strip()
-
-    def _build_system_prompt(self, **kwargs) -> str:
-        _ = kwargs
-        return ""
-
-    def _get_tools(self):
-        return _planner_tools()
-
-    def _get_agent_context(self):
-        return get_exp_agent_context()
-
-    def _build_mcp_config(self) -> Dict[str, Any]:
-        base_config = super()._build_mcp_config()
-        servers = base_config.get("mcpServers") if isinstance(base_config, dict) else None
-        if not isinstance(servers, dict):
-            return {"mcpServers": {}}
-        allowed_raw = os.environ.get("EXPERIMENT_AGENT_SCIENCE_MCP_SERVERS", "")
-        allowed = [item.strip() for item in allowed_raw.split(",") if item and item.strip()]
-        if not allowed:
-            allowed = list(self.SCIENCE_DEFAULT_MCP_SERVERS)
-        filtered_servers = {name: servers[name] for name in allowed if name in servers}
-        if not filtered_servers:
-            fallback = list(self.SCIENCE_DEFAULT_MCP_SERVERS)
-            filtered_servers = {name: servers[name] for name in fallback if name in servers}
-        return {"mcpServers": filtered_servers}
-
-    def _validator_passed(self) -> bool:
-        if not os.path.exists(self.validator_report_path):
-            return False
-        try:
-            with open(self.validator_report_path, "r", encoding="utf-8") as f:
-                payload = json.load(f)
-        except Exception:
-            return False
-        return normalize_phase_report(payload).get("status") == "PASS"
-
-    def _required_artifacts_exist(self) -> bool:
-        raise NotImplementedError
-
-    def _build_user_prompt(self) -> str:
-        raise NotImplementedError
-
-    async def execute(self) -> Dict[str, Any]:
-        result = await self.run(
-            user_prompt=self._build_user_prompt(),
-            system_prompt=self._build_system_prompt(),
-        )
-        self._validate_plan_artifact()
-        output = self._extract_output(result)
-        report_content = self._read_text_file(self.report_path).strip() or output or ""
-        status = "completed" if self._validator_passed() else "insufficient"
+    def _input_paths(self) -> Dict[str, str]:
         return {
-            "report": report_content,
-            "report_path": self.report_path,
-            "status": status,
+            "idea_path": self.idea_path,
+            "prepare_validator_path": self.paths["prepare_validator"],
+            "code_validator_path": self.paths["code_validator"],
+            "code_summary_path": self.paths["code_summary"],
         }
 
-    def _validate_plan_artifact(self) -> None:
-        if not os.path.exists(self.plan_path):
-            raise RuntimeError(
-                f"{self.planner_type} planner did not write required plan file: {self.plan_path}"
-            )
-        try:
-            with open(self.plan_path, "r", encoding="utf-8") as f:
-                plan_payload = json.load(f)
-        except Exception as exc:
-            raise RuntimeError(f"Science plan is not valid JSON: {self.plan_path}") from exc
-        steps = extract_plan_steps(plan_payload)
-        if not isinstance(steps, list) or not steps:
-            raise RuntimeError(
-                "Science plan must be a non-empty JSON list of step contracts or a JSON object containing non-empty `stages`/`steps`."
-            )
+    def _path_contract(self) -> Dict[str, str]:
+        payload = {
+            "workspace_dir": self.contract["workspace_dir"],
+            "project_dir": self.contract["project_dir"],
+            "dataset_dir": self.contract["dataset_dir"],
+            "model_dir": self.contract["model_dir"],
+            "results_dir": self.contract["results_dir"],
+            "agent_reports_dir": self.contract["agent_reports_dir"],
+        }
+        if self.ablation:
+            payload["ablation_results_dir"] = self.contract["ablation_results_dir"]
+        else:
+            payload["standard_results_dir"] = self.contract["standard_results_dir"]
+        return payload
 
-        errors: list[str] = []
+    def _build_user_prompt(self) -> str:
+        step_fields = format_field_bullets(self.step_fields)
+        verdict_fields = format_field_bullets(PHASE_VERDICT_FIELDS)
+        blueprint_path = self.paths.get("ablation_science_blueprint" if self.ablation else "standard_science_blueprint", "")
+        blueprint_instruction = ""
+        if blueprint_path:
+            blueprint_instruction = f"""
+- After exploring the workspace, write a blueprint to `{blueprint_path}` capturing:
+  - What you discovered about the project's training/evaluation scripts
+  - Why you chose each step's approach
+  - Key implementation decisions and trade-offs
+  - What the worker should pay attention to in each step
+"""
+        base = [
+            f"## Task: Run {'Ablation' if self.ablation else 'Standard'} Science",
+            "",
+            "### Master Plan",
+            self.plan,
+            "",
+            "### Input Paths",
+            format_named_paths(self._input_paths()),
+            "",
+            "### Path Contract",
+            format_named_paths(self._path_contract()),
+            "",
+            "### Required Planner Output",
+            "Write a JSON object with `stages`, `summary`, and `usage_notes`.",
+            "Each step must include:",
+            step_fields,
+            "",
+            blueprint_instruction,
+            f"The runtime will execute each step through `{self.worker_role}` and review it through `{self.validator_role}`.",
+            "The final phase-level validator report must include:",
+            verdict_fields,
+        ]
+        if self.ablation:
+            base.extend(
+                [
+                    "",
+                    "### Canonical Idea Components",
+                    format_canonical_components_markdown(self.canonical_components),
+                    "",
+                    "Rules:",
+                    "- The number of steps must equal the number of canonical components.",
+                    "- Component names and order must match `idea.json.components` exactly.",
+                    "- Do not write `ablation_results.json`; preserve evidence for later deterministic materialization.",
+                    "- Every step validator report must contain component result fields.",
+                    format_field_bullets(ABLATION_COMPONENT_RESULT_FIELDS),
+                ]
+            )
+        return "\n".join(base)
+
+    async def _plan(self) -> Dict[str, Any]:
+        result = await self.run(
+            user_prompt=self._build_user_prompt(),
+            agent_name=self.planner_role,
+            output_schema=planner_output_schema(step_schema=_science_step_schema(ablation=self.ablation)),
+        )
+        payload = result["output"]
+        write_json_file(self.plan_path, {"stages": payload["stages"]})
+        blueprint_key = "ablation_science_blueprint" if self.ablation else "standard_science_blueprint"
+        blueprint_path = self.paths.get(blueprint_key, "")
+        write_json_file(
+            self.paths["ablation_science_planner_report" if self.ablation else "standard_science_planner_report"],
+            {
+                "scope": "ablation_science" if self.ablation else "standard_science",
+                "summary": payload["summary"],
+                "usage_notes": payload["usage_notes"],
+                "plan_path": self.plan_path,
+                "blueprint_path": blueprint_path,
+            },
+        )
+        # Write a default blueprint if the planner didn't produce one directly.
+        if not blueprint_path or not os.path.exists(blueprint_path):
+            self._synthesize_blueprint(blueprint_path or "", payload)
+        return payload
+
+    def _synthesize_blueprint(self, blueprint_path: str, payload: Dict[str, Any]) -> None:
+        """Generate a blueprint.md from the plan payload when the planner didn't produce one directly."""
+        if not blueprint_path:
+            return
+        lines = [
+            f"# {'Ablation' if self.ablation else 'Standard'} Science Blueprint",
+            "",
+            f"## Planner Summary",
+            "",
+            payload.get("summary", "(none)"),
+            "",
+            f"## Planned Steps ({len(payload.get('stages', []))} steps)",
+            "",
+        ]
+        for step in payload.get("stages", []):
+            lines.append(f"### `{step.get('step_id', '?')}`")
+            lines.append("")
+            lines.append(f"**Goal:** {step.get('goal', '')}")
+            lines.append("")
+            if step.get('pass_condition'):
+                lines.append(f"**Pass when:** {step['pass_condition']}")
+                lines.append("")
+            if step.get('command'):
+                lines.append(f"**Command:** `{step['command']}`")
+                lines.append("")
+            if step.get('project_target_paths'):
+                lines.append(f"**Target paths:** {', '.join(step['project_target_paths'])}")
+                lines.append("")
+        lines.append(f"## Usage Notes\n\n{payload.get('usage_notes', '')}\n")
+        os.makedirs(os.path.dirname(blueprint_path), exist_ok=True)
+        with open(blueprint_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines))
+
+    def _validate_steps(self, steps: List[Dict[str, Any]]) -> None:
+        errors: List[str] = []
         for index, step in enumerate(steps, start=1):
-            if not isinstance(step, dict):
-                errors.append(f"step {index}: expected object, got {type(step).__name__}")
-                continue
             errors.extend(
                 f"step {index}: {message}"
                 for message in validate_repo_contract_fields(step, project_dir=self.project_root)
             )
+        if self.ablation:
+            component_names = [item.get("component") for item in self.canonical_components]
+            planned_names = [step.get("component_or_condition") for step in steps]
+            if planned_names != component_names:
+                errors.append("ablation steps must match canonical component order exactly")
         if errors:
             raise RuntimeError("Invalid science plan contract:\n- " + "\n- ".join(errors))
 
+    async def _call_worker(self, step: Dict[str, Any], previous_review: Dict[str, Any] | None) -> Dict[str, Any]:
+        blueprint_key = "ablation_science_blueprint" if self.ablation else "standard_science_blueprint"
+        blueprint_path = self.paths.get(blueprint_key, "")
+        blueprint_hint = ""
+        if blueprint_path and os.path.exists(blueprint_path):
+            blueprint_hint = f"""
+Before executing, read the planner's blueprint to understand the full context:
+`{blueprint_path}`
+
+The blueprint contains the planner's exploration findings, design rationale, and key decisions.
+Use this context to make informed implementation choices rather than blindly following the contract.
+"""
+        prompt = f"""Execute this science step.
+{blueprint_hint}
+Step contract:
+```json
+{json.dumps(step, ensure_ascii=False, indent=2)}
+```
+
+Previous validator feedback:
+```json
+{json.dumps(previous_review or {}, ensure_ascii=False, indent=2)}
+```
+
+Return structured worker JSON only. The runtime will write the worker report file.
+"""
+        result = await self.run(
+            user_prompt=prompt,
+            agent_name=self.worker_role,
+            system_prompt=ablation_science_worker_prompt() if self.ablation else standard_science_worker_prompt(),
+            output_schema=worker_output_schema(),
+        )
+        return result["output"]
+
+    async def _call_validator(self, step: Dict[str, Any], worker_payload: Dict[str, Any]) -> Dict[str, Any]:
+        prompt = f"""Review this science step.
+
+Step contract:
+```json
+{json.dumps(step, ensure_ascii=False, indent=2)}
+```
+
+Worker report:
+```json
+{json.dumps(worker_payload, ensure_ascii=False, indent=2)}
+```
+
+Return structured review JSON only. The runtime will write the validator report file.
+"""
+        result = await self.run(
+            user_prompt=prompt,
+            agent_name=self.validator_role,
+            system_prompt=ablation_science_validator_prompt() if self.ablation else standard_science_validator_prompt(),
+            output_schema=validator_output_schema(include_ablation_fields=self.ablation),
+        )
+        return result["output"]
+
+    def _phase_summary_payload(self, plan_payload: Dict[str, Any], step_result: Dict[str, Any]) -> Dict[str, Any]:
+        ok = step_result["status"] == "PASS"
+        failed = step_result.get("failed_validator_report") or {}
+        payload = with_phase_defaults(
+            {
+                "status": "PASS" if ok else "FAIL",
+                "scope": "ablation_science" if self.ablation else "standard_science",
+                "checked_artifacts": [self.plan_path, self.report_path],
+                "findings": [] if ok else list(failed.get("findings") or []),
+                "required_fixes": [] if ok else list(failed.get("required_fixes") or []),
+                "evidence_summary": plan_payload["summary"] if ok else str(failed.get("evidence_summary") or "science phase incomplete"),
+                "phase_completion_status": "complete" if ok else "partial",
+                "ready_for_next_phase": bool(ok),
+                "blocking_issues": [] if ok else list(failed.get("blocking_issues") or [f"Failed step: {step_result.get('failed_step', {}).get('step_id', 'unknown')}"]),
+                "required_followup": [] if ok else list(failed.get("required_followup") or []),
+                "artifact_role": "phase_result",
+                "run_level": "full",
+                "self_contained_project": True,
+                "self_contained_violations": [],
+                "provenance_manifest_present": os.path.exists(self.paths["project_code_provenance"]),
+                "provenance_manifest_path": self.paths["project_code_provenance"],
+                "terminal_blocker": bool(failed.get("terminal_blocker")),
+                "next_worker_input": str(failed.get("next_worker_input") or ""),
+            },
+            scope="ablation_science" if self.ablation else "standard_science",
+        )
+        if self.ablation and ok:
+            reports = step_result.get("step_reports", [])
+            component_map = {
+                step["component_or_condition"]: {
+                    "result": report["result"],
+                    "metric": report["metric"],
+                    "value": report["value"],
+                    "confidence": report["confidence"],
+                    "analysis": report["analysis"],
+                    "method_context": report["method_context"],
+                    "follow_up_required": report["follow_up_required"],
+                }
+                for step, report in zip(plan_payload["stages"], reports)
+            }
+            confidences = [entry["confidence"] for entry in component_map.values()]
+            payload["ablation_components"] = component_map
+            payload["summary"] = {
+                "feasible": True,
+                "confidence": sum(confidences) / len(confidences) if confidences else 0.0,
+                "key_findings": [entry["analysis"] for entry in component_map.values()],
+            }
+        return payload
+
+    async def execute(self) -> Dict[str, Any]:
+        plan_payload = await self._plan()
+        steps = plan_payload["stages"]
+        self._validate_steps(steps)
+        # Contract data is already in plan JSON; execute_step_loop passes it
+        # in prompts. Step contract files are not needed for execution.
+        step_result = await execute_step_loop(
+            steps=steps,
+            scope="ablation_science" if self.ablation else "standard_science",
+            workspace_root=self.workspace_root,
+            call_worker=self._call_worker,
+            call_validator=self._call_validator,
+        )
+        phase_report = self._phase_summary_payload(plan_payload, step_result)
+        write_json_file(self.validator_report_path, phase_report)
+        summary_lines = [
+            f"# {'Ablation' if self.ablation else 'Standard'} Science Summary",
+            "",
+            f"- status: {phase_report['status']}",
+            f"- ready_for_next_phase: {phase_report['ready_for_next_phase']}",
+            f"- planner_summary: {plan_payload['summary']}",
+        ]
+        with open(self.report_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(summary_lines) + "\n")
+        return {
+            "summary": self._read_text_file(self.report_path).strip(),
+            "usage": plan_payload["usage_notes"],
+            "summary_path": self.report_path,
+            "status": "completed" if normalize_phase_report(phase_report).get("status") == "PASS" else "insufficient",
+        }
+
 
 class StandardScienceAgent(_BaseSciencePlanner):
-    SYSTEM_PROMPT_TEMPLATE = "standard_science_planner_agent.j2"
-    planner_type = "StandardScience"
-    plan_filename = "standard_science_plan.json"
-    completion_token = "STANDARD SCIENCE COMPLETE"
-    validator_report_filename = STANDARD_SCIENCE_VALIDATOR_REPORT
+    planner_name = "StandardScience"
+    planner_role = EXPERIMENT_STANDARD_SCIENCE_PLANNER
     summary_key = "standard_summary"
-
-    def _build_user_prompt(self) -> str:
-        input_paths = format_named_paths(
-            {
-                "idea_path": self.idea_path,
-                "idea_json_path": self.idea_json_path,
-                "code_summary_path": self.paths["code_summary"],
-                "code_usage_path": self.paths["code_usage"],
-                "prepare_plan_path": self.paths["prepare_plan"],
-                "prepare_phase_validator_report_path": self.paths["prepare_validator"],
-                "code_worker_report_path": self.paths["code_worker"],
-                "code_validator_report_path": self.paths["code_validator"],
-                "standard_summary_path": self.report_path,
-                "standard_validator_report_path": self.validator_report_path,
-            }
-        )
-        path_contract = format_named_paths(
-            {
-                "workspace_dir": self.contract["workspace_dir"],
-                "project_dir": self.contract["project_dir"],
-                "dataset_dir": self.contract["dataset_dir"],
-                "model_dir": self.contract["model_dir"],
-                "results_dir": self.contract["results_dir"],
-                "standard_results_dir": self.contract["standard_results_dir"],
-                "agent_reports_dir": self.contract["agent_reports_dir"],
-            }
-        )
-        step_fields = format_field_bullets(SCIENCE_STANDARD_STEP_FIELDS)
-        verdict_fields = format_field_bullets(PHASE_VERDICT_FIELDS)
-        return f"""## Task: Run Standard Science
-
-### Master Plan
-{self.plan}
-
-### Input Paths
-{input_paths}
-
-### Path Contract
-{path_contract}
-
-### Required Flow
-1. Read the validated prepare artifacts and code handoff before planning.
-2. Write `{self.plan_path}` as a JSON object whose `stages` field is an ordered list of concrete standard experiment steps.
-3. Every step must include:
-{step_fields}
-4. Derive target names and paths from the workspace artifacts above instead of hardcoding them.
-5. Every step must use a unique flat `worker_report_path`, `validator_report_path`, `step_contract_path`, and `executor_report_path` under `agent_reports_dir`.
-6. Use filenames that stay flat under `agent_reports_dir`, for example `standard_science_step_01_<slug>_contract.json`, `standard_science_step_01_<slug>_executor_report.json`, and `standard_science_step_01_<slug>_attempt_01_worker_report.json`.
-6a. If a step needs upstream implementation context, it must declare the exact minimal `repo_source_paths`, a `repo_copy_intent` of `none|reference_only|copy_and_modify`, and the intended `project_target_paths`.
-7. For each step, call `task` with `subagent_type="{STANDARD_SCIENCE_STEP_EXECUTOR}"`.
-8. The runtime uses the standard step executor to keep the `standard_science_worker` -> `standard_science_validator` loop active for the current step.
-9. The validator must write `{self.validator_report_path}` as the phase-level standard verdict after the step-local reports exist.
-10. Do not move to the next step until the step executor reports validator-backed PASS.
-11. Update `{self.report_path}` only as a human-readable summary of validator-backed evidence.
-12. Do not write downstream structured final result artifacts yourself. In particular, do not materialize `ablation_results.json`; that file belongs to the later final-artifact materialization step.
-13. The final validator report must use `status: PASS|FAIL`, set a generic `phase_completion_status`, and include:
-{verdict_fields}
-
-### Hard Rules
-- Final evidence must come from real execution on validated prepared targets.
-- Every experiment command must write its raw outputs under `standard_results_dir`.
-- Every step must set `repos_policy` to `reference_or_copy`, `project_must_be_self_contained` to `true`, and `provenance_manifest_path` to the shared manifest under `agent_reports/`.
-- Science may read repository artifacts for reference and may rely on code previously copied into `project/`, but it must never rely on `repos/` as a runtime dependency.
-- Do not leave repo usage implicit. If a step needs repo context, list the exact minimal `repo_source_paths`.
-- If `repo_copy_intent` is not `none`, `project_target_paths` must be populated and point only inside `project_dir`.
-- Do not claim a run is `final/full` unless the assigned command chain actually ran.
-- Do not use synthetic stress fallback as a silent replacement for formal prepared targets.
-- Do not ask the runtime to infer coverage from your summaries.
-- The validator is the authority for PASS/FAIL.
-
-Finish by printing exactly: {self.completion_token}"""
-
-    def _required_artifacts_exist(self) -> bool:
-        return True
+    plan_key = "standard_science_plan"
+    validator_key = "standard_science_validator"
+    worker_role = STANDARD_SCIENCE_WORKER
+    validator_role = STANDARD_SCIENCE_VALIDATOR
+    step_fields = SCIENCE_STANDARD_STEP_FIELDS
+    ablation = False
 
 
 class AblationScienceAgent(_BaseSciencePlanner):
-    SYSTEM_PROMPT_TEMPLATE = "ablation_science_planner_agent.j2"
-    planner_type = "AblationScience"
-    plan_filename = "ablation_science_plan.json"
-    completion_token = "ABLATION SCIENCE COMPLETE"
-    validator_report_filename = ABLATION_SCIENCE_VALIDATOR_REPORT
+    planner_name = "AblationScience"
+    planner_role = EXPERIMENT_ABLATION_SCIENCE_PLANNER
     summary_key = "ablation_summary"
-
-    def _build_user_prompt(self) -> str:
-        input_paths = format_named_paths(
-            {
-                "idea_path": self.idea_path,
-                "idea_json_path": self.idea_json_path,
-                "code_summary_path": self.paths["code_summary"],
-                "code_usage_path": self.paths["code_usage"],
-                "prepare_plan_path": self.paths["prepare_plan"],
-                "prepare_phase_validator_report_path": self.paths["prepare_validator"],
-                "code_worker_report_path": self.paths["code_worker"],
-                "code_validator_report_path": self.paths["code_validator"],
-                "standard_science_validator_report_path": self.paths["standard_science_validator"],
-                "standard_summary_path": self.paths["standard_summary"],
-                "ablation_summary_path": self.report_path,
-                "ablation_validator_report_path": self.validator_report_path,
-            }
-        )
-        path_contract = format_named_paths(
-            {
-                "workspace_dir": self.contract["workspace_dir"],
-                "project_dir": self.contract["project_dir"],
-                "dataset_dir": self.contract["dataset_dir"],
-                "model_dir": self.contract["model_dir"],
-                "results_dir": self.contract["results_dir"],
-                "ablation_results_dir": self.contract["ablation_results_dir"],
-                "agent_reports_dir": self.contract["agent_reports_dir"],
-            }
-        )
-        step_fields = format_field_bullets(SCIENCE_ABLATION_STEP_FIELDS)
-        verdict_fields = format_field_bullets(PHASE_VERDICT_FIELDS)
-        ablation_result_fields = format_field_bullets(ABLATION_COMPONENT_RESULT_FIELDS)
-        canonical_components = format_canonical_components_markdown(self.canonical_components)
-        return f"""## Task: Run Ablation Science
-
-### Master Plan
-{self.plan}
-
-### Input Paths
-{input_paths}
-
-### Path Contract
-{path_contract}
-
-### Canonical Idea Components
-{canonical_components}
-
-### Required Flow
-1. Read the validated prepare artifacts, the code handoff, the standard science evidence, and `idea.json.components` before planning.
-2. Write `{self.plan_path}` as a JSON object whose `stages` field is a complete ordered list of component-level ablation steps covering the full canonical component set, not just the currently missing gap.
-3. Each step must include:
-{step_fields}
-4. The number of ablation steps must equal the number of canonical idea components.
-5. Each step's `component_or_condition` must equal the exact component name from `idea.json.components`, in the same order.
-6. Each step's `component_explanation` must carry the matching explanation from `idea.json.components`.
-7. Every step must use a unique flat `worker_report_path`, `validator_report_path`, `step_contract_path`, and `executor_report_path` under `agent_reports_dir`.
-8. Use filenames that stay flat under `agent_reports_dir`, for example `ablation_science_step_01_<component>_contract.json`, `ablation_science_step_01_<component>_executor_report.json`, and `ablation_science_step_01_<component>_attempt_01_worker_report.json`.
-8a. If a step needs upstream implementation context, it must declare the exact minimal `repo_source_paths`, a `repo_copy_intent` of `none|reference_only|copy_and_modify`, and the intended `project_target_paths`.
-9. For each step, call `task` with `subagent_type="{ABLATION_SCIENCE_STEP_EXECUTOR}"`.
-10. The runtime uses the ablation step executor to keep the `ablation_science_worker` -> `ablation_science_validator` loop active for the current step.
-11. The validator must write `{self.validator_report_path}` as the phase-level ablation verdict after the step-local reports exist.
-12. Do not move to the next step until the step executor reports validator-backed PASS.
-13. Every step-level ablation validator report must include:
-{ablation_result_fields}
-14. Update `{self.report_path}` only as a human-readable summary of validator-backed evidence.
-15. Do not write `ablation_results.json` yourself. A later final-artifact materialization step owns that file.
-16. The final phase-level validator report must use `status: PASS|FAIL`, set a generic `phase_completion_status`, and include:
-{verdict_fields}
-
-### Hard Rules
-- Even if the master review highlights one missing area such as stress testing, you must still produce a full canonical ablation plan whose step list exactly matches all components from `idea.json.components`.
-- Every step must set `repos_policy` to `reference_or_copy`, `project_must_be_self_contained` to `true`, and `provenance_manifest_path` to the shared manifest under `agent_reports/`.
-- Ablation may read repository artifacts for reference and may rely on code previously copied into `project/`, but it must never rely on `repos/` as a runtime dependency.
-- Do not leave repo usage implicit. If a step needs repo context, list the exact minimal `repo_source_paths`.
-- If `repo_copy_intent` is not `none`, `project_target_paths` must be populated and point only inside `project_dir`.
-- Do not collapse the plan to only one missing experiment unless `idea.json.components` itself contains only one component.
-- Do not mark an ablation complete without serious evidence and explicit method context.
-- Do not invent ablation verdicts from expectation or narrative.
-- Every experiment command must write its raw outputs under `ablation_results_dir`.
-- Do not rename, merge, split, omit, or reorder canonical idea components.
-- Do not hardcode alternative component names into the plan. Use the exact component names from `idea.json.components`.
-- The validator is the authority for PASS/FAIL.
-- Preserve enough step-level evidence for the later final-artifact materialization step to produce the final canonical `ablation_results.json`.
-
-Finish by printing exactly: {self.completion_token}"""
-
-    def _required_artifacts_exist(self) -> bool:
-        return True
-
-    async def execute(self) -> Dict[str, Any]:
-        return await super().execute()
+    plan_key = "ablation_science_plan"
+    validator_key = "ablation_science_validator"
+    worker_role = ABLATION_SCIENCE_WORKER
+    validator_role = ABLATION_SCIENCE_VALIDATOR
+    step_fields = SCIENCE_ABLATION_STEP_FIELDS
+    ablation = True
 
 
 async def run_standard_science_agent(

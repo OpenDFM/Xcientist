@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""Unified CLI entrypoint for experiment-agent."""
+"""Unified library and CLI entrypoints for experiment-agent."""
 
-import asyncio
 import argparse
-import sys
+import asyncio
 import os
-import logging
-
-# Configure logging to suppress TextContent length warnings from OpenHands SDK
-logging.getLogger("openhands.message").setLevel(logging.ERROR)
+import sys
+from contextlib import contextmanager
+from typing import Any, Dict, Iterator, Optional
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -76,6 +74,25 @@ def get_args():
     return parser.parse_args()
 
 
+@contextmanager
+def _temporary_environ(overrides: Dict[str, Optional[str]]) -> Iterator[None]:
+    previous: Dict[str, Optional[str]] = {}
+    for key, value in overrides.items():
+        previous[key] = os.environ.get(key)
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = str(value)
+    try:
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
 def _prepare_ready_for_master(workspace_root: str, project_root: str) -> bool:
     paths = artifact_paths(workspace_root, project_root)
     payload = load_json_file(paths["prepare_validator"])
@@ -88,96 +105,175 @@ def _prepare_ready_for_master(workspace_root: str, project_root: str) -> bool:
 
 
 async def main_async(args) -> int:
-    print_config()
-    print_phase(
-        "EXPERIMENT AGENT",
-        "Unified OpenHands orchestration pipeline",
-        width=65,
-    )
-
-    experiment_id = args.experiment
-    paths = ensure_experiment_dirs(experiment_id)
-    copy_prepared_data_to_workspace(paths["workspace_dir"])
-    write_workspace_env_file(experiment_id)
-    Cache.initialize(paths["cache_dir"], enabled=True)
-    workspace_root = paths["workspace_dir"]
-    project_root = paths["project_dir"]
-    ensure_canonical_workspace_artifacts(workspace_root, project_root)
-
-    print(f"\nExperiment: {experiment_id}")
-    print(f"Workspace: {workspace_root}")
-    print(f"Project: {project_root}")
-    print(f"Results: {paths['results_dir']}")
-    print(f"Model Candidate: {paths['model_dir']}")
-    print(f"Agent Reports: {paths['reports_dir']}")
-
-    if args.skip_prepare:
-        raise ValueError("--skip-prepare is no longer supported; prepare is a required startup prerequisite")
-
-    should_run_prepare = bool(args.force) or not _prepare_ready_for_master(workspace_root, project_root)
-
-    if should_run_prepare:
-        prepare_report = await run_prepare(
-            experiment_id=experiment_id,
-            force=bool(args.force),
-            clone_depth=int(args.clone_depth),
-            skip_repos=bool(args.skip_repos),
-            skip_datasets=bool(args.skip_datasets),
-            verbose=bool(args.verbose),
-        )
-        print_phase("PREPARE COMPLETE", width=65)
-        print(f"  Prepare Idea: {prepare_report.idea_md_path}")
-        print(f"  Project dir: {prepare_report.project_dir}")
-        print(f"  Repos dir: {prepare_report.repos_dir}")
-        print(f"  Dataset dir: {prepare_report.dataset_dir}")
-        print(f"  Model dir: {prepare_report.model_dir}")
-        print(f"  Results dir: {prepare_report.results_dir}")
-        print(f"  Agent reports dir: {prepare_report.reports_dir}")
-        ensure_canonical_workspace_artifacts(workspace_root, project_root)
-        if args.prepare_only:
-            return 0
-    else:
-        print_phase("PREPARE REUSED", width=65)
-        print("  Existing validator-backed prepare handoff is ready; skipping prepare rerun.")
-        if args.prepare_only:
-            return 0
-
-    idea_path = get_idea_input_path(experiment_id)
-    print(f"Idea: {idea_path}")
-
-    result = await run_master(
-        experiment_id=experiment_id,
-        idea_path=idea_path,
-        workspace_root=workspace_root,
-        project_root=project_root,
+    result = await run_experiment_once(
+        experiment_id=args.experiment,
+        workspace_root=os.environ.get("EXPERIMENT_AGENT_WORKSPACE_DIR") or None,
         max_iterations=args.max_iterations,
-        verbose=bool(args.verbose),
         resume=bool(args.resume),
+        verbose=bool(args.verbose),
+        prepare_only=bool(args.prepare_only),
+        force_prepare=bool(args.force),
+        clone_depth=int(args.clone_depth),
+        skip_repos=bool(args.skip_repos),
+        skip_datasets=bool(args.skip_datasets),
     )
+    return 0 if result.get("ok", True) else 1
 
-    if result.get("converged"):
-        reporting_result = await run_ablation_report_integrator(
-            workspace_root=workspace_root,
-            project_root=project_root,
-            verbose=bool(args.verbose),
-            resume=bool(args.resume),
+
+async def run_experiment_once(
+    *,
+    experiment_id: str,
+    workspace_root: str | None = None,
+    max_iterations: int | None = None,
+    resume: bool = False,
+    verbose: bool = False,
+    prepare_only: bool = False,
+    force_prepare: bool = False,
+    clone_depth: int = 1,
+    skip_repos: bool = False,
+    skip_datasets: bool = False,
+    config_path: str | None = None,
+) -> Dict[str, Any]:
+    env_overrides: Dict[str, Optional[str]] = {}
+    if workspace_root:
+        env_overrides["EXPERIMENT_AGENT_WORKSPACE_DIR"] = workspace_root
+    if config_path:
+        env_overrides["EXPERIMENT_AGENT_CONFIG_PATH"] = config_path
+
+    with _temporary_environ(env_overrides):
+        if config_path:
+            from src.config import reload_config
+
+            reload_config(config_path)
+
+        print_config()
+        print_phase(
+            "EXPERIMENT AGENT",
+            "Unified Claude Code orchestration pipeline",
+            width=65,
         )
-        if not reporting_result.get("valid"):
-            raise RuntimeError(
-                "Final ablation report agent did not produce a valid ablation_results.json. "
-                f"See {reporting_result.get('integrator_report_path')} for details."
-            )
-        result["final_path"] = reporting_result["ablation_results_path"]
-        result["ablation_results_path"] = reporting_result["ablation_results_path"]
-        result["integrator_report_path"] = reporting_result["integrator_report_path"]
 
-    if result.get("stopped_due_to_iteration_limit"):
-        print_phase("ITERATION LIMIT HIT", width=65)
-    else:
-        print_phase("MISSION COMPLETE", width=65)
-    print(f"  Iterations: {result['iterations']}")
-    print(f"  Final Report: {result.get('final_path', result.get('ablation_results_path'))}")
-    return 0
+        paths = ensure_experiment_dirs(experiment_id)
+        copy_prepared_data_to_workspace(paths["workspace_dir"])
+        write_workspace_env_file(experiment_id)
+        Cache.initialize(paths["cache_dir"], enabled=True)
+        resolved_workspace_root = paths["workspace_dir"]
+        project_root = paths["project_dir"]
+        ensure_canonical_workspace_artifacts(resolved_workspace_root, project_root)
+
+        print(f"\nExperiment: {experiment_id}")
+        print(f"Workspace: {resolved_workspace_root}")
+        print(f"Project: {project_root}")
+        print(f"Results: {paths['results_dir']}")
+        print(f"Model Candidate: {paths['model_dir']}")
+        print(f"Agent Reports: {paths['reports_dir']}")
+
+        should_run_prepare = bool(force_prepare) or not _prepare_ready_for_master(
+            resolved_workspace_root,
+            project_root,
+        )
+
+        if should_run_prepare:
+            prepare_report = await run_prepare(
+                experiment_id=experiment_id,
+                force=bool(force_prepare),
+                clone_depth=int(clone_depth),
+                skip_repos=bool(skip_repos),
+                skip_datasets=bool(skip_datasets),
+                verbose=bool(verbose),
+            )
+            print_phase("PREPARE COMPLETE", width=65)
+            print(f"  Prepare Idea: {prepare_report.idea_md_path}")
+            print(f"  Project dir: {prepare_report.project_dir}")
+            print(f"  Repos dir: {prepare_report.repos_dir}")
+            print(f"  Dataset dir: {prepare_report.dataset_dir}")
+            print(f"  Model dir: {prepare_report.model_dir}")
+            print(f"  Results dir: {prepare_report.results_dir}")
+            print(f"  Agent reports dir: {prepare_report.reports_dir}")
+            ensure_canonical_workspace_artifacts(resolved_workspace_root, project_root)
+            if prepare_only:
+                return {
+                    "ok": True,
+                    "iterations": 0,
+                    "converged": False,
+                    "final_path": "",
+                    "ablation_results_path": "",
+                    "workspace_root": resolved_workspace_root,
+                    "project_root": project_root,
+                    "prepare_only": True,
+                }
+        else:
+            print_phase("PREPARE REUSED", width=65)
+            print("  Existing validator-backed prepare handoff is ready; skipping prepare rerun.")
+            if prepare_only:
+                return {
+                    "ok": True,
+                    "iterations": 0,
+                    "converged": False,
+                    "final_path": "",
+                    "ablation_results_path": "",
+                    "workspace_root": resolved_workspace_root,
+                    "project_root": project_root,
+                    "prepare_only": True,
+                }
+
+        idea_path = get_idea_input_path(experiment_id)
+        print(f"Idea: {idea_path}")
+
+        resolved_max_iterations = (
+            int(max_iterations)
+            if max_iterations is not None
+            else get_science_max_iterations()
+        )
+        result = await run_master(
+            experiment_id=experiment_id,
+            idea_path=idea_path,
+            workspace_root=resolved_workspace_root,
+            project_root=project_root,
+            max_iterations=resolved_max_iterations,
+            verbose=bool(verbose),
+            resume=bool(resume),
+        )
+
+        if result.get("converged"):
+            reporting_result = await run_ablation_report_integrator(
+                workspace_root=resolved_workspace_root,
+                project_root=project_root,
+                verbose=bool(verbose),
+                resume=bool(resume),
+            )
+            if not reporting_result.get("valid"):
+                raise RuntimeError(
+                    "Final ablation report agent did not produce a valid ablation_results.json. "
+                    f"See {reporting_result.get('integrator_report_path')} for details."
+                )
+            result["final_path"] = reporting_result["ablation_results_path"]
+            result["ablation_results_path"] = reporting_result["ablation_results_path"]
+            result["integrator_report_path"] = reporting_result["integrator_report_path"]
+
+        if result.get("stopped_due_to_iteration_limit"):
+            print_phase("ITERATION LIMIT HIT", width=65)
+        else:
+            print_phase("MISSION COMPLETE", width=65)
+        print(f"  Iterations: {result['iterations']}")
+        print(f"  Final Report: {result.get('final_path', result.get('ablation_results_path'))}")
+
+        return {
+            "ok": True,
+            "iterations": int(result.get("iterations") or 0),
+            "converged": bool(result.get("converged")),
+            "stopped_due_to_iteration_limit": bool(result.get("stopped_due_to_iteration_limit")),
+            "final_path": str(result.get("final_path") or ""),
+            "ablation_results_path": str(result.get("ablation_results_path") or ""),
+            "integrator_report_path": str(result.get("integrator_report_path") or ""),
+            "workspace_root": resolved_workspace_root,
+            "project_root": project_root,
+            "idea_path": idea_path,
+        }
+
+
+def run_experiment_once_sync(**kwargs: Any) -> Dict[str, Any]:
+    return asyncio.run(run_experiment_once(**kwargs))
 
 
 def main() -> int:

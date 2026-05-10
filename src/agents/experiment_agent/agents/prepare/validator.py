@@ -1,14 +1,9 @@
 """
-Prepare phase validator agent.
+Prepare phase validator prompt helpers.
 """
 
 from __future__ import annotations
 
-from openhands.tools.file_editor import FileEditorTool
-from openhands.tools.task_tracker import TaskTrackerTool
-from openhands.tools.terminal import TerminalTool
-
-from src.agents.experiment_agent.agents.base.subagents import create_phase_subagent
 from src.agents.experiment_agent.runtime.contracts import (
     PHASE_VERDICT_FIELDS,
     format_field_bullets,
@@ -19,73 +14,26 @@ from src.agents.experiment_agent.runtime.idea_components import IDEA_COMPONENTS_
 PREPARE_VALIDATOR = "prepare_validator"
 
 
-def _prepare_validator_prompt() -> str:
+def prepare_validator_prompt() -> str:
     verdict_fields = format_field_bullets(PHASE_VERDICT_FIELDS)
     return f"""You are the prepare phase validator.
+Your assigned Claude subagent loads the relevant project skills automatically.
 
-Your job is to validate exactly one prepare-stage result from the planner. You are the authority for stage completion. The planner and runtime should rely on your PASS/FAIL verdict instead of re-deriving the truth themselves.
+Validate exactly one prepare-stage result from the planner.
 
-Core rules:
-1. Read the assigned stage contract, the worker report, and the produced artifacts before judging anything.
-2. Inspect the real local evidence. Do not validate from summaries alone.
-3. Write the exact validator report file requested by the planner.
-4. Return a strict `PASS`, `PARTIAL`, or `FAIL` verdict. Do not use vague verdict language.
-5. When failing, provide concrete, actionable fixes tied to exact paths, commands, or missing artifacts.
-6. Enforce the planner-provided path contract.
+Requirements:
+- Return `PASS`, `PARTIAL`, or `FAIL`.
+- Validate from real local evidence, not summaries alone.
+- Reject handoffs that make `project/` depend on `repos/` at runtime.
+- Only set `terminal_blocker=true` if the current stage itself is fundamentally broken (e.g., the worker produced no artifacts, the stage contract was ignored, or a hard dependency of THIS stage failed).
+- Do NOT set `terminal_blocker=true` for missing synthesis artifacts (`prepare_target_inventory.json`, `prepare_idea.md`) when validating non-synthesis stages (repos, env, dataset, model). Those are synthesis-stage outputs.
+- For the synthesis stage specifically: reject output if `prepare_target_inventory.json` is missing, and require `prepare_idea.md` to contain `{IDEA_COMPONENTS_HEADING}` preserving canonical component order.
 
-Validation standards:
-- Repository stage passes only if the required repositories, benchmark entrypoints, and local benchmark support files are actually present and readable, with worker evidence showing current-run research plus whether each selected target was downloaded, refreshed, or explicitly reused.
-- Environment stage passes only if the promised runtime environment actually exists and the claimed imports or commands succeed.
-- Dataset stage passes only if the declared experiment datasets are verified and staged on the prepared handoff surface under `dataset_candidate/`, with worker evidence showing current-run research and distinguishing downloaded assets from reused prepared copies.
-- Model stage passes only if the required local models are available on the prepared handoff surface via `model_candidate/` or `model_candidate/model_share/`, with API-only models recorded separately. Documentation of runtime auto-download behavior is not sufficient by itself, and current-run research plus explicit downloaded/reused decisions are required.
-- Final synthesis stage passes only if the idea document, `prepare_target_inventory.json`, and handoff notes accurately reflect validated stage outputs and exact experiment targets.
-- Final synthesis stage passes only if `prepare_idea.md` contains `{IDEA_COMPONENTS_HEADING}` and lists every `idea.json.components` entry exactly once, in the same order, with no extra components.
-- The final synthesis-stage validator report is also the phase-level prepare verdict that later phases and the master agent must trust.
-
-Prepare-specific rejection rules:
-- Reject repo, dataset, or model stages that only validate existing local resources without current-run research evidence and explicit selected-target decisions.
-- Reject repo-local-only dataset references when the contract requires prepared dataset staging.
-- Reject corrupted datasets even if they were discovered successfully.
-- Reject synthetic or fallback benchmark substitution unless the planner contract explicitly declared it as the formal experiment target.
-- Reject any prepare-stage handoff or setup that makes `project/` depend on `repos/` at runtime.
-- Copied repo code is allowed only after it has been placed inside `project/` and recorded in `agent_reports/project_code_provenance.json`.
-- Reject local-path installs, editable installs, or import path injection that keep `repos/` as a live dependency.
-- Reject handoff notes that describe targets not backed by prepared artifacts.
-- Reject synthesis output if `prepare_target_inventory.json` is missing or does not distinguish downloaded vs reused resources.
-- Reject environment-variable guidance or machine-readable handoff that lists `OPENAI_API_KEY` without the paired `OPENAI_API_BASE` entry.
-- Reject `prepare_idea.md` when the canonical component list is missing, renamed, duplicated, incomplete, or reordered.
-- Reject misplaced outputs when artifacts are written outside the planner-declared directories.
-
-Output requirements:
-- Include `status` with value `PASS`, `PARTIAL`, or `FAIL`.
-- Use `PARTIAL` only when the stage or phase is usable enough to proceed but still has caveats that must stay visible.
-- Include `phase_completion_status` with value `complete`, `partial`, or `blocked`.
-- Include `ready_for_next_phase: true|false`.
-- Include `artifact_role: phase_result`.
-- Include `run_level: full`.
-- Include `self_contained_project: true|false`.
-- Include `self_contained_violations`: exact repo-dependency violations, empty when compliant.
-- Include `provenance_manifest_present: true|false`.
-- Include `provenance_manifest_path`: exact path to the shared project-code provenance manifest.
-- Include the following shared verdict fields:
+Output fields:
 {verdict_fields}
-- When you use `PARTIAL`, include `ready_to_proceed: true|false`.
-- Include optional `terminal_blocker: true` only when the phase cannot proceed without external intervention.
-- When the worker can continue, include `next_worker_input` containing a concise retry brief the step executor can pass straight back to the worker.
-- If you pass the stage, explain exactly what evidence justified PASS.
-- If you fail the stage, make the worker's next move obvious.
 """
 
 
 def create_prepare_validator_agent(llm):
-    return create_phase_subagent(
-        llm,
-        role=PREPARE_VALIDATOR,
-        tool_names=[
-            TerminalTool.name,
-            FileEditorTool.name,
-            TaskTrackerTool.name,
-            "web_search",
-        ],
-        system_prompt=_prepare_validator_prompt(),
-    )
+    _ = llm
+    return {"role": PREPARE_VALIDATOR, "system_prompt": prepare_validator_prompt()}

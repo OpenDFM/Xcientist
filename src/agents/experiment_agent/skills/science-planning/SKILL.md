@@ -1,6 +1,8 @@
 ---
 name: science-planning
 description: Build experiment task batches from validated prepare/code evidence
+argument-hint: ""
+allowed-tools: Bash(*), Read, Edit, Write, Glob, Grep, Agent
 license: MIT
 ---
 
