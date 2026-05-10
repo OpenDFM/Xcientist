@@ -197,6 +197,63 @@ def load_json_file(path: str) -> Optional[Dict[str, Any]]:
     return payload if isinstance(payload, dict) else None
 
 
+def _planner_report_path_for_plan(plan_path: str) -> str:
+    directory = os.path.dirname(plan_path)
+    name = os.path.basename(plan_path)
+    if name == "prepare_plan.json":
+        return os.path.join(directory, "prepare_planner_report.json")
+    if name == "code_plan.json":
+        return os.path.join(directory, "code_planner_report.json")
+    if name == "standard_science_plan.json":
+        return os.path.join(directory, "standard_science_planner_report.json")
+    if name == "ablation_science_plan.json":
+        return os.path.join(directory, "ablation_science_planner_report.json")
+    return ""
+
+
+def _fill_plan_metadata(payload: Dict[str, Any], plan_path: str) -> Dict[str, Any]:
+    normalized = dict(payload)
+    report_path = _planner_report_path_for_plan(plan_path)
+    report_payload = load_json_file(report_path) if report_path else None
+    if not normalized.get("summary"):
+        normalized["summary"] = (
+            str(report_payload.get("summary") or "")
+            if isinstance(report_payload, dict)
+            else ""
+        )
+    if not normalized.get("usage_notes"):
+        normalized["usage_notes"] = (
+            str(report_payload.get("usage_notes") or "")
+            if isinstance(report_payload, dict)
+            else ""
+        )
+    return normalized
+
+
+def coerce_plan_payload(payload: Any, plan_path: str, *, scope: str) -> Dict[str, Any]:
+    """Return a planner payload, falling back to the planner-written artifact."""
+    if isinstance(payload, dict) and isinstance(payload.get("stages"), list):
+        return _fill_plan_metadata(payload, plan_path)
+
+    artifact_payload = load_json_file(plan_path)
+    if isinstance(artifact_payload, dict) and isinstance(artifact_payload.get("stages"), list):
+        artifact_payload = _fill_plan_metadata(artifact_payload, plan_path)
+        print(
+            f"[claude-plan] using {scope} plan artifact because Claude stdout did not contain top-level stages: {plan_path}",
+            flush=True,
+        )
+        return artifact_payload
+
+    payload_keys = sorted(payload.keys()) if isinstance(payload, dict) else type(payload).__name__
+    artifact_keys = (
+        sorted(artifact_payload.keys()) if isinstance(artifact_payload, dict) else artifact_payload
+    )
+    raise ValueError(
+        f"{scope} planner did not return top-level stages and no valid plan artifact was found. "
+        f"stdout_payload={payload_keys}; plan_path={plan_path}; artifact_payload={artifact_keys}"
+    )
+
+
 def write_json_file(path: str, payload: Dict[str, Any]) -> str:
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:

@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -113,6 +115,12 @@ def get_claude_code_config() -> Dict[str, Any]:
         "mcp_config_path": str(cfg.get("mcp_config_path") or ""),
         "strict_mcp_config": _as_bool(cfg.get("strict_mcp_config"), False),
         "no_session_persistence": _as_bool(cfg.get("no_session_persistence"), True),
+        "debug_filter": str(
+            cfg.get("debug_filter") or os.environ.get("CLAUDE_CODE_DEBUG_FILTER") or ""
+        ),
+        "debug_file": str(
+            cfg.get("debug_file") or os.environ.get("CLAUDE_CODE_DEBUG_FILE") or ""
+        ),
         "timeout_seconds": _as_int(cfg.get("timeout_seconds"), 1800),
         "max_budget_usd": float(cfg.get("max_budget_usd") or 0),
     }
@@ -120,6 +128,126 @@ def get_claude_code_config() -> Dict[str, Any]:
 
 def get_claude_code_binary() -> str:
     return str(get_claude_code_config()["binary"])
+
+
+def _read_dotenv_values(env_path: Path) -> Dict[str, str]:
+    if not env_path.exists():
+        return {}
+    try:
+        from dotenv import dotenv_values
+
+        return {str(k): str(v or "") for k, v in dotenv_values(env_path).items() if k}
+    except Exception:
+        values: Dict[str, str] = {}
+        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export "):
+                line = line[len("export ") :].lstrip()
+            if "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+            if (
+                len(value) >= 2
+                and value[0] == value[-1]
+                and value[0] in {"'", '"'}
+            ):
+                value = value[1:-1]
+            else:
+                value = value.split(" #", 1)[0].strip()
+            if key:
+                values[key] = value
+        return values
+
+
+def _write_json_atomic(path: Path, payload: Dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing_mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else 0o600
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=str(path.parent),
+        text=True,
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+        os.chmod(tmp_path, existing_mode)
+        os.replace(tmp_path, path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
+
+
+def _claude_settings_env(env_values: Dict[str, str]) -> Dict[str, str]:
+    settings_env: Dict[str, str] = {}
+    for key, value in env_values.items():
+        target_key = "ANTHROPIC_AUTH_TOKEN" if key == "ANTHROPIC_API_KEY" else key
+        settings_env[target_key] = value
+    return settings_env
+
+
+def _claude_model_env(default_model: str) -> Dict[str, str]:
+    model = str(default_model or "").strip()
+    if not model:
+        return {}
+    return {
+        "ANTHROPIC_MODEL": model,
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": model,
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": model,
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": model,
+    }
+
+
+def sync_anthropic_env_to_claude_settings(settings_path: Optional[str] = None) -> int:
+    """Mirror project .env ANTHROPIC_* and configured Claude model into settings env."""
+    repo_env = Path(__file__).resolve().parents[3] / ".env"
+    env_values = _claude_settings_env({
+        key: value
+        for key, value in _read_dotenv_values(repo_env).items()
+        if key.startswith("ANTHROPIC_")
+    })
+    env_values.update(_claude_model_env(get_claude_default_model()))
+
+    settings = Path(
+        settings_path or get_claude_code_config()["global_settings_path"]
+    ).expanduser()
+    if settings.exists():
+        with settings.open("r", encoding="utf-8") as f:
+            payload = json.load(f)
+        if not isinstance(payload, dict):
+            payload = {}
+    else:
+        payload = {}
+
+    existing_env = payload.get("env")
+    if not isinstance(existing_env, dict):
+        existing_env = {}
+    merged_env = {str(key): str(value) for key, value in existing_env.items()}
+    merged_env.pop("ANTHROPIC_API_KEY", None)
+    synced = 0
+    removed = 0
+    for key, value in sorted(env_values.items()):
+        if value:
+            merged_env[key] = value
+            synced += 1
+        elif key in merged_env:
+            merged_env.pop(key, None)
+            removed += 1
+    payload["env"] = merged_env
+    _write_json_atomic(settings, payload)
+    if synced or removed:
+        print(
+            f"[claude-settings] synced {synced} ANTHROPIC_* entries to {settings}"
+            + (f", removed {removed}" if removed else ""),
+            flush=True,
+        )
+    return synced
 
 
 def get_external_tool_config() -> Dict[str, str]:
@@ -554,6 +682,9 @@ def _ensure_workspace_claude_setup(workspace_dir: str) -> None:
         materialize_workspace_claude_project,
     )
 
+    sync_anthropic_env_to_claude_settings(
+        get_claude_code_config()["global_settings_path"]
+    )
     materialize_workspace_claude_project(
         workspace_dir=workspace_dir,
         role_models=get_claude_role_models(),

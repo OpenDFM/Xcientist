@@ -274,15 +274,15 @@ idea:
     evaluation_model: "gpt-5.4"
     generation_temperature: 0.7
     evaluation_temperature: 0.001
-    generation_max_tokens: 65536
-    evaluation_max_tokens: 65536
+    generation_max_tokens: 16384
+    evaluation_max_tokens: 16384
     component_novelty_model_path: "${repo_root}/models/bge-m3"
     component_novelty_index_dir: null
     component_novelty_retrieval_top_k: 50
     component_novelty_evidence_top_k: 5
     component_novelty_eval_model: "gpt-5.4"
     component_novelty_eval_temperature: 0.001
-    component_novelty_eval_max_tokens: 65536
+    component_novelty_eval_max_tokens: 16384
     mechanism_commit_retrieval_top_k: 3
     mechanism_commit_similarity_threshold: 0.6
     theory_transfer_retrieval_top_k: 3
@@ -336,6 +336,8 @@ experiment:
     mcp_config_path: ""
     strict_mcp_config: false
     no_session_persistence: true
+    debug_filter: "api"
+    debug_file: "logs/claude_code/claude_debug.log"
     timeout_seconds: 7200
     max_budget_usd: 0
 

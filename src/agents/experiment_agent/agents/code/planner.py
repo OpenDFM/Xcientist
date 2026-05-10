@@ -21,6 +21,7 @@ from src.agents.experiment_agent.runtime.contracts import (
 )
 from src.agents.experiment_agent.runtime.manifests import (
     artifact_paths,
+    coerce_plan_payload,
     extract_plan_steps,
     write_json_file,
     workspace_contract_paths,
@@ -182,7 +183,7 @@ Candidate env vars: {", ".join(self._get_relevant_env_var_names()) if self._get_
             agent_name=EXPERIMENT_CODE_PLANNER,
             output_schema=planner_output_schema(step_schema=_code_step_schema()),
         )
-        payload = result["output"]
+        payload = coerce_plan_payload(result["output"], self.plan_path, scope="code")
         write_json_file(self.plan_path, {"stages": payload["stages"]})
         # Blueprint: rich markdown capturing exploration findings, context, and decision rationale.
         # Workers read this to understand intent, not just the contract JSON.

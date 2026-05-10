@@ -31,6 +31,7 @@ from src.agents.experiment_agent.runtime.idea_components import (
 )
 from src.agents.experiment_agent.runtime.manifests import (
     artifact_paths,
+    coerce_plan_payload,
     load_json_file,
     resolve_prepare_idea_path,
     write_json_file,
@@ -272,8 +273,13 @@ Return structured review JSON only. The runtime will write the validator report 
             agent_name="prepare-planner",
             output_schema=planner_output_schema(step_schema=_prepare_step_schema()),
         )
-        plan_payload = plan_result["output"]
-        write_json_file(artifact_paths(workspace_dir, project_dir)["prepare_plan"], {"stages": plan_payload["stages"]})
+        prepare_plan_path = artifact_paths(workspace_dir, project_dir)["prepare_plan"]
+        plan_payload = coerce_plan_payload(
+            plan_result["output"],
+            prepare_plan_path,
+            scope="prepare",
+        )
+        write_json_file(prepare_plan_path, {"stages": plan_payload["stages"]})
         write_json_file(
             artifact_paths(workspace_dir, project_dir)["prepare_planner_report"],
             {"scope": "prepare", "summary": plan_payload["summary"], "usage_notes": plan_payload["usage_notes"]},

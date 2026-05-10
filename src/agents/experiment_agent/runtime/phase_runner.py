@@ -6,6 +6,7 @@ import sys
 import time
 from typing import Any, Callable, Dict, List, Optional
 
+from src.agents.experiment_agent.runtime.claude_cli import ClaudeCodeError
 from src.agents.experiment_agent.runtime.manifests import write_json_file
 from src.agents.experiment_agent.runtime.phase_contracts import ARTIFACT_ROLE_PHASE_RESULT
 
@@ -122,7 +123,46 @@ async def execute_step_loop(
             label = f"attempt {attempt}/{max_rounds}" if max_rounds > 1 else "run"
             t0 = time.monotonic()
             print(f"  [{scope}]   Worker ({label})... ", end="", flush=True)
-            worker_payload = await call_worker(step, validator_payload)
+            try:
+                worker_payload = await call_worker(step, validator_payload)
+            except ClaudeCodeError as exc:
+                elapsed = time.monotonic() - t0
+                summary = str(exc).splitlines()[0]
+                print(f"failed ({elapsed:.0f}s): {summary[:240]}", flush=True)
+                worker_payload = {
+                    "summary": f"Worker Claude invocation failed: {summary}",
+                    "artifacts_produced": [],
+                    "remaining_blockers": [str(exc)[:2000]],
+                }
+                worker_report_path = str(step.get("worker_report_path") or "")
+                if worker_report_path:
+                    write_json_file(worker_report_path, worker_payload)
+                validator_payload = with_phase_defaults(
+                    {
+                        "status": "PARTIAL" if attempt < max_rounds else "FAIL",
+                        "scope": scope,
+                        "evidence_summary": f"Worker Claude invocation failed: {summary}",
+                        "required_fixes": ["Retry the worker after the transient Claude/API failure."],
+                        "terminal_blocker": False,
+                        "next_worker_input": "Previous worker invocation failed before a valid worker report was produced. Retry the same stage.",
+                        "checked_artifacts": [],
+                        "blocking_issues": [str(exc)[:2000]],
+                    },
+                    scope=scope,
+                )
+                validator_report_path = str(step.get("validator_report_path") or "")
+                if validator_report_path:
+                    write_json_file(validator_report_path, validator_payload)
+                if attempt == max_rounds:
+                    print(f"  [{scope}]   => FAIL (worker invocation failed after {max_rounds} attempts)", flush=True)
+                    return {
+                        "status": "FAIL",
+                        "failed_step": step,
+                        "failed_validator_report": validator_payload,
+                        "step_reports": final_reports,
+                    }
+                print(f"  [{scope}]   => PARTIAL (retrying worker)", flush=True)
+                continue
             elapsed = time.monotonic() - t0
             print(f"done ({elapsed:.0f}s)", flush=True)
             worker_report_path = str(step.get("worker_report_path") or "")
@@ -130,7 +170,21 @@ async def execute_step_loop(
                 write_json_file(worker_report_path, worker_payload)
             t1 = time.monotonic()
             print(f"  [{scope}]   Validator ({label})... ", end="", flush=True)
-            validator_payload = await call_validator(step, worker_payload)
+            try:
+                validator_payload = await call_validator(step, worker_payload)
+            except ClaudeCodeError as exc:
+                elapsed_v = time.monotonic() - t1
+                summary = str(exc).splitlines()[0]
+                print(f"failed ({elapsed_v:.0f}s): {summary[:240]}", flush=True)
+                validator_payload = {
+                    "status": "PARTIAL" if attempt < max_rounds else "FAIL",
+                    "evidence_summary": f"Validator Claude invocation failed: {summary}",
+                    "required_fixes": ["Retry validation after the transient Claude/API failure."],
+                    "terminal_blocker": False,
+                    "next_worker_input": "Worker produced a report, but validator invocation failed. Retry validation/repair for the same stage.",
+                    "checked_artifacts": [],
+                    "blocking_issues": [str(exc)[:2000]],
+                }
             validator_payload = with_phase_defaults(validator_payload, scope=scope)
             elapsed_v = time.monotonic() - t1
             verdict = validator_payload.get("status", "UNKNOWN")

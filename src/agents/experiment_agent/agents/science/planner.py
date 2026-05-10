@@ -35,7 +35,12 @@ from src.agents.experiment_agent.runtime.idea_components import (
     format_canonical_components_markdown,
     load_canonical_components,
 )
-from src.agents.experiment_agent.runtime.manifests import artifact_paths, write_json_file, workspace_contract_paths
+from src.agents.experiment_agent.runtime.manifests import (
+    artifact_paths,
+    coerce_plan_payload,
+    write_json_file,
+    workspace_contract_paths,
+)
 from src.agents.experiment_agent.runtime.phase_runner import (
     execute_step_loop,
     planner_output_schema,
@@ -232,7 +237,11 @@ class _BaseSciencePlanner(BaseAgent):
             agent_name=self.planner_role,
             output_schema=planner_output_schema(step_schema=_science_step_schema(ablation=self.ablation)),
         )
-        payload = result["output"]
+        payload = coerce_plan_payload(
+            result["output"],
+            self.plan_path,
+            scope="ablation_science" if self.ablation else "standard_science",
+        )
         write_json_file(self.plan_path, {"stages": payload["stages"]})
         blueprint_key = "ablation_science_blueprint" if self.ablation else "standard_science_blueprint"
         blueprint_path = self.paths.get(blueprint_key, "")

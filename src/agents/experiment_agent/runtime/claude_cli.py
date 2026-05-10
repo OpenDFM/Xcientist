@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import subprocess
 import time
 import uuid
@@ -43,6 +44,36 @@ def _parse_stream_jsonl(stream_text: str) -> tuple[str, list[Dict[str, Any]]]:
     return final_result, events
 
 
+def _claude_failure_summary(
+    stdout_text: str,
+    stderr_text: str,
+    events: list[Dict[str, Any]],
+) -> str:
+    for event in reversed(events):
+        for key in ("result", "error", "message"):
+            value = event.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    text = (stderr_text or stdout_text or "").strip()
+    return text[-2000:] if text else ""
+
+
+def _is_retryable_transport_failure(summary: str) -> bool:
+    lowered = str(summary or "").lower()
+    retryable_markers = (
+        "api error:",
+        "socket connection was closed",
+        "fetch()",
+        "fetch failed",
+        "connection reset",
+        "econnreset",
+        "etimedout",
+        "network error",
+        "upstream",
+    )
+    return any(marker in lowered for marker in retryable_markers)
+
+
 @dataclass
 class ClaudeInvocation:
     argv: List[str]
@@ -51,6 +82,78 @@ class ClaudeInvocation:
 
 
 _HELP_CACHE: Dict[str, str] = {}
+
+
+def _read_settings_env(settings_path: str) -> Dict[str, str]:
+    path = os.path.expanduser(str(settings_path or ""))
+    if not path or not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+    except Exception:
+        return {}
+    env = payload.get("env") if isinstance(payload, dict) else None
+    if not isinstance(env, dict):
+        return {}
+    return {str(key): str(value) for key, value in env.items() if str(value)}
+
+
+def _claude_subprocess_env(settings_paths: Optional[List[str]] = None) -> Dict[str, str]:
+    env = os.environ.copy()
+    for settings_path in settings_paths or []:
+        for key, value in _read_settings_env(settings_path).items():
+            if key.startswith("ANTHROPIC_"):
+                env[key] = value
+    api_key = str(env.get("ANTHROPIC_API_KEY") or "").strip()
+    auth_token = str(env.get("ANTHROPIC_AUTH_TOKEN") or "").strip()
+    if api_key and not auth_token:
+        env["ANTHROPIC_AUTH_TOKEN"] = api_key
+    elif auth_token and not api_key:
+        env["ANTHROPIC_API_KEY"] = auth_token
+    return env
+
+
+def _extract_json_object_text(text: str) -> str:
+    stripped = (text or "").strip()
+    for match in re.finditer(r"```(?:json)?\s*(.*?)```", stripped, flags=re.IGNORECASE | re.DOTALL):
+        candidate = match.group(1).strip()
+        if candidate.startswith("{"):
+            return candidate
+    if stripped.startswith("```"):
+        lines = stripped.splitlines()
+        if lines:
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        stripped = "\n".join(lines).strip()
+    if stripped.startswith("{"):
+        return stripped
+    start = stripped.find("{")
+    if start >= 0:
+        depth = 0
+        in_string = False
+        escape = False
+        for idx in range(start, len(stripped)):
+            char = stripped[idx]
+            if escape:
+                escape = False
+                continue
+            if in_string and char == "\\":
+                escape = True
+                continue
+            if char == '"':
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return stripped[start : idx + 1]
+    return stripped
 
 
 def _coerce_json_output(stdout: str) -> Dict[str, Any]:
@@ -64,7 +167,7 @@ def _coerce_json_output(stdout: str) -> Dict[str, Any]:
             if isinstance(result_value, dict):
                 return result_value
             if isinstance(result_value, str):
-                stripped = result_value.strip()
+                stripped = _extract_json_object_text(result_value)
                 if stripped.startswith("{"):
                     return _coerce_json_output(stripped)
         if isinstance(payload, dict) and "content" in payload and isinstance(payload["content"], dict):
@@ -105,8 +208,11 @@ class ClaudeCodeRunner:
         self.timeout_seconds = int(cfg.get("timeout_seconds") or 1800)
         self.mcp_config_path = str(cfg.get("mcp_config_path") or "").strip()
         self.settings_sources = str(cfg.get("settings_sources") or "project").strip()
+        self.global_settings_path = str(cfg.get("global_settings_path") or "").strip()
         self.strict_mcp_config = bool(cfg.get("strict_mcp_config", False))
         self.no_session_persistence = bool(cfg.get("no_session_persistence", True))
+        self.debug_filter = str(cfg.get("debug_filter") or "").strip()
+        self.debug_file = str(cfg.get("debug_file") or "").strip()
         trace_paths = ensure_claude_trace_paths(self.workspace_root)
         self.trace_dir = trace_paths["trace_dir"]
         self.trace_latest_path = trace_paths["latest_path"]
@@ -176,6 +282,14 @@ class ClaudeCodeRunner:
             argv.append("--no-session-persistence")
         if self.settings_sources and self._supports_option("--setting-sources"):
             argv.extend(["--setting-sources", self.settings_sources])
+        if self.debug_filter and self._supports_option("--debug"):
+            argv.extend(["--debug", self.debug_filter])
+        if self.debug_file and self._supports_option("--debug-file"):
+            debug_file = self.debug_file
+            if not os.path.isabs(debug_file):
+                debug_file = os.path.join(self.workspace_root, debug_file)
+            os.makedirs(os.path.dirname(debug_file), exist_ok=True)
+            argv.extend(["--debug-file", debug_file])
         mcp_config_path = self._resolve_mcp_config_path()
         if mcp_config_path:
             argv.extend(["--mcp-config", mcp_config_path])
@@ -221,6 +335,62 @@ class ClaudeCodeRunner:
                 f.write(message.rstrip() + "\n")
         except Exception:
             return
+
+    def _maybe_log_stream_event(self, line: str) -> None:
+        if not self.verbose:
+            return
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            return
+        event_type = str(event.get("type") or "")
+        subtype = str(event.get("subtype") or "")
+        if event_type == "system" and subtype == "api_retry":
+            attempt = event.get("attempt")
+            max_retries = event.get("max_retries")
+            status = event.get("error_status")
+            error = event.get("error")
+            delay_ms = event.get("retry_delay_ms")
+            print(
+                "[claude-api-retry] "
+                f"attempt={attempt}/{max_retries} status={status} "
+                f"error={error} delay_ms={int(delay_ms or 0)}",
+                flush=True,
+            )
+        elif event_type in {"error", "exception"}:
+            message = str(event.get("error") or event.get("message") or "")[:500]
+            print(f"[claude-error] {message}", flush=True)
+        elif event.get("error"):
+            message = str(event.get("error") or "")[:500]
+            print(f"[claude-error] type={event_type} {message}", flush=True)
+        elif event_type == "result":
+            subtype_note = f" subtype={subtype}" if subtype else ""
+            error_note = " is_error=true" if event.get("is_error") else ""
+            print(f"[claude-result]{subtype_note}{error_note}", flush=True)
+
+    async def _read_stream(
+        self,
+        stream: Optional[asyncio.StreamReader],
+        chunks: List[str],
+        *,
+        log_events: bool = False,
+    ) -> None:
+        if stream is None:
+            return
+        pending = ""
+        while True:
+            data = await stream.read(65536)
+            if not data:
+                break
+            text = data.decode("utf-8", errors="replace")
+            chunks.append(text)
+            if log_events:
+                pending += text
+                while "\n" in pending:
+                    line, pending = pending.split("\n", 1)
+                    self._maybe_log_stream_event(line.strip())
+        if log_events and pending.strip():
+            self._maybe_log_stream_event(pending.strip())
 
     def _write_trace(
         self,
@@ -277,7 +447,7 @@ class ClaudeCodeRunner:
                 f"[claude-trace] agent={invocation.agent_name} trace={base_path}.meta.json returncode={returncode} duration_ms={duration_ms}{stream_note}"
             )
 
-    async def _run_streaming(
+    async def _run_streaming_once(
         self,
         invocation: ClaudeInvocation,
         prompt: str,
@@ -304,32 +474,50 @@ class ClaudeCodeRunner:
             stream_argv.append("--verbose")
 
         # Add json-schema if provided
-        exec_argv = self._argv_with_prompt(
-            ClaudeInvocation(argv=stream_argv, cwd=invocation.cwd, agent_name=invocation.agent_name),
-            prompt,
+        trace_invocation = ClaudeInvocation(
+            argv=stream_argv,
+            cwd=invocation.cwd,
+            agent_name=invocation.agent_name,
         )
+        exec_argv = self._argv_with_prompt(trace_invocation, prompt)
 
         proc = await asyncio.create_subprocess_exec(
             *exec_argv,
             cwd=invocation.cwd,
+            env=_claude_subprocess_env(
+                [
+                    self.global_settings_path,
+                    os.path.join(self.workspace_root, ".claude", "settings.json"),
+                ]
+            ),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        stdout_chunks: List[str] = []
+        stderr_chunks: List[str] = []
+        stdout_task = asyncio.create_task(
+            self._read_stream(proc.stdout, stdout_chunks, log_events=True)
+        )
+        stderr_task = asyncio.create_task(
+            self._read_stream(proc.stderr, stderr_chunks)
+        )
         try:
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(),
-                timeout=self.timeout_seconds,
-            )
+            await asyncio.wait_for(proc.wait(), timeout=self.timeout_seconds)
+            await asyncio.gather(stdout_task, stderr_task)
         except asyncio.TimeoutError as exc:
             proc.kill()
-            await proc.communicate()
+            await proc.wait()
+            await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
             duration_ms = int((time.time() - started) * 1000)
+            stdout_text = "".join(stdout_chunks)
+            stderr_text = "".join(stderr_chunks)
             self._write_trace(
                 base_path=trace_base,
-                invocation=invocation,
+                invocation=trace_invocation,
                 prompt=prompt,
-                stdout_text="",
-                stderr_text=f"TIMEOUT after {self.timeout_seconds} seconds",
+                stdout_text=stdout_text,
+                stderr_text=stderr_text
+                + f"\nTIMEOUT after {self.timeout_seconds} seconds",
                 returncode=-1,
                 duration_ms=duration_ms,
                 stream_events=[],
@@ -338,8 +526,8 @@ class ClaudeCodeRunner:
                 f"Claude Code timed out after {self.timeout_seconds} seconds. Trace: {trace_base}.meta.json"
             ) from exc
 
-        stdout_text = stdout.decode("utf-8", errors="replace")
-        stderr_text = stderr.decode("utf-8", errors="replace")
+        stdout_text = "".join(stdout_chunks)
+        stderr_text = "".join(stderr_chunks)
         returncode = proc.returncode
         duration_ms = int((time.time() - started) * 1000)
 
@@ -348,7 +536,7 @@ class ClaudeCodeRunner:
 
         self._write_trace(
             base_path=trace_base,
-            invocation=invocation,
+            invocation=trace_invocation,
             prompt=prompt,
             stdout_text=stdout_text,
             stderr_text=stderr_text,
@@ -358,11 +546,41 @@ class ClaudeCodeRunner:
         )
 
         if returncode != 0:
+            summary = _claude_failure_summary(stdout_text, stderr_text, events)
             raise ClaudeCodeError(
-                f"Claude Code exited with {returncode}.\nSTDOUT:\n{stdout_text[:2000]}\nSTDERR:\n{stderr_text}\nTrace: {trace_base}.meta.json"
+                f"Claude Code exited with {returncode}.\n"
+                f"Reason: {summary[:2000]}\n"
+                f"STDOUT tail:\n{stdout_text[-2000:]}\n"
+                f"STDERR:\n{stderr_text}\n"
+                f"Trace: {trace_base}.meta.json"
             )
 
         return final_result_json, events, stdout_text, stderr_text, returncode
+
+    async def _run_streaming(
+        self,
+        invocation: ClaudeInvocation,
+        prompt: str,
+    ) -> tuple[str, list[Dict[str, Any]], str, str, int]:
+        max_attempts = max(1, int(os.environ.get("CLAUDE_CODE_TRANSPORT_ATTEMPTS", "3") or "3"))
+        last_error: Optional[ClaudeCodeError] = None
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return await self._run_streaming_once(invocation, prompt)
+            except ClaudeCodeError as exc:
+                last_error = exc
+                summary = str(exc)
+                if attempt >= max_attempts or not _is_retryable_transport_failure(summary):
+                    raise
+                delay_seconds = min(30, 2 ** attempt)
+                print(
+                    f"[claude-transport-retry] agent={invocation.agent_name} "
+                    f"attempt={attempt}/{max_attempts} delay_s={delay_seconds} "
+                    f"reason={summary.splitlines()[1][:240] if len(summary.splitlines()) > 1 else summary[:240]}",
+                    flush=True,
+                )
+                await asyncio.sleep(delay_seconds)
+        raise last_error or ClaudeCodeError("Claude Code failed without an error detail.")
 
     async def _run(self, invocation: ClaudeInvocation, prompt: str) -> str:
         """Legacy text mode: run and return the text result."""
@@ -413,10 +631,7 @@ class ClaudeCodeRunner:
             invocation, prompt
         )
         if final_result_json:
-            try:
-                result_event = json.loads(final_result_json)
-                return _coerce_json_output(json.dumps(result_event))
-            except (json.JSONDecodeError, ClaudeCodeError):
-                pass
+            result_event = json.loads(final_result_json)
+            return _coerce_json_output(json.dumps(result_event))
         # Fallback: parse raw stdout
         return _coerce_json_output(_stdout_text)
