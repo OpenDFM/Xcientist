@@ -381,7 +381,13 @@ def _coerce_json_output(stdout: str) -> Dict[str, Any]:
             if isinstance(result_value, str):
                 stripped = _extract_json_object_text(result_value)
                 if stripped.startswith("{"):
-                    return _coerce_json_output(stripped)
+                    try:
+                        return _coerce_json_output(stripped)
+                    except ClaudeCodeError:
+                        # Prose result strings may contain placeholders like
+                        # `{N}`. Let callers fall back to artifact-based
+                        # recovery instead of failing on that fragment.
+                        pass
         if isinstance(payload, dict) and "content" in payload and isinstance(payload["content"], dict):
             return payload["content"]
         if isinstance(payload, dict):

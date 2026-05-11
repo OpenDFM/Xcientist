@@ -22,6 +22,7 @@ from src.agents.experiment_agent.agents.science.worker import (
     standard_science_worker_prompt,
 )
 from src.agents.experiment_agent.config import get_agent_model
+from src.agents.experiment_agent.runtime.claude_cli import ClaudeCodeError
 from src.agents.experiment_agent.runtime.contracts import (
     ABLATION_COMPONENT_RESULT_FIELDS,
     PHASE_VERDICT_FIELDS,
@@ -206,6 +207,7 @@ class _BaseSciencePlanner(BaseAgent):
             "",
             "### Required Planner Output",
             "Write a JSON object with `stages`, `summary`, and `usage_notes`.",
+            "Your final response must be that JSON object, not a prose summary, even if you also write plan artifacts to disk.",
             "Each step must include:",
             step_fields,
             "",
@@ -232,13 +234,25 @@ class _BaseSciencePlanner(BaseAgent):
         return "\n".join(base)
 
     async def _plan(self) -> Dict[str, Any]:
-        result = await self.run(
-            user_prompt=self._build_user_prompt(),
-            agent_name=self.planner_role,
-            output_schema=planner_output_schema(step_schema=_science_step_schema(ablation=self.ablation)),
-        )
+        try:
+            result = await self.run(
+                user_prompt=self._build_user_prompt(),
+                agent_name=self.planner_role,
+                output_schema=planner_output_schema(step_schema=_science_step_schema(ablation=self.ablation)),
+            )
+            planner_output = result["output"]
+        except ClaudeCodeError as exc:
+            error_text = str(exc)
+            if "invalid JSON" not in error_text and "empty JSON" not in error_text:
+                raise
+            print(
+                f"[claude-plan] recovering {self.planner_role} plan from artifact after invalid final JSON: "
+                f"{self.plan_path}; error={error_text[:240]}",
+                flush=True,
+            )
+            planner_output = {}
         payload = coerce_plan_payload(
-            result["output"],
+            planner_output,
             self.plan_path,
             scope="ablation_science" if self.ablation else "standard_science",
         )

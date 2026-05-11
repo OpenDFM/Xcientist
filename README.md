@@ -2,7 +2,7 @@
  <img src="assets/logo.png" alt="Xcientist logo" width="70%">
 </p>
 
-<h2 align="center">Externalizing Research Synthesis and Decision-Making in AI Scientist through a Research Harness</h2>
+<h2 align="center">Externalizing Research Synthesis and Validation in AI Scientists through a Research Harness</h2>
 
 <p align="center">
 <img src="https://img.shields.io/badge/python-3.12-blue" alt="python">
@@ -202,6 +202,12 @@ Run experiment from the provided sample idea:
 
 ```bash
 xcientist experiment --experiment agent_memory --idea-json <repo_root>/src/agents/idea_agent/example/idea_result.json
+```
+
+Start blog generation from the sample experiment workspace:
+
+```bash
+xcientist blog --experiment agent_memory --source-workspace <repo_root>/workspace/training-free-memory-example
 ```
 
 For further configuration changes, edit `src/config/default.yaml`.

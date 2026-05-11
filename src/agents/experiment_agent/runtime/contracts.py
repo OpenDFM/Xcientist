@@ -9,7 +9,7 @@ and path labels so information can move cleanly between agents.
 from __future__ import annotations
 
 import os
-from typing import Any, Mapping, Sequence, Tuple
+from typing import Any, Mapping, MutableMapping, Sequence, Tuple
 
 
 PREPARE_STAGE_CONTRACT_FIELDS: Tuple[str, ...] = (
@@ -195,6 +195,10 @@ def validate_repo_contract_fields(
         project_target_paths = [item.strip() for item in project_target_paths if item.strip()]
 
     normalized_project_dir = os.path.realpath(project_dir)
+    if repo_copy_intent == "reference_only" and not repo_source_paths:
+        repo_copy_intent = "none"
+        if isinstance(payload, MutableMapping):
+            payload["repo_copy_intent"] = repo_copy_intent
     if repo_copy_intent != "none" and not repo_source_paths:
         errors.append("`repo_source_paths` must be non-empty when `repo_copy_intent` is not `none`")
     if repo_copy_intent == "copy_and_modify" and not project_target_paths:

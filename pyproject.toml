@@ -196,15 +196,6 @@ environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
 package = true
 cache-dir = ".uv-cache"
 
-[[tool.uv.index]]
-name = "aliyun"
-url = "https://mirrors.aliyun.com/pypi/simple/"
-
-[[tool.uv.index]]
-name = "bfsu"
-url = "https://mirrors.bfsu.edu.cn/pypi/web/simple/"
-default = true
-
 [tool.hatch.build.targets.wheel]
 packages = ["src"]
 

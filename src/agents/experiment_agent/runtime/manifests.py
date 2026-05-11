@@ -211,22 +211,43 @@ def _planner_report_path_for_plan(plan_path: str) -> str:
     return ""
 
 
+def _plan_metadata_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, list):
+        lines: List[str] = []
+        for item in value:
+            if item is None:
+                continue
+            text = _plan_metadata_text(item)
+            if text:
+                lines.append(text)
+        return "\n".join(lines).strip()
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False, indent=2).strip()
+    return str(value).strip()
+
+
 def _fill_plan_metadata(payload: Dict[str, Any], plan_path: str) -> Dict[str, Any]:
     normalized = dict(payload)
     report_path = _planner_report_path_for_plan(plan_path)
     report_payload = load_json_file(report_path) if report_path else None
     if not normalized.get("summary"):
         normalized["summary"] = (
-            str(report_payload.get("summary") or "")
+            report_payload.get("summary")
             if isinstance(report_payload, dict)
             else ""
         )
     if not normalized.get("usage_notes"):
         normalized["usage_notes"] = (
-            str(report_payload.get("usage_notes") or "")
+            report_payload.get("usage_notes")
             if isinstance(report_payload, dict)
             else ""
         )
+    normalized["summary"] = _plan_metadata_text(normalized.get("summary"))
+    normalized["usage_notes"] = _plan_metadata_text(normalized.get("usage_notes"))
     return normalized
 
 

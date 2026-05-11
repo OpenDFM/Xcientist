@@ -2,7 +2,7 @@
  <img src="assets/logo.png" alt="Xcientist logo" width="70%">
 </p>
 
-<h2 align="center">Externalizing Research Synthesis and Decision-Making in AI Scientist through a Research Harness</h2>
+<h2 align="center">Externalizing Research Synthesis and Validation in AI Scientists through a Research Harness</h2>
 
 <p align="center">
 <img src="https://img.shields.io/badge/python-3.12-blue" alt="python">
@@ -201,6 +201,12 @@ xcientist idea --topic "Training-Free Memory System for LLM Agents"
 
 ```bash
 xcientist experiment --experiment agent_memory --idea-json <repo_root>/src/agents/idea_agent/example/idea_result.json
+```
+
+基于该样例 experiment workspace 启动 blog：
+
+```bash
+xcientist blog --experiment agent_memory --source-workspace <repo_root>/workspace/training-free-memory-example
 ```
 
 如果还需要进一步调整配置，请修改 `src/config/default.yaml`。
