@@ -121,6 +121,21 @@ def get_claude_code_config() -> Dict[str, Any]:
         "debug_file": str(
             cfg.get("debug_file") or os.environ.get("CLAUDE_CODE_DEBUG_FILE") or ""
         ),
+        "stream_renderer": str(
+            cfg.get("stream_renderer")
+            or os.environ.get("CLAUDE_CODE_STREAM_RENDERER")
+            or "off"
+        ),
+        "stream_renderer_output": str(
+            cfg.get("stream_renderer_output")
+            or os.environ.get("CLAUDE_CODE_STREAM_RENDERER_OUTPUT")
+            or "stderr"
+        ),
+        "stream_renderer_detail": str(
+            cfg.get("stream_renderer_detail")
+            or os.environ.get("CLAUDE_CODE_STREAM_RENDERER_DETAIL")
+            or "compact"
+        ),
         "timeout_seconds": _as_int(cfg.get("timeout_seconds"), 1800),
         "max_budget_usd": float(cfg.get("max_budget_usd") or 0),
     }

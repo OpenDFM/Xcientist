@@ -5,6 +5,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -79,6 +80,217 @@ class ClaudeInvocation:
     argv: List[str]
     cwd: str
     agent_name: str
+
+
+class ClaudeStreamPrettyRenderer:
+    """Render Claude Code stream-json events as readable terminal progress."""
+
+    def __init__(
+        self,
+        *,
+        agent_name: str,
+        mode: str = "off",
+        output: str = "stderr",
+        detail: str = "compact",
+    ) -> None:
+        self.agent_name = str(agent_name or "default")
+        self.mode = str(mode or "off").strip().lower()
+        self.detail = str(detail or "compact").strip().lower()
+        self.file = sys.stdout if str(output).strip().lower() == "stdout" else sys.stderr
+        self._rich_console = None
+        self._rich_escape = None
+        if self.mode == "rich":
+            try:
+                from rich.console import Console
+                from rich.markup import escape
+                from rich.theme import Theme
+
+                theme = Theme(
+                    {
+                        "agent": "bold cyan",
+                        "thinking": "dim italic",
+                        "tool": "bold blue",
+                        "tool.ok": "green",
+                        "tool.err": "bold red",
+                        "path": "magenta",
+                        "cmd": "yellow",
+                        "meta": "dim",
+                        "done": "bold green",
+                        "error": "bold red",
+                    }
+                )
+                self._rich_console = Console(
+                    file=self.file,
+                    force_terminal=True,
+                    color_system="auto",
+                    theme=theme,
+                )
+                self._rich_escape = escape
+            except Exception:
+                self.mode = "plain"
+
+    @property
+    def enabled(self) -> bool:
+        return self.mode in {"plain", "rich"}
+
+    def render(self, event: Dict[str, Any]) -> None:
+        if not self.enabled:
+            return
+        event_type = str(event.get("type") or "")
+        if event_type == "system":
+            self._render_system(event)
+        elif event_type == "assistant":
+            self._render_assistant(event.get("message") if isinstance(event.get("message"), dict) else {})
+        elif event_type == "user":
+            self._render_user(event.get("message") if isinstance(event.get("message"), dict) else {})
+        elif event_type == "result":
+            status = "failed" if event.get("is_error") else "done"
+            style = "error" if event.get("is_error") else "done"
+            self._markup(
+                f"[{style}]{self._esc(self.agent_name)} Claude Code {status}[/{style}]"
+            )
+        elif event_type in {"error", "exception"} or event.get("error"):
+            message = str(event.get("error") or event.get("message") or "")[:800]
+            self._markup(
+                f"[error]{self._esc(self.agent_name)} ERROR:[/error] {self._esc(message)}"
+            )
+
+    def _render_system(self, event: Dict[str, Any]) -> None:
+        subtype = str(event.get("subtype") or "")
+        if subtype == "init":
+            self._markup(
+                f"[agent]{self._esc(self.agent_name)}[/agent] "
+                f"[meta]started model={self._esc(event.get('model'))} "
+                f"cwd={self._esc(event.get('cwd'))}[/meta]"
+            )
+        elif subtype == "api_retry":
+            self._markup(
+                f"[agent]{self._esc(self.agent_name)}[/agent] "
+                f"[error]API retry[/error] "
+                f"[meta]{self._esc(event.get('attempt'))}/{self._esc(event.get('max_retries'))}[/meta] "
+                f"{self._esc(event.get('error'))}"
+            )
+
+    def _render_assistant(self, message: Dict[str, Any]) -> None:
+        for block in message.get("content") or []:
+            if not isinstance(block, dict):
+                continue
+            block_type = str(block.get("type") or "")
+            if block_type == "thinking":
+                text = str(block.get("thinking") or "").strip()
+                if text:
+                    self._markup(f"[thinking]thinking: {self._esc(self._short(text, 500))}[/thinking]")
+            elif block_type == "text":
+                text = str(block.get("text") or "").rstrip()
+                if text:
+                    self._text(text)
+            elif block_type == "tool_use":
+                self._render_tool_use(block)
+
+    def _render_user(self, message: Dict[str, Any]) -> None:
+        for block in message.get("content") or []:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                continue
+            label = "tool_error" if block.get("is_error") else "tool_result"
+            style = "tool.err" if block.get("is_error") else "tool.ok"
+            tool_id = str(block.get("tool_use_id") or "")
+            content = self._short(block.get("content"), 1600 if self.detail == "full" else 700)
+            if self.mode == "rich":
+                self._rich_panel(content, title=f"[{style}]{label}[/] [meta]{self._esc(tool_id)}[/meta]", error=bool(block.get("is_error")))
+            else:
+                self._plain(f"[{self.agent_name}] {label} {tool_id}: {content}")
+
+    def _render_tool_use(self, block: Dict[str, Any]) -> None:
+        name = str(block.get("name") or "tool")
+        tool_id = str(block.get("id") or "")
+        tool_input = block.get("input") if isinstance(block.get("input"), dict) else {}
+        if name == "Bash":
+            command = str(tool_input.get("command") or "")
+            description = str(tool_input.get("description") or "").strip()
+            suffix = f" {description}" if description else ""
+            self._markup(
+                f"[tool]Bash[/tool] [meta]{self._esc(tool_id)}[/meta]{self._esc(suffix)}"
+            )
+            if command:
+                self._syntax(command, "bash")
+            return
+        if name in {"Read", "Write", "Edit"}:
+            path = str(tool_input.get("file_path") or tool_input.get("path") or "")
+            self._markup(
+                f"[tool]{self._esc(name)}[/tool] "
+                f"[path]{self._esc(path)}[/path] [meta]{self._esc(tool_id)}[/meta]"
+            )
+            return
+        preview = self._short(tool_input, 700 if self.detail == "full" else 260)
+        self._markup(
+            f"[tool]{self._esc(name)}[/tool] [meta]{self._esc(tool_id)}[/meta] "
+            f"{self._esc(preview)}"
+        )
+
+    def _short(self, value: Any, limit: int = 300) -> str:
+        if isinstance(value, str):
+            text = value.strip()
+        else:
+            try:
+                text = json.dumps(value, ensure_ascii=False)
+            except TypeError:
+                text = str(value)
+        if self.detail != "full":
+            text = " ".join(text.split())
+        return text[:limit] + ("..." if len(text) > limit else "")
+
+    def _esc(self, value: Any) -> str:
+        text = "" if value is None else str(value)
+        if self._rich_escape:
+            return self._rich_escape(text)
+        return text
+
+    def _text(self, text: str) -> None:
+        if self.mode == "rich" and self._rich_console is not None:
+            self._rich_console.print(text, markup=False)
+        else:
+            self._plain(text)
+
+    def _markup(self, markup: str) -> None:
+        if self.mode == "rich" and self._rich_console is not None:
+            self._rich_console.print(markup)
+        else:
+            clean = re.sub(r"\[/?[A-Za-z0-9_. ]+\]", "", markup)
+            self._plain(clean)
+
+    def _plain(self, text: str) -> None:
+        print(text, file=self.file, flush=True)
+
+    def _syntax(self, code: str, lexer: str) -> None:
+        if self.mode == "rich" and self._rich_console is not None:
+            try:
+                from rich.syntax import Syntax
+
+                self._rich_console.print(
+                    Syntax(code, lexer, theme="ansi_dark", word_wrap=True)
+                )
+                return
+            except Exception:
+                pass
+        self._plain(code)
+
+    def _rich_panel(self, content: str, *, title: str, error: bool = False) -> None:
+        if self._rich_console is None:
+            self._plain(content)
+            return
+        try:
+            from rich.panel import Panel
+            from rich.text import Text
+
+            self._rich_console.print(
+                Panel(
+                    Text(content),
+                    title=title,
+                    border_style="red" if error else "green",
+                )
+            )
+        except Exception:
+            self._plain(content)
 
 
 _HELP_CACHE: Dict[str, str] = {}
@@ -213,6 +425,13 @@ class ClaudeCodeRunner:
         self.no_session_persistence = bool(cfg.get("no_session_persistence", True))
         self.debug_filter = str(cfg.get("debug_filter") or "").strip()
         self.debug_file = str(cfg.get("debug_file") or "").strip()
+        self.stream_renderer = str(cfg.get("stream_renderer") or "off").strip().lower()
+        self.stream_renderer_output = str(
+            cfg.get("stream_renderer_output") or "stderr"
+        ).strip().lower()
+        self.stream_renderer_detail = str(
+            cfg.get("stream_renderer_detail") or "compact"
+        ).strip().lower()
         trace_paths = ensure_claude_trace_paths(self.workspace_root)
         self.trace_dir = trace_paths["trace_dir"]
         self.trace_latest_path = trace_paths["latest_path"]
@@ -374,6 +593,9 @@ class ClaudeCodeRunner:
         chunks: List[str],
         *,
         log_events: bool = False,
+        renderer: Optional[ClaudeStreamPrettyRenderer] = None,
+        raw_passthrough: bool = False,
+        raw_output: str = "stdout",
     ) -> None:
         if stream is None:
             return
@@ -384,13 +606,30 @@ class ClaudeCodeRunner:
                 break
             text = data.decode("utf-8", errors="replace")
             chunks.append(text)
+            if raw_passthrough:
+                raw_file = sys.stderr if raw_output == "stderr" else sys.stdout
+                print(text, end="", file=raw_file, flush=True)
             if log_events:
                 pending += text
                 while "\n" in pending:
                     line, pending = pending.split("\n", 1)
-                    self._maybe_log_stream_event(line.strip())
+                    stripped = line.strip()
+                    self._maybe_log_stream_event(stripped)
+                    if renderer and renderer.enabled:
+                        try:
+                            event = json.loads(stripped)
+                        except json.JSONDecodeError:
+                            continue
+                        renderer.render(event)
         if log_events and pending.strip():
-            self._maybe_log_stream_event(pending.strip())
+            stripped = pending.strip()
+            self._maybe_log_stream_event(stripped)
+            if renderer and renderer.enabled:
+                try:
+                    event = json.loads(stripped)
+                except json.JSONDecodeError:
+                    return
+                renderer.render(event)
 
     def _write_trace(
         self,
@@ -495,11 +734,30 @@ class ClaudeCodeRunner:
         )
         stdout_chunks: List[str] = []
         stderr_chunks: List[str] = []
+        renderer = ClaudeStreamPrettyRenderer(
+            agent_name=invocation.agent_name,
+            mode=self.stream_renderer,
+            output=self.stream_renderer_output,
+            detail=self.stream_renderer_detail,
+        )
+        raw_passthrough = self.stream_renderer == "raw"
         stdout_task = asyncio.create_task(
-            self._read_stream(proc.stdout, stdout_chunks, log_events=True)
+            self._read_stream(
+                proc.stdout,
+                stdout_chunks,
+                log_events=True,
+                renderer=renderer,
+                raw_passthrough=raw_passthrough,
+                raw_output=self.stream_renderer_output,
+            )
         )
         stderr_task = asyncio.create_task(
-            self._read_stream(proc.stderr, stderr_chunks)
+            self._read_stream(
+                proc.stderr,
+                stderr_chunks,
+                raw_passthrough=raw_passthrough,
+                raw_output=self.stream_renderer_output,
+            )
         )
         try:
             await asyncio.wait_for(proc.wait(), timeout=self.timeout_seconds)

@@ -338,6 +338,9 @@ experiment:
     no_session_persistence: true
     debug_filter: "api"
     debug_file: "logs/claude_code/claude_debug.log"
+    stream_renderer: "rich"            # off | plain | rich | raw
+    stream_renderer_output: "stderr"  # stdout | stderr
+    stream_renderer_detail: "compact" # compact | full
     timeout_seconds: 7200
     max_budget_usd: 0
 
