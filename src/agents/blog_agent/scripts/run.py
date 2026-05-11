@@ -29,7 +29,7 @@ from openhands.tools.grep import GrepTool
 
 
 from blog_agent.agent.new_base_agent import BaseAgent
-from blog_agent.config.loader import load_config
+from src.config import load_config
 from blog_agent.tools.illustrate import illustrate
 import blog_agent.tools.search_core_tool
 import blog_agent.tools.search_paper_abstract_tool
@@ -44,8 +44,6 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
-
-MODEL= "MiniMax-M2.5"
 
 # Define a custom agent
 class IDEAAgent(BaseAgent):
@@ -133,7 +131,8 @@ async def main(experiment: str, resume: bool = False):
     workspace = repo_root
     skills_dir = os.path.join(agents_root, "blog_agent", "skills")
     maxturn = 3
-    config = load_config()
+    config = load_config().get("blog", {})
+    agent_model = config.get("model")
 
     # Load or initialize status
     status = load_status(experiment)
@@ -180,7 +179,7 @@ async def main(experiment: str, resume: bool = False):
     # Create agents
     ideaagent = IDEAAgent(
         agent_type="IDEAAgent",
-        model=MODEL,
+        model=agent_model,
         workspace=workspace,
     )
     ideaagent.add_tool(Tool(name=TerminalTool.name))
@@ -194,7 +193,7 @@ async def main(experiment: str, resume: bool = False):
 
     writeagent = WRITEAgent(
         agent_type="WRITEAgent",
-        model=MODEL,
+        model=agent_model,
         workspace=workspace,
     )
     writeagent.add_tool(Tool(name=TerminalTool.name))
@@ -205,7 +204,7 @@ async def main(experiment: str, resume: bool = False):
 
     analyzeagent = ANALYZEAgent(
         agent_type="ANALYZEAgent",
-        model=MODEL,
+        model=agent_model,
         workspace=workspace,
     )
     analyzeagent.add_tool(Tool(name=TerminalTool.name))
@@ -217,7 +216,7 @@ async def main(experiment: str, resume: bool = False):
 
     refineagent = REFINEAgent(
         agent_type="REFINEAgent",
-        model=MODEL,
+        model=agent_model,
         workspace=workspace,
     )
     refineagent.add_tool(Tool(name=TerminalTool.name))

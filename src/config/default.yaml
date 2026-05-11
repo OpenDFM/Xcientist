@@ -406,7 +406,7 @@ blog:
   # OpenAI API (optional)
   openai:
     api_key: "${api.openai.api_key}"
-    base_url: "https://api-2.xi-ai.cn/v1"
+    base_url: "https://api.xi-ai.cn/v1"
 
   # Google Gemini API (optional)
   gemini:
@@ -440,7 +440,7 @@ blog:
     api_key: "${api.semantic_scholar.api_key}"  # Optional: your Semantic Scholar API key
 
   # Default Model settings (It is only used when you do not pass the model parameter when creating an agent.)
-  model: "MiniMax-M2.5"
+  model: "gpt-5.5"
 
   # Blog Illustrate settings
   illustrate:

@@ -14,7 +14,7 @@ agents_root = os.path.abspath(os.path.join(current_dir, "..", ".."))
 if agents_root not in sys.path:
     sys.path.insert(0, agents_root)
 
-from blog_agent.config.loader import load_config
+from src.config import load_config
 
 
 def search_paper_and_get_abstract(
@@ -45,7 +45,7 @@ def search_paper_and_get_abstract(
     """
     # Get API key from config if not provided
     if not api_key:
-        config = load_config()
+        config = load_config().get("blog", {})
         api_key = config.get("semantic_scholar", {}).get("api_key", "")
 
     if not api_key:
@@ -169,7 +169,7 @@ def get_paper_abstract_by_id(
         Dict with status, detail, paper (same as above)
     """
     if not api_key:
-        config = load_config()
+        config = load_config().get("blog", {})
         api_key = config.get("semantic_scholar", {}).get("api_key", "")
 
     if not api_key:
@@ -286,7 +286,7 @@ def download_paper_pdf(
         - paper_info: dict - paper metadata (only on success)
     """
     if not api_key:
-        config = load_config()
+        config = load_config().get("blog", {})
         api_key = config.get("semantic_scholar", {}).get("api_key", "")
 
     if not api_key:
@@ -492,7 +492,7 @@ def download_paper_pdf_by_id(
         Dict with status, detail, pdf_path, paper_info
     """
     if not api_key:
-        config = load_config()
+        config = load_config().get("blog", {})
         api_key = config.get("semantic_scholar", {}).get("api_key", "")
 
     if not api_key:

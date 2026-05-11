@@ -17,8 +17,8 @@ if src_root not in sys.path:
     sys.path.insert(0, src_root)
 
 # 加载配置
-from blog_agent.config import load_config
-_config = load_config()
+from src.config import load_config
+_config = load_config().get("blog", {})
 _deeperaser_config = _config.get("deeperaser", {})
 _DEFAULT_USE_CUDA = _deeperaser_config.get("use_cuda", False)
 _DEFAULT_MODEL = _config.get("model", "MiniMax-M2.5")

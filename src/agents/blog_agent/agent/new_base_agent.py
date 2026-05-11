@@ -23,9 +23,9 @@ from openhands.sdk.context.skills import load_skills_from_dir, load_public_skill
 logger = logging.getLogger(__name__)
 
 # Load config
-from blog_agent.config import load_config
+from src.config import load_config
 
-_config = load_config()
+_config = load_config().get("blog", {})
 
 # =============================================================================
 # Config - loaded from config.yaml

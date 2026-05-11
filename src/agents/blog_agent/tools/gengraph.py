@@ -21,9 +21,9 @@ from PIL import Image
 # 从 config 加载 gengraph 配置
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from blog_agent.config import load_config
+from src.config import load_config
 
-_config = load_config()
+_config = load_config().get("blog", {})
 _gengraph_config = _config.get("gengraph", {})
 _providers_config = _gengraph_config.get("providers", {})
 
