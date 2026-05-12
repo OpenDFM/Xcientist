@@ -522,10 +522,21 @@ def run_blog(experiment_id: str, source_workspace: str, resume: bool = False) ->
     return run_command(cmd, env=env) == 0
 
 
-def main(config_path: str = "src/config/default.yaml"):
+def _apply_topic_override(config: Any, topic_override: Optional[str]) -> str:
+    topic = str(topic_override or "").strip()
+    if not topic:
+        return ""
+    OmegaConf.update(config, "idea.topic", topic, merge=False)
+    OmegaConf.update(config, "idea.run.topic", topic, merge=False)
+    OmegaConf.update(config, "survey.BasicInfo.topic", topic, merge=False)
+    return topic
+
+
+def main(config_path: str = "src/config/default.yaml", topic_override: Optional[str] = None):
     """Main entry point."""
     # Load config
     config = load_config(config_path)
+    explicit_topic = _apply_topic_override(config, topic_override)
 
     # Get settings from config
     workspace_root = config.workspace.root
@@ -579,7 +590,9 @@ def main(config_path: str = "src/config/default.yaml"):
             print("Starting new pipeline")
         else:
             print(f"Resuming pipeline from iteration {state.get('current_iteration', 0) + 1}")
-            topic = state.get("topic", topic)
+            topic = explicit_topic or state.get("topic", topic)
+            if explicit_topic:
+                state["topic"] = explicit_topic
             mature_idea = state.get("mature_idea", mature_idea)
     else:
         state = _init_pipeline_state(pipeline_workspace, topic, mature_idea, max_iterations)
@@ -745,5 +758,9 @@ if __name__ == "__main__":
         default="src/config/default.yaml",
         help="Path to unified config file",
     )
+    parser.add_argument(
+        "--topic",
+        help="Override idea.topic, idea.run.topic, and survey.BasicInfo.topic",
+    )
     args = parser.parse_args()
-    main(config_path=args.config)
+    main(config_path=args.config, topic_override=args.topic)

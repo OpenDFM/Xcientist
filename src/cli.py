@@ -146,6 +146,7 @@ def _build_root_parser() -> argparse.ArgumentParser:
 
     pipeline = subparsers.add_parser("pipeline", help="Run Survey -> Idea -> Experiment loop")
     pipeline.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help="Path to config YAML")
+    pipeline.add_argument("--topic", help="Override pipeline research topic")
     pipeline.set_defaults(func=_pipeline_command)
 
     doctor = subparsers.add_parser("doctor", help="Check local runtime prerequisites")
@@ -319,16 +320,16 @@ def _pipeline_command(args: argparse.Namespace) -> int:
     config_path = _resolve_config_path(args.config)
     _ensure_config_exists(config_path)
     env = _base_env(config_path=config_path)
-    return _run_command(
-        [
-            sys.executable,
-            "-m",
-            "src.pipeline.run_loop",
-            "--config",
-            str(config_path),
-        ],
-        env=env,
-    )
+    cmd = [
+        sys.executable,
+        "-m",
+        "src.pipeline.run_loop",
+        "--config",
+        str(config_path),
+    ]
+    if args.topic:
+        cmd.extend(["--topic", args.topic])
+    return _run_command(cmd, env=env)
 
 
 def _doctor_command(args: argparse.Namespace) -> int:

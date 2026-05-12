@@ -29,26 +29,36 @@ Xcientist 是一个面向科研流程的多 Agent 系统，目标是把一个研
 
 ```text
 Xcientist/
-├── README.md
-├── README_CN.md
-├── environment.yml
-├── run_survey.sh
-├── run_idea.sh
-├── run_experiment.sh
-├── run_blog.sh
-├── run_pipeline.sh
-├── graph/                         # 图检索服务与索引脚本
-├── scripts/                       # 工具脚本，例如 MCP wrapper 安装
-├── skills/                        # 仓库内使用的本地 Codex skill
-└── src/
-    ├── config/default.yaml        # 统一项目配置
-    ├── agents/
-    │   ├── survey_agent/
-    │   ├── idea_agent/
-    │   ├── experiment_agent/
-    │   └── blog_agent/
-    ├── memory/                    # 共享 memory 包
-    └── pipeline/                  # 端到端 loop runner
+├── README.md / README_CN.md       # 项目文档
+├── pyproject.toml / uv.lock        # Python 包配置与 uv 锁文件
+├── requirements.txt                # 兼容用途的依赖列表
+├── run_survey.sh                   # `xcientist survey` 包装脚本
+├── run_idea.sh                     # `xcientist idea` 包装脚本
+├── run_experiment.sh               # `xcientist experiment` 包装脚本
+├── run_blog.sh                     # `xcientist blog` 包装脚本
+├── run_pipeline.sh                 # `xcientist pipeline` 包装脚本
+├── scripts/                        # 安装与环境辅助脚本
+│   ├── install_base.sh
+│   ├── install_heavy.sh
+│   ├── install_mcp_wrappers.sh
+│   └── sync_claude_anthropic_env.py
+├── src/
+│   ├── __main__.py                 # `python -m src` 入口
+│   ├── cli.py                      # 统一 `xcientist` CLI
+│   ├── config/
+│   │   ├── __init__.py             # 统一配置加载器
+│   │   └── default.yaml            # 主配置文件
+│   ├── pipeline/                   # Survey -> Idea -> Experiment -> Blog loop
+│   ├── agents/
+│   │   ├── survey_agent/           # 论文检索、聚类、survey 生成
+│   │   ├── idea_agent/             # LigAgent idea / proposal 生成
+│   │   ├── experiment_agent/       # SuperAgent 实验编排
+│   │   └── blog_agent/             # 技术博客生成
+│   └── memory/                     # 共享 vector / symbolic memory API
+├── graph/                          # 图检索服务与索引脚本
+├── database/                       # 检索工作流使用的本地缓存
+├── assets/                         # 项目图片与静态资源
+└── workspace/                      # 默认运行工作空间，本地创建/使用
 ```
 
 ## 🔄 整体流程
@@ -314,11 +324,23 @@ xcientist blog --experiment my_exp --resume
 
 ### 5. 运行原型 Pipeline
 
+使用 `src/config/default.yaml` 里的 topic 启动完整集成链路：
+
 ```bash
 xcientist pipeline
 ```
 
-它会以 `src/config/default.yaml` 启动 `src.pipeline.run_loop`。如果你想一条命令跑通集成链路，这个入口可用；如果你要排查问题，还是建议逐个 Agent 运行。
+启动时直接覆盖研究主题：
+
+```bash
+xcientist pipeline --topic "Training-Free Memory System for LLM Agents"
+```
+
+使用自定义配置文件：
+
+```bash
+xcientist pipeline --config /abs/path/to/config.yaml --topic "Your Research Topic"
+```
 
 ## 🧭 配置说明
 

@@ -29,26 +29,36 @@ The repo also contains a prototype loop runner for `Survey -> Idea -> Experiment
 
 ```text
 Xcientist/
-├── README.md
-├── README_CN.md
-├── environment.yml
-├── run_survey.sh
-├── run_idea.sh
-├── run_experiment.sh
-├── run_blog.sh
-├── run_pipeline.sh
-├── graph/                         # graph retrieval service and indexing scripts
-├── scripts/                       # utility scripts such as MCP wrapper setup
-├── skills/                        # local Codex skills used in this repo
-└── src/
-    ├── config/default.yaml        # unified project config
-    ├── agents/
-    │   ├── survey_agent/
-    │   ├── idea_agent/
-    │   ├── experiment_agent/
-    │   └── blog_agent/
-    ├── memory/                    # shared memory package
-    └── pipeline/                  # end-to-end loop runner
+├── README.md / README_CN.md       # documentation
+├── pyproject.toml / uv.lock        # Python package metadata and locked uv environment
+├── requirements.txt                # compatibility dependency list
+├── run_survey.sh                   # wrapper for `xcientist survey`
+├── run_idea.sh                     # wrapper for `xcientist idea`
+├── run_experiment.sh               # wrapper for `xcientist experiment`
+├── run_blog.sh                     # wrapper for `xcientist blog`
+├── run_pipeline.sh                 # wrapper for `xcientist pipeline`
+├── scripts/                        # setup and environment helper scripts
+│   ├── install_base.sh
+│   ├── install_heavy.sh
+│   ├── install_mcp_wrappers.sh
+│   └── sync_claude_anthropic_env.py
+├── src/
+│   ├── __main__.py                 # `python -m src` entrypoint
+│   ├── cli.py                      # unified `xcientist` CLI
+│   ├── config/
+│   │   ├── __init__.py             # unified config loader
+│   │   └── default.yaml            # main project config
+│   ├── pipeline/                   # Survey -> Idea -> Experiment -> Blog loop
+│   ├── agents/
+│   │   ├── survey_agent/           # paper retrieval, clustering, survey generation
+│   │   ├── idea_agent/             # LigAgent proposal generation
+│   │   ├── experiment_agent/       # SuperAgent experiment orchestration
+│   │   └── blog_agent/             # technical blog generation
+│   └── memory/                     # shared vector/symbolic memory APIs
+├── graph/                          # graph retrieval service and indexing scripts
+├── database/                       # local caches used by retrieval workflows
+├── assets/                         # project images and static assets
+└── workspace/                      # default runtime workspace, created/used locally
 ```
 
 ## 🔄 How The Pieces Fit Together
@@ -315,11 +325,23 @@ xcientist blog --experiment my_exp --resume
 
 ### 5. Run The Prototype Pipeline
 
+Run the integrated loop with the topic from `src/config/default.yaml`:
+
 ```bash
 xcientist pipeline
 ```
 
-This launches `src.pipeline.run_loop` with `src/config/default.yaml`. It is useful when you want a single command for the integrated loop, but it is still easier to inspect failures agent-by-agent.
+Override the research topic at launch time:
+
+```bash
+xcientist pipeline --topic "Training-Free Memory System for LLM Agents"
+```
+
+Use a custom config file:
+
+```bash
+xcientist pipeline --config /abs/path/to/config.yaml --topic "Your Research Topic"
+```
 
 ## 🧭 Configuration Guide
 
