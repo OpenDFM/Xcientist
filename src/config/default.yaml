@@ -1,10 +1,10 @@
 # ============================================
-# X-Scientist Unified Configuration
+# Xcientist Unified Configuration
 # ============================================
 
 # Global settings
 project:
-  name: "x-scientist"
+  name: "xcientist"
   root: "${repo_root}"
 
 # ============================================
@@ -21,9 +21,6 @@ api:
     api_key: "${oc.env:OPENAI_API_KEY,}"
     api_base: "${oc.env:OPENAI_API_BASE,}"
     base_url: "${oc.env:OPENAI_BASE_URL,}"
-  minimax:
-    api_key: "${oc.env:MINIMAX_API_KEY,}"
-    base_url: "https://api.minimaxi.com/v1"
   semantic_scholar:
     api_key: "${oc.env:SEMANTIC_SCHOLAR_API_KEY,}"
     base_url: "https://api.semanticscholar.org"
@@ -231,7 +228,7 @@ idea:
     openai_base_url: "${api.openai.base_url}"
 
   agent:
-    model: "gpt-5.4"
+    model: "gpt-5.5"
     paper_keynote_keep_top_k: 10
     workflow_models:
       default: "${idea.agent.model}"
@@ -271,7 +268,7 @@ idea:
     #   - conceptual_surprise
     prompt_mode: "conceptual_surprise"
     generation_model: "gpt-5-mini"
-    evaluation_model: "gpt-5.4"
+    evaluation_model: "gpt-5.5"
     generation_temperature: 0.7
     evaluation_temperature: 0.001
     generation_max_tokens: 16384
@@ -280,7 +277,7 @@ idea:
     component_novelty_index_dir: null
     component_novelty_retrieval_top_k: 50
     component_novelty_evidence_top_k: 5
-    component_novelty_eval_model: "gpt-5.4"
+    component_novelty_eval_model: "gpt-5.5"
     component_novelty_eval_temperature: 0.001
     component_novelty_eval_max_tokens: 16384
     mechanism_commit_retrieval_top_k: 3
@@ -297,9 +294,9 @@ idea:
   fusion:
     enabled: true
     only_when_ligagent_pro: true
-    model: "gpt-5.4"
+    model: "gpt-5.5"
     temperature: 0.7
-    max_tokens: 65536
+    max_tokens: 16384
     min_candidates: 2
     repair_max_steps: 10
     repair_patience: 5
@@ -308,7 +305,7 @@ idea:
   memory:
     vector_store:
       model_path: "${repo_root}/models/all-MiniLM-L6-v2"
-      llm_name: "gpt-4.1-mini"
+      llm_name: "gpt-5-mini"
       llm_backend: "openai"
 
 # ============================================
@@ -320,13 +317,13 @@ experiment:
 
   claude_code:
     binary: "claude"
-    default_model: "mimo-v2.5-pro"
+    default_model: "glm-5.1"
     role_models:
-      planner: "mimo-v2.5-pro"
-      worker: "mimo-v2.5-pro"
-      validator: "mimo-v2.5-pro"
-      master: "mimo-v2.5-pro"
-      integrator: "mimo-v2.5-pro"
+      planner: "glm-5.1"
+      worker: "glm-5.1"
+      validator: "glm-5.1"
+      master: "glm-5.1"
+      integrator: "glm-5.1"
     permission_mode: "bypassPermissions"
     dangerously_skip_permissions: true
     use_bare: false
@@ -398,35 +395,27 @@ experiment:
 blog:
   source_workspace_root: "${workspace.root}"
 
-  # MiniMax API (default)
-  minimax:
-    api_key: "${api.minimax.api_key}"
-    base_url: "${api.minimax.base_url}"
-
-  # OpenAI API (optional)
+  # OpenAI API
   openai:
     api_key: "${api.openai.api_key}"
-    base_url: "https://api.xi-ai.cn/v1"
+    base_url: "https://api.openai.com/v1"
 
   # Google Gemini API (optional)
   gemini:
     api_key: ""
-    base_url: "https://api.xi-ai.cn/v1"
+    base_url: "https://generativelanguage.googleapis.com/v1beta"
 
   # GenGraph (image generation for figures)
   gengraph:
-    provider: "xiai"  # Select your preferred provider
+    provider: "openai"  # Select your preferred provider
     api_key: ""
     providers:  # Default configuration for each provider, can be customized
-      xiai:
-        base_url: "https://api.xi-ai.cn/v1"
-        model: "gemini-3-pro-image-preview"
+      openai:
+        base_url: "https://api.openai.com/v1"
+        model: "gpt-image-2"
       openrouter:
         base_url: "https://openrouter.ai/api/v1"
         model: "google/gemini-3-pro-image-preview"
-      bianxie:
-        base_url: "https://api.bianxie.ai/v1"
-        model: "gemini-3-pro-image-preview"
       gemini:
         base_url: "https://generativelanguage.googleapis.com/v1beta"
         model: "gemini-3-pro-image-preview"
