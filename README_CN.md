@@ -7,7 +7,7 @@
 <p align="center">
 <img src="https://img.shields.io/badge/python-3.12-blue" alt="python">
 <a href="https://arxiv.org/"><img src="https://img.shields.io/badge/arXiv-tmp-red" alt="arXiv"></a>
-<img src="https://img.shields.io/badge/website-page-blue" alt="website">
+<a href="https://kotohanon.github.io/Xcientist/"><img src="https://img.shields.io/badge/website-page-blue" alt="website"></a>
 </p>
 
 <div align="center">
