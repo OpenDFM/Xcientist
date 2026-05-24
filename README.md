@@ -16,6 +16,24 @@
 
 </div>
 
+## Table of Contents
+
+- [Repository Map](#repository-map)
+- [How The Pieces Fit Together](#how-the-pieces-fit-together)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Environment Variables](#environment-variables)
+- [Optional Local Assets](#optional-local-assets)
+- [Quick Start](#quick-start)
+  - [Fastest Path](#fastest-path)
+  - [Run Survey Agent](#run-survey-agent)
+  - [Run Idea Agent](#run-idea-agent)
+  - [Run Experiment Agent](#run-experiment-agent)
+  - [Run Blog Agent](#run-blog-agent)
+  - [Run The Prototype Pipeline](#run-the-prototype-pipeline)
+- [Configuration Guide](#configuration-guide)
+- [Citation](#citation)
+
 Xcientist is a multi-agent research workflow for turning a topic into survey artifacts, structured ideas, executable experiments, and technical blog articles. The repository currently centers on four agent stacks:
 
 - `Survey Agent`: collects papers, builds topic clusters, and writes survey outputs.
@@ -25,6 +43,7 @@ Xcientist is a multi-agent research workflow for turning a topic into survey art
 
 The repo also contains a prototype loop runner for `Survey -> Idea -> Experiment -> Blog`, shared configuration, and a reusable memory subsystem.
 
+<a id="repository-map"></a>
 ## 🗂️ Repository Map
 
 ```text
@@ -61,6 +80,7 @@ Xcientist/
 └── workspace/                      # default runtime workspace, created/used locally
 ```
 
+<a id="how-the-pieces-fit-together"></a>
 ## 🔄 How The Pieces Fit Together
 
 ```text
@@ -77,6 +97,7 @@ Topic
 
 The pipeline runner in `src/pipeline/run_loop.py` automates the full `Survey -> Idea -> Experiment -> Blog` flow, but the individual agents remain the clearest way to operate and debug the system.
 
+<a id="prerequisites"></a>
 ## ✅ Prerequisites
 
 - `uv`
@@ -93,7 +114,7 @@ The pipeline runner in `src/pipeline/run_loop.py` automates the full `Survey -> 
    modelscope download --model sentence-transformers/all-MiniLM-L6-v2 --local_dir <repo_root>/models/all-MiniLM-L6-v2
    ```
 
-
+<a id="installation"></a>
 ## ⚙️ Installation
 
 The default setup path is now `uv`.
@@ -134,6 +155,7 @@ xcientist install-mcp-wrappers
 `environment.yml` is still available as a legacy/full-environment fallback, but `uv sync` is the primary path for `Survey + Idea + Experiment + Blog + Pipeline`. The dependency layout is now split so the default install stays lightweight and heavy local-model / PDF stacks are opt-in.
 After activation, the project exposes CLI entrypoints such as `xcientist`, `xcientist-survey`, and `xcientist-idea` directly in the shell.
 
+<a id="environment-variables"></a>
 ## 🔐 Environment Variables
 
 Different agents read slightly different variables. In practice, these are the most useful ones to define:
@@ -158,6 +180,7 @@ Notes:
 - `src/config/default.yaml` is the main configuration file for the current unified workflow.
 - Survey, Idea, Experiment, and Blog still have some agent-specific conventions on top of the unified config.
 
+<a id="optional-local-assets"></a>
 ## 📦 Optional Local Assets
 
 Some retrieval-heavy paths expect local assets that are not stored in the repository:
@@ -179,6 +202,7 @@ Health check:
 curl http://127.0.0.1:8000/health
 ```
 
+<a id="quick-start"></a>
 ## 🚀 Quick Start
 
 Recommended first-time flow:
@@ -192,6 +216,7 @@ xcientist doctor
 
 If doctor passes and your local assets are in place, use the commands below.
 
+<a id="fastest-path"></a>
 ### Fastest Path
 
 Using the provided `Training-Free Memory System for LLM Agents` example:
@@ -222,6 +247,7 @@ xcientist blog --experiment agent_memory --source-workspace <repo_root>/workspac
 
 For further configuration changes, edit `src/config/default.yaml`.
 
+<a id="run-survey-agent"></a>
 ### 1. Run Survey Agent
 
 Primary entrypoint:
@@ -242,6 +268,7 @@ Typical outputs:
 - `src/agents/survey_agent/outputs/.../survey.json`
 - `src/agents/survey_agent/outputs/.../evaluation.txt`
 
+<a id="run-idea-agent"></a>
 ### 2. Run Idea Agent
 
 Primary entrypoint:
@@ -258,6 +285,7 @@ xcientist idea --topic <your_topic_name>
 
 The default run uses `src/config/default.yaml`, materializes a run directory under `src/agents/idea_agent/runs/`, and writes `idea_result.json` plus logs.
 
+<a id="run-experiment-agent"></a>
 ### 3. Run Experiment Agent
 
 Primary entrypoint:
@@ -287,6 +315,7 @@ Key workspace outputs live under `workspace/<experiment_id>/` by default and usu
 - `agent_reports/`
 - `ablation_results.json`
 
+<a id="run-blog-agent"></a>
 ### 4. Run Blog Agent
 
 Blog Agent generates a technical blog article from an existing experiment workspace.
@@ -323,6 +352,7 @@ xcientist blog --experiment my_exp --resume
 
 `./run_blog.sh` remains available as a compatibility wrapper and delegates to the same `xcientist blog` command.
 
+<a id="run-the-prototype-pipeline"></a>
 ### 5. Run The Prototype Pipeline
 
 Run the integrated loop with the topic from `src/config/default.yaml`:
@@ -343,6 +373,7 @@ Use a custom config file:
 xcientist pipeline --config /abs/path/to/config.yaml --topic "Your Research Topic"
 ```
 
+<a id="configuration-guide"></a>
 ## 🧭 Configuration Guide
 
 The current configuration layout is mixed by design:
@@ -358,44 +389,13 @@ The current configuration layout is mixed by design:
 
 If you are starting fresh, edit `src/config/default.yaml` first. It is the most reliable single file to understand current defaults.
 
-## 🤖 Agent Summaries
+<a id="citation"></a>
+## Citation
 
-### Survey Agent
+If you use Xcientist in your research, please cite:
 
-- Main entry: `src/agents/survey_agent/scripts/run_deep_survey.py`
-- Purpose: paper collection, clustering, survey drafting, evaluation
-- Outputs: survey markdown, survey JSON, evaluation artifacts
-
-### Idea Agent (LigAgent)
-
-- Main entry: `src/agents/idea_agent/run.py`
-- Purpose: proposal generation from a topic or mature idea
-- Distinctive behavior: survey-grounded retrieval, graph-backed references, domain-locked Memory-Guided MCTS
-- Outputs: `idea_result.json`, logs, workflow artifacts
-
-### Experiment Agent (SuperAgent)
-
-- Main entry: `python -m src.agents.experiment_agent.main`
-- Purpose: prepare workspace, generate implementation, run code/science iterations, integrate ablation results
-- Outputs: experiment workspace and final `ablation_results.json`
-
-### Blog Agent
-
-- Main entry: `xcientist blog --experiment <experiment_id>`
-- Purpose: transform an experiment workspace into a technical blog article
-- Outputs: blog article, generated figures, quality analysis, run state
-
-## 📌 Current Project Status
-
-What is stable enough to rely on:
-
-- The four core agent stacks are present and wired together.
-- The unified config loader in `src/config/__init__.py` is usable today.
-- The root helper scripts exist and reflect the current code layout.
-
-What to keep in mind:
-
-- Some config examples still contain machine-specific absolute paths and should be overridden on a new machine.
-- Several advanced workflows depend on local data or models that are not committed to the repository.
-- There is no top-level `LICENSE` file in the current repository snapshot.
-- There is no obvious root-level automated `tests/` suite in the current repository snapshot.
+```bibtex
+@misc{
+   to be released
+}
+```

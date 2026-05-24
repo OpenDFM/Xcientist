@@ -16,6 +16,24 @@
 
 </div>
 
+## 目录
+
+- [仓库结构](#repository-map)
+- [整体流程](#how-the-pieces-fit-together)
+- [环境要求](#prerequisites)
+- [安装](#installation)
+- [环境变量](#environment-variables)
+- [可选本地资源](#optional-local-assets)
+- [快速开始](#quick-start)
+  - [最快上手](#fastest-path)
+  - [运行 Survey Agent](#run-survey-agent)
+  - [运行 Idea Agent](#run-idea-agent)
+  - [运行 Experiment Agent](#run-experiment-agent)
+  - [运行 Blog Agent](#run-blog-agent)
+  - [运行原型 Pipeline](#run-the-prototype-pipeline)
+- [配置说明](#configuration-guide)
+- [引用](#citation)
+
 Xcientist 是一个面向科研流程的多 Agent 系统，目标是把一个研究主题逐步推进为综述材料、结构化 idea、可执行实验，以及技术博客文章。当前仓库主要由四个核心 Agent 组成：
 
 - `Survey Agent`：检索论文、构建主题聚类并生成 survey 结果。
@@ -25,6 +43,7 @@ Xcientist 是一个面向科研流程的多 Agent 系统，目标是把一个研
 
 仓库中还包含一个 `Survey -> Idea -> Experiment -> Blog` 的原型 pipeline、统一配置，以及可复用的 memory 子系统。
 
+<a id="repository-map"></a>
 ## 🗂️ 仓库结构
 
 ```text
@@ -61,6 +80,7 @@ Xcientist/
 └── workspace/                      # 默认运行工作空间，本地创建/使用
 ```
 
+<a id="how-the-pieces-fit-together"></a>
 ## 🔄 整体流程
 
 ```text
@@ -77,6 +97,7 @@ Xcientist/
 
 `src/pipeline/run_loop.py` 可以自动串起 `Survey -> Idea -> Experiment -> Blog` 全流程，但如果你需要定位问题，逐个 Agent 运行通常更直观。
 
+<a id="prerequisites"></a>
 ## ✅ 环境要求
 
 - `uv`
@@ -92,7 +113,7 @@ Xcientist/
    modelscope download -- model baai/bge-m3 --local_dir <repo_root>/models/bge-m3
    modelscope download --model sentence-transformers/all-MiniLM-L6-v2 --local_dir <repo_root>/models/all-MiniLM-L6-v2
    ```
-
+<a id="installation"></a>
 ## ⚙️ 安装
 
 推荐使用 `uv`：
@@ -133,6 +154,7 @@ xcientist install-mcp-wrappers
 `environment.yml` 仍然保留，作为兼容旧环境或全量环境的备选方案；但 `Survey + Idea + Experiment + Blog + Pipeline` 的主路径现在是 `uv sync`。依赖现在已经拆组，默认安装保持轻量，本地模型与 PDF 解析这类重依赖按需安装。
 激活环境后，`xcientist`、`xcientist-survey`、`xcientist-idea` 这类 CLI 命令会直接出现在当前 shell 中。
 
+<a id="environment-variables"></a>
 ## 🔐 环境变量
 
 不同 Agent 读取的变量名并不完全一致，实际使用中最建议先配置这些：
@@ -157,6 +179,7 @@ export HF_TOKEN=...
 - 当前主配置文件是 `src/config/default.yaml`。
 - Survey、Idea、Experiment、Blog 在统一配置之外，仍有各自的运行约定。
 
+<a id="optional-local-assets"></a>
 ## 📦 可选本地资源
 
 部分检索路径依赖不在仓库中的本地资源：
@@ -178,6 +201,7 @@ uvicorn graph.server:app --host 127.0.0.1 --port 8000
 curl http://127.0.0.1:8000/health
 ```
 
+<a id="quick-start"></a>
 ## 🚀 快速开始
 
 第一次建议先这样做：
@@ -191,6 +215,7 @@ xcientist doctor
 
 当 doctor 通过、graph/db 和模型到位后，再按下面的命令运行。
 
+<a id="fastest-path"></a>
 ### 最快上手
 
 使用我们提供的 `Training-Free Memory System for LLM Agents` 样例：
@@ -221,6 +246,7 @@ xcientist blog --experiment agent_memory --source-workspace <repo_root>/workspac
 
 如果还需要进一步调整配置，请修改 `src/config/default.yaml`。
 
+<a id="run-survey-agent"></a>
 ### 1. 运行 Survey Agent
 
 推荐入口：
@@ -241,6 +267,7 @@ xcientist survey --topic <your_topic_name>
 - `src/agents/survey_agent/outputs/.../survey.json`
 - `src/agents/survey_agent/outputs/.../evaluation.txt`
 
+<a id="run-idea-agent"></a>
 ### 2. 运行 Idea Agent
 
 推荐入口：
@@ -257,6 +284,7 @@ xcientist idea --topic <your_topic_name>
 
 默认会使用 `src/config/default.yaml`，并在 `src/agents/idea_agent/runs/` 下创建运行目录，写出 `idea_result.json` 和日志。
 
+<a id="run-experiment-agent"></a>
 ### 3. 运行 Experiment Agent
 
 推荐入口：
@@ -286,6 +314,7 @@ python -m src.agents.experiment_agent.main --experiment my_exp --resume --verbos
 - `agent_reports/`
 - `ablation_results.json`
 
+<a id="run-blog-agent"></a>
 ### 4. 运行 Blog Agent
 
 `Blog Agent` 会基于已有实验工作空间生成技术博客文章。
@@ -322,6 +351,7 @@ xcientist blog --experiment my_exp --resume
 
 `./run_blog.sh` 仍保留为兼容包装脚本，会转发到同一个 `xcientist blog` 命令。
 
+<a id="run-the-prototype-pipeline"></a>
 ### 5. 运行原型 Pipeline
 
 使用 `src/config/default.yaml` 里的 topic 启动完整集成链路：
@@ -342,6 +372,7 @@ xcientist pipeline --topic "Training-Free Memory System for LLM Agents"
 xcientist pipeline --config /abs/path/to/config.yaml --topic "Your Research Topic"
 ```
 
+<a id="configuration-guide"></a>
 ## 🧭 配置说明
 
 当前配置布局是混合式的：
@@ -357,44 +388,13 @@ xcientist pipeline --config /abs/path/to/config.yaml --topic "Your Research Topi
 
 如果你是第一次配置这个项目，优先阅读和修改 `src/config/default.yaml`。
 
-## 🤖 各 Agent 简述
+<a id="citation"></a>
+## 引用
 
-### Survey Agent
+如果你在研究中使用了 Xcientist，请引用：
 
-- 主入口：`src/agents/survey_agent/scripts/run_deep_survey.py`
-- 作用：检索论文、聚类、撰写 survey、执行评估
-- 输出：survey markdown、survey JSON、评估结果
-
-### Idea Agent（LigAgent）
-
-- 主入口：`src/agents/idea_agent/run.py`
-- 作用：从主题或成熟 idea 生成 proposal
-- 核心特点：survey 驱动检索、graph-backed references、带领域锁定的 Memory-Guided MCTS
-- 输出：`idea_result.json`、日志、workflow 产物
-
-### Experiment Agent（SuperAgent）
-
-- 主入口：`python -m src.agents.experiment_agent.main`
-- 作用：准备工作空间、生成实现、执行 code/science 迭代、汇总 ablation 结果
-- 输出：实验工作空间与最终 `ablation_results.json`
-
-### Blog Agent
-
-- 主入口：`xcientist blog --experiment <experiment_id>`
-- 作用：把实验工作空间转换成技术博客文章
-- 输出：博客文章、生成配图、质量分析、运行状态
-
-## 📌 当前仓库状态
-
-目前可以放心依赖的部分：
-
-- 四个核心 Agent 都已经落在仓库中，并且存在连接路径。
-- `src/config/__init__.py` 提供的统一配置加载器当前可用。
-- 根目录的运行脚本和当前代码结构是一致的。
-
-使用时需要额外注意：
-
-- 部分配置示例仍然带有历史机器上的绝对路径，迁移到新机器时要先覆盖。
-- 某些高级工作流依赖本地数据或模型，这些内容没有提交到仓库。
-- 当前仓库快照中没有顶层 `LICENSE` 文件。
-- 当前仓库快照中也没有明显的根级 `tests/` 自动化测试目录。
+```bibtex
+@misc{
+   to be released
+}
+```
