@@ -1,6 +1,6 @@
 BasicInfo:
   topic: ""
-  evaluation_save_path: "./outputs/0326-5-mini-graph-test/evaluation_10.txt"
+  evaluation_save_path: "./outputs/test/evaluation_10.txt"
   save_path: ""
   save_json_path: ""
   user_defiend_benchmarks: True
@@ -8,7 +8,7 @@ BasicInfo:
   AutoSurvey_benchmark: False
   SurveyGen_benchmark: False
   sub_benchmark_test: False
-  output_base_dir: ./outputs/0326-5-mini-graph-test
+  output_base_dir: ./outputs/test
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
   topic_max_retry: 3
@@ -18,14 +18,14 @@ BasicInfo:
   adapter_mode: False
 APIInfo:
   llm_api_key: 
-  llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
+  llm_api_base_url: 
   llm_model_name: gpt-5-mini
   llm_max_context_length: 256000
   use_stream_mode: False
   batch_chat_agent_worker: 16
   chat_timeout: 300
   batch_chat_timeout: 1800
-  semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
+  semantic_scholar_api_key: 
   low_flow_mode: True
   low_flow_latency: 2
   exponential_backoff: True
@@ -110,6 +110,7 @@ ModuleInfo:
     subsection_draft_temperature: 1.0
     subsection_draft_max_retry: 10
     section_draft_max_retry: 10
+    always_omit_error_in_draft_validation: True
     section_draft_temperature: 1.0
     draft_refinement_temperature: 1.0
     section_draft_max_error_info_length: 500
@@ -140,6 +141,7 @@ ModuleInfo:
     section_revise_retry: 5
     no_suggestion_run_each_iteration: 2
     max_review_revise_iterations: 10
+    revise_section_in_parallel: 4
     draft_refinement_in_parts: True
     refine_in_parts_mode: 2
     draft_refinement_max_retry: 7
@@ -156,7 +158,7 @@ ModuleInfo:
     use_different_api_for_judge: False
     model: gpt-4o-mini
     judge_llm_api_key: 
-    judge_llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
+    judge_llm_api_base_url: 
     nli_temperature: 0.1
     citation_quality_threshold: 0.5
     remove_failed_citation_in_eval: True

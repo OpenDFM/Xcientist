@@ -546,7 +546,9 @@ class PseudoWriter:
             if not agent_ctx.has_created_initial:
                 self.logger.warning("revise called before create - calling create first")
                 create_op = {"operation": "create", "reason": "Forced create before revise"}
-                self._execute_operation(create_op, agent_ctx)
+                create_type, create_memory_entry = self._execute_operation(create_op, agent_ctx)
+                agent_ctx.memory.append(create_memory_entry)
+                # Note: first_created_pseudocode should be updated by the caller if needed
             
             modify_prompt = MODIFY_PROMPT.format(
                 paper_title=agent_ctx.paper_title,
@@ -697,14 +699,20 @@ class PseudoWriter:
             
             # Execute each operation in the plan
             for op in plan:
-                # Execute operation and get complete memory_entry directly
-                op_type, memory_entry = self._execute_operation(op, agent_ctx)
-                agent_ctx.memory.append(memory_entry)
-                
-                # Check for finish - handled in _execute_operation, just log and break here
-                if op_type == "finish":
-                    self.logger.info("Agent decided to finish")
-                    break
+                try:
+                    # Execute operation and get complete memory_entry directly
+                    op_type, memory_entry = self._execute_operation(op, agent_ctx)
+                    agent_ctx.memory.append(memory_entry)
+                    
+                    # Check for finish - handled in _execute_operation, just log and break here
+                    if op_type == "finish":
+                        self.logger.info("Agent decided to finish")
+                        break
+                except Exception as e:
+                    # If an operation fails, log error and skip this operation but continue with next
+                    self.logger.error(f"Failed to execute operation '{op.get('operation', 'unknown')}': {e}. Skipping this operation.")
+                    agent_ctx.error_log.append(f"Operation '{op.get('operation', 'unknown')}' failed: {e}")
+                    continue  # Continue with next operation in plan
                 
                 # Track revise operations
                 if op_type == "revise":
@@ -715,6 +723,15 @@ class PseudoWriter:
                 # Track first created pseudocode for return value
                 if op_type == "create" and not first_created_pseudocode:
                     first_created_pseudocode = memory_entry.get("pseudocode", "")
+                
+                # Also check if create was called internally by revise operation
+                # by looking at the memory entries after a revise operation
+                if op_type == "revise" and not first_created_pseudocode:
+                    # Find the most recent create operation in memory after the revise call
+                    for memory_item in reversed(agent_ctx.memory):
+                        if memory_item.get("operation") == "create" and memory_item.get("pseudocode"):
+                            first_created_pseudocode = memory_item.get("pseudocode", "")
+                            break
 
             # Check if we need to force revise
             if hard_code_revise and rounds_since_last_revise >= max_rounds_without_revise:

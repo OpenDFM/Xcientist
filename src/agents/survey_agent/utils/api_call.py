@@ -39,6 +39,10 @@ class ArxivAPI:
                 if response.status_code == 429:
                     time.sleep(60)
 
+            if response.status_code == 429:
+                self.logger.info("arxiv get_paper_details Rate limit exceeded. Waiting 60 seconds before retrying...")
+                time.sleep(60*(retry_count+1))
+
         if response.status_code == 200:
             root = ET.fromstring(response.content)
             ns = {'atom': 'http://www.w3.org/2005/Atom'}
@@ -75,8 +79,10 @@ class ArxivAPI:
                 break
             else:
                 self.logger.warning(f"arXiv search request failed for command{title}: {response.status_code}. Retrying {retry_count + 1}/3...")
-                if response.status_code == 429:
-                    time.sleep(60)
+
+            if response.status_code == 429:
+                self.logger.info("arxiv search_papers_by_title Rate limit exceeded. Waiting 60 seconds before retrying...")
+                time.sleep(60*(retry_count+1))
         
         if response.status_code == 200:
             root = ET.fromstring(response.content)

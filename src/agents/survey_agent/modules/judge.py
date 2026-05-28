@@ -120,7 +120,7 @@ class Judge():
             thread.start()
         
         for thread in thread_l:
-            thread.join(timeout=600)
+            thread.join(timeout=1800)
             if thread.is_alive():
                 self.logger.warning(f"Thread {thread_l.index(thread)} timed out after 600s")
         
@@ -282,7 +282,7 @@ class Judge():
             return return_dict, reason_dict
         
         if self.config.ModuleInfo.Judge.rubrics_eval_4_dimensions:
-            criterion = ['Coverage', 'Structure','Relevance','Depth', 'Rigor&Authenticity']
+            criterion = ['Coverage', 'Structure','Relevance']
 
             scores, reasons = self.batch_criteria_based_judging(survey, criterion)
 
@@ -355,7 +355,7 @@ class Judge():
         elif self.config.ModuleInfo.Judge.rubrics_deep_survey_eval:
             #criterion = ['Synthesis Quality', 'Organization', 'Readability','Academic Rigor', 'Clarity & Coherence', 'Comprehensiveness', 'Critical Analysis', 'Specificity', 'Specified Future Directions']
             # criterion = ['Synthesis Quality', 'Organization', 'Readability','Academic Rigor','Clarity & Coherence', 'Comprehensiveness', 'Critical Analysis', 'Novelty and Insights', 'Future Directions']
-            criterion = ['Synthesis Quality', 'Organization', 'Comprehensiveness', 'Relevance-10-score', 'Readability','Academic Rigor','Coherence', 'Critical Analysis', 'Novelty and Insights', 'Specificity', 'Specified Future Directions']
+            criterion = ['Synthesis Quality', 'Organization', 'Comprehensiveness', 'Relevance-10-score', 'Readability','Academic Rigor','Coherence', 'Clarity & Coherence', 'Clarity', 'Critical Analysis', 'Novelty and Insights', 'Specificity', 'Specified Future Directions', 'Future Directions']
             Core_Quality = 0
             Writing_Quality = 0
             Content_Depth = 0
@@ -373,9 +373,9 @@ class Judge():
             return_dict.update(dimension_score)
 
             Core_Quality = (dimension_score['Synthesis Quality'] + dimension_score['Organization'] + dimension_score['Comprehensiveness'] + dimension_score['Relevance-10-score'])/4
-            Writing_Quality = (dimension_score['Readability'] + dimension_score['Academic Rigor'] + dimension_score['Coherence'])/3
-            Content_Depth = (dimension_score['Critical Analysis'] + dimension_score['Novelty and Insights'] + dimension_score['Specified Future Directions'] + dimension_score['Specificity'])/3
-            Total_score = (Core_Quality*0.6+Writing_Quality*0.2+Content_Depth*0.2)
+            Writing_Quality = (dimension_score['Readability'] + dimension_score['Academic Rigor'] + dimension_score['Clarity & Coherence'])/3
+            Content_Depth = (dimension_score['Critical Analysis'] + dimension_score['Novelty and Insights'] + dimension_score['Specified Future Directions'] + dimension_score['Specificity'])/4
+            Total_score = (Core_Quality*0.4+Writing_Quality*0.2+Content_Depth*0.4)
 
             return_dict.update({
                 'Core_Quality': Core_Quality,

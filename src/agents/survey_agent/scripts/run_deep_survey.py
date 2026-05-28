@@ -32,7 +32,7 @@ from utils.config_utils import merge_with_default_survey_config
 from modules.code_collector import CodeCollector, CodeAnalyzer
 from modules.code_report_generator import CodeReportGenerator
 
-from utils.file_utils import write_domain_header, write_topic_header, write_result, write_domain_result
+from utils.file_utils import write_domain_header, write_topic_header, write_result, write_domain_result, save_analysis_artifacts
 
 logger = get_logger("Deep Survey")
 
@@ -124,6 +124,9 @@ def run_pipeline(config, work_collector, database, work_analyzer, survey_generat
         )
         work_analyzer.log_inter_cluster_analysis(inter_analysis_results)
         logger.info("Inter-cluster analysis completed.")
+
+    logger.info("Saving analysis artifacts...")
+    save_analysis_artifacts(config.BasicInfo.save_path, config.BasicInfo.topic, relation_graph, relation_table, intra_analysis_results, inter_analysis_results, logger)
 
     # survey generation
     logger.info("Generating survey...")

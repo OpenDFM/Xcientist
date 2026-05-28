@@ -138,6 +138,8 @@ class DataManager:
             # fetch minimal metadata including abstract
             for attempt in range(retry):
                 try:
+                    if "." in pid and "v" in pid:
+                        raise ValueError(f"arxiv id with version that semantic scholar cannot read: {pid}")
                     paper = self.semantic_scholar_api.get_paper_details(
                         query_id, fields="abstract,title,externalIds"
                     )

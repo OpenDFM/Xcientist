@@ -15,14 +15,14 @@ BasicInfo:
 
 APIInfo:
   llm_api_key: 
-  llm_api_base_url: https://api-2.xi-ai.cn/v1/chat/completions
-  llm_model_name: gpt-5-mini
-  llm_max_context_length: 256000
+  llm_api_base_url: 
+  llm_model_name: mimo-v2.5
+  llm_max_context_length: 1000000
   batch_chat_agent_worker: 4
-  chat_timeout: 300
+  chat_timeout: 900
   batch_chat_timeout: 1800
   use_stream_mode: False
-  semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
+  semantic_scholar_api_key: 
   low_flow_mode: False
   low_flow_latency: 0
   exponential_backoff: True
@@ -32,23 +32,32 @@ APIInfo:
   semantic_scholar_api_max_retry: 3
 EvalInfo:
   baselines:
-    - deepsurvey-code
     - deepsurvey-no-code
+    - deepsurvey-code
+    - deepsurvey-no-code-new-revise
+    - deepsurvey-code-new-revise
     - autosurvey
+    - lira
     - surveyforge
     - surveyx
   save_paths:
-    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0416-xiaomi-deepsurvey_with_code_test_new/mimo-evaluation_10_exp.txt
-    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0416-xiaomi-deepsurvey_without_code_test_new/mimo-evaluation_10_exp.txt
-    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/AutoSurvey/output/survey_bench_xiaomi_new_topics/mimo-evaluation_10_exp.txt
-    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/SurveyForge/code/output/res-xiaomi/mimo-evaluation_10_exp.txt
-    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/SurveyX/outputs/0410_xiaomi_test/mimo-evaluation_10_exp.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0423-xiaomi-deepsurvey_without_code_new/mimo_2.5-evaluation_10_exp.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0423-xiaomi-deepsurvey_with_code_test_new/mimo_2.5-evaluation_10_exp.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0423-xiaomi-deepsurvey_without_code_new_revise_new/mimo_2.5-evaluation_10_exp.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0423-xiaomi-deepsurvey_with_code_new_revise_new/mimo_2.5-evaluation_10_exp.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/AutoSurvey/output/survey_bench_xiaomi_new_topics/mimo_2.5-evaluation_10_exp.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/auto-review-writing/articles/deepsurvey_baseline_xiaomi/mimo_2.5-evaluation_10_exp.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/SurveyForge/code/output/res-xiaomi/mimo_2.5-evaluation_10_exp.txt
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/SurveyX/outputs/xiaomi_0422/mimo_2.5-evaluation_10_exp.txt
   paper_paths:
-    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0416-xiaomi-deepsurvey_with_code_test_new
-    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0416-xiaomi-deepsurvey_without_code_test_new
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0423-xiaomi-deepsurvey_without_code_new
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0423-xiaomi-deepsurvey_with_code_test_new
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0423-xiaomi-deepsurvey_without_code_new_revise_new
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey/outputs/0423-xiaomi-deepsurvey_with_code_new_revise_new
     - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/AutoSurvey/output/survey_bench_xiaomi_new_topics
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/auto-review-writing/articles/deepsurvey_baseline_xiaomi
     - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/SurveyForge/code/output/res-xiaomi
-    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/SurveyX/outputs/0410_xiaomi_test
+    - /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/baselines/SurveyX/outputs/xiaomi_0422
 ModuleInfo:
   WorkCollector:
     download_safe_mode: False
@@ -62,6 +71,7 @@ ModuleInfo:
     use_ds_when_graph_fail: True
     advanced_filter_in_local_paper_graph_expansion: True
     related_work_top_k: 20  # for debug
+    download_timeout: 300
     log_related_work_num: -1 # set to -1 to log all
     related_work_threshold: 0.6
     related_work_threshold_for_llm: 4 # 1-5 scale
@@ -74,7 +84,7 @@ ModuleInfo:
   PaperGraphRetriever:
     db_path: data/processed/graph.db
   WorkAnalyzer:
-    abstract_only_mode: True
+    abstract_only_mode: False
     abstract_when_full_text_fail: True
     cache_enabled: True
     use_local_paper_graph_keynotes: True
@@ -122,6 +132,7 @@ ModuleInfo:
     subsection_draft_temperature: 1.0
     subsection_draft_max_retry: 20
     section_draft_max_retry: 20
+    always_omit_error_in_draft_validation: True
     section_draft_temperature: 1.0
     draft_refinement_temperature: 1.0
     section_draft_max_error_info_length: 500
@@ -152,6 +163,7 @@ ModuleInfo:
     section_revise_retry: 5
     no_suggestion_run_each_iteration: 1
     max_review_revise_iterations: 30
+    revise_section_in_parallel: 4
     draft_refinement_in_parts: True
     refine_in_parts_mode: 2
     draft_refinement_max_retry: 7
@@ -166,9 +178,9 @@ ModuleInfo:
   Judge:
     skip_evaluation: False
     use_different_api_for_judge: False
-    model: gpt-5-mini
-    judge_llm_api_key:
-    judge_llm_api_base_url: https://api.xiaomimimo.com/v1/chat/completions
+    model: mimo-v2.5
+    judge_llm_api_key: 
+    judge_llm_api_base_url: 
     nli_temperature: 0.1
     citation_quality_threshold: 0.5
     remove_failed_citation_in_eval: True
@@ -176,4 +188,4 @@ ModuleInfo:
     rubrics_eval_4_dimensions: False
     rubrics_deep_survey_eval: True
     explanation_in_rubric: False
-    citation_eval: False
+    citation_eval: True

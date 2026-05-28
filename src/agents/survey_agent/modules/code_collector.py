@@ -420,7 +420,7 @@ class CodeCollector:
         return repo_name
 
 
-    def _clone_repo(self, repo_url: str, depth: int = 1, max_retry: int = 3) -> Optional[str]:
+    def _clone_repo(self, repo_url: str, depth: int = 1, max_retry: int = 3, use_token: bool = False) -> Optional[str]:
         """
         Clone a GitHub repo into base_dir.
 
@@ -443,6 +443,18 @@ class CodeCollector:
 
         os.makedirs(self.repo_cache_path, exist_ok=True)
 
+        clone_url = repo_url
+        # Check if GitHub token is configured
+        github_token = getattr(self.config.ModuleInfo.CodeAnalysis.CodeCollector, 'github_token', "") if hasattr(self.config, 'ModuleInfo') else ""
+        clone_timeout = getattr(self.config.ModuleInfo.CodeAnalysis.CodeCollector, 'clone_timeout', 300) if hasattr(self.config, 'ModuleInfo') else 300
+        if github_token and "github.com" in repo_url.lower() and use_token:
+            # Replace https://github.com/ with https://x-access-token@github.com/
+            # This allows authentication without interactive prompts
+            clone_url = repo_url.replace("https://github.com/", f"https://x-access-token:{github_token}@github.com/")
+            clone_url = clone_url.replace("http://github.com/", f"http://x-access-token:{github_token}@github.com/")
+            self.logger.info(f"Using GitHub token authentication for cloning")
+        # Convert HTTPS URL to use token authentication if token is provided
+        
         retry = 0
         while retry <= max_retry:
             try:
@@ -452,7 +464,7 @@ class CodeCollector:
                     "--depth",
                     str(depth),
                     "--quiet",
-                    repo_url,
+                    clone_url,
                     target_path
                 ]
 
@@ -493,10 +505,8 @@ class CodeCollector:
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                    timeout=300,  # 5 minutes timeout to prevent indefinite hanging
+                    timeout=clone_timeout,  # Configurable timeout (default 5 minutes)
                     env=env,
-                    # Use -c to set git config for this command only
-                    # This disables credential helpers and any askpass programs
                     cwd=self.repo_cache_path
                 )
 
@@ -515,14 +525,14 @@ class CodeCollector:
                             shutil.rmtree(target_path)
                         except Exception:
                             pass
-                    raise ValueError(f"Clone verification failed for {repo_url}")
+                    raise ValueError(f"Clone verification failed for {clone_url}")
 
             except subprocess.TimeoutExpired as e:
                 retry += 1
                 if retry <= max_retry:
-                    self.logger.warning(f"Clone repo {repo_url} timed out: {e}, retrying for {retry}/{max_retry}")
+                    self.logger.warning(f"Clone repo {clone_url} timed out: {e}, retrying for {retry}/{max_retry}")
                 else:
-                    self.logger.error(f"Clone repo {repo_url} timed out: {e}, max retry reached")
+                    self.logger.error(f"Clone repo {clone_url} timed out: {e}, max retry reached")
                 # Clean up partial clone if exists
                 if os.path.exists(target_path) and os.path.isdir(target_path):
                     import shutil
@@ -539,14 +549,21 @@ class CodeCollector:
                 self.logger.error(f"Clone failed with stderr: {stderr_output}")
                 
                 if "authentication" in stderr_output.lower() or "username" in stderr_output.lower() or "password" in stderr_output.lower():
-                    self.logger.error(f"Repo {repo_url} requires authentication (private repo or rate limit). Skipping.")
+                    # Check if we already tried with token
+                    if github_token and use_token:
+                        self.logger.error(f"Clone with token failed for {clone_url}. Token may be invalid or insufficient permissions. Skipping.")
+                    else:
+                        self.logger.error(f"Repo {clone_url} requires authentication (private repo or rate limit). Consider adding a GitHub token to config.")
                     return None
                 
                 retry += 1
                 if retry <= max_retry:
-                    self.logger.warning(f"Failed to clone repo {repo_url}: {e}, retrying for {retry}/{max_retry}")
+                    self.logger.warning(f"Failed to clone repo {clone_url}: {e}, retrying for {retry}/{max_retry}")
                 else:
-                    self.logger.error(f"Failed to clone repo {repo_url}: {e}, max retry reached")
+                    self.logger.error(f"Failed to clone repo {clone_url}: {e}, max retry reached")
+                    if not use_token and github_token:
+                        self.logger.info(f"Failed to clone repo {clone_url}, trying again with token (max 1 attempt).")
+                        return self._clone_repo(repo_url, depth, 0, use_token=True)  # Changed to 0 to try only once
                 # Clean up partial clone if exists
                 if os.path.exists(target_path) and os.path.isdir(target_path):
                     import shutil

@@ -15,10 +15,12 @@ import random
 import tiktoken
 from typing import List, Optional, Dict, Tuple, Any
 from dataclasses import dataclass, field
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from tqdm import tqdm
 from utils.rich_logger import get_logger
 from utils.api_call import ChatAgent
 from utils.utils import extract_json
-from modules.pe import SECTION_REVIEW, SECTION_REVISE
+from modules.pe import SECTION_REVIEW, SECTION_REVISE, CODE_REPORT_PROMPT, CODE_REPORT_PROMPT_FOR_SECTION_REVISER, CODE_REPORT_PROMPT_FOR_SECTION_REVIEWER
 
 
 # ============================================================================
@@ -331,12 +333,16 @@ Guidance:
 - Your modifications **MUST** be consistent with the overall structure, logic and the scope (title) of the section.
 - If the suggestion requires additional context from papers, incorporate that context while making the revision.
 - You can only revise section content. Do NOT make any revision plan including changing subsection title(#### .....).
+- The revise should meets the standards of a top-tier academic literature review
 
 Reviewer Suggestion:
 {reviewer_suggestion}
 
 External Context:
 {external_context}
+
+**Revision Goal:**
+Your revision target: produce a survey section that meets the quality standards of a top-tier academic conference survey, with rigorous logic, excellent readability, and sufficient depth.
 
 **Output format:**
 {{
@@ -605,12 +611,16 @@ Guidance:
 - Revise the survey to enhance its readability, logicality, depth, and cross-section coherence.
 - Your modifications **MUST** be consistent with the overall structure, logic and scope of the survey.
 - If the suggestion requires additional context from papers, incorporate that context while making the revision.
+- The revise should meets the standards of a top-tier academic literature review
 
 Reviewer Suggestion:
 {reviewer_suggestion}
 
 External Context:
 {external_context}
+
+**Revision Goal:**
+Your revision target: produce a survey that meets the quality standards of a top-tier academic conference survey, with rigorous logic, excellent readability, and sufficient depth.
 
 **Output format: (STRICT)**
 {{
@@ -1170,9 +1180,10 @@ class AgenticRevisor(BaseAgenticRevisor):
             self.logger.info("Adding code report to context")
             
             if self.code_report:
-                agent_ctx.context += f"\n\n=== Code Report ===\n{self.code_report}\n"
-                agent_ctx.context_summary = truncate_text(agent_ctx.context, self.max_context_summary_length)
-                memory_entry["result"] = "Added code report to context"
+                code_report_intro = CODE_REPORT_PROMPT.format(code_report="")
+                agent_ctx.context += f"{code_report_intro}\n\n=== Code Report ===\n{self.code_report}\n"
+                agent_ctx.context_summary = "Code report available (follow usage principles)"
+                memory_entry["result"] = "Added code report with usage principles"
             else:
                 memory_entry["result"] = "No code report available"
             
@@ -1230,8 +1241,9 @@ class AgenticRevisor(BaseAgenticRevisor):
         )
         
         if self.code_report:
-            agent_ctx.context = f"\n\n=== Code Report ===\n{self.code_report}\n"
-            agent_ctx.context_summary = "Code report available for technical context"
+            code_report_intro = CODE_REPORT_PROMPT.format(code_report="")
+            agent_ctx.context = f"{code_report_intro}\n\n=== Code Report ===\n{self.code_report}\n"
+            agent_ctx.context_summary = "Code report available (follow usage principles)"
         
         max_steps = max_steps or self.default_max_steps
         
@@ -1552,9 +1564,10 @@ class AgenticSurveyRevisor(BaseAgenticRevisor):
             self.logger.info("Adding code report to context")
             
             if self.code_report:
-                agent_ctx.context += f"\n\n=== Code Report ===\n{self.code_report}\n"
-                agent_ctx.context_summary = truncate_text(agent_ctx.context, self.max_context_summary_length)
-                memory_entry["result"] = "Added code report to context"
+                code_report_intro = CODE_REPORT_PROMPT.format(code_report="")
+                agent_ctx.context += f"{code_report_intro}\n\n=== Code Report ===\n{self.code_report}\n"
+                agent_ctx.context_summary = "Code report available (follow usage principles)"
+                memory_entry["result"] = "Added code report with usage principles"
             else:
                 memory_entry["result"] = "No code report available"
             
@@ -1587,8 +1600,9 @@ class AgenticSurveyRevisor(BaseAgenticRevisor):
         )
         
         if self.code_report:
-            agent_ctx.context = f"\n\n=== Code Report ===\n{self.code_report}\n"
-            agent_ctx.context_summary = "Code report available for technical context"
+            code_report_intro = CODE_REPORT_PROMPT.format(code_report="")
+            agent_ctx.context = f"{code_report_intro}\n\n=== Code Report ===\n{self.code_report}\n"
+            agent_ctx.context_summary = "Code report available (follow usage principles)"
         
         max_steps = max_steps or self.default_max_steps
         
@@ -1724,33 +1738,71 @@ def agentic_revise_survey_in_parts(
     )
     
     full_survey_text = draft.get("full_draft", "")
-    revised_sections = []
     outline_sections = outline.get('sections', [])
+    max_parallel = getattr(survey_generator.config.ModuleInfo.SurveyGenerator, 'revise_section_in_parallel', 1)
     
-    for idx, section_text in enumerate(sections):
-        section_outline = outline_sections[idx] if idx < len(outline_sections) else {}
-        section_title = section_outline.get('title', 'No Title')
+    if max_parallel <= 1:
+        revised_sections = []
+        for idx, section_text in enumerate(sections):
+            section_outline = outline_sections[idx] if idx < len(outline_sections) else {}
+            section_title = section_outline.get('title', 'No Title')
+            
+            survey_generator.logger.info(
+                f"\n\n***** Agentic Reviewing and Revising Section {idx + 1}/{len(sections)}: {section_title} *****"
+            )
+            
+            previous_section_text = sections[idx - 1] if idx > 0 else ""
+            next_section_text = sections[idx + 1] if idx + 1 < len(sections) else ""
+            
+            revised_text = agentic_revisor.agentic_revise_section(
+                section_text=section_text,
+                previous_section_text=previous_section_text,
+                next_section_text=next_section_text,
+                section_outline=section_outline,
+                section_index=idx + 1,
+                total_sections=len(sections),
+                full_survey_text=full_survey_text,
+                max_steps = max_steps
+            )
+            
+            revised_sections.append(revised_text)
+            full_survey_text = outline.get("title", survey_generator.config.BasicInfo.topic + " Survey") + "\n\n" + "\n\n".join(revised_sections)
+    else:
+        max_parallel = min(max_parallel, len(sections))
+        survey_generator.logger.info(f"\n\n***** Agentic Processing {len(sections)} sections in parallel (max {max_parallel} workers) *****")
         
-        survey_generator.logger.info(
-            f"\n\n***** Agentic Reviewing and Revising Section {idx + 1}/{len(sections)}: {section_title} *****"
-        )
+        def revise_section_with_context(idx):
+            section_text = sections[idx]
+            section_outline = outline_sections[idx] if idx < len(outline_sections) else {}
+            section_title = section_outline.get('title', 'No Title')
+            
+            survey_generator.logger.info(f"Agentic Reviewing and Revising Section {idx + 1}/{len(sections)}: {section_title}")
+            
+            previous_section_text = sections[idx - 1] if idx > 0 else ""
+            next_section_text = sections[idx + 1] if idx + 1 < len(sections) else ""
+            
+            return agentic_revisor.agentic_revise_section(
+                section_text=section_text,
+                previous_section_text=previous_section_text,
+                next_section_text=next_section_text,
+                section_outline=section_outline,
+                section_index=idx + 1,
+                total_sections=len(sections),
+                full_survey_text=full_survey_text,
+                max_steps=max_steps
+            )
         
-        previous_section_text = sections[idx - 1] if idx > 0 else ""
-        next_section_text = sections[idx + 1] if idx + 1 < len(sections) else ""
-        
-        revised_text = agentic_revisor.agentic_revise_section(
-            section_text=section_text,
-            previous_section_text=previous_section_text,
-            next_section_text=next_section_text,
-            section_outline=section_outline,
-            section_index=idx + 1,
-            total_sections=len(sections),
-            full_survey_text=full_survey_text,
-            max_steps = max_steps
-        )
-        
-        revised_sections.append(revised_text)
-        full_survey_text = outline.get("title", survey_generator.config.BasicInfo.topic + " Survey") + "\n\n" + "\n\n".join(revised_sections)
+        with ThreadPoolExecutor(max_workers=max_parallel) as executor:
+            future_to_idx = {executor.submit(revise_section_with_context, idx): idx for idx in range(len(sections))}
+            revised_sections = [None] * len(sections)
+            
+            for future in tqdm(as_completed(future_to_idx), total=len(sections), desc="Agentic revising sections in parallel", unit="section"):
+                idx = future_to_idx[future]
+                try:
+                    revised_sections[idx] = future.result()
+                except Exception as exc:
+                    survey_generator.logger.error(f"Section {idx} generated an exception: {exc}")
+                    revised_sections[idx] = sections[idx]
     
     draft['section_drafts'] = revised_sections
     draft["full_draft"] = outline.get("title", survey_generator.config.BasicInfo.topic + " Survey") + "\n\n" + "\n\n".join(revised_sections)

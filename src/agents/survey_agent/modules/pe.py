@@ -54,9 +54,8 @@ Scoring guideline:
 0 = Unrelated
 """
 
-PAPER_DEEP_READING = """%%
+PAPER_DEEP_READING = """
 {paper_markdown_text}
-%%
 
 Act as a senior researcher reading this paper. 
 Your task is to produce a **deep, structured understanding** of the paper. 
@@ -197,6 +196,7 @@ Requirements:
 - Cite paper strictly in format: <paper_title> (like <Attention is All You Need>) when referencing specific papers under key "questions".
 - You are encouraged to cite more papers from the provided content to strengthen your analysis.
 - **Only** cite papers that appear in the provided input.
+- Propose NO MORE THAN 5 problems to ensure conciseness so choose the most valuable ones.
 
 Input:
 {cluster_content}
@@ -224,6 +224,7 @@ Requirements:
 - Cite paper strictly in format: <paper_title> (like <Attention is All You Need>) whenever referencing specific papers in your answer.
 - You are encouraged to cite more papers from the provided content to strengthen your analysis.
 - **Only** cite papers that appear in the provided input.
+- Answer the problem CONCISELY! The answer should be no more than 150 words. Shorter is better (If you can answer the question completely and clearly).
 
 Input:
 Question: {question}
@@ -253,6 +254,7 @@ Requirements:
 - Cite paper strictly in format: <paper_title> (like <Attention is All You Need>) whenever referencing specific papers in your analysis.
 - You are encouraged to cite more papers from the provided content to strengthen your analysis.
 - **Only** cite papers that appear in the provided input.
+- Analyze in CONCISE mode. The total word number should be no more than 700 words!
 
 Input:
 {cluster_analysis_content}
@@ -405,22 +407,23 @@ SURVEY_OUTLINE_GENERATION_PAPER_ASSIGNMENT = """You are an expert research surve
 ]
 """
 
-SUBSECTION_DRAFT = """You are an expert in writing surveys. Our ultimate goal is to complete a acadamic survey with depth, insights and can boost further development, rather than simply listing methods.
+SUBSECTION_DRAFT = """You are an expert in writing top academic conference standards surveys. The ultimate goal is to complete a acadamic survey with depth, insights and can boost further development, rather than simply listing methods.
 
 Now you are responsible for writing a subsection of the survey paper. 
 
-### Subsection Title:
+**Subsection Title**:
 {title}
 
-### Guidance:
+**Guidance**:
 Write a coherent subsection that explains, analyzes, or discusses the topic indicated in the title and description.  
 You should synthesize relevant information from the papers, analysis results.  
 The content should be academically structured and readable, with emphasis on insights, trends, and comparisons where appropriate.
 You may include examples from papers to support the discussion, but do not simply list papers.
 You are encouraged to cite more papers from the relevant papers to strengthen your points.
 You are provided with the outline of the whole survey. Make sure the subsection content coherent to the survey logic.
+Utilize the input content in a safe and reasonable manner, and ensure that the readability, structure, and depth of the content of the paragraph meet the requirements of a top-tier conference survey.
 
-### Information to use:
+**Information to use**:
 - Subsection description:
 {description}
 
@@ -436,7 +439,7 @@ You are provided with the outline of the whole survey. Make sure the subsection 
 - Insights from analysis:
 {relevant_analysis}
 
-### Output:
+**Output**:
 - A well-written subsection in several coherent paragraphs.
 - Academic style; focused on synthesis and analysis, not just reporting.
 - **Only** cite papers that appear in the provided input.
@@ -445,26 +448,28 @@ You are provided with the outline of the whole survey. Make sure the subsection 
 - Do not generate a bibliography or reference list here.
 - The content of each subsection should be at least {subsection_least_words} words long!!
 - Generate the content directly. DO NOT generate any subsection title or section header here.
+- CRITICAL: '#' is used for section/subsection anchor. Avoid any '#' in the output content.
 """
 
-SUBSECTION_DRAFT_WITH_CODE = """You are an expert in writing surveys. Our ultimate goal is to complete a acadamic survey with depth, insights and can boost further development, rather than simply listing methods.
+SUBSECTION_DRAFT_WITH_CODE = """You are an expert in writing top academic conference standards surveys. The ultimate goal is to complete a acadamic survey with depth, insights and can boost further development, rather than simply listing methods.
 
 Now you are responsible for writing a subsection of the survey paper. 
 
-### Subsection Title:
+**Subsection Title**:
 {title}
 
-### Guidance:
+**Guidance**:
 Write a coherent subsection that explains, analyzes, or discusses the topic indicated in the title and description.  
 You should synthesize relevant information from the papers, analysis results.  
 The content should be academically structured and readable, with emphasis on insights, trends, and comparisons where appropriate.
 You may include examples from papers to support the discussion, but do not simply list papers.
 You are encouraged to cite more papers from the relevant papers to strengthen your points.
 You are provided with the outline of the whole survey. Make sure the subsection content coherent to the survey logic.
+Utilize the input content in a safe and reasonable manner, and ensure that the readability, structure, and depth of the content of the paragraph meet the requirements of a top-tier conference survey.
 
 {code_report_prompt}
 
-### Information to use:
+**Information to use**:
 - Subsection description:
 {description}
 
@@ -480,7 +485,7 @@ You are provided with the outline of the whole survey. Make sure the subsection 
 - Insights from analysis:
 {relevant_analysis}
 
-### Output:
+**Output:**
 - A well-written subsection in several coherent paragraphs.
 - Academic style; focused on synthesis and analysis, not just reporting.
 - **Only** cite papers that appear in the provided input.
@@ -489,113 +494,69 @@ You are provided with the outline of the whole survey. Make sure the subsection 
 - Do not generate a bibliography or reference list here.
 - The content of each subsection should be at least {subsection_least_words} words long!!
 - Generate the content directly. DO NOT generate any subsection title or section header here.
+- CRITICAL: '#' is used for section/subsection anchor. Avoid any '#' in the output content.
 """
 
-CODE_REPORT_PROMPT = """### Code Report Context:
-In addition to the paper analysis, you are provided with a **Code Report** that contains comprehensive framework selection and environment configuration guidance for the papers in this survey topic. This report provides:
+CODE_REPORT_PROMPT = """Code Report Context:
+You are provided with a **Code Report** containing implementation insights for the papers in this survey topic, including: framework choices, environment setup guidance, and repository quality assessment.
 
-1. **Framework Selection Analysis**: Which frameworks (PyTorch, TensorFlow, JAX, etc.) are used across repositories; their versions and suitability for different scenarios; strengths and weaknesses of each framework choice
-2. **Environment Configuration Guidance**: Common dependency patterns, key packages and version requirements, special requirements (GPU support, CUDA versions), environment setup best practices
-3. **Base Framework Recommendations**: Assessment of repository suitability as base frameworks for further research; code quality, documentation, extensibility, and community activity considerations
-4. **Sub-direction Analysis**: Which repositories are best suited for different research sub-directions; patterns in framework choices across research directions
-
-**How to use the Code Report:**
-- **Reference framework choices**: When discussing methods, consider which frameworks are commonly used and why certain frameworks might be preferred for specific approaches
-- **Use implementation insights**: Leverage framework and environment guidance to provide deeper technical analysis beyond what is described in papers
-- **Balance theory and practice**: Combine theoretical descriptions with practical implementation considerations where relevant
-
-**IMPORTANT Usage Guidelines:**
-- **Stay within subsection scope**: Only use code report content that is relevant to the current subsection topic. Do not introduce framework details that fall outside the subsection's theme or scope
-- **Balance depth and readability**: Use implementation considerations to enrich analysis, but avoid over-emphasizing technical setup details at the expense of methodological analysis
-- **Focus on synthesis**: Integrate framework insights with paper analysis to provide comprehensive understanding of both theoretical and practical aspects
-- **Academic tone**: Present framework and environment insights in an academic style, explaining significance rather than technical setup instructions
+**Usage Principles (CRITICAL - Follow Strictly):**
+- **Topic coherence**: Only incorporate code report content that directly relates to the current subsection's theme; unrelated framework details must be ignored
+- **Structure preservation**: Integrate insights seamlessly into existing paragraphs without disrupting the survey's logical flow or section organization
+- **Readability maintenance**: Add technical details sparingly; if code snippets are needed, ensure clean formatting
+- **Proportionality**: Code report insights should complement, not replace, paper-based analysis; aim for subtle enhancement rather than extensive additions
 
 **Code Report:**
 {code_report}
 """
 
-CODE_REPORT_PROMPT_FOR_SECTION_REVISER = """### Code Report Context:
-In addition to the paper analysis, you are provided with a **Code Report** that contains comprehensive framework selection and environment configuration guidance for the papers in this survey topic. This report provides:
+CODE_REPORT_PROMPT_FOR_SECTION_REVISER = """Code Report Context:
+You are provided with a **Code Report** containing implementation insights for the papers in this survey topic, including: framework choices, environment setup guidance, and repository quality assessment.
 
-1. **Framework Selection Analysis**: Which frameworks (PyTorch, TensorFlow, JAX, etc.) are used across repositories; their versions and suitability for different scenarios; strengths and weaknesses of each framework choice
-2. **Environment Configuration Guidance**: Common dependency patterns, key packages and version requirements, special requirements (GPU support, CUDA versions), environment setup best practices
-3. **Base Framework Recommendations**: Assessment of repository suitability as base frameworks for further research; code quality, documentation, extensibility, and community activity considerations
-4. **Sub-direction Analysis**: Which repositories are best suited for different research sub-directions; patterns in framework choices across research directions
-
-**How to use the Code Report:**
-You can enhance the depth and specificity of the survey with implementation detail and specific ideas for future work:
-- **Reference framework choices**: When discussing methods, consider which frameworks are commonly used and why certain frameworks might be preferred for specific approaches
-- **Use implementation insights**: Leverage framework and environment guidance to provide deeper technical analysis beyond what is described in papers
-- **Discuss practical considerations**: Include computational requirements, library preferences, and training complexities when explaining methods
-- **Balance theory and practice**: Combine theoretical descriptions with practical implementation considerations where relevant
-
-**IMPORTANT Usage Guidelines:**
-- **Stay within subsection scope**: Only use code report content that is relevant to the current section topic. Do not introduce framework details that fall outside the section's theme or scope
-- **Balance depth and readability**: Use implementation considerations to enrich analysis, but avoid over-emphasizing technical setup details at the expense of methodological analysis
-- **Focus on synthesis**: Integrate framework insights with paper analysis to provide comprehensive understanding of both theoretical and practical aspects
-- **Academic tone**: Present framework and environment insights in an academic style, explaining significance rather than technical setup instructions
+**Usage Principles (CRITICAL - Follow Strictly):**
+- **Topic coherence**: Only incorporate code report content that directly relates to the current section's theme; unrelated framework details must be ignored
+- **Structure preservation**: Integrate insights seamlessly into existing paragraphs without disrupting the survey's logical flow or section organization
+- **Readability maintenance**: Add technical details sparingly; if code snippets are needed, ensure clean formatting
+- **Proportionality**: Code report insights should complement, not replace, paper-based analysis; aim for subtle enhancement rather than extensive additions
 
 **Code Report:**
 {code_report}
 """
 
-CODE_REPORT_PROMPT_FOR_SECTION_REVIEWER = """### Code Report Context:
-In addition to the paper analysis, you are provided with a **Code Report** that contains comprehensive framework selection and environment configuration guidance for the papers in this survey topic. This report provides:
+CODE_REPORT_PROMPT_FOR_SECTION_REVIEWER = """Code Report Context:
+You are provided with a **Code Report** containing implementation insights for the papers in this survey topic, including: framework choices, environment setup guidance, and repository quality assessment.
 
-1. **Framework Selection Analysis**: Which frameworks (PyTorch, TensorFlow, JAX, etc.) are used across repositories; their versions and suitability for different scenarios; strengths and weaknesses of each framework choice
-2. **Environment Configuration Guidance**: Common dependency patterns, key packages and version requirements, special requirements (GPU support, CUDA versions), environment setup best practices
-3. **Base Framework Recommendations**: Assessment of repository suitability as base frameworks for further research; code quality, documentation, extensibility, and community activity considerations
-4. **Sub-direction Analysis**: Which repositories are best suited for different research sub-directions; patterns in framework choices across research directions
-
-**How to use the Code Report:**
-You give advice with the code report content to enhance the depth and specifycity of the survey:
-- **Reference framework choices**: When discussing methods, consider which frameworks are commonly used and why certain frameworks might be preferred for specific approaches
-- **Use implementation insights**: Leverage framework and environment guidance to provide deeper technical analysis beyond what is described in papers
-- **Discuss practical considerations**: Include computational requirements, library preferences, and training complexities when explaining methods
-- **Balance theory and practice**: Combine theoretical descriptions with practical implementation considerations where relevant
+**Usage Principles (CRITICAL - Follow Strictly):**
+- **Topic coherence**: Only incorporate code report content that directly relates to the current section's theme; unrelated framework details must be ignored
+- **Structure preservation**: Integrate insights seamlessly into existing paragraphs without disrupting the survey's logical flow or section organization
+- **Readability maintenance**: Add technical details sparingly; if code snippets are needed, ensure clean formatting
+- **Proportionality**: Code report insights should complement, not replace, paper-based analysis; aim for subtle enhancement rather than extensive additions
 
 **Code Report:**
 {code_report}
 """
 
-CODE_REPORT_PROMPT_FOR_SURVEY_REVISER = """### Code Report Context:
-In addition to the paper analysis, you are provided with a **Code Report** that contains comprehensive framework selection and environment configuration guidance for the papers in this survey topic. This report provides:
+CODE_REPORT_PROMPT_FOR_SURVEY_REVISER = """Code Report Context:
+You are provided with a **Code Report** containing implementation insights for the papers in this survey topic, including: framework choices, environment setup guidance, and repository quality assessment.
 
-1. **Framework Selection Analysis**: Which frameworks (PyTorch, TensorFlow, JAX, etc.) are used across repositories; their versions and suitability for different scenarios; strengths and weaknesses of each framework choice
-2. **Environment Configuration Guidance**: Common dependency patterns, key packages and version requirements, special requirements (GPU support, CUDA versions), environment setup best practices
-3. **Base Framework Recommendations**: Assessment of repository suitability as base frameworks for further research; code quality, documentation, extensibility, and community activity considerations
-4. **Sub-direction Analysis**: Which repositories are best suited for different research sub-directions; patterns in framework choices across research directions
-
-**How to use the Code Report:**
-You can enhance the depth and specificity of the survey with implementation detail and specific ideas or implementation for future work:
-- **Reference framework choices**: When discussing methods, consider which frameworks are commonly used and why certain frameworks might be preferred for specific approaches
-- **Use implementation insights**: Leverage framework and environment guidance to provide deeper technical analysis beyond what is described in papers
-- **Discuss practical considerations**: Include computational requirements, library preferences, and training complexities when explaining methods
-- **Balance theory and practice**: Combine theoretical descriptions with practical implementation considerations where relevant
-
-**IMPORTANT Usage Guidelines:**
-- **Balance depth and readability**: Use implementation considerations to enrich analysis, but avoid over-emphasizing technical setup details at the expense of methodological analysis
-- **Focus on synthesis**: Integrate framework insights with paper analysis to provide comprehensive understanding of both theoretical and practical aspects
-- **Academic tone**: Present framework and environment insights in an academic style, explaining significance rather than technical setup instructions
+**Usage Principles (CRITICAL - Follow Strictly):**
+- **Topic coherence**: Only incorporate code report content that directly relates to the survey's themes; unrelated framework details must be ignored
+- **Structure preservation**: Integrate insights seamlessly into existing sections without disrupting the survey's logical flow or organization
+- **Readability maintenance**: Add technical details sparingly; if code snippets are needed, ensure clean formatting
+- **Proportionality**: Code report insights should complement, not replace, paper-based analysis; aim for subtle enhancement rather than extensive additions
 
 **Code Report:**
 {code_report}
 """
 
-CODE_REPORT_PROMPT_FOR_SURVEY_REVIEWER = """### Code Report Context:
-In addition to the paper analysis, you are provided with a **Code Report** that contains comprehensive framework selection and environment configuration guidance for the papers in this survey topic. This report provides:
+CODE_REPORT_PROMPT_FOR_SURVEY_REVIEWER = """Code Report Context:
+You are provided with a **Code Report** containing implementation insights for the papers in this survey topic, including: framework choices, environment setup guidance, and repository quality assessment.
 
-1. **Framework Selection Analysis**: Which frameworks (PyTorch, TensorFlow, JAX, etc.) are used across repositories; their versions and suitability for different scenarios; strengths and weaknesses of each framework choice
-2. **Environment Configuration Guidance**: Common dependency patterns, key packages and version requirements, special requirements (GPU support, CUDA versions), environment setup best practices
-3. **Base Framework Recommendations**: Assessment of repository suitability as base frameworks for further research; code quality, documentation, extensibility, and community activity considerations
-4. **Sub-direction Analysis**: Which repositories are best suited for different research sub-directions; patterns in framework choices across research directions
-
-**How to use the Code Report:**
-You give advice with the code report content to enhance the depth and specifycity of the survey:
-- **Reference framework choices**: When discussing methods, consider which frameworks are commonly used and why certain frameworks might be preferred for specific approaches
-- **Use implementation insights**: Leverage framework and environment guidance to provide deeper technical analysis beyond what is described in papers
-- **Discuss practical considerations**: Include computational requirements, library preferences, and training complexities when explaining methods
-- **Balance theory and practice**: Combine theoretical descriptions with practical implementation considerations where relevant
+**Usage Principles (CRITICAL - Follow Strictly):**
+- **Topic coherence**: Only incorporate code report content that directly relates to the survey's themes; unrelated framework details must be ignored
+- **Structure preservation**: Integrate insights seamlessly into existing sections without disrupting the survey's logical flow or organization
+- **Readability maintenance**: Add technical details sparingly; if code snippets are needed, ensure clean formatting
+- **Proportionality**: Code report insights should complement, not replace, paper-based analysis; aim for subtle enhancement rather than extensive additions
 
 **Code Report:**
 {code_report}
@@ -673,11 +634,11 @@ Description: {cluster_description}
 }}
 """
 
-SECTION_DRAFT = """You are writing the Introductory Paragraphs for a specific section of an academic survey paper. 
-### Task:
+SECTION_DRAFT = """You are writing the Introductory Paragraphs/Preamble for a specific section of an academic top-tier conference survey paper. 
+**Task**:
 Write the opening text that appears immediately after the Section Title but before the first subsection. This content should serve as a high-level synthesis and roadmap for the reader.
 
-### Requirements:
+**Requirements**:
 1. Synthesize, Don't Summarize: Do not simply list what each subsection will do. Instead, explain the logic behind why this section is structured this way and the significance of these topics within the broader field.
 2. Establish Definition & Scope: Clearly define the core concepts covered in this section. Refer to <paper_title> to establish foundational definitions or taxonomies.
 3. Identify Trends: Highlight the overarching trends or challenges that link the following subsections together.
@@ -685,9 +646,11 @@ Write the opening text that appears immediately after the Section Title but befo
 5. Citations: * Only cite papers provided in the relevant papers provided below(Closely Relevant papers and Other Relevant papers).
 Use the format: <paper_title>.
 6. Cite at least {section_least_citations} papers to ground the section's scope.
-7. Length: The introductory content must be at least {section_least_words} words long to ensure depth.
+7. Utilize the input content in a safe and reasonable manner, and ensure that the readability, structure, and depth of the content of the paragraph meet the requirements of a top-tier conference survey.
+8. Length: The introductory content must be at least {section_least_words} words long but avoid too-long preamble which will destroy structure and readability.
+9. CRITICAL: '#' is used for section/subsection anchor. Avoid any '#' in the output content.
 
-### Input:
+**Input**:
 - Section Title:
 {title}
 
@@ -705,14 +668,14 @@ Planned Subsections under this Section: {subsection_drafts} (Use these as a road
 - Other Relevant papers:
 {other_relevant_papers}
 
-### Output:
+**Output**:
 Generate the introductory content directly. DO NOT generate any subsection title or section header here.
 """
 
 SECTION_REVIEW = """You are an expert reviewer for an academic survey paper with deep analysis and insights concerning topic: {topic}. You are reviewing the section:{section_title}.
 The draft section may contain inline paper citations in angle brackets (e.g., "<Attention is All You Need>").
 
-### Task:
+**Task**:
 1. Read the Draft Text for the given section and perform a short, careful review focused on clarity, logical flow, technical accuracy, and depth for an academic survey.
 2. Produce a clear, specific, and actionable **list of revision suggestion list**. 
 3. Each suggestion should concisely explain *what* to change, *why* and  *how* to implement it. When appropriate, point to the exact sentence or short excerpt from the draft to anchor the suggestion.
@@ -723,7 +686,7 @@ The draft section may contain inline paper citations in angle brackets (e.g., "<
 8. Suggest sorting by importance, with important ones coming first.
 9. You are suggested to give no more than 5 suggestions
 
-### Requirements:
+**Requirements**:
 1. You should only provide suggestions on content. DO NOT give any suggestions that involve changing the titles of the section and any subsections.
 2. The section text should have around {section_least_words} words.  Current section length: {current_section_length} words. Avoid over long or over short section.
 3. All citations in the section must be in correct format: <paper_title> (like <Attention is All You Need>).
@@ -734,10 +697,11 @@ The draft section may contain inline paper citations in angle brackets (e.g., "<
 8. The content of the section should be strictly consistent with the outline of the section provided below.
 9. The section content should be logically coherent and academically styled with acdamic rigor and precise description.
 10. The paragraph should contain sufficient citations to support the viewpoints and provide specific and in-depth analysis
-11. You should only change the content of the current section.
-12. You can use content in Additional Context if it's not None and you consider it necessary.
+11. The introduction/preamble of each section must be concise, and the main content should be placed in each specific subsection.
+12. You should only change the content of the current section.
+13. You can use content in Additional Context if it's not None and you consider it necessary.
 
-### Input:
+**Input**:
 Previous Section:
 {previous_section_text}
 
@@ -753,7 +717,7 @@ Section Outline:
 Additional Context:
 {additional_context}
 
-### Output format (exact):
+**Output format (exact)**:
 [
   "suggestion 1",
   "suggestion 2",
@@ -765,6 +729,9 @@ SECTION_REVISE  = """
 You are a revise assistant. The section content of a survey concerning {topic} is provided below. The section name is: {section_title}.
 You must propose at most ONE exact textual substitution per response according to the suggestion of reviewer.
 If you think the document requires changes, choose one that you think is most important to address next, and output ONE JSON object (and nothing else).
+
+**Revision Goal:**
+Your revision target: produce a survey section that meets the quality standards of a top-tier academic conference survey, with rigorous logic, excellent readability, and sufficient depth.
 
 **Output format:**
 {{
@@ -792,6 +759,7 @@ Guidance:
 - Give one minimal but precise modification.
 - Revise the paragraph to enhance its readability, logicality and depth.
 - Your modifications **MUST** be consistent with the overall structure, logic and the scope(title) of the section.
+- The revise should meets the standards of a top-tier academic literature review
 
 Revision instructions:
 - The field originalText must be an exact substring of the document matches the content part, NOT the header part (### Title).
@@ -820,14 +788,14 @@ Strict rules:
 SURVEY_REVIEW = """You are an expert reviewer for an academic survey paper concerning topic: {topic}. You are reviewing the whole survey.
 The survey may contain inline paper citations in angle brackets (e.g., "<Attention is All You Need>").
 
-### Task:
+**Task**:
 1. Read the Draft Text for the given survey and perform a short, careful review focused on clarity, logical flow, technical accuracy, integrity and depth for an academic survey.
 2. Produce a clear, specific, and actionable **list of revision suggestion list**. 
 3. Each suggestion should concisely explain *what* to change, *why* and  *how* to implement it. When appropriate, point to the exact sentence or short excerpt from the draft to anchor the suggestion.
 4. There are some basic requirements as follow. If the survey does not meet any, provide relevant modification suggestions.
 5. If the survey is satisfactory, provide an empty suggestion list.
 
-### Requirements:
+**Requirements**:
 1. You should only provide suggestions on content. DO NOT give any suggestions that involve changing the outline(title of the section and any subsections).
 2. All citations in the survey must be in correct format: <paper_title> (like <Attention is All You Need>).
 3. The survey should avoid over verbose phrase or any repetitive content.
@@ -835,12 +803,13 @@ The survey may contain inline paper citations in angle brackets (e.g., "<Attenti
 5. The survey content should have deep insights, novelty and analysis under the field of the survey.
 6. The survey content should be elegantly formatted and have good readability, avoid extremely long sentences or paragraphs.
 7. Avoid Extremely long section or subsection.
-8. The survey should have good clarity, acadamic rigor and coherence in description and all the conceptions.
-9. The content of the survey should be strictly consistent with the outline provided below.
-10. The survey should provide specific guidance on possible furture direction.
-11. You can use content in Additional Context if its's not None and you consider it necessary.
+8. The introduction/preamble of each section must be concise, and the main content should be placed in each specific subsection.
+9. The survey should have good clarity, acadamic rigor and coherence in description and all the conceptions.
+10. The content of the survey should be strictly consistent with the outline provided below.
+11. The survey should provide specific guidance on possible furture direction.
+12. You can use content in Additional Context if its's not None and you consider it necessary.
 
-### Input:
+**Input**:
 Survey:
 {survey}
 
@@ -850,7 +819,7 @@ SURVEY Outline:
 Additional Context:
 {additional_context}
 
-### Output format (exact):
+**Output format (exact)**:
 [
   "suggestion 1",
   "suggestion 2",
@@ -873,6 +842,9 @@ If you think the document requires changes, choose one that you think is most im
 The originalText field must match EXACTLY ONE substring in the document.
 If you believe no edits are required, output exactly: {{"action":"done"}}.
 
+**Revision Goal:**
+Your revision target: produce a survey that meets the quality standards of a top-tier academic conference survey, with rigorous logic, excellent readability, and sufficient depth.
+
 Survey Outline(You should not change):
 {survey_outline}
 
@@ -886,6 +858,7 @@ Guidance:
 - Give one minimal but precise modification.
 - Revise the paragraph to enhance its readability, logicality and depth.
 - Your modifications **MUST** be consistent with the overall structure, logic and the topic of the survey.
+- The revise should meets the standards of a top-tier academic literature review
 
 Revision instructions:
 - The field originalText must be an exact substring of the document matches the content part, NOT the header part (### Title).
@@ -911,18 +884,18 @@ Strict rules:
 
 DRAFT_REFINEMENT = """You are refining an academic survey paper draft. The draft currently contains paper titles as citations (e.g., "<Attention is All You Need>").
 
-### Task:
+**Task**:
 1. Refine the draft to improve clarity, coherence, and academic style.
 2. Replace all paper Title citations in format like <paper_title> (like <Attention is All You Need>) in the draft with numbered references in square brackets, in the order of first appearance.
 3. Each citation number corresponds to a single paper title.
 4. Keep all original content and ideas.
 5. Integrate citations smoothly and naturally within the text.
 
-### Input:
+**Input**:
 Draft Text:
 {draft_text}
 
-### Output:
+**Output**:
 Provide a **JSON object** with the following structure:
 
 {{
@@ -939,13 +912,13 @@ Provide a **JSON object** with the following structure:
 
 DRAFT_REFINEMENT_IN_PARTS = """You are refining an section of academic survey paper draft with title: {title}. The draft currently contains paper titles as citations (e.g., "<Attention is All You Need>").
 
-### Key Task:
+**Key Task**:
 1. Improve the overall quality of the subsection according to the standards of a well formatted and in-depth academic survey
 2. Refine the draft to improve clarity, coherence, and academic style.
 3. Improve obscure expressions and overly lengthy sentences in subsections to enhance readability.
 4. Avoid meaningless repetitions, over verbose phrases, or extremely long sentences or paragraphs.
 
-### Requirements:
+**Requirements**:
 1. Fix all the citations in other format. The correct citation must be paper title in <> (like <Attention is All You Need>).
 2. Make sure each <> contains only one paper title. Split titles in to seperate <> if one <> contains multiple paper titles.
 3. Keep all original content and ideas. Do not delete any citations.
@@ -955,7 +928,7 @@ DRAFT_REFINEMENT_IN_PARTS = """You are refining an section of academic survey pa
 7. Enhance the readability, coherence and academic style of the draft. 
 8. You can make any modification that does not change the original content and ideas, such as rephrasing sentences, improving transitions, fixing grammar or formatting issues, etc.
 
-### Input:
+**Input**:
 Previous Section:
 {previous_text}
 
@@ -970,15 +943,16 @@ Generate refined draft content directly.
 - Do not generate a bibliography or reference list here. 
 """
 
-DRAFT_REFINEMENT_SUBSECTION_IN_PARTS = """You are an expert in acdamic survey/literature review writing. Now you are refining an survey with topic {topic}'s subsection titled {subsection_title}. The subsection is under a section titled {section_title}. The draft currently contains paper titles as citations (e.g., "<Attention is All You Need>").
+DRAFT_REFINEMENT_SUBSECTION_IN_PARTS = """You are an expert in acdamic top-tier survey/literature review writing. Now you are refining an survey with topic {topic}'s subsection titled {subsection_title}. The subsection is under a section titled {section_title}. The draft currently contains paper titles as citations (e.g., "<Attention is All You Need>").
 
-### Key Task:
+**Key Task**:
+revision target: a subsection of survey that meets the quality standards of a top-tier academic conference survey, with rigorous logic, excellent readability, and sufficient depth.
 1. Improve the overall quality of the subsection according to the standards of a well formatted and in-depth academic survey
 2. Refine the draft to improve clarity, coherence, and academic style.
 3. Improve obscure expressions and overly lengthy sentences in subsections to enhance readability.
 4. Avoid meaningless repetitions, over verbose phrases, or extremely long sentences or paragraphs.
 
-### Requirements:
+**Requirements**:
 1. Fix all the citations in other format. The correct citation must be paper title in <> (like <Attention is All You Need>).
 2. Make sure each <> contains only one paper title. Split titles in to seperate <> if one <> contains multiple paper titles.
 3. Keep all original content and ideas. Do not delete any citations.
@@ -988,7 +962,7 @@ DRAFT_REFINEMENT_SUBSECTION_IN_PARTS = """You are an expert in acdamic survey/li
 7. Enhance the readability, coherence and academic style of the draft. 
 8. You can make any modification that does not change the original content and ideas, such as rephrasing sentences, improving transitions, fixing grammar or formatting issues, etc.
 
-### Input:
+**Input**:
 Previous Section:
 {previous_text}
 

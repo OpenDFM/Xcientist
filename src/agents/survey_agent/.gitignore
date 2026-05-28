@@ -3,6 +3,7 @@
 /database_new
 /baselines/AutoSurvey/database
 /baselines/human
+/config/personal/
 /logs
 **/__pycache__/
 # Byte-compiled / optimized / DLL files

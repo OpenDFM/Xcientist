@@ -502,7 +502,7 @@ class CodeReportGenerator:
             results = self.chat_agent.batch_remote_chat_with_retry(
                 prompts=prompts,
                 validate_fn=_env_report_validate_fn,
-                max_retry=3,
+                max_retry=6,
                 desc="Generating batch env reports",
                 temperature=0.3,
             )
@@ -817,7 +817,7 @@ class CodeReportGenerator:
             results = self.chat_agent.batch_remote_chat_with_retry(
                 prompts=prompts,
                 validate_fn=_validate_batch_report,
-                max_retry=3,
+                max_retry=6,
                 desc="Generating batch code reports",
                 temperature=0.3,
             )
@@ -877,7 +877,7 @@ class CodeReportGenerator:
                 result = self.chat_agent.remote_chat_with_retry(
                     prompt=INTEGRATED_REPORT_PROMPT.format(topic=topic, combined_reports=combined_reports),
                     temperature=0.3,
-                    max_retry=3,
+                    max_retry=6,
                 )
                 return result
             except Exception as e:
@@ -914,7 +914,7 @@ class CodeReportGenerator:
                 result = self.chat_agent.remote_chat_with_retry(
                     prompt=INTEGRATED_REPORT_PROMPT.format(topic=topic, combined_reports=combined),
                     temperature=0.3,
-                    max_retry=3,
+                    max_retry=6,
                 )
                 return result
             except Exception as e:
@@ -961,7 +961,7 @@ class CodeReportGenerator:
                     result = self.chat_agent.remote_chat_with_retry(
                         prompt=INTEGRATED_REPORT_PROMPT.format(topic=topic, combined_reports=combined),
                         temperature=0.3,
-                        max_retry=3,
+                        max_retry=6,
                     )
                     integrated_groups.append(result)
                     self.logger.info(f"Group {i+1}: integrated {len(group)} reports into {len(result)} chars")
@@ -1093,18 +1093,25 @@ class CodeReportGenerator:
         Save the report to a file.
         
         Args:
-            report: The report string
+            code_report: The code report string
+            env_report: The environment report string
             output_path: Path to save the report
         """
-        if output_path is None:
-            output_path = self.config.BasicInfo.save_path
-        
-        
-        # Get topic from config, fallback to "survey" if not available
         topic = getattr(self.config.BasicInfo, 'topic', 'survey')
         
-        # Get the directory from save_path and create full paths with topic name
-        save_dir = os.path.dirname(output_path)
+        # Determine save directory
+        if output_path and output_path.strip():
+            save_dir = os.path.dirname(output_path)
+        else:
+            # Fallback to output_base_dir if save_path is empty
+            output_base_dir = getattr(self.config.BasicInfo, 'save_path', None)
+            if output_base_dir and output_base_dir.strip():
+                save_dir = output_base_dir
+            else:
+                # Last resort: use current directory
+                save_dir = os.getcwd()
+                self.logger.warning(f"Both output_path and output_base_dir are empty, using current directory: {save_dir}")
+        
         save_dir = os.path.join(save_dir, "analysis")
 
         os.makedirs(save_dir, exist_ok=True)
@@ -1122,7 +1129,7 @@ class CodeReportGenerator:
         with open(save_report_path, "w", encoding="utf-8") as f:
             f.write(code_report)
         
-        self.logger.info(f"Report saved to {output_path}")
+        self.logger.info(f"Code report saved to {save_report_path}\nEnv report saved to {save_env_path}")
 
 
 def generate_code_report(

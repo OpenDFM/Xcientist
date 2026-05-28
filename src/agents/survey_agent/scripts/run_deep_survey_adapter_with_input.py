@@ -206,6 +206,8 @@ def run_pipeline_with_saving(config, work_collector, database, work_analyzer, su
 
     # deep reading for papers
     collected_papers = seed_paper_ids + expanded_paper_ids
+    input_papers = ["2509.18661", "2510.07733", "2508.17647", "2503.04629", "2502.14776", "2406.10252", "2504.05732v2", "2510.05138", "2509.18661", "2510.26012", "2506.12689"]
+    collected_papers = list(set(collected_papers).union(set(input_papers)))
     logger_instance.info(f"Total papers to read: {len(collected_papers)}")
     err_papers = work_analyzer.read_papers_and_write_keynotes(collected_papers)
     logger_instance.info("Deep reading completed.")

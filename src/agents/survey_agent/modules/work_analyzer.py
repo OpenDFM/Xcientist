@@ -47,6 +47,10 @@ class WorkAnalyzer:
                 self.paper_graph_retriever = PaperGraphRetriever(config)
             else:
                 self.paper_graph_retriever = paper_graph_retriever
+        
+        self.max_problems_per_cluster_proposed = 5
+        self.max_words_num_in_inter_cluster_analysis = 800
+        self.max_words_num_in_intra_cluster_answer = 200
 
         # load reference graph
         self.cache_path = self.config.BasicInfo.cache_path
@@ -205,6 +209,8 @@ class WorkAnalyzer:
             if "." in paper_id:  # arXiv IDs typically contain dots, e.g., "1706.03762"
                 # Try arXiv API first for arXiv papers
                 try:
+                    if "." in paper_id and "v" in paper_id:
+                        raise ValueError(f"arxiv id with version that semantic scholar cannot read: {paper_id}")
                     query_id = "ARXIV:" + paper_id
                     paper = self.semantic_scholar_api.get_paper_details(
                         query_id, fields="title,year,venue,authors"
@@ -228,6 +234,9 @@ class WorkAnalyzer:
 
             if not paper:
                 self.logger.warning(f"Warning: Unable to fetch details for paper ID {paper_id}")
+                if getattr(self.config, 'AblationInfo', None) and getattr(self.config.AblationInfo, 'survey_generator_disabled', False):
+                    self.logger.warning(f"Ablation mode: Returning paper_id as title for {paper_id}")
+                    return f'Unknown Author. "{paper_id}" *Unknown*, Unknown'
                 raise ValueError("Unable to fetch paper details in mla generation")
             
             authors = paper.get("authors", [])
@@ -771,7 +780,7 @@ class WorkAnalyzer:
 
                     response_valid, invalid_pid = self.validate_questions(cur_questions, step_1_clusters[i], omit_err=omit_error)
                     if response_valid:
-                        questions[original_index] = cur_questions
+                        questions[original_index] = cur_questions[:self.max_problems_per_cluster_proposed]
                     else:
                         valid = False
                         self.logger.warning(f"Invalid questions proposed for cluster {original_index+1}. Retrying...")
@@ -809,7 +818,7 @@ class WorkAnalyzer:
             # step 3: organize the Q&A
             for cluster_questions in questions:
                 for q in cluster_questions:
-                    q["answer"] = answers.pop(0)
+                    q["answer"] = self._truncate_by_words(answers.pop(0), self.max_words_num_in_intra_cluster_answer)
 
             return questions
         except Exception as e:
@@ -851,6 +860,16 @@ class WorkAnalyzer:
             log_str += "-" * 40 + "\n\n"
         self.logger.info(log_str)
 
+    def _truncate_by_words(self, text: str, max_words: int, suffix: str = "(too long, truncated)...") -> str:
+        """Truncate text to max_words, adding suffix if truncated."""
+        if not text:
+            return text
+        words = text.split()
+        if len(words) <= max_words:
+            return text
+        truncated = " ".join(words[:max_words - len(suffix.split())])
+        return truncated + " " + suffix
+
     def inter_cluster_analysis(self, intra_analysis_results: List[List[Dict]]):
         cluster_analysis_content = ""
         for i, cluster_results in enumerate(intra_analysis_results):
@@ -867,6 +886,11 @@ class WorkAnalyzer:
             prompt,
             temperature=self.config.ModuleInfo.WorkAnalyzer.intra_cluster_analysis_temperature,
         )
+        
+        # Apply word limit if configured
+        max_words = self.max_words_num_in_inter_cluster_analysis
+        response = self._truncate_by_words(response, max_words)
+        
         return response
 
     def log_inter_cluster_analysis(self, analysis_results):

@@ -2,23 +2,23 @@ BasicInfo:
   topic:  Multimodal Large Language Models
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
-  save_path: ./outputs/test/reference_test-mimo-v2-flash/title-cite-hardcode-ref.md
-  save_json_path: ./outputs/test/reference_test-mimo-v2-flash/title-cite-hardcode-ref.json
-  evaluation_save_path: ./outputs/test/reference_test-mimo-v2-flash/title-cite-hardcode-ref.txt
+  save_path: ./outputs/test/survey.md
+  save_json_path: ./outputs/test/survey.json
+  evaluation_save_path: ./outputs/test/eval.txt
   debug: True
   error_conservatism_mode: False
   skip_exist: True
   adapter_mode: False
 APIInfo:
   llm_api_key: 
-  llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
+  llm_api_base_url: 
   llm_model_name: gpt-5-mini
   llm_max_context_length: 160000
   use_stream_mode: False
   batch_chat_agent_worker: 32
   chat_timeout: 300
   batch_chat_timeout: 1800
-  semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
+  semantic_scholar_api_key: 
   low_flow_mode: False
   low_flow_latency: 0
   exponential_backoff: True
@@ -58,17 +58,10 @@ ModuleInfo:
     abstract_only_mode: False
     cache_enabled: True
     use_local_paper_graph_keynotes: True
-<<<<<<< HEAD
-    abstract_when_full_text_fail: True
-    cache_enabled: True
-    use_local_paper_graph_keynotes: True
-    paper_reading_temperature: 0.5
-=======
     use_ds_keynotes_when_graph_fail: True
     graph_keynote_extraction_batch_retry: 7
     graph_graph_keynote_extraction_temperature: 0.1
     paper_reading_temperature: 1.0
->>>>>>> origin/fix-main
     paper_reading_max_retry: 5
     llm_max_context_overhead_length_in_paper_reading: 20000
     clustering_batch_size: 16
@@ -109,6 +102,7 @@ ModuleInfo:
     subsection_draft_temperature: 1.0
     subsection_draft_max_retry: 5
     section_draft_max_retry: 5
+    always_omit_error_in_draft_validation: True
     section_draft_temperature: 1.0
     draft_refinement_temperature: 1.0
     section_draft_max_error_info_length: 500
@@ -138,7 +132,8 @@ ModuleInfo:
     section_revise_temperature: 0.5
     section_revise_retry: 5
     no_suggestion_run_each_iteration: 1
-    max_review_revise_iterations: 3
+    max_review_revise_iterations: 5
+    revise_section_in_parallel: 4
     draft_refinement_in_parts: True
     refine_in_parts_mode: 2
     draft_refinement_max_retry: 7
@@ -146,6 +141,7 @@ ModuleInfo:
     agentic_refine_survey: True
     review_and_revise_whole_survey_max_iteration: 5
     valid_title_min_similarity: 0.5
+    revise_section_in_parallel: 1
   CodeAnalysis:
     PseudoCreator:
       planner_temperature: 0.5
@@ -153,9 +149,9 @@ ModuleInfo:
   Judge:
     skip_evaluation: False
     use_different_api_for_judge: False
-    model: gpt-4o-mini
+    model: gpt-5-mini
     judge_llm_api_key: 
-    judge_llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
+    judge_llm_api_base_url: 
     nli_temperature: 0.1
     citation_quality_threshold: 0.5
     remove_failed_citation_in_eval: True

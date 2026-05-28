@@ -83,6 +83,67 @@ def get_DeepSurvey_cfg(config, domain, topic, save_path, paper_path):
                                     })
     return cfg_for_topic, survey, references
 
+def get_Lira_cfg(config, domain, topic, save_path, paper_path):
+    file_path = Path(paper_path) / f"{topic}.txt"
+    ref_path = Path(paper_path) / f"{topic}_ref.json"
+    
+    logger.info(f"Loading human survey from {file_path}")
+    
+    if not file_path.exists():
+        logger.error(f"Survey file not found: {file_path}")
+        logger.error(f"Topic: '{topic}'")
+        logger.error(f"Paper path directory: {Path(paper_path)}")
+        if Path(paper_path).exists():
+            logger.error("Available files:")
+            for f in sorted(Path(paper_path).glob("*")):
+                if topic.split()[0].lower() in f.name.lower():
+                    logger.error(f"  - {f.name}")
+        raise FileNotFoundError(f"Survey file not found: {file_path}")
+    
+    if not ref_path.exists():
+        logger.error(f"Reference file not found: {ref_path}")
+        raise FileNotFoundError(f"Reference file not found: {ref_path}")
+    
+    with open(file_path, "r", encoding="utf-8") as f:
+        survey = f.read()
+    with open(ref_path, 'r', encoding="utf-8") as f:
+        ref_dict = json.load(f)
+    
+    # 转换paper titles到paper_ids
+    # 收集所有唯一的titles
+    titles = list(ref_dict.values())
+    logger.info(f"Converting {len(titles)} paper titles to paper_ids...")
+    
+    # 批量查询paper信息
+    data_manager = DataManager(config)
+    title_to_paper = data_manager.get_paper_with_title_batch(titles)
+    
+    # 构建references列表，只包含paper_id
+    references = []
+    not_found_titles = []
+    for title in titles:
+        if title in title_to_paper and title_to_paper[title] is not None:
+            paper_info = title_to_paper[title]
+            if 'paperId' in paper_info:
+                references.append(paper_info['paperId'])
+            else:
+                not_found_titles.append(title)
+        else:
+            not_found_titles.append(title)
+    
+    if not_found_titles:
+        logger.warning(f"Could not find {len(not_found_titles)} papers in database out of {len(titles)} total references")
+    
+    logger.info(f"Loaded survey and {len(references)} references for topic: {topic}")
+
+    cfg_for_topic = OmegaConf.merge(config, {
+                                    "BasicInfo": {
+                                        "topic": topic, 
+                                        "evaluation_save_path": save_path
+                                        }
+                                    })
+    return cfg_for_topic, survey, references
+
 def get_Human_cfg(config, domain, topic, save_path, paper_path):
     file_path = Path(paper_path) / f"{topic}" / "auto" /f"{topic}.md"
     logger.info(f"Loading human survey from {file_path}")
@@ -112,15 +173,23 @@ def extract_refs_from_bib(bib_content: str) -> Dict[str, Dict]:
         Dict: label -> {"title": ..., "paper_id": None} 的映射
     """
     refs_dict = {}
-    # 匹配 @article{label, ... title={title} }
-    article_pattern = r'@\w+\{([^,]+),([^}]*(?:\{[^}]*\}[^}]*)*)\}'
+    
+    # 改进的正则表达式 - 匹配 @type{content} 直到整个条目结束
+    # 支持多行title，条目格式：@article{label,\ntitle={...}\n}
+    article_pattern = r'@(\w+)\{([^@]+)\}\s*(?=\n@|\Z)'
     matches = re.findall(article_pattern, bib_content, re.DOTALL)
     
-    for label, content in matches:
-        label = label.strip()
-        # 提取title
-        title_pattern = r'title\s*=\s*\{([^}]*)\}'
-        title_match = re.search(title_pattern, content)
+    for entry_type, content in matches:
+        # 提取label - 取第一个逗号前的部分
+        label_pattern = r'^([^,\s]+)'
+        label_match = re.search(label_pattern, content.strip())
+        if not label_match:
+            continue
+        label = label_match.group(1).strip()
+        
+        # 提取title - 支持多行和嵌套括号
+        title_pattern = r'title\s*=\s*\{([^}]*(?:\{[^}]*\}[^}]*)*)\}'
+        title_match = re.search(title_pattern, content, re.DOTALL)
         if title_match:
             title = ' '.join(title_match.group(1).split())
             refs_dict[label] = {
@@ -131,16 +200,16 @@ def extract_refs_from_bib(bib_content: str) -> Dict[str, Dict]:
     return refs_dict
 
 
-def process_survey_tex(survey: str, label_to_paper: Dict[str, dict]) -> Tuple[str, List]:
+def process_survey_tex(survey: str, label_to_paper: Dict[str, str]) -> Tuple[str, List]:
     """
     处理survey.tex，将\cite{label}替换为[idx]，并返回按引用顺序排列的references
     
     Args:
         survey: survey.tex内容
-        label_to_paper: label -> paper_info的映射 (来自get_paper_with_title_batch)
+        label_to_paper: label -> paper_id的映射
         
     Returns:
-        (处理后的survey, references_list): references_list中paper按首次引用顺序排列
+        (处理后的survey, references_list): references_list中paper_id按首次引用顺序排列
     """
     # 找出所有出现的cite标签及其顺序
     cite_pattern = r'\\cite\{([^}]+)\}'
@@ -154,10 +223,24 @@ def process_survey_tex(survey: str, label_to_paper: Dict[str, dict]) -> Tuple[st
             if label not in cite_order:
                 cite_order.append(label)
     
-    # 构建label -> idx的映射
-    label_to_idx = {label: idx for idx, label in enumerate(cite_order)}
+    # 只对在label_to_paper中存在的标签分配索引
+    # 这样可以确保references_list的长度和最大索引匹配
+    # 注意：索引从1开始，因为judge.py使用 references[index-1] 来访问
+    label_to_idx = {}
+    references_list = []
+    unmatched_labels = []
     
-    # 替换survey中的\cite{label}为[idx]
+    for label in cite_order:
+        if label in label_to_paper and label not in label_to_idx:
+            label_to_idx[label] = len(references_list) + 1  # 索引从1开始
+            references_list.append(label_to_paper[label])
+        elif label not in label_to_paper and label not in unmatched_labels:
+            unmatched_labels.append(label)
+    
+    if unmatched_labels:
+        logger.warning(f"Found {len(unmatched_labels)} citations with labels not found in database: {unmatched_labels[:10]}{'...' if len(unmatched_labels) > 10 else ''}")
+    
+    # 替换survey中的\cite{label}为[idx]，只替换在label_to_idx中的标签
     def replace_cite(match):
         cite_group = match.group(1)
         labels = [l.strip() for l in cite_group.split(',')]
@@ -165,12 +248,6 @@ def process_survey_tex(survey: str, label_to_paper: Dict[str, dict]) -> Tuple[st
         return ','.join(new_labels)
     
     processed_survey = re.sub(cite_pattern, replace_cite, survey)
-    
-    # 构建references_list，按引用顺序排列，直接使用paper_info
-    references_list = []
-    for label in cite_order:
-        if label in label_to_paper:
-            references_list.append(label_to_paper[label])
     
     return processed_survey, references_list
 
@@ -207,17 +284,30 @@ def get_SurveyX_cfg(config, domain, topic, save_path, paper_path):
     data_manager = DataManager(config)
     paper_results = data_manager.get_paper_with_title_batch(titles)
     
-    # 构建label -> paper_info的映射
+    # 构建label -> paper_id的映射
     label_to_paper = {}
+    not_found_titles = []
     for label, ref_info in refs_dict.items():
         title = ref_info["title"]
         if title in paper_results and paper_results[title] is not None:
-            label_to_paper[label] = paper_results[title]
+            # 只提取paper_id，而不是整个字典
+            paper_info = paper_results[title]
+            if 'paperId' in paper_info:
+                label_to_paper[label] = paper_info['paperId']
+            else:
+                # 如果没有paperId字段，记录警告并跳过
+                logger.warning(f"Paper found but no paperId field: {title[:50]}...")
+                not_found_titles.append(title)
+        else:
+            not_found_titles.append(title)
+    
+    if not_found_titles:
+        logger.warning(f"Could not find {len(not_found_titles)} papers in database out of {len(refs_dict)} total references")
     
     # 处理survey.tex，将\cite{label}替换为[idx]
     processed_survey, references_list = process_survey_tex(survey, label_to_paper)
     
-    logger.info(f"Processed survey with {len(references_list)} references in citation order")
+    logger.info(f"Processed survey: {len(references_list)} references successfully mapped out of {len(refs_dict)} total BibTeX entries")
     
     cfg_for_topic = OmegaConf.merge(config, {
                                     "BasicInfo": {
@@ -228,7 +318,7 @@ def get_SurveyX_cfg(config, domain, topic, save_path, paper_path):
     return cfg_for_topic, processed_survey, references_list
                             
 
-@hydra.main(config_path="../config", config_name="evaluate_baseline", version_base=None)
+@hydra.main(config_path="../config/personal", config_name="evaluate_baseline", version_base=None)
 def main(config):
     config = merge_with_default_survey_config(config)
     benchmarks = {}
@@ -280,6 +370,8 @@ def main(config):
                         cfg_for_topic, survey, references_list = get_SurveyX_cfg(config, domain, topic, save_path, paper_path)
                     elif "human" in baseline.lower():
                         cfg_for_topic, survey, references_list = get_Human_cfg(config, domain, topic, save_path, paper_path)
+                    elif "lira" in baseline.lower():
+                        cfg_for_topic, survey, references_list = get_Lira_cfg(config, domain, topic, save_path, paper_path)
                     else:
                         logger.error(f"Baseline {baseline} not recognized.")
                         raise ValueError(f"Baseline {baseline} not recognized.")

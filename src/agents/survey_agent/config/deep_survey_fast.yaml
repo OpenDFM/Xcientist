@@ -2,22 +2,22 @@ BasicInfo:
   topic: Transformer
   base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
   cache_path: ./database
-  save_path: ./outputs/test/0413-new-save-test-code
-  evaluation_save_path: ./outputs/test/0413-new-save-test-code/eval.txt
+  save_path: ./outputs/test
+  evaluation_save_path: ./outputs/test/eval.txt
   debug: True
   error_conservatism_mode: False
   skip_exist: True
   adapter_mode: True
 APIInfo:
-  llm_api_key: sk-cp-R6adkh_rPxXPH0S-t_gb4ughwyrDs2pc2m9laV4p6-sRlpjSrs5F5aXZRxqFiUVD88iaxJPr_E_Jf2DfC-eZZ7oc1ZlR50Bnjfe6Na6MNLh_c4eMGVjnuAc
-  llm_api_base_url: https://api.minimax.chat/v1/text/chatcompletion_v2
-  llm_model_name: minimax-m2.7
+  llm_api_key:
+  llm_api_base_url: 
+  llm_model_name: gpt-5-mini
   llm_max_context_length: 180000
   use_stream_mode: false
   batch_chat_agent_worker: 8
   chat_timeout: 300
   batch_chat_timeout: 1800
-  semantic_scholar_api_key: 1EzJeomTxpaiYyR5cJbCoaZThZTgFkph707DvYzJ
+  semantic_scholar_api_key:
   low_flow_mode: True
   low_flow_latency: 1
   exponential_backoff: True
@@ -102,6 +102,7 @@ ModuleInfo:
     subsection_draft_temperature: 0.5
     subsection_draft_max_retry: 5
     section_draft_max_retry: 3
+    always_omit_error_in_draft_validation: True
     section_draft_temperature: 0.1
     draft_refinement_temperature: 1.0
     section_draft_max_error_info_length: 500
@@ -133,6 +134,7 @@ ModuleInfo:
     section_revise_retry: 3
     no_suggestion_run_each_iteration: 2
     max_review_revise_iterations: 15
+    revise_section_in_parallel: 4
     draft_refinement_in_parts: True
     refine_in_parts_mode: 2
     draft_refinement_max_retry: 7
@@ -147,9 +149,9 @@ ModuleInfo:
   Judge:
     skip_evaluation: False
     use_different_api_for_judge: False
-    model: mimo-v2-flash
-    judge_llm_api_key: sk-UCfwgl63Xg27JF8W33D746F3B80d4862979c82A51951485f
-    judge_llm_api_base_url: https://api.xi-ai.cn/v1/chat/completions
+    model: 
+    judge_llm_api_key: 
+    judge_llm_api_base_url:
     nli_temperature: 0.1
     citation_quality_threshold: 0.5
     remove_failed_citation_in_eval: True

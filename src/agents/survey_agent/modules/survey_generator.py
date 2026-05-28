@@ -1,6 +1,7 @@
 from utils.rich_logger import get_logger
 from utils.api_call import SemanticScholarAPI, ChatAgent
 import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from modules.pe import (
     SURVEY_OUTLINE_GENERATION,
     SUBSECTION_DRAFT,
@@ -51,12 +52,13 @@ class SurveyGenerator:
         self.outline_fast_mode = self.config.ModuleInfo.SurveyGenerator.outline_assign_fast_mode
         self.agentic_refine_section = self.config.ModuleInfo.SurveyGenerator.agentic_refine_section
         self.agentic_refine_survey = self.config.ModuleInfo.SurveyGenerator.agentic_refine_survey
+        self.always_omit_error = self.config.ModuleInfo.SurveyGenerator.always_omit_error_in_draft_validation
 
     def format_papers_analysis(self, intra_analysis_results, inter_analysis_results, concise_mode = False):
         papers_analysis = ""
 
         # debug
-        if self.include_relation_graph:
+        if self.include_relation_graph and not concise_mode:
             papers_analysis += self.work_analyzer.format_analysis_graph()
             self.logger.info("add relation graph in analysis")
 
@@ -67,7 +69,7 @@ class SurveyGenerator:
             #     self.logger.info(f"Relation Table: {table}")
             self.logger.info("add relation table in analysis")
 
-        if self.include_initial_analysis and not concise_mode:
+        if self.include_initial_analysis:
             for i, group in enumerate(intra_analysis_results):
                 papers_analysis += f"Group {i+1} Analysis:\n"
                 for j, q in enumerate(group):
@@ -76,6 +78,7 @@ class SurveyGenerator:
             papers_analysis += (
                 f"\n\nHigh-level Inter-Group Analysis:\n{inter_analysis_results}\n"
             )
+            papers_analysis = papers_analysis.replace('#', '*')
         
 
         return papers_analysis
@@ -1122,10 +1125,13 @@ class SurveyGenerator:
         return drafts
     
     def validate_id_citation_draft(self, section_draft, papers, least_words=0, omit_error=False):
+        if self.always_omit_error:
+            omit_error = True
         if not isinstance(section_draft, str):
             return False, [f"draft context is {type(section_draft)}, not str"], section_draft
 
         valid = True
+        citation_valid = True
         err_info = []
 
         if least_words and len(section_draft.split()) < least_words*self.config.ModuleInfo.SurveyGenerator.draft_length_relax_ratio:
@@ -1144,26 +1150,39 @@ class SurveyGenerator:
         err_papers = []
         paper_ids = list(self.get_unique_paper_ids_from_raw(section_draft))
 
+        if '#' in section_draft:
+            valid = False
+            err_info.append("Draft contains '#' character, probably a wrong format.")
+            self.logger.error(f"Draft contains '#' character, probably a wrong format in SUBSECTION DRAFT.")
+            if omit_error:
+                self.logger.info("Omitting draft containing '#' character error...")
+                section_draft = section_draft.replace('#', '')
+
         for paper_id in paper_ids:
             if paper_id not in papers_set:
                 self.logger.warning(f"Paper ID {paper_id} not found in papers set in SUBSECTION DRAFT VALIDATE.")
                 err_info.append(f"Paper ID {paper_id} not found in papers set, probably a wrong paper_id.")
                 valid = False
+                citation_valid = False
                 err_papers.append(paper_id)
 
         cleaned = section_draft
-        if not valid:
-            cleaned = self._remove_err_paper_ids_from_text(section_draft, err_papers)
+        if not valid and omit_error:
+            if not citation_valid:
+                cleaned = self._remove_err_paper_ids_from_text(section_draft, err_papers)
             valid = True
 
         return valid, err_info, cleaned
 
     def validate_title_citation_draft(self, section_draft, papers, least_words=0, omit_error=False):
+        if self.always_omit_error:
+            omit_error = True
         if self.config.BasicInfo.debug:
             self.logger.info(f"Validating draft titles in DRAFT TITLE VALIDATE.")
         if not isinstance(section_draft, str):
             return False, [f"draft context is {type(section_draft)}, not str"], section_draft
 
+        citation_valid = True
         err_info = []
         if least_words and len(section_draft.split()) < least_words*self.config.ModuleInfo.SurveyGenerator.draft_length_relax_ratio:
             self.logger.info(
@@ -1176,13 +1195,24 @@ class SurveyGenerator:
             papers_set.update(self.database.valid_paper_ids)
 
         valid, paper_ids, titles, err_titles = self.extract_and_validate_titles_in_text(section_draft)
+        if not valid:
+            citation_valid = False
 
         for err_paper_title in err_titles:
             err_info.append(f"Paper title '{err_paper_title}' not found in database, probably a wrong or incomplete title, or the paper is not in valid citation range.\n")
 
+        if '#' in section_draft:
+            valid = False
+            err_info.append("Draft contains '#' character, probably a wrong format.")
+            self.logger.error(f"Draft contains '#' character, probably a wrong format in SUBSECTION DRAFT.")
+            if omit_error:
+                self.logger.info("Omitting draft containing '#' character error...")
+                section_draft = section_draft.replace('#', '')
+
         cleaned = section_draft
-        if not valid:
-            cleaned = self._remove_err_paper_titles_from_text(section_draft, err_titles)
+        if not valid and omit_error:
+            if not citation_valid:
+                cleaned = self._remove_err_paper_titles_from_text(section_draft, err_titles)
             valid = True
 
         return valid, err_info, cleaned
@@ -1420,20 +1450,54 @@ class SurveyGenerator:
         if len(sections) == 0:
             self.logger.error("No sections found in draft for review and revise.")
             raise ValueError("No sections in draft.")
-        revised_sections = []
-        for idx, section_text in enumerate(sections):
-            self.logger.info(f"\n\n***** Reviewing and Revising Section {idx + 1}/{len(sections)}: {outline.get('sections', [])[idx].get('title', 'No Title')} *****")
-            previous_section_text = sections[idx - 1] if idx > 0 else ""
-            next_section_text = sections[idx + 1] if idx + 1 < len(sections) else ""
-            revised_text = self.review_and_revise_section(
-                section_text,
-                previous_section_text=previous_section_text,
-                next_section_text=next_section_text,
-                section_outline=outline.get('sections', [])[idx],
-                code_report = code_report,
-                env_report = env_report
-            )
-            revised_sections.append(revised_text)
+        
+        max_parallel = getattr(self.config.ModuleInfo.SurveyGenerator, 'revise_section_in_parallel', 1)
+        
+        if max_parallel <= 1:
+            revised_sections = []
+            for idx, section_text in enumerate(sections):
+                self.logger.info(f"\n\n***** Reviewing and Revising Section {idx + 1}/{len(sections)}: {outline.get('sections', [])[idx].get('title', 'No Title')} *****")
+                previous_section_text = sections[idx - 1] if idx > 0 else ""
+                next_section_text = sections[idx + 1] if idx + 1 < len(sections) else ""
+                revised_text = self.review_and_revise_section(
+                    section_text,
+                    previous_section_text=previous_section_text,
+                    next_section_text=next_section_text,
+                    section_outline=outline.get('sections', [])[idx],
+                    code_report = code_report,
+                    env_report = env_report
+                )
+                revised_sections.append(revised_text)
+        else:
+            max_parallel = min(max_parallel, len(sections))
+            self.logger.info(f"\n\n***** Processing {len(sections)} sections in parallel (max {max_parallel} workers) *****")
+            
+            def revise_section_with_context(idx):
+                section_text = sections[idx]
+                self.logger.info(f"Reviewing and Revising Section {idx + 1}/{len(sections)}: {outline.get('sections', [])[idx].get('title', 'No Title')}")
+                previous_section_text = sections[idx - 1] if idx > 0 else ""
+                next_section_text = sections[idx + 1] if idx + 1 < len(sections) else ""
+                
+                return self.review_and_revise_section(
+                    section_text,
+                    previous_section_text=previous_section_text,
+                    next_section_text=next_section_text,
+                    section_outline=outline.get('sections', [])[idx],
+                    code_report = code_report,
+                    env_report = env_report
+                )
+            
+            with ThreadPoolExecutor(max_workers=max_parallel) as executor:
+                future_to_idx = {executor.submit(revise_section_with_context, idx): idx for idx in range(len(sections))}
+                revised_sections = [None] * len(sections)
+                
+                for future in tqdm(as_completed(future_to_idx), total=len(sections), desc="Revising sections in parallel", unit="section"):
+                    idx = future_to_idx[future]
+                    try:
+                        revised_sections[idx] = future.result()
+                    except Exception as exc:
+                        self.logger.error(f"Section {idx} generated an exception: {exc}")
+                        revised_sections[idx] = sections[idx]
 
         # if self.config.BasicInfo.debug:
         #     self.logger.info("\n\n=== Revised Sections ===")
@@ -1645,6 +1709,12 @@ class SurveyGenerator:
                 if title:
                     if not saw_section_heading:
                         saw_section_heading = True
+                        outline_title = draft["outline"].get("sections", [])[sec_idx - 1].get("title", "")
+                        if self.config.BasicInfo.debug:
+                            self.logger.info(f"outline title: {outline_title} - title: {title}")
+                        if outline_title != "" and outline_title != title:
+                            self.logger.warning("section title not same! use outline result")
+                            title = outline_title
                         new_lines.append(f"## {sec_idx}. {title}")
                         last_added_heading = ("section", sec_idx, title)
                         if self.config.BasicInfo.debug:
@@ -1666,9 +1736,6 @@ class SurveyGenerator:
                             if self.config.BasicInfo.debug:
                                 self.logger.info(f"Extract Subsection {sub_idx} Title: ### {sec_idx}.{sub_idx}. {title}")
                         # If duplicate, skip adding this heading but still track it
-                        else:
-                            # Still increment sub_idx to maintain correct numbering
-                            sub_idx += 1
                     continue
 
                 new_lines.append(line)
@@ -2176,10 +2243,14 @@ class SurveyGenerator:
                 )
                 valid_titles.append(title)
             except ValueError:
-                err_titles.append(title)
-                if self.config.BasicInfo.debug:
-                    self.logger.warning(f"Title '{title}' could not be resolved. Removing citation.")
-                continue
+                if getattr(self.config, 'AblationInfo', None) and getattr(self.config.AblationInfo, 'survey_generator_disabled', False):
+                    self.logger.info(f"Ablation mode: Using title as paper_id for '{title}'")
+                    paper_id = title
+                else:
+                    err_titles.append(title)
+                    if self.config.BasicInfo.debug:
+                        self.logger.warning(f"Title '{title}' could not be resolved. Removing citation.")
+                    continue
 
             if paper_id not in paper_id_to_index:
                 ordered_paper_ids.append(paper_id)
