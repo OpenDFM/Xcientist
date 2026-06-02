@@ -62,6 +62,7 @@ AGENTS.md
 uv.lock/
 .pip-cache/
 .uv-cache/
+database/
 
 # Pipeline workspace
 /workspace

@@ -34,8 +34,9 @@ def merge_with_default_survey_config(config: DictConfig) -> DictConfig:
     if not isinstance(config_container, dict):
         raise TypeError("Survey config must be a mapping")
 
+    survey_keys = set(default_survey.keys())
     top_level_config = OmegaConf.create(
-        {key: value for key, value in config_container.items() if key != "survey"}
+        {key: value for key, value in config_container.items() if key in survey_keys}
     )
     survey_overrides = OmegaConf.select(config, "survey")
 

@@ -18,20 +18,20 @@ workspace:
 # ============================================
 api:
   openai:
-    api_key: "${oc.env:OPENAI_API_KEY,}"
-    api_base: "${oc.env:OPENAI_API_BASE,}"
-    base_url: "${oc.env:OPENAI_BASE_URL,}"
+    api_key: "${oc.env:OPENAI_API_KEY,''}"
+    api_base: "${oc.env:OPENAI_API_BASE,''}"
+    base_url: "${oc.env:OPENAI_BASE_URL,''}"
   semantic_scholar:
-    api_key: "${oc.env:SEMANTIC_SCHOLAR_API_KEY,}"
+    api_key: "${oc.env:SEMANTIC_SCHOLAR_API_KEY,''}"
     base_url: "https://api.semanticscholar.org"
   github_ai:
-    token: "${oc.env:GITHUB_AI_TOKEN,}"
+    token: "${oc.env:GITHUB_AI_TOKEN,''}"
   serper:
-    api_key: "${oc.env:SERPER_API_KEY,}"
+    api_key: "${oc.env:SERPER_API_KEY,''}"
   jina:
-    api_key: "${oc.env:JINA_API_KEY,}"
+    api_key: "${oc.env:JINA_API_KEY,''}"
   tavily:
-    api_key: "${oc.env:TAVILY_API_KEY,}"
+    api_key: "${oc.env:TAVILY_API_KEY,''}"
     remote_url_template: "https://mcp.tavily.com/mcp/?tavilyApiKey={api_key}"
   huggingface:
     endpoint: "https://hf-mirror.com"
@@ -50,15 +50,15 @@ survey:
     skip_exist: false
     adapter_mode: false
   APIInfo:
-    llm_api_key: "${api.openai.api_key}"
-    llm_api_base_url: "${api.openai.api_base}"
+    llm_api_key: "${oc.env:OPENAI_API_KEY,''}"
+    llm_api_base_url: "${oc.env:OPENAI_API_BASE,''}"
     llm_model_name: "gpt-5-mini"
     llm_max_context_length: 160000
     use_stream_mode: false
     batch_chat_agent_worker: 16
     chat_timeout: 900
     batch_chat_timeout: 1800
-    semantic_scholar_api_key: "${api.semantic_scholar.api_key}"
+    semantic_scholar_api_key: "${oc.env:SEMANTIC_SCHOLAR_API_KEY,''}"
     low_flow_mode: false
     low_flow_latency: 0
     exponential_backoff: true
@@ -143,6 +143,7 @@ survey:
       subsection_draft_temperature: 0.5
       subsection_draft_max_retry: 5
       section_draft_max_retry: 3
+      always_omit_error_in_draft_validation: true
       section_draft_temperature: 0.1
       draft_refinement_temperature: 1.0
       section_draft_max_error_info_length: 500
@@ -175,6 +176,7 @@ survey:
       section_revise_retry: 3
       no_suggestion_run_each_iteration: 2
       max_review_revise_iterations: 3
+      revise_section_in_parallel: 4
       draft_refinement_in_parts: true
       refine_in_parts_mode: 2
       draft_refinement_max_retry: 7
@@ -186,8 +188,8 @@ survey:
       skip_evaluation: false
       use_different_api_for_judge: false
       model: "gpt-5-mini"
-      judge_llm_api_key: "${api.openai.api_key}"
-      judge_llm_api_base_url: "${api.openai.api_base}"
+      judge_llm_api_key: "${oc.env:OPENAI_API_KEY,''}"
+      judge_llm_api_base_url: "${oc.env:OPENAI_API_BASE,''}"
       nli_temperature: 0.1
       citation_quality_threshold: 0.5
       remove_failed_citation_in_eval: true
@@ -343,9 +345,9 @@ experiment:
 
   external_tools:
     huggingface_endpoint: "https://hf-mirror.com"
-    github_ai_token: "${env:GITHUB_AI_TOKEN}"
-    serper_api_key: "${env:SERPER_API_KEY}"
-    jina_api_key: "${env:JINA_API_KEY}"
+    github_ai_token: "${oc.env:GITHUB_AI_TOKEN,''}"
+    serper_api_key: "${oc.env:SERPER_API_KEY,''}"
+    jina_api_key: "${oc.env:JINA_API_KEY,''}"
 
   # Execution configuration
   execution:
@@ -386,7 +388,7 @@ experiment:
     prepare_clone_depth: 1
     model_candidate_seed: "~/.researchagent/model_seed/"
     tavily_enabled: true
-    tavily_api_key: "${env:TAVILY_API_KEY}"
+    tavily_api_key: "${oc.env:TAVILY_API_KEY,''}"
     tavily_remote_url_template: "https://mcp.tavily.com/mcp/?tavilyApiKey={api_key}"
 
 # ============================================
