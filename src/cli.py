@@ -337,6 +337,11 @@ def _doctor_command(args: argparse.Namespace) -> int:
     _ensure_config_exists(config_path)
     env_file = _load_project_env()
 
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
+
     from src.config import load_config
 
     config = load_config(str(config_path))
@@ -349,6 +354,20 @@ def _doctor_command(args: argparse.Namespace) -> int:
     checks.append(
         ("graph.db", (REPO_ROOT / "data" / "processed" / "graph.db").exists(), "data/processed/graph.db"),
     )
+    vector_store_dir = REPO_ROOT / "data" / "processed" / "core_component_summary_vector_store"
+    vector_store_files = [
+        "build_stats.json",
+        "faiss.index",
+        "meta.json",
+    ]
+    for filename in vector_store_files:
+        checks.append(
+            (
+                f"vector_store/{filename}",
+                (vector_store_dir / filename).exists(),
+                f"data/processed/core_component_summary_vector_store/{filename}",
+            )
+        )
     checks.append(
         ("all-MiniLM-L6-v2", (REPO_ROOT / "models" / "all-MiniLM-L6-v2").exists(), "models/all-MiniLM-L6-v2")
     )
@@ -356,13 +375,13 @@ def _doctor_command(args: argparse.Namespace) -> int:
         ("bge-m3", (REPO_ROOT / "models" / "bge-m3").exists(), "models/bge-m3"),
     )
     required_env = [
-        "OPENAI_API_KEY",
-        "OPENAI_API_BASE",
-        "OPENAI_BASE_URL",
-        "SEMANTIC_SCHOLAR_API_KEY",
+        ("OPENAI_API_KEY", ("OPENAI_API_KEY",)),
+        ("OPENAI_BASE_URL", ("OPENAI_BASE_URL",)),
+        ("ANTHROPIC_API_KEY", ("ANTHROPIC_API_KEY",)),
+        ("ANTHROPIC_BASE_URL", ("ANTHROPIC_BASE_URL",)),
+        ("SEMANTIC_SCHOLAR_API_KEY", ("SEMANTIC_SCHOLAR_API_KEY",)),
     ]
     optional_env = [
-        "MINIMAX_API_KEY",
         "SERPER_API_KEY",
         "GITHUB_AI_TOKEN",
         "JINA_API_KEY",
@@ -370,28 +389,48 @@ def _doctor_command(args: argparse.Namespace) -> int:
         "HF_TOKEN",
     ]
 
-    print("Xcientist doctor")
-    print(f"repo: {REPO_ROOT}")
-    print(f"workspace: {config.workspace.root}")
-    for name, ok, detail in checks:
-        status = "OK" if ok else "MISSING"
-        print(f"[{status}] {name}: {detail}")
+    console = Console(highlight=False, soft_wrap=True)
 
-    print("\nEnvironment variables")
-    for name in required_env:
-        value = os.environ.get(name, "")
-        print(f"[{'OK' if value else 'MISSING'}] {name}")
+    def status_icon(ok: bool) -> Text:
+        return Text("✓", style="bold green") if ok else Text("✗", style="bold red")
+
+    def optional_icon(ok: bool) -> Text:
+        return Text("✓", style="bold green") if ok else Text("○", style="yellow")
+
+    console.print("[bold]Xcientist doctor[/bold]")
+    console.print(f"[dim]repo:[/dim] {REPO_ROOT}")
+    console.print(f"[dim]workspace:[/dim] {config.workspace.root}")
+
+    check_table = Table.grid(padding=(0, 1))
+    check_table.add_column(no_wrap=True)
+    check_table.add_column(no_wrap=True)
+    check_table.add_column(overflow="fold")
+    for name, ok, detail in checks:
+        check_table.add_row(status_icon(ok), name, detail)
+    console.print(check_table)
+
+    env_table = Table.grid(padding=(0, 1))
+    env_table.add_column(no_wrap=True)
+    env_table.add_column(no_wrap=True)
+    env_table.add_column(no_wrap=True)
+    for label, names in required_env:
+        value = any(os.environ.get(name) for name in names)
+        env_table.add_row(status_icon(value), label, Text("required", style="dim"))
     for name in optional_env:
         value = os.environ.get(name, "")
-        print(f"[{'OK' if value else 'OPTIONAL'}] {name}")
+        env_table.add_row(optional_icon(bool(value)), name, Text("optional", style="dim"))
+    console.print(Panel(env_table, title="Environment variables", border_style="cyan", padding=(0, 1)))
 
     failures = [
-        not any(os.environ.get(name) for name in ("OPENAI_API_BASE", "OPENAI_BASE_URL")),
         not os.environ.get("OPENAI_API_KEY"),
+        not os.environ.get("OPENAI_BASE_URL"),
+        not os.environ.get("ANTHROPIC_API_KEY"),
+        not os.environ.get("ANTHROPIC_BASE_URL"),
         not os.environ.get("SEMANTIC_SCHOLAR_API_KEY"),
         shutil.which("node") is None,
         shutil.which("npx") is None,
         not (REPO_ROOT / "data" / "processed" / "graph.db").exists(),
+        any(not (vector_store_dir / filename).exists() for filename in vector_store_files),
         not (REPO_ROOT / "models" / "all-MiniLM-L6-v2").exists(),
         not (REPO_ROOT / "models" / "bge-m3").exists(),
     ]
