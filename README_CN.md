@@ -5,9 +5,9 @@
 <h2 align="center">Externalizing Research Synthesis and Validation in AI Scientists through a Research Harness</h2>
 
 <p align="center">
-<img src="https://img.shields.io/badge/python-3.12-blue" alt="python">
-<a href="https://arxiv.org/"><img src="https://img.shields.io/badge/arXiv-tmp-red" alt="arXiv"></a>
-<a href="https://kotohanon.github.io/Xcientist/"><img src="https://img.shields.io/badge/website-page-blue" alt="website"></a>
+  <a href="https://kotohanon.github.io/Xcientist/"><img src="https://img.shields.io/badge/Project-Website-4C1?logo=githubpages&logoColor=white" alt="Project website"></a>
+  <img src="https://img.shields.io/badge/Paper-Coming_Soon-B31B1B?logo=arxiv&logoColor=white" alt="Paper coming soon">
+  <a href="https://www.python.org/downloads/release/python-3120/"><img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12"></a>
 </p>
 
 <div align="center">
@@ -15,6 +15,10 @@
 **[English](README.md) | [简体中文](README_CN.md)**
 
 </div>
+
+<p align="center">
+  <img src="assets/overview.jpg" alt="Xcientist system overview" width="100%">
+</p>
 
 ## 目录
 
