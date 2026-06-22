@@ -7,6 +7,7 @@
 <p align="center">
   <a href="https://kotohanon.github.io/Xcientist/"><img src="https://img.shields.io/badge/Project-Website-4C1?logo=githubpages&logoColor=white" alt="Project website"></a>
   <a href="https://arxiv.org/pdf/2606.18874"><img src="https://img.shields.io/badge/Paper_2606.18874-B31B1B?logo=arxiv&logoColor=white" alt="2606.18874"></a>
+    <a href="https://huggingface.co/datasets/KotoHanon/paper-graph-infrastructure"><img src="https://img.shields.io/badge/Dataset-paper--graph--infrastructure-FFD21E?logo=huggingface&logoColor=black" alt="paper-graph-infrastructure dataset"></a>
   <a href="https://www.python.org/downloads/release/python-3120/"><img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12"></a>
 </p>
 
