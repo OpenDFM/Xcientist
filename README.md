@@ -400,7 +400,10 @@ If you are starting fresh, edit `src/config/default.yaml` first. It is the most 
 If you use Xcientist in your research, please cite:
 
 ```bibtex
-@misc{
-   to be released
+@article{wang2026externalizing,
+  title={Externalizing Research Synthesis and Validation in AI Scientists through a Research Harness},
+  author={Wang, Zijian and Li, Hanqi and Yang, Ziyue and Hu, Zijian and Zuo, Shenghan and Zhang, Yunzhe and Ma, Da and Luo, Danyu and Wang, Chenrun and Peng, Jing and others},
+  journal={arXiv preprint arXiv:2606.18874},
+  year={2026}
 }
 ```

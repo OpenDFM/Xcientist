@@ -399,7 +399,10 @@ xcientist pipeline --config /abs/path/to/config.yaml --topic "Your Research Topi
 如果你在研究中使用了 Xcientist，请引用：
 
 ```bibtex
-@misc{
-   to be released
+@article{wang2026externalizing,
+  title={Externalizing Research Synthesis and Validation in AI Scientists through a Research Harness},
+  author={Wang, Zijian and Li, Hanqi and Yang, Ziyue and Hu, Zijian and Zuo, Shenghan and Zhang, Yunzhe and Ma, Da and Luo, Danyu and Wang, Chenrun and Peng, Jing and others},
+  journal={arXiv preprint arXiv:2606.18874},
+  year={2026}
 }
 ```
