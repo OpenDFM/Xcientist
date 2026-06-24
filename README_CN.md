@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://kotohanon.github.io/Xcientist/"><img src="https://img.shields.io/badge/Project-Website-4C1?logo=githubpages&logoColor=white" alt="Project website"></a>
   <a href="https://arxiv.org/pdf/2606.18874"><img src="https://img.shields.io/badge/Paper_2606.18874-B31B1B?logo=arxiv&logoColor=white" alt="2606.18874"></a>
-    <a href="https://huggingface.co/datasets/KotoHanon/paper-graph-infrastructure"><img src="https://img.shields.io/badge/Dataset-paper--graph--infrastructure-FFD21E?logo=huggingface&logoColor=black" alt="paper-graph-infrastructure dataset"></a>
+  <img src="https://img.shields.io/badge/Dataset-coming--soon-FFD21E?logo=huggingface&logoColor=black" alt="paper-graph-infrastructure dataset">
   <a href="https://www.python.org/downloads/release/python-3120/"><img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12"></a>
 </p>
 
@@ -110,7 +110,7 @@ Xcientist/
 - `Experiment Agent` 需要 `node` 和 `npx` 来启动 MCP server
 - 运行不同 Agent 所需的 API key
 - 图检索和 memory 能力依赖仓库外的本地数据或模型
-   - 论文图相关资源的[下载链接](https://drive.google.com/drive/folders/1lH1MI6gk7eh0HfvfOajcqAZg3n95v5BK?usp=drive_link)，将它们放入 `<repo_root>/data/processed`
+   - 论文图相关资源(我们将在下个月尽快发布！)，将它们放入 `<repo_root>/data/processed`
    - 向量模型下载：
    ```
    mkdir -p models/bge-m3

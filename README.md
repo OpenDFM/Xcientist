@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://kotohanon.github.io/Xcientist/"><img src="https://img.shields.io/badge/Project-Website-4C1?logo=githubpages&logoColor=white" alt="Project website"></a>
   <a href="https://arxiv.org/pdf/2606.18874"><img src="https://img.shields.io/badge/Paper_2606.18874-B31B1B?logo=arxiv&logoColor=white" alt="2606.18874"></a>
-    <a href="https://huggingface.co/datasets/KotoHanon/paper-graph-infrastructure"><img src="https://img.shields.io/badge/Dataset-paper--graph--infrastructure-FFD21E?logo=huggingface&logoColor=black" alt="paper-graph-infrastructure dataset"></a>
+  <img src="https://img.shields.io/badge/Dataset-coming--soon-FFD21E?logo=huggingface&logoColor=black" alt="paper-graph-infrastructure dataset">
   <a href="https://www.python.org/downloads/release/python-3120/"><img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12"></a>
 </p>
 
@@ -110,7 +110,7 @@ The pipeline runner in `src/pipeline/run_loop.py` automates the full `Survey -> 
 - `node` and `npx` for Experiment Agent MCP servers
 - API keys depending on which agent you run
 - Local assets for graph-backed retrieval and memory-enabled workflows
-  - Paper-Graph related resource [donwload link](https://drive.google.com/drive/folders/1lH1MI6gk7eh0HfvfOajcqAZg3n95v5BK?usp=drive_link), put them into `<repo_root>/data/processed`.
+  - Paper-Graph related resource (We will release it soon in next month!), put them into `<repo_root>/data/processed`.
   - Embedding model download:
    ```
    mkdir -p models/bge-m3
