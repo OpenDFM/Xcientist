@@ -1,8 +1,8 @@
 # Xcientist
 
-<mark>**We will release the cleaned code, documentation, and paper-graph infrastructure in July!**</mark>
+<mark>**We will release the cleaned code and documentation in July!**</mark>
 
-Xcientist is an auditable research harness for AI-assisted scientific discovery.
+Xcientist is an **auditable research harness** for AI-assisted scientific discovery.
 
 The repository is currently being prepared for staged release after internal review.
 
