@@ -1,6 +1,6 @@
 ---
 name: science-execution
-description: Coverage-driven experiment execution loop
+description: Execute unified science conditions through reviewer and hook gates
 argument-hint: ""
 allowed-tools: Bash(*), Read, Edit, Write, Glob, Grep, Agent
 license: MIT
@@ -9,44 +9,38 @@ license: MIT
 # Science Execution
 
 ## Mission
-Run standardized benchmark experiments (baseline vs full method) until all required coverage gaps are closed or a hard blocker is proven.
+Execute exactly one science condition from the planner, preserving raw evidence and completing only through the prefinish reviewer and hook gate.
 
 ## Key Principles
-- **No hardcoding**: Read dataset, model, and API bindings from validated prepare handoff (`prepare_idea.md`, worker reports). Do NOT use hardcoded values.
-- **Real data only**: Must use `dataset_candidate/` data, NOT synthetic or random data.
-- **Real APIs/Models**: Must use real API credentials from `{workspace}/.env` and real model checkpoints.
-- **Standardized comparison**: Run baseline (standard/original) vs full method (all components enabled) for comparison.
+- **No hardcoding**: Read dataset, model, API, and command bindings from validated prepare/code/science plan artifacts.
+- **Real data only**: Use `dataset_candidate/` data, not synthetic or random data.
+- **Unified conditions**: Treat all-components and component-disabled runs as the same kind of science condition; only their component sets differ.
 
 ## Internal Loop
-1. Read validated prepare artifacts, code handoff, idea context, and existing science artifacts with bounded tool usage: `read_json` first, then `search`, then the smallest useful `view` window.
-2. Treat those validated artifacts as the only allowed model/API/data target inventory.
-3. For standard science: derive commands for `baseline` and `full_method` conditions.
-4. Use smoke/debug runs only to unblock execution; they do not count as completion evidence.
-5. Execute the full command chain and keep raw outputs on disk.
-6. Record exact commands, output paths, exit status, dataset/model bindings, and raw artifacts in the worker report.
-7. Update lane summary only after validator-backed evidence exists.
+1. Read the assigned condition contract, planner blueprint, validated prepare artifacts, code handoff, and existing science evidence.
+2. Run from the workspace root. Do not `cd project`.
+3. Execute the exact command or a faithful repaired command that preserves the declared component set.
+4. Keep raw outputs under the declared `results/science/<condition_id>/` subtree.
+5. Write controlled evidence manifests only through artifact tools under `agent_reports/science/evidence/`.
+6. Stop with the required worker JSON; the prefinish hook persists worker/review/hook reports and returns feedback in the same session if anything fails.
 
-## Standard Science Requirements
-- **Baseline condition**: Run with standard/original implementation
-- **Full method condition**: Run with ALL idea.json components enabled
-- Compare metrics between baseline and full method
-- Both conditions must use the same dataset from `dataset_candidate/`
-- Produce statistically meaningful comparison
-
-## Key Requirements
-- **CRITICAL**: Benchmark experiments MUST use real data from `dataset_candidate/` directory, NOT synthetic or random data.
-- API calls must read credentials from `{workspace}/.env`, not hardcoded keys.
-- Missing models must be downloaded from HuggingFace before declaring blocker.
-- For ablation: use canonical component names from `idea.json.components`, preserve order, include `method_context`.
-
-## Ablation Requirements
-- Each step-level validator report must record: `result`, `metric`, `value`, `confidence`, `analysis`, `method_context`.
-- Component set and order must exactly equal `idea.json.components`.
-- Do not write the final `ablation_results.json` - that is owned by the later final-artifact materialization step.
+## Condition Rules
+- All-components conditions have `disabled_components: []` and can serve as references.
+- Component-disabled conditions must use the declared disable/toggle mechanism and reference a passed all-components condition.
+- The evidence must show the declared component set, command, dataset binding, metrics, output paths, and logs.
+- Do not write final `ablation_results.json`; final materialization is runtime-owned.
 
 ## Hard Rules
 - Do not produce final verdict while required coverage is missing.
-- Validator report is the completion authority; summaries are human-readable only.
-- Import tests, package checks, and tiny snippets do not count as formal experiments.
-- Subset/slice runs do not count as formal completion evidence.
+- Reviewer report and hook receipt are the completion authority; summaries are human-readable only.
+- Import tests, package checks, tiny snippets, smoke/debug/subset runs, and dry runs do not count as formal science evidence.
 - Do not hardcode dataset names, model IDs, or API keys in experiment commands.
+
+## Reviewer `result` Labels
+The reviewer's `result` field is a vocabulary, not free text. Finalization accepts:
+- `positive` — removing this component clearly hurts the metric (component helps).
+- `negative` — removing this component clearly helps the metric (component hurts).
+- `neutral` — the ablation ran end-to-end but the metric difference is within noise or practically small.
+- `inconclusive` — the ablation ran end-to-end but the evidence does not support a directional conclusion; it is valid symbolic memory when `follow_up_required: false`.
+
+Use `follow_up_required: true` to block completion when the run failed, coverage is missing, or evidence is insufficient to trust the condition. Do not use the `inconclusive` label itself as a blocker.

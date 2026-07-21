@@ -21,7 +21,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = REPO_ROOT / "src" / "config" / "default.yaml"
 DEFAULT_ENV_PATH = REPO_ROOT / ".env"
 LEGACY_ENV_PATH = REPO_ROOT / "src" / "config" / ".env"
-DEFAULT_MCP_WRAPPER_DIR = Path.home() / ".cache" / "researchagent_mcp" / "bin"
 
 
 def _load_project_env() -> Path | None:
@@ -39,7 +38,9 @@ def _base_env(*, config_path: Path | None = None) -> dict[str, str]:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPO_ROOT) + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     if config_path is not None:
-        env["XCIENTIST_CONFIG_PATH"] = str(config_path.resolve())
+        resolved_config = str(config_path.resolve())
+        env["XCIENTIST_CONFIG"] = resolved_config
+        env["XCIENTIST_CONFIG_PATH"] = resolved_config
     return env
 
 
@@ -127,11 +128,10 @@ def _build_root_parser() -> argparse.ArgumentParser:
     experiment.add_argument("--skip-repos", action="store_true", help="Skip repo cloning in prepare")
     experiment.add_argument("--skip-datasets", action="store_true", help="Skip dataset downloads in prepare")
     experiment.add_argument("--clone-depth", type=int, default=1, help="git clone depth")
-    experiment.add_argument("--max-iterations", type=int, help="Override science max iterations")
     experiment.add_argument(
-        "--install-mcp-wrappers",
-        action="store_true",
-        help="Install local MCP wrapper scripts before launch",
+        "--max-iterations",
+        type=int,
+        help="Deprecated compatibility option; OpenHarness uses fixed reviewed phase gates",
     )
     experiment.set_defaults(func=_experiment_command)
 
@@ -242,11 +242,6 @@ def _experiment_command(args: argparse.Namespace) -> int:
     if not idea_json_path.exists():
         raise FileNotFoundError(f"Idea JSON not found: {idea_json_path}")
 
-    if args.install_mcp_wrappers:
-        rc = _install_mcp_wrappers_command(argparse.Namespace())
-        if rc != 0:
-            return rc
-
     from src.config import load_config
 
     config = load_config(str(config_path))
@@ -264,12 +259,7 @@ def _experiment_command(args: argparse.Namespace) -> int:
 
     env = _base_env(config_path=config_path)
     env.setdefault("SHOW_LLM_REASONING", "1")
-    env.setdefault("EXPERIMENT_AGENT_MEMORY_TOOL_LOGS", "0")
-    env.setdefault("EXPERIMENT_AGENT_MEMORY_ENABLED", "0")
-    env.setdefault("EXPERIMENT_AGENT_MEMORY_WRITEBACK", "0")
     env.setdefault("AGENT_BASH_TIMEOUT_SECONDS", "600000")
-    env.setdefault("EXPERIMENT_AGENT_MCP_USE_WRAPPERS", "1")
-    env.setdefault("EXPERIMENT_AGENT_MCP_WRAPPER_DIR", str(DEFAULT_MCP_WRAPPER_DIR))
     env["EXPERIMENT_AGENT_WORKSPACE_DIR"] = str(experiment_dir)
 
     cmd = [
@@ -278,6 +268,8 @@ def _experiment_command(args: argparse.Namespace) -> int:
         "src.agents.experiment_agent.main",
         "--experiment",
         args.experiment,
+        "--config",
+        str(config_path),
         "--verbose",
         "--clone-depth",
         str(args.clone_depth),
@@ -293,7 +285,10 @@ def _experiment_command(args: argparse.Namespace) -> int:
     if args.skip_datasets:
         cmd.append("--skip-datasets")
     if args.max_iterations is not None:
-        cmd.extend(["--max-iterations", str(args.max_iterations)])
+        print(
+            "Warning: --max-iterations is deprecated; the OpenHarness experiment "
+            "control plane runs prepare, code, science, and finalization gates once."
+        )
     return _run_command(cmd, env=env)
 
 
@@ -348,9 +343,6 @@ def _doctor_command(args: argparse.Namespace) -> int:
     checks: list[tuple[str, bool, str]] = []
     checks.append(("config", True, str(config_path)))
     checks.append((".env", env_file is not None, str(env_file or DEFAULT_ENV_PATH)))
-    checks.append(("node", shutil.which("node") is not None, shutil.which("node") or "missing"))
-    checks.append(("npx", shutil.which("npx") is not None, shutil.which("npx") or "missing"))
-    checks.append(("uvx", shutil.which("uvx") is not None, shutil.which("uvx") or "missing"))
     checks.append(
         ("graph.db", (REPO_ROOT / "data" / "processed" / "graph.db").exists(), "data/processed/graph.db"),
     )
@@ -377,8 +369,6 @@ def _doctor_command(args: argparse.Namespace) -> int:
     required_env = [
         ("OPENAI_API_KEY", ("OPENAI_API_KEY",)),
         ("OPENAI_BASE_URL", ("OPENAI_BASE_URL",)),
-        ("ANTHROPIC_API_KEY", ("ANTHROPIC_API_KEY",)),
-        ("ANTHROPIC_BASE_URL", ("ANTHROPIC_BASE_URL",)),
         ("SEMANTIC_SCHOLAR_API_KEY", ("SEMANTIC_SCHOLAR_API_KEY",)),
     ]
     optional_env = [
@@ -424,11 +414,7 @@ def _doctor_command(args: argparse.Namespace) -> int:
     failures = [
         not os.environ.get("OPENAI_API_KEY"),
         not os.environ.get("OPENAI_BASE_URL"),
-        not os.environ.get("ANTHROPIC_API_KEY"),
-        not os.environ.get("ANTHROPIC_BASE_URL"),
         not os.environ.get("SEMANTIC_SCHOLAR_API_KEY"),
-        shutil.which("node") is None,
-        shutil.which("npx") is None,
         not (REPO_ROOT / "data" / "processed" / "graph.db").exists(),
         any(not (vector_store_dir / filename).exists() for filename in vector_store_files),
         not (REPO_ROOT / "models" / "all-MiniLM-L6-v2").exists(),

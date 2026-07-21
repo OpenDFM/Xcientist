@@ -18,7 +18,10 @@ from src.agents.survey_agent.utils.topic_survey_storage import (
     build_survey_artifact_paths,
 )
 from src.config import load_config
-from .experiment_to_symbolic import convert_ablation_to_symbolic_memory
+from .contracts import (
+    EXPERIMENT_ABLATION_RESULTS_REL,
+    EXPERIMENT_SYMBOLIC_MEMORY_RECEIPT_REL,
+)
 
 
 def _generate_pipeline_name(topic: str) -> str:
@@ -236,7 +239,7 @@ def _find_previous_ablation_results_dir(pipeline_workspace: str, iteration_index
         staged_dir = experiment_dir / "ligagent_ablation_input"
         if staged_dir.exists():
             return str(staged_dir)
-        ablation_path = experiment_dir / "ablation_results.json"
+        ablation_path = experiment_dir / EXPERIMENT_ABLATION_RESULTS_REL
         if ablation_path.exists():
             return _stage_ablation_results_dir(experiment_dir, ablation_path)
     return ""
@@ -254,6 +257,10 @@ def _idea_result_to_mature_idea_text(idea_result: Dict[str, Any]) -> str:
     if method:
         sections.append(f"Method: {method}")
     return "\n".join(sections).strip()
+
+
+def _symbolic_memory_receipt_path(experiment_dir: Path) -> Path:
+    return experiment_dir / EXPERIMENT_SYMBOLIC_MEMORY_RECEIPT_REL
 
 
 def _build_experiment_id(iteration_index: int, title: str, branch: str = "") -> str:
@@ -275,6 +282,7 @@ def _run_experiment_branch(
     idea_result_filename: str,
     experiment_result_filename: str,
     experiment_agent_iterations: int,
+    config_path: str,
     resume_enabled: bool,
     state: Dict[str, Any],
     phase_name: str,
@@ -298,6 +306,7 @@ def _run_experiment_branch(
         experiment_id=experiment_id,
         workspace_root=exp_workspace,
         max_agent_iterations=experiment_agent_iterations,
+        config_path=config_path,
         resume=resume_enabled,
     )
     if not success:
@@ -314,7 +323,9 @@ def _run_experiment_branch(
                 "workspace": exp_workspace,
                 "idea_path": final_idea_json,
                 "idea_result_path": final_idea_file,
-                "ablation_results_path": os.path.join(exp_workspace, "ablation_results.json"),
+                "ablation_results_path": str(
+                    Path(exp_workspace) / EXPERIMENT_ABLATION_RESULTS_REL
+                ),
                 "final_report_path": final_report_path if os.path.exists(final_report_path) else "",
             },
             f,
@@ -447,6 +458,7 @@ def run_experiment(
     experiment_id: str,
     workspace_root: str,
     max_agent_iterations: int,
+    config_path: str,
     resume: bool = False,
     skip_prepare: bool = False,
 ) -> bool:
@@ -456,15 +468,16 @@ def run_experiment(
     print("=" * 50)
     print(f"Experiment workspace: {workspace_root}")
 
-    # Set environment variable for workspace
+    _ = max_agent_iterations, skip_prepare
     env = _get_subprocess_env()
     env["EXPERIMENT_AGENT_WORKSPACE_DIR"] = workspace_root
+    env["XCIENTIST_CONFIG"] = config_path
 
     print("Running Experiment Agent (unified main)...")
     cmd = [
         sys.executable, "-m", "src.agents.experiment_agent.main",
         "--experiment", experiment_id,
-        "--max-iterations", str(max_agent_iterations),
+        "--config", config_path,
         "--verbose",
     ]
     if resume:
@@ -657,6 +670,7 @@ def main(config_path: str = "src/config/default.yaml", topic_override: Optional[
             idea_result_filename=idea_result_filename,
             experiment_result_filename=experiment_result_filename,
             experiment_agent_iterations=experiment_agent_iterations,
+            config_path=config_path,
             resume_enabled=resume_enabled,
             state=state,
             phase_name=f"experiment_{i}",
@@ -677,6 +691,7 @@ def main(config_path: str = "src/config/default.yaml", topic_override: Optional[
                 idea_result_filename=idea_result_filename,
                 experiment_result_filename=experiment_result_filename,
                 experiment_agent_iterations=experiment_agent_iterations,
+                config_path=config_path,
                 resume_enabled=resume_enabled,
                 state=state,
                 phase_name=f"experiment_{i}_replan",
@@ -694,26 +709,15 @@ def main(config_path: str = "src/config/default.yaml", topic_override: Optional[
         state["current_iteration"] = i + 1
         _save_pipeline_state(pipeline_workspace, state, state_filename)
 
-        ablation_path = os.path.join(exp_workspace, "ablation_results.json")
+        ablation_path = str(Path(exp_workspace) / EXPERIMENT_ABLATION_RESULTS_REL)
         if os.path.exists(ablation_path):
             state["last_ablation_results_dir"] = _stage_ablation_results_dir(
                 Path(exp_workspace),
                 Path(ablation_path),
             )
-            try:
-                symbolic_memory_path = os.path.join(
-                    workspace_root,
-                    str(config.pipeline.get("symbolic_memory_path", "idea_skill_priors"))
-                )
-                convert_ablation_to_symbolic_memory(
-                    ablation_path=ablation_path,
-                    experiment_id=main_experiment["experiment_id"],
-                    symbolic_memory_path=symbolic_memory_path,
-                    config=config,
-                )
-                print(f"✅ Converted ablation results to symbolic memory")
-            except Exception as e:
-                print(f"⚠️ Failed to convert ablation results: {e}")
+            receipt_path = _symbolic_memory_receipt_path(Path(exp_workspace))
+            if receipt_path.exists():
+                print(f"✅ Experiment finalization wrote symbolic-memory receipt: {receipt_path}")
         else:
             state["last_ablation_results_dir"] = ""
         _save_pipeline_state(pipeline_workspace, state, state_filename)

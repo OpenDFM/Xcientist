@@ -12,7 +12,7 @@ license: MIT
 Keep tool observations small and high-signal so planning and reporting decisions do not waste context on whole-file or whole-log dumps.
 
 ## File Protocol
-- Prefer `read_json` for machine-readable artifacts such as validator reports, planner reports, and status files.
+- Prefer `read_json` for machine-readable artifacts such as reviewer reports, planner reports, and status files.
 - Prefer `search` before `view` when you only need a finding, metric, path, or key phrase.
 - Use `view` only with a narrow purpose. If you do not know the exact lines yet, search first, then read the smallest useful window.
 - Treat directory inspection as bounded discovery only. Do not repeatedly rescan whole trees once key artifacts are known.
@@ -24,8 +24,8 @@ Keep tool observations small and high-signal so planning and reporting decisions
 - When a command produces long output, rely on the saved raw output path and follow up with targeted file inspection instead of rerunning a broad command.
 
 ## Decision Rules
-- Use `think` before multi-step edits, after validator failures, and after surprising tool output when you need to compare hypotheses or repair strategies.
+- Use `think` before multi-step edits, after reviewer failures, and after surprising tool output when you need to compare hypotheses or repair strategies.
 - Use `think` to summarize the current state before you choose the next command, task delegation, or retry.
 - For master and reporting work: machine-readable status files come first, raw evidence second.
-- For planning work: validated handoff artifacts and validator JSON define the canonical execution surface.
+- For planning work: validated handoff artifacts and reviewer JSON define the canonical execution surface.
 - For execution work: keep raw outputs on disk, and put only the smallest necessary evidence excerpt into reports.

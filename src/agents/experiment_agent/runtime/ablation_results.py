@@ -2,14 +2,13 @@
 Deterministic ablation-results materialization helpers.
 
 This module keeps the final ``ablation_results.json`` contract under runtime
-control. LLM-based integrators may still assist with evidence discovery, but
-the final artifact shape is validated and written here.
+control. It materializes only reviewer-approved science evidence, then validates
+and writes the final artifact shape here.
 """
 
 from __future__ import annotations
 
 import json
-import os
 from typing import Any, Dict, List, Optional, Tuple
 
 from src.agents.experiment_agent.runtime.idea_components import (
@@ -21,6 +20,7 @@ from src.agents.experiment_agent.runtime.manifests import (
     load_json_file,
     write_json_file,
 )
+from src.agents.experiment_agent.runtime.artifacts import record_runtime_artifact
 from src.agents.experiment_agent.runtime.phase_contracts import (
     ARTIFACT_ROLE_FINAL_RESULT,
     ARTIFACT_ROLE_PHASE_RESULT,
@@ -37,9 +37,10 @@ REQUIRED_COMPONENT_FIELDS = (
     "method_context",
 )
 REQUIRED_SUMMARY_FIELDS = ("feasible", "confidence", "key_findings")
+FINAL_COMPONENT_RESULTS = ("positive", "negative", "neutral", "inconclusive")
 
 
-def build_ablation_final_artifact_contract(
+def build_ablation_results_manifest(
     workspace_root: str,
     idea_json_path: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -114,7 +115,7 @@ def _canonical_component_records(
 
 
 def _collect_component_map(payload: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
-    for key in ("ablation_components", "components", "component_results"):
+    for key in ("science_component_results", "components"):
         value = payload.get(key)
         if isinstance(value, dict):
             return {
@@ -123,36 +124,6 @@ def _collect_component_map(payload: Dict[str, Any]) -> Dict[str, Dict[str, Any]]
                 if isinstance(name, str) and isinstance(data, dict)
             }
     return {}
-
-
-def _collect_step_component_map(agent_reports_dir: str) -> Tuple[Dict[str, Dict[str, Any]], List[str]]:
-    component_map: Dict[str, Dict[str, Any]] = {}
-    evidence_files: List[str] = []
-    if not os.path.isdir(agent_reports_dir):
-        return component_map, evidence_files
-
-    for name in sorted(os.listdir(agent_reports_dir)):
-        if not name.endswith(".json"):
-            continue
-        lowered = name.lower()
-        if "ablation" not in lowered or "validator" not in lowered:
-            continue
-        path = os.path.join(agent_reports_dir, name)
-        payload = load_json_file(path)
-        if not isinstance(payload, dict):
-            continue
-        component_name = str(
-            payload.get("component_or_condition")
-            or payload.get("component")
-            or payload.get("component_name")
-            or ""
-        ).strip()
-        if not component_name:
-            continue
-        if all(field in payload for field in ("result", "metric", "value", "confidence", "analysis")):
-            component_map.setdefault(component_name, payload)
-            evidence_files.append(path)
-    return component_map, evidence_files
 
 
 def _normalize_component_entry(
@@ -168,15 +139,21 @@ def _normalize_component_entry(
     confidence = _coerce_float(source_payload.get("confidence"))
     if confidence is None:
         return None, f"Component `{name}` has non-numeric confidence."
+    # `result` vocabulary:
+    #   - `positive`    : removing this component clearly hurts the metric (component helps).
+    #   - `negative`    : removing this component clearly helps the metric (component hurts).
+    #   - `neutral`     : the ablation ran end-to-end and the metric difference is
+    #                     within noise or small enough to treat as no practical effect.
+    #   - `inconclusive`: the ablation ran end-to-end but the evidence does not support
+    #                     a directional conclusion. It is still useful symbolic memory
+    #                     as long as `follow_up_required` is false.
     result = str(source_payload.get("result") or "").strip().lower()
-    if result not in {"positive", "negative", "inconclusive"}:
+    if result not in {"positive", "negative", "neutral", "inconclusive"}:
         return None, f"Component `{name}` has invalid result `{result}`."
     if bool(source_payload.get("follow_up_required")):
         return None, f"Component `{name}` still requires follow-up."
-    if result == "inconclusive":
-        return None, f"Component `{name}` is still inconclusive."
-    if confidence < 0.6:
-        return None, f"Component `{name}` confidence {confidence:.2f} is below 0.6."
+    if confidence < 0.0 or confidence > 1.0:
+        return None, f"Component `{name}` confidence must be in [0.0, 1.0]."
     if not method_context:
         return None, f"Component `{name}` is missing canonical method_context."
 
@@ -196,7 +173,7 @@ def _normalize_component_entry(
 def _normalize_summary(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     raw_summary = payload.get("summary") or payload.get("experiment_summary")
     if not isinstance(raw_summary, dict):
-        return None, "Ablation validator report is missing summary."
+        return None, "Ablation reviewer report is missing summary."
 
     feasible = _coerce_bool(raw_summary.get("feasible"))
     confidence = _coerce_float(raw_summary.get("confidence"))
@@ -240,16 +217,34 @@ def validate_ablation_results_payload(
             return False, f"Component `{name}` entry must be an object."
         if set(entry.keys()) != required_component_fields:
             return False, f"Component `{name}` must contain exactly {sorted(required_component_fields)}."
-        if any(entry.get(field) in (None, "") for field in REQUIRED_COMPONENT_FIELDS):
-            return False, f"Component `{name}` has empty required fields."
+        result = entry.get("result")
+        if result not in FINAL_COMPONENT_RESULTS:
+            return False, (
+                f"Component `{name}` result must be one of {list(FINAL_COMPONENT_RESULTS)}, "
+                f"got {result!r}."
+            )
+        confidence = _coerce_float(entry.get("confidence"))
+        if confidence is None or confidence < 0.0 or confidence > 1.0:
+            return False, f"Component `{name}` confidence must be numeric in [0.0, 1.0]."
+        for field in ("metric", "value", "analysis", "method_context"):
+            if not isinstance(entry.get(field), str) or not entry.get(field).strip():
+                return False, f"Component `{name}` field `{field}` must be a non-empty string."
 
     required_summary_fields = set(REQUIRED_SUMMARY_FIELDS)
     if set(summary.keys()) != required_summary_fields:
         return False, f"Summary must contain exactly {sorted(required_summary_fields)}."
-    if summary.get("feasible") is None or summary.get("confidence") is None:
-        return False, "Summary requires feasible/confidence."
-    if not isinstance(summary.get("key_findings"), list):
-        return False, "Summary key_findings must be a list."
+    if not isinstance(summary.get("feasible"), bool):
+        return False, "Summary `feasible` must be a boolean."
+    summary_confidence = _coerce_float(summary.get("confidence"))
+    if summary_confidence is None or summary_confidence < 0.0 or summary_confidence > 1.0:
+        return False, "Summary `confidence` must be numeric in [0.0, 1.0]."
+    key_findings = summary.get("key_findings")
+    if (
+        not isinstance(key_findings, list)
+        or not key_findings
+        or not all(isinstance(item, str) and item.strip() for item in key_findings)
+    ):
+        return False, "Summary `key_findings` must be a non-empty-string list."
     return True, None
 
 
@@ -275,11 +270,12 @@ def build_ablation_results_artifacts(
     canonical_names = [record["component"] for record in canonical_records]
     canonical_context = {record["component"]: record["method_context"] for record in canonical_records}
 
-    phase_payload = load_json_file(paths["ablation_science_validator"])
+    phase_report_path = paths["science_reviewer"]
+    phase_payload = load_json_file(phase_report_path)
     if not isinstance(phase_payload, dict):
         return {
             "valid": False,
-            "blocker": f"Missing ablation validator report at {paths['ablation_science_validator']}.",
+            "blocker": f"Missing science reviewer report at {phase_report_path}.",
             "source_evidence_files": [idea_json_path],
         }
 
@@ -288,41 +284,44 @@ def build_ablation_results_artifacts(
         return {
             "valid": False,
             "blocker": (
-                f"Ablation validator status is "
+                f"Science reviewer status is "
                 f"`{normalized_phase['status'] or 'UNKNOWN'}`, not PASS."
             ),
-            "source_evidence_files": [idea_json_path, paths["ablation_science_validator"]],
+            "source_evidence_files": [idea_json_path, phase_report_path],
         }
     if normalized_phase["artifact_role"] != ARTIFACT_ROLE_PHASE_RESULT:
         return {
             "valid": False,
             "blocker": (
-                "Ablation validator artifact_role must be `phase_result` before "
+                "Science reviewer artifact_role must be `phase_result` before "
                 "final materialization."
             ),
-            "source_evidence_files": [idea_json_path, paths["ablation_science_validator"]],
+            "source_evidence_files": [idea_json_path, phase_report_path],
         }
     if normalized_phase["phase_completion_status"] != "complete":
         blockers = normalized_phase["blocking_issues"]
-        blocker_text = blockers[0] if blockers else "Ablation phase is not marked complete."
+        blocker_text = blockers[0] if blockers else "Science phase is not marked complete."
         return {
             "valid": False,
             "blocker": blocker_text,
-            "source_evidence_files": [idea_json_path, paths["ablation_science_validator"]],
+            "source_evidence_files": [idea_json_path, phase_report_path],
         }
 
-    source_evidence_files = [idea_json_path, paths["ablation_science_validator"]]
+    source_evidence_files = [idea_json_path, phase_report_path]
     phase_components = _collect_component_map(phase_payload)
-    step_components, step_files = _collect_step_component_map(paths["agent_reports_dir"])
-    source_evidence_files.extend(step_files)
 
     normalized_components: Dict[str, Dict[str, Any]] = {}
     for name in canonical_names:
-        component_payload = phase_components.get(name) or step_components.get(name)
+        component_payload = phase_components.get(name)
         if not isinstance(component_payload, dict):
             return {
                 "valid": False,
-                "blocker": f"Missing ablation component evidence for `{name}`.",
+                "blocker": (
+                    f"Missing ablation component evidence for `{name}` in science phase report "
+                    f"`{phase_report_path}`. Final ablation materialization only trusts "
+                    "`agent_reports/science/phase.json`; repair the science phase aggregation "
+                    "so `science_component_results` contains every idea component."
+                ),
                 "source_evidence_files": source_evidence_files,
             }
         normalized_entry, error = _normalize_component_entry(
@@ -362,12 +361,13 @@ def build_ablation_results_artifacts(
         "source_evidence_files": source_evidence_files,
         "canonical_components": canonical_names,
         "blocker": None if valid else error,
-        "final_artifact_contract_path": paths["final_artifact_contract"],
+        "ablation_results_manifest_path": paths["ablation_results_manifest"],
+        "final_artifact_contract_path": paths["ablation_results_manifest"],
     }
     return {
         "valid": bool(valid),
         "payload": payload if valid else None,
-        "final_artifact_contract": build_ablation_final_artifact_contract(
+        "ablation_results_manifest": build_ablation_results_manifest(
             workspace_root,
             idea_json_path=idea_json_path,
         ),
@@ -383,7 +383,7 @@ def write_ablation_results_artifacts(
     *,
     generated_by: str = "runtime",
     ablation_results_path: Optional[str] = None,
-    integrator_report_path: Optional[str] = None,
+    materialization_report_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     paths = artifact_paths(workspace_root, project_root)
     result = build_ablation_results_artifacts(
@@ -395,80 +395,50 @@ def write_ablation_results_artifacts(
         return result
 
     target_results_path = ablation_results_path or paths["ablation_results"]
-    target_report_path = integrator_report_path or paths["ablation_report_integrator_report"]
-    target_contract_path = paths["final_artifact_contract"]
+    target_report_path = materialization_report_path or paths["ablation_materialization_report"]
+    target_manifest_path = paths["ablation_results_manifest"]
     write_json_file(target_results_path, result["payload"])
+    record_runtime_artifact(
+        workspace_root=workspace_root,
+        artifact_id="final.ablation_results",
+        path=target_results_path,
+        stage="finalization",
+        step_id="ablation_results",
+        extra={"generated_by": generated_by},
+    )
     write_json_file(target_report_path, result["report"])
-    write_json_file(target_contract_path, result["final_artifact_contract"])
+    record_runtime_artifact(
+        workspace_root=workspace_root,
+        artifact_id="runtime.ablation_materialization_report",
+        path=target_report_path,
+        stage="finalization",
+        step_id="ablation_results",
+        extra={"generated_by": generated_by},
+    )
+    manifest = result["ablation_results_manifest"]
+    write_json_file(target_manifest_path, manifest)
+    record_runtime_artifact(
+        workspace_root=workspace_root,
+        artifact_id="runtime.ablation_results_manifest",
+        path=target_manifest_path,
+        stage="finalization",
+        step_id="ablation_results",
+        extra={"generated_by": generated_by},
+    )
     result["ablation_results_path"] = target_results_path
-    result["integrator_report_path"] = target_report_path
-    result["final_artifact_contract_path"] = target_contract_path
-    return result
-
-
-def write_ablation_results_from_payload(
-    workspace_root: str,
-    project_root: Optional[str] = None,
-    *,
-    payload: Dict[str, Any],
-    generated_by: str = "agent",
-    source_evidence_files: Optional[List[str]] = None,
-    blocker: Optional[str] = None,
-    ablation_results_path: Optional[str] = None,
-    integrator_report_path: Optional[str] = None,
-) -> Dict[str, Any]:
-    paths = artifact_paths(workspace_root, project_root)
-    idea_json_path = find_idea_json_path(workspace_root) or paths["idea_json"]
-    canonical_records = _canonical_component_records(
-        workspace_root,
-        idea_json_path=idea_json_path,
-    )
-    canonical_names = [record["component"] for record in canonical_records]
-    valid, error = validate_ablation_results_payload(
-        payload,
-        canonical_component_names=canonical_names,
-    )
-    target_results_path = ablation_results_path or paths["ablation_results"]
-    target_report_path = integrator_report_path or paths["ablation_report_integrator_report"]
-    target_contract_path = paths["final_artifact_contract"]
-    final_contract = build_ablation_final_artifact_contract(
-        workspace_root,
-        idea_json_path=idea_json_path,
-    )
-    report = {
-        "valid": bool(valid),
-        "generated_by": generated_by,
-        "mode": "agent_write",
-        "artifact_role": ARTIFACT_ROLE_FINAL_RESULT,
-        "source_evidence_files": list(source_evidence_files or [idea_json_path]),
-        "canonical_components": canonical_names,
-        "blocker": blocker if blocker else (None if valid else error),
-        "final_artifact_contract_path": target_contract_path,
-    }
-    write_json_file(target_report_path, report)
-    write_json_file(target_contract_path, final_contract)
-    result = {
-        "valid": bool(valid),
-        "payload": payload if valid else None,
-        "report": report,
-        "blocker": report["blocker"],
-        "ablation_results_path": target_results_path,
-        "integrator_report_path": target_report_path,
-        "final_artifact_contract_path": target_contract_path,
-        "final_artifact_contract": final_contract,
-    }
-    if not valid:
-        return result
-    write_json_file(target_results_path, payload)
+    result["materialization_report_path"] = target_report_path
+    result["ablation_results_manifest_path"] = target_manifest_path
+    result["final_artifact_contract_path"] = target_manifest_path
+    result["final_artifact_contract"] = manifest
     return result
 
 
 __all__ = [
     "REQUIRED_COMPONENT_FIELDS",
     "REQUIRED_SUMMARY_FIELDS",
-    "build_ablation_final_artifact_contract",
+    "FINAL_COMPONENT_RESULTS",
+    "build_ablation_results_manifest",
     "build_ablation_results_artifacts",
     "validate_ablation_results_payload",
-    "write_ablation_results_from_payload",
     "write_ablation_results_artifacts",
 ]

@@ -610,6 +610,18 @@ wheels = [
 ]
 
 [[package]]
+name = "croniter"
+version = "6.2.4"
+source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
+dependencies = [
+    { name = "python-dateutil", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+]
+sdist = { url = "https://mirrors.aliyun.com/pypi/packages/37/57/2e2a65aee2a70483cb28e2b7e15a072d00a523207593b44400d4717bb100/croniter-6.2.4.tar.gz", hash = "sha256:fc124f751b1b04805c2a04b061898b436b45ab2320b045e1e052ea895de65189" }
+wheels = [
+    { url = "https://mirrors.aliyun.com/pypi/packages/cd/ba/d678e5bd329646ca51d3c92addbc77804e86d21f4b6b6a027218e6abb010/croniter-6.2.4-py3-none-any.whl", hash = "sha256:8ef3d544107a5c05a150a2d78f8bf5a8eb9c5c4d93405a736b824109574e3f4d" },
+]
+
+[[package]]
 name = "cryptography"
 version = "46.0.3"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
@@ -6083,6 +6095,7 @@ dependencies = [
     { name = "click", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "colorama", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "colorlog", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "croniter", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "cryptography", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "dill", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "diskcache", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -6257,6 +6270,7 @@ requires-dist = [
     { name = "click", specifier = "==8.3.1" },
     { name = "colorama", specifier = "==0.4.6" },
     { name = "colorlog", specifier = "==6.10.1" },
+    { name = "croniter", specifier = ">=2.0.0" },
     { name = "cryptography", specifier = "==46.0.3" },
     { name = "dill", specifier = "==0.4.0" },
     { name = "diskcache", specifier = "==5.6.3" },

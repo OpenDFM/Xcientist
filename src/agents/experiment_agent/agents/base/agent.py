@@ -1,65 +1,25 @@
-"""
-Minimal Claude Code-backed base abstractions for experiment-agent runtime.
-"""
+"""OpenHarness-backed base abstractions for experiment-agent runtime."""
 
 from __future__ import annotations
 
 import json
 import os
 from abc import ABC
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, List, Optional
 
-from src.agents.experiment_agent.config import (
-    get_external_tool_config,
-    get_workspace_config,
-)
-from src.agents.experiment_agent.runtime.claude_cli import ClaudeCodeRunner
-
-
-def build_experiment_mcp_config(
-    *,
-    workspace_root: str,
-    allowed_servers: Iterable[str] | None = None,
-) -> Dict[str, Any] | None:
-    from src.agents.experiment_agent.runtime.claude_project import (
-        build_experiment_mcp_config as build_workspace_mcp_config,
-    )
-
-    _ = workspace_root, allowed_servers
-    return build_workspace_mcp_config(
-        workspace_cfg=get_workspace_config(),
-        external_cfg=get_external_tool_config(),
-        global_client_cfg={},
-    )
-
-
-def create_oh_llm(model: str, usage_id: str = "agent", stream: bool = False) -> Dict[str, Any]:
-    _ = usage_id, stream
-    return {"model": model}
-
-
-def get_default_tools() -> List[str]:
-    return ["Read", "Edit", "Bash"]
-
-
-def get_search_tools() -> List[str]:
-    return []
-
-
-def get_all_tools() -> List[str]:
-    return get_default_tools() + get_search_tools()
+from src.agents.experiment_agent.runtime.openharness_runner import OpenHarnessAgentRunner
 
 
 class BaseAgent(ABC):
     """
-    Base class backed by Claude Code CLI execution.
+    Base class backed by vendored OpenHarness execution.
     """
 
     def __init__(
         self,
         agent_type: str,
         model: str,
-        max_turns: int = 10000,
+        max_turns: Optional[int] = None,
         verbose: bool = True,
         workspace_root: str | None = None,
         persistence_dir: str | None = None,
@@ -80,10 +40,12 @@ class BaseAgent(ABC):
         self.verbose = verbose
         self.resume = resume
         self.workspace_root = os.path.realpath(workspace_root or os.getcwd())
-        self.runner = ClaudeCodeRunner(
+        self.artifact_context: Dict[str, Any] = {}
+        self.runner = OpenHarnessAgentRunner(
             model=model,
             workspace_root=self.workspace_root,
             verbose=verbose,
+            artifact_context=self.artifact_context,
         )
 
     def _read_text_file(self, path: str) -> str:
@@ -97,10 +59,20 @@ class BaseAgent(ABC):
 
     def _refresh_runtime_roots(self, workspace_root: str) -> None:
         self.workspace_root = os.path.realpath(workspace_root)
-        self.runner = ClaudeCodeRunner(
+        self.runner = OpenHarnessAgentRunner(
             model=self.model,
             workspace_root=self.workspace_root,
             verbose=self.verbose,
+            artifact_context=self.artifact_context,
+        )
+
+    def set_artifact_context(self, artifact_context: Optional[Dict[str, Any]]) -> None:
+        self.artifact_context = dict(artifact_context or {})
+        self.runner = OpenHarnessAgentRunner(
+            model=self.model,
+            workspace_root=self.workspace_root,
+            verbose=self.verbose,
+            artifact_context=self.artifact_context,
         )
 
     def _build_mcp_config(self) -> Dict[str, Any]:
@@ -118,9 +90,36 @@ class BaseAgent(ABC):
         purpose: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
-        _ = tools, purpose, kwargs
+        _ = tools
+        extra_tool_metadata = kwargs.pop("extra_tool_metadata", None)
+        enable_mcp = bool(kwargs.pop("enable_mcp", False))
+        reviewer_mode = str(purpose or "").strip().lower() in {"review", "reviewer", "prefinish_review"}
+        runner = (
+            OpenHarnessAgentRunner(
+                model=self.model,
+                workspace_root=self.workspace_root,
+                verbose=self.verbose,
+                reviewer_mode=True,
+                artifact_context=self.artifact_context,
+                extra_tool_metadata=extra_tool_metadata if isinstance(extra_tool_metadata, dict) else None,
+                enable_mcp=False,
+            )
+            if reviewer_mode
+            else (
+                OpenHarnessAgentRunner(
+                    model=self.model,
+                    workspace_root=self.workspace_root,
+                    verbose=self.verbose,
+                    artifact_context=self.artifact_context,
+                    extra_tool_metadata=extra_tool_metadata if isinstance(extra_tool_metadata, dict) else None,
+                    enable_mcp=enable_mcp,
+                )
+                if (isinstance(extra_tool_metadata, dict) and extra_tool_metadata) or enable_mcp
+                else self.runner
+            )
+        )
         if output_schema:
-            payload = await self.runner.run_json(
+            payload = await runner.run_json(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 agent_name=agent_name,
@@ -128,7 +127,7 @@ class BaseAgent(ABC):
                 cwd=cwd,
             )
             return {"output": payload, "content": payload}
-        text = await self.runner.run_text(
+        text = await runner.run_text(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             agent_name=agent_name,

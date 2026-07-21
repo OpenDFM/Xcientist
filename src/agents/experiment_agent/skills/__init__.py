@@ -1,6 +1,6 @@
 """
 Minimal skill metadata loader for debugging.
-Skills are discovered natively by Claude Code via .claude/skills/ at runtime.
+Skills are discovered natively by OpenHarness/project skills at runtime.
 """
 
 from pathlib import Path

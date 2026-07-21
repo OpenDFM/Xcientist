@@ -14,7 +14,7 @@ Prepare the local execution environment required by the experiment workspace.
 ## Protocol
 - Create or validate the project virtual environment.
 - Install only the dependencies required for the planned runs.
-- Record which real models are API-backed versus local-checkpoint-backed so prepare can declare them in its validator-backed handoff reports.
+- Record which real models are API-backed versus local-checkpoint-backed so prepare can declare them in its reviewer-approved handoff reports.
 - Record environment status, commands, and blockers in a structured report.
 
 ## Hard Rules

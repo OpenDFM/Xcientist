@@ -2,9 +2,8 @@
 Generic phase-report normalization helpers.
 
 These helpers keep runtime routing logic independent from task-specific metric
-names or workspace-specific artifact names. They normalize validator-backed
-phase reports into a small generic contract that master/reporting code can
-consume safely.
+names or workspace-specific artifact names. They normalize reviewer-approved
+phase reports into a small generic contract that master code can consume safely.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ RUN_LEVEL_SMOKE = "smoke"
 RUN_LEVEL_FULL = "full"
 RUN_LEVEL_MIXED = "mixed"
 
-VALID_PHASE_COMPLETION_STATES = {"not_started", "partial", "complete", "completed", "blocked"}
+VALID_PHASE_COMPLETION_STATES = {"not_started", "partial", "complete", "blocked"}
 
 
 def _normalize_text_list(value: Any) -> List[str]:
@@ -57,21 +56,9 @@ def _normalize_text_list(value: Any) -> List[str]:
 
 def phase_report_status(payload: Dict[str, Any]) -> str:
     raw = payload.get("status")
-    if raw in (None, ""):
-        raw = payload.get("verdict")
-    if raw in (None, ""):
-        raw = payload.get("validation_status")
-    if raw in (None, ""):
-        raw = payload.get("validation_result")
-    if raw in (None, ""):
-        validation_summary = payload.get("validation_summary")
-        if isinstance(validation_summary, dict):
-            raw = validation_summary.get("stage_status")
     status = str(raw or "").strip().upper()
-    if status in {"PASS", "PARTIAL", "FAIL"}:
+    if status in {"PASS", "FAIL"}:
         return status
-    if status in {"COMPLETED", "COMPLETE", "SUCCESS"}:
-        return "PASS"
     return "UNKNOWN"
 
 
@@ -80,9 +67,6 @@ def phase_blocking_issues(payload: Dict[str, Any]) -> List[str]:
     for key in (
         "blocking_issues",
         "required_followup",
-        "required_fixes",
-        "required_fixes_for_complete_evaluation",
-        "blocked_metrics",
     ):
         issues.extend(_normalize_text_list(payload.get(key)))
     return issues
@@ -96,19 +80,14 @@ def infer_phase_completion_status(payload: Dict[str, Any]) -> str:
     status = phase_report_status(payload)
     blockers = phase_blocking_issues(payload)
     terminal_blocker = bool(payload.get("terminal_blocker"))
-    ready_to_proceed = payload.get("ready_to_proceed")
     ready_for_next = payload.get("ready_for_next_phase")
 
     if status == "FAIL":
         return "blocked" if terminal_blocker else "partial"
-    if status == "PARTIAL":
-        return "partial"
     if status == "PASS":
         if blockers:
             return "partial"
         if ready_for_next is False:
-            return "partial"
-        if ready_to_proceed is False:
             return "partial"
         return "complete"
     return "not_started"
@@ -118,8 +97,6 @@ def phase_ready_for_next(payload: Dict[str, Any]) -> bool:
     explicit = payload.get("ready_for_next_phase")
     if isinstance(explicit, bool):
         return explicit
-    if isinstance(payload.get("ready_to_proceed"), bool):
-        return bool(payload.get("ready_to_proceed"))
     completion_status = infer_phase_completion_status(payload)
     return completion_status == "complete"
 
@@ -168,8 +145,8 @@ def normalize_phase_report(
             "terminal_blocker": False,
             "self_contained_project": None,
             "self_contained_violations": [],
-            "provenance_manifest_present": None,
-            "provenance_manifest_path": "",
+            "artifact_ledger_present": None,
+            "artifact_ledger_path": "",
         }
 
     blocking_issues = phase_blocking_issues(payload)
@@ -181,10 +158,10 @@ def normalize_phase_report(
         else None
     )
     self_contained_violations = _normalize_text_list(payload.get("self_contained_violations"))
-    provenance_manifest_present = payload.get("provenance_manifest_present")
-    if not isinstance(provenance_manifest_present, bool):
-        provenance_manifest_present = None
-    provenance_manifest_path = str(payload.get("provenance_manifest_path") or "").strip()
+    artifact_ledger_present = payload.get("artifact_ledger_present")
+    if not isinstance(artifact_ledger_present, bool):
+        artifact_ledger_present = None
+    artifact_ledger_path = str(payload.get("artifact_ledger_path") or "").strip()
     return {
         "status": phase_report_status(payload),
         "phase_completion_status": infer_phase_completion_status(payload),
@@ -202,8 +179,8 @@ def normalize_phase_report(
         "terminal_blocker": bool(payload.get("terminal_blocker")),
         "self_contained_project": self_contained_project,
         "self_contained_violations": self_contained_violations,
-        "provenance_manifest_present": provenance_manifest_present,
-        "provenance_manifest_path": provenance_manifest_path,
+        "artifact_ledger_present": artifact_ledger_present,
+        "artifact_ledger_path": artifact_ledger_path,
     }
 
 

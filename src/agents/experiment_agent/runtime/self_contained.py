@@ -14,7 +14,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List
 
-from src.agents.experiment_agent.runtime.manifests import resolve_provenance_manifest_path
+from src.agents.experiment_agent.runtime.artifacts import artifact_ledger_path
 
 
 TEXT_FILE_EXTENSIONS = {
@@ -44,8 +44,11 @@ SKIP_DIR_NAMES = {
     ".mypy_cache",
     ".pytest_cache",
     ".ruff_cache",
+    ".venv",
     "__pycache__",
+    "env",
     "node_modules",
+    "venv",
     "dist",
     "build",
     ".eggs",
@@ -70,7 +73,7 @@ def _iter_project_files(project_root: Path) -> List[Path]:
     for current_root, dirnames, filenames in os.walk(project_root):
         dirnames[:] = [name for name in dirnames if name not in SKIP_DIR_NAMES]
         current = Path(current_root)
-        if current.name == "venv":
+        if current.name in {"env", "venv", ".venv"}:
             dirnames[:] = []
             continue
         for name in filenames:
@@ -164,10 +167,8 @@ def scan_project_self_contained(project_root: str, workspace_root: str) -> Dict[
         "checked_files": checked_files,
         "project_root": str(project_dir),
         "repos_root": repos_root,
-        "provenance_manifest_path": resolve_provenance_manifest_path(workspace_dir, str(project_dir)),
-        "provenance_manifest_present": os.path.exists(
-            resolve_provenance_manifest_path(workspace_dir, str(project_dir))
-        ),
+        "artifact_ledger_path": artifact_ledger_path(workspace_dir),
+        "artifact_ledger_present": os.path.exists(artifact_ledger_path(workspace_dir)),
         "policy": {
             "repos_policy": "reference_or_copy",
             "project_must_be_self_contained": True,

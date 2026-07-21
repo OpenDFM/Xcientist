@@ -7,7 +7,6 @@
 <p align="center">
   <a href="https://kotohanon.github.io/Xcientist/"><img src="https://img.shields.io/badge/Project-Website-4C1?logo=githubpages&logoColor=white" alt="Project website"></a>
   <a href="https://arxiv.org/pdf/2606.18874"><img src="https://img.shields.io/badge/Paper_2606.18874-B31B1B?logo=arxiv&logoColor=white" alt="2606.18874"></a>
-  <img src="https://img.shields.io/badge/Dataset-coming--soon-FFD21E?logo=huggingface&logoColor=black" alt="paper-graph-infrastructure dataset">
   <a href="https://www.python.org/downloads/release/python-3120/"><img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12"></a>
 </p>
 
@@ -43,7 +42,7 @@ Xcientist is a multi-agent research workflow for turning a topic into survey art
 
 - `Survey Agent`: collects papers, builds topic clusters, and writes survey outputs.
 - `Idea Agent (LigAgent)`: turns a topic or seed idea into a research proposal with survey-grounded retrieval, graph-backed references, and Memory-Guided MCTS.
-- `Experiment Agent (SuperAgent)`: prepares a workspace, generates code, runs experiments, and integrates iteration reports.
+- `Experiment Agent`: uses vendored OpenHarness workers, reviewers, and prefinish hooks to prepare resources, build a runnable project, execute controlled science conditions, and materialize reviewed results.
 - `Blog Agent`: reads an experiment workspace and writes a technical blog article with generated figures and quality checks.
 
 The repo also contains a prototype loop runner for `Survey -> Idea -> Experiment -> Blog`, shared configuration, and a reusable memory subsystem.
@@ -73,10 +72,11 @@ Xcientist/
 │   │   ├── __init__.py             # unified config loader
 │   │   └── default.yaml            # main project config
 │   ├── pipeline/                   # Survey -> Idea -> Experiment -> Blog loop
+│   ├── harness/                    # vendored OpenHarness runtime used by Experiment Agent
 │   ├── agents/
 │   │   ├── survey_agent/           # paper retrieval, clustering, survey generation
 │   │   ├── idea_agent/             # LigAgent proposal generation
-│   │   ├── experiment_agent/       # SuperAgent experiment orchestration
+│   │   ├── experiment_agent/       # OpenHarness experiment control plane
 │   │   └── blog_agent/             # technical blog generation
 │   └── memory/                     # shared vector/symbolic memory APIs
 ├── graph/                          # graph retrieval service and indexing scripts
@@ -95,7 +95,7 @@ Topic
   -> Idea Agent
      output: idea_result.json
   -> Experiment Agent
-     output: workspace, results, ablation_results.json
+     output: runnable project, reviewed evidence, final ablation results
   -> Blog Agent
      output: blog workspace, article draft, generated figures
 ```
@@ -107,10 +107,9 @@ The pipeline runner in `src/pipeline/run_loop.py` automates the full `Survey -> 
 
 - `uv`
 - Python `3.12`
-- `node` and `npx` for Experiment Agent MCP servers
 - API keys depending on which agent you run
 - Local assets for graph-backed retrieval and memory-enabled workflows
-  - Paper-Graph related resource (We will release it soon in next month!), put them into `<repo_root>/data/processed`.
+  - Paper-Graph related resource (We will release it in next stage!), put them into `<repo_root>/data/processed`.
   - Embedding model download:
    ```
    mkdir -p models/bge-m3
@@ -151,12 +150,6 @@ uv sync --group pdf --group blog
 uv sync --all-groups
 ```
 
-If you want local MCP wrapper scripts for Experiment Agent:
-
-```bash
-xcientist install-mcp-wrappers
-```
-
 `environment.yml` is still available as a legacy/full-environment fallback, but `uv sync` is the primary path for `Survey + Idea + Experiment + Blog + Pipeline`. The dependency layout is now split so the default install stays lightweight and heavy local-model / PDF stacks are opt-in.
 After activation, the project exposes CLI entrypoints such as `xcientist`, `xcientist-survey`, and `xcientist-idea` directly in the shell.
 
@@ -168,6 +161,7 @@ Different agents read slightly different variables. In practice, these are the m
 ```bash
 export OPENAI_API_KEY=...
 export OPENAI_BASE_URL=...
+export OPENAI_MODEL=...            # optional Experiment Agent default
 export SEMANTIC_SCHOLAR_API_KEY=...
 export ANTHROPIC_API_KEY=...
 export ANTHROPIC_BASE_URL=...
@@ -293,6 +287,13 @@ The default run uses `src/config/default.yaml`, materializes a run directory und
 <a id="run-experiment-agent"></a>
 ### 3. Run Experiment Agent
 
+The current Experiment Agent is an OpenHarness-backed control plane with four reviewed stages:
+
+1. `prepare` discovers and verifies repositories, datasets, models/API surfaces, and environment bindings.
+2. `code` builds a self-contained implementation under `project/` and records bounded real-data smoke evidence.
+3. `science` runs one all-components reference condition plus component-disabled conditions through a unified contract.
+4. `finalization` verifies evidence lineage, materializes the final ablation result, and writes it back to symbolic memory with a receipt.
+
 Primary entrypoint:
 
 ```bash
@@ -308,17 +309,33 @@ xcientist experiment --experiment my_exp --idea-json /abs/path/to/idea_result.js
 Direct entrypoint:
 
 ```bash
-python -m src.agents.experiment_agent.main --experiment my_exp --resume --verbose
+python -m src.agents.experiment_agent.main \
+  --experiment my_exp \
+  --config src/config/default.yaml \
+  --resume --verbose
 ```
 
-Key workspace outputs live under `workspace/<experiment_id>/` by default and usually include:
+The direct module expects `idea.json` or `idea_result.json` to already exist in the experiment workspace. The `xcientist experiment` command copies the file supplied with `--idea-json` before launch.
+
+Key workspace outputs live under `workspace/<experiment_id>/` by default:
 
 - `idea.json`
-- `project/`
-- `dataset_candidate/`
-- `results/`
-- `agent_reports/`
-- `ablation_results.json`
+- `project/`: self-contained generated implementation
+- `repos/`: verified reference repositories
+- `dataset_candidate/` and `model_candidate/`: prepared resources
+- `results/science/<condition_id>/`: raw logs, metrics, and condition outputs
+- `agent_reports/`: plans, worker artifacts, reviewer reports, hook reports, and the artifact ledger
+- `.openharness_runtime/`: experiment-local OpenHarness state
+
+Important reviewed artifacts are:
+
+- `agent_reports/prepare/phase.json`
+- `agent_reports/code/phase.json`
+- `agent_reports/science/phase.json`
+- `agent_reports/ablation/final/ablation_results.json`
+- `agent_reports/ablation/final/symbolic_memory_receipt.json`
+
+The experiment code never imports an arbitrary globally installed OpenHarness package: it pins imports to `src/harness/src`. Configure models and retry/runtime limits under `experiment.openharness` in `src/config/default.yaml`; the relevant environment variables are `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `EXPERIMENT_AGENT_WORKSPACE_DIR`, `XCIENTIST_CONFIG`, and `AGENT_BASH_TIMEOUT_SECONDS`.
 
 <a id="run-blog-agent"></a>
 ### 4. Run Blog Agent

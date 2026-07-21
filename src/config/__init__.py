@@ -38,8 +38,7 @@ def load_config(config_path: Optional[str] = None) -> DictConfig:
     if _config is not None and config_path is None:
         return _config
 
-    config_source = config_path or os.environ.get("XCIENTIST_CONFIG_PATH")
-    config_file = Path(config_source) if config_source else DEFAULT_CONFIG_PATH
+    config_file = resolve_runtime_config_path(config_path)
 
     if not config_file.exists():
         raise FileNotFoundError(f"Config file not found: {config_file}")
@@ -57,6 +56,28 @@ def load_config(config_path: Optional[str] = None) -> DictConfig:
     return _config
 
 
+def resolve_config_path(config_path: Optional[str | Path] = None) -> Path:
+    """Resolve a project configuration path to an absolute path."""
+    if config_path:
+        return Path(config_path).expanduser().resolve()
+    return DEFAULT_CONFIG_PATH.resolve()
+
+
+def resolve_runtime_config_path(config_path: Optional[str | Path] = None) -> Path:
+    """Resolve the active config used by all runtime entrypoints.
+
+    ``XCIENTIST_CONFIG`` is the canonical environment variable used by the
+    OpenHarness experiment agent. ``XCIENTIST_CONFIG_PATH`` remains supported
+    for compatibility with the existing unified CLI.
+    """
+    config_source = (
+        config_path
+        or os.environ.get("XCIENTIST_CONFIG")
+        or os.environ.get("XCIENTIST_CONFIG_PATH")
+    )
+    return resolve_config_path(config_source)
+
+
 def _preprocess_yaml_content(content: str) -> str:
     """Preprocess YAML content to resolve custom variables before OmegaConf loads.
 
@@ -72,10 +93,14 @@ def _preprocess_yaml_content(content: str) -> str:
 
     # Also support OmegaConf's built-in env interpolation with optional default
     oc_env_pattern = re.compile(r'\$\{oc\.env:([^,}]+)(?:,([^}]*))?\}')
-    content = oc_env_pattern.sub(
-        lambda m: os.environ.get(m.group(1), m.group(2) or ""),
-        content,
-    )
+
+    def _resolve_oc_env(match: re.Match[str]) -> str:
+        default = match.group(2) or ""
+        if len(default) >= 2 and default[0] == default[-1] and default[0] in {"'", '"'}:
+            default = default[1:-1]
+        return os.environ.get(match.group(1), default)
+
+    content = oc_env_pattern.sub(_resolve_oc_env, content)
 
     # Escape custom path placeholders for later resolution.
     content = content.replace("${repo_root}", "__REPO_ROOT__")

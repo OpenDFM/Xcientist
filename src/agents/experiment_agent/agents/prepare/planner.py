@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from src.agents.experiment_agent.agents.base.agent import BaseAgent, PromptBuilder
-from src.agents.experiment_agent.agents.prepare.validator import PREPARE_VALIDATOR, prepare_validator_prompt
+from src.agents.experiment_agent.agents.prepare.reviewer import (
+    PREPARE_REVIEWERS,
+    prepare_reviewer_prompt,
+)
 from src.agents.experiment_agent.agents.prepare.worker import (
     PREPARE_DATASET_WORKER,
     PREPARE_ENV_WORKER,
@@ -31,19 +35,27 @@ from src.agents.experiment_agent.runtime.idea_components import (
 )
 from src.agents.experiment_agent.runtime.manifests import (
     artifact_paths,
-    coerce_plan_payload,
     load_json_file,
-    resolve_prepare_idea_path,
     write_json_file,
-    workspace_contract_paths,
+)
+from src.agents.experiment_agent.runtime.artifacts import (
+    ArtifactRegistry,
+    ArtifactSpec,
+    artifact_ledger_path,
+    artifact_prompt_context,
+    write_artifact_registry_snapshot,
 )
 from src.agents.experiment_agent.runtime.phase_runner import (
-    execute_step_loop,
+    execute_step_with_prefinish_review,
+    materialize_executable_plan,
+    phase_checked_artifacts,
+    planner_artifact_prefinish_gate,
     planner_output_schema,
-    validator_output_schema,
+    review_output_schema,
     worker_output_schema,
     with_phase_defaults,
 )
+from src.agents.experiment_agent.runtime.report_layout import planner_rel
 
 
 @dataclass
@@ -63,21 +75,14 @@ def _prepare_step_schema() -> Dict[str, Any]:
     properties = {
         "stage_id": {"type": "string"},
         "goal": {"type": "string"},
-        "stage_contract_path": {"type": "string"},
-        "executor_report_path": {"type": "string"},
         "input_paths": {"type": "object"},
-        "allowed_write_roots": {"type": "array", "items": {"type": "string"}},
-        "required_output_roots": {"type": "array", "items": {"type": "string"}},
-        "worker_report_path": {"type": "string"},
-        "validator_report_path": {"type": "string"},
         "repos_policy": {"type": "string"},
         "project_must_be_self_contained": {"type": "boolean"},
-        "provenance_manifest_path": {"type": "string"},
         "research_required": {"type": "boolean"},
         "acquisition_required": {"type": "boolean"},
         "existing_local_hints": {"type": "array", "items": {"type": "string"}},
-        "max_repair_rounds": {"type": "integer"},
         "done_condition": {"type": "string"},
+        "artifact_ids": {"type": "array", "items": {"type": "string"}},
     }
     return {
         "type": "object",
@@ -90,9 +95,9 @@ def _prepare_step_schema() -> Dict[str, Any]:
 class PrepareAgent(BaseAgent):
     STAGE_WORKER_ROLES = {
         "repos": PREPARE_REPO_WORKER,
-        "env": PREPARE_ENV_WORKER,
         "dataset": PREPARE_DATASET_WORKER,
         "model": PREPARE_MODEL_WORKER,
+        "env": PREPARE_ENV_WORKER,
         "synthesis": PREPARE_SYNTHESIS_WORKER,
     }
 
@@ -108,6 +113,41 @@ class PrepareAgent(BaseAgent):
             verbose=verbose,
             workspace_root=workspace_root,
         )
+
+    def _build_planner_artifact_registry(self, workspace_dir: str) -> ArtifactRegistry:
+        registry = ArtifactRegistry(workspace_root=workspace_dir)
+        registry.add(
+            ArtifactSpec(
+                artifact_id="prepare.plan",
+                stage="prepare_planner",
+                path=planner_rel("prepare", "latest.json"),
+                kind="json",
+                schema_name="prepare_plan",
+                description="Validated prepare phase plan ordered as repos, dataset, model, env, synthesis.",
+            )
+        )
+        registry.add(
+            ArtifactSpec(
+                artifact_id="prepare.blueprint",
+                stage="prepare_planner",
+                path=planner_rel("prepare", "blueprint.md"),
+                kind="file",
+                required=False,
+                description="Planner notes and rationale for prepare workers.",
+            )
+        )
+        registry.add(
+            ArtifactSpec(
+                artifact_id="runtime.prepare.planner_report",
+                stage="prepare_planner",
+                path=planner_rel("prepare", "planner_report.json"),
+                kind="json",
+                required=False,
+                writer="runtime",
+                description="Runtime-owned prepare planner report.",
+            )
+        )
+        return registry
 
     def _build_user_prompt(self, **kwargs) -> str:
         pb = PromptBuilder()
@@ -125,6 +165,7 @@ class PrepareAgent(BaseAgent):
             "model_dir",
             "results_dir",
             "reports_dir",
+            "mcp_status_path",
         ):
             pb.add_key_value(key, str(kwargs.get(key) or ""))
         pb.add_text("")
@@ -132,62 +173,90 @@ class PrepareAgent(BaseAgent):
         pb.add_text(format_canonical_components_markdown(canonical_components) if canonical_components else "- (none)")
         pb.add_header("Required Planner Output", level=2)
         pb.add_text("Write a JSON object with `stages`, `summary`, and `usage_notes`.")
-        pb.add_text("The stage list must be ordered exactly as: repos, env, dataset, model, synthesis.")
+        pb.add_text("You must write the managed artifact `prepare.plan` with Xcientist artifact tools until it is accepted by the hook.")
+        pb.add_text("The managed `prepare.plan` artifact must be a JSON object with a top-level `stages` list; the hook validates that list as the executable prepare contract.")
+        pb.add_text("Do not write `prepare_plan.json` with generic write_file/edit_file/bash; use `write_artifact`.")
+        pb.add_text("Do not write `prepare_planner_report.json` or other planner/runtime reports with tools.")
+        pb.add_text("After `prepare.plan` and optional `prepare.blueprint` are accepted, stop using tools and return the required final JSON object directly.")
+        artifact_text = kwargs.get("artifact_text")
+        if artifact_text:
+            pb.add_text("")
+            pb.add_text(str(artifact_text))
+        pb.add_header("Prepare Acquisition Protocol", level=2)
+        pb.add_text(
+            "Assume no repository, dataset, model, benchmark, or virtualenv is pre-approved. "
+            "The plan must make prepare discover candidates, acquire real resources, verify them locally, "
+            "build the final environment after resource choices are fixed, and synthesize a stable handoff."
+        )
+        pb.add_text(
+            "Tavily/MCP search may be used for discovery, but search summaries are not proof. "
+            "Proof must be local evidence: cloned commit, downloaded/located files, checksums or sizes, "
+            "loader/schema probes, API dry-runs or model load probes, and venv/import smoke logs."
+        )
+        pb.add_text(
+            "Before relying on external search, read `mcp_status_path`. If MCP/Tavily is unavailable, "
+            "use local evidence or produce a truthful BLOCKED artifact with concrete attempted queries and missing requirements."
+        )
+        pb.add_text(
+            "If no suitable resource exists, the stage must produce a clear blocker with candidate rejection reasons. "
+            "Do not plan toy data, mock datasets, placeholder models, or degraded proxy experiments as a success path."
+        )
+        pb.add_text(
+            "`prepare.discovery` is the resource-decision contract, not a prose summary. "
+            "The repos stage must produce a structured decision matrix with `task_signature`, "
+            "`resource_requirements`, `mcp_status_snapshot`, `selection_criteria`, concrete `queries`, "
+            "`candidate_table` for repos/datasets/models, `selected_candidate_ids`, `rejected_candidates`, "
+            "`evidence_gaps`, `selected_resources`, and `selection_rationale`. The deterministic hook rejects "
+            "READY discovery artifacts that do not expose this decision chain."
+        )
+        pb.add_text(
+            "Each managed prepare JSON artifact must declare `status: \"READY\"` or `status: \"BLOCKED\"`. "
+            "READY means the resource was acquired or verified with local evidence. BLOCKED means the artifact contains "
+            "a `blocker` object with `reason`, `attempted_queries`, `rejected_candidates`, `missing_requirements`, "
+            "`user_action_required`, and local `evidence_paths`. A credible BLOCKED stage stops prepare cleanly and is not "
+            "a substitute for success."
+        )
+        pb.add_text("The stage list must be ordered exactly as: repos, dataset, model, env, synthesis.")
+        pb.add_text(
+            "Stage artifact obligations are fixed: "
+            "repos -> `prepare.discovery` at `agent_reports/prepare/artifacts/discovery.json` and `prepare.repos` at `agent_reports/prepare/artifacts/repos.json`; "
+            "dataset -> `prepare.dataset` at `agent_reports/prepare/artifacts/dataset.json`; "
+            "model -> `prepare.model` at `agent_reports/prepare/artifacts/model.json`; "
+            "env -> `prepare.env` at `agent_reports/prepare/artifacts/env.json`; "
+            "synthesis -> `prepare.idea` at `agent_reports/prepare/artifacts/idea.md` and `prepare.target_inventory` at `agent_reports/prepare/artifacts/target_inventory.json`. "
+            "Each stage's `artifact_ids` and `done_condition` must mention exactly its assigned managed artifacts. "
+            "Each `done_condition` must require Xcientist artifact tools and must name the artifact ledger as proof; "
+            "the runtime will reject invalid contracts instead of repairing them."
+        )
         pb.add_text("Each stage must include:")
         pb.add_text(stage_contract_fields)
-        pb.add_text("The runtime will execute each stage through the matching worker role and review it through `prepare_validator`.")
-        pb.add_text("The final phase-level validator report must include:")
+        pb.add_text(
+            "The runtime will execute each stage through the matching worker role. "
+            "Before the worker can finish, deterministic hooks validate formal artifacts, then multiple read-only prepare reviewers run in parallel."
+        )
+        pb.add_text("The final phase-level reviewer report must include:")
         pb.add_text(verdict_fields)
         pb.add_text("")
         pb.add_header("Synthesis Stage Requirement", level=2)
         pb.add_text(
             "The synthesis stage (`stage_id=synthesis`) must include in its `done_condition` that "
-            "`prepare_idea.md` must contain a section with the exact heading "
+            "`agent_reports/prepare/artifacts/idea.md` must contain a section with the exact heading "
             "`## Canonical Idea Components`, listing all components from the Canonical Idea Components "
-            "section above in canonical order (by index). The validator enforces this, so the worker "
+            "section above in canonical order (by index). The reviewer enforces this, so the worker "
             "must be instructed through the done_condition to produce it."
         )
         return pb.build()
 
-    def _synthesize_prepare_blueprint(self, blueprint_path: str, payload: Dict[str, Any]) -> None:
-        """Generate a prepare_blueprint.md from the plan payload."""
-        if not blueprint_path:
-            return
-        lines = [
-            "# Prepare Phase Blueprint",
-            "",
-            "## Planner Summary",
-            "",
-            payload.get("summary", "(none)"),
-            "",
-            f"## Planned Stages ({len(payload.get('stages', []))} stages)",
-            "",
-        ]
-        for stage in payload.get("stages", []):
-            stage_id = stage.get("stage_id", "?")
-            lines.append(f"### `{stage_id}`")
-            lines.append("")
-            lines.append(f"**Goal:** {stage.get('goal', '')}")
-            lines.append("")
-            if stage.get('done_condition'):
-                lines.append(f"**Done when:** {stage['done_condition']}")
-                lines.append("")
-            if stage.get('research_required'):
-                lines.append("**Requires research:** Yes")
-                lines.append("")
-            if stage.get('acquisition_required'):
-                lines.append("**Requires acquisition:** Yes")
-                lines.append("")
-            if stage.get('existing_local_hints'):
-                lines.append(f"**Existing hints:** {', '.join(stage['existing_local_hints'])}")
-                lines.append("")
-        lines.append(f"## Usage Notes\n\n{payload.get('usage_notes', '')}\n")
-        os.makedirs(os.path.dirname(blueprint_path), exist_ok=True)
-        with open(blueprint_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(lines))
-
-    async def _call_worker(self, stage: Dict[str, Any], previous_review: Dict[str, Any] | None) -> Dict[str, Any]:
+    async def _call_worker(
+        self,
+        stage: Dict[str, Any],
+        previous_review: Dict[str, Any] | None,
+        artifact_context: Dict[str, Any],
+        prefinish_gate=None,
+    ) -> Dict[str, Any]:
         stage_id = str(stage.get("stage_id") or "")
+        self.set_artifact_context(artifact_context)
+        artifact_text = artifact_prompt_context(ArtifactRegistry.from_context(artifact_context))
         prompt = f"""Execute this prepare stage.
 
 Stage contract:
@@ -195,43 +264,59 @@ Stage contract:
 {json.dumps(stage, ensure_ascii=False, indent=2)}
 ```
 
-Previous validator feedback:
+{artifact_text}
+
+Previous reviewer feedback:
 ```json
 {json.dumps(previous_review or {}, ensure_ascii=False, indent=2)}
 ```
 
-Return structured worker JSON only. The runtime will write the worker report file.
+Return structured worker JSON only. Include `outcome` as `READY` or `BLOCKED`; it must match the managed artifact status. Do not write report files; the STOP/prefinish hook writes structured worker attempts and latest files under `agent_reports/prepare/worker/<stage>/`.
 """
         result = await self.run(
             user_prompt=prompt,
             agent_name=self.STAGE_WORKER_ROLES.get(stage_id) or PREPARE_REPO_WORKER,
             system_prompt=prepare_worker_prompt(stage_id),
-            output_schema=worker_output_schema(),
+            output_schema=worker_output_schema(include_outcome=True, require_outcome=True),
+            extra_tool_metadata={"xcientist_prefinish_gate": prefinish_gate} if prefinish_gate else None,
+            enable_mcp=True,
         )
         return result["output"]
 
-    async def _call_validator(self, stage: Dict[str, Any], worker_payload: Dict[str, Any]) -> Dict[str, Any]:
-        prompt = f"""Review this prepare stage.
+    async def _call_reviewer(self, stage: Dict[str, Any], worker_payload: Dict[str, Any], artifact_context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        self.set_artifact_context(artifact_context)
+        artifact_text = artifact_prompt_context(ArtifactRegistry.from_context(artifact_context))
+        base_prompt = f"""Review this prepare stage.
 
 Stage contract:
 ```json
 {json.dumps(stage, ensure_ascii=False, indent=2)}
 ```
 
+{artifact_text}
+
 Worker report:
 ```json
 {json.dumps(worker_payload, ensure_ascii=False, indent=2)}
 ```
 
-Return structured review JSON only. The runtime will write the validator report file.
+Return structured review JSON only. Do not write report files; the STOP/prefinish hook writes structured review attempts and latest files under `agent_reports/prepare/review/<stage>/<reviewer_id>/`.
 """
-        result = await self.run(
-            user_prompt=prompt,
-            agent_name=PREPARE_VALIDATOR,
-            system_prompt=prepare_validator_prompt(),
-            output_schema=validator_output_schema(),
-        )
-        return result["output"]
+        async def _run_one(reviewer_id: str) -> Dict[str, Any]:
+            result = await self.run(
+                user_prompt=base_prompt,
+                agent_name=reviewer_id,
+                system_prompt=prepare_reviewer_prompt(reviewer_id),
+                output_schema=review_output_schema(),
+                purpose="prefinish_review",
+                extra_tool_metadata={"xcientist_expected_reviewer_id": reviewer_id},
+            )
+            payload = result["output"]
+            if isinstance(payload, dict):
+                payload.setdefault("reviewer_id", reviewer_id)
+            return payload
+
+        return await asyncio.gather(*[_run_one(reviewer_id) for reviewer_id in PREPARE_REVIEWERS])
 
     async def prepare_workspace(
         self,
@@ -256,6 +341,11 @@ Return structured review JSON only. The runtime will write the validator report 
         with open(idea_json_path, "r", encoding="utf-8") as f:
             _ = json.load(f)
         canonical_components = load_canonical_components(workspace_dir, idea_json_path=idea_json_path)
+        planner_registry = self._build_planner_artifact_registry(workspace_dir)
+        write_artifact_registry_snapshot(planner_registry)
+        self.set_artifact_context(
+            planner_registry.to_context(stage="prepare_planner", step_id="plan", attempt=1)
+        )
         prompt = self._build_user_prompt(
             experiment_id=experiment_id,
             idea_json_path=idea_json_path,
@@ -266,135 +356,109 @@ Return structured review JSON only. The runtime will write the validator report 
             model_dir=model_dir,
             results_dir=results_dir,
             reports_dir=reports_dir,
+            mcp_status_path=artifact_paths(workspace_dir, project_dir)["mcp_status"],
             canonical_components=canonical_components,
+            artifact_text=artifact_prompt_context(planner_registry),
         )
+        output_schema = planner_output_schema(step_schema=_prepare_step_schema())
         plan_result = await self.run(
             user_prompt=prompt,
             agent_name="prepare-planner",
-            output_schema=planner_output_schema(step_schema=_prepare_step_schema()),
+            output_schema=output_schema,
+            extra_tool_metadata={
+                "xcientist_prefinish_gate": planner_artifact_prefinish_gate(
+                    output_schema=output_schema,
+                    registry=planner_registry,
+                    plan_artifact_id="prepare.plan",
+                )
+            },
+            enable_mcp=True,
         )
-        prepare_plan_path = artifact_paths(workspace_dir, project_dir)["prepare_plan"]
-        plan_payload = coerce_plan_payload(
-            plan_result["output"],
-            prepare_plan_path,
+        _ = plan_result
+        file_payload = load_json_file(artifact_paths(workspace_dir, project_dir)["prepare_plan"])
+        if not isinstance(file_payload, dict):
+            raise RuntimeError(
+                "Missing managed planner artifact `prepare.plan`. "
+                "The prepare planner must write `agent_reports/prepare/plan/latest.json` "
+                "with `write_artifact` before finishing."
+            )
+        if not isinstance(file_payload.get("stages"), list):
+            raise RuntimeError("Managed planner artifact `prepare.plan.stages` must be a list.")
+        for field in ("summary", "usage_notes"):
+            if not isinstance(file_payload.get(field), str):
+                raise RuntimeError(f"Managed planner artifact `prepare.plan.{field}` must be a string.")
+        plan_payload = file_payload
+        materialize_executable_plan(
+            workspace_root=workspace_dir,
             scope="prepare",
+            plan_payload=plan_payload,
+            planner_report={
+                "scope": "prepare",
+                "summary": plan_payload["summary"],
+                "usage_notes": plan_payload["usage_notes"],
+            },
         )
-        write_json_file(prepare_plan_path, {"stages": plan_payload["stages"]})
-        write_json_file(
-            artifact_paths(workspace_dir, project_dir)["prepare_planner_report"],
-            {"scope": "prepare", "summary": plan_payload["summary"], "usage_notes": plan_payload["usage_notes"]},
-        )
-        # Generate prepare blueprint
-        blueprint_path = artifact_paths(workspace_dir, project_dir).get("prepare_blueprint", "")
-        if blueprint_path:
-            self._synthesize_prepare_blueprint(blueprint_path, plan_payload)
-        expected_order = ["repos", "env", "dataset", "model", "synthesis"]
-        planned_order = [stage.get("stage_id") for stage in plan_payload["stages"]]
-        if planned_order != expected_order:
-            raise RuntimeError(f"Prepare planner must emit stages in order {expected_order}, got {planned_order}")
-
-        # Enrich synthesis stage: ensure prepare_target_inventory.json is a required output
-        # and the worker knows to generate it from idea.json components.
-        for stage in plan_payload["stages"]:
-            if stage.get("stage_id") == "synthesis":
-                inv_rel = "agent_reports/prepare_target_inventory.json"
-                if inv_rel not in stage.get("required_output_roots", []):
-                    stage.setdefault("required_output_roots", []).append(inv_rel)
-                if "prepare_target_inventory.json" not in stage.get("done_condition", ""):
-                    stage["done_condition"] += (
-                        " Also produces prepare_target_inventory.json mapping each idea.json component "
-                        "to concrete implementation targets (Python modules, classes, functions, config keys)."
-                    )
-                # Add inventory path to worker report paths for runtime tracking
-                if "agent_reports/prepare_target_inventory.json" not in stage.get("required_output_roots", []):
-                    stage["required_output_roots"].append("agent_reports/prepare_target_inventory.json")
 
         for stage in plan_payload["stages"]:
             # Resolve relative paths against workspace_dir
-            for path_key in ("stage_contract_path", "worker_report_path", "validator_report_path", "executor_report_path", "provenance_manifest_path"):
+            for path_key in ("worker_report_path", "review_report_path", "hook_report_path"):
                 if path_key in stage and stage[path_key]:
                     p = stage[path_key]
                     if not os.path.isabs(p):
                         stage[path_key] = os.path.join(workspace_dir, p)
-            # Stage contract data is already in plan JSON; execute_step_loop passes
-            # it in worker/validator prompts. File writes are for debug/audit only.
-            # We keep them because prepare uses stage_contract_path for auditability.
-            write_json_file(stage["stage_contract_path"], stage)
-        step_result = await execute_step_loop(
+        step_result = await execute_step_with_prefinish_review(
             steps=plan_payload["stages"],
             scope="prepare",
             workspace_root=workspace_dir,
             call_worker=self._call_worker,
-            call_validator=self._call_validator,
+            call_reviewer=self._call_reviewer,
         )
         ok = step_result["status"] == "PASS"
-        failed = step_result.get("failed_validator_report") or {}
+        blocked = step_result["status"] == "BLOCKED"
+        failed = (
+            step_result.get("blocked_review_report")
+            if blocked
+            else step_result.get("failed_review_report")
+        ) or {}
+        blocking_issues = [] if ok else list(failed.get("blocking_issues") or [])
+        if blocked:
+            worker_report = load_json_file(str(failed.get("worker_report_path") or ""))
+            if isinstance(worker_report, dict):
+                blocking_issues.extend(str(item) for item in worker_report.get("remaining_blockers") or [] if str(item).strip())
+            if not blocking_issues:
+                blocked_stage = (step_result.get("blocked_step") or {}).get("stage_id") or "unknown"
+                blocking_issues.append(f"Prepare blocked at stage `{blocked_stage}`.")
         final_payload = with_phase_defaults(
             {
                 "status": "PASS" if ok else "FAIL",
                 "scope": "prepare",
-                "checked_artifacts": [artifact_paths(workspace_dir, project_dir)["prepare_plan"]],
+                "checked_artifacts": phase_checked_artifacts(
+                    step_result,
+                    artifact_paths(workspace_dir, project_dir)["prepare_plan"],
+                    artifact_paths(workspace_dir, project_dir)["prepare_executable_plan"],
+                    artifact_paths(workspace_dir, project_dir)["prepare_planner_report"],
+                    artifact_ledger_path(workspace_dir),
+                ),
                 "findings": [] if ok else list(failed.get("findings") or []),
-                "required_fixes": [] if ok else list(failed.get("required_fixes") or []),
                 "evidence_summary": plan_payload["summary"] if ok else str(failed.get("evidence_summary") or "prepare phase incomplete"),
-                "phase_completion_status": "complete" if ok else "partial",
+                "phase_completion_status": "complete" if ok else ("blocked" if blocked else "partial"),
                 "ready_for_next_phase": bool(ok),
-                "blocking_issues": [] if ok else list(failed.get("blocking_issues") or []),
+                "blocking_issues": blocking_issues,
                 "required_followup": [] if ok else list(failed.get("required_followup") or []),
                 "artifact_role": "phase_result",
                 "run_level": "full",
                 "self_contained_project": True,
                 "self_contained_violations": [],
-                "provenance_manifest_present": os.path.exists(artifact_paths(workspace_dir, project_dir)["project_code_provenance"]),
-                "provenance_manifest_path": artifact_paths(workspace_dir, project_dir)["project_code_provenance"],
-                "terminal_blocker": bool(failed.get("terminal_blocker")),
+                "artifact_ledger_present": os.path.exists(artifact_ledger_path(workspace_dir)),
+                "artifact_ledger_path": artifact_ledger_path(workspace_dir),
+                "terminal_blocker": bool(blocked or failed.get("terminal_blocker")),
                 "next_worker_input": str(failed.get("next_worker_input") or ""),
+                "blocked_stage": (step_result.get("blocked_step") or {}).get("stage_id") if blocked else "",
             },
             scope="prepare",
         )
-        write_json_file(artifact_paths(workspace_dir, project_dir)["prepare_validator"], final_payload)
-        idea_md_path = resolve_prepare_idea_path(workspace_dir, project_dir)
-        if not os.path.exists(idea_md_path):
-            os.makedirs(os.path.dirname(idea_md_path), exist_ok=True)
-            with open(idea_md_path, "w", encoding="utf-8") as f:
-                f.write("# Prepare Idea\n\n")
-        inventory_path = artifact_paths(workspace_dir, project_dir)["prepare_target_inventory"]
-        if not os.path.exists(inventory_path) or os.path.getsize(inventory_path) == 0:
-            # Generate proper inventory from idea.json components
-            components = load_canonical_components(workspace_dir, idea_json_path=idea_json_path)
-            inventory = {
-                "prepared_targets": [
-                    {
-                        "component": c["component"],
-                        "explanation": c.get("explanation", ""),
-                        "index": c.get("index", ""),
-                    }
-                    for c in components
-                ],
-                "source": "idea.json",
-                "generated_by": "prepare_planner",
-            }
-            write_json_file(inventory_path, inventory)
-        elif ok:
-            # Synthesis passed but inventory might still be a stub from a previous run.
-            # If it has empty prepared_targets, regenerate.
-            existing = load_json_file(inventory_path) or {}
-            targets = existing.get("prepared_targets")
-            if not targets:
-                components = load_canonical_components(workspace_dir, idea_json_path=idea_json_path)
-                inventory = {
-                    "prepared_targets": [
-                        {
-                            "component": c["component"],
-                            "explanation": c.get("explanation", ""),
-                            "index": c.get("index", ""),
-                        }
-                        for c in components
-                    ],
-                    "source": "idea.json",
-                    "generated_by": "prepare_planner",
-                }
-                write_json_file(inventory_path, inventory)
+        write_json_file(artifact_paths(workspace_dir, project_dir)["prepare_reviewer"], final_payload)
+        idea_md_path = artifact_paths(workspace_dir, project_dir)["idea"]
         return PrepareReport(
             experiment_id=experiment_id,
             workspace_dir=os.path.realpath(workspace_dir),

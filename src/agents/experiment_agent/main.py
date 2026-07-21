@@ -8,31 +8,26 @@ import sys
 from contextlib import contextmanager
 from typing import Any, Dict, Iterator, Optional
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
 from src.agents.experiment_agent.agents.master import run_master
 from src.agents.experiment_agent.agents.prepare import run_prepare
-from src.agents.experiment_agent.agents.reporting import run_ablation_report_integrator
+from src.agents.experiment_agent.agents.finalization import run_finalization_agent
 from src.agents.experiment_agent.config import print_config
 from src.agents.experiment_agent.config import (
     copy_prepared_data_to_workspace,
     ensure_experiment_dirs,
     get_idea_input_path,
-    get_science_max_iterations,
     write_workspace_env_file,
 )
-from src.agents.experiment_agent.runtime.cache import Cache
 from src.agents.experiment_agent.runtime.manifests import (
     artifact_paths,
     ensure_canonical_workspace_artifacts,
     load_json_file,
 )
 from src.agents.experiment_agent.runtime.phase_contracts import normalize_phase_report
-from src.agents.experiment_agent.telemetry import print_phase
+from src.agents.experiment_agent.telemetry import print_kv_table, print_phase
 
 
 def get_args():
-    default_max_iterations = get_science_max_iterations()
     parser = argparse.ArgumentParser(
         description="Experiment Agent - unified prepare + orchestration entrypoint"
     )
@@ -40,17 +35,19 @@ def get_args():
         "--experiment", "-e", required=True, help="Experiment ID (unique identifier)"
     )
     parser.add_argument(
+        "--config",
+        default=None,
+        help="Path to unified project config YAML. Falls back to XCIENTIST_CONFIG, then src/config/default.yaml.",
+    )
+    parser.add_argument(
         "--prepare-only",
         action="store_true",
         help="Only run prepare phase and exit",
     )
     parser.add_argument(
-        "--skip-prepare",
+        "--force",
         action="store_true",
-        help="Deprecated: prepare is now a required startup prerequisite and cannot be skipped",
-    )
-    parser.add_argument(
-        "--force", action="store_true", help="Overwrite prepare_idea.md and re-download/clone"
+        help="Regenerate managed prepare artifacts and re-download/clone as needed",
     )
     parser.add_argument(
         "--clone-depth", type=int, default=1, help="git clone depth (default: 1)"
@@ -58,12 +55,6 @@ def get_args():
     parser.add_argument("--skip-repos", action="store_true", help="Skip cloning repos")
     parser.add_argument(
         "--skip-datasets", action="store_true", help="Skip downloading datasets"
-    )
-    parser.add_argument(
-        "--max-iterations",
-        type=int,
-        default=default_max_iterations,
-        help=f"Maximum iterations (default: {default_max_iterations})",
     )
     parser.add_argument(
         "--resume", action="store_true", help="Resume from prior conversation state"
@@ -95,20 +86,19 @@ def _temporary_environ(overrides: Dict[str, Optional[str]]) -> Iterator[None]:
 
 def _prepare_ready_for_master(workspace_root: str, project_root: str) -> bool:
     paths = artifact_paths(workspace_root, project_root)
-    payload = load_json_file(paths["prepare_validator"])
+    payload = load_json_file(paths["prepare_reviewer"])
     phase_report = normalize_phase_report(payload)
-    if phase_report["status"] == "PASS":
-        return True
-    if phase_report["status"] == "PARTIAL" and phase_report["ready_for_next_phase"]:
-        return True
-    return False
+    return (
+        phase_report["status"] == "PASS"
+        and phase_report["phase_completion_status"] == "complete"
+        and phase_report["ready_for_next_phase"] is True
+    )
 
 
 async def main_async(args) -> int:
     result = await run_experiment_once(
         experiment_id=args.experiment,
         workspace_root=os.environ.get("EXPERIMENT_AGENT_WORKSPACE_DIR") or None,
-        max_iterations=args.max_iterations,
         resume=bool(args.resume),
         verbose=bool(args.verbose),
         prepare_only=bool(args.prepare_only),
@@ -116,6 +106,7 @@ async def main_async(args) -> int:
         clone_depth=int(args.clone_depth),
         skip_repos=bool(args.skip_repos),
         skip_datasets=bool(args.skip_datasets),
+        config_path=args.config,
     )
     return 0 if result.get("ok", True) else 1
 
@@ -124,7 +115,6 @@ async def run_experiment_once(
     *,
     experiment_id: str,
     workspace_root: str | None = None,
-    max_iterations: int | None = None,
     resume: bool = False,
     verbose: bool = False,
     prepare_only: bool = False,
@@ -133,40 +123,50 @@ async def run_experiment_once(
     skip_repos: bool = False,
     skip_datasets: bool = False,
     config_path: str | None = None,
+    symbolic_memory_path: str | None = None,
 ) -> Dict[str, Any]:
     env_overrides: Dict[str, Optional[str]] = {}
     if workspace_root:
         env_overrides["EXPERIMENT_AGENT_WORKSPACE_DIR"] = workspace_root
-    if config_path:
-        env_overrides["EXPERIMENT_AGENT_CONFIG_PATH"] = config_path
+    env_overrides["XCIENTIST_CONFIG"] = config_path if config_path else os.environ.get("XCIENTIST_CONFIG")
+    if symbolic_memory_path:
+        env_overrides["XCIENTIST_SYMBOLIC_MEMORY_PATH"] = symbolic_memory_path
 
     with _temporary_environ(env_overrides):
-        if config_path:
-            from src.config import reload_config
+        from src.config import reload_config, resolve_runtime_config_path
 
-            reload_config(config_path)
+        resolved_config_path = resolve_runtime_config_path(config_path)
+        os.environ["XCIENTIST_CONFIG"] = str(resolved_config_path)
+        runtime_config = reload_config(str(resolved_config_path))
 
         print_config()
         print_phase(
             "EXPERIMENT AGENT",
-            "Unified Claude Code orchestration pipeline",
-            width=65,
+            "OpenHarness orchestration with prefinish review gates",
+            width=76,
         )
 
         paths = ensure_experiment_dirs(experiment_id)
         copy_prepared_data_to_workspace(paths["workspace_dir"])
         write_workspace_env_file(experiment_id)
-        Cache.initialize(paths["cache_dir"], enabled=True)
         resolved_workspace_root = paths["workspace_dir"]
         project_root = paths["project_dir"]
         ensure_canonical_workspace_artifacts(resolved_workspace_root, project_root)
 
-        print(f"\nExperiment: {experiment_id}")
-        print(f"Workspace: {resolved_workspace_root}")
-        print(f"Project: {project_root}")
-        print(f"Results: {paths['results_dir']}")
-        print(f"Model Candidate: {paths['model_dir']}")
-        print(f"Agent Reports: {paths['reports_dir']}")
+        print_kv_table(
+            "Run Context",
+            {
+                "experiment": experiment_id,
+                "config": resolved_config_path,
+                "workspace": resolved_workspace_root,
+                "project": project_root,
+                "results": paths["results_dir"],
+                "model_candidate": paths["model_dir"],
+                "agent_reports": paths["reports_dir"],
+            },
+            width=88,
+            mask_sensitive=False,
+        )
 
         should_run_prepare = bool(force_prepare) or not _prepare_ready_for_master(
             resolved_workspace_root,
@@ -182,15 +182,49 @@ async def run_experiment_once(
                 skip_datasets=bool(skip_datasets),
                 verbose=bool(verbose),
             )
-            print_phase("PREPARE COMPLETE", width=65)
-            print(f"  Prepare Idea: {prepare_report.idea_md_path}")
-            print(f"  Project dir: {prepare_report.project_dir}")
-            print(f"  Repos dir: {prepare_report.repos_dir}")
-            print(f"  Dataset dir: {prepare_report.dataset_dir}")
-            print(f"  Model dir: {prepare_report.model_dir}")
-            print(f"  Results dir: {prepare_report.results_dir}")
-            print(f"  Agent reports dir: {prepare_report.reports_dir}")
             ensure_canonical_workspace_artifacts(resolved_workspace_root, project_root)
+            prepare_payload = load_json_file(artifact_paths(resolved_workspace_root, project_root)["prepare_reviewer"])
+            prepare_phase_report = normalize_phase_report(prepare_payload)
+            if not _prepare_ready_for_master(resolved_workspace_root, project_root):
+                print_kv_table(
+                    "Prepare Blocked",
+                    {
+                        "status": prepare_phase_report["status"] or "UNKNOWN",
+                        "phase_completion_status": prepare_phase_report["phase_completion_status"],
+                        "ready_for_next_phase": prepare_phase_report["ready_for_next_phase"],
+                        "reviewer_report": artifact_paths(resolved_workspace_root, project_root)["prepare_reviewer"],
+                        "blocking_issues": "; ".join(prepare_phase_report["blocking_issues"]) or "(none)",
+                        "required_followup": "; ".join(prepare_phase_report["required_followup"]) or "(none)",
+                    },
+                    width=88,
+                    mask_sensitive=False,
+                )
+                return {
+                    "ok": False,
+                    "iterations": 0,
+                    "converged": False,
+                    "final_path": "",
+                    "ablation_results_path": "",
+                    "workspace_root": resolved_workspace_root,
+                    "project_root": project_root,
+                    "prepare_only": bool(prepare_only),
+                    "prepare_status": prepare_phase_report["status"],
+                    "prepare_reviewer_path": artifact_paths(resolved_workspace_root, project_root)["prepare_reviewer"],
+                }
+            print_kv_table(
+                "Prepare Complete",
+                {
+                    "prepare_idea": prepare_report.idea_md_path,
+                    "project_dir": prepare_report.project_dir,
+                    "repos_dir": prepare_report.repos_dir,
+                    "dataset_dir": prepare_report.dataset_dir,
+                    "model_dir": prepare_report.model_dir,
+                    "results_dir": prepare_report.results_dir,
+                    "agent_reports_dir": prepare_report.reports_dir,
+                },
+                width=88,
+                mask_sensitive=False,
+            )
             if prepare_only:
                 return {
                     "ok": True,
@@ -203,8 +237,11 @@ async def run_experiment_once(
                     "prepare_only": True,
                 }
         else:
-            print_phase("PREPARE REUSED", width=65)
-            print("  Existing validator-backed prepare handoff is ready; skipping prepare rerun.")
+            print_phase(
+                "PREPARE REUSED",
+                "Existing reviewer-approved prepare handoff is ready.",
+                width=76,
+            )
             if prepare_only:
                 return {
                     "ok": True,
@@ -218,45 +255,92 @@ async def run_experiment_once(
                 }
 
         idea_path = get_idea_input_path(experiment_id)
-        print(f"Idea: {idea_path}")
+        print_kv_table("Master Input", {"idea": idea_path}, width=88, mask_sensitive=False)
 
-        resolved_max_iterations = (
-            int(max_iterations)
-            if max_iterations is not None
-            else get_science_max_iterations()
-        )
         result = await run_master(
             experiment_id=experiment_id,
             idea_path=idea_path,
             workspace_root=resolved_workspace_root,
             project_root=project_root,
-            max_iterations=resolved_max_iterations,
             verbose=bool(verbose),
             resume=bool(resume),
         )
 
         if result.get("converged"):
-            reporting_result = await run_ablation_report_integrator(
+            receipt = await run_finalization_agent(
+                experiment_id=experiment_id,
                 workspace_root=resolved_workspace_root,
                 project_root=project_root,
+                config=runtime_config,
                 verbose=bool(verbose),
-                resume=bool(resume),
             )
-            if not reporting_result.get("valid"):
-                raise RuntimeError(
-                    "Final ablation report agent did not produce a valid ablation_results.json. "
-                    f"See {reporting_result.get('integrator_report_path')} for details."
+            result["symbolic_memory_receipt_path"] = artifact_paths(resolved_workspace_root, project_root)["symbolic_memory_receipt"]
+            if receipt.get("status") != "PASS":
+                print_kv_table(
+                    "Finalization Blocked",
+                    {
+                        "status": receipt.get("status", "FAIL"),
+                        "receipt": result["symbolic_memory_receipt_path"],
+                        "blocker": receipt.get("blocker", ""),
+                    },
+                    width=88,
+                    mask_sensitive=False,
                 )
-            result["final_path"] = reporting_result["ablation_results_path"]
-            result["ablation_results_path"] = reporting_result["ablation_results_path"]
-            result["integrator_report_path"] = reporting_result["integrator_report_path"]
+                return {
+                    "ok": False,
+                    "iterations": int(result.get("iterations") or 0),
+                    "converged": False,
+                    "stopped_due_to_iteration_limit": False,
+                    "final_path": "",
+                    "ablation_results_path": str(receipt.get("ablation_results_path") or ""),
+                    "symbolic_memory_receipt_path": result["symbolic_memory_receipt_path"],
+                    "workspace_root": resolved_workspace_root,
+                    "project_root": project_root,
+                    "idea_path": idea_path,
+                    "finalization_status": str(receipt.get("status") or "FAIL"),
+                    "finalization_blocker": str(receipt.get("blocker") or ""),
+                }
+            result["final_path"] = receipt["ablation_results_path"]
+            result["ablation_results_path"] = receipt["ablation_results_path"]
 
-        if result.get("stopped_due_to_iteration_limit"):
-            print_phase("ITERATION LIMIT HIT", width=65)
-        else:
-            print_phase("MISSION COMPLETE", width=65)
-        print(f"  Iterations: {result['iterations']}")
-        print(f"  Final Report: {result.get('final_path', result.get('ablation_results_path'))}")
+        if not result.get("converged"):
+            print_phase("EXPERIMENT BLOCKED", width=76)
+            print_kv_table(
+                "Blocking State",
+                {
+                    "iterations": int(result.get("iterations") or 0),
+                    "decision": str(result.get("decision") or ""),
+                    "blocking_issues": "; ".join(str(item) for item in result.get("blocking_issues") or []) or "(none)",
+                },
+                width=88,
+                mask_sensitive=False,
+            )
+            return {
+                "ok": False,
+                "iterations": int(result.get("iterations") or 0),
+                "converged": False,
+                "stopped_due_to_iteration_limit": bool(result.get("stopped_due_to_iteration_limit")),
+                "final_path": str(result.get("final_path") or ""),
+                "ablation_results_path": str(result.get("ablation_results_path") or ""),
+                "symbolic_memory_receipt_path": str(result.get("symbolic_memory_receipt_path") or ""),
+                "workspace_root": resolved_workspace_root,
+                "project_root": project_root,
+                "idea_path": idea_path,
+                "decision": str(result.get("decision") or ""),
+                "blocking_issues": list(result.get("blocking_issues") or []),
+            }
+
+        print_phase("MISSION COMPLETE", width=76)
+        print_kv_table(
+            "Final Artifacts",
+            {
+                "iterations": result["iterations"],
+                "final_report": result.get("final_path", result.get("ablation_results_path")),
+                "symbolic_memory_receipt": result.get("symbolic_memory_receipt_path", ""),
+            },
+            width=88,
+            mask_sensitive=False,
+        )
 
         return {
             "ok": True,
@@ -265,7 +349,7 @@ async def run_experiment_once(
             "stopped_due_to_iteration_limit": bool(result.get("stopped_due_to_iteration_limit")),
             "final_path": str(result.get("final_path") or ""),
             "ablation_results_path": str(result.get("ablation_results_path") or ""),
-            "integrator_report_path": str(result.get("integrator_report_path") or ""),
+            "symbolic_memory_receipt_path": str(result.get("symbolic_memory_receipt_path") or ""),
             "workspace_root": resolved_workspace_root,
             "project_root": project_root,
             "idea_path": idea_path,

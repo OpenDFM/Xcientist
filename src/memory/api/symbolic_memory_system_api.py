@@ -1,7 +1,8 @@
 """Ablation-native symbolic memory indexed by component and component family.
 
 Each record mirrors one component entry from
-``src/agents/idea_agent/ablation_results.json`` and preserves the raw
+``agent_reports/ablation/final/ablation_results.json`` in an experiment
+workspace and preserves the raw
 ablation evidence directly:
 
 - ``component``: component name from the ablation report

@@ -7,7 +7,6 @@
 <p align="center">
   <a href="https://kotohanon.github.io/Xcientist/"><img src="https://img.shields.io/badge/Project-Website-4C1?logo=githubpages&logoColor=white" alt="Project website"></a>
   <a href="https://arxiv.org/pdf/2606.18874"><img src="https://img.shields.io/badge/Paper_2606.18874-B31B1B?logo=arxiv&logoColor=white" alt="2606.18874"></a>
-  <img src="https://img.shields.io/badge/Dataset-coming--soon-FFD21E?logo=huggingface&logoColor=black" alt="paper-graph-infrastructure dataset">
   <a href="https://www.python.org/downloads/release/python-3120/"><img src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white" alt="Python 3.12"></a>
 </p>
 
@@ -43,7 +42,7 @@ Xcientist 是一个面向科研流程的多 Agent 系统，目标是把一个研
 
 - `Survey Agent`：检索论文、构建主题聚类并生成 survey 结果。
 - `Idea Agent（LigAgent）`：基于 survey 检索、图谱 reference 和 Memory-Guided MCTS，把主题或成熟想法转成研究 proposal。
-- `Experiment Agent（SuperAgent）`：准备实验工作空间、生成代码、执行实验，并整合迭代结果。
+- `Experiment Agent`：使用仓库内置的 OpenHarness worker、reviewer 和 prefinish hook，完成资源准备、可运行项目构建、受控科学条件执行和 review 后结果物化。
 - `Blog Agent`：读取实验工作空间，生成技术博客文章、配图和质量检查结果。
 
 仓库中还包含一个 `Survey -> Idea -> Experiment -> Blog` 的原型 pipeline、统一配置，以及可复用的 memory 子系统。
@@ -73,10 +72,11 @@ Xcientist/
 │   │   ├── __init__.py             # 统一配置加载器
 │   │   └── default.yaml            # 主配置文件
 │   ├── pipeline/                   # Survey -> Idea -> Experiment -> Blog loop
+│   ├── harness/                    # Experiment Agent 使用的 vendored OpenHarness runtime
 │   ├── agents/
 │   │   ├── survey_agent/           # 论文检索、聚类、survey 生成
 │   │   ├── idea_agent/             # LigAgent idea / proposal 生成
-│   │   ├── experiment_agent/       # SuperAgent 实验编排
+│   │   ├── experiment_agent/       # OpenHarness 实验控制平面
 │   │   └── blog_agent/             # 技术博客生成
 │   └── memory/                     # 共享 vector / symbolic memory API
 ├── graph/                          # 图检索服务与索引脚本
@@ -95,7 +95,7 @@ Xcientist/
   -> Idea Agent
      输出：idea_result.json
   -> Experiment Agent
-     输出：workspace、results、ablation_results.json
+     输出：自包含项目、review 后证据和最终消融结果
   -> Blog Agent
      输出：blog workspace、文章草稿、生成配图
 ```
@@ -107,10 +107,9 @@ Xcientist/
 
 - `uv`
 - Python `3.12`
-- `Experiment Agent` 需要 `node` 和 `npx` 来启动 MCP server
 - 运行不同 Agent 所需的 API key
 - 图检索和 memory 能力依赖仓库外的本地数据或模型
-   - 论文图相关资源(我们将在下个月尽快发布！)，将它们放入 `<repo_root>/data/processed`
+   - 论文图相关资源(我们将在后续阶段发布！)，将它们放入 `<repo_root>/data/processed`
    - 向量模型下载：
    ```
    mkdir -p models/bge-m3
@@ -148,12 +147,6 @@ uv sync --group pdf --group blog
 
 # 安装完整本地环境
 uv sync --all-groups
-```
-
-如果你希望给 `Experiment Agent` 预先安装本地 MCP wrapper：
-
-```bash
-xcientist install-mcp-wrappers
 ```
 
 `environment.yml` 仍然保留，作为兼容旧环境或全量环境的备选方案；但 `Survey + Idea + Experiment + Blog + Pipeline` 的主路径现在是 `uv sync`。依赖现在已经拆组，默认安装保持轻量，本地模型与 PDF 解析这类重依赖按需安装。
@@ -292,6 +285,13 @@ xcientist idea --topic <your_topic_name>
 <a id="run-experiment-agent"></a>
 ### 3. 运行 Experiment Agent
 
+当前 Experiment Agent 是基于 OpenHarness 的实验控制平面，包含四个经过 review 的阶段：
+
+1. `prepare`：发现并验证仓库、数据集、模型/API 和环境绑定。
+2. `code`：在 `project/` 下构建自包含实现，并保存有界真实数据 smoke 证据。
+3. `science`：使用统一合同执行一个全组件 reference 条件和各组件禁用条件。
+4. `finalization`：验证证据 lineage，物化最终消融结果，并写回符号记忆和 receipt。
+
 推荐入口：
 
 ```bash
@@ -307,17 +307,33 @@ xcientist experiment --experiment my_exp --idea-json /abs/path/to/idea_result.js
 直接入口：
 
 ```bash
-python -m src.agents.experiment_agent.main --experiment my_exp --resume --verbose
+python -m src.agents.experiment_agent.main \
+  --experiment my_exp \
+  --config src/config/default.yaml \
+  --resume --verbose
 ```
 
-默认工作空间在 `workspace/<experiment_id>/`，常见产物包括：
+直接运行模块时，实验工作空间中需要已经存在 `idea.json` 或 `idea_result.json`；`xcientist experiment` 会先把 `--idea-json` 指定的文件复制进去。
+
+默认工作空间位于 `workspace/<experiment_id>/`，关键内容包括：
 
 - `idea.json`
-- `project/`
-- `dataset_candidate/`
-- `results/`
-- `agent_reports/`
-- `ablation_results.json`
+- `project/`：自包含的生成实现
+- `repos/`：经过验证的参考仓库
+- `dataset_candidate/` 和 `model_candidate/`：准备好的实验资源
+- `results/science/<condition_id>/`：原始日志、指标和条件输出
+- `agent_reports/`：plan、worker 产物、reviewer/hook 报告和 artifact ledger
+- `.openharness_runtime/`：实验级隔离的 OpenHarness 状态
+
+重要的 review 后产物包括：
+
+- `agent_reports/prepare/phase.json`
+- `agent_reports/code/phase.json`
+- `agent_reports/science/phase.json`
+- `agent_reports/ablation/final/ablation_results.json`
+- `agent_reports/ablation/final/symbolic_memory_receipt.json`
+
+实验智能体不会意外导入全局安装的 OpenHarness，而是固定使用 `src/harness/src`。模型、重试和运行时限制位于 `src/config/default.yaml` 的 `experiment.openharness`；相关环境变量包括 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`、`EXPERIMENT_AGENT_WORKSPACE_DIR`、`XCIENTIST_CONFIG` 和 `AGENT_BASH_TIMEOUT_SECONDS`。
 
 <a id="run-blog-agent"></a>
 ### 4. 运行 Blog Agent

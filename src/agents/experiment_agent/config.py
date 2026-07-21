@@ -1,12 +1,9 @@
-"""Claude Code-oriented experiment-agent configuration helpers."""
+"""OpenHarness-oriented experiment-agent configuration helpers."""
 
 from __future__ import annotations
 
-import json
 import os
 import shutil
-import stat
-import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -15,7 +12,7 @@ from openai import AsyncOpenAI
 from src.config import get_experiment_config, to_container
 
 
-BACKEND_CLAUDE_CODE = "claude_code"
+BACKEND_OPENHARNESS = "openharness"
 
 
 def _as_bool(value: Any, default: bool = False) -> bool:
@@ -33,12 +30,26 @@ def _as_int(value: Any, default: int) -> int:
         return int(default)
 
 
+def _as_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return float(default)
+
+
+def _first_configured(*values: Any) -> Any:
+    for value in values:
+        if value is not None and str(value).strip() != "":
+            return value
+    return None
+
+
 def _experiment_dict() -> Dict[str, Any]:
     return dict(to_container(get_experiment_config(), resolve=True) or {})
 
 
-def _claude_cfg() -> Dict[str, Any]:
-    return dict(_experiment_dict().get("claude_code", {}) or {})
+def _openharness_cfg() -> Dict[str, Any]:
+    return dict(_experiment_dict().get("openharness", {}) or {})
 
 
 def _external_tools_cfg() -> Dict[str, Any]:
@@ -57,6 +68,10 @@ def _workspace_cfg() -> Dict[str, Any]:
     return dict(_experiment_dict().get("workspace", {}) or {})
 
 
+def _api_cfg() -> Dict[str, Any]:
+    return dict(_experiment_dict().get("api", {}) or {})
+
+
 def normalize_workspace_path(path: str) -> str:
     raw = os.path.abspath(os.path.expanduser(path))
     if raw.startswith("/aistor/"):
@@ -68,201 +83,94 @@ def normalize_workspace_path(path: str) -> str:
 
 
 def get_backend_name() -> str:
-    return str(_experiment_dict().get("backend") or BACKEND_CLAUDE_CODE).strip() or BACKEND_CLAUDE_CODE
+    return str(_experiment_dict().get("backend") or BACKEND_OPENHARNESS).strip() or BACKEND_OPENHARNESS
 
 
-def get_claude_role_models() -> Dict[str, str]:
-    raw = dict(_claude_cfg().get("role_models", {}) or {})
+def get_openharness_role_models() -> Dict[str, str]:
+    raw = dict(_openharness_cfg().get("role_models", {}) or {})
+    api_cfg = _api_cfg()
+    default_large = (
+        raw.get("default")
+        or _openharness_cfg().get("default_model")
+        or api_cfg.get("large_model")
+        or api_cfg.get("default_model")
+        or os.environ.get("OPENAI_MODEL")
+        or "gpt-5.4"
+    )
+    default_worker = (
+        raw.get("worker")
+        or _openharness_cfg().get("worker_model")
+        or api_cfg.get("mini_model")
+        or api_cfg.get("default_model")
+        or os.environ.get("OPENAI_MODEL")
+        or "gpt-5-mini"
+    )
     defaults = {
-        "planner": "opus",
-        "worker": "sonnet",
-        "validator": "opus",
-        "master": "opus",
-        "integrator": "opus",
+        "planner": str(default_large),
+        "worker": str(default_worker),
+        "reviewer": str(default_large),
+        "master": str(default_large),
     }
     role_models = {role: str(model).strip() for role, model in raw.items() if str(model).strip()}
     defaults.update(role_models)
     return defaults
 
 
-def get_claude_default_model() -> str:
-    return str(_claude_cfg().get("default_model") or "opus").strip() or "opus"
+def get_openharness_default_model() -> str:
+    cfg = _openharness_cfg()
+    return str(
+        cfg.get("default_model")
+        or _api_cfg().get("large_model")
+        or _api_cfg().get("default_model")
+        or os.environ.get("OPENAI_MODEL")
+        or "gpt-5.4"
+    ).strip() or "gpt-5.4"
 
 
-def get_claude_code_config() -> Dict[str, Any]:
-    cfg = _claude_cfg()
+def get_openharness_config() -> Dict[str, Any]:
+    cfg = _openharness_cfg()
+    api_cfg = _api_cfg()
     return {
-        "binary": str(cfg.get("binary") or os.environ.get("CLAUDE_CODE_BINARY") or "claude"),
-        "default_model": get_claude_default_model(),
-        "role_models": get_claude_role_models(),
-        "permission_mode": str(cfg.get("permission_mode") or "bypassPermissions"),
-        "dangerously_skip_permissions": _as_bool(
-            cfg.get("dangerously_skip_permissions"),
-            True,
+        "default_model": get_openharness_default_model(),
+        "role_models": get_openharness_role_models(),
+        "api_key": str(
+            cfg.get("api_key")
+            or api_cfg.get("openai_api_key")
+            or api_cfg.get("api_key")
+            or os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("OPENHARNESS_OPENAI_API_KEY")
+            or ""
+        ).strip(),
+        "base_url": str(
+            cfg.get("base_url")
+            or api_cfg.get("openai_api_base")
+            or api_cfg.get("base_url")
+            or os.environ.get("OPENAI_BASE_URL")
+            or ""
+        ).strip(),
+        "timeout_seconds": _as_int(
+            _first_configured(cfg.get("timeout_seconds"), api_cfg.get("timeout_sec")),
+            900,
         ),
-        "use_bare": _as_bool(cfg.get("use_bare"), False),
-        "settings_sources": str(cfg.get("settings_sources") or "project"),
-        "global_settings_path": str(
-            cfg.get("global_settings_path")
-            or os.environ.get("CLAUDE_CODE_GLOBAL_SETTINGS")
-            or "/hpc_stor03/sjtu_home/hanqi.li/.claude/settings.json"
+        "request_max_retries": _as_int(cfg.get("request_max_retries"), 6),
+        "request_retry_base_delay": _as_float(cfg.get("request_retry_base_delay"), 1.0),
+        "request_retry_max_delay": _as_float(cfg.get("request_retry_max_delay"), 60.0),
+        "structured_output_max_hook_blocks": _as_int(cfg.get("structured_output_max_hook_blocks"), 6),
+        "max_tokens": _as_int(cfg.get("max_tokens"), 16384),
+        "max_turns": _as_int(cfg.get("max_turns"), get_execution_config()["worker_max_turns"]),
+        "context_window_tokens": (
+            _as_int(cfg.get("context_window_tokens"), 0)
+            if cfg.get("context_window_tokens") is not None
+            else None
         ),
-        "global_client_config_path": str(
-            cfg.get("global_client_config_path")
-            or os.environ.get("CLAUDE_CODE_GLOBAL_CLIENT_CONFIG")
-            or "/hpc_stor03/sjtu_home/hanqi.li/.claude.json"
+        "auto_compact_threshold_tokens": (
+            _as_int(cfg.get("auto_compact_threshold_tokens"), 0)
+            if cfg.get("auto_compact_threshold_tokens") is not None
+            else None
         ),
-        "mcp_config_path": str(cfg.get("mcp_config_path") or ""),
-        "strict_mcp_config": _as_bool(cfg.get("strict_mcp_config"), False),
-        "no_session_persistence": _as_bool(cfg.get("no_session_persistence"), True),
-        "debug_filter": str(
-            cfg.get("debug_filter") or os.environ.get("CLAUDE_CODE_DEBUG_FILTER") or ""
-        ),
-        "debug_file": str(
-            cfg.get("debug_file") or os.environ.get("CLAUDE_CODE_DEBUG_FILE") or ""
-        ),
-        "stream_renderer": str(
-            cfg.get("stream_renderer")
-            or os.environ.get("CLAUDE_CODE_STREAM_RENDERER")
-            or "off"
-        ),
-        "stream_renderer_output": str(
-            cfg.get("stream_renderer_output")
-            or os.environ.get("CLAUDE_CODE_STREAM_RENDERER_OUTPUT")
-            or "stderr"
-        ),
-        "stream_renderer_detail": str(
-            cfg.get("stream_renderer_detail")
-            or os.environ.get("CLAUDE_CODE_STREAM_RENDERER_DETAIL")
-            or "compact"
-        ),
-        "timeout_seconds": _as_int(cfg.get("timeout_seconds"), 1800),
+        "runtime_dir_name": str(cfg.get("runtime_dir_name") or ".openharness_runtime"),
         "max_budget_usd": float(cfg.get("max_budget_usd") or 0),
     }
-
-
-def get_claude_code_binary() -> str:
-    return str(get_claude_code_config()["binary"])
-
-
-def _read_dotenv_values(env_path: Path) -> Dict[str, str]:
-    if not env_path.exists():
-        return {}
-    try:
-        from dotenv import dotenv_values
-
-        return {str(k): str(v or "") for k, v in dotenv_values(env_path).items() if k}
-    except Exception:
-        values: Dict[str, str] = {}
-        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-            line = raw_line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if line.startswith("export "):
-                line = line[len("export ") :].lstrip()
-            if "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            key = key.strip()
-            value = value.strip()
-            if (
-                len(value) >= 2
-                and value[0] == value[-1]
-                and value[0] in {"'", '"'}
-            ):
-                value = value[1:-1]
-            else:
-                value = value.split(" #", 1)[0].strip()
-            if key:
-                values[key] = value
-        return values
-
-
-def _write_json_atomic(path: Path, payload: Dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    existing_mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else 0o600
-    fd, tmp_name = tempfile.mkstemp(
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-        dir=str(path.parent),
-        text=True,
-    )
-    tmp_path = Path(tmp_name)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(payload, f, ensure_ascii=False, indent=2)
-            f.write("\n")
-        os.chmod(tmp_path, existing_mode)
-        os.replace(tmp_path, path)
-    finally:
-        if tmp_path.exists():
-            tmp_path.unlink()
-
-
-def _claude_settings_env(env_values: Dict[str, str]) -> Dict[str, str]:
-    settings_env: Dict[str, str] = {}
-    for key, value in env_values.items():
-        target_key = "ANTHROPIC_AUTH_TOKEN" if key == "ANTHROPIC_API_KEY" else key
-        settings_env[target_key] = value
-    return settings_env
-
-
-def _claude_model_env(default_model: str) -> Dict[str, str]:
-    model = str(default_model or "").strip()
-    if not model:
-        return {}
-    return {
-        "ANTHROPIC_MODEL": model,
-        "ANTHROPIC_DEFAULT_SONNET_MODEL": model,
-        "ANTHROPIC_DEFAULT_OPUS_MODEL": model,
-        "ANTHROPIC_DEFAULT_HAIKU_MODEL": model,
-    }
-
-
-def sync_anthropic_env_to_claude_settings(settings_path: Optional[str] = None) -> int:
-    """Mirror project .env ANTHROPIC_* and configured Claude model into settings env."""
-    repo_env = Path(__file__).resolve().parents[3] / ".env"
-    env_values = _claude_settings_env({
-        key: value
-        for key, value in _read_dotenv_values(repo_env).items()
-        if key.startswith("ANTHROPIC_")
-    })
-    env_values.update(_claude_model_env(get_claude_default_model()))
-
-    settings = Path(
-        settings_path or get_claude_code_config()["global_settings_path"]
-    ).expanduser()
-    if settings.exists():
-        with settings.open("r", encoding="utf-8") as f:
-            payload = json.load(f)
-        if not isinstance(payload, dict):
-            payload = {}
-    else:
-        payload = {}
-
-    existing_env = payload.get("env")
-    if not isinstance(existing_env, dict):
-        existing_env = {}
-    merged_env = {str(key): str(value) for key, value in existing_env.items()}
-    merged_env.pop("ANTHROPIC_API_KEY", None)
-    synced = 0
-    removed = 0
-    for key, value in sorted(env_values.items()):
-        if value:
-            merged_env[key] = value
-            synced += 1
-        elif key in merged_env:
-            merged_env.pop(key, None)
-            removed += 1
-    payload["env"] = merged_env
-    _write_json_atomic(settings, payload)
-    if synced or removed:
-        print(
-            f"[claude-settings] synced {synced} ANTHROPIC_* entries to {settings}"
-            + (f", removed {removed}" if removed else ""),
-            flush=True,
-        )
-    return synced
 
 
 def get_external_tool_config() -> Dict[str, str]:
@@ -290,56 +198,49 @@ def get_external_tool_config() -> Dict[str, str]:
             or os.environ.get("JINA_API_KEY")
             or ""
         ),
+        "tavily_api_key": get_workspace_config()["tavily_api_key"],
+        "tavily_remote_url_template": get_workspace_config()["tavily_remote_url_template"],
+        "tavily_enabled": str(get_workspace_config()["tavily_enabled"]),
     }
 
 
 def get_api_config() -> Dict[str, str]:
-    """Backward-compatible alias for callers that only need external tools."""
     return get_external_tool_config()
 
 
 def get_models_config() -> Dict[str, str]:
-    role_models = get_claude_role_models()
+    role_models = get_openharness_role_models()
     return {
         "prepare": role_models["planner"],
         "code": role_models["planner"],
         "master": role_models["master"],
         "science": role_models["planner"],
-        "default": get_claude_default_model(),
+        "default": get_openharness_default_model(),
     }
 
 
-_AGENT_ROLE_FALLBACKS: Dict[str, List[str]] = {
+_AGENT_ROLE_ALIASES: Dict[str, List[str]] = {
     "prepareagent": ["planner"],
     "prepare_agent": ["planner"],
-    "prepare_step_executor": ["worker"],
     "prepare_repo_worker": ["worker"],
     "prepare_env_worker": ["worker"],
     "prepare_dataset_worker": ["worker"],
     "prepare_model_worker": ["worker"],
     "prepare_synthesis_worker": ["worker"],
-    "prepare_validator": ["validator"],
+    "prepare_reviewer": ["reviewer"],
     "code": ["planner"],
     "code_agent": ["planner"],
-    "code_step_executor": ["worker"],
     "code_worker": ["worker"],
-    "code_validator": ["validator"],
+    "code_reviewer": ["reviewer"],
     "master": ["master"],
     "master_agent": ["master"],
-    "standardscience": ["planner"],
-    "standard_science_agent": ["planner"],
-    "ablationscience": ["planner"],
-    "ablation_science_agent": ["planner"],
-    "standard_science_step_executor": ["worker"],
-    "ablation_science_step_executor": ["worker"],
-    "standard_science_worker": ["worker"],
-    "ablation_science_worker": ["worker"],
-    "standard_science_validator": ["validator"],
-    "ablation_science_validator": ["validator"],
-    "iterationreporter": ["integrator"],
-    "iteration_reporter": ["integrator"],
-    "ablationreportintegrator": ["integrator"],
-    "ablation_report_integrator": ["integrator"],
+    "science": ["planner"],
+    "science_agent": ["planner"],
+    "science_worker": ["worker"],
+    "science_reviewer": ["reviewer"],
+    "finalization": ["worker"],
+    "finalization_agent": ["worker"],
+    "finalization_worker": ["worker"],
 }
 
 
@@ -347,24 +248,24 @@ def _normalize_agent_model_key(name: str) -> str:
     return str(name or "").strip().lower().replace("-", "_")
 
 
-def get_agent_model(agent_name: str, fallback: Optional[str] = None) -> str:
-    role_models = get_claude_role_models()
+def get_agent_model(agent_name: str, phase_hint: Optional[str] = None) -> str:
+    role_models = get_openharness_role_models()
     normalized = _normalize_agent_model_key(agent_name)
-    candidates = list(_AGENT_ROLE_FALLBACKS.get(normalized, []))
-    if fallback:
-        fallback_key = _normalize_agent_model_key(fallback)
-        if fallback_key:
-            if fallback_key in role_models:
-                candidates.append(fallback_key)
-            elif fallback_key in {"prepare", "code", "science"}:
+    candidates = list(_AGENT_ROLE_ALIASES.get(normalized, []))
+    if phase_hint:
+        phase_key = _normalize_agent_model_key(phase_hint)
+        if phase_key:
+            if phase_key in role_models:
+                candidates.append(phase_key)
+            elif phase_key in {"prepare", "code", "science"}:
                 candidates.append("planner")
-            elif fallback_key == "master":
+            elif phase_key == "master":
                 candidates.append("master")
     for role in candidates:
         value = str(role_models.get(role) or "").strip()
         if value:
             return value
-    return get_claude_default_model()
+    return get_openharness_default_model()
 
 
 def get_prepare_agent_model() -> str:
@@ -380,42 +281,26 @@ def get_master_agent_model() -> str:
 
 
 def get_science_agent_model() -> str:
-    return get_agent_model("standard_science_agent", "science")
+    return get_agent_model("science_agent", "science")
 
 
 def get_default_model_name() -> str:
-    return get_claude_default_model()
+    return get_openharness_default_model()
 
 
 def get_agent_models_config() -> Dict[str, str]:
-    return dict(get_claude_role_models())
+    return dict(get_openharness_role_models())
 
 
 def get_execution_config() -> Dict[str, Any]:
     cfg = _execution_cfg()
     return {
-        "max_iterations": _as_int(cfg.get("max_iterations"), 20),
         "delegate_max_children": _as_int(cfg.get("delegate_max_children"), 1),
-        "planner_max_turns": _as_int(cfg.get("planner_max_turns"), 10000),
-        "worker_max_turns": _as_int(cfg.get("worker_max_turns"), 4000),
-        "prepare_validation_feedback_rounds": _as_int(
-            cfg.get("prepare_validation_feedback_rounds"), 4
-        ),
-        "code_validation_feedback_rounds": _as_int(
-            cfg.get("code_validation_feedback_rounds"), 2
-        ),
-        "science_validation_feedback_rounds": _as_int(
-            cfg.get("science_validation_feedback_rounds"), 2
-        ),
+        "planner_max_turns": _as_int(cfg.get("planner_max_turns"), 0),
+        "worker_max_turns": _as_int(cfg.get("worker_max_turns"), 0),
         "bash_timeout_seconds": _as_int(cfg.get("bash_timeout_seconds"), 600000),
         "mcp_timeout_seconds": _as_int(cfg.get("mcp_timeout_seconds"), 120),
     }
-
-
-def get_science_max_iterations() -> int:
-    return get_execution_config()["max_iterations"]
-
-
 def get_delegate_max_children() -> int:
     return get_execution_config()["delegate_max_children"]
 
@@ -426,18 +311,6 @@ def get_planner_max_turns() -> int:
 
 def get_worker_max_turns() -> int:
     return get_execution_config()["worker_max_turns"]
-
-
-def get_prepare_validation_feedback_rounds() -> int:
-    return get_execution_config()["prepare_validation_feedback_rounds"]
-
-
-def get_code_validation_feedback_rounds() -> int:
-    return get_execution_config()["code_validation_feedback_rounds"]
-
-
-def get_science_validation_feedback_rounds() -> int:
-    return get_execution_config()["science_validation_feedback_rounds"]
 
 
 def get_memory_config() -> Dict[str, Any]:
@@ -479,20 +352,15 @@ def get_workspace_config() -> Dict[str, Any]:
     }
 
 
-CLAUDE_CODE_BINARY: str = get_claude_code_binary()
 DEFAULT_MODEL: str = get_default_model_name()
 CODE_AGENT_MODEL: str = get_code_agent_model()
 PREPARE_AGENT_MODEL: str = get_prepare_agent_model()
 MASTER_AGENT_MODEL: str = get_master_agent_model()
 SCIENCE_AGENT_MODEL: str = get_science_agent_model()
 
-SCIENCE_MAX_ITERATIONS: int = get_science_max_iterations()
 DELEGATE_MAX_CHILDREN: int = get_delegate_max_children()
 PLANNER_MAX_TURNS: int = get_planner_max_turns()
 WORKER_MAX_TURNS: int = get_worker_max_turns()
-PREPARE_VALIDATION_FEEDBACK_ROUNDS: int = get_prepare_validation_feedback_rounds()
-CODE_VALIDATION_FEEDBACK_ROUNDS: int = get_code_validation_feedback_rounds()
-SCIENCE_VALIDATION_FEEDBACK_ROUNDS: int = get_science_validation_feedback_rounds()
 
 MEMORY_ENABLED: bool = get_memory_config()["enabled"]
 MEMORY_SHARED_DIR: str = get_memory_config()["shared_dir"]
@@ -522,9 +390,7 @@ if "AGENT_BASH_TIMEOUT_SECONDS" not in os.environ:
 def get_workspace_dir(experiment_id: str) -> str:
     if "EXPERIMENT_AGENT_WORKSPACE_DIR" in os.environ:
         return normalize_workspace_path(os.environ["EXPERIMENT_AGENT_WORKSPACE_DIR"])
-    if "CODEAGENT_WORKSPACES_DIR" in os.environ:
-        return normalize_workspace_path(os.environ["CODEAGENT_WORKSPACES_DIR"])
-    return normalize_workspace_path(os.path.join(BASE_WORKSPACES_DIR, experiment_id))
+    return normalize_workspace_path(os.path.join(get_workspace_config()["root"], experiment_id))
 
 
 def get_project_dir(experiment_id: str) -> str:
@@ -536,13 +402,10 @@ def get_idea_input_path(experiment_id: str) -> str:
 
     workspace = get_workspace_dir(experiment_id)
     agent_md_path = resolve_prepare_idea_path(workspace)
-    md_path = os.path.join(workspace, "prepare_idea.md")
     json_path = os.path.join(workspace, "idea.json")
     result_json_path = os.path.join(workspace, "idea_result.json")
     if os.path.exists(agent_md_path):
         return agent_md_path
-    if os.path.exists(md_path):
-        return md_path
     if os.path.exists(json_path):
         return json_path
     if os.path.exists(result_json_path):
@@ -602,7 +465,7 @@ def get_reference_repos(experiment_id: str) -> List[str]:
 
 
 def get_venv_path(project_root: str) -> str:
-    return os.path.join(project_root, "venv")
+    return os.path.join(project_root, ".venv")
 
 
 def get_venv_python(project_root: str) -> str:
@@ -691,25 +554,6 @@ def _ensure_model_share_mount(model_dir: str, seed_path: str) -> str:
     return share_link
 
 
-def _ensure_workspace_claude_setup(workspace_dir: str) -> None:
-    """Materialize a deterministic Claude Code project inside the workspace."""
-    from src.agents.experiment_agent.runtime.claude_project import (
-        materialize_workspace_claude_project,
-    )
-
-    sync_anthropic_env_to_claude_settings(
-        get_claude_code_config()["global_settings_path"]
-    )
-    materialize_workspace_claude_project(
-        workspace_dir=workspace_dir,
-        role_models=get_claude_role_models(),
-        workspace_cfg=get_workspace_config(),
-        external_cfg=get_external_tool_config(),
-        global_settings_path=get_claude_code_config()["global_settings_path"],
-        global_client_config_path=get_claude_code_config()["global_client_config_path"],
-    )
-
-
 def ensure_experiment_dirs(experiment_id: str) -> Dict[str, Any]:
     paths = get_path_config(experiment_id)
     for key in (
@@ -727,11 +571,13 @@ def ensure_experiment_dirs(experiment_id: str) -> Dict[str, Any]:
     paths["model_share_dir"] = _ensure_model_share_mount(
         paths["model_dir"], paths["model_candidate_seed"]
     )
-    os.makedirs(os.path.join(paths["workspace_dir"], "specs"), exist_ok=True)
     os.makedirs(os.path.join(paths["workspace_dir"], "templates"), exist_ok=True)
-    os.makedirs(os.path.join(paths["results_dir"], "standard"), exist_ok=True)
-    os.makedirs(os.path.join(paths["results_dir"], "ablation"), exist_ok=True)
-    _ensure_workspace_claude_setup(paths["workspace_dir"])
+    os.makedirs(os.path.join(paths["results_dir"], "science"), exist_ok=True)
+    from src.agents.experiment_agent.runtime.openharness_runner import (
+        ensure_openharness_runtime_env,
+    )
+
+    ensure_openharness_runtime_env(paths["workspace_dir"])
     return paths
 
 
@@ -764,11 +610,7 @@ def write_workspace_env_file(experiment_id: str) -> str:
     env_vars: Dict[str, str] = {}
     for key in (
         "OPENAI_API_KEY",
-        "OPENAI_API_BASE",
         "OPENAI_BASE_URL",
-        "ANTHROPIC_API_KEY",
-        "ANTHROPIC_AUTH_TOKEN",
-        "ANTHROPIC_BASE_URL",
     ):
         value = str(os.environ.get(key) or "").strip()
         if value:
@@ -844,15 +686,18 @@ _context = ProjectContext.get_instance()
 
 
 def get_openai_config(model: Optional[str] = None) -> Dict[str, Any]:
-    """Compatibility helper for memory/reporting code that still uses OpenAI clients."""
+    """OpenAI-compatible client settings for memory and utility code."""
+    api_cfg = _api_cfg()
     model_name = str(model or os.environ.get("OPENAI_MODEL") or "gpt-5-mini").strip()
     base_url = str(
         os.environ.get("OPENAI_BASE_URL")
-        or os.environ.get("OPENAI_API_BASE")
+        or api_cfg.get("openai_api_base")
         or ""
     ).strip()
     cfg: Dict[str, Any] = {
-        "api_key": str(os.environ.get("OPENAI_API_KEY") or "").strip(),
+        "api_key": str(
+            os.environ.get("OPENAI_API_KEY") or api_cfg.get("openai_api_key") or ""
+        ).strip(),
         "model_name": model_name,
         "provider_prefix": "",
         "is_minimax": False,
@@ -869,7 +714,7 @@ def get_llm_config(model: Optional[str] = None) -> Dict[str, Any]:
 def get_model_config() -> Dict[str, Any]:
     return {
         "backend": get_backend_name(),
-        "claude_code": get_claude_code_config(),
+        "openharness": get_openharness_config(),
         "prepare": {"agent": get_prepare_agent_model()},
         "code": {"agent": get_code_agent_model()},
         "science": {"agent": get_science_agent_model()},
@@ -880,7 +725,7 @@ def get_model_config() -> Dict[str, Any]:
 
 def setup_openai_api(model: Optional[str] = None, verbose: bool = True) -> bool:
     try:
-        from httpx import Timeout
+        import httpx
 
         cfg = get_openai_config(model)
         if not cfg.get("api_key"):
@@ -889,8 +734,9 @@ def setup_openai_api(model: Optional[str] = None, verbose: bool = True) -> bool:
             return False
         client_kwargs = {
             "api_key": cfg["api_key"],
-            "timeout": Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0),
+            "timeout": httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0),
             "max_retries": 10,
+            "http_client": httpx.AsyncClient(trust_env=False),
         }
         if cfg.get("base_url"):
             client_kwargs["base_url"] = cfg["base_url"]
@@ -908,12 +754,10 @@ def setup_openai_api(model: Optional[str] = None, verbose: bool = True) -> bool:
 
 def validate_config() -> tuple[bool, List[str]]:
     errors: List[str] = []
-    if get_backend_name() != BACKEND_CLAUDE_CODE:
-        errors.append(f"experiment.backend must be `{BACKEND_CLAUDE_CODE}`")
-    if not get_claude_code_binary():
-        errors.append("experiment.claude_code.binary is not set")
+    if get_backend_name() != BACKEND_OPENHARNESS:
+        errors.append(f"experiment.backend must be `{BACKEND_OPENHARNESS}`")
     if not get_default_model_name():
-        errors.append("experiment.claude_code.default_model is not set")
+        errors.append("experiment.openharness.default_model is not set")
     for name, value in {
         "PREPARE_AGENT_MODEL": get_prepare_agent_model(),
         "CODE_AGENT_MODEL": get_code_agent_model(),
@@ -933,42 +777,54 @@ def _mask_secret(value: str) -> str:
 
 
 def print_config() -> None:
-    claude_cfg = get_claude_code_config()
+    from src.agents.experiment_agent.telemetry import print_kv_table
+
+    harness_cfg = get_openharness_config()
     external_cfg = get_external_tool_config()
-    print("=" * 60)
-    print("Experiment Agent Configuration")
-    print("=" * 60)
-    print("\n[Backend]")
-    print(f"  Backend: {get_backend_name()}")
-    print(f"  Claude Binary: {claude_cfg['binary']}")
-    print(f"  Default Model: {claude_cfg['default_model']}")
-    print(f"  Permission Mode: {claude_cfg['permission_mode']}")
-    print(f"  Dangerously Skip Permissions: {claude_cfg['dangerously_skip_permissions']}")
-    print(f"  Bare Mode: {claude_cfg['use_bare']}")
-    print(f"  Settings Sources: {claude_cfg['settings_sources']}")
-    if claude_cfg["mcp_config_path"]:
-        print(f"  MCP Config Path: {claude_cfg['mcp_config_path']}")
-    print("\n[Role Models]")
-    for role, model in sorted(claude_cfg["role_models"].items()):
-        print(f"  {role}: {model}")
-    print("\n[External Tools]")
-    print(f"  HuggingFace Endpoint: {external_cfg['huggingface_endpoint']}")
-    print(f"  GitHub AI Token: {_mask_secret(external_cfg['github_ai_token'])}")
-    print(f"  Serper API Key: {_mask_secret(external_cfg['serper_api_key'])}")
-    print(f"  Jina API Key: {_mask_secret(external_cfg['jina_api_key'])}")
-    print("\n[Workspace Configuration]")
-    print(f"  Base Workspaces Dir: {get_workspace_config()['root']}")
-    print(f"  Model Candidate Seed: {get_workspace_config()['model_candidate_seed']}")
-    print(f"  Tavily Enabled: {get_workspace_config()['tavily_enabled']}")
+    workspace_rows = {
+        "base_workspaces_dir": get_workspace_config()["root"],
+        "model_candidate_seed": get_workspace_config()["model_candidate_seed"] or "(disabled)",
+        "tavily_enabled": get_workspace_config()["tavily_enabled"],
+    }
     if WORKSPACE_ROOT:
-        print(f"  Current Workspace: {WORKSPACE_ROOT}")
+        workspace_rows["current_workspace"] = WORKSPACE_ROOT
     if PROJECT_ROOT:
-        print(f"  Current Project: {PROJECT_ROOT}")
-    print("\n[Execution Configuration]")
-    print(f"  Delegate Max Children: {get_delegate_max_children()}")
-    print(f"  Planner Max Turns: {get_planner_max_turns()}")
-    print(f"  Worker Max Turns: {get_worker_max_turns()}")
-    print("=" * 60)
+        workspace_rows["current_project"] = PROJECT_ROOT
+
+    print_kv_table(
+        "Experiment Agent Configuration",
+        {
+            "backend": get_backend_name(),
+            "default_model": harness_cfg["default_model"],
+            "api_base_url": harness_cfg["base_url"] or "(default OpenAI endpoint)",
+            "timeout_seconds": harness_cfg["timeout_seconds"],
+            "request_retries": harness_cfg["request_max_retries"],
+            "request_retry_base_delay": harness_cfg["request_retry_base_delay"],
+            "request_retry_max_delay": harness_cfg["request_retry_max_delay"],
+            "structured_output_hook_blocks": harness_cfg["structured_output_max_hook_blocks"],
+            "max_tokens": harness_cfg["max_tokens"],
+            "runtime_dir": harness_cfg["runtime_dir_name"],
+        },
+    )
+    print_kv_table("Role Models", dict(sorted(harness_cfg["role_models"].items())))
+    print_kv_table(
+        "External Tools",
+        {
+            "huggingface_endpoint": external_cfg["huggingface_endpoint"],
+            "github_ai_token": external_cfg["github_ai_token"],
+            "serper_api_key": external_cfg["serper_api_key"],
+            "jina_api_key": external_cfg["jina_api_key"],
+        },
+    )
+    print_kv_table("Workspace", workspace_rows, mask_sensitive=False)
+    print_kv_table(
+        "Execution",
+        {
+            "delegate_max_children": get_delegate_max_children(),
+            "planner_max_turns": get_planner_max_turns(),
+            "worker_max_turns": get_worker_max_turns(),
+        },
+    )
 
 
 if __name__ == "__main__":

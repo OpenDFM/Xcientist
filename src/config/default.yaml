@@ -315,32 +315,25 @@ idea:
 # ============================================
 experiment:
   enabled: true
-  backend: "claude_code"
+  backend: "openharness"
 
-  claude_code:
-    binary: "claude"
-    default_model: "glm-5.1"
+  openharness:
+    default_model: "${oc.env:OPENAI_MODEL,'gpt-5.4'}"
+    api_key: "${api.openai.api_key}"
+    base_url: "${api.openai.base_url}"
     role_models:
-      planner: "glm-5.1"
-      worker: "glm-5.1"
-      validator: "glm-5.1"
-      master: "glm-5.1"
-      integrator: "glm-5.1"
-    permission_mode: "bypassPermissions"
-    dangerously_skip_permissions: true
-    use_bare: false
-    settings_sources: "project"
-    global_settings_path: "~/.claude/settings.json"
-    global_client_config_path: "~/.claude.json"
-    mcp_config_path: ""
-    strict_mcp_config: false
-    no_session_persistence: true
-    debug_filter: "api"
-    debug_file: "logs/claude_code/claude_debug.log"
-    stream_renderer: "rich"            # off | plain | rich | raw
-    stream_renderer_output: "stderr"  # stdout | stderr
-    stream_renderer_detail: "compact" # compact | full
+      planner: "${oc.env:OPENAI_PLANNER_MODEL,'gpt-5.4'}"
+      worker: "${oc.env:OPENAI_WORKER_MODEL,'gpt-5-mini'}"
+      reviewer: "${oc.env:OPENAI_REVIEWER_MODEL,'gpt-5.4'}"
+      master: "${oc.env:OPENAI_MASTER_MODEL,'gpt-5.4'}"
     timeout_seconds: 7200
+    request_max_retries: 6
+    request_retry_base_delay: 1.0
+    request_retry_max_delay: 60.0
+    structured_output_max_hook_blocks: 6
+    max_tokens: 16384
+    max_turns: 0
+    runtime_dir_name: ".openharness_runtime"
     max_budget_usd: 0
 
   external_tools:
@@ -353,11 +346,11 @@ experiment:
   execution:
     max_iterations: 20
     delegate_max_children: 1
-    planner_max_turns: 10000
-    worker_max_turns: 4000
-    prepare_validation_feedback_rounds: 4
-    code_validation_feedback_rounds: 2
-    science_validation_feedback_rounds: 2
+    planner_max_turns: 0
+    worker_max_turns: 0
+    prepare_review_feedback_rounds: 4
+    code_review_feedback_rounds: 2
+    science_review_feedback_rounds: 2
     bash_timeout_seconds: 600000
     mcp_timeout_seconds: 120
     slurm:

@@ -4,11 +4,52 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
-from src.memory.memory_system.component_taxonomy import extract_component_families
-from src.memory.api.symbolic_memory_system_api import SymbolicMemorySystem
 from src.memory.api.base_symbolic_memory_system_api import SymbolicRecordPayload
+from src.memory.api.symbolic_memory_system_api import SymbolicMemorySystem
+from src.memory.memory_system.component_taxonomy import extract_component_families
 
-from src.config import load_config
+
+def _default_macro_roles(config: Any) -> List[str]:
+    value = getattr(config, "default_macro_roles", None)
+    if value is None:
+        pipeline_cfg = getattr(config, "pipeline", None)
+        if pipeline_cfg is not None:
+            if hasattr(pipeline_cfg, "get"):
+                value = pipeline_cfg.get("default_macro_roles")
+            else:
+                value = getattr(pipeline_cfg, "default_macro_roles", None)
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        return [str(item) for item in value if str(item).strip()]
+    return [str(value)]
+
+
+def _config_lookup(config: Any, path: str, default: Any = None) -> Any:
+    current = config
+    for part in str(path or "").split("."):
+        if current is None:
+            return default
+        if hasattr(current, "get"):
+            try:
+                current = current.get(part)
+            except Exception:
+                current = None
+        else:
+            current = getattr(current, part, None)
+    return default if current is None else current
+
+
+def _configured_symbolic_memory_path(config: Any) -> str:
+    for path in (
+        "pipeline.symbolic_memory_path",
+        "flow.memory.symbolic_memory_path",
+        "symbolic_memory_path",
+    ):
+        value = str(_config_lookup(config, path, "") or "").strip()
+        if value:
+            return value
+    return "idea_skill_priors"
 
 
 def normalize_component_family(
@@ -38,10 +79,12 @@ def convert_ablation_to_symbolic_memory(
     symbolic_memory_path: Optional[str] = None,
     config: Optional[Any] = None,
 ) -> List[Dict[str, Any]]:
+    from src.config import load_config
+
     config = config or load_config()
-    pipeline_cfg = config.pipeline
+    default_roles = _default_macro_roles(config)
     if symbolic_memory_path is None:
-        symbolic_memory_path = str(pipeline_cfg.get("symbolic_memory_path", "idea_skill_priors"))
+        symbolic_memory_path = _configured_symbolic_memory_path(config)
 
     # Load ablation results
     ablation_data = load_ablation_results(ablation_path)
@@ -66,7 +109,7 @@ def convert_ablation_to_symbolic_memory(
         # Normalize component family
         component_family = normalize_component_family(
             comp_id,
-            config.default_macro_roles,
+            default_roles,
             method_context=method_context,
         )
 
@@ -88,6 +131,7 @@ def convert_ablation_to_symbolic_memory(
         created_records.append(record.to_dict())
 
     # Save the updated memory
-    memory.save(symbolic_memory_path)
+    if not memory.save(symbolic_memory_path):
+        raise RuntimeError(f"failed to save symbolic memory at `{symbolic_memory_path}`")
 
     return created_records

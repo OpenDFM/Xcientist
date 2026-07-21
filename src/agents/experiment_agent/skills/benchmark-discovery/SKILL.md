@@ -15,14 +15,16 @@ Translate datasets and repository evidence into the exact benchmark surfaces tha
 - Extract benchmark candidates from cloned repositories, dataset READMEs, and the idea description.
 - Keep only benchmarks that are directly relevant to validating the idea.
 - Mark each benchmark as `ready` or `blocked`.
-- Include `required_conditions` such as `baseline`, `full_method`, and stress conditions.
+- Include required science conditions using the current unified condition model:
+  an all-components reference condition and component-disabled conditions for
+  each canonical idea component.
 - For each benchmark, record the concrete real data path and the definition of a full run.
 - **CRITICAL**: The benchmark data files from `dataset_candidate/` MUST be used in experiments. Record the exact file paths so later phases use them.
-- Feed the benchmark evidence back into `agent_reports/prepare_idea.md` under `## Dataset Usage Guidance` and `## Repository-to-Dataset Mapping` so the human-readable document matches the validated worker evidence.
+- Feed the benchmark evidence back into the managed prepare handoff `agent_reports/prepare/artifacts/idea.md` under `## Dataset Usage Guidance` and `## Repository-to-Dataset Mapping` so the human-readable document matches the validated worker evidence.
 - If a repository has no confirmed benchmark linkage, record `no direct mapping` instead of inventing one.
 
 ## Required Output
-- Stage worker report requested by the planner
+- Final worker JSON response requested by the planner; the runtime persists the worker report.
 
 ## Failure Conditions
 - No benchmark list is produced.
