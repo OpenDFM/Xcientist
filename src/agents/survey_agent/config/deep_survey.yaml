@@ -1,0 +1,162 @@
+BasicInfo:
+  topic:  Multimodal Large Language Models
+  base_dir: /hpc_stor03/sjtu_home/ziyue.yang/sci-agent/deep-survey
+  cache_path: ./database
+  save_path: ./outputs/test/survey.md
+  save_json_path: ./outputs/test/survey.json
+  evaluation_save_path: ./outputs/test/eval.txt
+  debug: True
+  error_conservatism_mode: False
+  skip_exist: True
+  adapter_mode: False
+APIInfo:
+  llm_api_key: 
+  llm_api_base_url: 
+  llm_model_name: gpt-5-mini
+  llm_max_context_length: 160000
+  use_stream_mode: False
+  batch_chat_agent_worker: 32
+  chat_timeout: 300
+  batch_chat_timeout: 1800
+  semantic_scholar_api_key: 
+  low_flow_mode: False
+  low_flow_latency: 0
+  exponential_backoff: True
+  exponential_backoff_time: 1
+  exponential_backoff_max_time: 60
+  arxiv_api_max_retry: 3
+  semantic_scholar_api_max_retry: 3
+ModuleInfo:
+  WorkCollector:
+    download_safe_mode: False
+    download_timeout: 60
+    download_in_parallel: True
+    download_parallel_workers: 8
+    cache_enabled: True
+    max_seed_paper_num: 5
+    use_seed_filter_LLM: True
+    LLM_seed_threshold: 4
+    reference_graph_depth: 1
+    sentence_transformer_model: sentence-transformers/all-MiniLM-L6-v2
+    sentence_transformer_batch_size: 32
+    expand_in_local_paper_graph: True
+    use_ds_when_graph_fail: True
+    advanced_filter_in_local_paper_graph_expansion: True
+    related_work_top_k: 30  # for debug
+    log_related_work_num: -1 # set to -1 to log all
+    related_work_threshold: 0.5
+    related_work_threshold_for_llm: 4 # 1-5 scale
+    relatedness_temperature: 1.0
+    RAG_source_use_embedding_filter: True
+    RAG_source_use_LLM_filter: False
+    RAG_source_downloadable_only: False
+  Database:
+    default_top_k: 20
+  PaperGraphRetriever:
+    db_path: data/processed/graph.db
+  WorkAnalyzer:
+    abstract_only_mode: False
+    cache_enabled: True
+    use_local_paper_graph_keynotes: True
+    use_ds_keynotes_when_graph_fail: True
+    graph_keynote_extraction_batch_retry: 7
+    graph_graph_keynote_extraction_temperature: 0.1
+    paper_reading_temperature: 1.0
+    paper_reading_max_retry: 5
+    llm_max_context_overhead_length_in_paper_reading: 20000
+    clustering_batch_size: 16
+    clustering_temperature: 0.5
+    clustering_in_steps: True
+    clustering_batch_size_in_creation: 32
+    clustering_batch_size_in_assignment: 8
+    cluster_assign_fast_mode: True
+    paper_clustering_max_retry: 10
+    paper_clustering_creation_max_retry: 3
+    paper_clustering_assignment_max_retry: 10
+    propose_question_temperature: 1.0
+    anwer_question_temperature: 1.0
+    intra_cluster_analysis_max_retry: 10
+    intra_cluster_analysis_temperature: 1.0
+    intra_clustering_probelm_proposing_max_retry: 10
+  SurveyGenerator:
+    include_initial_analysis: False
+    include_relation_graph: True
+    include_relation_table: True
+    include_code_report: False
+    include_env_report: False
+    omit_error_preserve_retry_time: 2
+    outline_generation_in_steps: True
+    outline_generation_draft_max_retry: 3
+    outline_generation_draft_batch_size: 20
+    outline_generation_draft_max_iterations: 5
+    outline_generation_draft_empty_keynotes_iteration: 1
+    outline_draft_RAG_topk: 60
+    outline_generation_assign_max_retry: 10
+    outline_generation_assign_batch_size: 10
+    outline_assign_RAG_topk: 20
+    outline_assign_fast_mode: True
+    outline_generation_temperature: 0.5
+    outline_generation_batch_size: 16
+    outline_generation_max_retry: 3
+    outline_generation_max_retry_in_generation_loop: 6
+    subsection_draft_temperature: 1.0
+    subsection_draft_max_retry: 5
+    section_draft_max_retry: 5
+    always_omit_error_in_draft_validation: True
+    section_draft_temperature: 1.0
+    draft_refinement_temperature: 1.0
+    section_draft_max_error_info_length: 500
+    subsection_draft_max_error_info_length: 500
+    outline_max_error_info_length: 500
+    llm_max_context_overhead_length_generation: 20000
+    llm_max_context_overhead_length_outline_generation: 10000
+    subsection_least_words: 700
+    subsection_least_citations: 15
+    section_least_words: 20000
+    section_preamble_least_words: 100
+    section_preamble_least_citations: 3
+    draft_length_relax_ratio: 0.1
+    use_full_text_in_survey_generation: False
+    include_other_relevant_papers_RAG_in_outline: True
+    outline_RAG_topk: 200
+    include_other_relevant_papers_RAG: True
+    section_RAG_topk: 60
+    subsection_RAG_topk: 60
+    use_title_in_draft: True
+    enable_review_and_revise: True
+    agentic_refine_section: True
+    section_review_temperature: 1.0
+    section_review_retry: 3
+    reviewer_max_suggestions: 5
+    section_revision_RAG_topk: 30
+    section_revise_temperature: 0.5
+    section_revise_retry: 5
+    no_suggestion_run_each_iteration: 1
+    max_review_revise_iterations: 5
+    revise_section_in_parallel: 4
+    draft_refinement_in_parts: True
+    refine_in_parts_mode: 2
+    draft_refinement_max_retry: 7
+    review_and_revise_whole_survey_in_refinement: True
+    agentic_refine_survey: True
+    review_and_revise_whole_survey_max_iteration: 5
+    valid_title_min_similarity: 0.5
+    revise_section_in_parallel: 1
+  CodeAnalysis:
+    PseudoCreator:
+      planner_temperature: 0.5
+      planner_max_retry: 3
+  Judge:
+    skip_evaluation: False
+    use_different_api_for_judge: False
+    model: gpt-5-mini
+    judge_llm_api_key: 
+    judge_llm_api_base_url: 
+    nli_temperature: 0.1
+    citation_quality_threshold: 0.5
+    remove_failed_citation_in_eval: True
+    rubrics_eval_10_dimensions: True
+    rubrics_eval_4_dimensions: False
+    rubrics_deep_survey_eval: False
+    explanation_in_rubric: False
+    citation_eval: True

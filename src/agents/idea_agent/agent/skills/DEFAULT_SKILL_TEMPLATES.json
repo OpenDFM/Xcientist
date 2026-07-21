@@ -1,0 +1,263 @@
+{
+  "mechanism-commit-innovation": {
+    "description": "Commit to one concrete mechanism-level innovation by strengthening one weak existing component and keep scaffolding secondary to the task-solving path.",
+    "structural_mode": "local_refinement",
+    "scope_preference": "existing_component",
+    "requires_control_centered_parent": false,
+    "defects": [
+      "stagnant_novelty",
+      "unclear_mechanism",
+      "validation_gap"
+    ],
+    "guardrails": [
+      "Name the exact mechanism being introduced and the existing component it strengthens or replaces.",
+      "Keep one main mechanism; move supporting implementation details to notes or protocols.",
+      "Prefer direct replacement of the weak internal block over adding a broader coordination structure.",
+      "Use the smallest validation suite that can falsify the core mechanism."
+    ],
+    "atomic_blueprint": [
+      "REPLACE_COMPONENT(weak_internal_component -> refined_internal_component)",
+      "ADD_PROTOCOL(ablation)"
+    ],
+    "required_protocols": [
+      "ablation"
+    ],
+    "avoid_combinations": [
+      "ADD_COMPONENT(refined_internal_component) in the same plan"
+    ],
+    "execution_logic": [
+      "Identify the defect from `defect_tags`.",
+      "Generate the solution by instantiating the `atomic_blueprint`.",
+      "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
+    ]
+  },
+  "alternative-path-contrast": {
+    "description": "Introduce a structured alternative treatment for failure regimes so rare cases and recovery behavior are explicit without turning the method into generic control scaffolding.",
+    "structural_mode": "path_branching",
+    "scope_preference": "execution_path",
+    "requires_control_centered_parent": false,
+    "defects": [
+      "brittle_single_path",
+      "rare_regime_failure",
+      "weak_fallback_behavior"
+    ],
+    "guardrails": [
+      "Limit the number of new paths; one alternative path should address one concrete failure regime.",
+      "State the observable condition that separates the primary regime from the alternative treatment.",
+      "Validate the regimes where the alternative treatment should dominate or recover failure."
+    ],
+    "atomic_blueprint": [
+      "ADD_COMPONENT(alternative_path_module)",
+      "REWIRE(alternative_path_module -> failure_regime_interface)",
+      "ADD_PROTOCOL(ablation,stress)"
+    ],
+    "required_protocols": [
+      "ablation",
+      "stress"
+    ],
+    "avoid_combinations": [
+      "REMOVE_COMPONENT(failure_regime_interface) in the same plan"
+    ],
+    "execution_logic": [
+      "Identify the defect from `defect_tags`.",
+      "Generate the solution by instantiating the `atomic_blueprint`.",
+      "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
+    ]
+  },
+  "surgical-modularity": {
+    "description": "Perform a localized block-level intervention with replace/rewire and prove the gain with focused ablation.",
+    "structural_mode": "local_refinement",
+    "scope_preference": "existing_component",
+    "requires_control_centered_parent": false,
+    "defects": [
+      "feature_dumping",
+      "monolithic_design",
+      "harder_to_ablate"
+    ],
+    "guardrails": [
+      "Touch exactly one weak block.",
+      "Keep interfaces explicit after rewiring.",
+      "Include a mandatory block-level ablation."
+    ],
+    "atomic_blueprint": [
+      "REPLACE_COMPONENT(weak_block -> modular_block)",
+      "REWIRE(modular_block -> downstream_interface)",
+      "ADD_PROTOCOL(ablation)"
+    ],
+    "required_protocols": [
+      "ablation"
+    ],
+    "avoid_combinations": [
+      "ADD_COMPONENT(extra_auxiliary_stack) in the same plan"
+    ],
+    "execution_logic": [
+      "Identify the defect from `defect_tags`.",
+      "Generate the solution by instantiating the `atomic_blueprint`.",
+      "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
+    ]
+  },
+  "multi-scale-coordinator": {
+    "description": "Add a cross-scale consistency mechanism that aligns representations or decisions across scales without making coordination overhead the main contribution.",
+    "structural_mode": "cross_scale_coordination",
+    "scope_preference": "broad_architecture",
+    "requires_control_centered_parent": false,
+    "defects": [
+      "scale_mismatch",
+      "coordination_failure",
+      "latency_bottleneck"
+    ],
+    "guardrails": [
+      "Specify the cross-scale consistency rule and what information each scale contributes.",
+      "Quantify the coordination overhead in latency or compute terms.",
+      "Keep validation centered on whether cross-scale consistency improves the core task path."
+    ],
+    "atomic_blueprint": [
+      "ADD_COMPONENT(scale_consistency_module)",
+      "REWIRE(scale_consistency_module -> scale_interface)",
+      "ADD_PROTOCOL(ablation)"
+    ],
+    "required_protocols": [
+      "ablation"
+    ],
+    "avoid_combinations": [
+      "REMOVE_COMPONENT(scale_interface) in the same plan"
+    ],
+    "execution_logic": [
+      "Identify the defect from `defect_tags`.",
+      "Generate the solution by instantiating the `atomic_blueprint`.",
+      "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
+    ]
+  },
+  "hierarchical-decomposition": {
+    "description": "Replace a flat control or execution flow with a hierarchy that assigns responsibilities across explicit levels.",
+    "structural_mode": "hierarchical_reorg",
+    "scope_preference": "broad_architecture",
+    "requires_control_centered_parent": false,
+    "defects": [
+      "responsibility_entanglement",
+      "monolithic_design",
+      "scale_mismatch"
+    ],
+    "guardrails": [
+      "Separate responsibilities cleanly across levels.",
+      "Avoid duplicating the same control logic in every layer.",
+      "Show that the hierarchy improves control, analysis, or scaling rather than adding ceremony."
+    ],
+    "atomic_blueprint": [
+      "REPLACE_COMPONENT(flat_pipeline -> hierarchical_pipeline)",
+      "REWIRE(hierarchical_pipeline -> execution_path)",
+      "ADD_PROTOCOL(ablation)"
+    ],
+    "required_protocols": [
+      "ablation"
+    ],
+    "avoid_combinations": [
+      "ADD_COMPONENT(parallel_shadow_pipeline) in the same plan"
+    ],
+    "execution_logic": [
+      "Identify the defect from `defect_tags`.",
+      "Generate the solution by instantiating the `atomic_blueprint`.",
+      "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
+    ]
+  },
+  "feedback-closed-loop": {
+    "description": "Turn an open-loop process into a feedback-guided update mechanism that measures outcomes and adapts an existing rule online.",
+    "structural_mode": "feedback_loop",
+    "scope_preference": "execution_path",
+    "requires_control_centered_parent": true,
+    "defects": [
+      "silent_failure",
+      "drift",
+      "open_loop_fragility"
+    ],
+    "guardrails": [
+      "Define the feedback signal, update cadence, and stability boundaries.",
+      "Keep the adaptive update lightweight relative to the controlled path.",
+      "Validate the loop under drift, delay, or stale-feedback regimes."
+    ],
+    "atomic_blueprint": [
+      "ADD_COMPONENT(feedback_monitor)",
+      "REWIRE(feedback_monitor -> adaptation_rule)",
+      "ADD_PROTOCOL(ablation,stress)"
+    ],
+    "required_protocols": [
+      "ablation",
+      "stress"
+    ],
+    "avoid_combinations": [
+      "REMOVE_COMPONENT(adaptation_rule) in the same plan"
+    ],
+    "execution_logic": [
+      "Identify the defect from `defect_tags`.",
+      "Generate the solution by instantiating the `atomic_blueprint`.",
+      "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
+    ]
+  },
+  "theory-transfer-injection": {
+    "description": "Inject a theory-backed mechanism or invariant from another domain and wire it into the core objective or mechanism rule.",
+    "structural_mode": "objective_injection",
+    "scope_preference": "core_objective",
+    "requires_control_centered_parent": false,
+    "defects": [
+      "stagnant_novelty",
+      "theory_gap",
+      "weak_generalization"
+    ],
+    "guardrails": [
+      "Name the transferred principle and where it enters the core path.",
+      "Limit transfer to one main mechanism instead of a bundle of unrelated ideas.",
+      "Add the minimum stress coverage needed to detect negative transfer."
+    ],
+    "atomic_blueprint": [
+      "ADD_COMPONENT(theory_transfer_module)",
+      "REWIRE(theory_transfer_module -> core_objective)",
+      "ADD_PROTOCOL(ablation,stress)"
+    ],
+    "required_protocols": [
+      "ablation",
+      "stress"
+    ],
+    "avoid_combinations": [
+      "ADD_COMPONENT(unrelated_parallel_module) in the same plan"
+    ],
+    "execution_logic": [
+      "Identify the defect from `defect_tags`.",
+      "Generate the solution by instantiating the `atomic_blueprint`.",
+      "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
+    ]
+  },
+  "speculative-execution-with-repair": {
+    "description": "Introduce speculative or optimistic execution plus explicit repair so the system can pursue fast paths without giving up recoverability.",
+    "structural_mode": "path_branching",
+    "scope_preference": "execution_path",
+    "requires_control_centered_parent": false,
+    "defects": [
+      "over_conservative_execution",
+      "latency_bottleneck",
+      "rollback_blindspot"
+    ],
+    "guardrails": [
+      "Define when speculation triggers and how mis-speculation is detected.",
+      "Bound repair cost and rollback scope.",
+      "Compare against a conservative baseline under matched experimental conditions."
+    ],
+    "atomic_blueprint": [
+      "ADD_COMPONENT(speculative_executor)",
+      "ADD_COMPONENT(repair_handler)",
+      "REWIRE(speculative_executor -> repair_handler)",
+      "ADD_PROTOCOL(ablation,stress)"
+    ],
+    "required_protocols": [
+      "ablation",
+      "stress"
+    ],
+    "avoid_combinations": [
+      "REMOVE_COMPONENT(repair_handler) in the same plan"
+    ],
+    "execution_logic": [
+      "Identify the defect from `defect_tags`.",
+      "Generate the solution by instantiating the `atomic_blueprint`.",
+      "Format: FUNCTION_NAME(ARGUMENTS) -> REASONING"
+    ]
+  }
+}

@@ -1,0 +1,196 @@
+import os
+import traceback
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, Optional, Any
+from uuid import uuid4
+
+from omegaconf import OmegaConf
+
+from src.agents.idea_agent.agent.artifacts import artifact_set
+from src.agents.idea_agent.agent.ligagent import LigAgent
+from src.agents.idea_agent.utils.core.ablation_inputs import (
+    ingest_ablation_results_if_available,
+)
+from src.agents.idea_agent.utils.core.logger import get_logger, init_logger
+from src.agents.idea_agent.utils.core.config_loader import (
+    get_config_value,
+    load_idea_agent_config,
+    load_project_config,
+)
+from src.agents.idea_agent.utils.core.json_utils import read_json_file
+from src.agents.idea_agent.utils.core.run_inputs import clean_optional_text, load_topic, resolve_run_inputs
+from src.agents.idea_agent.utils.workflow.idea_contract import normalize_idea_contract
+from src.agents.idea_agent.utils.workflow.ligagent_flow import run_agent_loop
+from src.agents.survey_agent.utils.topic_survey_storage import (
+    apply_existing_survey_artifact_paths,
+    apply_topic_survey_paths,
+    find_reusable_survey,
+    get_survey_output_root,
+    normalize_topic_slug,
+)
+
+DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "runs"
+IDEA_AGENT_ROOT = Path(__file__).resolve().parent
+
+def _load_previous_idea_candidate() -> Optional[Dict[str, Any]]:
+    previous_candidate_path = clean_optional_text(os.getenv("IDEA_AGENT_PREVIOUS_CANDIDATE_PATH"))
+    if not previous_candidate_path:
+        return None
+    payload = read_json_file(Path(previous_candidate_path))
+    return normalize_idea_contract(payload, allow_legacy=True, keep_extra=True)
+
+
+def _resolve_runtime_survey_config(
+    survey_config: Optional[object],
+    topic: str,
+    *,
+    judge_model: str,
+) -> tuple[Optional[object], Optional[str]]:
+    if survey_config is None:
+        return None, None
+
+    runtime_config = OmegaConf.create(OmegaConf.to_container(survey_config, resolve=False))
+    output_root = get_survey_output_root(runtime_config)
+    reusable = find_reusable_survey(
+        topic,
+        config=runtime_config,
+        output_root=output_root,
+        judge_model=judge_model,
+    )
+    if reusable is not None:
+        apply_existing_survey_artifact_paths(runtime_config, reusable)
+        return runtime_config, reusable.topic
+
+    apply_topic_survey_paths(runtime_config, topic, output_root=output_root)
+    return runtime_config, topic
+
+
+def _run_topic(
+    topic: str,
+    output_root: str,
+    run_id: str,
+    include_console: bool,
+    rag_config: str,
+    resolved_inputs: Dict[str, object],
+    survey_config: Optional[object] = None,
+) -> str:
+    run_dir = Path(output_root) / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "logs").mkdir(parents=True, exist_ok=True)
+
+    os.environ["IDEA_AGENT_TASK_TOPIC"] = topic
+    print(f"[{topic}] 🏃 Starting run in {run_dir}...")
+
+    init_logger(
+        log_dir=str(run_dir / "logs"),
+        filename="ligagent.log",
+        include_console=include_console,
+        include_timestamp=False,
+        force_reinit=True,
+    )
+    logger = get_logger()
+    logger.info("========================================")
+    logger.info("💡 The research topic is %s", topic)
+
+    config = load_idea_agent_config()
+    agent = LigAgent(
+        run_dir=run_dir,
+        rag_config=rag_config,
+        config=config,
+        survey_config=survey_config,
+    )
+    agent.bootstrap_topic(topic)
+    previous_candidate = _load_previous_idea_candidate()
+    if previous_candidate is not None:
+        artifact_set(agent.artifact, "latest_candidate", previous_candidate)
+
+    if clean_optional_text(str(resolved_inputs.get("mature_idea") or "")):
+        artifact_set(agent.artifact, "mature_idea", clean_optional_text(str(resolved_inputs["mature_idea"])))
+    artifact_set(agent.artifact, "mature_idea_source", str(resolved_inputs.get("mature_idea_source") or ""))
+    if clean_optional_text(str(resolved_inputs.get("refinement_scope") or "")):
+        artifact_set(
+            agent.artifact,
+            "refinement_scope",
+            clean_optional_text(str(resolved_inputs["refinement_scope"])),
+        )
+    artifact_set(
+        agent.artifact,
+        "refinement_scope_source",
+        str(resolved_inputs.get("refinement_scope_source") or ""),
+    )
+    ingest_ablation_results_if_available(agent, resolved_inputs, logger)
+
+    try:
+        run_agent_loop(agent, logger)
+    except (Exception, KeyboardInterrupt):
+        logger.info("Artifact snapshot at failure: %s", getattr(agent, "artifact", {}))
+        tb = traceback.format_exc()
+        logger.error("Traceback:\n%s", tb)
+        raise RuntimeError(f"Worker failed for topic '{topic}': {tb}") from None
+
+    logger.info("✅ Finished topic '%s'. Results in %s", topic, run_dir)
+    return str(run_dir)
+
+
+def _apply_env_config(config: Optional[object]) -> None:
+    if config is None:
+        return
+    env_map = {
+        "OPENAI_API_KEY": "run.openai_api_key",
+        "OPENAI_BASE_URL": "run.openai_base_url",
+        "S2_API_KEY": "run.s2_api_key",
+        "S2_API_TIMEOUT": "run.s2_api_timeout",
+    }
+    for env_var, key in env_map.items():
+        if env_var not in os.environ:
+            value = get_config_value(config, key, None)
+            if value is not None:
+                os.environ[env_var] = str(value)
+
+def main() -> int:
+    config = load_idea_agent_config()
+    project_config = load_project_config()
+    _apply_env_config(config)
+    resolved_inputs = resolve_run_inputs(config, default_output_root=str(DEFAULT_OUTPUT_ROOT))
+    topic = load_topic(str(resolved_inputs["topic"]))
+    survey_config, survey_topic = _resolve_runtime_survey_config(
+        get_config_value(project_config, "survey", None),
+        topic,
+        judge_model=str(get_config_value(config, "agent.model", "gpt-5-mini") or "gpt-5-mini"),
+    )
+    if survey_topic:
+        if survey_topic == topic:
+            print(f"[{topic}] using survey topic -> {survey_topic}")
+        else:
+            print(f"[{topic}] reusing survey topic -> {survey_topic}")
+    output_root = Path(str(resolved_inputs["output_root"])).expanduser()
+    if not output_root.is_absolute():
+        output_root = IDEA_AGENT_ROOT / output_root
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    rag_config = str(resolved_inputs["rag_config"])
+    include_console = bool(resolved_inputs["console_logs"])
+
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    unique = uuid4().hex[:8]
+    run_id = f"{normalize_topic_slug(topic)}-{timestamp}-{unique}"
+    try:
+        result_dir = _run_topic(
+            topic,
+            str(output_root),
+            run_id,
+            include_console,
+            rag_config,
+            resolved_inputs,
+            survey_config,
+        )
+        print(f"[{topic}] ✅ completed -> {result_dir}")
+        return 0
+    except Exception as exc:
+        print(f"[{topic}] ❌ failed: {exc}")
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

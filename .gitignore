@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Experiment Agent - 排除工作空间和缓存
+src/agents/experiment_agent/workspaces/
+src/agents/experiment_agent/workspace/
+
+# Paper Agent - 排除工作空间
+src/agents/paper_agent/workspaces/
+
+# Idea Agent - 清除检索缓存
+src/agents/idea_agent/cache/
+src/agents/idea_agent/.cache
+src/agents/survey_agent/config/database
+src/agents/idea_agent/runs
+src/agents/idea_agent/ablation_results.json
+
+# Survey Agent - 排除检索缓存
+src/agents/survey_agent/database/
+src/agents/survey_agent/logs
+
+
+# Memory
+src/memory/memory_system/.cache
+src/memory/memory_system/__pycache__/
+src/agents/survey_agent/config/database/paper_keynotes
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Environment
+.env
+.venv/
+venv/
+memory_test.sh
+.gitignore
+outputs
+database/workcollector_relatedness_cache/cache.db
+src/agents/survey_agent/config/database/workcollector_relatedness_cache/cache.db
+database/paper_abstracts/cache.db
+database/pdf_papers/
+memory_test_1/
+memory_validation/
+.codex
+skills/
+AGENTS.md
+.python-version
+uv.lock/
+.pip-cache/
+.uv-cache/
+database/
+
+# Pipeline workspace
+/workspace
+
+# Cache directories
+.cache/
+.checkpoints/
+.conversations/
+
+# Output directories
+output/
+__pycache__/
+
+# Data
+data/
+
+# Embedding Models
+models/
+
